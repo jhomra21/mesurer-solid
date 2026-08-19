@@ -65,8 +65,10 @@ describe("Measurer host integration", () => {
     const settings = document.querySelector<HTMLElement>('[role="dialog"][aria-label="Settings"]');
     expect(settings).toBeTruthy();
     expect(settings!.className).toContain("msr:w-[272px]");
-    const tabs = [...settings!.querySelectorAll<HTMLButtonElement>('[role="tab"]')].map((tab) => tab.textContent);
-    expect(tabs).toEqual(["Guides", "Select", "Color", "Rulers", "General"]);
+    const tabs = [...settings!.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Guides", "Select", "Color", "Rulers", "General"]);
+    expect(tabs.find((tab) => tab.textContent === "Rulers")?.getAttribute("aria-selected")).toBe("true");
+    expect(settings!.querySelector('[aria-label="Ruler settings"]')).toBeTruthy();
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await settle();
