@@ -44,6 +44,9 @@ jobs:
       - name: Install Solid workspace
         run: bun install
 
+      - name: Generate Solid styles
+        run: bun run --filter '@jhomra21/mesurer-solid' styles
+
       - name: Install React upstream workspace
         run: |
           cd upstream
