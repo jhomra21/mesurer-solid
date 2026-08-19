@@ -66,7 +66,9 @@ async function snapshotMetrics(page) {
     : [];
 
   return {
-    bodyClass: await page.locator("body").getAttribute("class"),
+    xrayActive: await page.locator("body").evaluate((body) =>
+      body.classList.contains("xray-mode") || body.classList.contains("mesurer-solid-xray"),
+    ),
     toolbarButtons,
     toolbar: await elementSnapshot(page, ".mesurer-toolbar-surface"),
     settings: await elementSnapshot(page, '[role="dialog"][aria-label="Settings"]'),
@@ -81,7 +83,7 @@ async function snapshotMetrics(page) {
 }
 
 const openSettings = async (page) => {
-  await page.keyboard.press("Control+,");
+  await dispatchMouse(page.getByRole("button", { name: /^Settings/ }), "click", true);
   await page.getByRole("dialog", { name: "Settings" }).waitFor();
 };
 
