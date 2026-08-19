@@ -32,6 +32,41 @@ describe("createMeasurerModel", () => {
     expect(model.state.guides[0]?.id).toBe("g1");
   });
 
+  it("chooses the upstream settings tab when settings open without an explicit tab", () => {
+    const model = createMeasurerModel();
+
+    model.setToolMode("select");
+    model.setTransient({ settingsOpen: true });
+    expect(model.current.settingsTab).toBe("select");
+
+    model.setTransient({ settingsOpen: false });
+    model.setToolMode("guides");
+    model.setTransient({ settingsOpen: true });
+    expect(model.current.settingsTab).toBe("guides");
+
+    model.setTransient({ settingsOpen: false });
+    model.setToolMode("none");
+    model.setRulersVisible(true);
+    model.setTransient({ settingsOpen: true });
+    expect(model.current.settingsTab).toBe("rulers");
+
+    model.setTransient({ settingsOpen: false, colorPickerActive: true });
+    model.setTransient({ settingsOpen: true });
+    expect(model.current.settingsTab).toBe("color-picker");
+
+    model.setTransient({ settingsOpen: false, colorPickerActive: false });
+    model.setRulersVisible(false);
+    model.setTransient({ settingsOpen: true });
+    expect(model.current.settingsTab).toBe("general");
+  });
+
+  it("preserves an explicit settings tab when opening settings", () => {
+    const model = createMeasurerModel();
+    model.setToolMode("guides");
+    model.setTransient({ settingsOpen: true, settingsTab: "general" });
+    expect(model.current.settingsTab).toBe("general");
+  });
+
   it("serializes settings and strips runtime element references from workspace data", () => {
     const model = createMeasurerModel({ settings: { persistOnReload: true } });
     model.updateSettings({ guideColor: "#ff0000", snapGuidesEnabled: false });
