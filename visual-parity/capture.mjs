@@ -5,8 +5,18 @@ import path from "node:path";
 const reactUrl = process.env.PARITY_REACT_URL;
 const solidUrl = process.env.PARITY_SOLID_URL;
 const outputDir = process.env.PARITY_OUT;
+const deviceScaleFactor = Number.parseFloat(process.env.PARITY_DPR ?? "1");
+const requestedStates = new Set(
+  (process.env.PARITY_STATES ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
 if (!reactUrl || !solidUrl || !outputDir) {
   throw new Error("PARITY_REACT_URL, PARITY_SOLID_URL and PARITY_OUT are required");
+}
+if (!Number.isFinite(deviceScaleFactor) || deviceScaleFactor <= 0) {
+  throw new Error(`PARITY_DPR must be a positive number, received: ${process.env.PARITY_DPR}`);
 }
 
 await fs.mkdir(outputDir, { recursive: true });
@@ -66,6 +76,7 @@ async function snapshotMetrics(page) {
     : [];
 
   return {
+    deviceScaleFactor,
     xrayActive: await page.locator("body").evaluate((body) =>
       body.classList.contains("xray-mode") || body.classList.contains("mesurer-solid-xray"),
     ),
@@ -189,13 +200,23 @@ const states = [
   },
 ];
 
+const selectedStates = requestedStates.size
+  ? states.filter((state) => requestedStates.has(state.name))
+  : states;
+
+if (requestedStates.size && selectedStates.length !== requestedStates.size) {
+  const known = new Set(states.map((state) => state.name));
+  const unknown = [...requestedStates].filter((state) => !known.has(state));
+  throw new Error(`Unknown PARITY_STATES: ${unknown.join(", ")}`);
+}
+
 const browser = await chromium.launch({ headless: true });
 try {
   for (const [implementation, url] of [["react", reactUrl], ["solid", solidUrl]]) {
-    for (const state of states) {
+    for (const state of selectedStates) {
       const context = await browser.newContext({
         viewport: { width: 1024, height: 768 },
-        deviceScaleFactor: 1,
+        deviceScaleFactor,
         colorScheme: "light",
         locale: "en-US",
       });
@@ -220,6 +241,7 @@ try {
       await page.screenshot({
         path: path.join(outputDir, `${implementation}-${state.name}.png`),
         fullPage: false,
+        scale: "device",
       });
       const metrics = await snapshotMetrics(page);
       await fs.writeFile(
