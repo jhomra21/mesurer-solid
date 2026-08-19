@@ -93,8 +93,9 @@ const states = [
     name: "tooltip",
     run: async (page) => {
       const select = page.getByRole("button", { name: /^Select/ });
-      await dispatchMouse(select, "mouseover", true);
-      await dispatchMouse(select, "mouseenter", false);
+      const box = await select.boundingBox();
+      if (!box) throw new Error("Select button has no bounding box");
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.waitForTimeout(900);
     },
   },
