@@ -18,14 +18,9 @@ framework-neutral Mesurer core/runtime
 
 ## Solid 2 scheduler rule
 
-Solid 2 store/signal writes are staged. Interaction code therefore never relies on this pattern:
+The current Solid 2 RC can expose a `createStore` mutation immediately when it is read back from imperative command code, while downstream reactive computations and effects still participate in Solid's scheduler/batching model. The implementation therefore avoids depending on either synchronous or deferred reactive propagation for pointer/history logic.
 
-```ts
-setValue(next);
-readValue(); // do not assume this is next
-```
-
-`createMeasurerModel()` maintains a synchronous command-side snapshot (`model.current`) and publishes each command into the Solid store (`model.state`). JSX subscribes to `state`; imperative pointer/history code computes from `current`. `flush()` is reserved for tests or genuine imperative settle boundaries.
+`createMeasurerModel()` maintains a synchronous command-side snapshot (`model.current`) and publishes every command into the Solid store (`model.state`). JSX subscribes to `state`; imperative pointer, guide and history code computes from `current`. This keeps interaction correctness independent of effect timing and leaves `flush()` for tests or genuine imperative settle boundaries.
 
 ## Ownership boundaries
 
