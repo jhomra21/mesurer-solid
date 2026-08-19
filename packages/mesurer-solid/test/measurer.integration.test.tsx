@@ -20,41 +20,69 @@ afterEach(async () => {
 });
 
 describe("Measurer host integration", () => {
-  it("mounts through Solid 2 and responds to public keyboard behavior", async () => {
+  it("uses the upstream Mesurer toolbar/settings visual contract and public shortcuts", async () => {
     const host = document.createElement("div");
     document.body.append(host);
 
-    const dispose = render(
-      () => <Measurer persistKey="integration-main" />,
-      host,
-    );
+    const dispose = render(() => <Measurer persistKey="integration-main" />, host);
     mounted.push(dispose);
     await settle();
 
     expect(document.querySelector("[data-mesurer-root]")).toBeTruthy();
-    const selectButton = document.querySelector<HTMLButtonElement>('button[title="Select (S)"]');
-    expect(selectButton).toBeTruthy();
+    const toolbar = document.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
+    expect(toolbar).toBeTruthy();
+    expect(toolbar!.className).toContain("mesurer-toolbar-surface");
+    expect(toolbar!.className).toContain("msr:rounded-[12px]");
+    expect(toolbar!.className).toContain("msr:p-1");
 
+    const labels = [...toolbar!.querySelectorAll<HTMLButtonElement>("button[aria-label]")].map((button) => button.getAttribute("aria-label"));
+    expect(labels.slice(0, 7)).toEqual([
+      "Select (S)",
+      "X-ray (X)",
+      "Color picker (P)",
+      "Rulers (R)",
+      "Text inspector (A)",
+      "Guides (G)",
+      "Guide orientation menu",
+    ]);
+    expect(toolbar!.querySelector('button[aria-label="Toggle Mesurer (M)"]')).toBeNull();
+    expect(toolbar!.querySelectorAll("svg").length).toBeGreaterThanOrEqual(7);
+
+    const selectButton = toolbar!.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')!;
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "s" }));
     await settle();
-    expect(selectButton!.classList.contains("is-active")).toBe(true);
+    expect(selectButton.getAttribute("aria-pressed")).toBe("true");
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "r" }));
     await settle();
-    expect(document.querySelector(".msr-rulers")).toBeTruthy();
-    expect(document.querySelector<HTMLButtonElement>('button[title="Rulers (R)"]')?.classList.contains("is-active")).toBe(true);
+    const rulers = document.querySelector<HTMLElement>("[data-mesurer-rulers='true']");
+    expect(rulers).toBeTruthy();
+    expect(rulers!.querySelector(".msr\\:left-\\[18px\\]")).toBeTruthy();
+    expect(toolbar!.querySelector<HTMLButtonElement>('button[aria-label="Rulers (R)"]')?.getAttribute("aria-pressed")).toBe("true");
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: ",", ctrlKey: true }));
     await settle();
-    expect(document.querySelector(".msr-settings")).toBeTruthy();
+    const settings = document.querySelector<HTMLElement>('[role="dialog"][aria-label="Settings"]');
+    expect(settings).toBeTruthy();
+    expect(settings!.className).toContain("msr:w-[272px]");
+    const tabs = [...settings!.querySelectorAll<HTMLButtonElement>('[role="tab"]')].map((tab) => tab.textContent);
+    expect(tabs).toEqual(["Guides", "Select", "Color", "Rulers", "General"]);
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await settle();
-    expect(document.querySelector(".msr-settings")).toBeNull();
+    expect(document.querySelector('[role="dialog"][aria-label="Settings"]')).toBeNull();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p" }));
+    await settle();
+    const picker = document.querySelector<HTMLElement>(".mesurer-color-picker");
+    expect(picker).toBeTruthy();
+    expect(picker!.className).toContain("msr:min-w-36");
+    expect(picker!.className).toContain("msr:font-mono");
+    expect(picker!.className).toContain("msr:text-[10px]");
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "m" }));
     await settle();
-    expect(selectButton!.classList.contains("is-active")).toBe(false);
+    expect(selectButton.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("creates and cleans up an Element portal host inside a ShadowRoot", async () => {
@@ -74,6 +102,7 @@ describe("Measurer host integration", () => {
     expect(portalHost).toBeTruthy();
     expect(shadow.querySelector("[data-mesurer-root]")).toBeTruthy();
     expect(shadow.querySelector("#mesurer-solid-styles")).toBeTruthy();
+    expect(shadow.querySelector(".mesurer-toolbar-surface")).toBeTruthy();
 
     dispose();
     mounted.pop();
