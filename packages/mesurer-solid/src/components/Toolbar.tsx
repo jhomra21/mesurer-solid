@@ -22,6 +22,7 @@ export type ToolbarProps = {
   onColorPicker: () => void;
   onClearWorkspace: () => void;
   onResetSettings: () => void;
+  onElement?: (element: HTMLDivElement) => void;
 };
 
 const TOOLBAR_DRAG_SLOP = 6;
@@ -175,12 +176,14 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <div
+      ref={props.onElement}
       data-mesurer-toolbar="true"
       data-mesurer-inspector-ui="true"
       class="mesurer-toolbar-surface msr:pointer-events-auto msr:absolute msr:z-[90] msr:flex msr:items-center msr:gap-1 msr:rounded-[12px] msr:bg-[#fff] msr:p-1 msr:outline msr:outline-transparent"
       style={{ left: `${position().x}px`, top: `${position().y}px` }}
       onPointerDown={(event) => { event.stopPropagation(); props.model.setTransient({ toolbarActive: true }); onToolbarPointerDown(event); }}
-      onClick={(event) => { event.stopPropagation(); if (suppressClick) { event.preventDefault(); suppressClick = false; } }}
+      onClickCapture={(event) => { if (!suppressClick) return; event.preventDefault(); event.stopPropagation(); suppressClick = false; }}
+      onClick={(event) => event.stopPropagation()}
       onMouseLeave={tooltip.onTooltipContainerLeave}
     >
       <ToolbarButton id="select" active={props.model.state.toolMode === "select"} label="Select" shortcut="S" onClick={() => activate("select")} {...buttonProps("select")}><CursorIcon size={20} /></ToolbarButton>
