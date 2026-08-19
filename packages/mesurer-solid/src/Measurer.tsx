@@ -5,6 +5,7 @@ import { MeasurerOverlay } from "./components/MeasurerOverlay";
 import { RulersOverlay } from "./components/RulersOverlay";
 import { Toolbar } from "./components/Toolbar";
 import { formatColor, parseCssColor, type ColorPickerFormat } from "./core/colors";
+import { GUIDE_DRAG_HOLD_MS } from "./core/constants";
 import { getDistanceOverlay, updateDistanceForResize } from "./core/distances";
 import { getInspectMeasurement, updateMeasurementForResize } from "./core/dom";
 import { getRectFromPoints, getViewportSize } from "./core/geometry";
@@ -22,6 +23,7 @@ import {
   type GuideStyle,
   type MesurerPersistence,
   type MesurerPersistenceSnapshot,
+  type MesurerStoredSettings,
   type PersistenceChangeSource,
   type RulerSettings,
 } from "./core/persistence";
@@ -60,7 +62,6 @@ export type MeasurerProps = {
   rulerSettings?: Partial<RulerSettings>;
   persistence?: MesurerPersistence;
   onPersistenceError?: (error: unknown) => void;
-  onModel?: (model: MeasurerModel) => void;
 };
 
 type Environment = {
@@ -106,6 +107,17 @@ const getTabId = (ownerWindow: Window) => {
   }
 };
 
+const sanitizeStoredSettings = (ownerWindow: Window, settings: MesurerStoredSettings): MesurerStoredSettings => {
+  const supportsColor = (value: string | undefined) =>
+    value !== undefined &&
+    (ownerWindow as Window & { CSS?: { supports: (property: string, value: string) => boolean } }).CSS?.supports("color", value) === true;
+  return {
+    ...settings,
+    ...(supportsColor(settings.highlightColor) ? {} : { highlightColor: undefined }),
+    ...(supportsColor(settings.guideColor) ? {} : { guideColor: undefined }),
+  };
+};
+
 const unionSelection = (items: InspectMeasurement[], origin: Rect | null): InspectMeasurement | null => {
   if (items.length <= 1) return null;
   let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
@@ -148,7 +160,8 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   let hoverPoint: Point | null = null;
   let shiftToggleElement: HTMLElement | null = null;
   let shiftDrag = false;
-  let pointerGuideAction: (() => void) | null = null;
+  let guideDragHoldTimer = 0;
+  let guideDragHoldId: string | null = null;
   let scrollPosition = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
 
   const activeRect = createMemo(() => {
@@ -240,6 +253,21 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
     });
   };
 
+  const clearGuideDragHold = () => {
+    if (guideDragHoldTimer) ownerWindow.clearTimeout(guideDragHoldTimer);
+    guideDragHoldTimer = 0;
+    guideDragHoldId = null;
+  };
+
+  const scheduleGuideDragHold = (id: string) => {
+    clearGuideDragHold();
+    guideDragHoldId = id;
+    guideDragHoldTimer = ownerWindow.setTimeout(() => {
+      guideDragHoldTimer = 0;
+      if (guideDragHoldId === id) model.setTransient({ draggingGuideId: id });
+    }, GUIDE_DRAG_HOLD_MS);
+  };
+
   const resetDrag = () => {
     model.setTransient({ start: null, end: null, isDragging: false, draggingGuideId: null, guidePreview: null });
     shiftToggleElement = null; shiftDrag = false; selectionCache.key = "";
@@ -273,9 +301,15 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
       });
       model.addGuide({ id, orientation: model.current.guideOrientation, position });
       model.setSelectedGuideIds(model.current.settings.selectNewGuideEnabled ? [id] : []);
-      model.setTransient({ draggingGuideId: id, guidePreview: null });
+      model.setTransient({ guidePreview: null });
+      scheduleGuideDragHold(id);
       event.currentTarget.setPointerCapture?.(event.pointerId);
       return;
+    }
+
+    if (model.current.selectedGuideIds.length > 0) {
+      commit();
+      model.setSelectedGuideIds([]);
     }
 
     shiftDrag = event.shiftKey;
@@ -319,6 +353,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   const pointerUp = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
     if (!model.current.enabled) return;
     if (model.current.toolMode === "guides") {
+      clearGuideDragHold();
       if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId);
       resetDrag();
       return;
@@ -327,7 +362,6 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
     const start = model.current.start;
     if (!start) { resetDrag(); return; }
     const point = { x: event.clientX, y: event.clientY };
-    const commit = pointerGuideAction ?? (() => {});
 
     if (model.current.isDragging) {
       const rect = getRectFromPoints(start, point);
@@ -358,7 +392,10 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
       return;
     }
 
-    const target = getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument);
+    const target = event.shiftKey
+      ? (getTargetElement(point, rootElement, ownerDocument) ??
+        getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument))
+      : getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument);
     if (target) {
       const measurement = getInspectMeasurement(target, ownerWindow);
       model.checkpoint();
@@ -375,10 +412,10 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
       model.checkpoint(); model.setSelectedMeasurements([], null);
     }
     resetDrag();
-    void commit;
   };
 
   const pointerLeave = () => {
+    clearGuideDragHold();
     if (!model.current.draggingGuideId) resetDrag();
     model.setTransient({ guidePreview: null });
   };
@@ -516,15 +553,14 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
     activePersistence = persistence;
     persistence.setErrorHandler?.(input.onPersistenceError);
     const stored = persistence.load();
-    if (stored?.settings) model.applyStoredSettings(stored.settings);
+    if (stored?.settings) model.applyStoredSettings(sanitizeStoredSettings(ownerWindow, stored.settings));
     if ((model.current.settings.persistOnReload || input.persistOnReload) && stored?.workspace) model.applyStoredWorkspace(stored.workspace);
     persistenceReady = true;
     if (model.current.toolMode === "text-inspector" && model.current.enabled) textInspector.enable();
-    input.onModel?.(model);
 
     const applyExternal = (snapshot: MesurerPersistenceSnapshot | null, source?: PersistenceChangeSource) => {
       if (!snapshot) return;
-      if (source?.settings !== false) model.applyStoredSettings(snapshot.settings);
+      if (source?.settings !== false) model.applyStoredSettings(sanitizeStoredSettings(ownerWindow, snapshot.settings));
       if (source?.workspace !== false && snapshot.workspace && model.current.settings.persistOnReload) model.applyStoredWorkspace(snapshot.workspace);
     };
     const unsubscribe = persistence.subscribe?.(applyExternal);
@@ -619,6 +655,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
     return () => {
       ownerWindow.cancelAnimationFrame(syncFrame);
       ownerWindow.cancelAnimationFrame(hoverFrame);
+      clearGuideDragHold();
       ownerWindow.clearTimeout(persistTimer);
       if (model.current.settings.persistOnReload) persistence.saveWorkspace(model.serializeWorkspace());
       unsubscribe?.();
@@ -708,7 +745,7 @@ export default function Measurer(props: MeasurerProps) {
     if (target.nodeType === 11) {
       portalMount = ownerDocument.createElement("div");
       portalMount.dataset.mesurerPortal = "true";
-      (target as ShadowRoot).append(portalMount);
+      target.append(portalMount);
       ownedPortalMount = true;
     } else {
       portalMount = target as HTMLElement;
