@@ -1,60 +1,41 @@
 import { Show } from "solid-js";
-import type { InspectMeasurement, Measurement, Rect } from "../core/types";
+import type { InspectMeasurement, Measurement } from "../core/types";
 import type { EdgeVisibility } from "../core/edge-visibility";
-import { formatValue } from "../core/utils";
+import { MEASURE_LABEL_OFFSET, MEASURE_TRANSITION_MS } from "../core/constants";
 
 export type MeasurementBoxProps = {
   measurement: Measurement | InspectMeasurement | null;
-  outlineColor?: string;
-  fillColor?: string;
+  outlineColor: string;
+  fillColor: string;
   edgeVisibility?: EdgeVisibility;
-  selected?: boolean;
-  showBoxModel?: boolean;
 };
 
 const allEdges: EdgeVisibility = { top: true, right: true, bottom: true, left: true };
-const rectStyle = (rect: Rect) => ({
-  left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`,
-});
+const formatValue = (value: number) => Math.round(value);
 
 export function MeasurementBox(props: MeasurementBoxProps) {
-  const outline = () => props.outlineColor ?? "color-mix(in oklch, oklch(0.62 0.18 255) 80%, transparent)";
-  const fill = () => props.fillColor ?? "color-mix(in oklch, oklch(0.62 0.18 255) 8%, transparent)";
   const edges = () => props.edgeVisibility ?? allEdges;
-  const inspect = () => props.measurement && "paddingRect" in props.measurement ? props.measurement : null;
-  const displayLabel = (measurement: Measurement | InspectMeasurement) =>
-    "label" in measurement ? `${measurement.label} · ` : "";
-
   return (
     <Show when={props.measurement}>
-      {(measurement) => (
-        <>
-          <Show when={props.showBoxModel && inspect()}>
-            {(value) => (
-              <>
-                <div class="msr-box-model msr-box-model--margin" style={rectStyle(value().marginRect)} />
-                <div class="msr-box-model msr-box-model--padding" style={rectStyle(value().paddingRect)} />
-              </>
-            )}
-          </Show>
-          <div
-            class={["msr-measurement", { "msr-measurement--selected": !!props.selected }]}
-            style={{ ...rectStyle(measurement().rect), "background-color": fill() }}
-          >
-            <Show when={edges().top}><span class="msr-edge msr-edge--top" style={{ "background-color": outline() }} /></Show>
-            <Show when={edges().right}><span class="msr-edge msr-edge--right" style={{ "background-color": outline() }} /></Show>
-            <Show when={edges().bottom}><span class="msr-edge msr-edge--bottom" style={{ "background-color": outline() }} /></Show>
-            <Show when={edges().left}><span class="msr-edge msr-edge--left" style={{ "background-color": outline() }} /></Show>
-          </div>
-          <div
-            class="msr-measure-tag"
-            style={{ left: `${measurement().rect.left + measurement().rect.width / 2}px`, top: `${measurement().rect.top + measurement().rect.height + 3}px` }}
-          >
-            {displayLabel(measurement())}
-            {formatValue(measurement().rect.width)} × {formatValue(measurement().rect.height)}
-          </div>
-        </>
-      )}
+      {(measurement) => <div class="msr:pointer-events-none" data-mesurer-selected-measurement={"paddingRect" in measurement() ? "true" : undefined}>
+        <div class="msr:absolute" style={{
+          left: `${measurement().rect.left}px`, top: `${measurement().rect.top}px`, width: `${measurement().rect.width}px`, height: `${measurement().rect.height}px`,
+          "background-color": props.fillColor,
+          transition: `left ${MEASURE_TRANSITION_MS}ms ease, top ${MEASURE_TRANSITION_MS}ms ease, width ${MEASURE_TRANSITION_MS}ms ease, height ${MEASURE_TRANSITION_MS}ms ease`,
+        }}>
+          <Show when={edges().top}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ "background-color": props.outlineColor }} /></Show>
+          <Show when={edges().right}><div class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
+          <Show when={edges().bottom}><div class="msr:absolute msr:bottom-0 msr:left-0 msr:h-px msr:w-full" style={{ "background-color": props.outlineColor }} /></Show>
+          <Show when={edges().left}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
+        </div>
+        <div class="msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:-translate-x-1/2 msr:bg-ink-900/90" style={{
+          left: `${measurement().rect.left + measurement().rect.width / 2}px`,
+          top: `${measurement().rect.top + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
+          transition: `left ${MEASURE_TRANSITION_MS}ms ease, top ${MEASURE_TRANSITION_MS}ms ease`,
+        }}>
+          {formatValue(measurement().rect.width)} x {formatValue(measurement().rect.height)}
+        </div>
+      </div>}
     </Show>
   );
 }
