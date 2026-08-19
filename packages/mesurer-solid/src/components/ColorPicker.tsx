@@ -71,7 +71,14 @@ export function ColorPicker(props: { model: MeasurerModel; ownerWindow: Window }
       <div ref={(element) => { panel = element; }} class="mesurer-color-picker msr:pointer-events-auto msr:fixed msr:z-[80] msr:min-w-36 msr:rounded-lg msr:border msr:border-black/10 msr:bg-white msr:px-2 msr:py-2 msr:font-mono msr:text-[10px] msr:leading-4 msr:shadow-lg" role="dialog" aria-label="Selected color values" data-mesurer-inspector-ui="true" onMouseLeave={tooltip.onTooltipContainerLeave}>
         <Show when={props.model.state.colorPickerUnsupported} fallback={
           <Show when={props.model.state.colorPickerSample}>{(sample) => <>
-            <Show when={headerFormat()}>{(format) => <div class={secondaryFormats().length > 0 ? "msr:mb-1 msr:flex msr:items-center msr:gap-1.5 msr:border-b msr:border-black/8 msr:pb-1" : "msr:flex msr:items-center msr:gap-1.5"}>
+            <Show
+              when={headerFormat()}
+              fallback={
+                <div class="msr:flex msr:items-center">
+                  <span class="msr:size-3 msr:shrink-0 msr:rounded-full msr:border msr:border-black/15" style={{ "background-color": colorToHex(sample()) }} aria-hidden="true" />
+                </div>
+              }
+            >{(format) => <div class={secondaryFormats().length > 0 ? "msr:mb-1 msr:flex msr:items-center msr:gap-1.5 msr:border-b msr:border-black/8 msr:pb-1" : "msr:flex msr:items-center msr:gap-1.5"}>
               <span class="msr:size-3 msr:shrink-0 msr:rounded-full msr:border msr:border-black/15" style={{ "background-color": colorToHex(sample()) }} aria-hidden="true" />
               <CopyValue id={format()} value={formatColor(sample(), format())} class="msr:font-medium msr:tabular-nums msr:text-black msr:hover:underline" />
             </div>}</Show>
