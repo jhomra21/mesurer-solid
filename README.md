@@ -19,7 +19,7 @@ The Solid port shares upstream Mesurer's Tailwind v4 design source and ports its
 - text-inspector card sizing, typography and shadows
 - light color scheme, ink palette, shadows, radii and `#0d99ff` active state
 
-There is intentionally no Solid-specific redesign or alternate dark-mode skin.
+There is intentionally no Solid-specific redesign or alternate dark-mode skin. The framework/runtime implementation is the intended difference.
 
 ## Develop
 
