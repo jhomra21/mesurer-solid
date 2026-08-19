@@ -78,8 +78,6 @@ type HistorySnapshot = Pick<
   MeasurerModelState,
   | "enabled"
   | "toolMode"
-  | "rulersVisible"
-  | "xrayVisible"
   | "guideOrientation"
   | "selectedMeasurements"
   | "selectedMeasurement"
@@ -88,7 +86,10 @@ type HistorySnapshot = Pick<
   | "heldDistances"
   | "guides"
   | "selectedGuideIds"
+  | "draggingGuideId"
 >;
+
+const HISTORY_LIMIT = 50;
 
 const defaults: MeasurerSettings = {
   highlightColor: "oklch(0.62 0.18 255)",
@@ -195,8 +196,6 @@ export function createMeasurerModel(options: MeasurerModelOptions = {}) {
   const snapshotHistory = (): HistorySnapshot => ({
     enabled: current.enabled,
     toolMode: current.toolMode,
-    rulersVisible: current.rulersVisible,
-    xrayVisible: current.xrayVisible,
     guideOrientation: current.guideOrientation,
     selectedMeasurements: [...current.selectedMeasurements],
     selectedMeasurement: current.selectedMeasurement,
@@ -205,11 +204,30 @@ export function createMeasurerModel(options: MeasurerModelOptions = {}) {
     heldDistances: [...current.heldDistances],
     guides: current.guides.map((guide) => ({ ...guide })),
     selectedGuideIds: [...current.selectedGuideIds],
+    draggingGuideId: current.draggingGuideId,
   });
+
+  const snapshotSignature = (snapshot: HistorySnapshot) => {
+    const serializeRect = (rect: Rect) =>
+      `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
+    return [
+      snapshot.enabled ? "1" : "0",
+      snapshot.toolMode,
+      snapshot.guideOrientation,
+      snapshot.measurements.map((item) => `${item.id}@${serializeRect(item.rect)}`).join(","),
+      snapshot.activeMeasurement ? `${snapshot.activeMeasurement.id}@${serializeRect(snapshot.activeMeasurement.rect)}` : "",
+      snapshot.selectedMeasurements.map((item) => `${item.id}@${serializeRect(item.rect)}`).join(","),
+      snapshot.selectedMeasurement ? `${snapshot.selectedMeasurement.id}@${serializeRect(snapshot.selectedMeasurement.rect)}` : "",
+      snapshot.heldDistances.map((item) => item.id).join(","),
+      snapshot.guides.map((item) => `${item.id}:${item.position}`).join(","),
+      snapshot.selectedGuideIds.join(","),
+      snapshot.draggingGuideId ?? "",
+    ].join("|");
+  };
 
   const history: HistorySnapshot[] = [];
   const future: HistorySnapshot[] = [];
-  let actionCheckpointed = false;
+  let historySignature: string | null = null;
 
   const restoreHistory = (value: HistorySnapshot) => {
     mutate((draft) => {
@@ -220,35 +238,40 @@ export function createMeasurerModel(options: MeasurerModelOptions = {}) {
       draft.hoverRect = null;
       draft.hoverElement = null;
       draft.hoverPointer = null;
-      draft.draggingGuideId = null;
       draft.guidePreview = null;
       draft.altPressed = false;
     });
   };
 
-  const checkpoint = () => {
-    history.push(snapshotHistory());
-    if (history.length > 100) history.shift();
+  const pushHistory = (snapshot: HistorySnapshot) => {
+    const signature = snapshotSignature(snapshot);
+    if (historySignature === signature) return;
+    history.push(snapshot);
     future.length = 0;
+    historySignature = signature;
+    if (history.length > HISTORY_LIMIT) history.shift();
   };
 
+  const checkpoint = () => pushHistory(snapshotHistory());
+
   const beginAction = () => {
-    actionCheckpointed = false;
+    const snapshot = snapshotHistory();
+    let committed = false;
     return () => {
-      if (actionCheckpointed) return;
-      checkpoint();
-      actionCheckpointed = true;
+      if (committed) return;
+      pushHistory(snapshot);
+      committed = true;
     };
   };
 
-  const endAction = () => {
-    actionCheckpointed = false;
-  };
+  const endAction = () => {};
 
   const undo = () => {
     const previous = history.pop();
     if (!previous) return false;
     future.push(snapshotHistory());
+    if (future.length > HISTORY_LIMIT) future.shift();
+    historySignature = null;
     restoreHistory(previous);
     return true;
   };
@@ -256,6 +279,8 @@ export function createMeasurerModel(options: MeasurerModelOptions = {}) {
     const next = future.pop();
     if (!next) return false;
     history.push(snapshotHistory());
+    if (history.length > HISTORY_LIMIT) history.shift();
+    historySignature = null;
     restoreHistory(next);
     return true;
   };
