@@ -1,0 +1,124 @@
+name: visual-parity
+
+on:
+  pull_request:
+    paths:
+      - "packages/mesurer-solid/**"
+      - "examples/basic/**"
+      - "visual-parity/**"
+      - ".github/workflows/visual-parity.yml"
+  workflow_dispatch:
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Solid port
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned React upstream
+        uses: actions/checkout@v4
+        with:
+          repository: ibelick/mesurer
+          ref: 605d202a4cd0404bb7a4808a11b574174bb14d1a
+          path: upstream
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.15.0 --activate
+
+      - name: Install Solid workspace
+        run: bun install
+
+      - name: Install React upstream workspace
+        run: pnpm -C upstream install --frozen-lockfile
+
+      - name: Install Chromium
+        working-directory: upstream/apps/site
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Prepare identical fixtures
+        run: |
+          cp visual-parity/react-fixture.tsx upstream/apps/site/e2e/fixtures/parity.tsx
+          cp visual-parity/react.html upstream/apps/site/e2e/fixtures/parity.html
+          cp visual-parity/solid-fixture.tsx examples/basic/src/parity.tsx
+          cp visual-parity/solid.html examples/basic/parity.html
+          cp visual-parity/capture.mjs upstream/apps/site/e2e/parity-capture.mjs
+
+      - name: Start React and Solid fixtures
+        run: |
+          pnpm -C upstream --filter mesurer-site exec vite --force --host 127.0.0.1 --port 4173 > react-vite.log 2>&1 &
+          echo $! > react-vite.pid
+          (
+            cd examples/basic
+            bunx vite --host 127.0.0.1 --port 4174 --strictPort > ../../solid-vite.log 2>&1 &
+            echo $! > ../../solid-vite.pid
+          )
+
+          for url in \
+            http://127.0.0.1:4173/e2e/fixtures/parity.html \
+            http://127.0.0.1:4174/parity.html
+          do
+            ready=0
+            for attempt in $(seq 1 45); do
+              if curl --fail --silent --show-error "$url" >/dev/null; then
+                ready=1
+                break
+              fi
+              sleep 1
+            done
+            if [ "$ready" -ne 1 ]; then
+              echo "Fixture did not become ready: $url"
+              cat react-vite.log || true
+              cat solid-vite.log || true
+              exit 1
+            fi
+          done
+
+      - name: Capture matching UI states
+        working-directory: upstream/apps/site
+        env:
+          PARITY_REACT_URL: http://127.0.0.1:4173/e2e/fixtures/parity.html
+          PARITY_SOLID_URL: http://127.0.0.1:4174/parity.html
+          PARITY_OUT: ${{ github.workspace }}/parity-artifacts
+        run: node e2e/parity-capture.mjs
+
+      - name: Build side-by-side and pixel-diff report
+        run: |
+          python3 -m pip install --disable-pip-version-check pillow
+          python3 visual-parity/compare.py parity-artifacts | tee parity-artifacts/report.txt
+
+      - name: Add report summary
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          report = json.loads(Path("parity-artifacts/report.json").read_text())
+          print("## React → Solid visual parity")
+          print("")
+          print("Pinned upstream: `ibelick/mesurer@605d202a4cd0404bb7a4808a11b574174bb14d1a`")
+          print("")
+          print("| State | pixels > threshold | ratio | computed metric diffs |")
+          print("|---|---:|---:|---:|")
+          for name, state in report["states"].items():
+              print(f"| {name} | {state['threshold_diff_pixels']} | {state['threshold_diff_ratio']:.4%} | {state['metric_difference_count']} |")
+          PY
+
+      - name: Upload screenshot comparison artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: react-solid-visual-parity
+          path: parity-artifacts
+          if-no-files-found: error
+          retention-days: 14
