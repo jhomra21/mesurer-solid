@@ -18,9 +18,9 @@ framework-neutral Mesurer core/runtime
 
 ## Solid 2 scheduler rule
 
-The current Solid 2 RC can expose a `createStore` mutation immediately when it is read back from imperative command code, while downstream reactive computations and effects still participate in Solid's scheduler/batching model. The implementation therefore avoids depending on either synchronous or deferred reactive propagation for pointer/history logic.
+The current Solid 2 RC updates store values synchronously in the command contexts used here while downstream reactive propagation remains scheduled/batched. The interaction layer therefore does not rely on a specific propagation boundary.
 
-`createMeasurerModel()` maintains a synchronous command-side snapshot (`model.current`) and publishes every command into the Solid store (`model.state`). JSX subscribes to `state`; imperative pointer, guide and history code computes from `current`. This keeps interaction correctness independent of effect timing and leaves `flush()` for tests or genuine imperative settle boundaries.
+`createMeasurerModel()` maintains a synchronous command-side snapshot (`model.current`) and mirrors each command into the Solid store (`model.state`). JSX subscribes to `state`; imperative pointer/history code computes from `current`. This keeps event sequences deterministic even if Solid's scheduler behavior evolves.
 
 ## Ownership boundaries
 
@@ -29,6 +29,17 @@ The current Solid 2 RC can expose a `createStore` mutation immediately when it i
 - `model/` owns Solid 2 state, action history, settings and serialization.
 - `components/` are Solid 2 JSX only.
 - `Measurer.tsx` owns browser lifecycle, portal integration, keyboard/pointer behaviors and persistence wiring.
+
+## Visual boundary
+
+The framework boundary is intentionally **not** a design boundary. The Solid port shares upstream Mesurer's visual system:
+
+- upstream Tailwind v4 source, ink palette and light color scheme
+- toolbar geometry/order, SVG iconography, tooltips and orientation menu
+- settings-panel dimensions and controls
+- rulers, color picker, measurement/distance overlays and text-inspector card styling
+
+Solid-specific code adapts JSX attributes, state ownership and event/lifecycle mechanics only. It does not introduce a separate theme or redesign. Visual-contract integration tests guard the key dimensions, ordering and overlay conventions.
 
 ## Shadow DOM
 
