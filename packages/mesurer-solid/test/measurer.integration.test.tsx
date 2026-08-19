@@ -2,7 +2,6 @@ import { flush } from "solid-js";
 import { render } from "@solidjs/web";
 import { afterEach, describe, expect, it } from "vitest";
 import Measurer from "../src/Measurer";
-import type { MeasurerModel } from "../src/model/create-measurer-model";
 
 const settle = async () => {
   await Promise.resolve();
@@ -21,35 +20,41 @@ afterEach(async () => {
 });
 
 describe("Measurer host integration", () => {
-  it("mounts through Solid 2 and responds to keyboard mode shortcuts", async () => {
+  it("mounts through Solid 2 and responds to public keyboard behavior", async () => {
     const host = document.createElement("div");
     document.body.append(host);
-    let model: MeasurerModel | undefined;
 
     const dispose = render(
-      () => <Measurer persistKey="integration-main" onModel={(value) => { model = value; }} />,
+      () => <Measurer persistKey="integration-main" />,
       host,
     );
     mounted.push(dispose);
     await settle();
 
     expect(document.querySelector("[data-mesurer-root]")).toBeTruthy();
-    expect(model).toBeDefined();
+    const selectButton = document.querySelector<HTMLButtonElement>('button[title="Select (S)"]');
+    expect(selectButton).toBeTruthy();
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "s" }));
     await settle();
-    expect(model!.current.enabled).toBe(true);
-    expect(model!.current.toolMode).toBe("select");
+    expect(selectButton!.classList.contains("is-active")).toBe(true);
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "r" }));
     await settle();
-    expect(model!.current.rulersVisible).toBe(true);
+    expect(document.querySelector(".msr-rulers")).toBeTruthy();
+    expect(document.querySelector<HTMLButtonElement>('button[title="Rulers (R)"]')?.classList.contains("is-active")).toBe(true);
 
-    model!.addGuide({ id: "integration-guide", orientation: "vertical", position: 100 });
-    model!.setSelectedGuideIds(["integration-guide"]);
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete" }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: ",", ctrlKey: true }));
     await settle();
-    expect(model!.current.guides).toHaveLength(0);
+    expect(document.querySelector(".msr-settings")).toBeTruthy();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await settle();
+    expect(document.querySelector(".msr-settings")).toBeNull();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "m" }));
+    await settle();
+    expect(selectButton!.classList.contains("is-active")).toBe(false);
   });
 
   it("creates and cleans up an Element portal host inside a ShadowRoot", async () => {
