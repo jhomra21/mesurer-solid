@@ -22,7 +22,6 @@ export type ToolbarProps = {
   onColorPicker: () => void;
   onClearWorkspace: () => void;
   onResetSettings: () => void;
-  onElement?: (element: HTMLDivElement) => void;
 };
 
 const TOOLBAR_DRAG_SLOP = 6;
@@ -66,6 +65,7 @@ export function Toolbar(props: ToolbarProps) {
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
   const [menuAlign, setMenuAlign] = createSignal<"left" | "right">("right");
   const tooltip = createTooltip(props.ownerWindow);
+  let toolbarElement: HTMLDivElement | undefined;
   let settingsElement: HTMLDivElement | undefined;
   let guideMenuElement: HTMLDivElement | undefined;
   let suppressClick = false;
@@ -156,12 +156,20 @@ export function Toolbar(props: ToolbarProps) {
       if (guideMenuOpen() && guideMenuElement && !path.includes(guideMenuElement)) setGuideMenuOpen(false);
       if (props.model.current.settingsOpen && settingsElement && !path.includes(settingsElement)) props.model.setTransient({ settingsOpen: false });
     };
+    const handleClickCapture = (event: MouseEvent) => {
+      if (!suppressClick) return;
+      event.preventDefault();
+      event.stopPropagation();
+      suppressClick = false;
+    };
     const resize = () => { if (guideMenuOpen()) updateMenuAlign(); };
     props.ownerWindow.addEventListener("pointerdown", handlePointerDown);
     props.ownerWindow.addEventListener("resize", resize);
+    toolbarElement?.addEventListener("click", handleClickCapture, true);
     return () => {
       props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);
       props.ownerWindow.removeEventListener("resize", resize);
+      toolbarElement?.removeEventListener("click", handleClickCapture, true);
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
     };
   });
@@ -176,13 +184,12 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <div
-      ref={props.onElement}
+      ref={(element) => { toolbarElement = element; }}
       data-mesurer-toolbar="true"
       data-mesurer-inspector-ui="true"
       class="mesurer-toolbar-surface msr:pointer-events-auto msr:absolute msr:z-[90] msr:flex msr:items-center msr:gap-1 msr:rounded-[12px] msr:bg-[#fff] msr:p-1 msr:outline msr:outline-transparent"
       style={{ left: `${position().x}px`, top: `${position().y}px` }}
       onPointerDown={(event) => { event.stopPropagation(); props.model.setTransient({ toolbarActive: true }); onToolbarPointerDown(event); }}
-      onClickCapture={(event) => { if (!suppressClick) return; event.preventDefault(); event.stopPropagation(); suppressClick = false; }}
       onClick={(event) => event.stopPropagation()}
       onMouseLeave={tooltip.onTooltipContainerLeave}
     >
