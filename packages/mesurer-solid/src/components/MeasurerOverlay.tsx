@@ -67,7 +67,7 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
           <Tag axis="x" left={props.activeRect!.left + props.activeRect!.width / 2} top={props.activeRect!.top + props.activeRect!.height + MEASURE_LABEL_OFFSET}>{formatValue(props.activeRect!.width)} x {formatValue(props.activeRect!.height)}</Tag>
         </></Show>
 
-        <Show when={props.model.state.hoverRect && props.model.state.settings.hoverHighlightEnabled && props.displayedSelectedMeasurements.length <= 1}>
+        <Show when={props.model.state.hoverRect && props.model.state.settings.hoverHighlightEnabled && props.model.state.selectedMeasurements.length <= 1}>
           <div class="msr:pointer-events-none msr:absolute" style={{ left: `${props.model.state.hoverRect!.left}px`, top: `${props.model.state.hoverRect!.top}px`, width: `${props.model.state.hoverRect!.width}px`, height: `${props.model.state.hoverRect!.height}px`, "background-color": fill() }}>
             <div class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ "background-color": outline() }} />
             <div class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": outline() }} />
