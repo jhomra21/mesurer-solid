@@ -44,7 +44,7 @@ The package intentionally does not introduce a Solid-specific skin. Its visual s
 - the same selection, measurement, guide and distance overlay treatment
 - the same text-inspector card dimensions, typography and shadows
 
-The framework/runtime implementation is the intended difference.
+There is intentionally no Solid-specific redesign or alternate dark-mode skin. The framework/runtime implementation is the intended difference.
 
 ## Features
 
