@@ -49,6 +49,14 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
     : props.model.state.activeMeasurement ? [props.model.state.activeMeasurement] : [];
   const measurementEdges = () => getEdgeVisibilityForRects(displayedMeasurements().map((item) => item.rect));
   const selectedEdges = () => getEdgeVisibilityForRects(props.displayedSelectedMeasurements.map((item) => item.rect));
+  const hoverEdges = () => {
+    const hoverRect = props.model.state.hoverRect;
+    if (!hoverRect) return null;
+    return getEdgeVisibilityForRects([
+      hoverRect,
+      ...props.displayedSelectedMeasurements.map((item) => item.rect),
+    ])[0] ?? null;
+  };
   const guideColor = (kind: "active" | "hover" | "default" | "preview") => {
     const amount = kind === "active" ? 100 : kind === "hover" ? 90 : kind === "preview" ? 50 : 70;
     return `color-mix(in oklch, ${props.model.state.settings.guideColor} ${amount}%, transparent)`;
@@ -171,14 +179,12 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
 
         <Show when={props.model.state.hoverRect && props.model.state.settings.hoverHighlightEnabled && props.model.state.selectedMeasurements.length <= 1}>
           <div class="msr:pointer-events-none msr:absolute" style={{ left: `${props.model.state.hoverRect!.left}px`, top: `${props.model.state.hoverRect!.top}px`, width: `${props.model.state.hoverRect!.width}px`, height: `${props.model.state.hoverRect!.height}px`, "background-color": fill() }}>
-            <div class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ "background-color": outline() }} />
-            <div class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": outline() }} />
-            <div class="msr:absolute msr:bottom-0 msr:left-0 msr:h-px msr:w-full" style={{ "background-color": outline() }} />
-            <div class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": outline() }} />
+            <Show when={hoverEdges()?.top}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ "background-color": outline() }} /></Show>
+            <Show when={hoverEdges()?.right}><div class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": outline() }} /></Show>
+            <Show when={hoverEdges()?.bottom}><div class="msr:absolute msr:bottom-0 msr:left-0 msr:h-px msr:w-full" style={{ "background-color": outline() }} /></Show>
+            <Show when={hoverEdges()?.left}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": outline() }} /></Show>
           </div>
         </Show>
-
-        <For each={props.displayedSelectedMeasurements}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={selectedEdges()[index()]} outlineColor={outline()} fillColor={fill()} />}</For>
       </Show>
 
       <Show when={props.interactive && guidesMode() && props.model.state.guidePreview && !props.model.state.draggingGuideId}>
@@ -189,6 +195,10 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
             ? { left: `${GUIDE_HITBOX_SIZE / 2 - 1}px`, top: "0", width: "2px", height: "100%", "background-color": guideColor("preview") }
             : { top: `${GUIDE_HITBOX_SIZE / 2 - 1}px`, left: "0", height: "2px", width: "100%", "background-color": guideColor("preview") }} />
         </div>
+      </Show>
+
+      <Show when={selectionVisible()}>
+        <For each={props.displayedSelectedMeasurements}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={selectedEdges()[index()]} outlineColor={outline()} fillColor={fill()} />}</For>
       </Show>
 
       <For each={props.model.state.heldDistances}>{(distance) => <DistanceOverlayItem distance={distance} onRemove={props.model.removeHeldDistance} />}</For>
