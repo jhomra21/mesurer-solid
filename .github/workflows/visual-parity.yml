@@ -61,8 +61,11 @@ jobs:
 
       - name: Start React and Solid fixtures
         run: |
-          pnpm -C upstream --filter mesurer-site exec vite --force --host 127.0.0.1 --port 4173 > react-vite.log 2>&1 &
-          echo $! > react-vite.pid
+          (
+            cd upstream
+            pnpm --filter mesurer-site exec vite --force --host 127.0.0.1 --port 4173 > ../react-vite.log 2>&1 &
+            echo $! > ../react-vite.pid
+          )
           (
             cd examples/basic
             bunx vite --host 127.0.0.1 --port 4174 --strictPort > ../../solid-vite.log 2>&1 &
