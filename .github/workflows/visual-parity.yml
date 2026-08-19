@@ -23,6 +23,9 @@ jobs:
           ref: 605d202a4cd0404bb7a4808a11b574174bb14d1a
           path: upstream
 
+      - name: Assert stylesheet source parity
+        run: python3 visual-parity/check-styles.py
+
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
