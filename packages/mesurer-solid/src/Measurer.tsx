@@ -18,6 +18,9 @@ export type MeasurerProps = {
 
 const DEFAULT_HIGHLIGHT = "oklch(0.62 0.18 255)";
 
+const isShadowRootTarget = (target: HTMLElement | ShadowRoot): target is ShadowRoot =>
+  target.nodeType === 11 && "host" in target;
+
 const isEditableTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
   return (
@@ -34,7 +37,7 @@ export function Measurer(props: MeasurerProps) {
     initialToolMode: props.initialToolMode,
   }));
   const model = createMeasurerModel(initial);
-  const [mountTarget, setMountTarget] = createSignal<HTMLElement | ShadowRoot | null>(null);
+  const [mountTarget, setMountTarget] = createSignal<Element | null>(null);
 
   createEffect(
     () => props.onModel,
@@ -48,7 +51,19 @@ export function Measurer(props: MeasurerProps) {
     const ownerDocument = target.ownerDocument ?? document;
     const ownerWindow = ownerDocument.defaultView ?? window;
     const HTMLElementConstructor = ownerWindow.HTMLElement;
-    setMountTarget(target);
+    let portalMount: Element;
+    let shadowPortalHost: HTMLElement | null = null;
+
+    if (isShadowRootTarget(target)) {
+      shadowPortalHost = ownerDocument.createElement("div");
+      shadowPortalHost.dataset.mesurerPortalHost = "";
+      target.appendChild(shadowPortalHost);
+      portalMount = shadowPortalHost;
+    } else {
+      portalMount = target;
+    }
+
+    setMountTarget(portalMount);
 
     let pointerFrame = 0;
     let pointerX = 0;
@@ -142,6 +157,7 @@ export function Measurer(props: MeasurerProps) {
       ownerWindow.removeEventListener("keydown", onKeyDown);
       ownerWindow.removeEventListener("resize", refreshPinnedMeasurements);
       ownerWindow.removeEventListener("scroll", refreshPinnedMeasurements, true);
+      shadowPortalHost?.remove();
     };
   });
 
