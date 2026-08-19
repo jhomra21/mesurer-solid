@@ -32,10 +32,11 @@ export function RulersOverlay(props: RulersOverlayProps) {
   const selectedHorizontalGuides = () => props.guides.filter((guide) => guide.orientation === "horizontal" && props.selectedGuideIds.includes(guide.id));
 
   onSettled(() => {
-    const handlePointerMove = (event: PointerEvent) => {
+    const handlePointerMove = (event: Event) => {
       if (!props.settings.edgeReveal) return;
-      const nearHorizontalEdge = event.clientX <= RULER_EDGE_REVEAL_DISTANCE || event.clientX >= props.ownerWindow.innerWidth - RULER_EDGE_REVEAL_DISTANCE;
-      const nearVerticalEdge = event.clientY <= RULER_EDGE_REVEAL_DISTANCE || event.clientY >= props.ownerWindow.innerHeight - RULER_EDGE_REVEAL_DISTANCE;
+      const pointer = event as MouseEvent;
+      const nearHorizontalEdge = pointer.clientX <= RULER_EDGE_REVEAL_DISTANCE || pointer.clientX >= props.ownerWindow.innerWidth - RULER_EDGE_REVEAL_DISTANCE;
+      const nearVerticalEdge = pointer.clientY <= RULER_EDGE_REVEAL_DISTANCE || pointer.clientY >= props.ownerWindow.innerHeight - RULER_EDGE_REVEAL_DISTANCE;
       setNearEdge(nearHorizontalEdge || nearVerticalEdge);
     };
     props.ownerWindow.document.addEventListener("pointermove", handlePointerMove, true);
