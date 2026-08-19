@@ -1,6 +1,6 @@
 # @jhomra21/mesurer-solid
 
-Mesurer for Solid 2: an in-page measurement/devtools overlay with selection bounds, guides, rulers, typography inspection, X-ray, EyeDropper color picking, distance overlays, undo/redo, settings and persistence.
+Mesurer for Solid 2: the current Mesurer behavior and visual design, implemented with Solid 2 instead of React.
 
 ## Install
 
@@ -32,9 +32,23 @@ export function App() {
 
 Styles are injected automatically. `@jhomra21/mesurer-solid/styles.css` is also exported if you prefer to include the stylesheet explicitly.
 
+## Visual parity
+
+The package intentionally does not introduce a Solid-specific skin. Its visual source follows upstream Mesurer:
+
+- the same Tailwind v4 ink palette, light color scheme, shadows, radii and active blue
+- the same draggable toolbar layout, SVG icons, tooltips and guide-orientation menu
+- the same 272px settings popover and control geometry
+- the same compact color picker
+- the same 18px rulers and ruler labels
+- the same selection, measurement, guide and distance overlay treatment
+- the same text-inspector card dimensions, typography and shadows
+
+The framework/runtime implementation is the intended difference.
+
 ## Features
 
-- **Select** — click, Shift-click, or drag over elements; visualizes bounds, padding and margin.
+- **Select** — click, Shift-click, or drag over elements and visualize their bounds.
 - **Guides** — horizontal/vertical guides, snapping, multi-select, drag and delete.
 - **Rulers** — pixel rulers with drag-to-create guides.
 - **Text Inspector** — computed typography, CSS variable discovery, pinned/dragged inspector cards, own undo/redo history.
@@ -90,6 +104,6 @@ type MeasurerProps = {
 
 ## Solid 2 notes
 
-The current Solid 2 RC can make store mutations observable immediately from imperative code while still scheduling/batching downstream reactive work. Mesurer therefore keeps a synchronous command-side snapshot for pointer, guide and history logic and mirrors commands into the Solid store used by JSX. That design avoids depending on reactive propagation timing. The UI uses `@solidjs/web`, `onSettled`, split effects, draft stores and Solid 2 JSX conventions.
+Imperative interactions compute against a synchronous command-side model and publish to Solid state for rendering, so pointer/history correctness does not depend on downstream scheduler timing. The renderer uses Solid 2 JSX and `@solidjs/web`; the user-facing design remains upstream Mesurer's.
 
-Mesurer's framework-neutral algorithms/runtime are adapted under its MIT license; see the repository's third-party notice.
+Mesurer's framework-neutral algorithms/runtime and shared design are adapted under its MIT license; see the repository's third-party notice.
