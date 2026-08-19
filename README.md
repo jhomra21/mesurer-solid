@@ -1,6 +1,6 @@
 # mesurer-solid
 
-A Solid 2-native port of [ibelick/mesurer](https://github.com/ibelick/mesurer), built for Bun and Solid 2's staged reactive model.
+A Solid 2-native port of [ibelick/mesurer](https://github.com/ibelick/mesurer), built for Bun and Solid 2's current scheduler/reactivity model.
 
 The package lives in `packages/mesurer-solid`; `examples/basic` is the parity playground used to exercise selection, guides, rulers, typography, x-ray, color picking, distance overlays, history and persistence.
 
