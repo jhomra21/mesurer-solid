@@ -22,6 +22,8 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   const fill = () => props.fillColor ?? "color-mix(in oklch, oklch(0.62 0.18 255) 8%, transparent)";
   const edges = () => props.edgeVisibility ?? allEdges;
   const inspect = () => props.measurement && "paddingRect" in props.measurement ? props.measurement : null;
+  const displayLabel = (measurement: Measurement | InspectMeasurement) =>
+    "label" in measurement ? `${measurement.label} · ` : "";
 
   return (
     <Show when={props.measurement}>
@@ -48,7 +50,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
             class="msr-measure-tag"
             style={{ left: `${measurement().rect.left + measurement().rect.width / 2}px`, top: `${measurement().rect.top + measurement().rect.height + 3}px` }}
           >
-            {"label" in measurement() ? `${measurement().label} · ` : ""}
+            {displayLabel(measurement())}
             {formatValue(measurement().rect.width)} × {formatValue(measurement().rect.height)}
           </div>
         </>
