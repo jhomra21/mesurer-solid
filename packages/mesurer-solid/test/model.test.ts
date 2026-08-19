@@ -5,12 +5,15 @@ import { createMeasurerModel } from "../src/model/create-measurer-model";
 const guide = { id: "g1", orientation: "vertical" as const, position: 100 };
 
 describe("createMeasurerModel", () => {
-  it("uses a synchronous command model while Solid 2 publishes staged writes", () => {
+  it("keeps the command state and Solid store projection in sync", () => {
     const model = createMeasurerModel({ initialEnabled: true });
     const next = model.toggleEnabled();
     expect(next).toBe(false);
     expect(model.current.enabled).toBe(false);
-    expect(model.state.enabled).toBe(true);
+    // Solid 2 RC exposes this store mutation immediately in this command context.
+    // The command-side snapshot still prevents imperative behavior from depending
+    // on when downstream reactive computations/effects are scheduled.
+    expect(model.state.enabled).toBe(false);
     flush();
     expect(model.state.enabled).toBe(false);
   });
