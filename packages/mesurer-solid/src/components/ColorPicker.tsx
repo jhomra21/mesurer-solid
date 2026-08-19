@@ -3,7 +3,7 @@ import { colorToHex, formatColor, type ColorPickerFormat } from "../core/colors"
 import type { MeasurerModel } from "../model/create-measurer-model";
 import { Tooltip, createTooltip } from "./Tooltip";
 
-export function ColorPicker(props: { model: MeasurerModel; ownerWindow: Window; getToolbar: () => HTMLElement | null }) {
+export function ColorPicker(props: { model: MeasurerModel; ownerWindow: Window }) {
   const [copiedId, setCopiedId] = createSignal<string | null>(null);
   const tooltip = createTooltip(props.ownerWindow);
   let panel: HTMLDivElement | undefined;
@@ -29,7 +29,7 @@ export function ColorPicker(props: { model: MeasurerModel; ownerWindow: Window; 
     let frame = 0;
     const update = () => {
       if (props.model.current.colorPickerActive && panel) {
-        const toolbar = props.getToolbar();
+        const toolbar = panel.closest("[data-mesurer-root='true']")?.querySelector<HTMLElement>("[data-mesurer-toolbar='true']") ?? null;
         if (toolbar) {
           const toolbarRect = toolbar.getBoundingClientRect();
           const panelRect = panel.getBoundingClientRect();
