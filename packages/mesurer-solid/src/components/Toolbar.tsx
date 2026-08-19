@@ -1,7 +1,20 @@
-import { For, Show, createSignal } from "solid-js";
-import type { ColorPickerFormat } from "../core/colors";
+import { Show, createSignal, onSettled } from "solid-js";
 import type { ToolMode } from "../core/types";
-import type { MeasurerModel, SettingsTab } from "../model/create-measurer-model";
+import type { MeasurerModel } from "../model/create-measurer-model";
+import { SettingsPanel } from "./SettingsPanel";
+import { Tooltip, createTooltip } from "./Tooltip";
+import {
+  CaretDownIcon,
+  CheckIcon,
+  ColorPickerIcon,
+  CursorIcon,
+  GearIcon,
+  MinusIcon,
+  RulerIcon,
+  RulersIcon,
+  TextInspectorIcon,
+  XrayIcon,
+} from "./Icons";
 
 export type ToolbarProps = {
   model: MeasurerModel;
@@ -11,45 +24,102 @@ export type ToolbarProps = {
   onResetSettings: () => void;
 };
 
-type Tool = { mode: ToolMode; label: string; shortcut: string; glyph: string };
-const tools: Tool[] = [
-  { mode: "select", label: "Select", shortcut: "S", glyph: "↖" },
-  { mode: "text-inspector", label: "Text Inspector", shortcut: "A", glyph: "A" },
-  { mode: "guides", label: "Guides", shortcut: "G", glyph: "+" },
-];
-const tabs: Array<{ id: SettingsTab; label: string }> = [
-  { id: "general", label: "General" },
-  { id: "select", label: "Select" },
-  { id: "guides", label: "Guides" },
-  { id: "rulers", label: "Rulers" },
-  { id: "color-picker", label: "Color" },
-];
+const TOOLBAR_DRAG_SLOP = 6;
+const GUIDE_MENU_WIDTH = 176;
+const VIEWPORT_PADDING = 8;
+
+type ToolbarButtonProps = {
+  id: string;
+  active: boolean;
+  label: string;
+  shortcut?: string;
+  onClick: () => void;
+  tooltipVisible: boolean;
+  tooltipInstant: boolean;
+  tooltipSide: "top" | "bottom";
+  onTooltipEnter: (id: string) => void;
+  onTooltipLeave: () => void;
+  children: any;
+};
+
+function ToolbarButton(props: ToolbarButtonProps) {
+  return (
+    <div class="msr:relative" onMouseEnter={() => props.onTooltipEnter(props.id)} onMouseLeave={props.onTooltipLeave}>
+      <button
+        type="button"
+        aria-pressed={props.active}
+        aria-label={`${props.label}${props.shortcut ? ` (${props.shortcut})` : ""}`}
+        class={`msr:flex msr:size-8 msr:select-none msr:items-center msr:justify-center msr:rounded-[8px] msr:outline-none ${props.active ? "msr:bg-[#0d99ff] msr:text-white" : "msr:bg-transparent msr:text-black msr:hover:bg-black/4"}`}
+        onClick={props.onClick}
+      >
+        {props.children}
+      </button>
+      <Tooltip label={props.label} shortcut={props.shortcut} visible={props.tooltipVisible} instant={props.tooltipInstant} side={props.tooltipSide} />
+    </div>
+  );
+}
 
 export function Toolbar(props: ToolbarProps) {
-  const [position, setPosition] = createSignal({ x: 20, y: 20 });
-  let dragging = false;
-  let pointerId = -1;
-  let startX = 0, startY = 0, originX = 0, originY = 0;
+  const [position, setPosition] = createSignal({ x: 16, y: 16 });
+  const [guideMenuOpen, setGuideMenuOpen] = createSignal(false);
+  const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
+  const [menuAlign, setMenuAlign] = createSignal<"left" | "right">("right");
+  const tooltip = createTooltip(props.ownerWindow);
+  let toolbarElement: HTMLDivElement | undefined;
+  let settingsElement: HTMLDivElement | undefined;
+  let guideMenuElement: HTMLDivElement | undefined;
+  let suppressClick = false;
+  let previousUserSelect: string | null = null;
 
-  const activate = (mode: ToolMode) => {
-    props.model.setEnabled(true, !props.model.current.enabled);
-    props.model.toggleToolMode(mode);
-    props.model.setTransient({ toolbarActive: true });
+  const tooltipsEnabled = () => !guideMenuOpen() && !props.model.state.settingsOpen;
+  const viewportHeight = () => props.ownerWindow.innerHeight || 0;
+  const nearTop = () => position().y < 56;
+  const nearBottom = () => viewportHeight() > 0 && position().y > viewportHeight() - 56;
+  const tooltipSide = (): "top" | "bottom" => nearTop() && !nearBottom() ? "bottom" : "top";
+  const menuSide = (): "top" | "bottom" => nearBottom() ? "top" : "bottom";
+
+  const updateMenuAlign = () => {
+    const anchorRect = guideMenuElement?.getBoundingClientRect();
+    if (!anchorRect) return;
+    const rightAlignedLeft = anchorRect.right - GUIDE_MENU_WIDTH;
+    const leftAlignedRight = anchorRect.left + GUIDE_MENU_WIDTH;
+    if (rightAlignedLeft < VIEWPORT_PADDING) { setMenuAlign("left"); return; }
+    if (leftAlignedRight > props.ownerWindow.innerWidth - VIEWPORT_PADDING) { setMenuAlign("right"); return; }
+    setMenuAlign("right");
   };
-  const down = (event: PointerEvent) => {
+
+  const onToolbarPointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
     if (event.button !== 0) return;
-    dragging = true; pointerId = event.pointerId;
-    startX = event.clientX; startY = event.clientY;
-    originX = position().x; originY = position().y;
+    const root = props.ownerWindow.document.documentElement;
+    if (previousUserSelect === null) {
+      previousUserSelect = root.style.userSelect;
+      root.style.setProperty("user-select", "none", "important");
+    }
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const origin = position();
+    const rect = event.currentTarget.getBoundingClientRect();
+    let active = false;
+    let didDrag = false;
+    const pointerId = event.pointerId;
     const move = (next: PointerEvent) => {
-      if (!dragging || next.pointerId !== pointerId) return;
-      const x = Math.max(8, Math.min(props.ownerWindow.innerWidth - 260, originX + next.clientX - startX));
-      const y = Math.max(8, Math.min(props.ownerWindow.innerHeight - 48, originY + next.clientY - startY));
-      setPosition({ x, y });
+      if (next.pointerId !== pointerId) return;
+      const dx = next.clientX - startX;
+      const dy = next.clientY - startY;
+      if (!active) active = Math.abs(dx) > TOOLBAR_DRAG_SLOP || Math.abs(dy) > TOOLBAR_DRAG_SLOP;
+      if (!active) return;
+      didDrag = true;
+      const maxX = Math.max(8, props.ownerWindow.innerWidth - rect.width - 8);
+      const maxY = Math.max(8, props.ownerWindow.innerHeight - rect.height - 8);
+      setPosition({ x: Math.min(maxX, Math.max(8, origin.x + dx)), y: Math.min(maxY, Math.max(8, origin.y + dy)) });
     };
     const end = (next: PointerEvent) => {
       if (next.pointerId !== pointerId) return;
-      dragging = false;
+      suppressClick = didDrag;
+      if (previousUserSelect !== null) {
+        root.style.userSelect = previousUserSelect;
+        previousUserSelect = null;
+      }
       props.ownerWindow.removeEventListener("pointermove", move);
       props.ownerWindow.removeEventListener("pointerup", end);
       props.ownerWindow.removeEventListener("pointercancel", end);
@@ -59,130 +129,79 @@ export function Toolbar(props: ToolbarProps) {
     props.ownerWindow.addEventListener("pointercancel", end);
   };
 
-  const openSettings = () => props.model.setTransient({
-    settingsOpen: !props.model.current.settingsOpen,
-    settingsTab: props.model.current.settingsOpen ? props.model.current.settingsTab :
-      props.model.current.colorPickerActive ? "color-picker" :
-      props.model.current.rulersVisible ? "rulers" :
-      props.model.current.toolMode === "guides" ? "guides" :
-      props.model.current.toolMode === "select" || props.model.current.toolMode === "text-inspector" ? "select" : "general",
+  const activate = (mode: ToolMode) => {
+    props.model.setEnabled(true, !props.model.current.enabled);
+    props.model.setTransient({ colorPickerActive: false, toolbarActive: true });
+    props.model.toggleToolMode(mode);
+  };
+  const selectGuideOrientation = (orientation: "vertical" | "horizontal") => {
+    props.model.setEnabled(true);
+    if (props.model.current.toolMode !== "guides") props.model.toggleToolMode("guides");
+    props.model.setGuideOrientation(orientation, true);
+    setGuideMenuOpen(false);
+  };
+  const toggleSettings = () => {
+    const open = !props.model.current.settingsOpen;
+    const settingsTab = props.model.current.colorPickerActive ? "color-picker"
+      : props.model.current.rulersVisible ? "rulers"
+      : props.model.current.toolMode === "guides" ? "guides"
+      : props.model.current.toolMode === "select" || props.model.current.toolMode === "text-inspector" ? "select" : "general";
+    props.model.setTransient({ settingsOpen: open, settingsTab: open ? settingsTab : props.model.current.settingsTab });
+  };
+
+  onSettled(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const path = event.composedPath();
+      if (guideMenuOpen() && guideMenuElement && !path.includes(guideMenuElement)) setGuideMenuOpen(false);
+      if (props.model.current.settingsOpen && settingsElement && !path.includes(settingsElement)) props.model.setTransient({ settingsOpen: false });
+    };
+    const resize = () => { if (guideMenuOpen()) updateMenuAlign(); };
+    props.ownerWindow.addEventListener("pointerdown", handlePointerDown);
+    props.ownerWindow.addEventListener("resize", resize);
+    return () => {
+      props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);
+      props.ownerWindow.removeEventListener("resize", resize);
+      if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
+    };
   });
 
   return (
-    <div class="msr-toolbar-wrap" style={{ left: `${position().x}px`, top: `${position().y}px` }}>
-      <div class="msr-toolbar-surface" data-mesurer-inspector-ui="true" onPointerDown={(event) => event.stopPropagation()}>
-        <button class="msr-grip" type="button" aria-label="Move toolbar" onPointerDown={down}>⋮⋮</button>
-        <button
-          type="button"
-          class={["msr-tool", { "is-active": props.model.state.enabled }]}
-          title="Toggle Mesurer (M)"
-          onClick={() => props.model.toggleEnabled(true)}
-        >M</button>
-        <For each={tools}>
-          {(tool) => (
-            <button
-              type="button"
-              class={["msr-tool", { "is-active": props.model.state.enabled && props.model.state.toolMode === tool.mode }]}
-              title={`${tool.label} (${tool.shortcut})`}
-              aria-label={`${tool.label} (${tool.shortcut})`}
-              onClick={() => activate(tool.mode)}
-            >{tool.glyph}</button>
-          )}
-        </For>
-        <div class="msr-toolbar-divider" />
-        <button
-          type="button"
-          class={["msr-tool", { "is-active": props.model.state.rulersVisible }]}
-          title="Rulers (R)"
-          onClick={() => { props.model.setEnabled(true); props.model.toggleRulers(); }}
-        >▰</button>
-        <button
-          type="button"
-          class={["msr-tool", { "is-active": props.model.state.xrayVisible }]}
-          title="X-ray (X)"
-          onClick={() => { props.model.setEnabled(true); props.model.toggleXray(); }}
-        >⌗</button>
-        <button
-          type="button"
-          class={["msr-tool", { "is-active": props.model.state.colorPickerActive }]}
-          title="Color picker (P)"
-          onClick={props.onColorPicker}
-        >◉</button>
-        <Show when={props.model.state.toolMode === "guides"}>
-          <div class="msr-toolbar-divider" />
-          <button type="button" class={["msr-tool", { "is-active": props.model.state.guideOrientation === "horizontal" }]} title="Horizontal guide (H)" onClick={() => props.model.setGuideOrientation("horizontal", true)}>H</button>
-          <button type="button" class={["msr-tool", { "is-active": props.model.state.guideOrientation === "vertical" }]} title="Vertical guide (V)" onClick={() => props.model.setGuideOrientation("vertical", true)}>V</button>
+    <div
+      ref={(element) => { toolbarElement = element; }}
+      data-mesurer-toolbar="true"
+      data-mesurer-inspector-ui="true"
+      class="mesurer-toolbar-surface msr:pointer-events-auto msr:absolute msr:z-[90] msr:flex msr:items-center msr:gap-1 msr:rounded-[12px] msr:bg-[#fff] msr:p-1 msr:outline msr:outline-transparent"
+      style={{ left: `${position().x}px`, top: `${position().y}px` }}
+      onPointerDown={(event) => { event.stopPropagation(); props.model.setTransient({ toolbarActive: true }); onToolbarPointerDown(event); }}
+      onClick={(event) => { event.stopPropagation(); if (suppressClick) { event.preventDefault(); suppressClick = false; } }}
+      onMouseLeave={tooltip.onTooltipContainerLeave}
+    >
+      <ToolbarButton id="select" active={props.model.state.toolMode === "select"} label="Select" shortcut="S" onClick={() => activate("select")} tooltipVisible={tooltipsEnabled() && tooltip.visibleTooltipId() === "select"} tooltipInstant={tooltip.tooltipInstant()} tooltipSide={tooltipSide()} onTooltipEnter={tooltip.onTooltipEnter} onTooltipLeave={tooltip.onTooltipLeave}><CursorIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="xray" active={props.model.state.xrayVisible} label="X-ray" shortcut="X" onClick={() => { props.model.setEnabled(true); props.model.setTransient({ colorPickerActive: false }); props.model.toggleXray(); }} tooltipVisible={tooltipsEnabled() && tooltip.visibleTooltipId() === "xray"} tooltipInstant={tooltip.tooltipInstant()} tooltipSide={tooltipSide()} onTooltipEnter={tooltip.onTooltipEnter} onTooltipLeave={tooltip.onTooltipLeave}><XrayIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="color-picker" active={props.model.state.colorPickerActive} label="Color picker" shortcut="P" onClick={props.onColorPicker} tooltipVisible={tooltipsEnabled() && tooltip.visibleTooltipId() === "color-picker"} tooltipInstant={tooltip.tooltipInstant()} tooltipSide={tooltipSide()} onTooltipEnter={tooltip.onTooltipEnter} onTooltipLeave={tooltip.onTooltipLeave}><ColorPickerIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="rulers" active={props.model.state.rulersVisible} label="Rulers" shortcut="R" onClick={() => { props.model.setEnabled(true); props.model.setTransient({ colorPickerActive: false }); props.model.toggleRulers(); }} tooltipVisible={tooltipsEnabled() && tooltip.visibleTooltipId() === "rulers"} tooltipInstant={tooltip.tooltipInstant()} tooltipSide={tooltipSide()} onTooltipEnter={tooltip.onTooltipEnter} onTooltipLeave={tooltip.onTooltipLeave}><RulersIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="text-inspector" active={props.model.state.toolMode === "text-inspector"} label="Text inspector" shortcut="A" onClick={() => activate("text-inspector")} tooltipVisible={tooltipsEnabled() && tooltip.visibleTooltipId() === "text-inspector"} tooltipInstant={tooltip.tooltipInstant()} tooltipSide={tooltipSide()} onTooltipEnter={tooltip.onTooltipEnter} onTooltipLeave={tooltip.onTooltipLeave}><TextInspectorIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="guides" active={props.model.state.toolMode === "guides"} label="Guides" shortcut="G" onClick={() => activate("guides")} tooltipVisible={tooltipsEnabled() && tooltip.visibleTooltipId() === "guides"} tooltipInstant={tooltip.tooltipInstant()} tooltipSide={tooltipSide()} onTooltipEnter={tooltip.onTooltipEnter} onTooltipLeave={tooltip.onTooltipLeave}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
+
+      <div ref={(element) => { guideMenuElement = element; }} class="msr:group msr:relative msr:-ml-1 msr:flex msr:items-stretch" onMouseEnter={() => tooltip.onTooltipEnter("guide-menu")} onMouseLeave={tooltip.onTooltipLeave}>
+        <button type="button" aria-label="Guide orientation menu" class={`msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${guideMenuOpen() ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`} onClick={() => { setGuideMenuOpen((open) => { if (!open) { setActiveMenuIndex(props.model.state.guideOrientation === "horizontal" ? 0 : 1); updateMenuAlign(); } return !open; }); }}><CaretDownIcon size={8} /></button>
+        <span class={`msr:pointer-events-none msr:absolute msr:left-1/2 msr:-translate-x-1/2 msr:whitespace-nowrap msr:rounded msr:bg-black msr:px-2 msr:py-1 msr:text-[11px] msr:text-white msr:transition-opacity msr:duration-150 msr:select-none ${tooltipSide() === "top" ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"} ${tooltip.visibleTooltipId() === "guide-menu" && tooltipsEnabled() ? "msr:opacity-100" : "msr:opacity-0"}`}>Orientation Guide</span>
+        <Show when={guideMenuOpen()}>
+          <div class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:w-44 msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:focus:outline-none msr:flex msr:flex-col msr:gap-px ${menuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"} ${menuAlign() === "left" ? "msr:left-0" : "msr:right-0"}`} role="menu" tabIndex={0} onKeyDown={(event) => { const key = event.key.toLowerCase(); if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setActiveMenuIndex((index) => (index + 1) % 2); } else if (event.key === "Enter") { event.preventDefault(); selectGuideOrientation(activeMenuIndex() === 0 ? "horizontal" : "vertical"); } else if (key === "h" || key === "v") { event.preventDefault(); selectGuideOrientation(key === "h" ? "horizontal" : "vertical"); } else if (event.key === "Escape") { event.preventDefault(); setGuideMenuOpen(false); } }}>
+            <button type="button" class={`msr:group msr:flex msr:w-full msr:items-center msr:gap-2 msr:rounded-md msr:px-2 msr:py-1.5 msr:text-left msr:text-[12px] ${activeMenuIndex() === 0 || props.model.state.guideOrientation === "horizontal" ? "msr:bg-[#0d99ff] msr:text-white" : "msr:text-ink-700 msr:hover:bg-[#0d99ff] msr:hover:text-white"}`} onClick={() => selectGuideOrientation("horizontal")}><CheckIcon size={12} class={props.model.state.guideOrientation === "horizontal" ? "msr:opacity-100" : "msr:opacity-0"} /><MinusIcon size={12} /><span class="msr:flex-1">Horizontal</span><span>H</span></button>
+            <button type="button" class={`msr:group msr:flex msr:w-full msr:items-center msr:gap-2 msr:rounded-md msr:px-2 msr:py-1.5 msr:text-left msr:text-[12px] ${activeMenuIndex() === 1 || props.model.state.guideOrientation === "vertical" ? "msr:bg-[#0d99ff] msr:text-white" : "msr:text-ink-700 msr:hover:bg-[#0d99ff] msr:hover:text-white"}`} onClick={() => selectGuideOrientation("vertical")}><CheckIcon size={12} class={props.model.state.guideOrientation === "vertical" ? "msr:opacity-100" : "msr:opacity-0"} /><MinusIcon size={12} class="msr:rotate-90" /><span class="msr:flex-1">Vertical</span><span>V</span></button>
+          </div>
         </Show>
-        <div class="msr-toolbar-divider" />
-        <button type="button" class={["msr-tool", { "is-active": props.model.state.settingsOpen }]} title="Settings (Ctrl/Cmd + ,)" onClick={openSettings}>⚙</button>
       </div>
 
-      <Show when={props.model.state.settingsOpen}>
-        <div class="msr-settings" data-mesurer-inspector-ui="true" onPointerDown={(event) => event.stopPropagation()}>
-          <header>
-            <strong>Mesurer</strong>
-            <button type="button" onClick={() => props.model.setTransient({ settingsOpen: false })}>×</button>
-          </header>
-          <nav>
-            <For each={tabs}>{(tab) => (
-              <button type="button" class={{ "is-active": props.model.state.settingsTab === tab.id }} onClick={() => props.model.setTransient({ settingsTab: tab.id })}>{tab.label}</button>
-            )}</For>
-          </nav>
-
-          <section>
-            <Show when={props.model.state.settingsTab === "general"}>
-              <label class="msr-setting-row"><span>Persist workspace</span><input type="checkbox" checked={props.model.state.settings.persistOnReload} onChange={(event) => props.model.updateSettings({ persistOnReload: event.currentTarget.checked })} /></label>
-              <p class="msr-help">When enabled, guides and measurement workspace restore after reload.</p>
-            </Show>
-
-            <Show when={props.model.state.settingsTab === "select"}>
-              <label class="msr-setting-row"><span>Selection color</span><input type="color" value="#0d99ff" onInput={(event) => props.model.updateSettings({ highlightColor: event.currentTarget.value })} /></label>
-              <label class="msr-setting-row"><span>Hover highlight</span><input type="checkbox" checked={props.model.state.settings.hoverHighlightEnabled} onChange={(event) => props.model.updateSettings({ hoverHighlightEnabled: event.currentTarget.checked })} /></label>
-              <label class="msr-setting-row"><span>Snap selection</span><input type="checkbox" checked={props.model.state.settings.snapEnabled} onChange={(event) => props.model.updateSettings({ snapEnabled: event.currentTarget.checked })} /></label>
-              <label class="msr-setting-row"><span>Keep measurements</span><input type="checkbox" checked={props.model.state.settings.multiMeasureEnabled} onChange={(event) => props.model.updateSettings({ multiMeasureEnabled: event.currentTarget.checked })} /></label>
-            </Show>
-
-            <Show when={props.model.state.settingsTab === "guides"}>
-              <label class="msr-setting-row"><span>Guide color</span><input type="color" value="#ff453a" onInput={(event) => props.model.updateSettings({ guideColor: event.currentTarget.value })} /></label>
-              <label class="msr-setting-row"><span>Snap guides</span><input type="checkbox" checked={props.model.state.settings.snapGuidesEnabled} onChange={(event) => props.model.updateSettings({ snapGuidesEnabled: event.currentTarget.checked })} /></label>
-              <label class="msr-setting-row"><span>Select new guide</span><input type="checkbox" checked={props.model.state.settings.selectNewGuideEnabled} onChange={(event) => props.model.updateSettings({ selectNewGuideEnabled: event.currentTarget.checked })} /></label>
-              <label class="msr-setting-row"><span>Opacity</span><input type="range" min="0.1" max="1" step="0.05" value={props.model.state.settings.guideStyle.opacity} onInput={(event) => props.model.updateSettings({ guideStyle: { ...props.model.current.settings.guideStyle, opacity: Number(event.currentTarget.value) } })} /></label>
-              <label class="msr-setting-row"><span>Width</span><input type="range" min="1" max="4" step="1" value={props.model.state.settings.guideStyle.width} onInput={(event) => props.model.updateSettings({ guideStyle: { ...props.model.current.settings.guideStyle, width: Number(event.currentTarget.value) } })} /></label>
-              <label class="msr-setting-row"><span>Pattern</span><select value={props.model.state.settings.guideStyle.pattern} onChange={(event) => props.model.updateSettings({ guideStyle: { ...props.model.current.settings.guideStyle, pattern: event.currentTarget.value as "solid" | "dashed" | "dotted" } })}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label>
-              <Show when={props.model.state.settings.guideStyle.pattern !== "solid"}>
-                <label class="msr-setting-row"><span>Dash length</span><input type="range" min="2" max="24" step="1" value={props.model.state.settings.guideStyle.dashLength} onInput={(event) => props.model.updateSettings({ guideStyle: { ...props.model.current.settings.guideStyle, dashLength: Number(event.currentTarget.value) } })} /></label>
-                <label class="msr-setting-row"><span>Gap</span><input type="range" min="0" max="24" step="1" value={props.model.state.settings.guideStyle.gap} onInput={(event) => props.model.updateSettings({ guideStyle: { ...props.model.current.settings.guideStyle, gap: Number(event.currentTarget.value) } })} /></label>
-              </Show>
-            </Show>
-
-            <Show when={props.model.state.settingsTab === "rulers"}>
-              <label class="msr-setting-row"><span>Ruler opacity</span><input type="range" min="0.2" max="1" step="0.05" value={props.model.state.settings.rulerSettings.opacity} onInput={(event) => props.model.updateSettings({ rulerSettings: { ...props.model.current.settings.rulerSettings, opacity: Number(event.currentTarget.value) } })} /></label>
-              <label class="msr-setting-row"><span>Reveal at edge</span><input type="checkbox" checked={props.model.state.settings.rulerSettings.edgeReveal} onChange={(event) => props.model.updateSettings({ rulerSettings: { ...props.model.current.settings.rulerSettings, edgeReveal: event.currentTarget.checked } })} /></label>
-            </Show>
-
-            <Show when={props.model.state.settingsTab === "color-picker"}>
-              <div class="msr-setting-stack">
-                <span>Display formats</span>
-                <For each={["hex", "rgb", "hsl", "oklch"] as ColorPickerFormat[]}>
-                  {(format) => (
-                    <label><input type="checkbox" checked={props.model.state.settings.colorPickerFormats.includes(format)} onChange={(event) => {
-                      const next = event.currentTarget.checked
-                        ? [...new Set([...props.model.current.settings.colorPickerFormats, format])]
-                        : props.model.current.settings.colorPickerFormats.filter((item) => item !== format);
-                      props.model.updateSettings({ colorPickerFormats: next.length ? next : ["hex"] });
-                    }} /> {format.toUpperCase()}</label>
-                  )}
-                </For>
-                <label class="msr-setting-row"><span>Copy on pick</span><select value={props.model.state.settings.colorPickerClickFormat} onChange={(event) => props.model.updateSettings({ colorPickerClickFormat: event.currentTarget.value as ColorPickerFormat })}><For each={props.model.state.settings.colorPickerFormats}>{(format) => <option value={format}>{format.toUpperCase()}</option>}</For></select></label>
-              </div>
-            </Show>
-          </section>
-          <footer>
-            <button type="button" onClick={props.onResetSettings}>Use defaults</button>
-            <button type="button" class="is-danger" onClick={props.onClearWorkspace}>Clear workspace</button>
-          </footer>
-        </div>
-      </Show>
+      <div ref={(element) => { settingsElement = element; }} class="msr:relative msr:flex">
+        <ToolbarButton id="settings" active={props.model.state.settingsOpen} label="Settings" shortcut="⌘/Ctrl+," onClick={toggleSettings} tooltipVisible={tooltipsEnabled() && tooltip.visibleTooltipId() === "settings"} tooltipInstant={tooltip.tooltipInstant()} tooltipSide={tooltipSide()} onTooltipEnter={tooltip.onTooltipEnter} onTooltipLeave={tooltip.onTooltipLeave}><GearIcon size={20} /></ToolbarButton>
+        <Show when={props.model.state.settingsOpen}>
+          <div class={`mesurer-menu-surface msr:absolute msr:-right-1 msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${menuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`} data-mesurer-inspector-ui="true" role="dialog" aria-label="Settings" onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+            <SettingsPanel model={props.model} ownerWindow={props.ownerWindow} onResetSettings={props.onResetSettings} onClearWorkspace={props.onClearWorkspace} />
+          </div>
+        </Show>
+      </div>
     </div>
   );
 }
