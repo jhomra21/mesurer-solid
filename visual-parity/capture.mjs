@@ -18,6 +18,12 @@ const styleKeys = [
   "pointerEvents", "zIndex",
 ];
 
+async function dispatchMouse(locator, type, bubbles = true) {
+  await locator.evaluate((element, input) => {
+    element.dispatchEvent(new MouseEvent(input.type, { bubbles: input.bubbles }));
+  }, { type, bubbles });
+}
+
 async function elementSnapshot(page, selector) {
   const locator = page.locator(selector).first();
   if ((await locator.count()) === 0) return null;
@@ -74,36 +80,67 @@ async function snapshotMetrics(page) {
   };
 }
 
+const openSettings = async (page) => {
+  await page.keyboard.press("Control+,");
+  await page.getByRole("dialog", { name: "Settings" }).waitFor();
+};
+
 const states = [
-  {
-    name: "toolbar",
-    run: async () => {},
-  },
+  { name: "toolbar", run: async () => {} },
   {
     name: "tooltip",
     run: async (page) => {
       const select = page.getByRole("button", { name: /^Select/ });
-      await select.evaluate((element) => {
-        element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-        element.dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
-      });
+      await dispatchMouse(select, "mouseover", true);
+      await dispatchMouse(select, "mouseenter", false);
       await page.waitForTimeout(900);
     },
   },
   {
-    name: "settings-general",
+    name: "orientation-menu",
     run: async (page) => {
-      await page.keyboard.press("Control+,");
-      await page.getByRole("dialog", { name: "Settings" }).waitFor();
+      await dispatchMouse(page.getByRole("button", { name: "Guide orientation menu" }), "click", true);
+      await page.getByRole("menu").waitFor();
     },
   },
+  { name: "settings-general", run: openSettings },
   {
     name: "settings-guides",
     run: async (page) => {
       await page.keyboard.press("g");
       await page.waitForTimeout(80);
-      await page.keyboard.press("Control+,");
-      await page.getByRole("dialog", { name: "Settings" }).waitFor();
+      await openSettings(page);
+    },
+  },
+  {
+    name: "settings-select",
+    run: async (page) => {
+      await page.keyboard.press("s");
+      await page.waitForTimeout(80);
+      await openSettings(page);
+    },
+  },
+  {
+    name: "settings-rulers",
+    run: async (page) => {
+      await page.keyboard.press("r");
+      await page.waitForTimeout(80);
+      await openSettings(page);
+    },
+  },
+  {
+    name: "settings-color",
+    run: async (page) => {
+      await openSettings(page);
+      await dispatchMouse(page.getByRole("tab", { name: "Color" }), "click", true);
+      await page.waitForTimeout(80);
+    },
+  },
+  {
+    name: "color-picker",
+    run: async (page) => {
+      await page.keyboard.press("p");
+      await page.locator(".mesurer-color-picker").waitFor();
     },
   },
   {
