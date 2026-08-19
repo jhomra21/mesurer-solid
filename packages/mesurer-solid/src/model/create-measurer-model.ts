@@ -340,12 +340,27 @@ export function createMeasurerModel(options: MeasurerModelOptions = {}) {
     mutate((draft) => { draft.guideOrientation = orientation; });
   };
 
+  const initialSettingsTab = (value: MeasurerModelState): SettingsTab =>
+    value.colorPickerActive
+      ? "color-picker"
+      : value.rulersVisible
+        ? "rulers"
+        : value.toolMode === "guides"
+          ? "guides"
+          : value.toolMode === "select" || value.toolMode === "text-inspector"
+            ? "select"
+            : "general";
+
   const setTransient = (patch: Partial<Pick<MeasurerModelState,
     "altPressed" | "start" | "end" | "isDragging" | "selectionOriginRect" |
     "hoverRect" | "hoverElement" | "hoverPointer" | "draggingGuideId" | "guidePreview" |
     "toolbarActive" | "settingsOpen" | "settingsTab" | "colorPickerActive" |
     "colorPickerSample" | "colorPickerUnsupported"
-  >>) => mutate((draft) => Object.assign(draft, patch));
+  >>) => mutate((draft) => {
+    const openingSettings = patch.settingsOpen === true && !draft.settingsOpen && patch.settingsTab === undefined;
+    Object.assign(draft, patch);
+    if (openingSettings) draft.settingsTab = initialSettingsTab(draft);
+  });
 
   const setSelectedMeasurements = (values: InspectMeasurement[], primary?: InspectMeasurement | null) =>
     mutate((draft) => {
