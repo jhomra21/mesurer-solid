@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { For, Show, onSettled } from "solid-js";
 import { GUIDE_HITBOX_SIZE, MEASURE_LABEL_OFFSET } from "../core/constants";
 import { getEdgeVisibilityForRects } from "../core/edge-visibility";
 import type { Guide, InspectMeasurement, Rect } from "../core/types";
@@ -9,7 +9,6 @@ import { MeasurementBox } from "./MeasurementBox";
 
 export type MeasurerOverlayProps = {
   model: MeasurerModel;
-  guides: Guide[];
   displayedSelectedMeasurements: InspectMeasurement[];
   activeRect: Rect | null;
   optionPairOverlay: import("../core/types").DistanceOverlay | null;
@@ -30,6 +29,14 @@ const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any 
 );
 
 export function MeasurerOverlay(props: MeasurerOverlayProps) {
+  let overlayElement: HTMLDivElement | undefined;
+  let passiveGuideDrag: {
+    id: string;
+    orientation: Guide["orientation"];
+    pointerId: number;
+    previousUserSelect: string | null;
+  } | null = null;
+
   const selectionVisible = () => props.model.state.toolMode === "select";
   const guidesMode = () => props.model.state.toolMode === "guides";
   const overlayVisible = () => props.model.state.enabled;
@@ -46,9 +53,102 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
     const amount = kind === "active" ? 100 : kind === "hover" ? 90 : kind === "preview" ? 50 : 70;
     return `color-mix(in oklch, ${props.model.state.settings.guideColor} ${amount}%, transparent)`;
   };
+  const renderedGuides = (): Guide[] => {
+    if (props.model.state.guides.length > 0) return props.model.state.guides;
+    if (!props.model.state.settingsOpen || props.model.state.settingsTab !== "guides") return props.model.state.guides;
+    const ownerWindow = overlayElement?.ownerDocument.defaultView;
+    if (!ownerWindow) return props.model.state.guides;
+    return [
+      { id: "__mesurer-preview-vertical", orientation: "vertical", position: ownerWindow.innerWidth / 2 },
+      { id: "__mesurer-preview-horizontal", orientation: "horizontal", position: ownerWindow.innerHeight / 2 },
+    ];
+  };
+
+  onSettled(() => {
+    const ownerWindow = overlayElement?.ownerDocument.defaultView;
+    const ownerDocument = overlayElement?.ownerDocument;
+    if (!ownerWindow || !ownerDocument) return;
+
+    const handlePassiveGuideDown = (event: PointerEvent) => {
+      if (!props.model.current.enabled || props.model.current.settingsOpen || props.model.current.toolMode !== "none") return;
+      const toolbarTarget = event.composedPath().some((target) =>
+        target instanceof ownerWindow.Element && target.hasAttribute("data-mesurer-toolbar"),
+      );
+      if (toolbarTarget) return;
+
+      const point = { x: event.clientX, y: event.clientY };
+      const guide = props.model.current.guides.find((candidate) => {
+        const distance = candidate.orientation === "vertical"
+          ? Math.abs(candidate.position - point.x)
+          : Math.abs(candidate.position - point.y);
+        return distance <= GUIDE_HITBOX_SIZE / 2;
+      });
+      if (!guide) return;
+
+      props.model.checkpoint();
+      if (event.shiftKey) {
+        props.model.setSelectedGuideIds(
+          props.model.current.selectedGuideIds.includes(guide.id)
+            ? props.model.current.selectedGuideIds.filter((id) => id !== guide.id)
+            : [...props.model.current.selectedGuideIds, guide.id],
+        );
+        passiveGuideDrag = null;
+        return;
+      }
+
+      props.model.setSelectedGuideIds([guide.id]);
+      if (event.button === 0) {
+        passiveGuideDrag = {
+          id: guide.id,
+          orientation: guide.orientation,
+          pointerId: event.pointerId,
+          previousUserSelect: null,
+        };
+      }
+    };
+
+    const handlePassiveGuideMove = (event: PointerEvent) => {
+      const drag = passiveGuideDrag;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const guide = props.model.current.guides.find((candidate) => candidate.id === drag.id);
+      if (!guide) return;
+      event.preventDefault();
+      if (drag.previousUserSelect === null) {
+        drag.previousUserSelect = ownerDocument.documentElement.style.userSelect;
+        ownerDocument.documentElement.style.userSelect = "none";
+        ownerWindow.getSelection()?.removeAllRanges();
+      }
+      props.model.updateGuide(drag.id, {
+        position: drag.orientation === "vertical" ? event.clientX : event.clientY,
+      });
+    };
+
+    const handlePassiveGuideEnd = (event: PointerEvent) => {
+      const drag = passiveGuideDrag;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      if (drag.previousUserSelect !== null) ownerDocument.documentElement.style.userSelect = drag.previousUserSelect;
+      passiveGuideDrag = null;
+    };
+
+    ownerWindow.addEventListener("pointerdown", handlePassiveGuideDown, true);
+    ownerWindow.addEventListener("pointermove", handlePassiveGuideMove, true);
+    ownerWindow.addEventListener("pointerup", handlePassiveGuideEnd, true);
+    ownerWindow.addEventListener("pointercancel", handlePassiveGuideEnd, true);
+    return () => {
+      ownerWindow.removeEventListener("pointerdown", handlePassiveGuideDown, true);
+      ownerWindow.removeEventListener("pointermove", handlePassiveGuideMove, true);
+      ownerWindow.removeEventListener("pointerup", handlePassiveGuideEnd, true);
+      ownerWindow.removeEventListener("pointercancel", handlePassiveGuideEnd, true);
+      if (passiveGuideDrag?.previousUserSelect !== null && passiveGuideDrag) {
+        ownerDocument.documentElement.style.userSelect = passiveGuideDrag.previousUserSelect;
+      }
+      passiveGuideDrag = null;
+    };
+  });
 
   return (
     <div
+      ref={(element) => { overlayElement = element; }}
       class={`msr:absolute msr:inset-0 msr:select-none ${overlayVisible() ? `msr:pointer-events-auto ${guidesMode() ? props.hoverGuide || props.model.state.draggingGuideId ? "msr:cursor-default" : "msr:cursor-crosshair" : "msr:cursor-default"} msr:opacity-100` : "msr:pointer-events-none msr:opacity-0"}`}
       style={{ "pointer-events": overlayInteractive() ? "auto" : "none" }}
       onPointerDown={props.onPointerDown}
@@ -102,9 +202,10 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
         <Show when={lines().right.value > 0}><><div class="msr:absolute msr:h-px msr:bg-[#2563eb]" style={{ left: `${lines().right.x1}px`, width: `${lines().right.x2 - lines().right.x1}px`, top: `${lines().right.y}px` }} /><Tag axis="x" left={(lines().right.x1 + lines().right.x2) / 2} top={lines().right.y + MEASURE_LABEL_OFFSET}>{formatValue(lines().right.value)}</Tag></></Show>
       </>}</Show>
 
-      <For each={props.guides}>{(guide) => {
-        const selected = () => props.model.state.selectedGuideIds.includes(guide.id);
-        const hovered = () => props.hoverGuide?.id === guide.id;
+      <For each={renderedGuides()}>{(guide) => {
+        const previewGuide = guide.id.startsWith("__mesurer-preview-");
+        const selected = () => !previewGuide && props.model.state.selectedGuideIds.includes(guide.id);
+        const hovered = () => !previewGuide && props.hoverGuide?.id === guide.id;
         const strokeColor = () => selected() ? guideColor("active") : hovered() ? guideColor("hover") : guideColor("default");
         const strokeWidth = () => Math.max(props.model.state.settings.guideStyle.width, selected() || hovered() ? 2 : props.model.state.settings.guideStyle.width);
         const backgroundImage = () => props.model.state.settings.guideStyle.pattern === "solid" ? undefined
@@ -115,9 +216,11 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
           ? guide.orientation === "vertical" ? `${strokeWidth()}px ${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px` : `${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px ${strokeWidth()}px`
           : undefined;
         return <div class="msr:absolute" data-mesurer-guide="true" style={guide.orientation === "vertical"
-          ? { left: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, top: "0", width: `${GUIDE_HITBOX_SIZE}px`, height: "100%", "pointer-events": guidePointerEvents() ? "auto" : "none" }
-          : { top: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, left: "0", height: `${GUIDE_HITBOX_SIZE}px`, width: "100%", "pointer-events": guidePointerEvents() ? "auto" : "none" }}
-          onPointerDown={(event) => props.onGuidePointerDown(guide, event)} onPointerUp={(event) => props.onGuidePointerUp(guide, event)} onPointerCancel={(event) => props.onGuidePointerUp(guide, event)}>
+          ? { left: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, top: "0", width: `${GUIDE_HITBOX_SIZE}px`, height: "100%", "pointer-events": !previewGuide && guidePointerEvents() ? "auto" : "none" }
+          : { top: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, left: "0", height: `${GUIDE_HITBOX_SIZE}px`, width: "100%", "pointer-events": !previewGuide && guidePointerEvents() ? "auto" : "none" }}
+          onPointerDown={(event) => { if (!previewGuide && props.model.current.toolMode !== "none") props.onGuidePointerDown(guide, event); }}
+          onPointerUp={(event) => { if (!previewGuide && props.model.current.toolMode !== "none") props.onGuidePointerUp(guide, event); }}
+          onPointerCancel={(event) => { if (!previewGuide && props.model.current.toolMode !== "none") props.onGuidePointerUp(guide, event); }}>
           <div class="msr:absolute" style={guide.orientation === "vertical"
             ? { left: `${GUIDE_HITBOX_SIZE / 2 - 1}px`, top: "0", width: `${strokeWidth()}px`, height: "100%", "background-color": props.model.state.settings.guideStyle.pattern === "solid" ? strokeColor() : "transparent", "background-image": backgroundImage(), "background-size": backgroundSize(), opacity: props.model.state.settings.guideStyle.opacity }
             : { top: `${GUIDE_HITBOX_SIZE / 2 - 1}px`, left: "0", height: `${strokeWidth()}px`, width: "100%", "background-color": props.model.state.settings.guideStyle.pattern === "solid" ? strokeColor() : "transparent", "background-image": backgroundImage(), "background-size": backgroundSize(), opacity: props.model.state.settings.guideStyle.opacity }} />
