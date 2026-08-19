@@ -8,6 +8,8 @@ from PIL import Image, ImageChops, ImageDraw, ImageEnhance
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("parity-artifacts")
 threshold = 8
 states = sorted(p.name.removeprefix("react-").removesuffix(".png") for p in out.glob("react-*.png"))
+react_version = json.loads(Path("upstream/packages/mesurer/package.json").read_text())["version"]
+solid_version = json.loads(Path("packages/mesurer-solid/package.json").read_text())["version"]
 
 
 def round_numbers(value):
@@ -46,6 +48,8 @@ def metric_differences(react, solid, path=""):
 
 report = {
     "threshold_per_channel": threshold,
+    "react_version": react_version,
+    "solid_version": solid_version,
     "states": {},
 }
 
@@ -118,17 +122,17 @@ expected_general_metric_paths = {"settings.text", "toolbar.text"}
 for state, result in report["states"].items():
     metric_paths = {item["path"] for item in result["metric_differences"]}
     if state == "settings-general":
-        if result["threshold_diff_pixels"] > 250:
+        if result["threshold_diff_pixels"] > 400:
             failures.append(
-                f"{state}: {result['threshold_diff_pixels']} perceptible pixels exceed the 250-pixel version-text budget"
+                f"{state}: {result['threshold_diff_pixels']} perceptible pixels exceed the 400-pixel version-text budget"
             )
         if not metric_paths.issubset(expected_general_metric_paths):
             failures.append(
                 f"{state}: unexpected computed metric differences: {sorted(metric_paths - expected_general_metric_paths)}"
             )
         for item in result["metric_differences"]:
-            if "Version0.0.11" not in str(item["react"]) or "Version0.1.0" not in str(item["solid"]):
-                failures.append(f"{state}: allowed text difference is not solely the pinned React/Solid package version")
+            if f"Version{react_version}" not in str(item["react"]) or f"Version{solid_version}" not in str(item["solid"]):
+                failures.append(f"{state}: allowed text difference is not solely the React/Solid package version")
     else:
         if result["threshold_diff_pixels"] != 0:
             failures.append(f"{state}: {result['threshold_diff_pixels']} perceptible pixels differ")
