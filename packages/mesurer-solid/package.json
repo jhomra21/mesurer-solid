@@ -1,27 +1,19 @@
 {
   "name": "@jhomra21/mesurer-solid",
-  "version": "0.0.1",
-  "description": "A Solid 2-native measurement and alignment overlay for web apps.",
+  "version": "0.1.0",
+  "description": "A Solid 2-native port of Mesurer: measurement, guides, rulers, typography inspection, x-ray, and color picking for web apps.",
   "license": "MIT",
   "type": "module",
-  "sideEffects": [
-    "*.css"
-  ],
+  "sideEffects": ["*.css"],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
     "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json && bun scripts/copy-styles.mjs",
     "typecheck": "tsc --noEmit",
@@ -40,13 +32,7 @@
     "vite": "^8.1.5",
     "vitest": "^4.1.10"
   },
-  "keywords": [
-    "solid",
-    "solidjs",
-    "measurement",
-    "alignment",
-    "devtools"
-  ],
+  "keywords": ["solid", "solidjs", "measurement", "guides", "rulers", "devtools"],
   "repository": {
     "type": "git",
     "url": "https://github.com/jhomra21/mesurer-solid.git",

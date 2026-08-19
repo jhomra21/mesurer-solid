@@ -1,47 +1,44 @@
-# Architecture notes
+# Architecture
 
-## Solid 2 rules for this port
+`mesurer-solid` is a Solid 2-native port, not a React-hook transliteration.
 
-### 1. Do not port React hooks one-for-one
-
-Simple state from Mesurer's React hooks belongs in the central Solid model. Behavior remains modular only when it owns a meaningful external lifecycle (pointer input, keyboard input, resize tracking, persistence, history, etc.).
-
-### 2. Treat writes as staged
-
-Solid 2 batches writes. Code must not depend on a setter being immediately visible to reactive reads in the same synchronous turn.
-
-Preferred event shape:
-
-```ts
-const next = calculateFromEvent(event);
-useImperatively(next);
-setState((draft) => {
-  draft.value = next;
-});
+```text
+Solid 2 JSX / UI
+      │
+      ▼
+command model + reactive projection
+      │
+      ├── pointer / keyboard / ruler behaviors
+      ├── persistence / history
+      └── derived overlays
+              │
+              ▼
+framework-neutral Mesurer core/runtime
 ```
 
-Use `flush()` only at a proven imperative boundary, never as a default fix for interaction code.
+## Solid 2 scheduler rule
 
-### 3. Plain DOM handles stay plain
+Solid 2 store/signal writes are staged. Interaction code therefore never relies on this pattern:
 
-DOM nodes, pointer-capture targets, observer instances and other imperative handles are plain closure variables unless their identity needs to render UI.
+```ts
+setValue(next);
+readValue(); // do not assume this is next
+```
 
-### 4. Effects are split compute -> apply
+`createMeasurerModel()` maintains a synchronous command-side snapshot (`model.current`) and publishes each command into the Solid store (`model.state`). JSX subscribes to `state`; imperative pointer/history code computes from `current`. `flush()` is reserved for tests or genuine imperative settle boundaries.
 
-Solid 2 `createEffect` should make tracked inputs explicit and keep external side effects in the apply function. Cleanup is returned by the apply function.
+## Ownership boundaries
 
-### 5. Browser lifecycle uses `onSettled`
+- `core/` contains geometry, DOM targeting, snapping, distance, colors and persistence contracts adapted from Mesurer.
+- `runtime/` contains framework-neutral text inspection and style injection.
+- `model/` owns Solid 2 state, action history, settings and serialization.
+- `components/` are Solid 2 JSX only.
+- `Measurer.tsx` owns browser lifecycle, portal integration, keyboard/pointer behaviors and persistence wiring.
 
-The measurement runtime is a browser capability. Listeners/observers are installed after settlement and cleanup is colocated with setup.
+## Shadow DOM
 
-### 6. Props stay reactive
+Solid 2 RC's `<Portal>` currently requires an `Element` mount. The public API still accepts `ShadowRoot`; Mesurer creates and owns an internal `HTMLElement` host inside that root, then portals into that element. Styles are injected into the same root.
 
-Do not destructure component props at the function boundary. If an intentionally one-time initial value is needed, read it under `untrack`.
+## Parity surface
 
-### 7. Framework-neutral code stays framework-neutral
-
-Geometry, DOM measurement, distance math, snapping, persistence formats and selection algorithms must not import Solid. This keeps the port maintainable against upstream Mesurer and leaves room for other renderers later.
-
-## Tooling
-
-The workspace is Bun-first (`bun@1.3.14`). Workspace scripts use Bun filters, while Vite/Vitest remain the build and browser-test tooling for the Solid 2 package.
+The port covers upstream's current user-facing feature families: Select, Guides, Rulers, Text Inspector, X-ray, EyeDropper, Alt distances, history, settings, workspace persistence and custom portal/persistence adapters.

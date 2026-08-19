@@ -1,0 +1,12 @@
+// Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
+export const MEASURE_LABEL_OFFSET = 2;
+export const GUIDE_SNAP_DISTANCE = 10;
+export const GUIDE_HITBOX_SIZE = 14;
+export const GUIDE_DRAG_HOLD_MS = 220;
+export const MEASURE_TRANSITION_MS = 140;
+export const MIN_MULTI_TARGET_SIZE = 8;
+export const MIN_MULTI_ELEMENT_COVERAGE = 0.45;
+export const ANCESTOR_PRUNE_SCALE = 1.6;
+export const ANCESTOR_KEEP_COVERAGE = 0.92;
+export const MIN_SINGLE_TARGET_SIZE = 8;
+export const MIN_SINGLE_ELEMENT_COVERAGE = 0.15;
