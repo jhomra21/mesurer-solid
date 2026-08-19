@@ -8,6 +8,6 @@
     "build": "bun run --filter '@jhomra21/mesurer-solid' build",
     "typecheck": "bun run --filter '@jhomra21/mesurer-solid' typecheck && bun run --filter 'mesurer-solid-example' typecheck",
     "test": "bun run --filter '@jhomra21/mesurer-solid' test",
-    "dev": "bun run --filter 'mesurer-solid-example' dev"
+    "dev": "bun run --filter '@jhomra21/mesurer-solid' styles && bun run --filter 'mesurer-solid-example' dev"
   }
 }
