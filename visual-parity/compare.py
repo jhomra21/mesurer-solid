@@ -107,3 +107,35 @@ for state in states:
 
 (out / "report.json").write_text(json.dumps(report, indent=2))
 print(json.dumps(report, indent=2))
+
+# Treat the pinned React implementation as a visual contract. Every captured
+# state must have zero perceptible pixel drift and zero computed layout/style
+# drift. The one intentional exception is Settings > General: upstream and the
+# port display their own package versions, so only those two text snapshots and
+# a very small version-glyph pixel region may differ.
+failures = []
+expected_general_metric_paths = {"settings.text", "toolbar.text"}
+for state, result in report["states"].items():
+    metric_paths = {item["path"] for item in result["metric_differences"]}
+    if state == "settings-general":
+        if result["threshold_diff_pixels"] > 250:
+            failures.append(
+                f"{state}: {result['threshold_diff_pixels']} perceptible pixels exceed the 250-pixel version-text budget"
+            )
+        if not metric_paths.issubset(expected_general_metric_paths):
+            failures.append(
+                f"{state}: unexpected computed metric differences: {sorted(metric_paths - expected_general_metric_paths)}"
+            )
+        for item in result["metric_differences"]:
+            if "Version0.0.11" not in str(item["react"]) or "Version0.1.0" not in str(item["solid"]):
+                failures.append(f"{state}: allowed text difference is not solely the pinned React/Solid package version")
+    else:
+        if result["threshold_diff_pixels"] != 0:
+            failures.append(f"{state}: {result['threshold_diff_pixels']} perceptible pixels differ")
+        if result["metric_difference_count"] != 0:
+            failures.append(f"{state}: {result['metric_difference_count']} computed layout/style metrics differ")
+
+if failures:
+    raise SystemExit("React → Solid visual parity gate failed:\n- " + "\n- ".join(failures))
+
+print("React → Solid visual parity gate: PASS")
