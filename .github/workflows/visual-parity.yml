@@ -42,7 +42,10 @@ jobs:
         run: bun install
 
       - name: Install React upstream workspace
-        run: pnpm -C upstream install --frozen-lockfile
+        run: |
+          cd upstream
+          npm pkg set packageManager=pnpm@10.15.0
+          pnpm install --frozen-lockfile
 
       - name: Install Chromium
         working-directory: upstream/apps/site
