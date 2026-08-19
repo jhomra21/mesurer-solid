@@ -9,6 +9,7 @@ import { MeasurementBox } from "./MeasurementBox";
 
 export type MeasurerOverlayProps = {
   model: MeasurerModel;
+  guides: Guide[];
   displayedSelectedMeasurements: InspectMeasurement[];
   activeRect: Rect | null;
   optionPairOverlay: import("../core/types").DistanceOverlay | null;
@@ -33,6 +34,7 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
   const guidesMode = () => props.model.state.toolMode === "guides";
   const overlayVisible = () => props.model.state.enabled;
   const overlayInteractive = () => props.interactive && overlayVisible() && props.model.state.toolMode !== "none" && props.model.state.toolMode !== "text-inspector";
+  const guidePointerEvents = () => props.interactive && (props.model.state.toolMode !== "none" || props.model.state.rulersVisible);
   const outline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 80%, transparent)`;
   const fill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 8%, transparent)`;
   const displayedMeasurements = () => props.model.state.settings.multiMeasureEnabled && props.model.state.measurements.length > 0
@@ -100,7 +102,7 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
         <Show when={lines().right.value > 0}><><div class="msr:absolute msr:h-px msr:bg-[#2563eb]" style={{ left: `${lines().right.x1}px`, width: `${lines().right.x2 - lines().right.x1}px`, top: `${lines().right.y}px` }} /><Tag axis="x" left={(lines().right.x1 + lines().right.x2) / 2} top={lines().right.y + MEASURE_LABEL_OFFSET}>{formatValue(lines().right.value)}</Tag></></Show>
       </>}</Show>
 
-      <For each={props.model.state.guides}>{(guide) => {
+      <For each={props.guides}>{(guide) => {
         const selected = () => props.model.state.selectedGuideIds.includes(guide.id);
         const hovered = () => props.hoverGuide?.id === guide.id;
         const strokeColor = () => selected() ? guideColor("active") : hovered() ? guideColor("hover") : guideColor("default");
@@ -113,8 +115,8 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
           ? guide.orientation === "vertical" ? `${strokeWidth()}px ${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px` : `${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px ${strokeWidth()}px`
           : undefined;
         return <div class="msr:absolute" data-mesurer-guide="true" style={guide.orientation === "vertical"
-          ? { left: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, top: "0", width: `${GUIDE_HITBOX_SIZE}px`, height: "100%", "pointer-events": props.interactive ? "auto" : "none" }
-          : { top: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, left: "0", height: `${GUIDE_HITBOX_SIZE}px`, width: "100%", "pointer-events": props.interactive ? "auto" : "none" }}
+          ? { left: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, top: "0", width: `${GUIDE_HITBOX_SIZE}px`, height: "100%", "pointer-events": guidePointerEvents() ? "auto" : "none" }
+          : { top: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, left: "0", height: `${GUIDE_HITBOX_SIZE}px`, width: "100%", "pointer-events": guidePointerEvents() ? "auto" : "none" }}
           onPointerDown={(event) => props.onGuidePointerDown(guide, event)} onPointerUp={(event) => props.onGuidePointerUp(guide, event)} onPointerCancel={(event) => props.onGuidePointerUp(guide, event)}>
           <div class="msr:absolute" style={guide.orientation === "vertical"
             ? { left: `${GUIDE_HITBOX_SIZE / 2 - 1}px`, top: "0", width: `${strokeWidth()}px`, height: "100%", "background-color": props.model.state.settings.guideStyle.pattern === "solid" ? strokeColor() : "transparent", "background-image": backgroundImage(), "background-size": backgroundSize(), opacity: props.model.state.settings.guideStyle.opacity }
