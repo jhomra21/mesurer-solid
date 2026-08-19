@@ -15,7 +15,8 @@
   },
   "files": ["dist", "README.md"],
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json && bun scripts/copy-styles.mjs",
+    "styles": "bunx tailwindcss -i src/styles.css -o src/styles.generated.css && bun scripts/generate-styles.mjs",
+    "build": "bun run styles && vite build && tsc -p tsconfig.build.json && bunx tailwindcss -i src/styles.css -o dist/styles.css",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -26,8 +27,10 @@
   "devDependencies": {
     "@solidjs/vite-plugin": "^3.0.0-next.29",
     "@solidjs/web": "^2.0.0-rc.0",
+    "@tailwindcss/cli": "^4.2.2",
     "jsdom": "^30.0.1",
     "solid-js": "^2.0.0-rc.0",
+    "tailwindcss": "^4.2.2",
     "typescript": "^5.9.2",
     "vite": "^8.1.5",
     "vitest": "^4.1.10"
