@@ -197,6 +197,17 @@ try {
         locale: "en-US",
       });
       const page = await context.newPage();
+      await page.addInitScript(() => {
+        Object.defineProperty(window, "EyeDropper", {
+          configurable: true,
+          writable: true,
+          value: class {
+            async open() {
+              return { sRGBHex: "#3366ff" };
+            }
+          },
+        });
+      });
       await page.goto(url, { waitUntil: "networkidle" });
       await page.locator(".mesurer-toolbar-surface").waitFor();
       await page.waitForTimeout(120);
