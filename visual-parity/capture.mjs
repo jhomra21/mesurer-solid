@@ -82,7 +82,11 @@ const states = [
   {
     name: "tooltip",
     run: async (page) => {
-      await page.getByRole("button", { name: /^Select/ }).hover();
+      const select = page.getByRole("button", { name: /^Select/ });
+      await select.evaluate((element) => {
+        element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        element.dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+      });
       await page.waitForTimeout(900);
     },
   },
