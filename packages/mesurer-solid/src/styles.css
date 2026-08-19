@@ -119,3 +119,27 @@
 .mesurer-root {
   --msr-spacing: 4px;
 }
+
+/* Solid host compatibility: visually equivalent to upstream's root utility classes. */
+.mesurer-solid-root {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  --msr-spacing: 4px;
+}
+
+/* Upstream X-ray appearance wins over the legacy Solid host class name. */
+body.mesurer-solid-xray * {
+  outline: solid 1px blue !important;
+}
+body.mesurer-solid-xray [data-mesurer-root],
+body.mesurer-solid-xray [data-mesurer-root] *,
+body.mesurer-solid-xray .mesurer-toolbar-surface,
+body.mesurer-solid-xray .mesurer-toolbar-surface *,
+body.mesurer-solid-xray .mesurer-ti-box,
+body.mesurer-solid-xray .mesurer-ti-card,
+body.mesurer-solid-xray .mesurer-ti-card *,
+body.mesurer-solid-xray .mesurer-ti-close {
+  outline: none !important;
+}
