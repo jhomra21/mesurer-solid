@@ -90,6 +90,6 @@ type MeasurerProps = {
 
 ## Solid 2 notes
 
-This implementation does not depend on Solid 1 synchronous setter behavior. User actions compute against a synchronous command-side state and publish into a Solid 2 store, whose writes settle on Solid's normal schedule. The UI uses `@solidjs/web`, `onSettled`, split effects, draft stores and Solid 2 JSX conventions.
+The current Solid 2 RC can make store mutations observable immediately from imperative code while still scheduling/batching downstream reactive work. Mesurer therefore keeps a synchronous command-side snapshot for pointer, guide and history logic and mirrors commands into the Solid store used by JSX. That design avoids depending on reactive propagation timing. The UI uses `@solidjs/web`, `onSettled`, split effects, draft stores and Solid 2 JSX conventions.
 
 Mesurer's framework-neutral algorithms/runtime are adapted under its MIT license; see the repository's third-party notice.
