@@ -104,6 +104,7 @@ jobs:
           PARITY_REACT_URL: http://127.0.0.1:4173/e2e/fixtures/parity.html
           PARITY_SOLID_URL: http://127.0.0.1:4174/parity.html
           PARITY_OUT: ${{ github.workspace }}/parity-artifacts
+          PARITY_DPR: 1
         run: node e2e/parity-capture.mjs
 
       - name: Build side-by-side and pixel-diff report
@@ -132,5 +133,22 @@ jobs:
         with:
           name: react-solid-visual-parity
           path: parity-artifacts
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Capture native 3x inspection screenshots
+        working-directory: upstream/apps/site
+        env:
+          PARITY_REACT_URL: http://127.0.0.1:4173/e2e/fixtures/parity.html
+          PARITY_SOLID_URL: http://127.0.0.1:4174/parity.html
+          PARITY_OUT: ${{ github.workspace }}/parity-artifacts-3x
+          PARITY_DPR: 3
+        run: node e2e/parity-capture.mjs
+
+      - name: Upload native 3x screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: react-solid-visual-parity-3x
+          path: parity-artifacts-3x
           if-no-files-found: error
           retention-days: 14
