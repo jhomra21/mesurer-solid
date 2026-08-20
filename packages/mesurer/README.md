@@ -1,8 +1,20 @@
 # @jhomra21/mesurer
 
-Framework-agnostic browser entry point and automation harness for Mesurer.
+Framework-agnostic UI measurement and inspection tools for browser applications and coding agents.
+
+Mesurer's reference UI is implemented in Solid 2, but the public package bundles that renderer/runtime privately. Host applications do not need Solid 2 and can use Solid 1, Solid 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer.
+
+## Install
+
+During the beta:
+
+```bash
+bun add -d @jhomra21/mesurer@beta
+```
 
 ## Mount from application code
+
+The same API is used regardless of host framework:
 
 ```ts
 import { mountMeasurer } from "@jhomra21/mesurer";
@@ -17,7 +29,20 @@ console.log(mesurer.agent.distance("#sidebar", "main"));
 mesurer.dispose();
 ```
 
-`mountMeasurer()` creates an isolated ShadowRoot by default and bundles its own Solid 2 renderer/runtime. The host application therefore does not need Solid 2 and can be Solid 1, Solid 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer.
+`mountMeasurer()` creates an isolated ShadowRoot by default, so Mesurer does not share the host framework's renderer runtime or CSS boundary.
+
+## Core/plugin API
+
+Extension authors use a subpath of the same package:
+
+```ts
+import {
+  createMesurerPluginHost,
+  defineMesurerPlugin,
+} from "@jhomra21/mesurer/core";
+```
+
+There is no second framework-specific package to install.
 
 ## Inject from a browser harness
 
@@ -26,7 +51,9 @@ For coding agents, the preferred path is `@jhomra21/mesurer/inject`: the applica
 ```js
 import { fileURLToPath } from "node:url";
 
-const injectPath = fileURLToPath(import.meta.resolve("@jhomra21/mesurer/inject"));
+const injectPath = fileURLToPath(
+  import.meta.resolve("@jhomra21/mesurer/inject"),
+);
 
 await page.addScriptTag({
   type: "module",
@@ -45,7 +72,7 @@ const feedback = await page.evaluate(() =>
 const screenshot = await page.screenshot();
 ```
 
-The injected module exposes `window.__MESURER__` for JSON-safe measurements and `window.__MESURER_INSTANCE__` for advanced plugin-host access. Reinjection disposes the previous injected instance first, which keeps HMR/agent loops deterministic.
+The injected module exposes `window.__MESURER__` for JSON-safe measurements and `window.__MESURER_INSTANCE__` for advanced plugin-host access. Reinjection disposes the previous injected instance first, keeping HMR/agent loops deterministic.
 
 Before injection, a harness can optionally configure the bridge:
 
@@ -58,28 +85,26 @@ await page.evaluate(() => {
 });
 ```
 
-This injection surface is intended for development/test automation. It does not create a network listener or remote-control channel by itself.
+This surface is intended for development/test automation. It does not create a network listener or remote-control channel by itself.
 
 ## Agent API
 
-The bridge is deliberately data-first so an agent can combine structured measurements with its existing browser screenshots:
+The bridge is deliberately data-first so an agent can combine structured measurements with browser screenshots:
 
-- `ready()` — wait for Mesurer plugins/runtime and settled layout.
-- `stable(frames?)` — wait for fonts plus animation frames after an edit/HMR update.
-- `inspect(selector, index?)` / `inspectAll(selector)` — rect, margin, padding, border, typography, visual style, layout and overflow data.
+- `ready()` — wait for the Mesurer runtime and plugins.
+- `stable(frames?)` — wait for fonts and animation frames after an edit/HMR update.
+- `inspect(selector, index?)` / `inspectAll(selector)` — rect, margin, padding, border, typography, appearance, layout, and overflow data.
 - `at(x, y)` — inspect the application element under a viewport coordinate.
 - `distance(a, b)` — horizontal/vertical gaps and center deltas between two elements.
 - `viewport()` — viewport/document dimensions and overflow signals.
-- `feedback(selectors?)` — one JSON-safe iteration payload with requested elements, viewport, plugin capabilities and plugin state.
-- `describe()` — loaded plugins, tools, commands, state slices, settings and overlays.
+- `feedback(selectors?)` — one JSON-safe iteration payload with requested elements, viewport, plugin capabilities, and plugin state.
+- `describe()` — loaded plugins, tools, commands, state slices, settings, services, and overlays.
 - `command(id, args?)` — execute Mesurer or extension commands such as `builtin.xray`.
 - `state()` — inspect plugin-owned state.
 
-Element box-model values come from the same framework-neutral DOM inspection primitive used by the visual Solid Select tool, rather than a separate agent-only measurement implementation.
+Element box-model values come from the same framework-neutral DOM inspection primitive used by the visible Select tool rather than a separate automation-only implementation.
 
 ## Intended feedback loop
-
-A coding agent can run this cycle entirely from its browser harness:
 
 ```text
 edit UI
@@ -92,3 +117,13 @@ edit UI
 ```
 
 The user application does not need to know which framework Mesurer itself uses.
+
+## Public package surface
+
+```text
+@jhomra21/mesurer
+@jhomra21/mesurer/core
+@jhomra21/mesurer/inject
+```
+
+All three are exports of this single npm package.
