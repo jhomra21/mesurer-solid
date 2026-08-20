@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance
@@ -17,6 +18,7 @@ contract_keys = ("toolbarIconContract", "settingsContract")
 # declaration or affecting rendered geometry. The contract still compares the
 # actual x/y/width/height and every visual style token below.
 non_design_contract_suffixes = (".style.minWidth", ".style.minHeight")
+version_token = re.compile(r"Version[0-9A-Za-z.+-]+")
 
 
 def round_numbers(value):
@@ -51,6 +53,10 @@ def metric_differences(react, solid, path="", numeric_tolerance=0.25):
     elif react != solid:
         diffs.append({"path": path, "react": react, "solid": solid})
     return diffs
+
+
+def normalize_version_text(value):
+    return version_token.sub("Version<version>", str(value))
 
 
 report = {
@@ -138,7 +144,7 @@ print(json.dumps(report, indent=2))
 # Treat the pinned React implementation as the UI contract. Every captured
 # state must have zero semantic/control/icon contract drift. Visual and computed
 # layout/style drift are also zero-tolerance, except Settings > General where
-# upstream and the port intentionally display their own package versions.
+# upstream and the port intentionally display their own version token.
 failures = []
 expected_general_metric_paths = {"settings.text", "toolbar.text"}
 for state, result in report["states"].items():
@@ -157,8 +163,8 @@ for state, result in report["states"].items():
                 f"{state}: unexpected computed metric differences: {sorted(metric_paths - expected_general_metric_paths)}"
             )
         for item in result["metric_differences"]:
-            if f"Version{react_version}" not in str(item["react"]) or f"Version{solid_version}" not in str(item["solid"]):
-                failures.append(f"{state}: allowed text difference is not solely the React/Solid package version")
+            if normalize_version_text(item["react"]) != normalize_version_text(item["solid"]):
+                failures.append(f"{state}: allowed text difference is not solely the React/Solid version token")
     else:
         if result["threshold_diff_pixels"] != 0:
             failures.append(f"{state}: {result['threshold_diff_pixels']} perceptible pixels differ")
