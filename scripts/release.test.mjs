@@ -30,6 +30,12 @@ test("moves Unreleased entries into a versioned section", () => {
   assert.equal(releaseNotes(output, "0.1.0-beta.3"), "- Added release automation.");
 });
 
+test("release notes require an exact version heading", () => {
+  const content = `# Changelog\n\n## 0.1.0-beta.3 - 2026-08-21\n\n- Beta only.\n`;
+  assert.equal(releaseNotes(content, "0.1.0-beta.3"), "- Beta only.");
+  assert.throws(() => releaseNotes(content, "0.1.0"));
+});
+
 test("uses explicit no-user-facing-changes notes when Unreleased is empty", () => {
   const output = updateChangelog(
     `# Changelog\n\n## Unreleased\n\n<!-- Add user-facing changes here before preparing a release. -->\n`,
