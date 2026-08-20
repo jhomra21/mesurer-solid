@@ -34,7 +34,8 @@ jobs:
         run: bun run --filter '@jhomra21/mesurer-solid' styles
 
       - name: Build isolated Solid 2 Mesurer overlay
-        run: bunx vite build --config showcase/hope-ui/vite.config.ts
+        working-directory: packages/mesurer-solid
+        run: bunx vite build --config vite.hope-ui-showcase.config.ts
 
       - name: Set up Node
         uses: actions/setup-node@v4
