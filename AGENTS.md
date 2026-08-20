@@ -6,6 +6,29 @@ Mesurer Solid is designed to be attached by coding agents from the same browser 
 
 A user application does **not** need to import Mesurer. Install `@jhomra21/mesurer-solid` in the harness/tooling environment, resolve its `@jhomra21/mesurer-solid/inject` export, and inject that file into the running page.
 
+The repository now ships a reference harness for this path:
+
+```bash
+bun run build
+bun run browser:harness -- http://localhost:5173
+```
+
+For a process-based agent, use newline-delimited JSON over stdio:
+
+```bash
+bun run browser:harness -- http://localhost:5173 --stdio
+```
+
+For an external adapter, use the authenticated loopback bridge:
+
+```bash
+bun run browser:harness -- http://localhost:5173 --serve
+```
+
+`GET /tools` exposes the stable RPC names plus JSON input schemas and `POST /rpc` executes them. The loopback server binds only to `127.0.0.1`, rejects non-loopback Host/Origin values, and requires the printed bearer token. See [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md).
+
+Harnesses that already own a Playwright page can still inject directly:
+
 ```js
 import { fileURLToPath } from "node:url";
 
@@ -63,6 +86,8 @@ describe(): Promise<MesurerPluginDescription | undefined>
 command(id: string, args?: unknown): Promise<void>
 state(): Promise<Record<string, unknown>>
 ```
+
+The reference harness maps these to stable transport names such as `mesurer.inspect`, `mesurer.feedback`, `mesurer.command`, and `mesurer.state`, and adds browser-level methods for navigation, tab selection, host-page input, and screenshots.
 
 The advanced mounted instance is available as `window.__MESURER_INSTANCE__`. Use its `pluginHost` only when an agent needs to add, remove, or replace runtime plugins. Prefer the smaller JSON-safe `window.__MESURER__` surface for normal feedback.
 
@@ -183,4 +208,4 @@ Internal repository workspaces may remain separated for maintainability, but the
 
 ## Development-only injection
 
-`@jhomra21/mesurer-solid/inject` is intended for development, testing, and coding-agent harnesses. It does not open a network port or expose a remote-control service by itself. The bridge exists only inside the page where the harness injects it.
+`@jhomra21/mesurer-solid/inject` is intended for development, testing, and coding-agent harnesses. It does not open a network port or expose a remote-control service by itself. The optional repository harness owns any local HTTP/stdio control plane outside the public package and treats that control plane as a privileged local capability.
