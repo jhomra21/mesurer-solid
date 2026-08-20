@@ -1,7 +1,8 @@
 {
   "name": "@jhomra21/mesurer-core",
-  "version": "0.1.0",
-  "description": "Framework-neutral state, history, events, and plugin runtime for Mesurer.",
+  "private": true,
+  "version": "0.1.0-beta.0",
+  "description": "Internal framework-neutral state, history, events, and plugin runtime for Mesurer.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -11,10 +12,8 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./package.json": "./package.json"
+    }
   },
-  "files": ["dist", "README.md"],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
