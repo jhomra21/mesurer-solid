@@ -89,8 +89,31 @@ Plugins may register:
 - overlays
 - settings contributions
 - scoped state slices
+- opaque renderer/browser services
+- disposal callbacks
 
-State slices can opt into history and persistence. Plugin registrations must dispose cleanly when their plugin is removed or replaced.
+State slices can opt into history and persistence. Plugin registrations must dispose cleanly when their plugin is removed or replaced. Nested plugin commands are treated as one history transaction so a stable command can delegate without creating duplicate undo checkpoints.
+
+Renderer-aware plugins can require the Solid runtime capability and use its service without importing renderer internals:
+
+```ts
+import type { MesurerSolidRuntimeService } from "@jhomra21/mesurer";
+
+const plugin = {
+  id: "example.overlay",
+  requires: ["runtime:solid"],
+  setup(ctx) {
+    const runtime = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
+    if (!runtime) throw new Error("Missing Solid runtime service");
+
+    const mount = runtime.createInspectorMount();
+    mount.element.textContent = "Plugin UI";
+    ctx.lifecycle.onDispose(() => mount.dispose());
+  },
+};
+```
+
+`createInspectorMount()` marks plugin-owned DOM as inspector UI so Mesurer does not measure or X-ray its own extension surface. Service values are opaque and are never included in history or persistence; `describe()` exposes service IDs only.
 
 Agents can inspect the current extension surface through `window.__MESURER__.describe()` rather than reaching into implementation files.
 
