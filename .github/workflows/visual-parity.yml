@@ -14,7 +14,7 @@ jobs:
   compare:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Solid port
+      - name: Checkout Mesurer
         uses: actions/checkout@v4
 
       - name: Checkout pinned React upstream
@@ -42,14 +42,14 @@ jobs:
           corepack enable
           corepack prepare pnpm@10.15.0 --activate
 
-      - name: Install Solid workspace
+      - name: Install Mesurer workspace
         run: bun install
 
       - name: Install visual comparison dependencies
         run: python3 -m pip install --disable-pip-version-check pillow
 
-      - name: Generate Solid styles
-        run: bun run --filter '@jhomra21/mesurer-solid' styles
+      - name: Generate renderer styles
+        run: bun run --filter '@jhomra21/mesurer-renderer' styles
 
       - name: Install React upstream workspace
         run: |
@@ -70,7 +70,7 @@ jobs:
           cp visual-parity/capture.mjs upstream/apps/site/e2e/parity-capture.mjs
           cp visual-parity/interactions.mjs upstream/apps/site/e2e/parity-interactions.mjs
 
-      - name: Start React and Solid fixtures
+      - name: Start React and renderer fixtures
         run: |
           (
             cd upstream
@@ -121,7 +121,7 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path("parity-artifacts/report.json").read_text())
-          print("## React → Solid visual parity")
+          print("## React → Solid renderer visual parity")
           print("")
           print("Pinned upstream: `ibelick/mesurer@605d202a4cd0404bb7a4808a11b574174bb14d1a`")
           print("")
