@@ -1,10 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareVersions, nextVersion, releaseNotes, updateChangelog } from "./release.mjs";
+import { compareVersions, nextVersion, parseVersion, releaseNotes, updateChangelog } from "./release.mjs";
 
 test("orders prereleases before their stable version", () => {
   assert.equal(compareVersions("0.1.0-beta.2", "0.1.0"), -1);
   assert.equal(compareVersions("0.1.0-beta.3", "0.1.0-beta.2"), 1);
+  assert.equal(compareVersions("0.1.0-beta.11", "0.1.0-beta.2"), 1);
+  assert.equal(compareVersions("0.1.0-beta", "0.1.0-rc"), -1);
+  assert.equal(compareVersions("0.1.0-1", "0.1.0-beta"), -1);
+});
+
+test("enforces strict SemVer prerelease identifiers", () => {
+  assert.deepEqual(parseVersion("1.2.3-rc.0").prerelease, ["rc", "0"]);
+  assert.throws(() => parseVersion("1.2.3-rc.01"));
+  assert.throws(() => parseVersion("01.2.3"));
 });
 
 test("computes release versions", () => {
