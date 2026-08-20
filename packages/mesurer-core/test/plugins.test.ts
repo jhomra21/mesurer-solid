@@ -41,6 +41,30 @@ describe("Mesurer plugin host", () => {
     expect(host.state.get("example")).toEqual({ enabled: false, count: 9 });
   });
 
+  it("treats nested command dispatch as one history action", async () => {
+    const host = createMesurerPluginHost();
+    await host.load(defineMesurerPlugin({
+      id: "nested",
+      setup(ctx) {
+        ctx.state.register({ id: "nested", initial: 0, history: true });
+        ctx.command.register("nested.inner", () => {
+          ctx.state.update<number>("nested", (value) => value + 1);
+        });
+        ctx.command.register("nested.outer", async () => {
+          await ctx.command.execute("nested.inner");
+        });
+      },
+    }));
+
+    await host.command.execute("nested.outer");
+    expect(host.state.get("nested")).toBe(1);
+    expect(host.undo()).toBe(true);
+    expect(host.state.get("nested")).toBe(0);
+    expect(host.canUndo()).toBe(false);
+    expect(host.redo()).toBe(true);
+    expect(host.state.get("nested")).toBe(1);
+  });
+
   it("scopes opaque services and lifecycle cleanup to plugin lifetime", async () => {
     const host = createMesurerPluginHost();
     let disposals = 0;
