@@ -37,37 +37,29 @@ This same entry point is intended for:
 
 Electron main-process code is not a DOM host; mount Mesurer in the renderer page.
 
-## Coding-agent feedback loop
+## Browser and coding-agent harness
 
-Agents should normally avoid modifying the user's application. Instead, resolve and inject the `@jhomra21/mesurer-solid/inject` export from the browser harness:
+The repository includes a local browser harness that can inject the exact `@jhomra21/mesurer-solid/inject` bundle into an application or website that does not import Mesurer at all:
 
-```js
-import { fileURLToPath } from "node:url";
-
-const injectPath = fileURLToPath(
-  import.meta.resolve("@jhomra21/mesurer-solid/inject"),
-);
-
-await page.addScriptTag({
-  type: "module",
-  path: injectPath,
-});
-
-await page.evaluate(() => window.__MESURER__.ready());
-
-const feedback = await page.evaluate(() =>
-  window.__MESURER__.feedback([
-    "main",
-    "[data-testid='toolbar']",
-  ]),
-);
-
-const screenshot = await page.screenshot();
+```bash
+bun run build
+bun run browser:harness -- https://example.com
 ```
 
-The bridge returns JSON-safe geometry, margin/padding/border, typography, appearance, flex/grid properties, overflow, element-to-element distances, viewport/document dimensions, plugin capabilities, and plugin state. The browser harness supplies the screenshot, allowing an agent to reason from exact measurements and pixels together.
+It can also attach to an existing Chromium session over CDP, keep Mesurer injected across navigation, expose one-shot JSON calls, serve authenticated loopback HTTP RPC, or speak newline-delimited JSON over stdio for process-based agent harnesses.
 
-See [`AGENTS.md`](./AGENTS.md) for the harness contract.
+Example one-shot inspection:
+
+```bash
+bun run browser:harness -- https://example.com \
+  --headless \
+  --once mesurer.inspect \
+  --params '{"selector":"h1"}'
+```
+
+The bridge returns JSON-safe geometry, margin/padding/border, typography, appearance, flex/grid properties, overflow, element-to-element distances, viewport/document dimensions, plugin capabilities, and plugin state. `browser.screenshot` lets an agent pair those exact measurements with pixels.
+
+See [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md) for launch, CDP attach, stdio/HTTP control, security boundaries, and the stable RPC method surface. See [`AGENTS.md`](./AGENTS.md) for the in-page agent contract.
 
 ## Plugins and extensions
 
@@ -96,7 +88,7 @@ The framework-neutral core, DOM adapter, and Solid 2 renderer remain private wor
 
 The reference renderer continues to track the pinned upstream Mesurer UI and behavior, including selection, guides, rulers, text inspection, X-ray, color picking, distances, settings, history, and persistence.
 
-CI compares the renderer against the pinned React upstream implementation through matched screenshots and exhaustive interaction gates, including native-3× side-by-side captures.
+CI compares the renderer against the pinned React upstream implementation through matched screenshots, explicit Settings/control/icon geometry contracts, and exhaustive interaction gates, including native-3× side-by-side captures.
 
 ## Development
 
@@ -113,6 +105,6 @@ bun run test
 bun run build
 ```
 
-The package-smoke workflow additionally packs the exact npm artifact, installs that tarball into clean React and Solid 1 applications, typechecks the published declarations, launches the real apps in Chromium, and exercises the mounted package and agent feedback loop.
+The package-smoke workflow additionally packs the exact npm artifact, installs that tarball into clean React and Solid 1 applications, typechecks the published declarations, launches the real apps in Chromium, exercises the mounted package and agent feedback loop, and proves that the browser harness can inject the packed `inject.js` into a host with no Mesurer import.
 
 See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for internal boundaries and [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md) for upstream attribution.
