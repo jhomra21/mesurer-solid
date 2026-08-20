@@ -68,6 +68,20 @@ async function elementSnapshot(page, selector) {
 
 async function snapshotUiContract(page) {
   return page.evaluate(({ controlStyleKeys }) => {
+    const roots = [document];
+    for (let index = 0; index < roots.length; index += 1) {
+      for (const element of roots[index].querySelectorAll("*")) {
+        if (element.shadowRoot) roots.push(element.shadowRoot);
+      }
+    }
+    const queryDeep = (selector) => {
+      for (const root of roots) {
+        const match = root.querySelector(selector);
+        if (match) return match;
+      }
+      return null;
+    };
+
     const rectOf = (element) => {
       const rect = element.getBoundingClientRect();
       return {
@@ -159,8 +173,8 @@ async function snapshotUiContract(page) {
       };
     };
 
-    const toolbar = document.querySelector(".mesurer-toolbar-surface");
-    const dialog = document.querySelector('[role="dialog"][aria-label="Settings"]');
+    const toolbar = queryDeep(".mesurer-toolbar-surface");
+    const dialog = queryDeep('[role="dialog"][aria-label="Settings"]');
 
     const toolbarIcons = toolbar
       ? [...toolbar.querySelectorAll("button")].map((button, index) => {
