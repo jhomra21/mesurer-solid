@@ -3,7 +3,7 @@ name: hope-ui-showcase
 on:
   pull_request:
     paths:
-      - "packages/mesurer-solid/**"
+      - "packages/renderer/**"
       - "showcase/hope-ui/**"
       - ".github/workflows/hope-ui-showcase.yml"
   workflow_dispatch:
@@ -34,7 +34,7 @@ jobs:
         run: bun run --filter '@jhomra21/mesurer-renderer' styles
 
       - name: Build isolated Mesurer renderer overlay
-        working-directory: packages/mesurer-solid
+        working-directory: packages/renderer
         run: bunx vite build --config vite.hope-ui-showcase.config.ts
 
       - name: Set up Node
