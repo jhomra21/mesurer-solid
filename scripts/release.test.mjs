@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareVersions, nextVersion, parseVersion, releaseNotes, updateChangelog } from "./release.mjs";
+import {
+  compareVersions,
+  nextVersion,
+  parseVersion,
+  releaseNotes,
+  updateChangelog,
+  updatePackageVersion,
+} from "./release.mjs";
 
 test("orders prereleases before their stable version", () => {
   assert.equal(compareVersions("0.1.0-beta.2", "0.1.0"), -1);
@@ -31,6 +38,21 @@ test("computes release versions", () => {
 test("rejects backwards and ambiguous releases", () => {
   assert.throws(() => nextVersion("0.1.0-beta.2", "patch"));
   assert.throws(() => nextVersion("0.1.0", "explicit", "0.0.9"));
+});
+
+test("updates only the package version and preserves manifest formatting", () => {
+  const input = `{
+  "name": "@jhomra21/mesurer-solid",
+  "version": "0.1.0-beta.2",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./core": { "types": "./dist/core.d.ts", "import": "./dist/core.js" }
+  }
+}
+`;
+  const expected = input.replace('"version": "0.1.0-beta.2"', '"version": "0.1.0-beta.3"');
+  assert.equal(updatePackageVersion(input, "0.1.0-beta.2", "0.1.0-beta.3"), expected);
+  assert.throws(() => updatePackageVersion(input, "0.1.0-beta.1", "0.1.0-beta.3"));
 });
 
 test("moves Unreleased entries into a versioned section", () => {
