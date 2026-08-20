@@ -5,6 +5,11 @@ coverage/
 .DS_Store
 *.tsbuildinfo
 
+# npm publish staging/output
+packages/mesurer/.publish/
+packages/mesurer/*.tgz
+packages/mesurer/pack.json
+
 # Local React ↔ Solid parity workspace/output
 upstream/
 parity-artifacts/
