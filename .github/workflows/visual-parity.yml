@@ -64,6 +64,7 @@ jobs:
           cp visual-parity/solid-fixture.tsx examples/basic/src/parity.tsx
           cp visual-parity/solid.html examples/basic/parity.html
           cp visual-parity/capture.mjs upstream/apps/site/e2e/parity-capture.mjs
+          cp visual-parity/interactions.mjs upstream/apps/site/e2e/parity-interactions.mjs
 
       - name: Start React and Solid fixtures
         run: |
@@ -112,7 +113,7 @@ jobs:
           python3 -m pip install --disable-pip-version-check pillow
           python3 visual-parity/compare.py parity-artifacts | tee parity-artifacts/report.txt
 
-      - name: Add report summary
+      - name: Add visual report summary
         run: |
           python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
@@ -136,6 +137,52 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Capture every button and action at 1x
+        working-directory: upstream/apps/site
+        env:
+          PARITY_REACT_URL: http://127.0.0.1:4173/e2e/fixtures/parity.html
+          PARITY_SOLID_URL: http://127.0.0.1:4174/parity.html
+          PARITY_OUT: ${{ github.workspace }}/interaction-artifacts
+          PARITY_DPR: 1
+        run: node e2e/parity-interactions.mjs
+
+      - name: Build interaction parity report
+        shell: bash
+        run: |
+          set +e
+          python3 visual-parity/compare-interactions.py interaction-artifacts | tee interaction-artifacts/report.txt
+          status=${PIPESTATUS[0]}
+          echo "$status" > interaction-artifacts/gate-status.txt
+          exit 0
+
+      - name: Add interaction report summary
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          path = Path("interaction-artifacts/report.json")
+          if not path.exists():
+              print("## Button/action parity\n\nInteraction capture did not produce a report.")
+              raise SystemExit(0)
+          report = json.loads(path.read_text())
+          print("## Button/action parity")
+          print("")
+          print("| Interaction | pixels > threshold | state diffs | result |")
+          print("|---|---:|---:|---|")
+          for name, case in report["cases"].items():
+              print(f"| {name} | {case['threshold_diff_pixels']} | {case['state_difference_count']} | {'PASS' if case['passed'] else 'FAIL'} |")
+          PY
+
+      - name: Upload button/action parity artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: react-solid-interaction-parity
+          path: interaction-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Capture native 3x inspection screenshots
         working-directory: upstream/apps/site
         env:
@@ -152,3 +199,37 @@ jobs:
           path: parity-artifacts-3x
           if-no-files-found: error
           retention-days: 14
+
+      - name: Capture every button and action at native 3x
+        if: always()
+        working-directory: upstream/apps/site
+        env:
+          PARITY_REACT_URL: http://127.0.0.1:4173/e2e/fixtures/parity.html
+          PARITY_SOLID_URL: http://127.0.0.1:4174/parity.html
+          PARITY_OUT: ${{ github.workspace }}/interaction-artifacts-3x
+          PARITY_DPR: 3
+        run: node e2e/parity-interactions.mjs
+
+      - name: Upload native 3x button/action screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: react-solid-interaction-parity-3x
+          path: interaction-artifacts-3x
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce button/action parity gate
+        if: always()
+        run: |
+          if [ ! -f interaction-artifacts/gate-status.txt ]; then
+            echo "Interaction parity did not run to completion."
+            exit 1
+          fi
+          status=$(cat interaction-artifacts/gate-status.txt)
+          if [ "$status" -ne 0 ]; then
+            echo "Button/action React → Solid parity failed."
+            cat interaction-artifacts/report.txt || true
+            exit "$status"
+          fi
+          echo "Button/action React → Solid parity passed."
