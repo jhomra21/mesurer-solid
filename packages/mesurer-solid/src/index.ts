@@ -1,5 +1,5 @@
 export { default as Measurer } from "./ComposableMeasurer";
-export type { MeasurerProps } from "./ComposableMeasurer";
+export type { MeasurerProps, MesurerSolidRuntimeService } from "./ComposableMeasurer";
 export {
   colorPickerPlugin,
   composeMesurerPlugins,
