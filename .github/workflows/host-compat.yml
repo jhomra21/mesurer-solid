@@ -5,7 +5,7 @@ on:
     paths:
       - "packages/mesurer-core/**"
       - "packages/mesurer-dom/**"
-      - "packages/mesurer-solid/**"
+      - "packages/renderer/**"
       - "packages/mesurer/**"
       - "examples/solid1/**"
       - "host-compat/**"
