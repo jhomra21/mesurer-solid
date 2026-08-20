@@ -1,0 +1,15 @@
+{
+  "name": "@jhomra21/mesurer-dom",
+  "version": "0.1.0",
+  "description": "Browser and DOM host adapters for Mesurer.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./package.json": "./package.json" },
+  "files": ["dist", "README.md"],
+  "scripts": { "build": "tsc -p tsconfig.build.json", "typecheck": "tsc --noEmit" },
+  "dependencies": { "@jhomra21/mesurer-core": "workspace:*" },
+  "devDependencies": { "typescript": "^5.9.2" }
+}
