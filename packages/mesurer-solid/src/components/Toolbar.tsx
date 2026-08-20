@@ -195,7 +195,17 @@ export function Toolbar(props: ToolbarProps) {
     >
       <ToolbarButton id="select" active={props.model.state.toolMode === "select"} label="Select" shortcut="S" onClick={() => activate("select")} {...buttonProps("select")}><CursorIcon size={20} /></ToolbarButton>
       <ToolbarButton id="xray" active={props.model.state.xrayVisible} label="X-ray" shortcut="X" onClick={() => { props.model.setEnabled(true); props.model.setTransient({ colorPickerActive: false }); props.model.toggleXray(); }} {...buttonProps("xray")}><XrayIcon size={20} /></ToolbarButton>
-      <ToolbarButton id="color-picker" active={props.model.state.colorPickerActive} label="Color picker" shortcut="P" onClick={props.onColorPicker} {...buttonProps("color-picker")}><ColorPickerIcon size={20} /></ToolbarButton>
+      <ToolbarButton
+        id="color-picker"
+        active={props.model.state.colorPickerActive}
+        label="Color picker"
+        shortcut="P"
+        onClick={() => {
+          if (props.model.current.colorPickerActive) props.model.setTransient({ colorPickerActive: false });
+          else props.onColorPicker();
+        }}
+        {...buttonProps("color-picker")}
+      ><ColorPickerIcon size={20} /></ToolbarButton>
       <ToolbarButton id="rulers" active={props.model.state.rulersVisible} label="Rulers" shortcut="R" onClick={() => { props.model.setEnabled(true); props.model.setTransient({ colorPickerActive: false }); props.model.toggleRulers(); }} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>
       <ToolbarButton id="text-inspector" active={props.model.state.toolMode === "text-inspector"} label="Text inspector" shortcut="A" onClick={() => activate("text-inspector")} {...buttonProps("text-inspector")}><TextInspectorIcon size={20} /></ToolbarButton>
       <ToolbarButton id="guides" active={props.model.state.toolMode === "guides"} label="Guides" shortcut="G" onClick={() => activate("guides")} {...buttonProps("guides")}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
