@@ -1,0 +1,100 @@
+name: hope-ui-showcase
+
+on:
+  pull_request:
+    paths:
+      - "packages/mesurer-solid/**"
+      - "showcase/hope-ui/**"
+      - ".github/workflows/hope-ui-showcase.yml"
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Mesurer Solid
+        uses: actions/checkout@v4
+
+      - name: Checkout Hope UI
+        uses: actions/checkout@v4
+        with:
+          repository: hope-ui/hope-ui
+          ref: main
+          path: hope-ui
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install Mesurer workspace
+        run: bun install
+
+      - name: Generate Mesurer styles
+        run: bun run --filter '@jhomra21/mesurer-solid' styles
+
+      - name: Build isolated Solid 2 Mesurer overlay
+        run: bunx vite build --config showcase/hope-ui/vite.config.ts
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.10.0 --activate
+
+      - name: Install Hope UI exactly from its lockfile
+        working-directory: hope-ui
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        working-directory: hope-ui
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start Hope UI Storybook
+        working-directory: hope-ui
+        run: |
+          pnpm exec storybook dev -p 6006 --host 127.0.0.1 --ci > ../hope-ui-storybook.log 2>&1 &
+          echo $! > ../hope-ui-storybook.pid
+
+          ready=0
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent --show-error http://127.0.0.1:6006/index.json >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            echo "Hope UI Storybook did not become ready"
+            cat ../hope-ui-storybook.log || true
+            exit 1
+          fi
+
+      - name: Capture Mesurer on real Hope UI components at native 3x
+        working-directory: hope-ui
+        env:
+          HOPE_UI_STORYBOOK_URL: http://127.0.0.1:6006
+          MESURER_OVERLAY: ${{ github.workspace }}/showcase/hope-ui/dist/mesurer-overlay.js
+          SHOWCASE_OUT: ${{ github.workspace }}/hope-ui-showcase-artifacts
+          SHOWCASE_DPR: 3
+        run: |
+          cp ../showcase/hope-ui/capture.mjs ./mesurer-showcase-capture.mjs
+          node mesurer-showcase-capture.mjs
+
+      - name: List Twitter-ready captures
+        run: |
+          file hope-ui-showcase-artifacts/*.png
+          ls -lh hope-ui-showcase-artifacts/*.png
+
+      - name: Upload Hope UI + Mesurer screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: hope-ui-mesurer-solid-3x
+          path: hope-ui-showcase-artifacts/*.png
+          if-no-files-found: error
+          retention-days: 14
