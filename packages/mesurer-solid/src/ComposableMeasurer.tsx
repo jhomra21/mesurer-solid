@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onSettled, untrack } from "solid-js";
+import { For, Show, createMemo, createSignal, onSettled, untrack } from "solid-js";
 import { Portal } from "@solidjs/web";
 import {
   createMesurerPluginHost,
@@ -44,7 +44,12 @@ const toolSelector = (label: string) =>
   `[data-mesurer-toolbar='true'] button[aria-label^='${label}']`;
 
 const matchesShortcut = (event: KeyboardEvent, shortcut: string) => {
-  const parts = shortcut.toLowerCase().replaceAll("cmd", "meta").split("+").map((part) => part.trim()).filter(Boolean);
+  const parts = shortcut
+    .toLowerCase()
+    .replaceAll("cmd", "meta")
+    .split("+")
+    .map((part) => part.trim())
+    .filter(Boolean);
   if (!parts.length) return false;
   const key = parts.at(-1)!;
   const modifiers = new Set(parts.slice(0, -1));
@@ -61,27 +66,13 @@ const matchesShortcut = (event: KeyboardEvent, shortcut: string) => {
 
 export default function ComposableMeasurer(props: MeasurerProps) {
   const providedHost = untrack(() => props.pluginHost);
-  const host = providedHost ?? createMesurerPluginHost();
+  const host: MesurerPluginHost = providedHost ?? createMesurerPluginHost();
   const ownsHost = !providedHost;
   const initialPlugins = untrack(() => composeMesurerPlugins(props.plugins ?? [], props.excludePlugins ?? []));
   const initialExclusions = new Set(untrack(() => props.excludePlugins ?? []));
   const [revision, setRevision] = createSignal(0);
   const [ready, setReady] = createSignal(false);
   const [extensionMount, setExtensionMount] = createSignal<HTMLDivElement | null>(null);
-  let visibilityStyle: HTMLStyleElement | null = null;
-  let persistPluginState: (() => void) | null = null;
-  let deactivateBuiltin: ((id: MesurerBuiltinPluginId) => void) | null = null;
-
-  const unsubscribe = host.subscribe((event) => {
-    setRevision((value) => value + 1);
-    if (event.reason === "state" || event.reason === "history" || event.reason === "remove" || event.reason === "replace") {
-      persistPluginState?.();
-    }
-    if (event.reason === "remove" && event.pluginId?.startsWith("mesurer.")) {
-      deactivateBuiltin?.(event.pluginId.slice("mesurer.".length) as MesurerBuiltinPluginId);
-    }
-  });
-  onCleanup(unsubscribe);
 
   const builtinEnabled = (id: MesurerBuiltinPluginId) => {
     revision();
@@ -97,7 +88,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     return host.tools().filter((tool) => !tool.builtin);
   });
 
-  const visibilityCss = createMemo(() => {
+  const visibilityCss = () => {
     revision();
     const rules: string[] = [];
     for (const [id, label] of Object.entries(LABELS) as Array<[MesurerBuiltinPluginId, string]>) {
@@ -111,12 +102,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     if (!builtinEnabled("rulers")) rules.push("[data-mesurer-rulers='true']{display:none!important}");
     if (!builtinEnabled("color-picker")) rules.push(".mesurer-color-picker{display:none!important}");
     return rules.join("\n");
-  });
-
-  createEffect(() => {
-    const css = visibilityCss();
-    if (visibilityStyle) visibilityStyle.textContent = css;
-  });
+  };
 
   const runTool = (tool: ToolContribution) => {
     if (tool.disabled?.()) return;
@@ -126,13 +112,15 @@ export default function ComposableMeasurer(props: MeasurerProps) {
 
   onSettled(() => {
     let active = true;
-    const target = props.portalTarget ?? document.body;
+    let persistTimer = 0;
+    const runtimeHost: MesurerPluginHost = host;
+    const input: MeasurerProps = props;
+    const target = input.portalTarget ?? document.body;
     const ownerDocument = target.ownerDocument ?? document;
     const ownerWindow = ownerDocument.defaultView ?? window;
     const queryRoot: ParentNode = target;
-    let persistTimer = 0;
 
-    visibilityStyle = ownerDocument.createElement("style");
+    const visibilityStyle = ownerDocument.createElement("style");
     visibilityStyle.dataset.mesurerPluginVisibility = "true";
     visibilityStyle.textContent = visibilityCss();
     target.append(visibilityStyle);
@@ -145,14 +133,25 @@ export default function ComposableMeasurer(props: MeasurerProps) {
 
     const dispatchBuiltin = (id: MesurerBuiltinPluginId) => {
       if (id === "settings") {
-        ownerWindow.dispatchEvent(new ownerWindow.KeyboardEvent("keydown", { key: ",", ctrlKey: true, bubbles: true, cancelable: true }));
+        ownerWindow.dispatchEvent(new ownerWindow.KeyboardEvent("keydown", {
+          key: ",",
+          ctrlKey: true,
+          bubbles: true,
+          cancelable: true,
+        }));
         return;
       }
       const key = BUILTIN_KEYS[id];
-      if (key) ownerWindow.dispatchEvent(new ownerWindow.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+      if (key) {
+        ownerWindow.dispatchEvent(new ownerWindow.KeyboardEvent("keydown", {
+          key,
+          bubbles: true,
+          cancelable: true,
+        }));
+      }
     };
 
-    deactivateBuiltin = (id) => {
+    const deactivateBuiltin = (id: MesurerBuiltinPluginId) => {
       const label = LABELS[id];
       if (label) {
         const button = queryRoot.querySelector<HTMLButtonElement>(toolSelector(label));
@@ -161,32 +160,45 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       if (id === "xray") ownerDocument.body.classList.remove("mesurer-solid-xray");
     };
 
-    const pluginStorageKey = props.persistKey ? `${props.persistKey}:plugins` : null;
-    persistPluginState = pluginStorageKey ? () => {
+    const pluginStorageKey = input.persistKey ? `${input.persistKey}:plugins` : null;
+    const persistPluginState = () => {
+      if (!pluginStorageKey) return;
       ownerWindow.clearTimeout(persistTimer);
       persistTimer = ownerWindow.setTimeout(() => {
         try {
-          ownerWindow.localStorage.setItem(pluginStorageKey, JSON.stringify(host.state.serialize("persist")));
+          ownerWindow.localStorage.setItem(pluginStorageKey, JSON.stringify(runtimeHost.state.serialize("persist")));
         } catch (error) {
-          props.onPluginError?.(error, "plugin-persistence");
+          input.onPluginError?.(error, "plugin-persistence");
         }
       }, 50);
-    } : null;
+    };
 
-    props.onPluginHost?.(host);
-    void (async () => {
+    const unsubscribe = runtimeHost.subscribe((event) => {
+      setRevision((value) => value + 1);
+      visibilityStyle.textContent = visibilityCss();
+      if (event.reason === "state" || event.reason === "history" || event.reason === "remove" || event.reason === "replace") {
+        persistPluginState();
+      }
+      if (event.reason === "remove" && event.pluginId?.startsWith("mesurer.")) {
+        deactivateBuiltin(event.pluginId.slice("mesurer.".length) as MesurerBuiltinPluginId);
+      }
+    });
+
+    input.onPluginHost?.(runtimeHost);
+
+    const setupPlugins = async () => {
       for (const plugin of initialPlugins) {
-        if (!active) break;
+        if (!active) return;
         try {
-          await host.load(plugin);
+          await runtimeHost.load(plugin);
         } catch (error) {
-          props.onPluginError?.(error, plugin.id);
+          input.onPluginError?.(error, plugin.id);
         }
       }
       if (!active) return;
 
       try {
-        await host.load({
+        await runtimeHost.load({
           id: "mesurer.runtime-bridge",
           version: "0.1.0",
           provides: ["runtime:solid"],
@@ -202,23 +214,24 @@ export default function ComposableMeasurer(props: MeasurerProps) {
           },
         });
       } catch (error) {
-        props.onPluginError?.(error, "mesurer.runtime-bridge");
+        input.onPluginError?.(error, "mesurer.runtime-bridge");
       }
 
       if (pluginStorageKey) {
         try {
           const stored = ownerWindow.localStorage.getItem(pluginStorageKey);
-          if (stored) host.state.restore(JSON.parse(stored) as Record<string, unknown>, "persist");
+          if (stored) runtimeHost.state.restore(JSON.parse(stored) as Record<string, unknown>, "persist");
         } catch (error) {
-          props.onPluginError?.(error, "plugin-persistence");
+          input.onPluginError?.(error, "plugin-persistence");
         }
       }
 
       if (active) {
         setReady(true);
-        if (visibilityStyle) visibilityStyle.textContent = visibilityCss();
+        visibilityStyle.textContent = visibilityCss();
       }
-    })();
+    };
+    void setupPlugins();
 
     const isEditable = (eventTarget: EventTarget | null) => {
       const realm = ownerWindow as Window & typeof globalThis;
@@ -243,7 +256,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       const key = event.key.toLowerCase();
       const mod = event.metaKey || event.ctrlKey;
       if (mod && key === "z") {
-        const handled = event.shiftKey ? host.redo() : host.undo();
+        const handled = event.shiftKey ? runtimeHost.redo() : runtimeHost.undo();
         if (handled) {
           event.preventDefault();
           event.stopImmediatePropagation();
@@ -270,15 +283,13 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     return () => {
       active = false;
       ownerWindow.clearTimeout(persistTimer);
-      persistPluginState = null;
-      deactivateBuiltin = null;
       ownerWindow.removeEventListener("keydown", captureShortcut, true);
+      unsubscribe();
       ownerDocument.body.classList.remove("mesurer-solid-xray");
       setExtensionMount(null);
       extensionHost.remove();
-      visibilityStyle?.remove();
-      visibilityStyle = null;
-      if (ownsHost) host.dispose();
+      visibilityStyle.remove();
+      if (ownsHost) runtimeHost.dispose();
     };
   });
 
