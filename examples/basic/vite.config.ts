@@ -6,7 +6,7 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: /^@jhomra21\/mesurer-solid$/,
+        find: /^@jhomra21\/mesurer-renderer$/,
         replacement: new URL(
           "../../packages/mesurer-solid/src/index.ts",
           import.meta.url,
