@@ -84,6 +84,10 @@ function stripComments(value) {
   return value.replace(/<!--([\s\S]*?)-->/g, "").trim();
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function updateChangelog(content, version, date) {
   const heading = "## Unreleased";
   const start = content.indexOf(heading);
@@ -101,11 +105,9 @@ export function updateChangelog(content, version, date) {
 }
 
 export function releaseNotes(content, version) {
-  const prefix = `## ${version}`;
-  const start = content.indexOf(prefix);
-  if (start < 0) throw new Error(`CHANGELOG.md does not contain a section for ${version}`);
-  const headingEnd = content.indexOf("\n", start);
-  const bodyStart = headingEnd < 0 ? content.length : headingEnd + 1;
+  const heading = new RegExp(`^## ${escapeRegExp(version)}(?: - [^\\n]+)?$`, "m").exec(content);
+  if (!heading) throw new Error(`CHANGELOG.md does not contain a section for ${version}`);
+  const bodyStart = heading.index + heading[0].length;
   const nextHeading = content.indexOf("\n## ", bodyStart);
   const bodyEnd = nextHeading < 0 ? content.length : nextHeading;
   const notes = stripComments(content.slice(bodyStart, bodyEnd));
