@@ -1,6 +1,5 @@
 import { createEffect, createSignal } from "solid-js";
 import { render } from "solid-js/web";
-import { mountMeasurer } from "@jhomra21/mesurer";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing Solid 1 root");
@@ -29,9 +28,3 @@ render(() => {
   wrapper.append(button, sibling);
   return wrapper;
 }, root);
-
-const mesurer = mountMeasurer({
-  persistKey: "mesurer-solid1-example",
-  agent: true,
-});
-Object.assign(window, { __MESURER_SOLID1__: mesurer });
