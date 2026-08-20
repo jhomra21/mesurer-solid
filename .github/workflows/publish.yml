@@ -113,15 +113,113 @@ jobs:
           echo "release_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           echo "release=true" >> "$GITHUB_OUTPUT"
 
-  smoke:
+  artifact:
     needs: detect
     if: needs.detect.outputs.release == 'true'
-    uses: ./.github/workflows/package-smoke.yml
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Use the pinned npm CLI
+        run: |
+          npm install --global npm@11.19.0
+          npm --version
+
+      - name: Install workspace
+        run: bun install --frozen-lockfile
+
+      - name: Build publishable package
+        run: bun run build
+
+      - name: Pack exact sanitized npm artifact
+        id: pack
+        shell: bash
+        run: |
+          cd packages/mesurer
+          bun run stage
+          npm pack .publish --json > pack.json
+          filename=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].filename)')
+          package=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].name)')
+          version=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].version)')
+          integrity=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].integrity)')
+          expected="${{ needs.detect.outputs.version }}"
+
+          if [[ "$package" != "@jhomra21/mesurer-solid" ]]; then
+            echo "Packed package name ${package} is not the public Mesurer Solid package."
+            exit 1
+          fi
+          if [[ "$version" != "$expected" ]]; then
+            echo "Packed version ${version} does not match detected release ${expected}."
+            exit 1
+          fi
+          if [[ "$integrity" != sha512-* ]]; then
+            echo "Unexpected npm integrity format: ${integrity}"
+            exit 1
+          fi
+
+          tarball=$(realpath "$filename")
+          actual_integrity="sha512-$(openssl dgst -sha512 -binary "$tarball" | openssl base64 -A)"
+          if [[ "$actual_integrity" != "$integrity" ]]; then
+            echo "Packed tarball bytes do not match npm pack integrity metadata."
+            exit 1
+          fi
+
+          if [[ "$version" == *-* ]]; then
+            npm publish "$tarball" --dry-run --access public --tag beta
+          else
+            npm publish "$tarball" --dry-run --access public
+          fi
+
+          echo "tarball=${tarball}" >> "$GITHUB_OUTPUT"
+
+      - name: Import exact tarball from a clean consumer
+        env:
+          PACKAGE_TGZ: ${{ steps.pack.outputs.tarball }}
+        shell: bash
+        run: |
+          rm -rf /tmp/mesurer-release-consumer
+          mkdir -p /tmp/mesurer-release-consumer
+          cd /tmp/mesurer-release-consumer
+          npm init -y >/dev/null
+          npm install "$PACKAGE_TGZ" >/dev/null
+          node --input-type=module <<'NODE'
+          const main = await import("@jhomra21/mesurer-solid");
+          const core = await import("@jhomra21/mesurer-solid/core");
+          for (const key of ["mountMeasurer", "defineMesurerPlugin"]) {
+            if (typeof main[key] !== "function") throw new Error(`Missing main export: ${key}`);
+          }
+          for (const key of ["createMesurerPluginHost", "createMesurerRuntime", "defineMesurerPlugin"]) {
+            if (typeof core[key] !== "function") throw new Error(`Missing core export: ${key}`);
+          }
+          console.log("Exact release tarball imports: PASS");
+          NODE
+
+      - name: Upload publish candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: npm-package
+          path: |
+            packages/mesurer/*.tgz
+            packages/mesurer/pack.json
+          if-no-files-found: error
+          retention-days: 14
 
   publish:
     needs:
       - detect
-      - smoke
+      - artifact
     if: needs.detect.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:

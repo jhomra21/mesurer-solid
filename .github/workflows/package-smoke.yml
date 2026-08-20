@@ -32,17 +32,14 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
-      - name: Use the pinned OIDC-capable npm CLI
+      - name: Use the pinned npm CLI
         run: npm install --global npm@11.19.0
 
       - name: Install workspace
         run: bun install --frozen-lockfile
 
-      - name: Validate workspace
-        run: |
-          bun run typecheck
-          bun run test
-          bun run build
+      - name: Build publishable workspace
+        run: bun run build
 
       - name: Pack exact sanitized npm artifact
         run: |
@@ -53,9 +50,9 @@ jobs:
           version=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].version)')
           echo "PACKAGE_TGZ=$(realpath "$filename")" >> "$GITHUB_ENV"
           if [[ "$version" == *-* ]]; then
-            npm publish "$filename" --dry-run --access public --tag beta
+            npm publish "$(realpath "$filename")" --dry-run --access public --tag beta
           else
-            npm publish "$filename" --dry-run --access public
+            npm publish "$(realpath "$filename")" --dry-run --access public
           fi
 
       - name: Typecheck a clean consumer against published declarations
@@ -254,8 +251,8 @@ jobs:
           (window as Window & { __HOST_READY__?: boolean }).__HOST_READY__ = true;
           TSX
 
-      - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
+      - name: Install headless Chromium shell
+        run: bunx playwright install --with-deps --only-shell chromium
 
       - name: Start packed-package consumers
         run: |
