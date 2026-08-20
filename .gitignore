@@ -4,3 +4,17 @@ dist/
 coverage/
 .DS_Store
 *.tsbuildinfo
+
+# Local React ↔ Solid parity workspace/output
+upstream/
+parity-artifacts/
+parity-artifacts-*/
+interaction-artifacts/
+interaction-artifacts-*/
+interaction-side-by-side-*/
+react-vite.log
+solid-vite.log
+react-vite.pid
+solid-vite.pid
+playwright-report/
+test-results/
