@@ -53,6 +53,8 @@ const BUILTIN_KEYS: Partial<Record<MesurerBuiltinPluginId, string>> = {
 const toolSelector = (label: string) =>
   `[data-mesurer-toolbar='true'] button[aria-label^='${label}']`;
 
+const builtinCommand = (id: MesurerBuiltinPluginId) => `builtin.${id}`;
+
 const matchesShortcut = (event: KeyboardEvent, shortcut: string) => {
   const parts = shortcut
     .toLowerCase()
@@ -85,6 +87,13 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   const [ready, setReady] = createSignal(false);
   const [extensionMount, setExtensionMount] = createSignal<HTMLDivElement | null>(null);
 
+  const replacementBuiltinTool = (id: MesurerBuiltinPluginId): ToolContribution | undefined => {
+    revision();
+    return host.tools().find((tool) =>
+      (tool.builtin === id || tool.id === id) && tool.command !== builtinCommand(id),
+    );
+  };
+
   const builtinEnabled = (id: MesurerBuiltinPluginId) => {
     revision();
     if (!ready()) return !initialExclusions.has(id);
@@ -96,34 +105,48 @@ export default function ComposableMeasurer(props: MeasurerProps) {
 
   const customTools = createMemo(() => {
     revision();
-    return host.tools().filter((tool) => !tool.builtin);
+    return host.tools().filter((tool) => {
+      if (!tool.builtin) return true;
+      return tool.command !== builtinCommand(tool.builtin as MesurerBuiltinPluginId);
+    });
   });
 
   const visibilityCss = () => {
     revision();
     const rules: string[] = [];
     for (const [id, label] of Object.entries(LABELS) as Array<[MesurerBuiltinPluginId, string]>) {
-      if (!builtinEnabled(id)) rules.push(`${toolSelector(label)}{display:none!important}`);
+      if (!builtinEnabled(id) || replacementBuiltinTool(id)) {
+        rules.push(`${toolSelector(label)}{display:none!important}`);
+      }
     }
-    if (!builtinEnabled("guides")) {
+    if (!builtinEnabled("guides") || replacementBuiltinTool("guides")) {
       rules.push("[data-mesurer-toolbar='true'] div:has(>button[aria-label='Guide orientation menu']){display:none!important}");
-      rules.push("[data-mesurer-guide='true']{display:none!important}");
     }
+    if (!builtinEnabled("guides")) rules.push("[data-mesurer-guide='true']{display:none!important}");
     if (!builtinEnabled("distance")) rules.push("[data-mesurer-distance='true']{display:none!important}");
     if (!builtinEnabled("rulers")) rules.push("[data-mesurer-rulers='true']{display:none!important}");
     if (!builtinEnabled("color-picker")) rules.push(".mesurer-color-picker{display:none!important}");
     return rules.join("\n");
   };
 
-  const runTool = (tool: ToolContribution) => {
+  const executeTool = async (tool: ToolContribution, source: unknown = "toolbar") => {
     if (tool.disabled?.()) return;
-    void host.command.execute(tool.command, undefined, { source: "toolbar", toolId: tool.id })
-      .catch((error) => props.onPluginError?.(error, tool.id));
+    try {
+      await host.command.execute(tool.command, undefined, { source, toolId: tool.id });
+    } catch (error) {
+      props.onPluginError?.(error, tool.id);
+      throw error;
+    }
+  };
+
+  const runTool = (tool: ToolContribution, source: unknown = "toolbar") => {
+    void executeTool(tool, source).catch(() => undefined);
   };
 
   onSettled(() => {
     let active = true;
     let persistTimer = 0;
+    let dispatchingBuiltin = false;
     const runtimeHost: MesurerPluginHost = host;
     const input: MeasurerProps = props;
     const target = input.portalTarget ?? document.body;
@@ -159,22 +182,27 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     setExtensionMount(extensionHost);
 
     const dispatchBuiltin = (id: MesurerBuiltinPluginId) => {
-      if (id === "settings") {
-        ownerWindow.dispatchEvent(new ownerWindow.KeyboardEvent("keydown", {
-          key: ",",
-          ctrlKey: true,
-          bubbles: true,
-          cancelable: true,
-        }));
-        return;
-      }
-      const key = BUILTIN_KEYS[id];
-      if (key) {
-        ownerWindow.dispatchEvent(new ownerWindow.KeyboardEvent("keydown", {
-          key,
-          bubbles: true,
-          cancelable: true,
-        }));
+      dispatchingBuiltin = true;
+      try {
+        if (id === "settings") {
+          ownerWindow.dispatchEvent(new ownerWindow.KeyboardEvent("keydown", {
+            key: ",",
+            ctrlKey: true,
+            bubbles: true,
+            cancelable: true,
+          }));
+          return;
+        }
+        const key = BUILTIN_KEYS[id];
+        if (key) {
+          ownerWindow.dispatchEvent(new ownerWindow.KeyboardEvent("keydown", {
+            key,
+            bubbles: true,
+            cancelable: true,
+          }));
+        }
+      } finally {
+        dispatchingBuiltin = false;
       }
     };
 
@@ -222,6 +250,15 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       }
     };
 
+    const runBuiltinSlot = async (id: MesurerBuiltinPluginId) => {
+      const replacement = replacementBuiltinTool(id);
+      if (replacement) {
+        await executeTool(replacement, { source: "builtin-command", builtin: id });
+        return;
+      }
+      if (builtinEnabled(id)) dispatchBuiltin(id);
+    };
+
     const setupPlugins = async () => {
       for (const plugin of initialBuiltinPlugins) await loadPlugin(plugin);
       if (!active) return;
@@ -238,13 +275,9 @@ export default function ComposableMeasurer(props: MeasurerProps) {
             createInspectorMount,
           });
           for (const id of Object.keys(BUILTIN_KEYS) as MesurerBuiltinPluginId[]) {
-            ctx.command.register(`builtin.${id}`, () => {
-              if (builtinEnabled(id)) dispatchBuiltin(id);
-            });
+            ctx.command.register(builtinCommand(id), () => runBuiltinSlot(id));
           }
-          ctx.command.register("builtin.settings", () => {
-            if (builtinEnabled("settings")) dispatchBuiltin("settings");
-          });
+          ctx.command.register(builtinCommand("settings"), () => runBuiltinSlot("settings"));
         },
       });
       if (!active) return;
@@ -281,8 +314,39 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       );
     };
 
+    const builtinShortcut = (event: KeyboardEvent): MesurerBuiltinPluginId | null => {
+      const key = event.key.toLowerCase();
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && key === ",") return "settings";
+      if (mod) return null;
+      if (key === "s") return "select";
+      if (key === "a") return "text-inspector";
+      if (key === "g") return "guides";
+      if (key === "p") return "color-picker";
+      if (key === "x") return "xray";
+      if (key === "r") return "rulers";
+      return null;
+    };
+
     const captureShortcut = (event: KeyboardEvent) => {
-      if (isEditable(event.target)) return;
+      if (dispatchingBuiltin || isEditable(event.target)) return;
+
+      const slot = builtinShortcut(event);
+      const replacement = slot ? replacementBuiltinTool(slot) : undefined;
+      if (slot && replacement) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        runTool(replacement, { source: "builtin-shortcut", builtin: slot });
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if ((key === "h" || key === "v") && replacementBuiltinTool("guides")) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+
       const custom = customTools().find((tool) => tool.shortcut && matchesShortcut(event, tool.shortcut));
       if (custom) {
         event.preventDefault();
@@ -291,7 +355,6 @@ export default function ComposableMeasurer(props: MeasurerProps) {
         return;
       }
 
-      const key = event.key.toLowerCase();
       const mod = event.metaKey || event.ctrlKey;
       if (mod && key === "z") {
         const handled = event.shiftKey ? runtimeHost.redo() : runtimeHost.undo();
