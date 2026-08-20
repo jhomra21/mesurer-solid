@@ -19,17 +19,16 @@ const cases = [
   },
 ];
 
-const browser = await chromium.launch({ headless: true });
-try {
-  for (const testCase of cases) {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-    const errors = [];
-    page.on("pageerror", (error) => errors.push(String(error)));
-    page.on("console", (message) => {
-      if (message.type() === "error") errors.push(message.text());
-    });
+async function runCase(browser, testCase) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(String(error)));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
 
-    await page.goto(testCase.url, { waitUntil: "networkidle" });
+  try {
+    await page.goto(testCase.url, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => Boolean(window.__HOST_READY__));
 
     if (testCase.injectPath) {
@@ -85,9 +84,15 @@ try {
     }
 
     if (errors.length) throw new Error(`${testCase.name} page errors:\n${errors.join("\n")}`);
-    await page.close();
     console.log(`${testCase.name} packed-package consumer: PASS`);
+  } finally {
+    await page.close();
   }
+}
+
+const browser = await chromium.launch({ headless: true });
+try {
+  await Promise.all(cases.map((testCase) => runCase(browser, testCase)));
 } finally {
   await browser.close();
 }
