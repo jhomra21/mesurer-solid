@@ -104,19 +104,28 @@ jobs:
           name: npm-package
           path: release-artifact
 
-      - name: Read exact release artifact
+      - name: Read and verify exact release artifact
         id: artifact
         shell: bash
         run: |
-          tarball=$(find release-artifact -maxdepth 1 -name '*.tgz' -print -quit)
-          if [[ -z "$tarball" ]]; then
-            echo "No npm tarball found in release artifact."
+          mapfile -t tarballs < <(find release-artifact -maxdepth 1 -type f -name '*.tgz' -print)
+          if [[ "${#tarballs[@]}" -ne 1 ]]; then
+            echo "Expected exactly one npm tarball in the release artifact; found ${#tarballs[@]}."
             exit 1
           fi
+          tarball="${tarballs[0]}"
+
+          entry_count=$(node -e 'const p=require("./release-artifact/pack.json"); process.stdout.write(String(p.length))')
+          if [[ "$entry_count" != "1" ]]; then
+            echo "Expected pack.json to describe exactly one package; found ${entry_count}."
+            exit 1
+          fi
+
           package=$(node -e 'const p=require("./release-artifact/pack.json")[0]; process.stdout.write(p.name)')
           version=$(node -e 'const p=require("./release-artifact/pack.json")[0]; process.stdout.write(p.version)')
           integrity=$(node -e 'const p=require("./release-artifact/pack.json")[0]; process.stdout.write(p.integrity)')
           expected="${{ needs.detect.outputs.version }}"
+
           if [[ "$package" != "@jhomra21/mesurer-solid" ]]; then
             echo "Packed package name ${package} is not the public Mesurer Solid package."
             exit 1
@@ -125,6 +134,17 @@ jobs:
             echo "Packed version ${version} does not match detected release ${expected}."
             exit 1
           fi
+          if [[ "$integrity" != sha512-* ]]; then
+            echo "Unexpected npm integrity format: ${integrity}"
+            exit 1
+          fi
+
+          actual_integrity="sha512-$(openssl dgst -sha512 -binary "$tarball" | openssl base64 -A)"
+          if [[ "$actual_integrity" != "$integrity" ]]; then
+            echo "Downloaded tarball bytes do not match npm pack integrity metadata."
+            exit 1
+          fi
+
           echo "tarball=${tarball}" >> "$GITHUB_OUTPUT"
           echo "package=${package}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
