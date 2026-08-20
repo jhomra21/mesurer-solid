@@ -1,69 +1,91 @@
 # Architecture
 
-Mesurer is organized around a framework-neutral core with browser and renderer adapters. The Solid 2 implementation remains the reference UI renderer and retains upstream Mesurer's visual/behavioral contract, but Solid no longer owns the state/history or extension architecture.
+Mesurer is organized as private implementation workspaces behind one public package: `@jhomra21/mesurer`.
+
+The reference UI renderer remains implemented in Solid 2 because that renderer already has the upstream visual/behavioral parity we want. Solid is an implementation detail of Mesurer itself, not a requirement imposed on host applications.
 
 ```text
-                         ┌─────────────────────────────┐
-                         │ @jhomra21/mesurer-core      │
-                         │ state · history · plugins   │
-                         │ commands · hooks · domain   │
-                         └──────────────┬──────────────┘
-                                        │
-                         ┌──────────────▼──────────────┐
-                         │ @jhomra21/mesurer-dom       │
-                         │ browser hosts · storage     │
-                         │ canonical DOM measurements │
-                         └──────────────┬──────────────┘
-                                        │
-                         ┌──────────────▼──────────────┐
-                         │ @jhomra21/mesurer-solid     │
-                         │ Solid 2 reactive projection │
-                         │ parity UI / browser runtime │
-                         └──────────────┬──────────────┘
-                                        │
-                         ┌──────────────▼──────────────┐
-                         │ @jhomra21/mesurer           │
-                         │ private Solid 2 island      │
-                         │ mount + agent harness       │
-                         │ standalone /inject bundle   │
-                         └─────────────────────────────┘
+host application
+Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron renderer
+                              │
+                              ▼
+                    @jhomra21/mesurer
+                    public npm package
+              mount · /core · /inject · agent API
+                              │
+               ┌──────────────┴──────────────┐
+               ▼                             ▼
+      framework-neutral runtime        isolated UI island
+      state · history · plugins          Solid 2 renderer
+               │                             │
+               └───────────┬─────────────────┘
+                           ▼
+                  canonical DOM boundary
 ```
 
-## `@jhomra21/mesurer-core`
+## Public distribution
 
-Core has no Solid, React or renderer dependency. It owns:
+Users install only:
 
-- Mesurer domain types and defaults
-- command-side model state
-- observable snapshots
-- undo/redo
-- settings/workspace serialization
-- plugin host lifecycle
-- tools, commands, hooks, overlays and settings registrations
-- plugin-owned state slices
-- scoped plugin history/persistence
-- runtime capability introspection through `describe()`
+```text
+@jhomra21/mesurer
+```
 
-This is the stable extension boundary. New features should not need to import Solid internals to register behavior/state.
+The same npm package exposes three entry points:
 
-## `@jhomra21/mesurer-dom`
+```text
+@jhomra21/mesurer
+@jhomra21/mesurer/core
+@jhomra21/mesurer/inject
+```
 
-The DOM package is the browser-specific boundary. It owns:
+- root export: framework-agnostic browser mount, plugins, public types, and agent harness;
+- `/core`: framework-neutral plugin/runtime primitives for extension authors;
+- `/inject`: self-contained development/test injector for browser harnesses and coding agents.
 
-- owner window/document/portal host helpers
-- local-storage adapter
-- Electron renderer detection without importing Electron
-- canonical element box-model inspection
+No renderer-specific package is part of the public product surface.
 
-The visual Solid Select implementation and the universal agent harness both use the same DOM inspection primitive for border-box/padding/margin geometry. Agent measurement is therefore not a second competing interpretation of an element's box model.
+## Internal workspaces
 
-## `@jhomra21/mesurer-solid`
+The repository keeps boundaries separated so they can evolve independently without becoming separate products.
 
-The Solid package is a Solid 2 renderer and lifecycle adapter.
+### Framework-neutral core
 
-`createMeasurerModel()` creates the framework-neutral core model, then mirrors snapshots into a Solid store for JSX. Imperative interaction logic reads the core command snapshot, so its correctness does not depend on Solid's reactive scheduling boundary.
+The private core workspace owns:
 
-Built-in feature identities are registered through the public plugin architecture:
+- Mesurer domain types and defaults;
+- command-side model state;
+- observable snapshots;
+- undo/redo;
+- settings/workspace serialization;
+- plugin host lifecycle;
+- tools, commands, hooks, overlays, settings, and service registrations;
+- plugin-owned state slices;
+- scoped plugin history/persistence;
+- runtime capability introspection through `describe()`.
+
+It must not import Solid, React, Vue, another renderer, Electron, or browser globals.
+
+Public extension-facing pieces are bundled into the `@jhomra21/mesurer/core` subpath so users do not install the private workspace.
+
+### DOM boundary
+
+The private DOM workspace owns:
+
+- owner window/document/portal helpers;
+- browser storage adapters;
+- Electron renderer detection without importing Electron;
+- canonical element box-model inspection.
+
+The visible Select tool and the agent harness use the same DOM inspection primitive. Agent measurements are therefore not a second competing interpretation of layout geometry.
+
+### `packages/renderer`
+
+This private workspace owns the Solid 2 UI renderer and lifecycle adapter.
+
+`createMeasurerModel()` creates the framework-neutral command model and mirrors snapshots into Solid state for JSX. Imperative pointer/keyboard/history behavior reads the synchronous command snapshot rather than relying on a particular Solid scheduling boundary.
+
+Built-in feature identities are registered through the same plugin architecture external extensions use:
 
 - Select
 - X-ray
@@ -74,11 +96,15 @@ Built-in feature identities are registered through the public plugin architectur
 - Distance
 - Settings
 
-A caller can exclude, remove or replace built-ins and add third-party plugins without forking the renderer. The default plugin distribution preserves the original parity-proven UI.
+Built-ins can be excluded, removed, or replaced without forking the renderer. The default distribution preserves the parity-proven UI.
 
-## `@jhomra21/mesurer`
+The renderer workspace is `private: true` and must never be published directly.
 
-The universal package bundles a private Solid 2 runtime together with the Solid renderer. Host applications therefore do not share Mesurer's renderer runtime.
+### `packages/mesurer`
+
+This is the only publishable workspace.
+
+Its build bundles the private core/DOM/renderer implementation into self-contained public artifacts. The root and injector bundles contain Mesurer's private Solid 2 runtime; host applications therefore do not need to provide or share Solid with Mesurer.
 
 ```ts
 import { mountMeasurer } from "@jhomra21/mesurer";
@@ -87,21 +113,13 @@ const instance = mountMeasurer({ agent: true });
 await instance.ready;
 ```
 
-This is the compatibility boundary for:
+This is the compatibility boundary for Solid 1, Solid 2, React, Vue, Svelte, vanilla browser applications, and Electron renderer pages.
 
-- Solid 1
-- Solid 2 when a framework-neutral mount is preferred
-- React
-- Vue
-- Svelte
-- vanilla browser apps
-- Electron renderer pages
-
-The package build fails if either universal bundle leaves `solid-js` or `@solidjs/web` as an external runtime import.
+The package build fails if public JS/declaration artifacts leak private workspace package names or leave Solid as an external runtime dependency.
 
 ## Agent/browser harness boundary
 
-`@jhomra21/mesurer/inject` is a self-contained development/test module intended for browser automation. It lets a coding agent instrument a running user application without editing that application's source code.
+`@jhomra21/mesurer/inject` is a self-contained development/test entry intended for browser automation. It lets a coding agent instrument a running user application without editing that application's source code.
 
 ```text
 agent edits UI
@@ -122,53 +140,50 @@ Playwright/Cypress/browser harness
            └── state()
 ```
 
-The structured bridge is JSON-safe so a harness can return exact measurements to an agent alongside screenshots. The injected bridge is local to the browser page; it does not create a network listener or remote service.
-
-See `AGENTS.md` and `packages/mesurer/README.md` for the harness contract.
+The structured bridge is JSON-safe so a harness can return exact measurements to an agent alongside screenshots. The injector exists only inside the page where it is loaded; it does not create a network listener or remote service.
 
 ## Plugin ownership and disposal
 
-Every registration belongs to the plugin that created it. Removing or replacing a plugin disposes its registrations, cleans orphaned plugin state, and clears incompatible plugin history.
+Every registration belongs to the plugin that created it. Removing or replacing a plugin disposes its registrations, removes orphaned plugin state, and clears incompatible history.
 
-Plugin state slices may opt into:
+Plugin state slices can opt into:
 
-- `history: true` — command execution snapshots the slice for plugin undo/redo
-- `persist: true` — the Solid browser adapter persists the slice beside the configured Mesurer persistence key
+- `history: true` — command execution snapshots the slice for plugin undo/redo;
+- `persist: true` — the browser adapter persists the slice beside the configured Mesurer persistence key.
 
-Cmd/Ctrl+Z is offered to plugin history first, then falls through to native Mesurer history when no plugin action is available.
+Nested command dispatch is treated as one transaction so stable built-in command aliases can delegate to replacement plugins without creating duplicate undo checkpoints.
+
+Renderer-aware plugins can request the `runtime:solid` service through the public plugin API. The service is opaque: extension code does not import the private renderer workspace.
 
 ## Solid 2 scheduler rule
 
-The interaction layer must not depend on a specific Solid propagation timing detail.
+The interaction layer must not depend on a particular Solid propagation timing detail.
 
-- `model.current` is the synchronous framework-neutral command snapshot.
-- `model.state` is the Solid reactive projection used by JSX.
+- `model.current` is the synchronous framework-neutral command snapshot;
+- `model.state` is the Solid reactive projection used for rendering.
 
-This keeps pointer/keyboard/history sequences deterministic while allowing the Solid renderer to update reactively.
+This keeps pointer, keyboard, and history sequences deterministic while allowing the renderer to update reactively.
 
 ## Shadow DOM
 
-The native public API accepts `HTMLElement | ShadowRoot` portal targets. Where Solid's Portal requires an Element mount, the renderer creates an owned Element host inside the ShadowRoot and injects Mesurer styles into the same root.
+The public mount creates an open isolated ShadowRoot by default. This keeps Mesurer's renderer/runtime and styles separate from the host framework while still allowing development tooling and automation to inspect the Mesurer island when needed.
 
-The universal package creates an open isolated ShadowRoot by default so it does not inherit or conflict with a host framework's renderer/runtime. Isolation can be disabled explicitly when needed.
+Isolation can be disabled explicitly for specialized integrations.
 
 ## Electron
 
-Electron's renderer process is a browser/DOM host and can use the universal mount/inject boundary. Electron's main process is not a DOM host.
+Electron renderer processes are browser/DOM hosts and can use the normal mount or injection boundary. Electron's main process is not a DOM host.
 
-Mesurer does not import Electron. Privileged main-process capabilities should be supplied later through narrowly-scoped plugins and an application's preload/contextBridge boundary.
+Mesurer does not import Electron. Privileged main-process functionality should be provided through narrowly scoped application APIs exposed from preload/contextBridge and consumed by optional plugins.
+
+## Package staging and release invariant
+
+Before npm packaging, the public workspace stages a sanitized `.publish` directory. The staged manifest strips workspace-only dependencies and scripts. Release checks fail if any private package name appears in the staged metadata, JavaScript, or declaration output.
+
+The package-smoke workflow then packs that staged directory and installs the resulting `.tgz` into clean consumer applications. This is intentionally different from testing workspace aliases: it verifies the same artifact npm users will receive.
 
 ## Visual contract
 
-The framework and extension boundaries are intentionally **not** design boundaries. The default Solid distribution continues to track the pinned upstream Mesurer visual system:
+The framework and extension boundaries are intentionally **not** design boundaries. The default renderer continues to track the pinned upstream Mesurer visual system and behavior.
 
-- Tailwind v4 source and ink palette
-- toolbar geometry/order/iconography/tooltips
-- guide orientation menu
-- settings controls and dimensions
-- rulers and guide behavior
-- measurement/selection/distance overlays
-- color picker
-- text inspector
-
-The pinned React→Solid visual and exhaustive interaction workflows remain the regression gates while the implementation underneath becomes more composable.
+The pinned React → Solid screenshot and exhaustive interaction workflows remain the regression gates while the architecture underneath becomes more composable and framework-independent.
