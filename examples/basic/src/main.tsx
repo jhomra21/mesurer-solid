@@ -1,6 +1,5 @@
 import { render } from "@solidjs/web";
 import { Measurer } from "@jhomra21/mesurer-solid";
-import "@jhomra21/mesurer-solid/styles.css";
 import "./playground.css";
 
 function App() {
