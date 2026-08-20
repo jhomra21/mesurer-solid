@@ -113,7 +113,7 @@ jobs:
             echo "Expected exactly one npm tarball in the release artifact; found ${#tarballs[@]}."
             exit 1
           fi
-          tarball="${tarballs[0]}"
+          tarball=$(realpath "${tarballs[0]}")
 
           entry_count=$(node -e 'const p=require("./release-artifact/pack.json"); process.stdout.write(String(p.length))')
           if [[ "$entry_count" != "1" ]]; then
