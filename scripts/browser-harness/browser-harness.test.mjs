@@ -3,6 +3,7 @@ import test from "node:test";
 import { parseBrowserHarnessArgs } from "./args.mjs";
 import { createBrowserHarnessDispatcher, executeRpc } from "./rpc.mjs";
 import { createBrowserHarnessHttpServer } from "./server.mjs";
+import { normalizeBrowserUrl } from "./session.mjs";
 
 test("argument parser keeps launch, attach, and machine modes orthogonal", () => {
   const options = parseBrowserHarnessArgs([
@@ -29,6 +30,13 @@ test("argument parser rejects unknown flags and malformed JSON", () => {
   assert.throws(() => parseBrowserHarnessArgs(["--params", "nope"]), /valid JSON/);
 });
 
+test("browser URL normalization handles dev hosts and bare public hosts", () => {
+  assert.equal(normalizeBrowserUrl("localhost:5173"), "http://localhost:5173/");
+  assert.equal(normalizeBrowserUrl("127.0.0.1:3000/app"), "http://127.0.0.1:3000/app");
+  assert.equal(normalizeBrowserUrl("example.com/docs"), "https://example.com/docs");
+  assert.equal(normalizeBrowserUrl("https://example.com/x"), "https://example.com/x");
+});
+
 test("dispatcher maps stable RPC names onto browser and Mesurer session calls", async () => {
   const calls = [];
   const session = new Proxy({}, {
@@ -41,12 +49,14 @@ test("dispatcher maps stable RPC names onto browser and Mesurer session calls", 
 
   await dispatch({ method: "browser.navigate", params: { url: "https://example.com" } });
   await dispatch({ method: "browser.click", params: { selector: "button", index: 2 } });
+  await dispatch({ method: "browser.fill", params: { selector: "input", value: "" } });
   await dispatch({ method: "mesurer.inspect", params: { selector: "main", index: 1 } });
   await dispatch({ method: "mesurer.command", params: { id: "guides.toggle", args: { enabled: true } } });
 
   assert.deepEqual(calls, [
     ["navigate", "https://example.com"],
     ["click", "button", 2],
+    ["fill", "input", "", 0],
     ["agent", "inspect", ["main", 1]],
     ["agent", "command", ["guides.toggle", { enabled: true }]],
   ]);
