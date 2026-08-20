@@ -129,6 +129,13 @@
   --msr-spacing: 4px;
 }
 
+/* React sets border: 0 inline on Settings slider thumbs. Solid's generated
+   utility base otherwise reports a zero-width solid border even though it is
+   visually invisible, so normalize the computed contract to upstream. */
+.mesurer-solid-root [role="slider"] {
+  border: 0;
+}
+
 /* Upstream X-ray appearance wins over the legacy Solid host class name. */
 body.mesurer-solid-xray * {
   outline: solid 1px blue !important;
