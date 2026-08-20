@@ -1,4 +1,3 @@
-import { fileURLToPath } from "node:url";
 import solid from "@solidjs/vite-plugin";
 import { defineConfig } from "vite";
 
@@ -10,11 +9,11 @@ export default defineConfig({
     alias: [
       {
         find: /^@jhomra21\/mesurer-solid\/styles\.css$/,
-        replacement: fileURLToPath(new URL("styles.generated.css", packageSource)),
+        replacement: new URL("styles.generated.css", packageSource).pathname,
       },
       {
         find: /^@jhomra21\/mesurer-solid$/,
-        replacement: fileURLToPath(new URL("index.ts", packageSource)),
+        replacement: new URL("index.ts", packageSource).pathname,
       },
     ],
   },
