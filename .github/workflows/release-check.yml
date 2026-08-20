@@ -33,7 +33,8 @@ jobs:
             exit 1
           fi
 
-          previous=$(git show HEAD^:packages/mesurer/package.json | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => process.stdout.write(JSON.parse(s).version))')
+          git show HEAD^:packages/mesurer/package.json > /tmp/package-before.json
+          previous=$(node -p 'require("/tmp/package-before.json").version')
           node scripts/release.mjs assert-newer --from "$previous" --to "$version"
           node scripts/release.mjs notes --version "$version" >/dev/null
 
@@ -54,12 +55,21 @@ jobs:
             esac
           done
 
-          version_lines=$(git diff --unified=0 HEAD^ HEAD -- packages/mesurer/package.json | grep -E '^[+-]  "version":' | wc -l | tr -d ' ')
-          if [[ "$version_lines" != "2" ]]; then
-            echo "Release package.json must change only the version line."
-            git diff HEAD^ HEAD -- packages/mesurer/package.json
-            exit 1
-          fi
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const before = JSON.parse(fs.readFileSync("/tmp/package-before.json", "utf8"));
+          const after = JSON.parse(fs.readFileSync("packages/mesurer/package.json", "utf8"));
+          const beforeVersion = before.version;
+          const afterVersion = after.version;
+          delete before.version;
+          delete after.version;
+          if (JSON.stringify(before) !== JSON.stringify(after)) {
+            throw new Error("Release package.json changed fields other than version");
+          }
+          if (beforeVersion === afterVersion) {
+            throw new Error("Release package.json did not change version");
+          }
+          NODE
 
       - name: Validate release tooling and identity
         run: |
