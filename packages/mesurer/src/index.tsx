@@ -1,14 +1,112 @@
 import { render } from "@solidjs/web";
 import {
-  Measurer,
-  type MesurerPluginDescription,
-  type MesurerPluginHost,
-  type MeasurerProps,
-} from "@jhomra21/mesurer-solid";
+  Measurer as RendererMeasurer,
+  colorPickerPlugin as rendererColorPickerPlugin,
+  composeMesurerPlugins as rendererComposeMesurerPlugins,
+  defaultMesurerPlugins as rendererDefaultMesurerPlugins,
+  distancePlugin as rendererDistancePlugin,
+  guidesPlugin as rendererGuidesPlugin,
+  rulersPlugin as rendererRulersPlugin,
+  selectPlugin as rendererSelectPlugin,
+  settingsPlugin as rendererSettingsPlugin,
+  textInspectorPlugin as rendererTextInspectorPlugin,
+  xrayPlugin as rendererXrayPlugin,
+  type MeasurerProps as RendererMeasurerProps,
+} from "@jhomra21/mesurer-renderer";
 import {
   createMesurerAgentHarness,
   type MesurerAgentHarness,
 } from "./agent";
+import type {
+  MesurerPlugin,
+  MesurerPluginDescription,
+  MesurerPluginHost,
+} from "./core";
+
+export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
+export type MesurerBuiltinPluginId =
+  | "select"
+  | "xray"
+  | "color-picker"
+  | "rulers"
+  | "text-inspector"
+  | "guides"
+  | "distance"
+  | "settings";
+
+export type GuidePattern = "solid" | "dashed" | "dotted";
+export type GuideStyle = {
+  opacity: number;
+  width: number;
+  pattern: GuidePattern;
+  dashLength: number;
+  gap: number;
+};
+export type RulerSettings = { opacity: number; edgeReveal: boolean };
+export type MesurerRect = { left: number; top: number; width: number; height: number };
+export type MesurerMeasurement = {
+  id: string;
+  rect: MesurerRect;
+  normalizedRect: MesurerRect;
+  deltaX: number;
+  deltaY: number;
+  snapped?: boolean;
+};
+export type MesurerGuide = { id: string; orientation: "vertical" | "horizontal"; position: number };
+export type MesurerDistance = {
+  id: string;
+  rectA: MesurerRect;
+  rectB: MesurerRect;
+  normalizedRectA: MesurerRect;
+  normalizedRectB: MesurerRect;
+  horizontal: { x1: number; x2: number; y: number; value: number } | null;
+  vertical: { y1: number; y2: number; x: number; value: number } | null;
+  connectors: Array<{ x1: number; y1: number; x2: number; y2: number }>;
+};
+export type MesurerStoredSettings = {
+  highlightColor?: string;
+  guideColor?: string;
+  hoverHighlightEnabled?: boolean;
+  colorPickerFormats?: ColorPickerFormat[];
+  colorPickerClickFormat?: ColorPickerFormat;
+  snapEnabled?: boolean;
+  snapGuidesEnabled?: boolean;
+  selectNewGuideEnabled?: boolean;
+  multiMeasureEnabled?: boolean;
+  persistOnReload?: boolean;
+  guideStyle?: Partial<GuideStyle>;
+  rulerSettings?: Partial<RulerSettings>;
+};
+export type MesurerStoredWorkspace = {
+  enabled: boolean;
+  xrayVisible: boolean;
+  toolMode: "none" | "select" | "guides" | "text-inspector" | "xray" | "rulers";
+  rulersVisible: boolean;
+  guideOrientation: "vertical" | "horizontal";
+  guides: MesurerGuide[];
+  selectedGuideIds: string[];
+  measurements: MesurerMeasurement[];
+  activeMeasurement: MesurerMeasurement | null;
+  heldDistances: MesurerDistance[];
+};
+export type MesurerPersistenceSnapshot = {
+  settings: MesurerStoredSettings;
+  workspace: MesurerStoredWorkspace | null;
+};
+export type MesurerPersistence = {
+  load(): MesurerPersistenceSnapshot | null;
+  saveSettings(settings: MesurerStoredSettings): void;
+  saveWorkspace(workspace: MesurerStoredWorkspace): void;
+  clearWorkspace(): void;
+  clearSettings(): void;
+  subscribe?: (
+    listener: (
+      snapshot: MesurerPersistenceSnapshot | null,
+      source?: { settings?: boolean; workspace?: boolean },
+    ) => void,
+  ) => () => void;
+  setErrorHandler?: (handler: ((error: unknown) => void) | undefined) => void;
+};
 
 export type AgentBridgeOptions = {
   /** Window property used by Playwright/Cypress/browser agents. Defaults to __MESURER__. */
@@ -17,7 +115,31 @@ export type AgentBridgeOptions = {
   root?: ParentNode;
 };
 
-export type MountMeasurerOptions = Omit<MeasurerProps, "portalTarget"> & {
+export type MesurerOptions = {
+  highlightColor?: string;
+  guideColor?: string;
+  hoverHighlightEnabled?: boolean;
+  persistOnReload?: boolean;
+  persistKey?: string;
+  persistence?: MesurerPersistence;
+  onPersistenceError?: (error: unknown) => void;
+  colorPickerFormats?: ColorPickerFormat[];
+  colorPickerClickFormat?: ColorPickerFormat;
+  snapEnabled?: boolean;
+  snapGuidesEnabled?: boolean;
+  selectNewGuideEnabled?: boolean;
+  multiMeasureEnabled?: boolean;
+  guideStyle?: Partial<GuideStyle>;
+  rulerSettings?: Partial<RulerSettings>;
+  plugins?: MesurerPlugin[];
+  excludePlugins?: MesurerBuiltinPluginId[];
+  pluginHost?: MesurerPluginHost;
+  onPluginHost?: (host: MesurerPluginHost) => void;
+  onPluginsReady?: (host: MesurerPluginHost) => void;
+  onPluginError?: (error: unknown, pluginId: string) => void;
+};
+
+export type MountMeasurerOptions = MesurerOptions & {
   /** Element or ShadowRoot that owns the Mesurer island. Defaults to document.body. */
   target?: HTMLElement | ShadowRoot;
   /** Create a private ShadowRoot so Mesurer never depends on the host framework's renderer or CSS. */
@@ -101,23 +223,26 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     waitForPluginHost,
   });
 
+  const rendererProps = measurerProps as RendererMeasurerProps;
   const disposeRender = render(
     () => (
-      <Measurer
-        {...measurerProps}
+      <RendererMeasurer
+        {...rendererProps}
         portalTarget={portalTarget}
         onPluginHost={(host) => {
-          if (!pluginHost) resolvePluginHost(host);
-          pluginHost = host;
-          onPluginHost?.(host);
+          const publicHost = host as unknown as MesurerPluginHost;
+          if (!pluginHost) resolvePluginHost(publicHost);
+          pluginHost = publicHost;
+          onPluginHost?.(publicHost);
         }}
         onPluginsReady={(host) => {
-          pluginHost = host;
+          const publicHost = host as unknown as MesurerPluginHost;
+          pluginHost = publicHost;
           if (!pluginsReadyResolved) {
             pluginsReadyResolved = true;
-            resolvePluginsReady(host);
+            resolvePluginsReady(publicHost);
           }
-          onPluginsReady?.(host);
+          onPluginsReady?.(publicHost);
         }}
       />
     ),
@@ -172,25 +297,33 @@ export type {
 } from "./agent";
 
 export {
-  colorPickerPlugin,
-  composeMesurerPlugins,
   createMesurerPluginHost,
-  defaultMesurerPlugins,
+  createMesurerRuntime,
   defineMesurerPlugin,
-  distancePlugin,
-  guidesPlugin,
-  rulersPlugin,
-  selectPlugin,
-  settingsPlugin,
-  textInspectorPlugin,
-  xrayPlugin,
-} from "@jhomra21/mesurer-solid";
+} from "./core";
 export type {
-  MesurerBuiltinPluginId,
+  CommandHandler as MesurerCommandHandler,
   MesurerPlugin,
   MesurerPluginContext,
   MesurerPluginDescription,
   MesurerPluginHost,
-  MesurerSolidRuntimeService,
+  OverlayContribution,
+  Registration as MesurerRegistration,
+  SettingsContribution,
+  StateSliceDefinition,
   ToolContribution,
-} from "@jhomra21/mesurer-solid";
+} from "./core";
+
+export const selectPlugin = rendererSelectPlugin as unknown as () => MesurerPlugin;
+export const xrayPlugin = rendererXrayPlugin as unknown as () => MesurerPlugin;
+export const colorPickerPlugin = rendererColorPickerPlugin as unknown as () => MesurerPlugin;
+export const rulersPlugin = rendererRulersPlugin as unknown as () => MesurerPlugin;
+export const textInspectorPlugin = rendererTextInspectorPlugin as unknown as () => MesurerPlugin;
+export const guidesPlugin = rendererGuidesPlugin as unknown as () => MesurerPlugin;
+export const distancePlugin = rendererDistancePlugin as unknown as () => MesurerPlugin;
+export const settingsPlugin = rendererSettingsPlugin as unknown as () => MesurerPlugin;
+export const defaultMesurerPlugins = rendererDefaultMesurerPlugins as unknown as () => MesurerPlugin[];
+export const composeMesurerPlugins = rendererComposeMesurerPlugins as unknown as (
+  plugins?: MesurerPlugin[],
+  exclude?: MesurerBuiltinPluginId[],
+) => MesurerPlugin[];
