@@ -5,17 +5,16 @@ import { createMeasurerModel } from "../src/model/create-measurer-model";
 const guide = { id: "g1", orientation: "vertical" as const, position: 100 };
 
 describe("createMeasurerModel", () => {
-  it("keeps the command state and Solid store projection in sync", () => {
+  it("keeps synchronous command state and the Solid projection in sync", () => {
     const model = createMeasurerModel({ initialEnabled: true });
     const next = model.toggleEnabled();
     expect(next).toBe(false);
+    // Imperative behavior reads the framework-neutral command state immediately.
     expect(model.current.enabled).toBe(false);
-    // Solid 2 RC exposes this store mutation immediately in this command context.
-    // The command-side snapshot still prevents imperative behavior from depending
-    // on when downstream reactive computations/effects are scheduled.
-    expect(model.state.enabled).toBe(false);
+    // The Solid store is only a rendering projection and may settle on Solid's schedule.
     flush();
     expect(model.state.enabled).toBe(false);
+    model.dispose();
   });
 
   it("undoes and redoes guide actions", () => {
@@ -30,6 +29,7 @@ describe("createMeasurerModel", () => {
     expect(model.redo()).toBe(true);
     flush();
     expect(model.state.guides[0]?.id).toBe("g1");
+    model.dispose();
   });
 
   it("chooses the upstream settings tab when settings open without an explicit tab", () => {
@@ -58,6 +58,7 @@ describe("createMeasurerModel", () => {
     model.setRulersVisible(false);
     model.setTransient({ settingsOpen: true });
     expect(model.current.settingsTab).toBe("general");
+    model.dispose();
   });
 
   it("preserves an explicit settings tab when opening settings", () => {
@@ -65,6 +66,7 @@ describe("createMeasurerModel", () => {
     model.setToolMode("guides");
     model.setTransient({ settingsOpen: true, settingsTab: "general" });
     expect(model.current.settingsTab).toBe("general");
+    model.dispose();
   });
 
   it("serializes settings and strips runtime element references from workspace data", () => {
@@ -83,5 +85,6 @@ describe("createMeasurerModel", () => {
     expect(settings.guideColor).toBe("#ff0000");
     expect(settings.snapGuidesEnabled).toBe(false);
     expect(workspace.measurements[0]?.elementRef).toBeUndefined();
+    model.dispose();
   });
 });
