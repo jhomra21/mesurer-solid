@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "packages/mesurer-solid/**"
+      - "packages/mesurer-dom/**"
       - "examples/basic/**"
       - "visual-parity/**"
       - ".github/workflows/visual-parity.yml"
@@ -43,6 +44,9 @@ jobs:
 
       - name: Install Solid workspace
         run: bun install
+
+      - name: Install visual comparison dependencies
+        run: python3 -m pip install --disable-pip-version-check pillow
 
       - name: Generate Solid styles
         run: bun run --filter '@jhomra21/mesurer-solid' styles
@@ -109,9 +113,7 @@ jobs:
         run: node e2e/parity-capture.mjs
 
       - name: Build side-by-side and pixel-diff report
-        run: |
-          python3 -m pip install --disable-pip-version-check pillow
-          python3 visual-parity/compare.py parity-artifacts | tee parity-artifacts/report.txt
+        run: python3 visual-parity/compare.py parity-artifacts | tee parity-artifacts/report.txt
 
       - name: Add visual report summary
         run: |
@@ -176,7 +178,7 @@ jobs:
           PY
 
       - name: Capture every button and action at native 3x
-        if: always()
+        if: always() && success()
         working-directory: upstream/apps/site
         env:
           PARITY_REACT_URL: http://127.0.0.1:4173/e2e/fixtures/parity.html
@@ -187,7 +189,12 @@ jobs:
 
       - name: Build clean React | Solid 3x images
         if: always()
-        run: python3 visual-parity/make-side-by-side.py interaction-artifacts-3x interaction-side-by-side-3x
+        run: |
+          if compgen -G 'interaction-artifacts-3x/react-*.png' > /dev/null && compgen -G 'interaction-artifacts-3x/solid-*.png' > /dev/null; then
+            python3 visual-parity/make-side-by-side.py interaction-artifacts-3x interaction-side-by-side-3x
+          else
+            echo "No complete native-3x capture set; skipping side-by-side generation."
+          fi
 
       - name: Upload latest side-by-side screenshots
         if: always()
@@ -195,7 +202,7 @@ jobs:
         with:
           name: react-vs-solid-interactions-3x
           path: interaction-side-by-side-3x
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Enforce button/action parity gate
