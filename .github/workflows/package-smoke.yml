@@ -50,8 +50,13 @@ jobs:
           bun run stage
           npm pack .publish --json > pack.json
           filename=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].filename)')
+          version=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].version)')
           echo "PACKAGE_TGZ=$(realpath "$filename")" >> "$GITHUB_ENV"
-          npm publish "$filename" --dry-run --access public --tag beta
+          if [[ "$version" == *-* ]]; then
+            npm publish "$filename" --dry-run --access public --tag beta
+          else
+            npm publish "$filename" --dry-run --access public
+          fi
 
       - name: Typecheck a clean consumer against published declarations
         run: |
