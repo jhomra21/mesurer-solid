@@ -96,6 +96,7 @@ try {
     await host.load({
       id: "demo.agent-extension",
       version: "1.0.0",
+      requires: ["runtime:solid", "tool:select"],
       provides: ["tool:demo"],
       setup(ctx) {
         ctx.state.register({ id: "demo", initial: { clicks: 0 }, history: true, persist: true });
