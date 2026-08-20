@@ -37,6 +37,10 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+              echo "Manual publish recovery is restricted to main; got ${GITHUB_REF}."
+              exit 1
+            fi
             node scripts/release.mjs notes --version "$version" >/dev/null
             echo "release=true" >> "$GITHUB_OUTPUT"
             exit 0
