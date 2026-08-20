@@ -1,7 +1,8 @@
 {
-  "name": "@jhomra21/mesurer-solid",
-  "version": "0.1.0",
-  "description": "Solid renderer for Mesurer, backed by the framework-neutral Mesurer core.",
+  "name": "@jhomra21/mesurer-renderer",
+  "private": true,
+  "version": "0.1.0-beta.0",
+  "description": "Internal Solid 2 renderer for Mesurer.",
   "license": "MIT",
   "type": "module",
   "sideEffects": ["*.css"],
@@ -10,10 +11,8 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
-    "./styles.css": "./dist/styles.css",
-    "./package.json": "./package.json"
+    "./styles.css": "./dist/styles.css"
   },
-  "files": ["dist", "README.md"],
   "scripts": {
     "styles": "bunx tailwindcss -i src/styles.css -o src/styles.generated.css && bun scripts/generate-styles.mjs",
     "build": "bun run styles && vite build && tsc -p tsconfig.build.json && bunx tailwindcss -i src/styles.css -o dist/styles.css",
@@ -39,10 +38,10 @@
     "vite": "^8.1.5",
     "vitest": "^4.1.10"
   },
-  "keywords": ["solid", "solidjs", "measurement", "guides", "rulers", "devtools", "plugins"],
+  "keywords": ["measurement", "guides", "rulers", "devtools", "plugins", "renderer"],
   "repository": {
     "type": "git",
-    "url": "https://github.com/jhomra21/mesurer-solid.git",
+    "url": "https://github.com/jhomra21/mesurer.git",
     "directory": "packages/mesurer-solid"
   }
 }
