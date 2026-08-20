@@ -48,11 +48,12 @@ export function getRectFromDom(element: Element): Rect {
 
 /**
  * Canonical Mesurer box-model inspection for browser hosts and automation.
- * This intentionally mirrors the visual Select inspector's content/padding/margin geometry.
+ * This intentionally matches the visual Select inspector's content/padding/margin geometry.
  */
 export function getInspectMeasurement(
   element: HTMLElement,
   ownerWindow: Window = element.ownerDocument.defaultView ?? window,
+  id = `dom-inspection-${++inspectionId}`,
 ): InspectMeasurement<HTMLElement> {
   const rect = element.getBoundingClientRect();
   const style = ownerWindow.getComputedStyle(element);
@@ -81,17 +82,17 @@ export function getInspectMeasurement(
     height: rect.height + margin.top + margin.bottom,
   };
   const tag = element.tagName.toLowerCase();
-  const id = element.id ? `#${element.id}` : "";
+  const elementId = element.id ? `#${element.id}` : "";
   const firstClass = element.classList.item(0);
   const className = firstClass ? `.${firstClass}` : "";
   return {
-    id: `dom-inspection-${++inspectionId}`,
+    id,
     rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
     paddingRect,
     marginRect,
     padding,
     margin,
-    label: `${tag}${id}${className}`,
+    label: `${tag}${elementId}${className}`,
     elementRef: element,
   };
 }
