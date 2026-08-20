@@ -72,6 +72,9 @@ try {
   if (!description || description.plugins.length < 8) {
     throw new Error(`Expected default Mesurer plugin distribution, got ${JSON.stringify(description)}`);
   }
+  if (!description.services.includes("runtime:solid")) {
+    throw new Error(`Expected runtime:solid service in agent description, got ${JSON.stringify(description.services)}`);
+  }
 
   await page.evaluate(() => window.__MESURER__.command("builtin.xray"));
   const xrayEnabled = await page.evaluate(() => document.body.classList.contains("mesurer-solid-xray"));
@@ -99,6 +102,13 @@ try {
       requires: ["runtime:solid", "tool:select"],
       provides: ["tool:demo"],
       setup(ctx) {
+        const runtime = ctx.service.get("runtime:solid");
+        if (!runtime) throw new Error("Missing runtime:solid service");
+        const pluginMount = runtime.createInspectorMount();
+        pluginMount.element.dataset.demoPluginMount = "true";
+        pluginMount.element.textContent = "Demo plugin UI";
+        ctx.lifecycle.onDispose(() => pluginMount.dispose());
+
         ctx.state.register({ id: "demo", initial: { clicks: 0 }, history: true, persist: true });
         ctx.command.register("demo.fire", () => {
           ctx.state.update("demo", (value) => ({ ...value, clicks: value.clicks + 1 }));
@@ -117,6 +127,12 @@ try {
 
   const extensionButton = page.getByRole("button", { name: "Demo extension (K)" });
   await extensionButton.waitFor({ state: "visible" });
+  const pluginMountVisible = await page.evaluate(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    return Boolean(island?.shadowRoot?.querySelector("[data-demo-plugin-mount='true']"));
+  });
+  if (!pluginMountVisible) throw new Error("runtime:solid did not create plugin-owned inspector UI");
+
   await extensionButton.click();
   const fired = await page.evaluate(() => window.__MESURER_DEMO_FIRED__ ?? 0);
   if (fired !== 1) throw new Error(`Expected extension command to run once, got ${fired}`);
@@ -128,10 +144,15 @@ try {
   await extensionButton.waitFor({ state: "detached" }).catch(async () => {
     if (await extensionButton.isVisible()) throw new Error("Extension toolbar contribution survived plugin disposal");
   });
+  const pluginMountAfterRemoval = await page.evaluate(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    return Boolean(island?.shadowRoot?.querySelector("[data-demo-plugin-mount='true']"));
+  });
+  if (pluginMountAfterRemoval) throw new Error("Plugin-owned renderer UI survived plugin lifecycle disposal");
 
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join("\n")}`);
   if (consoleErrors.length) throw new Error(`Console errors: ${consoleErrors.join("\n")}`);
-  console.log("Solid 1 host + external injector + agent feedback loop + runtime plugins: PASS");
+  console.log("Solid 1 host + external injector + agent feedback loop + runtime services/plugins: PASS");
 } finally {
   await browser.close();
 }
