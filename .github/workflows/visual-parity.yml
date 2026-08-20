@@ -129,12 +129,13 @@ jobs:
               print(f"| {name} | {state['threshold_diff_pixels']} | {state['threshold_diff_ratio']:.4%} | {state['metric_difference_count']} |")
           PY
 
-      - name: Upload screenshot comparison artifact
+      - name: Upload visual diagnostics on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: react-solid-visual-parity
+          name: react-solid-visual-parity-diagnostics
           path: parity-artifacts
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Capture every button and action at 1x
@@ -174,32 +175,6 @@ jobs:
               print(f"| {name} | {case['threshold_diff_pixels']} | {case['state_difference_count']} | {'PASS' if case['passed'] else 'FAIL'} |")
           PY
 
-      - name: Upload button/action parity artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: react-solid-interaction-parity
-          path: interaction-artifacts
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Capture native 3x inspection screenshots
-        working-directory: upstream/apps/site
-        env:
-          PARITY_REACT_URL: http://127.0.0.1:4173/e2e/fixtures/parity.html
-          PARITY_SOLID_URL: http://127.0.0.1:4174/parity.html
-          PARITY_OUT: ${{ github.workspace }}/parity-artifacts-3x
-          PARITY_DPR: 3
-        run: node e2e/parity-capture.mjs
-
-      - name: Upload native 3x screenshots
-        uses: actions/upload-artifact@v4
-        with:
-          name: react-solid-visual-parity-3x
-          path: parity-artifacts-3x
-          if-no-files-found: error
-          retention-days: 14
-
       - name: Capture every button and action at native 3x
         if: always()
         working-directory: upstream/apps/site
@@ -210,13 +185,17 @@ jobs:
           PARITY_DPR: 3
         run: node e2e/parity-interactions.mjs
 
-      - name: Upload native 3x button/action screenshots
+      - name: Build clean React | Solid 3x images
+        if: always()
+        run: python3 visual-parity/make-side-by-side.py interaction-artifacts-3x interaction-side-by-side-3x
+
+      - name: Upload latest side-by-side screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: react-solid-interaction-parity-3x
-          path: interaction-artifacts-3x
-          if-no-files-found: warn
+          name: react-vs-solid-interactions-3x
+          path: interaction-side-by-side-3x
+          if-no-files-found: error
           retention-days: 14
 
       - name: Enforce button/action parity gate
@@ -233,3 +212,12 @@ jobs:
             exit "$status"
           fi
           echo "Button/action React → Solid parity passed."
+
+      - name: Upload interaction diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: react-solid-interaction-diagnostics
+          path: interaction-artifacts
+          if-no-files-found: warn
+          retention-days: 14
