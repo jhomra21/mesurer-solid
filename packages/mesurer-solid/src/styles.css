@@ -135,6 +135,8 @@ body.mesurer-solid-xray * {
 }
 body.mesurer-solid-xray [data-mesurer-root],
 body.mesurer-solid-xray [data-mesurer-root] *,
+body.mesurer-solid-xray [data-mesurer-inspector-ui],
+body.mesurer-solid-xray [data-mesurer-inspector-ui] *,
 body.mesurer-solid-xray .mesurer-toolbar-surface,
 body.mesurer-solid-xray .mesurer-toolbar-surface *,
 body.mesurer-solid-xray .mesurer-ti-box,
