@@ -19,7 +19,7 @@ From GitHub Actions, run **prepare-release** and choose one version strategy:
 
 The workflow updates `packages/mesurer/package.json`, moves `Unreleased` changelog entries into the new version section, creates `release/v<version>`, and opens a `release: v<version>` PR.
 
-Only one release PR may be open at a time.
+Only one release PR may be open at a time. Because GitHub suppresses normal workflow recursion for branches/PRs created by `GITHUB_TOKEN`, `prepare-release` explicitly dispatches `ci` and `package-smoke` against the generated release branch after opening the PR. No PAT is required.
 
 ## Review the release PR
 
@@ -46,7 +46,9 @@ The npm publishing job is serialized with `cancel-in-progress: false`, so releas
 
 ## Recovery
 
-If npm publication succeeds but a later tag/GitHub Release step fails, rerun **publish** with `workflow_dispatch` from `main`. The workflow verifies the already-published npm integrity and resumes the missing post-publish steps.
+If npm publication succeeds but a later tag/GitHub Release step fails, first rerun the failed GitHub Actions job/run. That preserves the original release commit and is the safest recovery path.
+
+`publish.yml` also supports `workflow_dispatch` for recovery of the version currently represented by the selected ref. It verifies the already-published npm integrity before doing any post-publish work. Do not use a newer source tree to recover an older npm version; the integrity/tag checks intentionally fail closed in that situation.
 
 Never reuse or overwrite an npm version. If the existing registry integrity differs from the candidate, the workflow fails closed.
 
