@@ -10,14 +10,16 @@ import LegacyMeasurer, { type MeasurerProps as LegacyMeasurerProps } from "./Mea
 import { composeMesurerPlugins, type MesurerBuiltinPluginId } from "./plugins/builtins";
 
 export type MeasurerProps = LegacyMeasurerProps & {
-  /** Additional plugins loaded after the built-in distribution. */
+  /** Additional plugins loaded after built-ins and the renderer bridge are available. */
   plugins?: MesurerPlugin[];
   /** Remove built-in features without forking the renderer. */
   excludePlugins?: MesurerBuiltinPluginId[];
   /** Supply a long-lived host when plugins should be managed outside the component. */
   pluginHost?: MesurerPluginHost;
-  /** Receive the live host for add/remove/replace operations and agent introspection. */
+  /** Receive the live host immediately for add/remove/replace operations and introspection. */
   onPluginHost?: (host: MesurerPluginHost) => void;
+  /** Called after built-ins, renderer bridge, external plugins and persisted plugin state settle. */
+  onPluginsReady?: (host: MesurerPluginHost) => void;
   onPluginError?: (error: unknown, pluginId: string) => void;
 };
 
@@ -68,8 +70,9 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   const providedHost = untrack(() => props.pluginHost);
   const host: MesurerPluginHost = providedHost ?? createMesurerPluginHost();
   const ownsHost = !providedHost;
-  const initialPlugins = untrack(() => composeMesurerPlugins(props.plugins ?? [], props.excludePlugins ?? []));
   const initialExclusions = new Set(untrack(() => props.excludePlugins ?? []));
+  const initialBuiltinPlugins = untrack(() => composeMesurerPlugins([], props.excludePlugins ?? []));
+  const initialExternalPlugins = untrack(() => [...(props.plugins ?? [])]);
   const [revision, setRevision] = createSignal(0);
   const [ready, setReady] = createSignal(false);
   const [extensionMount, setExtensionMount] = createSignal<HTMLDivElement | null>(null);
@@ -186,36 +189,40 @@ export default function ComposableMeasurer(props: MeasurerProps) {
 
     input.onPluginHost?.(runtimeHost);
 
-    const setupPlugins = async () => {
-      for (const plugin of initialPlugins) {
-        if (!active) return;
-        try {
-          await runtimeHost.load(plugin);
-        } catch (error) {
-          input.onPluginError?.(error, plugin.id);
-        }
+    const loadPlugin = async (plugin: MesurerPlugin) => {
+      if (!active) return;
+      try {
+        await runtimeHost.load(plugin);
+      } catch (error) {
+        input.onPluginError?.(error, plugin.id);
       }
+    };
+
+    const setupPlugins = async () => {
+      for (const plugin of initialBuiltinPlugins) await loadPlugin(plugin);
       if (!active) return;
 
-      try {
-        await runtimeHost.load({
-          id: "mesurer.runtime-bridge",
-          version: "0.1.0",
-          provides: ["runtime:solid"],
-          setup(ctx) {
-            for (const id of Object.keys(BUILTIN_KEYS) as MesurerBuiltinPluginId[]) {
-              ctx.command.register(`builtin.${id}`, () => {
-                if (builtinEnabled(id)) dispatchBuiltin(id);
-              });
-            }
-            ctx.command.register("builtin.settings", () => {
-              if (builtinEnabled("settings")) dispatchBuiltin("settings");
+      await loadPlugin({
+        id: "mesurer.runtime-bridge",
+        version: "0.1.0",
+        provides: ["runtime:solid"],
+        setup(ctx) {
+          for (const id of Object.keys(BUILTIN_KEYS) as MesurerBuiltinPluginId[]) {
+            ctx.command.register(`builtin.${id}`, () => {
+              if (builtinEnabled(id)) dispatchBuiltin(id);
             });
-          },
-        });
-      } catch (error) {
-        input.onPluginError?.(error, "mesurer.runtime-bridge");
-      }
+          }
+          ctx.command.register("builtin.settings", () => {
+            if (builtinEnabled("settings")) dispatchBuiltin("settings");
+          });
+        },
+      });
+      if (!active) return;
+
+      // External plugins load after the renderer capability exists, so they may
+      // safely declare requires: ["runtime:solid"] and/or built-in capabilities.
+      for (const plugin of initialExternalPlugins) await loadPlugin(plugin);
+      if (!active) return;
 
       if (pluginStorageKey) {
         try {
@@ -229,6 +236,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       if (active) {
         setReady(true);
         visibilityStyle.textContent = visibilityCss();
+        input.onPluginsReady?.(runtimeHost);
       }
     };
     void setupPlugins();
