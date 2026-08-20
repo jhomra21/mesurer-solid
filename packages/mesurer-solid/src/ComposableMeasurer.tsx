@@ -131,7 +131,8 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     const extensionHost = ownerDocument.createElement("div");
     extensionHost.dataset.mesurerExtensionHost = "true";
     extensionHost.dataset.mesurerInspectorUi = "true";
-    target.append(extensionHost);
+    const inspectorRoot = queryRoot.querySelector<HTMLElement>("[data-mesurer-root='true']");
+    (inspectorRoot ?? target).append(extensionHost);
     setExtensionMount(extensionHost);
 
     const dispatchBuiltin = (id: MesurerBuiltinPluginId) => {
