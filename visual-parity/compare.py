@@ -11,6 +11,12 @@ states = sorted(p.name.removeprefix("react-").removesuffix(".png") for p in out.
 react_version = json.loads(Path("upstream/packages/mesurer/package.json").read_text())["version"]
 solid_version = json.loads(Path("packages/renderer/package.json").read_text())["version"]
 contract_keys = ("toolbarIconContract", "settingsContract")
+# Upstream currently runs in the site's light DOM while the Solid renderer is
+# deliberately isolated in a shadow root. Browser/default min-size computation
+# can therefore differ between `0px` and `auto` without being a Mesurer design
+# declaration or affecting rendered geometry. The contract still compares the
+# actual x/y/width/height and every visual style token below.
+non_design_contract_suffixes = (".style.minWidth", ".style.minHeight")
 
 
 def round_numbers(value):
@@ -98,12 +104,17 @@ for state in states:
     react_contract = {key: react_metrics.pop(key, None) for key in contract_keys}
     solid_contract = {key: solid_metrics.pop(key, None) for key in contract_keys}
     metric_diffs = metric_differences(react_metrics, solid_metrics)
-    contract_diffs = metric_differences(
+    raw_contract_diffs = metric_differences(
         react_contract,
         solid_contract,
         path="uiContract",
         numeric_tolerance=0.01,
     )
+    contract_diffs = [
+        difference
+        for difference in raw_contract_diffs
+        if not difference["path"].endswith(non_design_contract_suffixes)
+    ]
 
     report["states"][state] = {
         "width": width,
@@ -118,6 +129,7 @@ for state in states:
         "metric_differences": metric_diffs[:100],
         "contract_difference_count": len(contract_diffs),
         "contract_differences": contract_diffs[:200],
+        "ignored_environmental_contract_difference_count": len(raw_contract_diffs) - len(contract_diffs),
     }
 
 (out / "report.json").write_text(json.dumps(report, indent=2))
