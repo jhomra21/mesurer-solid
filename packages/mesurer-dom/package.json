@@ -9,7 +9,7 @@
   "types": "./dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./package.json": "./package.json" },
   "files": ["dist", "README.md"],
-  "scripts": { "build": "tsc -p tsconfig.build.json", "typecheck": "tsc --noEmit" },
+  "scripts": { "build": "tsc -p tsconfig.build.json", "typecheck": "tsc --noEmit", "test": "vitest run" },
   "dependencies": { "@jhomra21/mesurer-core": "workspace:*" },
-  "devDependencies": { "typescript": "^5.9.2" }
+  "devDependencies": { "typescript": "^5.9.2", "vitest": "^4.1.10" }
 }

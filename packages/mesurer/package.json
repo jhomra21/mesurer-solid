@@ -1,0 +1,30 @@
+{
+  "name": "@jhomra21/mesurer",
+  "version": "0.1.0",
+  "description": "Framework-agnostic browser mount for Mesurer, including Solid 1 and Electron renderer hosts.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "vite build && bun scripts/check-bundle.mjs && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jhomra21/mesurer-solid": "workspace:*",
+    "@solidjs/web": "2.0.0-rc.0",
+    "solid-js": "2.0.0-rc.0"
+  },
+  "devDependencies": {
+    "@solidjs/vite-plugin": "^3.0.0-next.29",
+    "typescript": "^5.9.2",
+    "vite": "^8.1.5"
+  },
+  "keywords": ["measurement", "devtools", "solid", "react", "vue", "svelte", "electron"]
+}
