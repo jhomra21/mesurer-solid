@@ -99,13 +99,17 @@ jobs:
 
           Merge only after the normal CI and packed-package consumer smoke checks are green and the version/changelog are correct.
 
-          After merge, `publish.yml` will validate the merge commit, publish the exact smoke-tested npm tarball through Trusted Publishing/OIDC, verify the registry artifact, create the `v${VERSION}` tag, and create the GitHub Release.
+          After merge, publish.yml will validate the merge commit, publish the exact smoke-tested npm tarball through Trusted Publishing/OIDC, verify the registry artifact, create the v${VERSION} tag, and create the GitHub Release.
           EOF_BODY
-          gh pr create \
+          if ! gh pr create \
             --base main \
             --head "$branch" \
             --title "release: v${VERSION}" \
-            --body-file /tmp/release-pr.md
+            --body-file /tmp/release-pr.md; then
+            echo "Failed to create the release PR. If repository Actions settings disallow GitHub Actions from creating pull requests, enable that setting and retry."
+            git push origin --delete "$branch" || true
+            exit 1
+          fi
 
       - name: Dispatch validation for the generated PR head
         env:
