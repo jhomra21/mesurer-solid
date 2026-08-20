@@ -24,8 +24,15 @@ await fs.mkdir(outputDir, { recursive: true });
 const styleKeys = [
   "display", "position", "left", "top", "width", "height", "padding",
   "gap", "border", "borderRadius", "backgroundColor", "color", "boxShadow",
-  "fontFamily", "fontSize", "fontWeight", "lineHeight", "opacity", "transform",
-  "pointerEvents", "zIndex",
+  "fontFamily", "fontSize", "fontWeight", "lineHeight", "letterSpacing",
+  "opacity", "transform", "pointerEvents", "zIndex",
+];
+
+const controlStyleKeys = [
+  "display", "width", "height", "minWidth", "minHeight", "padding",
+  "gap", "border", "borderRadius", "backgroundColor", "color", "boxShadow",
+  "fontFamily", "fontSize", "fontWeight", "lineHeight", "letterSpacing",
+  "opacity", "transform", "justifyContent", "alignItems",
 ];
 
 async function dispatchMouse(locator, type, bubbles = true) {
@@ -59,6 +66,148 @@ async function elementSnapshot(page, selector) {
   }, styleKeys);
 }
 
+async function snapshotUiContract(page) {
+  return page.evaluate(({ controlStyleKeys }) => {
+    const roots = [document];
+    for (let index = 0; index < roots.length; index += 1) {
+      for (const element of roots[index].querySelectorAll("*")) {
+        if (element.shadowRoot) roots.push(element.shadowRoot);
+      }
+    }
+    const queryDeep = (selector) => {
+      for (const root of roots) {
+        const match = root.querySelector(selector);
+        if (match) return match;
+      }
+      return null;
+    };
+
+    const rectOf = (element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+      };
+    };
+
+    const styleOf = (element) => {
+      const style = getComputedStyle(element);
+      return Object.fromEntries(controlStyleKeys.map((key) => [key, style[key]]));
+    };
+
+    const svgContract = (svg) => ({
+      rect: rectOf(svg),
+      viewBox: svg.getAttribute("viewBox"),
+      width: svg.getAttribute("width"),
+      height: svg.getAttribute("height"),
+      fill: svg.getAttribute("fill"),
+      stroke: svg.getAttribute("stroke"),
+      strokeWidth: svg.getAttribute("stroke-width"),
+      primitives: [...svg.querySelectorAll("path,line,polyline,polygon,rect,circle,ellipse")].map((node) => ({
+        tag: node.tagName.toLowerCase(),
+        attributes: Object.fromEntries(
+          [...node.attributes]
+            .filter((attribute) => !["class", "style"].includes(attribute.name))
+            .map((attribute) => [attribute.name, attribute.value])
+            .sort(([a], [b]) => a.localeCompare(b)),
+        ),
+      })),
+    });
+
+    const semanticName = (element) =>
+      element.getAttribute("aria-label")
+      ?? element.getAttribute("name")
+      ?? element.getAttribute("title")
+      ?? element.getAttribute("placeholder")
+      ?? element.textContent?.trim()
+      ?? "";
+
+    const inferredRole = (element) => {
+      const explicit = element.getAttribute("role");
+      if (explicit) return explicit;
+      if (element instanceof HTMLButtonElement) return "button";
+      if (element instanceof HTMLSelectElement) return "select";
+      if (element instanceof HTMLTextAreaElement) return "textbox";
+      if (element instanceof HTMLInputElement) {
+        if (element.type === "checkbox") return "checkbox";
+        if (element.type === "radio") return "radio";
+        if (element.type === "range") return "slider";
+        if (element.type === "color") return "color";
+        return "textbox";
+      }
+      return element.tagName.toLowerCase();
+    };
+
+    const controlContract = (element, index) => {
+      const input = element instanceof HTMLInputElement ? element : null;
+      const select = element instanceof HTMLSelectElement ? element : null;
+      const svg = element.querySelector("svg");
+      return {
+        index,
+        tag: element.tagName.toLowerCase(),
+        role: inferredRole(element),
+        name: semanticName(element),
+        type: input?.type ?? null,
+        disabled: "disabled" in element ? Boolean(element.disabled) : null,
+        checked: input && ["checkbox", "radio"].includes(input.type) ? input.checked : null,
+        value: input ? input.value : select ? select.value : element.getAttribute("aria-valuenow"),
+        ariaChecked: element.getAttribute("aria-checked"),
+        ariaSelected: element.getAttribute("aria-selected"),
+        ariaPressed: element.getAttribute("aria-pressed"),
+        ariaValueMin: element.getAttribute("aria-valuemin"),
+        ariaValueMax: element.getAttribute("aria-valuemax"),
+        ariaValueNow: element.getAttribute("aria-valuenow"),
+        options: select
+          ? [...select.options].map((option) => ({
+              label: option.textContent?.trim() ?? "",
+              value: option.value,
+              selected: option.selected,
+              disabled: option.disabled,
+            }))
+          : null,
+        rect: rectOf(element),
+        style: styleOf(element),
+        icon: svg ? svgContract(svg) : null,
+      };
+    };
+
+    const toolbar = queryDeep(".mesurer-toolbar-surface");
+    const dialog = queryDeep('[role="dialog"][aria-label="Settings"]');
+
+    const toolbarIcons = toolbar
+      ? [...toolbar.querySelectorAll("button")].map((button, index) => {
+          const svg = button.querySelector("svg");
+          return {
+            index,
+            name: semanticName(button),
+            rect: rectOf(button),
+            icon: svg ? svgContract(svg) : null,
+          };
+        })
+      : [];
+
+    const settings = dialog
+      ? {
+          rect: rectOf(dialog),
+          tabs: [...dialog.querySelectorAll('[role="tab"]')].map((tab, index) => ({
+            index,
+            name: semanticName(tab),
+            selected: tab.getAttribute("aria-selected"),
+            rect: rectOf(tab),
+            style: styleOf(tab),
+          })),
+          controls: [...dialog.querySelectorAll('button,input,select,textarea,[role="slider"],[role="switch"]')]
+            .filter((element, index, elements) => elements.indexOf(element) === index)
+            .map(controlContract),
+        }
+      : null;
+
+    return { toolbarIcons, settings };
+  }, { controlStyleKeys });
+}
+
 async function snapshotMetrics(page) {
   const toolbar = page.locator(".mesurer-toolbar-surface").first();
   const toolbarButtons = (await toolbar.count())
@@ -75,12 +224,16 @@ async function snapshotMetrics(page) {
       )
     : [];
 
+  const uiContract = await snapshotUiContract(page);
+
   return {
     deviceScaleFactor,
     xrayActive: await page.locator("body").evaluate((body) =>
       body.classList.contains("xray-mode") || body.classList.contains("mesurer-solid-xray"),
     ),
     toolbarButtons,
+    toolbarIconContract: uiContract.toolbarIcons,
+    settingsContract: uiContract.settings,
     toolbar: await elementSnapshot(page, ".mesurer-toolbar-surface"),
     settings: await elementSnapshot(page, '[role="dialog"][aria-label="Settings"]'),
     guideMenu: await elementSnapshot(page, '[role="menu"]'),

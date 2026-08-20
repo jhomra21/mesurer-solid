@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance
@@ -10,6 +11,14 @@ threshold = 8
 states = sorted(p.name.removeprefix("react-").removesuffix(".png") for p in out.glob("react-*.png"))
 react_version = json.loads(Path("upstream/packages/mesurer/package.json").read_text())["version"]
 solid_version = json.loads(Path("packages/renderer/package.json").read_text())["version"]
+contract_keys = ("toolbarIconContract", "settingsContract")
+# Upstream currently runs in the site's light DOM while the Solid renderer is
+# deliberately isolated in a shadow root. Browser/default min-size computation
+# can therefore differ between `0px` and `auto` without being a Mesurer design
+# declaration or affecting rendered geometry. The contract still compares the
+# actual x/y/width/height and every visual style token below.
+non_design_contract_suffixes = (".style.minWidth", ".style.minHeight")
+version_token = re.compile(r"Version[0-9A-Za-z.+-]+")
 
 
 def round_numbers(value):
@@ -22,7 +31,7 @@ def round_numbers(value):
     return value
 
 
-def metric_differences(react, solid, path=""):
+def metric_differences(react, solid, path="", numeric_tolerance=0.25):
     diffs = []
     if type(react) is not type(solid):
         return [{"path": path, "react": react, "solid": solid}]
@@ -32,18 +41,22 @@ def metric_differences(react, solid, path=""):
             if key not in react or key not in solid:
                 diffs.append({"path": child, "react": react.get(key), "solid": solid.get(key)})
             else:
-                diffs.extend(metric_differences(react[key], solid[key], child))
+                diffs.extend(metric_differences(react[key], solid[key], child, numeric_tolerance))
     elif isinstance(react, list):
         if len(react) != len(solid):
             diffs.append({"path": f"{path}.length", "react": len(react), "solid": len(solid)})
         for index, (left, right) in enumerate(zip(react, solid)):
-            diffs.extend(metric_differences(left, right, f"{path}[{index}]"))
+            diffs.extend(metric_differences(left, right, f"{path}[{index}]", numeric_tolerance))
     elif isinstance(react, (int, float)) and isinstance(solid, (int, float)):
-        if abs(float(react) - float(solid)) > 0.25:
+        if abs(float(react) - float(solid)) > numeric_tolerance:
             diffs.append({"path": path, "react": react, "solid": solid})
     elif react != solid:
         diffs.append({"path": path, "react": react, "solid": solid})
     return diffs
+
+
+def normalize_version_text(value):
+    return version_token.sub("Version<version>", str(value))
 
 
 report = {
@@ -94,7 +107,20 @@ for state in states:
 
     react_metrics = round_numbers(json.loads((out / f"react-{state}.json").read_text()))
     solid_metrics = round_numbers(json.loads((out / f"solid-{state}.json").read_text()))
+    react_contract = {key: react_metrics.pop(key, None) for key in contract_keys}
+    solid_contract = {key: solid_metrics.pop(key, None) for key in contract_keys}
     metric_diffs = metric_differences(react_metrics, solid_metrics)
+    raw_contract_diffs = metric_differences(
+        react_contract,
+        solid_contract,
+        path="uiContract",
+        numeric_tolerance=0.01,
+    )
+    contract_diffs = [
+        difference
+        for difference in raw_contract_diffs
+        if not difference["path"].endswith(non_design_contract_suffixes)
+    ]
 
     report["states"][state] = {
         "width": width,
@@ -107,19 +133,25 @@ for state in states:
         "max_channel_delta": max_delta,
         "metric_difference_count": len(metric_diffs),
         "metric_differences": metric_diffs[:100],
+        "contract_difference_count": len(contract_diffs),
+        "contract_differences": contract_diffs[:200],
+        "ignored_environmental_contract_difference_count": len(raw_contract_diffs) - len(contract_diffs),
     }
 
 (out / "report.json").write_text(json.dumps(report, indent=2))
 print(json.dumps(report, indent=2))
 
-# Treat the pinned React implementation as a visual contract. Every captured
-# state must have zero perceptible pixel drift and zero computed layout/style
-# drift. The one intentional exception is Settings > General: upstream and the
-# port display their own package versions, so only those two text snapshots and
-# a very small version-glyph pixel region may differ.
+# Treat the pinned React implementation as the UI contract. Every captured
+# state must have zero semantic/control/icon contract drift. Visual and computed
+# layout/style drift are also zero-tolerance, except Settings > General where
+# upstream and the port intentionally display their own version token.
 failures = []
 expected_general_metric_paths = {"settings.text", "toolbar.text"}
 for state, result in report["states"].items():
+    if result["contract_difference_count"] != 0:
+        paths = [item["path"] for item in result["contract_differences"][:10]]
+        failures.append(f"{state}: {result['contract_difference_count']} explicit UI contract differences: {paths}")
+
     metric_paths = {item["path"] for item in result["metric_differences"]}
     if state == "settings-general":
         if result["threshold_diff_pixels"] > 400:
@@ -131,8 +163,8 @@ for state, result in report["states"].items():
                 f"{state}: unexpected computed metric differences: {sorted(metric_paths - expected_general_metric_paths)}"
             )
         for item in result["metric_differences"]:
-            if f"Version{react_version}" not in str(item["react"]) or f"Version{solid_version}" not in str(item["solid"]):
-                failures.append(f"{state}: allowed text difference is not solely the React/Solid package version")
+            if normalize_version_text(item["react"]) != normalize_version_text(item["solid"]):
+                failures.append(f"{state}: allowed text difference is not solely the React/Solid version token")
     else:
         if result["threshold_diff_pixels"] != 0:
             failures.append(f"{state}: {result['threshold_diff_pixels']} perceptible pixels differ")
@@ -140,6 +172,6 @@ for state, result in report["states"].items():
             failures.append(f"{state}: {result['metric_difference_count']} computed layout/style metrics differ")
 
 if failures:
-    raise SystemExit("React → Solid visual parity gate failed:\n- " + "\n- ".join(failures))
+    raise SystemExit("React → Solid visual/UI contract parity gate failed:\n- " + "\n- ".join(failures))
 
-print("React → Solid visual parity gate: PASS")
+print("React → Solid visual/UI contract parity gate: PASS")

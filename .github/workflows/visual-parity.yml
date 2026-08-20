@@ -113,7 +113,10 @@ jobs:
         run: node e2e/parity-capture.mjs
 
       - name: Build side-by-side and pixel-diff report
-        run: python3 visual-parity/compare.py parity-artifacts | tee parity-artifacts/report.txt
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 visual-parity/compare.py parity-artifacts | tee parity-artifacts/report.txt
 
       - name: Add visual report summary
         run: |
@@ -121,15 +124,30 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path("parity-artifacts/report.json").read_text())
-          print("## React → Solid renderer visual parity")
+          print("## React → Solid renderer visual/UI contract parity")
           print("")
           print("Pinned upstream: `ibelick/mesurer@605d202a4cd0404bb7a4808a11b574174bb14d1a`")
           print("")
-          print("| State | pixels > threshold | ratio | computed metric diffs |")
-          print("|---|---:|---:|---:|")
+          print("| State | pixels > threshold | ratio | computed metric diffs | explicit contract diffs | ignored host-default diffs |")
+          print("|---|---:|---:|---:|---:|---:|")
           for name, state in report["states"].items():
-              print(f"| {name} | {state['threshold_diff_pixels']} | {state['threshold_diff_ratio']:.4%} | {state['metric_difference_count']} |")
+              print(f"| {name} | {state['threshold_diff_pixels']} | {state['threshold_diff_ratio']:.4%} | {state['metric_difference_count']} | {state['contract_difference_count']} | {state['ignored_environmental_contract_difference_count']} |")
           PY
+
+      - name: Upload UI contract parity images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: react-vs-solid-ui-contract
+          path: |
+            parity-artifacts/comparison-toolbar.png
+            parity-artifacts/comparison-settings-*.png
+            parity-artifacts/react-settings-*.json
+            parity-artifacts/solid-settings-*.json
+            parity-artifacts/report.json
+            parity-artifacts/report.txt
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload visual diagnostics on failure
         if: failure()
