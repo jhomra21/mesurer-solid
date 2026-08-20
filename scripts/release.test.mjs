@@ -6,14 +6,16 @@ test("orders prereleases before their stable version", () => {
   assert.equal(compareVersions("0.1.0-beta.2", "0.1.0"), -1);
   assert.equal(compareVersions("0.1.0-beta.3", "0.1.0-beta.2"), 1);
   assert.equal(compareVersions("0.1.0-beta.11", "0.1.0-beta.2"), 1);
+  assert.equal(compareVersions("0.1.0-beta.9007199254740993", "0.1.0-beta.9007199254740992"), 1);
   assert.equal(compareVersions("0.1.0-beta", "0.1.0-rc"), -1);
   assert.equal(compareVersions("0.1.0-1", "0.1.0-beta"), -1);
 });
 
-test("enforces strict SemVer prerelease identifiers", () => {
+test("enforces strict release SemVer prerelease identifiers", () => {
   assert.deepEqual(parseVersion("1.2.3-rc.0").prerelease, ["rc", "0"]);
   assert.throws(() => parseVersion("1.2.3-rc.01"));
   assert.throws(() => parseVersion("01.2.3"));
+  assert.throws(() => parseVersion("1.2.3+build.1"));
 });
 
 test("computes release versions", () => {
