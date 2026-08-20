@@ -1,7 +1,7 @@
 {
   "name": "@jhomra21/mesurer",
   "version": "0.1.0",
-  "description": "Framework-agnostic browser mount for Mesurer, including Solid 1 and Electron renderer hosts.",
+  "description": "Framework-agnostic browser mount and agent harness for Mesurer, including Solid 1 and Electron renderer hosts.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,11 +9,12 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./inject": { "types": "./dist/inject.d.ts", "import": "./dist/inject.js" },
     "./package.json": "./package.json"
   },
   "files": ["dist", "README.md"],
   "scripts": {
-    "build": "vite build && bun scripts/check-bundle.mjs && tsc -p tsconfig.build.json",
+    "build": "vite build && vite build --config vite.inject.config.ts && bun scripts/check-bundle.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -26,5 +27,5 @@
     "typescript": "^5.9.2",
     "vite": "^8.1.5"
   },
-  "keywords": ["measurement", "devtools", "solid", "react", "vue", "svelte", "electron"]
+  "keywords": ["measurement", "devtools", "agent", "playwright", "solid", "react", "vue", "svelte", "electron"]
 }
