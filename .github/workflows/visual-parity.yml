@@ -3,7 +3,7 @@ name: visual-parity
 on:
   pull_request:
     paths:
-      - "packages/mesurer-solid/**"
+      - "packages/renderer/**"
       - "packages/mesurer-dom/**"
       - "examples/basic/**"
       - "visual-parity/**"
