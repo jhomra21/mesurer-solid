@@ -39,16 +39,6 @@ for react_path in sorted(source.glob("react-*.png")):
     draw.text((24, 14), "React", fill="black", font=font)
     draw.text((width + divider_width + 24, 14), "Solid", fill="black", font=font)
 
-    label = suffix.removesuffix(".png").replace("-", " ")
-    box = draw.textbbox((0, 0), label, font=font)
-    label_width = box[2] - box[0]
-    draw.text(
-        ((width * 2 + divider_width - label_width) / 2, 14),
-        label,
-        fill=(90, 90, 90),
-        font=font,
-    )
-
     canvas.save(out / f"react-vs-solid-{suffix}", "PNG", optimize=False)
     created += 1
 
