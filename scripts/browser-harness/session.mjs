@@ -7,16 +7,27 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_INJECT_PATH = path.resolve(here, "../../packages/mesurer/dist/inject.js");
 
 const unsupportedUrl = (url) => /^(chrome|edge|devtools|view-source):/i.test(url);
-const normalizeUrl = (value) => {
+
+export const normalizeBrowserUrl = (value) => {
   if (!value) return null;
-  try {
-    return new URL(value).href;
-  } catch {
-    if (/^[\w.-]+:\d+(?:\/|$)/.test(value) || value.startsWith("localhost")) {
-      return new URL(`http://${value}`).href;
-    }
-    throw new Error(`Invalid URL: ${value}`);
+  const input = String(value).trim();
+  if (!input) return null;
+
+  // URL() interprets `localhost:5173` as a custom `localhost:` scheme, so
+  // recognize the common local-development forms before generic parsing.
+  if (/^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(input)) {
+    return new URL(`http://${input}`).href;
   }
+
+  if (/^[a-z][a-z\d+.-]*:/i.test(input)) {
+    return new URL(input).href;
+  }
+
+  // Bare public hostnames are ergonomic for manual testing while still making
+  // the network scheme explicit before Playwright sees the URL.
+  if (!/\s/.test(input)) return new URL(`https://${input}`).href;
+
+  throw new Error(`Invalid URL: ${value}`);
 };
 
 const toAbsolute = (value) => path.resolve(process.cwd(), value);
@@ -24,7 +35,7 @@ const toAbsolute = (value) => path.resolve(process.cwd(), value);
 export class BrowserHarnessSession {
   constructor(options = {}) {
     this.options = {
-      url: options.url ? normalizeUrl(options.url) : null,
+      url: options.url ? normalizeBrowserUrl(options.url) : null,
       cdp: options.cdp ?? null,
       page: options.page ?? null,
       injectPath: options.injectPath ? toAbsolute(options.injectPath) : DEFAULT_INJECT_PATH,
@@ -48,7 +59,6 @@ export class BrowserHarnessSession {
 
   async start() {
     if (this.started) return this.status();
-    await this.ensureInjectBundle();
 
     if (this.options.cdp) {
       this.browser = await chromium.connectOverCDP(this.options.cdp);
@@ -155,6 +165,9 @@ export class BrowserHarnessSession {
     const url = page.url();
     if (unsupportedUrl(url)) throw new Error(`Browser-internal pages cannot be injected: ${url}`);
 
+    // Listing/selecting tabs and browser-only control must work without a prior
+    // Mesurer build. The bundle is required only at the moment we inject.
+    await this.ensureInjectBundle();
     await this.enableCspBypass(page);
     await page.evaluate(({ globalName, target }) => {
       globalThis.__MESURER_CONFIG__ = {
@@ -229,7 +242,8 @@ export class BrowserHarnessSession {
 
   async navigate(value) {
     const page = this.requirePage();
-    const url = normalizeUrl(value);
+    const url = normalizeBrowserUrl(value);
+    if (!url) throw new Error("url must be non-empty");
     await page.goto(url, { waitUntil: "domcontentloaded" });
     if (this.options.autoInject) await this.ensureInjected();
     return this.status();
@@ -308,7 +322,17 @@ export class BrowserHarnessSession {
   }
 
   async close() {
-    if (this.ownsBrowser && this.browser?.isConnected()) await this.browser.close();
+    if (this.browser?.isConnected()) {
+      if (this.ownsBrowser) {
+        await this.browser.close();
+      } else {
+        // Playwright Browser.close() can send Browser.close over a raw CDP
+        // connection, terminating an externally launched Chrome. Disconnect
+        // only the Playwright client when attached to the user's browser.
+        const connection = this.browser._connection;
+        if (connection && typeof connection.close === "function") connection.close();
+      }
+    }
     this.resolveDisconnected?.();
   }
 
