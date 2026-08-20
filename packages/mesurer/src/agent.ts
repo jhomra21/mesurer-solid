@@ -1,5 +1,5 @@
 import type {
-  MeasurerPluginDescription,
+  MesurerPluginDescription,
   MesurerPluginHost,
 } from "@jhomra21/mesurer-solid";
 
@@ -97,7 +97,7 @@ export type AgentViewportSnapshot = {
 export type AgentFeedbackSnapshot = {
   viewport: AgentViewportSnapshot;
   elements: AgentElementInspection[];
-  plugins: MeasurerPluginDescription | undefined;
+  plugins: MesurerPluginDescription | undefined;
   pluginState: Record<string, unknown>;
 };
 
@@ -105,7 +105,7 @@ export type MesurerAgentHarness = {
   /** Wait until Mesurer's plugin/runtime bridge is available. */
   ready(): Promise<void>;
   /** Machine-readable Mesurer capabilities, tools, commands, plugins and state slices. */
-  describe(): Promise<MeasurerPluginDescription | undefined>;
+  describe(): Promise<MesurerPluginDescription | undefined>;
   /** Inspect one application element using a selector. */
   inspect(selector: string, index?: number): AgentElementInspection | null;
   /** Inspect multiple matching application elements. */
