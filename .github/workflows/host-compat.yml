@@ -1,0 +1,53 @@
+name: host-compat
+
+on:
+  pull_request:
+    paths:
+      - "packages/mesurer-core/**"
+      - "packages/mesurer-dom/**"
+      - "packages/mesurer-solid/**"
+      - "packages/mesurer/**"
+      - "examples/solid1/**"
+      - "host-compat/**"
+      - ".github/workflows/host-compat.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  solid1-universal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install
+      - name: Build Mesurer packages
+        run: bun run build
+      - name: Build Solid 1 host
+        run: bun run --filter 'mesurer-solid1-example' build
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+      - name: Start Solid 1 host
+        run: |
+          cd examples/solid1
+          bunx vite --host 127.0.0.1 --port 4180 --strictPort > ../../solid1-vite.log 2>&1 &
+          echo $! > ../../solid1-vite.pid
+          cd ../..
+          ready=0
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent --show-error http://127.0.0.1:4180 >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat solid1-vite.log || true
+            exit 1
+          fi
+      - name: Exercise universal mount and runtime plugins
+        env:
+          SOLID1_URL: http://127.0.0.1:4180
+        run: bun host-compat/solid1-smoke.mjs
