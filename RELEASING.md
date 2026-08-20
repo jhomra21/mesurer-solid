@@ -27,7 +27,7 @@ If GitHub Actions is not allowed to create pull requests in the repository setti
 
 Review the version and changelog like any other code change. Merge only after `ci` and `package-smoke` are green.
 
-`package-smoke` packs the sanitized npm candidate and exercises that exact tarball in clean TypeScript, React 19, Solid 1, and compiled Solid 2 consumers. The tarball and its `npm pack --json` metadata are uploaded as the `npm-package` workflow artifact.
+`package-smoke` packs the sanitized npm candidate and exercises that exact tarball in clean TypeScript, React 19, Solid 1, and compiled Solid 2 consumers. The tarball and its `npm pack --json` metadata are uploaded together as the version-independent `npm-package` workflow artifact.
 
 ## Automatic publish after merge
 
@@ -38,7 +38,7 @@ For an approved release, the workflow:
 1. Verifies the release branch name matches the package version, the new version is greater than the pre-release base version, and `CHANGELOG.md` has the matching version section.
 2. Runs the reusable packed-package smoke workflow again on the merged release commit.
 3. Downloads the exact tarball that passed the smoke tests.
-4. Verifies that the artifact is `@jhomra21/mesurer-solid` at the detected release version.
+4. Requires exactly one tarball, verifies its package name/version, and recomputes SHA-512 over the downloaded bytes to match `npm pack` integrity metadata.
 5. If the npm version does not exist, publishes that exact `.tgz` through Trusted Publishing/OIDC.
 6. If the npm version already exists, verifies its registry integrity matches the tarball and continues recovery instead of republishing.
 7. Verifies the expected npm dist-tag (`beta` for prereleases, `latest` for stable releases).
