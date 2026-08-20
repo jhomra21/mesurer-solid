@@ -44,7 +44,7 @@ function SliderControl(props: {
   const formatValue = (value: number) => props.formatValue?.(value) ?? String(value);
   const parseInput = (value: string) => props.parseInput?.(value) ?? Number(value);
   const [editing, setEditing] = createSignal(false);
-  const [draft, setDraft] = createSignal(formatValue(props.value));
+  const [draft, setDraft] = createSignal("");
   const percentage = () => ((props.value - props.min) / (props.max - props.min)) * 100;
   const setClamped = (value: number) => props.onChange(Number(Math.min(props.max, Math.max(props.min, value)).toFixed(4)));
   const updateFromPointer = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
@@ -126,8 +126,8 @@ function ColorField(props: { label: string; value: string; fallback: string; own
   const inputValue = () => `#${hex().slice(0, 6)}`;
   const supportsColor = () => (props.ownerWindow as Window & { CSS?: { supports: (property: string, value: string) => boolean } }).CSS?.supports("color", props.value) === true;
   const swatch = () => supportsColor() ? props.value : props.fallback;
-  const [hexDraft, setHexDraft] = createSignal(hex());
-  const [alphaDraft, setAlphaDraft] = createSignal(String(alpha()));
+  const [hexDraft, setHexDraft] = createSignal("");
+  const [alphaDraft, setAlphaDraft] = createSignal("");
   const [hexFocused, setHexFocused] = createSignal(false);
   const [alphaFocused, setAlphaFocused] = createSignal(false);
   const updateColor = (nextHex: string, nextAlpha: number) => {
@@ -296,8 +296,8 @@ export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window
             <span class="msr:justify-self-end msr:font-mono msr:text-[11px] msr:tabular-nums msr:text-ink-700">0.1.0</span>
           </div>
           <div class="msr:col-span-2 msr:flex msr:justify-end msr:gap-1">
-            <button type="button" aria-label="Reset settings to defaults" class="msr:rounded-[5px] msr:border msr:border-ink-200 msr:px-2 msr:py-1 msr:text-[11px] msr:text-ink-700 msr:hover:bg-ink-50 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#0d99ff]" onClick={props.onResetSettings}>Use defaults</button>
-            <button type="button" aria-label="Clear workspace" class="msr:rounded-[5px] msr:border msr:border-red-200 msr:px-2 msr:py-1 msr:text-[11px] msr:text-red-600 msr:hover:bg-red-50 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#ef4444]" onClick={props.onClearWorkspace}>Clear workspace</button>
+            <button type="button" aria-label="Reset settings to defaults" class="msr:rounded-[5px] msr:border msr:border-ink-200 msr:px-2 msr:py-1 msr:text-[11px] msr:text-ink-700 msr:hover:bg-ink-50 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#0d99ff]" onClick={() => props.onResetSettings()}>Use defaults</button>
+            <button type="button" aria-label="Clear workspace" class="msr:rounded-[5px] msr:border msr:border-red-200 msr:px-2 msr:py-1 msr:text-[11px] msr:text-red-600 msr:hover:bg-red-50 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#ef4444]" onClick={() => props.onClearWorkspace()}>Clear workspace</button>
           </div>
         </section>
       </Show>
