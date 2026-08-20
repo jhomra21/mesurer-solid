@@ -10,7 +10,7 @@ Do not manually edit the public package version, create release tags, or run `np
 
 ## Prepare a release
 
-From GitHub Actions, run **prepare-release** and choose one version strategy:
+From GitHub Actions, run **prepare-release** from `main` and choose one version strategy:
 
 - `beta-next`: `0.1.0-beta.2` -> `0.1.0-beta.3`; from a stable version such as `0.1.0`, starts `0.1.1-beta.0`.
 - `promote-stable`: `0.1.0-beta.3` -> `0.1.0`.
@@ -20,6 +20,8 @@ From GitHub Actions, run **prepare-release** and choose one version strategy:
 The workflow updates `packages/mesurer/package.json`, moves `Unreleased` changelog entries into the new version section, creates `release/v<version>`, and opens a `release: v<version>` PR.
 
 Only one release PR may be open at a time. Because GitHub suppresses normal workflow recursion for branches/PRs created by `GITHUB_TOKEN`, `prepare-release` explicitly dispatches `ci` and `package-smoke` against the generated release branch after opening the PR. No PAT is required.
+
+If GitHub Actions is not allowed to create pull requests in the repository settings, PR creation fails closed and the workflow removes the remote release branch so it can be retried after the setting is enabled.
 
 ## Review the release PR
 
@@ -36,22 +38,31 @@ For a real release, the workflow:
 1. Verifies the new version is greater than the previous version and has a matching changelog section.
 2. Runs the reusable packed-package smoke workflow again on the merge commit.
 3. Downloads the exact tarball that passed the smoke tests.
-4. If the npm version does not exist, publishes that exact `.tgz` through Trusted Publishing/OIDC.
-5. If the npm version already exists, verifies its registry integrity matches the tarball and continues recovery instead of republishing.
-6. Verifies the expected npm dist-tag (`beta` for prereleases, `latest` for stable releases).
-7. Creates `v<version>` only after npm succeeds, and refuses an existing tag that points at another commit.
-8. Creates the GitHub Release from the matching changelog section; prerelease versions are marked as prereleases.
+4. Enters the protected `npm-publish` GitHub Environment.
+5. If the npm version does not exist, publishes that exact `.tgz` through Trusted Publishing/OIDC.
+6. If the npm version already exists, verifies its registry integrity matches the tarball and continues recovery instead of republishing.
+7. Verifies the expected npm dist-tag (`beta` for prereleases, `latest` for stable releases).
+8. Creates `v<version>` only after npm succeeds, and refuses an existing tag that points at another commit.
+9. Creates the GitHub Release from the matching changelog section; prerelease versions are marked as prereleases.
 
-The npm publishing job is serialized with `cancel-in-progress: false`, so release jobs cannot race each other.
+The npm publishing job is serialized with `cancel-in-progress: false`, so release jobs cannot race each other. Release-sensitive third-party Actions and the npm CLI used to pack/publish are pinned to immutable versions/revisions.
+
+## Protected publishing environment
+
+The repository should contain a GitHub Environment named `npm-publish` with **Selected branches and tags** restricted to the `main` branch. The npm Trusted Publisher should also be configured with environment name `npm-publish` in addition to repository `jhomra21/mesurer-solid` and workflow filename `publish.yml`.
+
+This external protection matters because npm's GitHub trusted-publisher configuration accepts repository, workflow filename, and optional environment claims but does not expose a branch field. The GitHub Environment therefore supplies the branch restriction independently of the workflow file itself.
+
+Do not add npm credentials to the environment; it exists only as a deployment/provenance boundary for OIDC.
 
 ## Recovery
 
 If npm publication succeeds but a later tag/GitHub Release step fails, first rerun the failed GitHub Actions job/run. That preserves the original release commit and is the safest recovery path.
 
-`publish.yml` also supports `workflow_dispatch` for recovery of the version currently represented by the selected ref. It verifies the already-published npm integrity before doing any post-publish work. Do not use a newer source tree to recover an older npm version; the integrity/tag checks intentionally fail closed in that situation.
+`publish.yml` also supports `workflow_dispatch` for recovery of the version currently on `main`. Manual recovery is rejected from any other ref. It verifies the already-published npm integrity before doing any post-publish work.
 
 Never reuse or overwrite an npm version. If the existing registry integrity differs from the candidate, the workflow fails closed.
 
 ## Authentication and security
 
-The npm package is configured to disallow token publishing. `.github/workflows/publish.yml` is the npm Trusted Publisher and receives only a short-lived GitHub OIDC credential. No `NPM_TOKEN` should be added to repository secrets or the workflow.
+The npm package is configured to disallow token publishing. `.github/workflows/publish.yml` is the npm Trusted Publisher and receives only a short-lived GitHub OIDC credential. No `NPM_TOKEN` should be added to repository secrets, the GitHub Environment, or the workflow.
