@@ -37,13 +37,14 @@ jobs:
           bun run test
           bun run build
 
-      - name: Pack exact npm artifact
+      - name: Pack exact sanitized npm artifact
         run: |
           cd packages/mesurer
-          npm pack --json > pack.json
+          bun run stage
+          npm pack .publish --json > pack.json
           filename=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].filename)')
           echo "PACKAGE_TGZ=$(realpath "$filename")" >> "$GITHUB_ENV"
-          npm pack --dry-run
+          npm publish .publish --dry-run --access public --tag beta
 
       - name: Typecheck a clean consumer against published declarations
         run: |
