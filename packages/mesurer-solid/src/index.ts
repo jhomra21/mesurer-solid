@@ -1,6 +1,36 @@
 export { default as Measurer } from "./Measurer";
 export type { MeasurerProps } from "./Measurer";
 export {
+  colorPickerPlugin,
+  composeMesurerPlugins,
+  defaultMesurerPlugins,
+  distancePlugin,
+  guidesPlugin,
+  rulersPlugin,
+  selectPlugin,
+  settingsPlugin,
+  textInspectorPlugin,
+  xrayPlugin,
+} from "./plugins/builtins";
+export type { MesurerBuiltinPluginId } from "./plugins/builtins";
+export {
+  createMesurerPluginHost,
+  createMesurerRuntime,
+  defineMesurerPlugin,
+} from "@jhomra21/mesurer-core";
+export type {
+  CommandHandler as MesurerCommandHandler,
+  MesurerPlugin,
+  MesurerPluginContext,
+  MesurerPluginDescription,
+  MesurerPluginHost,
+  OverlayContribution,
+  Registration as MesurerRegistration,
+  SettingsContribution,
+  StateSliceDefinition,
+  ToolContribution,
+} from "@jhomra21/mesurer-core";
+export {
   createTextInspector,
   TextInspector,
 } from "./runtime/text-inspector";
