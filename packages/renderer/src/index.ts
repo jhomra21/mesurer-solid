@@ -17,7 +17,7 @@ export {
   createMesurerPluginHost,
   createMesurerRuntime,
   defineMesurerPlugin,
-} from "@jhomra21/mesurer-core";
+} from "@jhomra21/mesurer-solid-core";
 export type {
   CommandHandler as MesurerCommandHandler,
   MesurerPlugin,
@@ -29,7 +29,7 @@ export type {
   SettingsContribution,
   StateSliceDefinition,
   ToolContribution,
-} from "@jhomra21/mesurer-core";
+} from "@jhomra21/mesurer-solid-core";
 export {
   createTextInspector,
   TextInspector,

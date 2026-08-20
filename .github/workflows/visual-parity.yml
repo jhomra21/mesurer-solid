@@ -49,7 +49,7 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check pillow
 
       - name: Generate renderer styles
-        run: bun run --filter '@jhomra21/mesurer-renderer' styles
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
       - name: Install React upstream workspace
         run: |

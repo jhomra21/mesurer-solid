@@ -19,7 +19,7 @@ jobs:
       - run: bun run typecheck
       - run: bun run test
       - run: bun run build
-      - run: bun run --filter 'mesurer-renderer-example' build
+      - run: bun run --filter 'mesurer-solid-renderer-example' build
       - name: Build Solid 1 host against bundled universal Mesurer
         run: bun run --filter 'mesurer-solid1-example' build
 

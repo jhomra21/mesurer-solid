@@ -59,11 +59,11 @@ jobs:
             mountMeasurer,
             type MountMeasurerOptions,
             type MesurerPlugin,
-          } from "@jhomra21/mesurer";
+          } from "@jhomra21/mesurer-solid";
           import {
             createMesurerPluginHost,
             type MesurerPluginHost,
-          } from "@jhomra21/mesurer/core";
+          } from "@jhomra21/mesurer-solid/core";
 
           const plugin: MesurerPlugin = defineMesurerPlugin({
             id: "consumer.types",
@@ -100,7 +100,7 @@ jobs:
           cd /tmp/mesurer-react
           npm init -y >/dev/null
           npm install "$PACKAGE_TGZ" react@19 react-dom@19 vite@8.1.5 >/dev/null
-          echo "REACT_INJECT_PATH=$(realpath node_modules/@jhomra21/mesurer/dist/inject.js)" >> "$GITHUB_ENV"
+          echo "REACT_INJECT_PATH=$(realpath node_modules/@jhomra21/mesurer-solid/dist/inject.js)" >> "$GITHUB_ENV"
           cat > index.html <<'HTML'
           <!doctype html><html><body><div id="root"></div><script type="module" src="/main.js"></script></body></html>
           HTML
@@ -147,7 +147,7 @@ jobs:
           cat > main.js <<'JS'
           import { createEffect, createSignal } from "solid-js";
           import { render } from "solid-js/web";
-          import { defineMesurerPlugin, mountMeasurer } from "@jhomra21/mesurer";
+          import { defineMesurerPlugin, mountMeasurer } from "@jhomra21/mesurer-solid";
 
           const root = document.getElementById("root");
           render(() => {
@@ -204,7 +204,7 @@ jobs:
           cat > src/main.tsx <<'TSX'
           import { createSignal } from "solid-js";
           import { render } from "@solidjs/web";
-          import { defineMesurerPlugin, mountMeasurer } from "@jhomra21/mesurer";
+          import { defineMesurerPlugin, mountMeasurer } from "@jhomra21/mesurer-solid";
 
           function App() {
             const [count, setCount] = createSignal(0);
@@ -276,7 +276,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: jhomra21-mesurer-0.1.0-beta.0
-          path: packages/mesurer/jhomra21-mesurer-0.1.0-beta.0.tgz
+          name: jhomra21-mesurer-solid-0.1.0-beta.0
+          path: packages/mesurer/jhomra21-mesurer-solid-0.1.0-beta.0.tgz
           if-no-files-found: error
           retention-days: 14

@@ -1,4 +1,4 @@
-# @jhomra21/mesurer-core
+# @jhomra21/mesurer-solid-core
 
 Framework-neutral Mesurer primitives. This package deliberately has no Solid, React, Vue, Electron, DOM, or browser dependency.
 

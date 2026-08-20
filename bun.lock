@@ -3,16 +3,16 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "mesurer-workspace",
+      "name": "mesurer-solid-workspace",
       "devDependencies": {
         "playwright": "^1.55.0",
       },
     },
     "examples/basic": {
-      "name": "mesurer-renderer-example",
+      "name": "mesurer-solid-renderer-example",
       "version": "0.0.0",
       "dependencies": {
-        "@jhomra21/mesurer-renderer": "workspace:*",
+        "@jhomra21/mesurer-solid-renderer": "workspace:*",
         "@solidjs/web": "^2.0.0-rc.0",
         "solid-js": "^2.0.0-rc.0",
       },
@@ -34,12 +34,12 @@
       },
     },
     "packages/mesurer": {
-      "name": "@jhomra21/mesurer",
+      "name": "@jhomra21/mesurer-solid",
       "version": "0.1.0-beta.0",
       "devDependencies": {
-        "@jhomra21/mesurer-core": "workspace:*",
-        "@jhomra21/mesurer-dom": "workspace:*",
-        "@jhomra21/mesurer-renderer": "workspace:*",
+        "@jhomra21/mesurer-solid-core": "workspace:*",
+        "@jhomra21/mesurer-solid-dom": "workspace:*",
+        "@jhomra21/mesurer-solid-renderer": "workspace:*",
         "@solidjs/vite-plugin": "^3.0.0-next.29",
         "@solidjs/web": "2.0.0-rc.0",
         "solid-js": "2.0.0-rc.0",
@@ -48,7 +48,7 @@
       },
     },
     "packages/mesurer-core": {
-      "name": "@jhomra21/mesurer-core",
+      "name": "@jhomra21/mesurer-solid-core",
       "version": "0.1.0-beta.0",
       "devDependencies": {
         "typescript": "^5.9.2",
@@ -56,10 +56,10 @@
       },
     },
     "packages/mesurer-dom": {
-      "name": "@jhomra21/mesurer-dom",
+      "name": "@jhomra21/mesurer-solid-dom",
       "version": "0.1.0-beta.0",
       "dependencies": {
-        "@jhomra21/mesurer-core": "workspace:*",
+        "@jhomra21/mesurer-solid-core": "workspace:*",
       },
       "devDependencies": {
         "typescript": "^5.9.2",
@@ -67,11 +67,11 @@
       },
     },
     "packages/renderer": {
-      "name": "@jhomra21/mesurer-renderer",
+      "name": "@jhomra21/mesurer-solid-renderer",
       "version": "0.1.0-beta.0",
       "dependencies": {
-        "@jhomra21/mesurer-core": "workspace:*",
-        "@jhomra21/mesurer-dom": "workspace:*",
+        "@jhomra21/mesurer-solid-core": "workspace:*",
+        "@jhomra21/mesurer-solid-dom": "workspace:*",
       },
       "devDependencies": {
         "@solidjs/vite-plugin": "^3.0.0-next.29",
@@ -171,13 +171,13 @@
 
     "@exodus/bytes": ["@exodus/bytes@1.15.1", "", { "peerDependencies": { "@noble/hashes": "^1.8.0 || ^2.0.0" }, "optionalPeers": ["@noble/hashes"] }, "sha512-S6mL0yNB/Abt9Ei4tq8gDhcczc4S3+vQ4ra7vxnAf+YHC02srtqxKKZghx2Dq6p0e66THKwR6r8N6P95wEty7Q=="],
 
-    "@jhomra21/mesurer": ["@jhomra21/mesurer@workspace:packages/mesurer"],
+    "@jhomra21/mesurer-solid": ["@jhomra21/mesurer-solid@workspace:packages/mesurer"],
 
-    "@jhomra21/mesurer-core": ["@jhomra21/mesurer-core@workspace:packages/mesurer-core"],
+    "@jhomra21/mesurer-solid-core": ["@jhomra21/mesurer-solid-core@workspace:packages/mesurer-core"],
 
-    "@jhomra21/mesurer-dom": ["@jhomra21/mesurer-dom@workspace:packages/mesurer-dom"],
+    "@jhomra21/mesurer-solid-dom": ["@jhomra21/mesurer-solid-dom@workspace:packages/mesurer-dom"],
 
-    "@jhomra21/mesurer-renderer": ["@jhomra21/mesurer-renderer@workspace:packages/renderer"],
+    "@jhomra21/mesurer-solid-renderer": ["@jhomra21/mesurer-solid-renderer@workspace:packages/renderer"],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 
@@ -431,7 +431,7 @@
 
     "merge-anything": ["merge-anything@5.1.7", "", { "dependencies": { "is-what": "^4.1.8" } }, "sha512-eRtbOb1N5iyH0tkQDAoQ4Ipsp/5qSR79Dzrz8hEPxRX10RWWR/iQXdoKmBSRCThY1Fh5EhISDtpSc93fpxUniQ=="],
 
-    "mesurer-renderer-example": ["mesurer-renderer-example@workspace:examples/basic"],
+    "mesurer-solid-renderer-example": ["mesurer-solid-renderer-example@workspace:examples/basic"],
 
     "mesurer-solid1-example": ["mesurer-solid1-example@workspace:examples/solid1"],
 

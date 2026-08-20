@@ -43,7 +43,7 @@ jobs:
           bun run stage
           npm publish .publish --dry-run --access public --tag beta
 
-      - name: Publish @jhomra21/mesurer
+      - name: Publish @jhomra21/mesurer-solid
         working-directory: packages/mesurer
         shell: bash
         run: |

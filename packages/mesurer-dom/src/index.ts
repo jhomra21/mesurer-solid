@@ -1,4 +1,4 @@
-import type { InspectMeasurement, Rect } from "@jhomra21/mesurer-core";
+import type { InspectMeasurement, Rect } from "@jhomra21/mesurer-solid-core";
 
 export type DomHost = {
   ownerWindow: Window;

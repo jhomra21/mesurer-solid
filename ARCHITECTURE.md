@@ -1,6 +1,6 @@
 # Architecture
 
-Mesurer is organized as private implementation workspaces behind one public package: `@jhomra21/mesurer`.
+Mesurer Solid is organized as private implementation workspaces behind one public package: `@jhomra21/mesurer-solid`.
 
 The reference UI renderer remains implemented in Solid 2 because that renderer already has the upstream visual/behavioral parity we want. Solid is an implementation detail of Mesurer itself, not a requirement imposed on host applications.
 
@@ -9,7 +9,7 @@ host application
 Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron renderer
                               │
                               ▼
-                    @jhomra21/mesurer
+                    @jhomra21/mesurer-solid
                     public npm package
               mount · /core · /inject · agent API
                               │
@@ -28,15 +28,15 @@ Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron renderer
 Users install only:
 
 ```text
-@jhomra21/mesurer
+@jhomra21/mesurer-solid
 ```
 
 The same npm package exposes three entry points:
 
 ```text
-@jhomra21/mesurer
-@jhomra21/mesurer/core
-@jhomra21/mesurer/inject
+@jhomra21/mesurer-solid
+@jhomra21/mesurer-solid/core
+@jhomra21/mesurer-solid/inject
 ```
 
 - root export: framework-agnostic browser mount, plugins, public types, and agent harness;
@@ -66,7 +66,7 @@ The private core workspace owns:
 
 It must not import Solid, React, Vue, another renderer, Electron, or browser globals.
 
-Public extension-facing pieces are bundled into the `@jhomra21/mesurer/core` subpath so users do not install the private workspace.
+Public extension-facing pieces are bundled into the `@jhomra21/mesurer-solid/core` subpath so users do not install the private workspace.
 
 ### DOM boundary
 
@@ -107,7 +107,7 @@ This is the only publishable workspace.
 Its build bundles the private core/DOM/renderer implementation into self-contained public artifacts. The root and injector bundles contain Mesurer's private Solid 2 runtime; host applications therefore do not need to provide or share Solid with Mesurer.
 
 ```ts
-import { mountMeasurer } from "@jhomra21/mesurer";
+import { mountMeasurer } from "@jhomra21/mesurer-solid";
 
 const instance = mountMeasurer({ agent: true });
 await instance.ready;
@@ -119,7 +119,7 @@ The package build fails if public JS/declaration artifacts leak private workspac
 
 ## Agent/browser harness boundary
 
-`@jhomra21/mesurer/inject` is a self-contained development/test entry intended for browser automation. It lets a coding agent instrument a running user application without editing that application's source code.
+`@jhomra21/mesurer-solid/inject` is a self-contained development/test entry intended for browser automation. It lets a coding agent instrument a running user application without editing that application's source code.
 
 ```text
 agent edits UI
@@ -127,7 +127,7 @@ agent edits UI
 user dev server / HMR
     ↓
 Playwright/Cypress/browser harness
-    ├── inject @jhomra21/mesurer/inject
+    ├── inject @jhomra21/mesurer-solid/inject
     ├── screenshot page
     └── window.__MESURER__
            ├── stable()

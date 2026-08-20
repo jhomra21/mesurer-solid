@@ -5,7 +5,7 @@ import {
   type MesurerPlugin,
   type MesurerPluginHost,
   type ToolContribution,
-} from "@jhomra21/mesurer-core";
+} from "@jhomra21/mesurer-solid-core";
 import LegacyMeasurer, { type MeasurerProps as LegacyMeasurerProps } from "./Measurer";
 import { composeMesurerPlugins, type MesurerBuiltinPluginId } from "./plugins/builtins";
 

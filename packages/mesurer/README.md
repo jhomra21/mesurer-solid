@@ -1,4 +1,4 @@
-# @jhomra21/mesurer
+# @jhomra21/mesurer-solid
 
 Framework-agnostic UI measurement and inspection tools for browser applications and coding agents.
 
@@ -9,7 +9,7 @@ Mesurer's reference UI is implemented in Solid 2, but the public package bundles
 During the beta:
 
 ```bash
-bun add -d @jhomra21/mesurer@beta
+bun add -d @jhomra21/mesurer-solid@beta
 ```
 
 ## Mount from application code
@@ -17,7 +17,7 @@ bun add -d @jhomra21/mesurer@beta
 The same API is used regardless of host framework:
 
 ```ts
-import { mountMeasurer } from "@jhomra21/mesurer";
+import { mountMeasurer } from "@jhomra21/mesurer-solid";
 
 const mesurer = mountMeasurer({ agent: true });
 await mesurer.ready;
@@ -39,20 +39,20 @@ Extension authors use a subpath of the same package:
 import {
   createMesurerPluginHost,
   defineMesurerPlugin,
-} from "@jhomra21/mesurer/core";
+} from "@jhomra21/mesurer-solid/core";
 ```
 
 There is no second framework-specific package to install.
 
 ## Inject from a browser harness
 
-For coding agents, the preferred path is `@jhomra21/mesurer/inject`: the application does not import Mesurer at all. A Playwright-style harness injects the self-contained module into the already-running page.
+For coding agents, the preferred path is `@jhomra21/mesurer-solid/inject`: the application does not import Mesurer at all. A Playwright-style harness injects the self-contained module into the already-running page.
 
 ```js
 import { fileURLToPath } from "node:url";
 
 const injectPath = fileURLToPath(
-  import.meta.resolve("@jhomra21/mesurer/inject"),
+  import.meta.resolve("@jhomra21/mesurer-solid/inject"),
 );
 
 await page.addScriptTag({
@@ -121,9 +121,9 @@ The user application does not need to know which framework Mesurer itself uses.
 ## Public package surface
 
 ```text
-@jhomra21/mesurer
-@jhomra21/mesurer/core
-@jhomra21/mesurer/inject
+@jhomra21/mesurer-solid
+@jhomra21/mesurer-solid/core
+@jhomra21/mesurer-solid/inject
 ```
 
 All three are exports of this single npm package.

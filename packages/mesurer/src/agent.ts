@@ -1,4 +1,4 @@
-import { getInspectMeasurement as getDomInspectMeasurement } from "@jhomra21/mesurer-dom";
+import { getInspectMeasurement as getDomInspectMeasurement } from "@jhomra21/mesurer-solid-dom";
 import type {
   MesurerPluginDescription,
   MesurerPluginHost,

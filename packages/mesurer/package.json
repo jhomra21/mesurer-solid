@@ -1,5 +1,5 @@
 {
-  "name": "@jhomra21/mesurer",
+  "name": "@jhomra21/mesurer-solid",
   "version": "0.1.0-beta.0",
   "description": "Framework-agnostic UI measurement and inspection tools for browser apps and coding agents.",
   "license": "MIT",
@@ -27,9 +27,9 @@
     "pack": "bun run stage && npm pack .publish"
   },
   "devDependencies": {
-    "@jhomra21/mesurer-core": "workspace:*",
-    "@jhomra21/mesurer-dom": "workspace:*",
-    "@jhomra21/mesurer-renderer": "workspace:*",
+    "@jhomra21/mesurer-solid-core": "workspace:*",
+    "@jhomra21/mesurer-solid-dom": "workspace:*",
+    "@jhomra21/mesurer-solid-renderer": "workspace:*",
     "@solidjs/vite-plugin": "^3.0.0-next.29",
     "@solidjs/web": "2.0.0-rc.0",
     "solid-js": "2.0.0-rc.0",
@@ -49,13 +49,13 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/jhomra21/mesurer.git",
+    "url": "https://github.com/jhomra21/mesurer-solid.git",
     "directory": "packages/mesurer"
   },
   "bugs": {
-    "url": "https://github.com/jhomra21/mesurer/issues"
+    "url": "https://github.com/jhomra21/mesurer-solid/issues"
   },
-  "homepage": "https://github.com/jhomra21/mesurer#readme",
+  "homepage": "https://github.com/jhomra21/mesurer-solid#readme",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

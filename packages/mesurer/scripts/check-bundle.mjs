@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 const externalSolidPattern = /(?:from\s*|import\s*\()["'](?:solid-js|@solidjs\/web)["']/;
-const privatePackagePattern = /@jhomra21\/(?:mesurer-core|mesurer-dom|mesurer-renderer|mesurer-solid)/;
+const privatePackagePattern = /@jhomra21\/mesurer-solid-(?:core|dom|renderer)/;
 
 for (const name of ["index", "inject"]) {
   const source = readFileSync(new URL(`../dist/${name}.js`, import.meta.url), "utf8");

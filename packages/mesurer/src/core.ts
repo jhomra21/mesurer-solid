@@ -1,4 +1,4 @@
-import { createMesurerPluginHost as createInternalPluginHost } from "@jhomra21/mesurer-core";
+import { createMesurerPluginHost as createInternalPluginHost } from "@jhomra21/mesurer-solid-core";
 
 export type Registration = { readonly dispose: () => void };
 export type PluginId = string;

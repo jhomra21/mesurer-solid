@@ -6,7 +6,7 @@ import {
   type MeasurerModelState,
   type MeasurerSettings,
   type SettingsTab,
-} from "@jhomra21/mesurer-core";
+} from "@jhomra21/mesurer-solid-core";
 
 export type {
   GuidePreview,
@@ -14,7 +14,7 @@ export type {
   MeasurerModelState,
   MeasurerSettings,
   SettingsTab,
-} from "@jhomra21/mesurer-core";
+} from "@jhomra21/mesurer-solid-core";
 
 export function createMeasurerModel(options: MeasurerModelOptions = {}) {
   const core = createMeasurerModelCore<HTMLElement>(options);

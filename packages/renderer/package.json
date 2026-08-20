@@ -1,5 +1,5 @@
 {
-  "name": "@jhomra21/mesurer-renderer",
+  "name": "@jhomra21/mesurer-solid-renderer",
   "private": true,
   "version": "0.1.0-beta.0",
   "description": "Private Solid 2 UI renderer for Mesurer.",
@@ -20,8 +20,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@jhomra21/mesurer-core": "workspace:*",
-    "@jhomra21/mesurer-dom": "workspace:*"
+    "@jhomra21/mesurer-solid-core": "workspace:*",
+    "@jhomra21/mesurer-solid-dom": "workspace:*"
   },
   "peerDependencies": {
     "@solidjs/web": "^2.0.0-rc.0",
@@ -41,7 +41,7 @@
   "keywords": ["measurement", "guides", "rulers", "devtools", "plugins", "renderer"],
   "repository": {
     "type": "git",
-    "url": "https://github.com/jhomra21/mesurer.git",
+    "url": "https://github.com/jhomra21/mesurer-solid.git",
     "directory": "packages/renderer"
   }
 }

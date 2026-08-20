@@ -2,7 +2,7 @@
 import {
   getInspectMeasurement as getDomInspectMeasurement,
   getRectFromDom as getDomRect,
-} from "@jhomra21/mesurer-dom";
+} from "@jhomra21/mesurer-solid-dom";
 import { denormalizeRect, getViewportSize, normalizeRect } from "./geometry";
 import type { InspectMeasurement, Measurement, Rect } from "./types";
 import { createId } from "./utils";

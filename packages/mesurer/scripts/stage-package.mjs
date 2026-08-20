@@ -26,10 +26,9 @@ writeFileSync(
 
 const serialized = JSON.stringify(published);
 for (const privateName of [
-  "@jhomra21/mesurer-core",
-  "@jhomra21/mesurer-dom",
-  "@jhomra21/mesurer-renderer",
-  "@jhomra21/mesurer-solid",
+  "@jhomra21/mesurer-solid-core",
+  "@jhomra21/mesurer-solid-dom",
+  "@jhomra21/mesurer-solid-renderer",
 ]) {
   if (serialized.includes(privateName)) {
     throw new Error(`Staged package metadata leaked private package name: ${privateName}`);

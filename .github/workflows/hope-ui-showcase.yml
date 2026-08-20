@@ -31,7 +31,7 @@ jobs:
         run: bun install
 
       - name: Generate Mesurer styles
-        run: bun run --filter '@jhomra21/mesurer-renderer' styles
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
       - name: Build isolated Mesurer renderer overlay
         working-directory: packages/renderer
@@ -95,7 +95,7 @@ jobs:
       - name: Upload Hope UI + Mesurer screenshots
         uses: actions/upload-artifact@v4
         with:
-          name: hope-ui-mesurer-3x
+          name: hope-ui-mesurer-solid-3x
           path: hope-ui-showcase-artifacts/*.png
           if-no-files-found: error
           retention-days: 14

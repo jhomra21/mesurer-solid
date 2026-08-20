@@ -12,7 +12,7 @@ import {
   textInspectorPlugin as rendererTextInspectorPlugin,
   xrayPlugin as rendererXrayPlugin,
   type MeasurerProps as RendererMeasurerProps,
-} from "@jhomra21/mesurer-renderer";
+} from "@jhomra21/mesurer-solid-renderer";
 import {
   createMesurerAgentHarness,
   type MesurerAgentHarness,

@@ -1,5 +1,5 @@
 {
-  "name": "@jhomra21/mesurer-dom",
+  "name": "@jhomra21/mesurer-solid-dom",
   "private": true,
   "version": "0.1.0-beta.0",
   "description": "Internal browser and DOM host adapters for Mesurer.",
@@ -20,7 +20,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@jhomra21/mesurer-core": "workspace:*"
+    "@jhomra21/mesurer-solid-core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

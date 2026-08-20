@@ -1,9 +1,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-const privatePackagePattern = /@jhomra21\/(?:mesurer-core|mesurer-dom|mesurer-renderer|mesurer-solid)/;
+const privatePackagePattern = /@jhomra21\/mesurer-solid-(?:core|dom|renderer)/;
 
-if (packageJson.private === true) throw new Error("The public @jhomra21/mesurer package cannot be private.");
+if (packageJson.private === true) throw new Error("The public @jhomra21/mesurer-solid package cannot be private.");
 if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
   throw new Error("The public Mesurer beta must not publish runtime workspace dependencies.");
 }
@@ -28,4 +28,4 @@ for (const file of ["index.js", "index.d.ts", "core.js", "core.d.ts", "inject.js
   if (!readdirSync(dist).includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
 
-console.log(`@jhomra21/mesurer@${packageJson.version} publish surface is self-contained.`);
+console.log(`@jhomra21/mesurer-solid@${packageJson.version} publish surface is self-contained.`);

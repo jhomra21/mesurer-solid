@@ -2,7 +2,7 @@ import {
   defineMesurerPlugin,
   type MesurerPlugin,
   type ToolContribution,
-} from "@jhomra21/mesurer-core";
+} from "@jhomra21/mesurer-solid-core";
 
 export type MesurerBuiltinPluginId =
   | "select"

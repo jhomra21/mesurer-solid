@@ -3,7 +3,7 @@
 Electron renderer processes expose the same DOM boundary Mesurer uses in a browser. No Electron API is required for inspection itself.
 
 ```ts
-import { mountMeasurer } from "@jhomra21/mesurer";
+import { mountMeasurer } from "@jhomra21/mesurer-solid";
 
 const mesurer = mountMeasurer({ target: document.body });
 ```

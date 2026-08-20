@@ -1,5 +1,5 @@
 import { render } from "@solidjs/web";
-import { Measurer } from "@jhomra21/mesurer-renderer";
+import { Measurer } from "@jhomra21/mesurer-solid-renderer";
 
 function Fixture() {
   return (
