@@ -2,7 +2,7 @@ import { getInspectMeasurement as getDomInspectMeasurement } from "@jhomra21/mes
 import type {
   MesurerPluginDescription,
   MesurerPluginHost,
-} from "@jhomra21/mesurer-solid";
+} from "./core";
 
 export type AgentRect = {
   left: number;
@@ -103,27 +103,16 @@ export type AgentFeedbackSnapshot = {
 };
 
 export type MesurerAgentHarness = {
-  /** Wait until Mesurer's plugin/runtime bridge is available. */
   ready(): Promise<void>;
-  /** Machine-readable Mesurer capabilities, tools, commands, plugins and state slices. */
   describe(): Promise<MesurerPluginDescription | undefined>;
-  /** Inspect one application element using a selector. */
   inspect(selector: string, index?: number): AgentElementInspection | null;
-  /** Inspect multiple matching application elements. */
   inspectAll(selector: string, limit?: number): AgentElementInspection[];
-  /** Inspect the application element under a viewport coordinate. */
   at(x: number, y: number): AgentElementInspection | null;
-  /** Measure the gap and center delta between two application elements. */
   distance(a: string, b: string): AgentDistance | null;
-  /** Current viewport/document dimensions and overflow signals. */
   viewport(): AgentViewportSnapshot;
-  /** One JSON-safe feedback payload for an agent iteration. */
   feedback(selectors?: string[]): Promise<AgentFeedbackSnapshot>;
-  /** Execute any registered Mesurer/plugin command. */
   command(id: string, args?: unknown): Promise<void>;
-  /** Read all currently registered plugin-owned state. */
   state(): Promise<Record<string, unknown>>;
-  /** Wait for fonts and a configurable number of animation frames to settle. */
   stable(frames?: number): Promise<void>;
 };
 
