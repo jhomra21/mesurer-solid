@@ -9,22 +9,29 @@ const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?
 export function parseVersion(value) {
   const match = SEMVER_RE.exec(value);
   if (!match) throw new Error(`Invalid release version: ${value}`);
+  const prerelease = match[4]?.split(".") ?? [];
+  for (const identifier of prerelease) {
+    if (/^\d+$/.test(identifier) && identifier.length > 1 && identifier.startsWith("0")) {
+      throw new Error(`Invalid release version: numeric prerelease identifier '${identifier}' has a leading zero`);
+    }
+  }
   return {
     raw: value,
     major: Number(match[1]),
     minor: Number(match[2]),
     patch: Number(match[3]),
-    prerelease: match[4]?.split(".") ?? [],
+    prerelease,
   };
 }
 
 function compareIdentifier(a, b) {
-  const aNumber = /^\d+$/.test(a) ? Number(a) : null;
-  const bNumber = /^\d+$/.test(b) ? Number(b) : null;
-  if (aNumber !== null && bNumber !== null) return Math.sign(aNumber - bNumber);
-  if (aNumber !== null) return -1;
-  if (bNumber !== null) return 1;
-  return a.localeCompare(b);
+  const aNumeric = /^\d+$/.test(a);
+  const bNumeric = /^\d+$/.test(b);
+  if (aNumeric && bNumeric) return Math.sign(Number(a) - Number(b));
+  if (aNumeric) return -1;
+  if (bNumeric) return 1;
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
 }
 
 export function compareVersions(aValue, bValue) {
