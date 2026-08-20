@@ -8,7 +8,7 @@ export default defineConfig({
       {
         find: /^@jhomra21\/mesurer-renderer$/,
         replacement: new URL(
-          "../../packages/mesurer-solid/src/index.ts",
+          "../../packages/renderer/src/index.ts",
           import.meta.url,
         ).pathname,
       },
