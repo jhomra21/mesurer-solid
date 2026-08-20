@@ -13,8 +13,8 @@ export default defineConfig({
   plugins: [solid()],
   resolve: {
     alias: [
-      { find: /^@jhomra21\/mesurer-core$/, replacement: coreEntry },
-      { find: /^@jhomra21\/mesurer-dom$/, replacement: domEntry },
+      { find: /^@jhomra21\/mesurer-solid-core$/, replacement: coreEntry },
+      { find: /^@jhomra21\/mesurer-solid-dom$/, replacement: domEntry },
     ],
   },
   build: {
