@@ -24,10 +24,16 @@ export function parseVersion(value) {
   };
 }
 
+function compareNumericIdentifier(a, b) {
+  if (a.length !== b.length) return a.length < b.length ? -1 : 1;
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
 function compareIdentifier(a, b) {
   const aNumeric = /^\d+$/.test(a);
   const bNumeric = /^\d+$/.test(b);
-  if (aNumeric && bNumeric) return Math.sign(Number(a) - Number(b));
+  if (aNumeric && bNumeric) return compareNumericIdentifier(a, b);
   if (aNumeric) return -1;
   if (bNumeric) return 1;
   if (a === b) return 0;
