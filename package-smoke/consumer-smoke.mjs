@@ -4,7 +4,7 @@ const cases = [
   {
     name: "React (external injector)",
     url: process.env.REACT_URL ?? "http://127.0.0.1:4190",
-    injectPath: process.env.REACT_INJECT_PATH,
+    injectPath: process.env.REACT_INJECT_PATH || "/tmp/mesurer-react/node_modules/@jhomra21/mesurer/dist/inject.js",
     mountedByApp: false,
   },
   {
