@@ -20,6 +20,7 @@ on:
         type: string
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -105,3 +106,15 @@ jobs:
             --head "$branch" \
             --title "release: v${VERSION}" \
             --body-file /tmp/release-pr.md
+
+      - name: Dispatch validation for the generated PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+        shell: bash
+        run: |
+          branch="release/v${VERSION}"
+          # GITHUB_TOKEN-created pushes/PRs do not recursively trigger normal workflow events.
+          # Explicit workflow_dispatch is the supported exception, so start both required gates here.
+          gh workflow run ci.yml --ref "$branch"
+          gh workflow run package-smoke.yml --ref "$branch"
