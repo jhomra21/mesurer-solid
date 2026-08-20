@@ -1,8 +1,22 @@
 import { chromium } from "playwright";
 
 const cases = [
-  { name: "React", url: process.env.REACT_URL ?? "http://127.0.0.1:4190" },
-  { name: "Solid 1", url: process.env.SOLID1_PACKAGE_URL ?? "http://127.0.0.1:4191" },
+  {
+    name: "React (external injector)",
+    url: process.env.REACT_URL ?? "http://127.0.0.1:4190",
+    injectPath: process.env.REACT_INJECT_PATH,
+    mountedByApp: false,
+  },
+  {
+    name: "Solid 1 (mount API)",
+    url: process.env.SOLID1_PACKAGE_URL ?? "http://127.0.0.1:4191",
+    mountedByApp: true,
+  },
+  {
+    name: "Solid 2 (mount API)",
+    url: process.env.SOLID2_PACKAGE_URL ?? "http://127.0.0.1:4192",
+    mountedByApp: true,
+  },
 ];
 
 const browser = await chromium.launch({ headless: true });
@@ -16,7 +30,13 @@ try {
     });
 
     await page.goto(testCase.url, { waitUntil: "networkidle" });
-    await page.waitForFunction(() => Boolean(window.__MESURER__) && Boolean(window.__PACKAGE_READY__));
+    await page.waitForFunction(() => Boolean(window.__HOST_READY__));
+
+    if (testCase.injectPath) {
+      await page.addScriptTag({ type: "module", path: testCase.injectPath });
+    }
+
+    await page.waitForFunction(() => Boolean(window.__MESURER__));
     await page.evaluate(() => window.__MESURER__.ready());
     await page.waitForFunction(() => {
       const island = document.querySelector("[data-mesurer-island='true']");
@@ -26,7 +46,7 @@ try {
     const button = page.locator("[data-testid='consumer-counter']");
     await button.click();
     if (!(await button.textContent())?.includes("count 1")) {
-      throw new Error(`${testCase.name} host lost reactivity after installing the packed Mesurer artifact`);
+      throw new Error(`${testCase.name} host lost reactivity after loading the packed Mesurer artifact`);
     }
 
     const feedback = await page.evaluate(() => window.__MESURER__.feedback([
@@ -48,10 +68,20 @@ try {
       throw new Error(`${testCase.name} expected a 12px consumer gap, got ${JSON.stringify(distance)}`);
     }
 
-    await page.evaluate(() => window.__MESURER__.command("package-smoke.increment"));
-    const state = await page.evaluate(() => window.__MESURER__.state());
-    if (state["package-smoke"] !== 1) {
-      throw new Error(`${testCase.name} public core/plugin API command failed: ${JSON.stringify(state)}`);
+    const description = await page.evaluate(() => window.__MESURER__.describe());
+    if (!description?.commands.includes("builtin.xray")) {
+      throw new Error(`${testCase.name} did not expose the stable built-in command surface`);
+    }
+
+    await page.evaluate(() => window.__MESURER__.command("builtin.xray"));
+    await page.evaluate(() => window.__MESURER__.command("builtin.xray"));
+
+    if (testCase.mountedByApp) {
+      await page.evaluate(() => window.__MESURER__.command("package-smoke.increment"));
+      const state = await page.evaluate(() => window.__MESURER__.state());
+      if (state["package-smoke"] !== 1) {
+        throw new Error(`${testCase.name} public core/plugin API command failed: ${JSON.stringify(state)}`);
+      }
     }
 
     if (errors.length) throw new Error(`${testCase.name} page errors:\n${errors.join("\n")}`);
