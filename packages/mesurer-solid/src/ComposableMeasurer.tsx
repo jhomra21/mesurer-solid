@@ -9,6 +9,14 @@ import {
 import LegacyMeasurer, { type MeasurerProps as LegacyMeasurerProps } from "./Measurer";
 import { composeMesurerPlugins, type MesurerBuiltinPluginId } from "./plugins/builtins";
 
+export type MesurerSolidRuntimeService = {
+  ownerDocument: Document;
+  ownerWindow: Window;
+  portalTarget: HTMLElement | ShadowRoot;
+  /** Create Mesurer-owned DOM that is automatically excluded from inspection/X-ray. */
+  createInspectorMount(): { element: HTMLDivElement; dispose(): void };
+};
+
 export type MeasurerProps = LegacyMeasurerProps & {
   /** Additional plugins loaded after built-ins and the renderer bridge are available. */
   plugins?: MesurerPlugin[];
@@ -123,16 +131,31 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     const ownerWindow = ownerDocument.defaultView ?? window;
     const queryRoot: ParentNode = target;
 
+    const createInspectorMount = () => {
+      const element = ownerDocument.createElement("div");
+      element.dataset.mesurerInspectorUi = "true";
+      const inspectorRoot = queryRoot.querySelector<HTMLElement>("[data-mesurer-root='true']");
+      (inspectorRoot ?? target).append(element);
+      let disposed = false;
+      return {
+        element,
+        dispose() {
+          if (disposed) return;
+          disposed = true;
+          element.remove();
+        },
+      };
+    };
+
     const visibilityStyle = ownerDocument.createElement("style");
     visibilityStyle.dataset.mesurerPluginVisibility = "true";
+    visibilityStyle.dataset.mesurerInspectorUi = "true";
     visibilityStyle.textContent = visibilityCss();
     target.append(visibilityStyle);
 
-    const extensionHost = ownerDocument.createElement("div");
+    const extensionMountHandle = createInspectorMount();
+    const extensionHost = extensionMountHandle.element;
     extensionHost.dataset.mesurerExtensionHost = "true";
-    extensionHost.dataset.mesurerInspectorUi = "true";
-    const inspectorRoot = queryRoot.querySelector<HTMLElement>("[data-mesurer-root='true']");
-    (inspectorRoot ?? target).append(extensionHost);
     setExtensionMount(extensionHost);
 
     const dispatchBuiltin = (id: MesurerBuiltinPluginId) => {
@@ -208,6 +231,12 @@ export default function ComposableMeasurer(props: MeasurerProps) {
         version: "0.1.0",
         provides: ["runtime:solid"],
         setup(ctx) {
+          ctx.service.provide<MesurerSolidRuntimeService>("runtime:solid", {
+            ownerDocument,
+            ownerWindow,
+            portalTarget: target,
+            createInspectorMount,
+          });
           for (const id of Object.keys(BUILTIN_KEYS) as MesurerBuiltinPluginId[]) {
             ctx.command.register(`builtin.${id}`, () => {
               if (builtinEnabled(id)) dispatchBuiltin(id);
@@ -220,8 +249,8 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       });
       if (!active) return;
 
-      // External plugins load after the renderer capability exists, so they may
-      // safely declare requires: ["runtime:solid"] and/or built-in capabilities.
+      // External plugins load after the renderer capability/service exists, so they may
+      // safely declare requires: ["runtime:solid"] and use ctx.service.get("runtime:solid").
       for (const plugin of initialExternalPlugins) await loadPlugin(plugin);
       if (!active) return;
 
@@ -296,7 +325,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       unsubscribe();
       ownerDocument.body.classList.remove("mesurer-solid-xray");
       setExtensionMount(null);
-      extensionHost.remove();
+      extensionMountHandle.dispose();
       visibilityStyle.remove();
       if (ownsHost) runtimeHost.dispose();
     };
