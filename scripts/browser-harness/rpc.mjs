@@ -1,7 +1,12 @@
 const object = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
-const requiredString = (params, key) => {
+const stringValue = (params, key) => {
   const value = params[key];
-  if (typeof value !== "string" || value.length === 0) throw new Error(`${key} must be a non-empty string`);
+  if (typeof value !== "string") throw new Error(`${key} must be a string`);
+  return value;
+};
+const requiredString = (params, key) => {
+  const value = stringValue(params, key);
+  if (value.length === 0) throw new Error(`${key} must be a non-empty string`);
   return value;
 };
 const optionalIndex = (params) => {
@@ -25,7 +30,7 @@ export const BROWSER_HARNESS_TOOLS = [
   { name: "browser.reload", description: "Reload the selected tab and reinject Mesurer.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
   { name: "browser.click", description: "Click a host-page element by CSS selector.", inputSchema: { type: "object", properties: { selector: { type: "string" }, index: { type: "integer", minimum: 0 } }, required: ["selector"], additionalProperties: false } },
   { name: "browser.hover", description: "Hover a host-page element by CSS selector.", inputSchema: { type: "object", properties: { selector: { type: "string" }, index: { type: "integer", minimum: 0 } }, required: ["selector"], additionalProperties: false } },
-  { name: "browser.fill", description: "Fill an input/textarea by CSS selector.", inputSchema: { type: "object", properties: { selector: { type: "string" }, value: { type: "string" }, index: { type: "integer", minimum: 0 } }, required: ["selector", "value"], additionalProperties: false } },
+  { name: "browser.fill", description: "Fill or clear an input/textarea by CSS selector.", inputSchema: { type: "object", properties: { selector: { type: "string" }, value: { type: "string" }, index: { type: "integer", minimum: 0 } }, required: ["selector", "value"], additionalProperties: false } },
   { name: "browser.press", description: "Press a keyboard key globally or on a selected host-page element.", inputSchema: { type: "object", properties: { key: { type: "string" }, selector: { type: "string" }, index: { type: "integer", minimum: 0 } }, required: ["key"], additionalProperties: false } },
   { name: "browser.screenshot", description: "Capture the selected tab to a PNG file.", inputSchema: { type: "object", properties: { path: { type: "string" }, fullPage: { type: "boolean" } }, additionalProperties: false } },
   { name: "mesurer.inject", description: "Inject or reinject the exact Mesurer Solid browser bundle into the selected tab.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
@@ -58,7 +63,7 @@ export function createBrowserHarnessDispatcher(session) {
       case "browser.reload": return session.reload();
       case "browser.click": return session.click(requiredString(params, "selector"), optionalIndex(params));
       case "browser.hover": return session.hover(requiredString(params, "selector"), optionalIndex(params));
-      case "browser.fill": return session.fill(requiredString(params, "selector"), requiredString(params, "value"), optionalIndex(params));
+      case "browser.fill": return session.fill(requiredString(params, "selector"), stringValue(params, "value"), optionalIndex(params));
       case "browser.press": return session.press(requiredString(params, "key"), typeof params.selector === "string" ? params.selector : null, optionalIndex(params));
       case "browser.screenshot": return session.screenshot({
         path: typeof params.path === "string" ? params.path : null,
