@@ -10,5 +10,8 @@
     "typecheck": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid' typecheck && bun run --filter 'mesurer-solid-example' typecheck",
     "test": "bun run --filter '@jhomra21/mesurer-core' test && bun run --filter '@jhomra21/mesurer-dom' test && bun run --filter '@jhomra21/mesurer-solid' test",
     "dev": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid' styles && bun run --filter 'mesurer-solid-example' dev"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0"
   }
 }
