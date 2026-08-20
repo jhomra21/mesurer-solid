@@ -34,21 +34,22 @@ jobs:
       - name: Install workspace
         run: bun install --frozen-lockfile
 
-      - name: Validate release
+      - name: Validate and stage release
         run: |
           bun run typecheck
           bun run test
           bun run build
           cd packages/mesurer
-          npm pack --dry-run
+          bun run stage
+          npm publish .publish --dry-run --access public --tag beta
 
       - name: Publish @jhomra21/mesurer
         working-directory: packages/mesurer
         shell: bash
         run: |
-          version=$(node -p 'require("./package.json").version')
+          version=$(node -p 'require("./.publish/package.json").version')
           if [[ "$version" == *-* ]]; then
-            npm publish --access public --tag beta
+            npm publish .publish --access public --tag beta
           else
-            npm publish --access public
+            npm publish .publish --access public
           fi
