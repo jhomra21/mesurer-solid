@@ -45,6 +45,22 @@ async function main() {
     screenshotDir: options.screenshotDir,
   });
 
+  // Playwright's public Browser.close() can send Browser.close over a raw CDP
+  // connection and terminate an externally launched Chrome. For CDP attach we
+  // therefore close only Playwright's client connection. `_connection` is an
+  // internal surface, so keep the fallback process-local: never risk closing
+  // the user's browser just to make harness cleanup prettier.
+  const disconnect = async () => {
+    if (!options.cdp) {
+      await session.close().catch(() => {});
+      return;
+    }
+    const connection = session.browser?._connection;
+    if (connection && typeof connection.close === "function") {
+      connection.close();
+    }
+  };
+
   let http = null;
   try {
     await session.start();
@@ -52,14 +68,14 @@ async function main() {
 
     if (options.listPages) {
       process.stdout.write(`${JSON.stringify(await session.pages(), null, 2)}\n`);
-      await session.close();
+      await disconnect();
       return;
     }
 
     if (options.once) {
       const response = await executeRpc(dispatch, { id: "once", method: options.once, params: options.params });
       process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
-      await session.close();
+      await disconnect();
       if (!response.ok) process.exitCode = 1;
       return;
     }
@@ -92,7 +108,7 @@ async function main() {
     }
   } finally {
     await http?.close().catch(() => {});
-    await session.close().catch(() => {});
+    await disconnect();
   }
 }
 
