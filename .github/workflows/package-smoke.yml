@@ -185,56 +185,62 @@ jobs:
           window.__HOST_READY__ = true;
           JS
 
-      - name: Create clean Solid 2 consumer using the same public mount API
+      - name: Create clean compiled Solid 2 consumer using the same public mount API
         run: |
           rm -rf /tmp/mesurer-solid2
-          mkdir -p /tmp/mesurer-solid2
+          mkdir -p /tmp/mesurer-solid2/src
           cd /tmp/mesurer-solid2
           npm init -y >/dev/null
-          npm install "$PACKAGE_TGZ" solid-js@2.0.0-rc.0 @solidjs/web@2.0.0-rc.0 vite@8.1.5 >/dev/null
+          npm install "$PACKAGE_TGZ" solid-js@2.0.0-rc.0 @solidjs/web@2.0.0-rc.0 vite@8.1.5 @solidjs/vite-plugin@3.0.0-next.29 >/dev/null
           cat > index.html <<'HTML'
-          <!doctype html><html><body><div id="root"></div><script type="module" src="/main.js"></script></body></html>
+          <!doctype html><html><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
           HTML
-          cat > main.js <<'JS'
-          import { createEffect, createSignal } from "solid-js";
+          cat > vite.config.mjs <<'JS'
+          import solid from "@solidjs/vite-plugin";
+          import { defineConfig } from "vite";
+
+          export default defineConfig({ plugins: [solid()] });
+          JS
+          cat > src/main.tsx <<'TSX'
+          import { createSignal } from "solid-js";
           import { render } from "@solidjs/web";
           import { defineMesurerPlugin, mountMeasurer } from "@jhomra21/mesurer";
 
-          const root = document.getElementById("root");
-          render(() => {
-            const wrapper = document.createElement("div");
-            wrapper.style.display = "flex";
-            wrapper.style.gap = "12px";
-            wrapper.style.margin = "80px";
-            wrapper.style.padding = "20px";
-            const button = document.createElement("button");
-            button.dataset.testid = "consumer-counter";
-            button.style.padding = "16px 24px";
+          function App() {
             const [count, setCount] = createSignal(0);
-            createEffect(() => { button.textContent = `Solid 2 host · count ${count()}`; });
-            button.addEventListener("click", () => setCount((value) => value + 1));
-            const sibling = document.createElement("div");
-            sibling.dataset.testid = "consumer-sibling";
-            sibling.style.width = "140px";
-            sibling.style.padding = "16px";
-            sibling.textContent = "Measured sibling";
-            wrapper.append(button, sibling);
-            return wrapper;
-          }, root);
+            return (
+              <div style={{ display: "flex", gap: "12px", margin: "80px", padding: "20px" }}>
+                <button
+                  data-testid="consumer-counter"
+                  style={{ padding: "16px 24px" }}
+                  onClick={() => setCount((value) => value + 1)}
+                >
+                  Solid 2 host · count {count()}
+                </button>
+                <div data-testid="consumer-sibling" style={{ width: "140px", padding: "16px" }}>
+                  Measured sibling
+                </div>
+              </div>
+            );
+          }
+
+          const root = document.getElementById("root");
+          if (!root) throw new Error("Missing Solid 2 root");
+          render(() => <App />, root);
 
           const plugin = defineMesurerPlugin({
             id: "package-smoke",
             setup(ctx) {
               ctx.state.register({ id: "package-smoke", initial: 0, history: true });
               ctx.command.register("package-smoke.increment", () => {
-                ctx.state.update("package-smoke", (value) => value + 1);
+                ctx.state.update<number>("package-smoke", (value) => value + 1);
               });
             },
           });
           const mesurer = mountMeasurer({ agent: true, plugins: [plugin] });
           await mesurer.ready;
-          window.__HOST_READY__ = true;
-          JS
+          (window as Window & { __HOST_READY__?: boolean }).__HOST_READY__ = true;
+          TSX
 
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
@@ -267,6 +273,7 @@ jobs:
         run: bun package-smoke/consumer-smoke.mjs
 
       - name: Upload publish candidate
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: jhomra21-mesurer-0.1.0-beta.0
