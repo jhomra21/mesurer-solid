@@ -93,6 +93,16 @@ export function nextVersion(currentValue, type, explicitValue) {
   return next;
 }
 
+export function updatePackageVersion(content, currentVersion, nextVersionValue) {
+  const versionPattern = /("version"\s*:\s*")([^"]+)(")/;
+  const match = versionPattern.exec(content);
+  if (!match) throw new Error(`${PACKAGE_JSON_PATH} does not contain a version field`);
+  if (match[2] !== currentVersion) {
+    throw new Error(`${PACKAGE_JSON_PATH} version ${match[2]} does not match parsed version ${currentVersion}`);
+  }
+  return content.replace(versionPattern, (_full, before, _current, after) => `${before}${nextVersionValue}${after}`);
+}
+
 function stripComments(value) {
   return value.replace(/<!--([\s\S]*?)-->/g, "").trim();
 }
@@ -143,10 +153,10 @@ function prepare(args) {
   const type = option(args, "--type");
   if (!type) throw new Error("prepare requires --type");
   const explicit = option(args, "--version");
-  const packageJson = JSON.parse(readFileSync(PACKAGE_JSON_PATH, "utf8"));
+  const packageJsonContent = readFileSync(PACKAGE_JSON_PATH, "utf8");
+  const packageJson = JSON.parse(packageJsonContent);
   const version = nextVersion(packageJson.version, type, explicit);
-  packageJson.version = version;
-  writeFileSync(PACKAGE_JSON_PATH, `${JSON.stringify(packageJson, null, 2)}\n`);
+  writeFileSync(PACKAGE_JSON_PATH, updatePackageVersion(packageJsonContent, packageJson.version, version));
   const date = new Date().toISOString().slice(0, 10);
   const changelog = readFileSync(CHANGELOG_PATH, "utf8");
   writeFileSync(CHANGELOG_PATH, updateChangelog(changelog, version, date));
