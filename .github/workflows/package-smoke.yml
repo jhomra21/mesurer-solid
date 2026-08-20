@@ -6,7 +6,7 @@ on:
       - "packages/mesurer/**"
       - "packages/mesurer-core/**"
       - "packages/mesurer-dom/**"
-      - "packages/mesurer-solid/**"
+      - "packages/renderer/**"
       - "package-smoke/**"
       - ".github/workflows/package-smoke.yml"
       - "package.json"
