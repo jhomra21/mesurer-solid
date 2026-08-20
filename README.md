@@ -1,34 +1,109 @@
-# mesurer-solid
+# Mesurer Solid
 
-A Solid 2-native port of [ibelick/mesurer](https://github.com/ibelick/mesurer), built for Bun and Solid 2's current reactive model.
+Solid-powered, framework-agnostic UI measurement and inspection tools for browser applications and coding agents.
 
-The goal is framework-only divergence: the public behavior **and visual design** track upstream Mesurer, while the implementation underneath is Solid 2 rather than React.
+Mesurer Solid keeps the parity-proven UI renderer implemented in Solid 2, but Solid is an internal implementation detail. Users install one package, `@jhomra21/mesurer-solid`, and can mount it in Solid 1, Solid 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without sharing Mesurer's Solid runtime.
 
-The package lives in `packages/mesurer-solid`; `examples/basic` is the parity playground used to exercise selection, guides, rulers, typography, x-ray, color picking, distance overlays, history and persistence.
+## Install
 
-## Visual parity
+During the prerelease period:
 
-The Solid port shares upstream Mesurer's Tailwind v4 design source and ports its visible component structure directly:
+```bash
+bun add -d @jhomra21/mesurer-solid@beta
+```
 
-- toolbar dimensions, ordering, drag behavior, SVG iconography and delayed tooltips
-- guide orientation flyout
-- 272px settings popover, tabs, switches, sliders, color fields and control spacing
-- compact native color-picker result popover
-- 18px rulers, tick/label treatment and edge reveal
-- measurement, selection, guide and distance overlays
-- text-inspector card sizing, typography and shadows
-- light color scheme, ink palette, shadows, radii and `#0d99ff` active state
+After a stable release, the same package can be installed without the `@beta` tag.
 
-There is intentionally no Solid-specific redesign or alternate dark-mode skin. The framework/runtime implementation is the intended difference. Visual-contract tests guard these conventions.
+## Use in any browser UI
 
-## Develop
+```ts
+import { mountMeasurer } from "@jhomra21/mesurer-solid";
+
+const mesurer = mountMeasurer({ agent: true });
+await mesurer.ready;
+```
+
+`mountMeasurer()` creates an isolated browser island by default. The host framework does not need Solid 2 and does not share Mesurer's renderer runtime.
+
+This same entry point is intended for:
+
+- Solid 1
+- Solid 2
+- React
+- Vue
+- Svelte
+- vanilla browser applications
+- Electron renderer processes
+
+Electron main-process code is not a DOM host; mount Mesurer in the renderer page.
+
+## Coding-agent feedback loop
+
+Agents should normally avoid modifying the user's application. Instead, resolve and inject the `@jhomra21/mesurer-solid/inject` export from the browser harness:
+
+```js
+import { fileURLToPath } from "node:url";
+
+const injectPath = fileURLToPath(
+  import.meta.resolve("@jhomra21/mesurer-solid/inject"),
+);
+
+await page.addScriptTag({
+  type: "module",
+  path: injectPath,
+});
+
+await page.evaluate(() => window.__MESURER__.ready());
+
+const feedback = await page.evaluate(() =>
+  window.__MESURER__.feedback([
+    "main",
+    "[data-testid='toolbar']",
+  ]),
+);
+
+const screenshot = await page.screenshot();
+```
+
+The bridge returns JSON-safe geometry, margin/padding/border, typography, appearance, flex/grid properties, overflow, element-to-element distances, viewport/document dimensions, plugin capabilities, and plugin state. The browser harness supplies the screenshot, allowing an agent to reason from exact measurements and pixels together.
+
+See [`AGENTS.md`](./AGENTS.md) for the harness contract.
+
+## Plugins and extensions
+
+Built-in features and external extensions use the same plugin host. Plugins can register tools, commands, hooks, overlays, settings contributions, scoped state, renderer services, and disposal callbacks. Plugin state can opt into history and persistence, and plugins can be loaded, removed, or replaced at runtime.
+
+Plugin authors can use the public core subpath without installing a second package:
+
+```ts
+import {
+  createMesurerPluginHost,
+  defineMesurerPlugin,
+} from "@jhomra21/mesurer-solid/core";
+```
+
+The public package surface is intentionally small:
+
+```text
+@jhomra21/mesurer-solid
+@jhomra21/mesurer-solid/core
+@jhomra21/mesurer-solid/inject
+```
+
+The framework-neutral core, DOM adapter, and Solid 2 renderer remain private workspace implementation details.
+
+## Visual and behavioral parity
+
+The reference renderer continues to track the pinned upstream Mesurer UI and behavior, including selection, guides, rulers, text inspection, X-ray, color picking, distances, settings, history, and persistence.
+
+CI compares the renderer against the pinned React upstream implementation through matched screenshots and exhaustive interaction gates, including native-3× side-by-side captures.
+
+## Development
 
 ```bash
 bun install
 bun run dev
 ```
-
-`bun run dev` regenerates the injected Mesurer stylesheet from the shared Tailwind design source before starting the playground.
 
 Validation:
 
@@ -38,4 +113,6 @@ bun run test
 bun run build
 ```
 
-See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the Solid 2 design and [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md) for upstream attribution.
+The package-smoke workflow additionally packs the exact npm artifact, installs that tarball into clean React and Solid 1 applications, typechecks the published declarations, launches the real apps in Chromium, and exercises the mounted package and agent feedback loop.
+
+See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for internal boundaries and [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md) for upstream attribution.

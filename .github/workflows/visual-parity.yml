@@ -3,7 +3,8 @@ name: visual-parity
 on:
   pull_request:
     paths:
-      - "packages/mesurer-solid/**"
+      - "packages/renderer/**"
+      - "packages/mesurer-dom/**"
       - "examples/basic/**"
       - "visual-parity/**"
       - ".github/workflows/visual-parity.yml"
@@ -13,7 +14,7 @@ jobs:
   compare:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Solid port
+      - name: Checkout Mesurer
         uses: actions/checkout@v4
 
       - name: Checkout pinned React upstream
@@ -41,11 +42,14 @@ jobs:
           corepack enable
           corepack prepare pnpm@10.15.0 --activate
 
-      - name: Install Solid workspace
+      - name: Install Mesurer workspace
         run: bun install
 
-      - name: Generate Solid styles
-        run: bun run --filter '@jhomra21/mesurer-solid' styles
+      - name: Install visual comparison dependencies
+        run: python3 -m pip install --disable-pip-version-check pillow
+
+      - name: Generate renderer styles
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
       - name: Install React upstream workspace
         run: |
@@ -66,7 +70,7 @@ jobs:
           cp visual-parity/capture.mjs upstream/apps/site/e2e/parity-capture.mjs
           cp visual-parity/interactions.mjs upstream/apps/site/e2e/parity-interactions.mjs
 
-      - name: Start React and Solid fixtures
+      - name: Start React and renderer fixtures
         run: |
           (
             cd upstream
@@ -109,9 +113,7 @@ jobs:
         run: node e2e/parity-capture.mjs
 
       - name: Build side-by-side and pixel-diff report
-        run: |
-          python3 -m pip install --disable-pip-version-check pillow
-          python3 visual-parity/compare.py parity-artifacts | tee parity-artifacts/report.txt
+        run: python3 visual-parity/compare.py parity-artifacts | tee parity-artifacts/report.txt
 
       - name: Add visual report summary
         run: |
@@ -119,7 +121,7 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path("parity-artifacts/report.json").read_text())
-          print("## React → Solid visual parity")
+          print("## React → Solid renderer visual parity")
           print("")
           print("Pinned upstream: `ibelick/mesurer@605d202a4cd0404bb7a4808a11b574174bb14d1a`")
           print("")
@@ -176,7 +178,7 @@ jobs:
           PY
 
       - name: Capture every button and action at native 3x
-        if: always()
+        if: always() && success()
         working-directory: upstream/apps/site
         env:
           PARITY_REACT_URL: http://127.0.0.1:4173/e2e/fixtures/parity.html
@@ -187,7 +189,12 @@ jobs:
 
       - name: Build clean React | Solid 3x images
         if: always()
-        run: python3 visual-parity/make-side-by-side.py interaction-artifacts-3x interaction-side-by-side-3x
+        run: |
+          if compgen -G 'interaction-artifacts-3x/react-*.png' > /dev/null && compgen -G 'interaction-artifacts-3x/solid-*.png' > /dev/null; then
+            python3 visual-parity/make-side-by-side.py interaction-artifacts-3x interaction-side-by-side-3x
+          else
+            echo "No complete native-3x capture set; skipping side-by-side generation."
+          fi
 
       - name: Upload latest side-by-side screenshots
         if: always()
@@ -195,7 +202,7 @@ jobs:
         with:
           name: react-vs-solid-interactions-3x
           path: interaction-side-by-side-3x
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Enforce button/action parity gate

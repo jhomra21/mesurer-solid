@@ -1,0 +1,282 @@
+name: package-smoke
+
+on:
+  pull_request:
+    paths:
+      - "packages/mesurer/**"
+      - "packages/mesurer-core/**"
+      - "packages/mesurer-dom/**"
+      - "packages/renderer/**"
+      - "package-smoke/**"
+      - ".github/workflows/package-smoke.yml"
+      - "package.json"
+      - "bun.lock"
+  workflow_dispatch:
+
+jobs:
+  packed-consumers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install workspace
+        run: bun install
+
+      - name: Validate workspace
+        run: |
+          bun run typecheck
+          bun run test
+          bun run build
+
+      - name: Pack exact sanitized npm artifact
+        run: |
+          cd packages/mesurer
+          bun run stage
+          npm pack .publish --json > pack.json
+          filename=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].filename)')
+          echo "PACKAGE_TGZ=$(realpath "$filename")" >> "$GITHUB_ENV"
+          npm publish .publish --dry-run --access public --tag beta
+
+      - name: Typecheck a clean consumer against published declarations
+        run: |
+          rm -rf /tmp/mesurer-types
+          mkdir -p /tmp/mesurer-types
+          cd /tmp/mesurer-types
+          npm init -y >/dev/null
+          npm install "$PACKAGE_TGZ" typescript@5.9.2 >/dev/null
+          cat > index.ts <<'TS'
+          import {
+            defineMesurerPlugin,
+            mountMeasurer,
+            type MountMeasurerOptions,
+            type MesurerPlugin,
+          } from "@jhomra21/mesurer-solid";
+          import {
+            createMesurerPluginHost,
+            type MesurerPluginHost,
+          } from "@jhomra21/mesurer-solid/core";
+
+          const plugin: MesurerPlugin = defineMesurerPlugin({
+            id: "consumer.types",
+            setup(ctx) {
+              ctx.state.register({ id: "consumer", initial: 0, history: true });
+            },
+          });
+          const options: MountMeasurerOptions = { agent: true, plugins: [plugin] };
+          const host: MesurerPluginHost = createMesurerPluginHost();
+          void options;
+          void host;
+          void mountMeasurer;
+          TS
+          cat > tsconfig.json <<'JSON'
+          {
+            "compilerOptions": {
+              "target": "ESNext",
+              "module": "ESNext",
+              "moduleResolution": "Bundler",
+              "strict": true,
+              "skipLibCheck": false,
+              "noEmit": true,
+              "lib": ["ESNext", "DOM", "DOM.Iterable"]
+            },
+            "include": ["index.ts"]
+          }
+          JSON
+          npx tsc
+
+      - name: Create clean React consumer with no Mesurer app import
+        run: |
+          rm -rf /tmp/mesurer-react
+          mkdir -p /tmp/mesurer-react
+          cd /tmp/mesurer-react
+          npm init -y >/dev/null
+          npm install "$PACKAGE_TGZ" react@19 react-dom@19 vite@8.1.5 >/dev/null
+          echo "REACT_INJECT_PATH=$(realpath node_modules/@jhomra21/mesurer-solid/dist/inject.js)" >> "$GITHUB_ENV"
+          cat > index.html <<'HTML'
+          <!doctype html><html><body><div id="root"></div><script type="module" src="/main.js"></script></body></html>
+          HTML
+          cat > main.js <<'JS'
+          import React from "react";
+          import { createRoot } from "react-dom/client";
+
+          function App() {
+            const [count, setCount] = React.useState(0);
+            return React.createElement(
+              "div",
+              { style: { display: "flex", gap: "12px", margin: "80px", padding: "20px" } },
+              React.createElement(
+                "button",
+                {
+                  "data-testid": "consumer-counter",
+                  style: { padding: "16px 24px" },
+                  onClick: () => setCount((value) => value + 1),
+                },
+                `React host · count ${count}`,
+              ),
+              React.createElement(
+                "div",
+                { "data-testid": "consumer-sibling", style: { width: "140px", padding: "16px" } },
+                "Measured sibling",
+              ),
+            );
+          }
+
+          createRoot(document.getElementById("root")).render(React.createElement(App));
+          window.__HOST_READY__ = true;
+          JS
+
+      - name: Create clean Solid 1 consumer using mountMeasurer
+        run: |
+          rm -rf /tmp/mesurer-solid1
+          mkdir -p /tmp/mesurer-solid1
+          cd /tmp/mesurer-solid1
+          npm init -y >/dev/null
+          npm install "$PACKAGE_TGZ" solid-js@1.9.12 vite@8.1.5 >/dev/null
+          cat > index.html <<'HTML'
+          <!doctype html><html><body><div id="root"></div><script type="module" src="/main.js"></script></body></html>
+          HTML
+          cat > main.js <<'JS'
+          import { createEffect, createSignal } from "solid-js";
+          import { render } from "solid-js/web";
+          import { defineMesurerPlugin, mountMeasurer } from "@jhomra21/mesurer-solid";
+
+          const root = document.getElementById("root");
+          render(() => {
+            const wrapper = document.createElement("div");
+            wrapper.style.display = "flex";
+            wrapper.style.gap = "12px";
+            wrapper.style.margin = "80px";
+            wrapper.style.padding = "20px";
+            const button = document.createElement("button");
+            button.dataset.testid = "consumer-counter";
+            button.style.padding = "16px 24px";
+            const [count, setCount] = createSignal(0);
+            createEffect(() => { button.textContent = `Solid 1 host · count ${count()}`; });
+            button.addEventListener("click", () => setCount((value) => value + 1));
+            const sibling = document.createElement("div");
+            sibling.dataset.testid = "consumer-sibling";
+            sibling.style.width = "140px";
+            sibling.style.padding = "16px";
+            sibling.textContent = "Measured sibling";
+            wrapper.append(button, sibling);
+            return wrapper;
+          }, root);
+
+          const plugin = defineMesurerPlugin({
+            id: "package-smoke",
+            setup(ctx) {
+              ctx.state.register({ id: "package-smoke", initial: 0, history: true });
+              ctx.command.register("package-smoke.increment", () => {
+                ctx.state.update("package-smoke", (value) => value + 1);
+              });
+            },
+          });
+          const mesurer = mountMeasurer({ agent: true, plugins: [plugin] });
+          await mesurer.ready;
+          window.__HOST_READY__ = true;
+          JS
+
+      - name: Create clean compiled Solid 2 consumer using the same public mount API
+        run: |
+          rm -rf /tmp/mesurer-solid2
+          mkdir -p /tmp/mesurer-solid2/src
+          cd /tmp/mesurer-solid2
+          npm init -y >/dev/null
+          npm install "$PACKAGE_TGZ" solid-js@2.0.0-rc.0 @solidjs/web@2.0.0-rc.0 vite@8.1.5 @solidjs/vite-plugin@3.0.0-next.29 >/dev/null
+          cat > index.html <<'HTML'
+          <!doctype html><html><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
+          HTML
+          cat > vite.config.mjs <<'JS'
+          import solid from "@solidjs/vite-plugin";
+          import { defineConfig } from "vite";
+
+          export default defineConfig({ plugins: [solid()] });
+          JS
+          cat > src/main.tsx <<'TSX'
+          import { createSignal } from "solid-js";
+          import { render } from "@solidjs/web";
+          import { defineMesurerPlugin, mountMeasurer } from "@jhomra21/mesurer-solid";
+
+          function App() {
+            const [count, setCount] = createSignal(0);
+            return (
+              <div style={{ display: "flex", gap: "12px", margin: "80px", padding: "20px" }}>
+                <button
+                  data-testid="consumer-counter"
+                  style={{ padding: "16px 24px" }}
+                  onClick={() => setCount((value) => value + 1)}
+                >
+                  Solid 2 host · count {count()}
+                </button>
+                <div data-testid="consumer-sibling" style={{ width: "140px", padding: "16px" }}>
+                  Measured sibling
+                </div>
+              </div>
+            );
+          }
+
+          const root = document.getElementById("root");
+          if (!root) throw new Error("Missing Solid 2 root");
+          render(() => <App />, root);
+
+          const plugin = defineMesurerPlugin({
+            id: "package-smoke",
+            setup(ctx) {
+              ctx.state.register({ id: "package-smoke", initial: 0, history: true });
+              ctx.command.register("package-smoke.increment", () => {
+                ctx.state.update<number>("package-smoke", (value) => value + 1);
+              });
+            },
+          });
+          const mesurer = mountMeasurer({ agent: true, plugins: [plugin] });
+          await mesurer.ready;
+          (window as Window & { __HOST_READY__?: boolean }).__HOST_READY__ = true;
+          TSX
+
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Start packed-package consumers
+        run: |
+          (cd /tmp/mesurer-react && npx vite --host 127.0.0.1 --port 4190 --strictPort > /tmp/react-consumer.log 2>&1 &)
+          (cd /tmp/mesurer-solid1 && npx vite --host 127.0.0.1 --port 4191 --strictPort > /tmp/solid1-consumer.log 2>&1 &)
+          (cd /tmp/mesurer-solid2 && npx vite --host 127.0.0.1 --port 4192 --strictPort > /tmp/solid2-consumer.log 2>&1 &)
+          for url in http://127.0.0.1:4190 http://127.0.0.1:4191 http://127.0.0.1:4192; do
+            ready=0
+            for attempt in $(seq 1 45); do
+              if curl --fail --silent "$url" >/dev/null; then ready=1; break; fi
+              sleep 1
+            done
+            if [ "$ready" -ne 1 ]; then
+              cat /tmp/react-consumer.log || true
+              cat /tmp/solid1-consumer.log || true
+              cat /tmp/solid2-consumer.log || true
+              exit 1
+            fi
+          done
+
+      - name: Exercise exact packed package in real framework hosts
+        env:
+          REACT_URL: http://127.0.0.1:4190
+          SOLID1_PACKAGE_URL: http://127.0.0.1:4191
+          SOLID2_PACKAGE_URL: http://127.0.0.1:4192
+          REACT_INJECT_PATH: ${{ env.REACT_INJECT_PATH }}
+        run: bun package-smoke/consumer-smoke.mjs
+
+      - name: Upload publish candidate
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jhomra21-mesurer-solid-0.1.0-beta.0
+          path: packages/mesurer/jhomra21-mesurer-solid-0.1.0-beta.0.tgz
+          if-no-files-found: error
+          retention-days: 14

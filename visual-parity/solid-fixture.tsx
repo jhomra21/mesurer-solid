@@ -1,5 +1,5 @@
 import { render } from "@solidjs/web";
-import { Measurer } from "@jhomra21/mesurer-solid";
+import { Measurer } from "@jhomra21/mesurer-solid-renderer";
 
 function Fixture() {
   return (
@@ -22,7 +22,7 @@ function Fixture() {
         data-testid="color-target"
         style={{ position: "absolute", left: "560px", top: "260px", width: "140px", height: "80px", background: "rgb(37, 99, 235)" }}
       />
-      <Measurer persistKey="mesurer-solid-visual-parity" />
+      <Measurer persistKey="mesurer-visual-parity" />
     </>
   );
 }

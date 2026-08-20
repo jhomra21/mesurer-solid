@@ -9,7 +9,7 @@ out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("parity-artifacts")
 threshold = 8
 states = sorted(p.name.removeprefix("react-").removesuffix(".png") for p in out.glob("react-*.png"))
 react_version = json.loads(Path("upstream/packages/mesurer/package.json").read_text())["version"]
-solid_version = json.loads(Path("packages/mesurer-solid/package.json").read_text())["version"]
+solid_version = json.loads(Path("packages/renderer/package.json").read_text())["version"]
 
 
 def round_numbers(value):

@@ -1,0 +1,55 @@
+name: publish
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Use an OIDC-capable npm CLI
+        run: |
+          npm install --global npm@11
+          npm --version
+
+      - name: Install workspace
+        run: bun install --frozen-lockfile
+
+      - name: Validate and stage release
+        run: |
+          bun run typecheck
+          bun run test
+          bun run build
+          cd packages/mesurer
+          bun run stage
+          npm publish .publish --dry-run --access public --tag beta
+
+      - name: Publish @jhomra21/mesurer-solid
+        working-directory: packages/mesurer
+        shell: bash
+        run: |
+          version=$(node -p 'require("./.publish/package.json").version')
+          if [[ "$version" == *-* ]]; then
+            npm publish .publish --access public --tag beta
+          else
+            npm publish .publish --access public
+          fi

@@ -3,7 +3,7 @@ name: hope-ui-showcase
 on:
   pull_request:
     paths:
-      - "packages/mesurer-solid/**"
+      - "packages/renderer/**"
       - "showcase/hope-ui/**"
       - ".github/workflows/hope-ui-showcase.yml"
   workflow_dispatch:
@@ -12,7 +12,7 @@ jobs:
   capture:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Mesurer Solid
+      - name: Checkout Mesurer
         uses: actions/checkout@v4
 
       - name: Checkout Hope UI
@@ -31,10 +31,10 @@ jobs:
         run: bun install
 
       - name: Generate Mesurer styles
-        run: bun run --filter '@jhomra21/mesurer-solid' styles
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
-      - name: Build isolated Solid 2 Mesurer overlay
-        working-directory: packages/mesurer-solid
+      - name: Build isolated Mesurer renderer overlay
+        working-directory: packages/renderer
         run: bunx vite build --config vite.hope-ui-showcase.config.ts
 
       - name: Set up Node
@@ -87,7 +87,7 @@ jobs:
           cp ../showcase/hope-ui/capture.mjs ./mesurer-showcase-capture.mjs
           node mesurer-showcase-capture.mjs
 
-      - name: List Twitter-ready captures
+      - name: List captures
         run: |
           file hope-ui-showcase-artifacts/*.png
           ls -lh hope-ui-showcase-artifacts/*.png

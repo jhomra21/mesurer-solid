@@ -1,7 +1,7 @@
 from pathlib import Path
 
 upstream = Path("upstream/packages/mesurer/styles.css").read_text()
-solid = Path("packages/mesurer-solid/src/styles.css").read_text()
+solid = Path("packages/renderer/src/styles.css").read_text()
 
 normalized_upstream = upstream.rstrip() + "\n"
 if not solid.startswith(normalized_upstream):

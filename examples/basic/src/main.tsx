@@ -1,12 +1,12 @@
 import { render } from "@solidjs/web";
-import { Measurer } from "@jhomra21/mesurer-solid";
+import { Measurer } from "@jhomra21/mesurer-solid-renderer";
 import "./playground.css";
 
 function App() {
   return (
     <main class="page-shell">
       <header class="hero">
-        <p class="eyebrow">Solid 2 · Mesurer parity playground</p>
+        <p class="eyebrow">Mesurer renderer · parity playground</p>
         <h1>Inspect the page without leaving it.</h1>
         <p>
           This page intentionally mixes spacing, nested elements, typography and color so every
@@ -64,7 +64,7 @@ function App() {
         <p>Delete removes selected guides. Escape clears measurements/guides. Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z undo/redo. Cmd/Ctrl+, opens settings.</p>
       </footer>
 
-      <Measurer persistKey="mesurer-solid-parity-playground" />
+      <Measurer persistKey="mesurer-parity-playground" />
     </main>
   );
 }
