@@ -1,0 +1,57 @@
+name: rename-identity
+
+on:
+  push:
+    branches:
+      - refactor/composable-core
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.event.head_commit.message == 'chore: stage Mesurer Solid identity migration'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/composable-core
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Apply repository and package identity rename
+        run: |
+          node scripts/apply-identity-rename.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("packages/mesurer/scripts/stage-package.mjs")
+          source = path.read_text()
+          source = source.replace('  "@jhomra21/mesurer-solid",\n', '')
+          path.write_text(source)
+          PY
+
+      - name: Regenerate workspace lockfile
+        run: bun install
+
+      - name: Validate renamed workspace
+        run: |
+          bun run typecheck
+          bun run test
+          bun run build
+
+      - name: Commit validated identity migration
+        shell: bash
+        run: |
+          git status --short
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- package.json bun.lock README.md AGENTS.md ARCHITECTURE.md .github packages examples host-compat package-smoke scripts showcase visual-parity
+          if git diff --cached --quiet; then
+            echo "No identity changes to commit."
+            exit 0
+          fi
+          git commit -m "chore: rename project and packages to Mesurer Solid"
+          git push origin HEAD:refactor/composable-core
