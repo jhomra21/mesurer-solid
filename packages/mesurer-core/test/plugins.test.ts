@@ -38,6 +38,55 @@ describe("Mesurer plugin host", () => {
     await host.replace(plugin);
     expect(host.has("example")).toBe(true);
     host.state.restore({ example: { enabled: false, count: 9 } }, "persist");
+    expect(host.state.get("example")).toEqual({ example: undefined }).not.toEqual({ example: { enabled: false, count: 9 } });
     expect(host.state.get("example")).toEqual({ enabled: false, count: 9 });
+  });
+
+  it("scopes opaque services and lifecycle cleanup to plugin lifetime", async () => {
+    const host = createMesurerPluginHost();
+    let disposals = 0;
+
+    const servicePlugin = defineMesurerPlugin({
+      id: "example.service",
+      setup(ctx) {
+        ctx.service.provide("example.runtime", { answer: 42 });
+        ctx.lifecycle.onDispose(() => {
+          disposals += 1;
+        });
+      },
+    });
+
+    await host.load(servicePlugin);
+    expect(host.service.get<{ answer: number }>("example.runtime")).toEqual({ answer: 42 });
+    expect(host.describe().services).toEqual(["example.runtime"]);
+
+    await host.replace(servicePlugin);
+    expect(disposals).toBe(1);
+    expect(host.service.get<{ answer: number }>("example.runtime")).toEqual({ answer: 42 });
+
+    expect(host.remove("example.service")).toBe(true);
+    expect(disposals).toBe(2);
+    expect(host.service.get("example.runtime")).toBeUndefined();
+    expect(host.describe().services).toEqual([]);
+  });
+
+  it("disposes registrations created before plugin setup fails", async () => {
+    const host = createMesurerPluginHost();
+    let disposals = 0;
+
+    await expect(host.load(defineMesurerPlugin({
+      id: "example.failure",
+      setup(ctx) {
+        ctx.service.provide("example.failed-runtime", { active: true });
+        ctx.lifecycle.onDispose(() => {
+          disposals += 1;
+        });
+        throw new Error("boom");
+      },
+    }))).rejects.toThrow("boom");
+
+    expect(disposals).toBe(1);
+    expect(host.service.get("example.failed-runtime")).toBeUndefined();
+    expect(host.has("example.failure")).toBe(false);
   });
 });
