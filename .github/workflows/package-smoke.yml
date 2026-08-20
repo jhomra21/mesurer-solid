@@ -8,6 +8,7 @@ on:
       - "packages/mesurer-dom/**"
       - "packages/renderer/**"
       - "package-smoke/**"
+      - "scripts/browser-harness/**"
       - ".github/workflows/package-smoke.yml"
       - "package.json"
       - "bun.lock"
@@ -272,6 +273,25 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Inject exact packed package into an app with no Mesurer import
+        env:
+          REACT_URL: http://127.0.0.1:4190
+          REACT_INJECT_PATH: ${{ env.REACT_INJECT_PATH }}
+        run: |
+          node scripts/browser-harness/cli.mjs "$REACT_URL" \
+            --headless \
+            --inject "$REACT_INJECT_PATH" \
+            --once mesurer.inspect \
+            --params '{"selector":"[data-testid=\"consumer-counter\"]"}' \
+            > /tmp/browser-harness-smoke.json
+          node - <<'NODE'
+          const result = require("/tmp/browser-harness-smoke.json");
+          if (!result.ok) throw new Error(JSON.stringify(result.error));
+          if (result.result?.tag !== "button") throw new Error(`Expected injected harness to inspect a button, received ${JSON.stringify(result.result)}`);
+          if (!result.result?.text?.includes("React host")) throw new Error(`Unexpected inspected text: ${result.result?.text}`);
+          console.log("Arbitrary-site browser harness injection passed.");
+          NODE
 
       - name: Exercise exact packed package in real framework hosts
         env:
