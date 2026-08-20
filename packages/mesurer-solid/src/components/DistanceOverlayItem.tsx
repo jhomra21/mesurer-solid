@@ -14,7 +14,7 @@ const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any 
 
 export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
   return (
-    <div class={props.onRemove ? "msr:pointer-events-auto" : "msr:pointer-events-none"} onClick={props.onRemove ? (event) => { event.stopPropagation(); props.onRemove?.(props.distance.id); } : undefined}>
+    <div data-mesurer-distance="true" class={props.onRemove ? "msr:pointer-events-auto" : "msr:pointer-events-none"} onClick={props.onRemove ? (event) => { event.stopPropagation(); props.onRemove?.(props.distance.id); } : undefined}>
       <div class="msr:absolute msr:rounded msr:border msr:border-[#2563eb]/70" style={{ left: `${props.distance.rectA.left}px`, top: `${props.distance.rectA.top}px`, width: `${props.distance.rectA.width}px`, height: `${props.distance.rectA.height}px` }} />
       <div class="msr:absolute msr:rounded msr:border msr:border-[#2563eb]/70" style={{ left: `${props.distance.rectB.left}px`, top: `${props.distance.rectB.top}px`, width: `${props.distance.rectB.width}px`, height: `${props.distance.rectB.height}px` }} />
       <For each={props.distance.connectors}>{(connector) => Math.abs(connector.x1 - connector.x2) < 1
