@@ -7,7 +7,7 @@
   "scripts": {
     "build:foundations": "bun run --filter '@jhomra21/mesurer-core' build && bun run --filter '@jhomra21/mesurer-dom' build",
     "build": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid' build && bun run --filter '@jhomra21/mesurer' build",
-    "typecheck": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid' typecheck && bun run --filter 'mesurer-solid-example' typecheck",
+    "typecheck": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid' build && bun run --filter '@jhomra21/mesurer' typecheck && bun run --filter 'mesurer-solid-example' typecheck",
     "test": "bun run --filter '@jhomra21/mesurer-core' test && bun run --filter '@jhomra21/mesurer-dom' test && bun run --filter '@jhomra21/mesurer-solid' test",
     "dev": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid' styles && bun run --filter 'mesurer-solid-example' dev"
   },
