@@ -1,0 +1,67 @@
+name: release-check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+
+      - name: Validate release-only change
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_NAME" != release/v* ]]; then
+            echo "release-check must run on a release/v* branch; got ${GITHUB_REF_NAME}."
+            exit 1
+          fi
+
+          version=$(node -p 'require("./packages/mesurer/package.json").version')
+          expected_branch="release/v${version}"
+          if [[ "$GITHUB_REF_NAME" != "$expected_branch" ]]; then
+            echo "Release branch ${GITHUB_REF_NAME} does not match package version ${version}."
+            exit 1
+          fi
+
+          previous=$(git show HEAD^:packages/mesurer/package.json | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => process.stdout.write(JSON.parse(s).version))')
+          node scripts/release.mjs assert-newer --from "$previous" --to "$version"
+          node scripts/release.mjs notes --version "$version" >/dev/null
+
+          mapfile -t changed < <(git diff --name-only HEAD^ HEAD)
+          if [[ "${#changed[@]}" -ne 2 ]]; then
+            echo "Generated release commit must change exactly package version + changelog; got:"
+            printf '  %s\n' "${changed[@]}"
+            exit 1
+          fi
+
+          for path in "${changed[@]}"; do
+            case "$path" in
+              CHANGELOG.md|packages/mesurer/package.json) ;;
+              *)
+                echo "Unexpected release PR file: ${path}"
+                exit 1
+                ;;
+            esac
+          done
+
+          version_lines=$(git diff --unified=0 HEAD^ HEAD -- packages/mesurer/package.json | grep -E '^[+-]  "version":' | wc -l | tr -d ' ')
+          if [[ "$version_lines" != "2" ]]; then
+            echo "Release package.json must change only the version line."
+            git diff HEAD^ HEAD -- packages/mesurer/package.json
+            exit 1
+          fi
+
+      - name: Validate release tooling and identity
+        run: |
+          node scripts/check-identity.mjs
+          node --test scripts/release.test.mjs
