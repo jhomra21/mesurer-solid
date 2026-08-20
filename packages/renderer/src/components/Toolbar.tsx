@@ -44,13 +44,13 @@ type ToolbarButtonProps = {
 
 function ToolbarButton(props: ToolbarButtonProps) {
   return (
-    <div class="msr:relative" onMouseEnter={() => props.onTooltipEnter(props.id)} onMouseLeave={props.onTooltipLeave}>
+    <div class="msr:relative" onMouseEnter={() => props.onTooltipEnter(props.id)} onMouseLeave={() => props.onTooltipLeave()}>
       <button
         type="button"
         aria-pressed={props.active ? "true" : "false"}
         aria-label={`${props.label}${props.shortcut ? ` (${props.shortcut})` : ""}`}
         class={`msr:flex msr:size-8 msr:select-none msr:items-center msr:justify-center msr:rounded-[8px] msr:outline-none ${props.active ? "msr:bg-[#0d99ff] msr:text-white" : "msr:bg-transparent msr:text-black msr:hover:bg-black/4"}`}
-        onClick={props.onClick}
+        onClick={() => props.onClick()}
       >
         {props.children}
       </button>
