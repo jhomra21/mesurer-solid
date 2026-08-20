@@ -1,11 +1,11 @@
 {
-  "name": "mesurer-solid-example",
+  "name": "mesurer-renderer-example",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": { "dev": "vite", "build": "vite build", "typecheck": "tsc --noEmit" },
   "dependencies": {
-    "@jhomra21/mesurer-solid": "workspace:*",
+    "@jhomra21/mesurer-renderer": "workspace:*",
     "@solidjs/web": "^2.0.0-rc.0",
     "solid-js": "^2.0.0-rc.0"
   },
