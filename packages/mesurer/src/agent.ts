@@ -1,3 +1,4 @@
+import { getInspectMeasurement as getDomInspectMeasurement } from "@jhomra21/mesurer-dom";
 import type {
   MesurerPluginDescription,
   MesurerPluginHost,
@@ -181,6 +182,9 @@ const inspectElement = (element: Element): AgentElementInspection => {
   const style = ownerWindow.getComputedStyle(element);
   const html = element as HTMLElement;
   const bounding = element.getBoundingClientRect();
+  const canonical = element instanceof ownerWindow.HTMLElement
+    ? getDomInspectMeasurement(element as HTMLElement, ownerWindow)
+    : null;
   return {
     selector: elementSelector(element),
     tag: element.localName,
@@ -190,8 +194,8 @@ const inspectElement = (element: Element): AgentElementInspection => {
     role: element.getAttribute("role"),
     ariaLabel: element.getAttribute("aria-label"),
     rect: rect(bounding),
-    margin: edges(style, "margin"),
-    padding: edges(style, "padding"),
+    margin: canonical?.margin ?? edges(style, "margin"),
+    padding: canonical?.padding ?? edges(style, "padding"),
     border: edges(style, "border"),
     typography: {
       fontFamily: style.fontFamily,
