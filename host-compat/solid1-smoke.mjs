@@ -1,6 +1,8 @@
+import { resolve } from "node:path";
 import { chromium } from "playwright";
 
 const url = process.env.SOLID1_URL ?? "http://127.0.0.1:4180";
+const injectPath = resolve("packages/mesurer/dist/inject.js");
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const pageErrors = [];
@@ -16,15 +18,28 @@ try {
   const hostButton = page.getByRole("button", { name: /Solid 1 host/ });
   await hostButton.click();
   if (!(await hostButton.textContent())?.includes("count 1")) {
-    throw new Error("Solid 1 host did not remain reactive after Mesurer mounted");
+    throw new Error("Solid 1 host was not reactive before Mesurer injection");
   }
 
+  // This is the intended coding-agent path: the user app has no Mesurer import.
+  // A browser harness injects one self-contained module into the already-running page.
+  await page.evaluate(() => {
+    window.__MESURER_CONFIG__ = { globalName: "__MESURER__" };
+  });
+  await page.addScriptTag({ path: injectPath, type: "module" });
+
+  await page.waitForFunction(() => Boolean(window.__MESURER__));
+  await page.evaluate(() => window.__MESURER__.ready());
   await page.waitForFunction(() => {
     const island = document.querySelector("[data-mesurer-island='true']");
     return Boolean(island?.shadowRoot?.querySelector("[data-mesurer-toolbar='true']"));
   });
 
-  await page.evaluate(() => window.__MESURER__.ready());
+  await hostButton.click();
+  if (!(await hostButton.textContent())?.includes("count 2")) {
+    throw new Error("Solid 1 host did not remain reactive after external Mesurer injection");
+  }
+
   const feedback = await page.evaluate(() => window.__MESURER__.feedback([
     "[data-testid='solid1-counter']",
     "[data-testid='solid1-sibling']",
@@ -35,6 +50,7 @@ try {
   if (feedback.elements[0].padding.top !== 16 || feedback.elements[0].rect.width <= 0) {
     throw new Error(`Agent box-model inspection was incorrect: ${JSON.stringify(feedback.elements[0])}`);
   }
+
   const distance = await page.evaluate(() => window.__MESURER__.distance(
     "[data-testid='solid1-counter']",
     "[data-testid='solid1-sibling']",
@@ -42,6 +58,7 @@ try {
   if (!distance || Math.abs(distance.horizontalGap - 12) > 0.5) {
     throw new Error(`Expected a 12px flex gap from agent measurement, got ${JSON.stringify(distance)}`);
   }
+
   const pointPick = await page.evaluate(() => {
     const button = document.querySelector("[data-testid='solid1-counter']");
     const rect = button.getBoundingClientRect();
@@ -62,7 +79,7 @@ try {
   await page.evaluate(() => window.__MESURER__.command("builtin.xray"));
 
   await page.evaluate(() => {
-    const host = window.__MESURER_SOLID1__?.pluginHost;
+    const host = window.__MESURER_INSTANCE__?.pluginHost;
     if (!host) throw new Error("Missing Mesurer plugin host");
     if (!host.remove("mesurer.xray")) throw new Error("Failed to remove X-ray plugin");
   });
@@ -74,7 +91,7 @@ try {
   });
 
   await page.evaluate(async () => {
-    const host = window.__MESURER_SOLID1__?.pluginHost;
+    const host = window.__MESURER_INSTANCE__?.pluginHost;
     if (!host) throw new Error("Missing Mesurer plugin host");
     await host.load({
       id: "demo.agent-extension",
@@ -106,14 +123,14 @@ try {
   const pluginState = await page.evaluate(() => window.__MESURER__.state());
   if (pluginState.demo?.clicks !== 1) throw new Error(`Unexpected plugin state: ${JSON.stringify(pluginState)}`);
 
-  await page.evaluate(() => window.__MESURER_SOLID1__?.pluginHost?.remove("demo.agent-extension"));
+  await page.evaluate(() => window.__MESURER_INSTANCE__?.pluginHost?.remove("demo.agent-extension"));
   await extensionButton.waitFor({ state: "detached" }).catch(async () => {
     if (await extensionButton.isVisible()) throw new Error("Extension toolbar contribution survived plugin disposal");
   });
 
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join("\n")}`);
   if (consoleErrors.length) throw new Error(`Console errors: ${consoleErrors.join("\n")}`);
-  console.log("Solid 1 + universal Mesurer + agent feedback loop + runtime plugins: PASS");
+  console.log("Solid 1 host + external injector + agent feedback loop + runtime plugins: PASS");
 } finally {
   await browser.close();
 }
