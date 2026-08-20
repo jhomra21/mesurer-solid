@@ -164,13 +164,14 @@ const elementSelector = (element: Element) => {
   let current: Element | null = element;
   while (current && parts.length < 5) {
     let part = current.localName;
-    const parent = current.parentElement;
-    if (parent) {
-      const siblings = [...parent.children].filter((candidate) => candidate.localName === current!.localName);
+    const parentElement: Element | null = current.parentElement;
+    if (parentElement) {
+      const currentName = current.localName;
+      const siblings = [...parentElement.children].filter((candidate) => candidate.localName === currentName);
       if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
     }
     parts.unshift(part);
-    current = parent;
+    current = parentElement;
   }
   return parts.join(" > ");
 };
