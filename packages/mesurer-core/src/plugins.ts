@@ -11,6 +11,8 @@ export type ToolContribution = {
   order?: number;
   builtin?: string;
   icon?: { viewBox?: string; paths: string[] };
+  active?: () => boolean;
+  disabled?: () => boolean;
 };
 
 export type SettingsContribution = { id: string; label: string; order?: number; builtin?: string };
@@ -40,8 +42,14 @@ export type MesurerPluginContext = {
   tool: { register(contribution: ToolContribution): Registration };
   settings: { register(contribution: SettingsContribution): Registration };
   overlay: { register(contribution: OverlayContribution): Registration };
-  command: { register(id: string, handler: CommandHandler): Registration; execute(id: string, args?: unknown, source?: unknown): Promise<void> };
-  hook: { on(name: string, handler: HookHandler): Registration; emit(name: string, event: unknown): Promise<void> };
+  command: {
+    register(id: string, handler: CommandHandler): Registration;
+    execute(id: string, args?: unknown, source?: unknown): Promise<void>;
+  };
+  hook: {
+    on(name: string, handler: HookHandler): Registration;
+    emit(name: string, event: unknown): Promise<void>;
+  };
 };
 
 export type MesurerPlugin = {
@@ -56,7 +64,7 @@ export const defineMesurerPlugin = <T extends MesurerPlugin>(plugin: T) => plugi
 
 export type MesurerPluginDescription = {
   plugins: Array<{ id: string; version?: string; requires: string[]; provides: string[] }>;
-  tools: ToolContribution[];
+  tools: Array<{ id: string; label: string; shortcut?: string; command: string; order?: number; builtin?: string }>;
   settings: SettingsContribution[];
   overlays: OverlayContribution[];
   state: Array<{ id: string; history: boolean; persist: boolean }>;
@@ -75,60 +83,78 @@ export function createMesurerPluginHost() {
   const hooks = new Map<number, Owned<{ name: string; handler: HookHandler }>>();
   const stateDefinitions = new Map<number, Owned<StateSliceDefinition>>();
   const state = new Map<string, unknown>();
-  let loadingPluginId: string | null = null;
 
   const notify = (pluginId: string | undefined, reason: PluginEvents["changed"]["reason"]) => {
     void events.emit("changed", { pluginId, reason });
   };
 
-  const register = <T>(map: Map<number, Owned<T>>, value: T): Registration => {
-    if (!loadingPluginId) throw new Error("Mesurer registrations are only allowed during plugin setup");
+  const register = <T>(
+    map: Map<number, Owned<T>>,
+    pluginId: string,
+    value: T,
+  ): Registration => {
     const registrationId = nextRegistrationId++;
-    map.set(registrationId, { ...value, pluginId: loadingPluginId, registrationId });
+    map.set(registrationId, { ...value, pluginId, registrationId });
     let disposed = false;
-    const registration = {
+    return {
       dispose() {
         if (disposed) return;
         disposed = true;
         map.delete(registrationId);
-        notify(loadingPluginId ?? undefined, "registration");
+        notify(pluginId, "registration");
       },
     };
-    return registration;
   };
 
-  const context: MesurerPluginContext = {
-    state: {
-      register(definition) {
-        const registration = register(stateDefinitions, definition as StateSliceDefinition);
-        if (!state.has(definition.id)) state.set(definition.id, definition.initial);
-        return registration;
-      },
-      get: (id) => state.get(id) as never,
-      update(id, update) {
-        if (!state.has(id)) throw new Error(`Unknown Mesurer state slice: ${id}`);
-        state.set(id, update(state.get(id) as never));
-        notify(undefined, "state");
-      },
+  const executeCommand = async (id: string, args?: unknown, source?: unknown) => {
+    const match = [...commands.values()].reverse().find((item) => item.id === id);
+    if (!match) throw new Error(`Unknown Mesurer command: ${id}`);
+    await match.handler(args, { source });
+    await events.emit("command", { id, args });
+  };
+
+  const emitHook = async (name: string, event: unknown) => {
+    for (const hook of [...hooks.values()].filter((item) => item.name === name)) {
+      await hook.handler(event);
+    }
+  };
+
+  const publicState = {
+    get: <T>(id: string) => state.get(id) as T | undefined,
+    update<T>(id: string, update: (value: T) => T) {
+      if (!state.has(id)) throw new Error(`Unknown Mesurer state slice: ${id}`);
+      state.set(id, update(state.get(id) as T));
+      notify(undefined, "state");
     },
-    tool: { register: (value) => register(tools, value) },
-    settings: { register: (value) => register(settings, value) },
-    overlay: { register: (value) => register(overlays, value) },
-    command: {
-      register: (id, handler) => register(commands, { id, handler }),
-      async execute(id, args, source) {
-        const match = [...commands.values()].reverse().find((item) => item.id === id);
-        if (!match) throw new Error(`Unknown Mesurer command: ${id}`);
-        await match.handler(args, { source });
-        await events.emit("command", { id, args });
+  };
+
+  const makeContext = (pluginId: string, registrations: Registration[]): MesurerPluginContext => {
+    const capture = (registration: Registration) => {
+      registrations.push(registration);
+      return registration;
+    };
+    return {
+      state: {
+        register<T>(definition: StateSliceDefinition<T>) {
+          const registration = capture(register(stateDefinitions, pluginId, definition as StateSliceDefinition));
+          if (!state.has(definition.id)) state.set(definition.id, definition.initial);
+          return registration;
+        },
+        get: publicState.get,
+        update: publicState.update,
       },
-    },
-    hook: {
-      on: (name, handler) => register(hooks, { name, handler }),
-      async emit(name, event) {
-        for (const hook of [...hooks.values()].filter((item) => item.name === name)) await hook.handler(event);
+      tool: { register: (value) => capture(register(tools, pluginId, value)) },
+      settings: { register: (value) => capture(register(settings, pluginId, value)) },
+      overlay: { register: (value) => capture(register(overlays, pluginId, value)) },
+      command: {
+        register: (id, handler) => capture(register(commands, pluginId, { id, handler })),
+        execute: executeCommand,
       },
-    },
+      hook: {
+        on: (name, handler) => capture(register(hooks, pluginId, { name, handler })),
+        emit: emitHook,
+      },
+    };
   };
 
   const remove = (id: string) => {
@@ -141,62 +167,60 @@ export function createMesurerPluginHost() {
   };
 
   const load = async (plugin: MesurerPlugin) => {
-    if (plugins.has(plugin.id)) remove(plugin.id);
+    const replacing = plugins.has(plugin.id);
+    if (replacing) remove(plugin.id);
     const missing = (plugin.requires ?? []).filter((required) =>
       ![...plugins.values()].some(({ plugin: existing }) => existing.provides?.includes(required)),
     );
-    if (missing.length) throw new Error(`Plugin ${plugin.id} requires missing capabilities: ${missing.join(", ")}`);
+    if (missing.length) {
+      throw new Error(`Plugin ${plugin.id} requires missing capabilities: ${missing.join(", ")}`);
+    }
     const registrations: Registration[] = [];
-    const capture = <T extends (...args: any[]) => Registration>(fn: T): T => ((...args: Parameters<T>) => {
-      const registration = fn(...args);
-      registrations.push(registration);
-      return registration;
-    }) as T;
-    loadingPluginId = plugin.id;
-    const scoped: MesurerPluginContext = {
-      state: { ...context.state, register: capture(context.state.register) },
-      tool: { register: capture(context.tool.register) },
-      settings: { register: capture(context.settings.register) },
-      overlay: { register: capture(context.overlay.register) },
-      command: { ...context.command, register: capture(context.command.register) },
-      hook: { ...context.hook, on: capture(context.hook.on) },
-    };
     try {
-      await plugin.setup(scoped);
+      await plugin.setup(makeContext(plugin.id, registrations));
       plugins.set(plugin.id, { plugin, registrations });
-      notify(plugin.id, "load");
+      notify(plugin.id, replacing ? "replace" : "load");
     } catch (error) {
       for (const registration of registrations.reverse()) registration.dispose();
       throw error;
-    } finally {
-      loadingPluginId = null;
     }
   };
 
   const listByOrder = <T extends { order?: number }>(values: Iterable<T>) =>
     [...values].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-  return {
+  const stripOwned = <T extends { pluginId: string; registrationId: number }>({ pluginId: _pluginId, registrationId: _registrationId, ...item }: T) => item;
+
+  const host = {
     load,
     remove,
     replace: load,
     has: (id: string) => plugins.has(id),
     plugin: (id: string) => plugins.get(id)?.plugin,
     listPlugins: () => [...plugins.values()].map((item) => item.plugin),
-    tools: () => listByOrder(tools.values()).map(({ pluginId: _pluginId, registrationId: _registrationId, ...item }) => item),
-    settings: () => listByOrder(settings.values()).map(({ pluginId: _pluginId, registrationId: _registrationId, ...item }) => item),
-    overlays: () => listByOrder(overlays.values()).map(({ pluginId: _pluginId, registrationId: _registrationId, ...item }) => item),
-    state: context.state,
-    command: context.command,
-    hook: context.hook,
+    tools: () => listByOrder(tools.values()).map(stripOwned),
+    settings: () => listByOrder(settings.values()).map(stripOwned),
+    overlays: () => listByOrder(overlays.values()).map(stripOwned),
+    state: publicState,
+    command: { execute: executeCommand },
+    hook: { emit: emitHook },
     subscribe: (listener: (event: PluginEvents["changed"]) => void) => events.on("changed", listener),
     describe(): MesurerPluginDescription {
       return {
-        plugins: [...plugins.values()].map(({ plugin }) => ({ id: plugin.id, version: plugin.version, requires: plugin.requires ?? [], provides: plugin.provides ?? [] })),
-        tools: this.tools(),
-        settings: this.settings(),
-        overlays: this.overlays(),
-        state: [...stateDefinitions.values()].map(({ id, history, persist }) => ({ id, history: history ?? false, persist: persist ?? false })),
+        plugins: [...plugins.values()].map(({ plugin }) => ({
+          id: plugin.id,
+          version: plugin.version,
+          requires: plugin.requires ?? [],
+          provides: plugin.provides ?? [],
+        })),
+        tools: host.tools().map(({ active: _active, disabled: _disabled, icon: _icon, ...tool }) => tool),
+        settings: host.settings(),
+        overlays: host.overlays(),
+        state: [...stateDefinitions.values()].map(({ id, history, persist }) => ({
+          id,
+          history: history ?? false,
+          persist: persist ?? false,
+        })),
         commands: [...new Set([...commands.values()].map((item) => item.id))],
         hooks: [...new Set([...hooks.values()].map((item) => item.name))],
       };
@@ -207,6 +231,8 @@ export function createMesurerPluginHost() {
       state.clear();
     },
   };
+
+  return host;
 }
 
 export type MesurerPluginHost = ReturnType<typeof createMesurerPluginHost>;
