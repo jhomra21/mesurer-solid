@@ -38,7 +38,6 @@ describe("Mesurer plugin host", () => {
     await host.replace(plugin);
     expect(host.has("example")).toBe(true);
     host.state.restore({ example: { enabled: false, count: 9 } }, "persist");
-    expect(host.state.get("example")).toEqual({ example: undefined }).not.toEqual({ example: { enabled: false, count: 9 } });
     expect(host.state.get("example")).toEqual({ enabled: false, count: 9 });
   });
 
