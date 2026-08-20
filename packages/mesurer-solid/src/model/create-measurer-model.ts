@@ -1,4 +1,4 @@
-import { createMemo, createStore, onCleanup } from "solid-js";
+import { createMemo, createStore, getOwner, onCleanup } from "solid-js";
 import {
   createMeasurerModelCore,
   type GuidePreview,
@@ -20,7 +20,15 @@ export function createMeasurerModel(options: MeasurerModelOptions = {}) {
   const core = createMeasurerModelCore<HTMLElement>(options);
   const [state, setState] = createStore<MeasurerModelState<HTMLElement>>(core.getSnapshot());
   const unsubscribe = core.subscribe((snapshot) => setState(() => snapshot));
-  onCleanup(unsubscribe);
+  const disposeCore = core.dispose;
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    unsubscribe();
+    disposeCore();
+  };
+  if (getOwner()) onCleanup(dispose);
 
   const activeSelection = createMemo(
     () => state.selectedMeasurement ?? state.selectedMeasurements.at(-1) ?? null,
@@ -28,6 +36,7 @@ export function createMeasurerModel(options: MeasurerModelOptions = {}) {
 
   return {
     ...core,
+    dispose,
     state,
     activeSelection,
   };
