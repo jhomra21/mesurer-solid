@@ -79,6 +79,36 @@ builtin.settings
 
 Commands use the same behavior path as the visible Mesurer tools.
 
+### Replacing a built-in
+
+A plugin can replace a built-in without changing the agent-facing command name. Remove/replace the original `mesurer.<name>` plugin, register a tool contribution with `builtin: "<name>"`, and give that contribution its own command. Mesurer hides the legacy control, renders the replacement contribution, and delegates the stable `builtin.<name>` command plus the conventional built-in shortcut to the replacement.
+
+```ts
+await host.replace({
+  id: "mesurer.xray",
+  provides: ["tool:xray"],
+  setup(ctx) {
+    ctx.state.register({ id: "replacement.xray", initial: false, history: true });
+    ctx.command.register("replacement.xray.toggle", () => {
+      ctx.state.update<boolean>("replacement.xray", (value) => !value);
+    });
+    ctx.tool.register({
+      id: "xray",
+      builtin: "xray",
+      label: "Replacement X-ray",
+      shortcut: "X",
+      command: "replacement.xray.toggle",
+      active: () => ctx.state.get("replacement.xray") === true,
+    });
+  },
+});
+
+// Existing agent integrations do not change:
+await window.__MESURER__.command("builtin.xray");
+```
+
+Nested command delegation is one history transaction, so the stable built-in command does not create a second undo checkpoint around the replacement command.
+
 ## Runtime plugins
 
 Plugins may register:
