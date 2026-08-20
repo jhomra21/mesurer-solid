@@ -1,7 +1,7 @@
 import { render } from "@solidjs/web";
 import {
   Measurer,
-  type MeasurerPluginDescription,
+  type MesurerPluginDescription,
   type MesurerPluginHost,
   type MeasurerProps,
 } from "@jhomra21/mesurer-solid";
@@ -36,7 +36,7 @@ export type MountedMeasurer = {
   readonly ready: Promise<void>;
   /** JSON-safe browser measurement and command API for coding-agent harnesses. */
   readonly agent: MesurerAgentHarness;
-  describe(): MeasurerPluginDescription | undefined;
+  describe(): MesurerPluginDescription | undefined;
   dispose(): void;
 };
 
@@ -183,7 +183,7 @@ export type {
   MesurerBuiltinPluginId,
   MesurerPlugin,
   MesurerPluginContext,
-  MeasurerPluginDescription,
+  MesurerPluginDescription,
   MesurerPluginHost,
   ToolContribution,
 } from "@jhomra21/mesurer-solid";
