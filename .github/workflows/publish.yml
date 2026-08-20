@@ -1,12 +1,15 @@
 name: publish
 
 on:
-  push:
+  pull_request:
     branches:
       - main
-    paths:
-      - "packages/mesurer/package.json"
+    types:
+      - closed
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: npm-publish
@@ -14,6 +17,9 @@ concurrency:
 
 jobs:
   detect:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v'))
     runs-on: ubuntu-latest
     outputs:
       release: ${{ steps.release.outputs.release }}
@@ -27,10 +33,11 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Detect a real version release
+      - name: Detect an approved release
         id: release
         env:
-          BEFORE_SHA: ${{ github.event.before }}
+          RELEASE_HEAD: ${{ github.event.pull_request.head.ref }}
+          RELEASE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         shell: bash
         run: |
           version=$(node -p 'require("./packages/mesurer/package.json").version')
@@ -46,11 +53,16 @@ jobs:
             exit 0
           fi
 
-          previous=$(git show "${BEFORE_SHA}:packages/mesurer/package.json" | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => process.stdout.write(JSON.parse(s).version))')
+          expected_branch="release/v${version}"
+          if [[ "$RELEASE_HEAD" != "$expected_branch" ]]; then
+            echo "Merged release branch ${RELEASE_HEAD} does not match package version ${version} (expected ${expected_branch})."
+            exit 1
+          fi
+
+          previous=$(git show "${RELEASE_BASE_SHA}:packages/mesurer/package.json" | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => process.stdout.write(JSON.parse(s).version))')
           if [[ "$version" == "$previous" ]]; then
-            echo "Package manifest changed without a version bump; nothing to publish."
-            echo "release=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "Release PR did not change the public package version."
+            exit 1
           fi
 
           node scripts/release.mjs assert-newer --from "$previous" --to "$version"
@@ -68,7 +80,6 @@ jobs:
       - smoke
     if: needs.detect.outputs.release == 'true'
     runs-on: ubuntu-latest
-    environment: npm-publish
     permissions:
       contents: write
       id-token: write
@@ -106,6 +117,10 @@ jobs:
           version=$(node -e 'const p=require("./release-artifact/pack.json")[0]; process.stdout.write(p.version)')
           integrity=$(node -e 'const p=require("./release-artifact/pack.json")[0]; process.stdout.write(p.integrity)')
           expected="${{ needs.detect.outputs.version }}"
+          if [[ "$package" != "@jhomra21/mesurer-solid" ]]; then
+            echo "Packed package name ${package} is not the public Mesurer Solid package."
+            exit 1
+          fi
           if [[ "$version" != "$expected" ]]; then
             echo "Packed version ${version} does not match detected release ${expected}."
             exit 1
