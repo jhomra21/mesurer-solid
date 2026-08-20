@@ -2,6 +2,8 @@ import { createEventBus } from "./events";
 
 export type Registration = { readonly dispose: () => void };
 export type PluginId = string;
+export type PluginStateSnapshot = Record<string, unknown>;
+export type PluginStateScope = "all" | "history" | "persist";
 
 export type ToolContribution = {
   id: string;
@@ -29,7 +31,7 @@ export type StateSliceDefinition<T = unknown> = {
 
 type Owned<T> = T & { pluginId: PluginId; registrationId: number };
 type PluginEvents = {
-  changed: { pluginId?: string; reason: "load" | "remove" | "replace" | "registration" | "state" };
+  changed: { pluginId?: string; reason: "load" | "remove" | "replace" | "registration" | "state" | "history" };
   command: { id: string; args: unknown };
 };
 
@@ -72,6 +74,8 @@ export type MesurerPluginDescription = {
   hooks: string[];
 };
 
+const HISTORY_LIMIT = 50;
+
 export function createMesurerPluginHost() {
   let nextRegistrationId = 1;
   const events = createEventBus<PluginEvents>();
@@ -83,6 +87,8 @@ export function createMesurerPluginHost() {
   const hooks = new Map<number, Owned<{ name: string; handler: HookHandler }>>();
   const stateDefinitions = new Map<number, Owned<StateSliceDefinition>>();
   const state = new Map<string, unknown>();
+  const history: PluginStateSnapshot[] = [];
+  const future: PluginStateSnapshot[] = [];
 
   const notify = (pluginId: string | undefined, reason: PluginEvents["changed"]["reason"]) => {
     void events.emit("changed", { pluginId, reason });
@@ -106,11 +112,75 @@ export function createMesurerPluginHost() {
     };
   };
 
+  const definitionMatches = (definition: StateSliceDefinition, scope: PluginStateScope) =>
+    scope === "all" || (scope === "history" ? definition.history === true : definition.persist === true);
+
+  const snapshotState = (scope: PluginStateScope = "all"): PluginStateSnapshot => {
+    const snapshot: PluginStateSnapshot = {};
+    for (const definition of stateDefinitions.values()) {
+      if (!definitionMatches(definition, scope) || !state.has(definition.id)) continue;
+      snapshot[definition.id] = state.get(definition.id);
+    }
+    return snapshot;
+  };
+
+  const restoreState = (snapshot: PluginStateSnapshot, scope: PluginStateScope = "all") => {
+    const active = new Set(
+      [...stateDefinitions.values()]
+        .filter((definition) => definitionMatches(definition, scope))
+        .map((definition) => definition.id),
+    );
+    for (const [id, value] of Object.entries(snapshot)) {
+      if (active.has(id)) state.set(id, value);
+    }
+    notify(undefined, "state");
+  };
+
+  const sameSnapshot = (left: PluginStateSnapshot, right: PluginStateSnapshot) => {
+    const leftKeys = Object.keys(left);
+    const rightKeys = Object.keys(right);
+    return leftKeys.length === rightKeys.length && leftKeys.every((key) =>
+      Object.prototype.hasOwnProperty.call(right, key) && Object.is(left[key], right[key]),
+    );
+  };
+
+  const clearHistory = () => {
+    history.length = 0;
+    future.length = 0;
+  };
+
   const executeCommand = async (id: string, args?: unknown, source?: unknown) => {
     const match = [...commands.values()].reverse().find((item) => item.id === id);
     if (!match) throw new Error(`Unknown Mesurer command: ${id}`);
+    const before = snapshotState("history");
     await match.handler(args, { source });
+    const after = snapshotState("history");
+    if (!sameSnapshot(before, after)) {
+      history.push(before);
+      if (history.length > HISTORY_LIMIT) history.shift();
+      future.length = 0;
+    }
     await events.emit("command", { id, args });
+  };
+
+  const undo = () => {
+    const previous = history.pop();
+    if (!previous) return false;
+    future.push(snapshotState("history"));
+    if (future.length > HISTORY_LIMIT) future.shift();
+    restoreState(previous, "history");
+    notify(undefined, "history");
+    return true;
+  };
+
+  const redo = () => {
+    const next = future.pop();
+    if (!next) return false;
+    history.push(snapshotState("history"));
+    if (history.length > HISTORY_LIMIT) history.shift();
+    restoreState(next, "history");
+    notify(undefined, "history");
+    return true;
   };
 
   const emitHook = async (name: string, event: unknown) => {
@@ -126,6 +196,8 @@ export function createMesurerPluginHost() {
       state.set(id, update(state.get(id) as T));
       notify(undefined, "state");
     },
+    serialize: snapshotState,
+    restore: restoreState,
   };
 
   const makeContext = (pluginId: string, registrations: Registration[]): MesurerPluginContext => {
@@ -157,11 +229,18 @@ export function createMesurerPluginHost() {
     };
   };
 
+  const cleanupOrphanState = () => {
+    const activeIds = new Set([...stateDefinitions.values()].map((definition) => definition.id));
+    for (const id of [...state.keys()]) if (!activeIds.has(id)) state.delete(id);
+  };
+
   const remove = (id: string) => {
     const loaded = plugins.get(id);
     if (!loaded) return false;
     for (const registration of [...loaded.registrations].reverse()) registration.dispose();
     plugins.delete(id);
+    cleanupOrphanState();
+    clearHistory();
     notify(id, "remove");
     return true;
   };
@@ -179,9 +258,11 @@ export function createMesurerPluginHost() {
     try {
       await plugin.setup(makeContext(plugin.id, registrations));
       plugins.set(plugin.id, { plugin, registrations });
+      clearHistory();
       notify(plugin.id, replacing ? "replace" : "load");
     } catch (error) {
       for (const registration of registrations.reverse()) registration.dispose();
+      cleanupOrphanState();
       throw error;
     }
   };
@@ -204,6 +285,10 @@ export function createMesurerPluginHost() {
     state: publicState,
     command: { execute: executeCommand },
     hook: { emit: emitHook },
+    undo,
+    redo,
+    canUndo: () => history.length > 0,
+    canRedo: () => future.length > 0,
     subscribe: (listener: (event: PluginEvents["changed"]) => void) => events.on("changed", listener),
     describe(): MesurerPluginDescription {
       return {
@@ -216,9 +301,9 @@ export function createMesurerPluginHost() {
         tools: host.tools().map(({ active: _active, disabled: _disabled, icon: _icon, ...tool }) => tool),
         settings: host.settings(),
         overlays: host.overlays(),
-        state: [...stateDefinitions.values()].map(({ id, history, persist }) => ({
+        state: [...stateDefinitions.values()].map(({ id, history: recordsHistory, persist }) => ({
           id,
-          history: history ?? false,
+          history: recordsHistory ?? false,
           persist: persist ?? false,
         })),
         commands: [...new Set([...commands.values()].map((item) => item.id))],
@@ -229,6 +314,7 @@ export function createMesurerPluginHost() {
       for (const id of [...plugins.keys()].reverse()) remove(id);
       events.clear();
       state.clear();
+      clearHistory();
     },
   };
 
