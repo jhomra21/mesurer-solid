@@ -52,6 +52,15 @@ export type MesurerPluginContext = {
     on(name: string, handler: HookHandler): Registration;
     emit(name: string, event: unknown): Promise<void>;
   };
+  /** Opaque renderer/browser services. Values never enter persistence or history. */
+  service: {
+    provide<T>(id: string, value: T): Registration;
+    get<T>(id: string): T | undefined;
+  };
+  /** Register imperative cleanup that runs when a plugin is removed, replaced, or setup fails. */
+  lifecycle: {
+    onDispose(handler: () => void): Registration;
+  };
 };
 
 export type MesurerPlugin = {
@@ -72,6 +81,7 @@ export type MesurerPluginDescription = {
   state: Array<{ id: string; history: boolean; persist: boolean }>;
   commands: string[];
   hooks: string[];
+  services: string[];
 };
 
 const HISTORY_LIMIT = 50;
@@ -85,6 +95,7 @@ export function createMesurerPluginHost() {
   const overlays = new Map<number, Owned<OverlayContribution>>();
   const commands = new Map<number, Owned<{ id: string; handler: CommandHandler }>>();
   const hooks = new Map<number, Owned<{ name: string; handler: HookHandler }>>();
+  const services = new Map<number, Owned<{ id: string; value: unknown }>>();
   const stateDefinitions = new Map<number, Owned<StateSliceDefinition>>();
   const state = new Map<string, unknown>();
   const history: PluginStateSnapshot[] = [];
@@ -108,6 +119,21 @@ export function createMesurerPluginHost() {
         disposed = true;
         map.delete(registrationId);
         notify(pluginId, "registration");
+      },
+    };
+  };
+
+  const registerLifecycle = (pluginId: string, handler: () => void): Registration => {
+    let disposed = false;
+    return {
+      dispose() {
+        if (disposed) return;
+        disposed = true;
+        try {
+          handler();
+        } finally {
+          notify(pluginId, "registration");
+        }
       },
     };
   };
@@ -189,6 +215,9 @@ export function createMesurerPluginHost() {
     }
   };
 
+  const getService = <T>(id: string) =>
+    [...services.values()].reverse().find((item) => item.id === id)?.value as T | undefined;
+
   const publicState = {
     get: <T>(id: string) => state.get(id) as T | undefined,
     update<T>(id: string, update: (value: T) => T) {
@@ -225,6 +254,13 @@ export function createMesurerPluginHost() {
       hook: {
         on: (name, handler) => capture(register(hooks, pluginId, { name, handler })),
         emit: emitHook,
+      },
+      service: {
+        provide: <T>(id: string, value: T) => capture(register(services, pluginId, { id, value })),
+        get: getService,
+      },
+      lifecycle: {
+        onDispose: (handler) => capture(registerLifecycle(pluginId, handler)),
       },
     };
   };
@@ -283,6 +319,7 @@ export function createMesurerPluginHost() {
     settings: () => listByOrder(settings.values()).map(stripOwned),
     overlays: () => listByOrder(overlays.values()).map(stripOwned),
     state: publicState,
+    service: { get: getService },
     command: { execute: executeCommand },
     hook: { emit: emitHook },
     undo,
@@ -308,6 +345,7 @@ export function createMesurerPluginHost() {
         })),
         commands: [...new Set([...commands.values()].map((item) => item.id))],
         hooks: [...new Set([...hooks.values()].map((item) => item.name))],
+        services: [...new Set([...services.values()].map((item) => item.id))],
       };
     },
     dispose() {
