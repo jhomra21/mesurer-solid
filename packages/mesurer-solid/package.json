@@ -1,7 +1,7 @@
 {
   "name": "@jhomra21/mesurer-solid",
   "version": "0.1.0",
-  "description": "A Solid 2-native port of Mesurer: measurement, guides, rulers, typography inspection, x-ray, and color picking for web apps.",
+  "description": "Solid renderer for Mesurer, backed by the framework-neutral Mesurer core.",
   "license": "MIT",
   "type": "module",
   "sideEffects": ["*.css"],
@@ -20,6 +20,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@jhomra21/mesurer-core": "workspace:*",
+    "@jhomra21/mesurer-dom": "workspace:*"
+  },
   "peerDependencies": {
     "@solidjs/web": "^2.0.0-rc.0",
     "solid-js": "^2.0.0-rc.0"
@@ -35,7 +39,7 @@
     "vite": "^8.1.5",
     "vitest": "^4.1.10"
   },
-  "keywords": ["solid", "solidjs", "measurement", "guides", "rulers", "devtools"],
+  "keywords": ["solid", "solidjs", "measurement", "guides", "rulers", "devtools", "plugins"],
   "repository": {
     "type": "git",
     "url": "https://github.com/jhomra21/mesurer-solid.git",
