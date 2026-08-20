@@ -32,7 +32,7 @@ export type MountedMeasurer = {
   element: HTMLDivElement;
   root: HTMLDivElement | ShadowRoot;
   readonly pluginHost: MesurerPluginHost | undefined;
-  /** Resolves when the plugin/runtime bridge and browser layout are ready for automation. */
+  /** Resolves after built-ins, renderer bridge, external plugins and persisted plugin state settle. */
   readonly ready: Promise<void>;
   /** JSON-safe browser measurement and command API for coding-agent harnesses. */
   readonly agent: MesurerAgentHarness;
@@ -51,6 +51,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     shadowMode = "open",
     agent: agentOption = false,
     onPluginHost,
+    onPluginsReady,
     ...measurerProps
   } = options;
   const ownerDocument = target.ownerDocument ?? document;
@@ -73,21 +74,18 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
 
   let pluginHost: MesurerPluginHost | undefined;
   let resolvePluginHost!: (host: MesurerPluginHost) => void;
+  let resolvePluginsReady!: (host: MesurerPluginHost) => void;
+  let pluginsReadyResolved = false;
   const pluginHostCreated = new Promise<MesurerPluginHost>((resolve) => {
     resolvePluginHost = resolve;
   });
+  const pluginsReady = new Promise<MesurerPluginHost>((resolve) => {
+    resolvePluginsReady = resolve;
+  });
 
   const waitForPluginHost = async () => {
-    const host = pluginHost ?? await pluginHostCreated;
-    if (host.has("mesurer.runtime-bridge")) return host;
-    await new Promise<void>((resolve) => {
-      const unsubscribe = host.subscribe(() => {
-        if (!host.has("mesurer.runtime-bridge")) return;
-        unsubscribe();
-        resolve();
-      });
-    });
-    return host;
+    await (pluginHost ? Promise.resolve(pluginHost) : pluginHostCreated);
+    return pluginsReady;
   };
 
   const agentConfig: AgentBridgeOptions | null = agentOption === true
@@ -95,7 +93,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     : agentOption === false
       ? null
       : agentOption;
-  const inspectionRoot = agentConfig?.root ?? (target instanceof ShadowRoot ? target : ownerDocument);
+  const inspectionRoot = agentConfig?.root ?? (target.nodeType === 11 ? target : ownerDocument);
   const agent = createMesurerAgentHarness({
     ownerDocument,
     root: inspectionRoot,
@@ -112,6 +110,14 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
           if (!pluginHost) resolvePluginHost(host);
           pluginHost = host;
           onPluginHost?.(host);
+        }}
+        onPluginsReady={(host) => {
+          pluginHost = host;
+          if (!pluginsReadyResolved) {
+            pluginsReadyResolved = true;
+            resolvePluginsReady(host);
+          }
+          onPluginsReady?.(host);
         }}
       />
     ),
