@@ -191,5 +191,6 @@ export type {
   MesurerPluginContext,
   MesurerPluginDescription,
   MesurerPluginHost,
+  MesurerSolidRuntimeService,
   ToolContribution,
 } from "@jhomra21/mesurer-solid";
