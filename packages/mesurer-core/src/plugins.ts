@@ -88,6 +88,7 @@ const HISTORY_LIMIT = 50;
 
 export function createMesurerPluginHost() {
   let nextRegistrationId = 1;
+  let commandDepth = 0;
   const events = createEventBus<PluginEvents>();
   const plugins = new Map<string, { plugin: MesurerPlugin; registrations: Registration[] }>();
   const tools = new Map<number, Owned<ToolContribution>>();
@@ -178,15 +179,25 @@ export function createMesurerPluginHost() {
   const executeCommand = async (id: string, args?: unknown, source?: unknown) => {
     const match = [...commands.values()].reverse().find((item) => item.id === id);
     if (!match) throw new Error(`Unknown Mesurer command: ${id}`);
-    const before = snapshotState("history");
-    await match.handler(args, { source });
-    const after = snapshotState("history");
-    if (!sameSnapshot(before, after)) {
-      history.push(before);
-      if (history.length > HISTORY_LIMIT) history.shift();
-      future.length = 0;
+
+    const rootCommand = commandDepth === 0;
+    const before = rootCommand ? snapshotState("history") : null;
+    commandDepth += 1;
+    try {
+      await match.handler(args, { source });
+      await events.emit("command", { id, args });
+    } finally {
+      commandDepth -= 1;
     }
-    await events.emit("command", { id, args });
+
+    if (rootCommand && before) {
+      const after = snapshotState("history");
+      if (!sameSnapshot(before, after)) {
+        history.push(before);
+        if (history.length > HISTORY_LIMIT) history.shift();
+        future.length = 0;
+      }
+    }
   };
 
   const undo = () => {
