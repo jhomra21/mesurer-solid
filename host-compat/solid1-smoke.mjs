@@ -93,6 +93,72 @@ try {
     return Boolean(xray && getComputedStyle(xray).display === "none");
   });
 
+  // Replace a built-in at runtime. Stable agent commands and the conventional
+  // shortcut should now route to the replacement command, not legacy X-ray.
+  await page.evaluate(async () => {
+    const host = window.__MESURER_INSTANCE__?.pluginHost;
+    if (!host) throw new Error("Missing Mesurer plugin host");
+    await host.load({
+      id: "mesurer.xray",
+      version: "2.0.0-demo",
+      requires: ["runtime:solid"],
+      provides: ["tool:xray"],
+      setup(ctx) {
+        ctx.state.register({ id: "replacement.xray", initial: false, history: true });
+        ctx.command.register("replacement.xray.toggle", () => {
+          ctx.state.update("replacement.xray", (value) => !value);
+        });
+        ctx.tool.register({
+          id: "xray",
+          builtin: "xray",
+          label: "Replacement X-ray",
+          shortcut: "X",
+          command: "replacement.xray.toggle",
+          order: 20,
+          active: () => ctx.state.get("replacement.xray") === true,
+        });
+      },
+    });
+  });
+
+  const replacementXray = page.getByRole("button", { name: "Replacement X-ray (X)" });
+  await replacementXray.waitFor({ state: "visible" });
+  await page.evaluate(() => window.__MESURER__.command("builtin.xray"));
+  let replacementState = await page.evaluate(() => window.__MESURER__.state());
+  if (replacementState["replacement.xray"] !== true) {
+    throw new Error(`Stable builtin command did not route to replacement: ${JSON.stringify(replacementState)}`);
+  }
+  if (await page.evaluate(() => document.body.classList.contains("mesurer-solid-xray"))) {
+    throw new Error("Replacement builtin command leaked into legacy X-ray behavior");
+  }
+
+  const replacementUndo = await page.evaluate(() => {
+    const host = window.__MESURER_INSTANCE__?.pluginHost;
+    if (!host) return { undone: false, canUndo: true };
+    const undone = host.undo();
+    return { undone, canUndo: host.canUndo() };
+  });
+  replacementState = await page.evaluate(() => window.__MESURER__.state());
+  if (!replacementUndo.undone || replacementUndo.canUndo || replacementState["replacement.xray"] !== false) {
+    throw new Error(`Replacement command did not produce one undo action: ${JSON.stringify({ replacementUndo, replacementState })}`);
+  }
+
+  await page.keyboard.press("x");
+  replacementState = await page.evaluate(() => window.__MESURER__.state());
+  if (replacementState["replacement.xray"] !== true) {
+    throw new Error("Conventional X shortcut did not route to replacement X-ray");
+  }
+  await replacementXray.click();
+  replacementState = await page.evaluate(() => window.__MESURER__.state());
+  if (replacementState["replacement.xray"] !== false) {
+    throw new Error("Replacement toolbar contribution did not execute its command");
+  }
+
+  await page.evaluate(() => window.__MESURER_INSTANCE__?.pluginHost?.remove("mesurer.xray"));
+  await replacementXray.waitFor({ state: "detached" }).catch(async () => {
+    if (await replacementXray.isVisible()) throw new Error("Replacement X-ray contribution survived plugin removal");
+  });
+
   await page.evaluate(async () => {
     const host = window.__MESURER_INSTANCE__?.pluginHost;
     if (!host) throw new Error("Missing Mesurer plugin host");
@@ -152,7 +218,7 @@ try {
 
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join("\n")}`);
   if (consoleErrors.length) throw new Error(`Console errors: ${consoleErrors.join("\n")}`);
-  console.log("Solid 1 host + external injector + agent feedback loop + runtime services/plugins: PASS");
+  console.log("Solid 1 host + external injector + agent feedback loop + builtin replacement + runtime services/plugins: PASS");
 } finally {
   await browser.close();
 }
