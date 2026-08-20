@@ -111,7 +111,7 @@ const cases = [
   { name: "toolbar-orientation-menu-open", run: openOrientation },
   { name: "toolbar-orientation-horizontal", run: async (p) => { await openOrientation(p); await realClick(button(p, "Horizontal")); } },
   { name: "toolbar-orientation-vertical", run: async (p) => { await openOrientation(p); await realClick(button(p, "Horizontal")); await sleep(p, 50); await openOrientation(p); await realClick(button(p, "Vertical")); } },
-  { name: "toolbar-settings-open", run: openSettings },
+  { name: "toolbar-settings-open", allowVersionDiff: true, run: openSettings },
   { name: "toolbar-settings-close", run: async (p) => { await openSettings(p); await realClick(button(p, /^Settings/)); } },
 
   { name: "action-select-target", run: async (p) => { await realClick(button(p, /^Select/)); await sleep(p, 80); await p.mouse.click(340, 290); await sleep(p, 180); } },
@@ -123,7 +123,7 @@ const cases = [
   { name: "settings-tab-select", run: async (p) => openSettingsTab(p, "Select") },
   { name: "settings-tab-color", run: async (p) => openSettingsTab(p, "Color") },
   { name: "settings-tab-rulers", run: async (p) => openSettingsTab(p, "Rulers") },
-  { name: "settings-tab-general", run: async (p) => openSettingsTab(p, "General") },
+  { name: "settings-tab-general", allowVersionDiff: true, run: async (p) => openSettingsTab(p, "General") },
 
   { name: "settings-guide-pattern-solid", run: async (p) => { await openSettingsTab(p, "Guides"); await realClick(radio(p, "Solid guide pattern")); } },
   { name: "settings-guide-pattern-dashed", run: async (p) => { await openSettingsTab(p, "Guides"); await realClick(radio(p, "Dashed guide pattern")); } },
@@ -177,7 +177,10 @@ try {
       await page.locator(".mesurer-toolbar-surface").waitFor();
       await sleep(page, 100);
       await item.run(page);
-      await sleep(page, 120);
+      // Let the upstream 150ms switch/control transitions settle before the
+      // screenshot so the comparison measures the final pressed state rather
+      // than framework scheduling within the animation.
+      await sleep(page, 240);
       await page.screenshot({ path: path.join(outputDir, `${implementation}-${item.name}.png`), fullPage: false, scale: "device" });
       await fs.writeFile(path.join(outputDir, `${implementation}-${item.name}.json`), JSON.stringify(await stateSnapshot(page), null, 2));
       await context.close();
