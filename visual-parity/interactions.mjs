@@ -91,6 +91,7 @@ async function stateSnapshot(page) {
     selectedMeasurements: await page.locator('[data-mesurer-selected-measurement="true"]').count(),
     guides: await page.locator('[data-mesurer-guide="true"]').count(),
     copiedTooltip: await page.getByRole("tooltip", { name: "Copied!" }).count() > 0,
+    visibleTooltips: await page.locator('[role="tooltip"]:visible').allTextContents(),
     guideIconTransform,
   };
 }
@@ -103,7 +104,7 @@ const cases = [
   { name: "toolbar-color-picker-open", run: openColorPicker },
   { name: "toolbar-color-picker-close", run: async (p) => { await openColorPicker(p); await realClick(button(p, /^Color picker/)); await sleep(p, 80); } },
   { name: "toolbar-rulers-on", run: async (p) => realClick(button(p, /^Rulers/)) },
-  { name: "toolbar-rulers-off", run: async (p) => { await realClick(button(p, /^Rulers/)); await sleep(p, 40); await realClick(button(p, /^Rulers/)); } },
+  { name: "toolbar-rulers-off", run: async (p) => { await realClick(button(p, /^Rulers/)); await sleep(p, 40); await realClick(button(p, /^Rulers/)); await p.mouse.move(900, 700); } },
   { name: "toolbar-text-inspector-on", run: async (p) => realClick(button(p, /^Text inspector/)) },
   { name: "toolbar-text-inspector-off", run: async (p) => { await realClick(button(p, /^Text inspector/)); await sleep(p, 40); await realClick(button(p, /^Text inspector/)); } },
   { name: "toolbar-guides-on", run: async (p) => realClick(button(p, /^Guides/)) },
