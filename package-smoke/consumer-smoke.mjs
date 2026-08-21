@@ -92,9 +92,54 @@ async function runCase(browser, testCase) {
   }
 }
 
+async function runTrustedTypesCase(browser) {
+  const name = "Trusted Types browser-eval injector";
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(String(error)));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+
+  try {
+    await page.goto(process.env.TRUSTED_TYPES_URL ?? "http://127.0.0.1:4193", {
+      waitUntil: "domcontentloaded",
+    });
+    const injectPath = process.env.REACT_INJECT_SCRIPT_PATH
+      || "/tmp/mesurer-react/node_modules/@jhomra21/mesurer-solid/dist/inject-script.js";
+    const source = await readFile(injectPath, "utf8");
+    await page.evaluate(source);
+
+    await page.waitForFunction(() => Boolean(window.__MESURER__));
+    await page.evaluate(() => window.__MESURER__.ready());
+    await page.waitForFunction(() => {
+      const island = document.querySelector("[data-mesurer-island='true']");
+      return Boolean(island?.shadowRoot?.querySelector("[data-mesurer-toolbar='true']"));
+    });
+
+    const inspection = await page.evaluate(() => window.__MESURER__.inspect("h1"));
+    if (!inspection || inspection.text !== "Trusted Types host" || inspection.rect.width <= 0) {
+      throw new Error(`${name} inspection failed: ${JSON.stringify(inspection)}`);
+    }
+
+    const description = await page.evaluate(() => window.__MESURER__.describe());
+    if (!description?.commands.includes("builtin.settings")) {
+      throw new Error(`${name} did not initialize all built-ins`);
+    }
+
+    if (errors.length) throw new Error(`${name} page errors:\n${errors.join("\n")}`);
+    console.log(`${name} packed-package consumer: PASS`);
+  } finally {
+    await page.close();
+  }
+}
+
 const browser = await chromium.launch({ headless: true });
 try {
-  await Promise.all(cases.map((testCase) => runCase(browser, testCase)));
+  await Promise.all([
+    ...cases.map((testCase) => runCase(browser, testCase)),
+    runTrustedTypesCase(browser),
+  ]);
 } finally {
   await browser.close();
 }
