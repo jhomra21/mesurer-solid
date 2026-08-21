@@ -1,0 +1,33 @@
+name: refresh-solid-lock
+
+on:
+  push:
+    branches:
+      - fix/trusted-types-renderer
+
+permissions:
+  contents: write
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/trusted-types-renderer
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install
+      - name: Commit generated lockfile
+        shell: bash
+        run: |
+          if git diff --quiet -- bun.lock; then
+            echo "bun.lock already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bun.lock
+          git commit -m "chore: refresh Solid compiler lockfile"
+          git push origin HEAD:fix/trusted-types-renderer
