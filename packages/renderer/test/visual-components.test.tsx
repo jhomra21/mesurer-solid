@@ -1,8 +1,8 @@
-import { render } from "@solidjs/web";
 import { afterEach, describe, expect, it } from "vitest";
 import { MeasurementBox } from "../src/components/MeasurementBox";
 import { DistanceOverlayItem } from "../src/components/DistanceOverlayItem";
 import type { DistanceOverlay, InspectMeasurement } from "../src/core/types";
+import { createElement, render } from "../src/solid-dom";
 
 const disposers: Array<() => void> = [];
 afterEach(() => {
@@ -11,6 +11,15 @@ afterEach(() => {
 });
 
 describe("upstream Mesurer visual contracts", () => {
+  it("applies compiler-hoisted static props when creating universal DOM elements", () => {
+    const element = createElement("div", {
+      class: "adapter-class",
+      "data-adapter": true,
+    }) as HTMLElement;
+    expect(element.className).toBe("adapter-class");
+    expect(element.hasAttribute("data-adapter")).toBe(true);
+  });
+
   it("renders measurement tags as upstream width x height without element labels", () => {
     const host = document.createElement("div");
     document.body.append(host);
@@ -33,7 +42,7 @@ describe("upstream Mesurer visual contracts", () => {
     expect(host.textContent).not.toContain("div#should-not-render");
     expect(host.textContent).not.toContain("×");
     const tag = host.querySelector<HTMLElement>('[class*="msr:bg-ink-900/90"]');
-    expect(tag).toBeTruthy();
+    expect(tag, `Rendered measurement HTML: ${host.innerHTML}`).toBeTruthy();
     expect(tag!.className).toContain("msr:text-[10px]");
     expect(tag!.className).toContain("msr:rounded");
   });
@@ -54,7 +63,8 @@ describe("upstream Mesurer visual contracts", () => {
 
     disposers.push(render(() => <DistanceOverlayItem distance={distance} />, host));
 
-    expect(host.querySelectorAll('[class*="msr:border-[#2563eb]/70"]').length).toBeGreaterThanOrEqual(2);
+    const outlines = host.querySelectorAll('[class*="msr:border-[#2563eb]/70"]');
+    expect(outlines.length, `Rendered distance HTML: ${host.innerHTML}`).toBeGreaterThanOrEqual(2);
     expect(host.querySelector('[class*="msr:border-dashed"]')).toBeTruthy();
     expect(host.querySelector('[class*="msr:bg-[#2563eb]"]')).toBeTruthy();
     expect(host.textContent?.trim()).toBe("24");

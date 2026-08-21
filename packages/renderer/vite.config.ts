@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import solid from "@solidjs/vite-plugin";
 
@@ -7,8 +8,22 @@ const webStorageDisableFlag = process.allowedNodeEnvironmentFlags.has("--no-webs
     ? "--no-experimental-webstorage"
     : undefined;
 
+const solidDomRuntime = fileURLToPath(new URL("./src/solid-dom.ts", import.meta.url));
+
 export default defineConfig({
-  plugins: [solid()],
+  plugins: [
+    solid({
+      solid: {
+        generate: "universal",
+        moduleName: "@mesurer/solid-dom",
+      },
+    }),
+  ],
+  resolve: {
+    alias: {
+      "@mesurer/solid-dom": solidDomRuntime,
+    },
+  },
   test: {
     // Node 25+ enables process-wide Web Storage by default. Disable it in
     // Vitest workers so jsdom remains the owner of window.localStorage.

@@ -6,6 +6,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Make the private Solid 2 renderer compatible with strict Trusted Types pages by compiling through Solid's universal renderer and creating DOM nodes directly instead of relying on HTML-string template sinks.
+- Add an exact packed-package browser regression for `require-trusted-types-for 'script'; trusted-types 'none'`, combined with the current hostile host-isolation checks.
+- Document the Trusted Types renderer contract separately from host-page occlusion/isolation guarantees.
+
 ## 0.1.0-beta.5 - 2026-08-21
 
 - Harden Mesurer against host-page occlusion with browser top-layer mounting, hostile-CSS protection, later-overlay reassertion, modal-dialog handling, and a fixed fallback.

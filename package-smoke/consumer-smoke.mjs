@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { chromium } from "playwright";
 
 const cases = [
@@ -247,9 +248,88 @@ async function runCase(browser, testCase) {
   }
 }
 
+async function runTrustedTypesCase(browser, url) {
+  const testCase = { name: "Trusted Types browser-eval injector" };
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(String(error)));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+    const injectPath = process.env.REACT_INJECT_SCRIPT_PATH
+      || "/tmp/mesurer-react/node_modules/@jhomra21/mesurer-solid/dist/inject-script.js";
+    const source = await readFile(injectPath, "utf8");
+    await page.evaluate(source);
+
+    await page.waitForFunction(() => Boolean(window.__MESURER__));
+    await page.evaluate(() => window.__MESURER__.ready());
+    await page.waitForFunction(() => {
+      const island = document.querySelector("[data-mesurer-island='true']");
+      return Boolean(island?.shadowRoot?.querySelector("[data-mesurer-toolbar='true']"));
+    }, undefined, { timeout: 5000 });
+
+    await assertHostIsolation(page, testCase);
+
+    const island = page.locator("[data-mesurer-island='true']");
+    const toolbarButton = island.locator("[data-mesurer-toolbar='true'] button").first();
+    await toolbarButton.click();
+    if ((await toolbarButton.getAttribute("aria-pressed")) !== "true") {
+      throw new Error(`${testCase.name} toolbar did not remain interactive`);
+    }
+
+    const inspection = await page.evaluate(() => window.__MESURER__.inspect("h1"));
+    if (!inspection || inspection.text !== "Trusted Types host" || inspection.rect.width <= 0) {
+      throw new Error(`${testCase.name} inspection failed: ${JSON.stringify(inspection)}`);
+    }
+
+    const description = await page.evaluate(() => window.__MESURER__.describe());
+    if (!description?.commands.includes("builtin.settings")) {
+      throw new Error(`${testCase.name} did not initialize all built-ins`);
+    }
+
+    if (errors.length) throw new Error(`${testCase.name} page errors:\n${errors.join("\n")}`);
+    console.log(`${testCase.name} packed-package consumer: PASS`);
+  } finally {
+    await page.close();
+  }
+}
+
+function startTrustedTypesServer() {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; require-trusted-types-for 'script'; trusted-types 'none'",
+    });
+    response.end("<!doctype html><html><body><header data-hostile-header='hostile-header' style='position:fixed;inset:0 0 auto 0;height:80px;z-index:2147483646;background:#111'></header><main><h1>Trusted Types host</h1><p>No Mesurer import.</p></main></body></html>");
+  });
+
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        reject(new Error("Unable to resolve Trusted Types smoke server address"));
+        return;
+      }
+      resolve({
+        server,
+        url: `http://127.0.0.1:${address.port}`,
+      });
+    });
+  });
+}
+
+const trustedTypesHost = await startTrustedTypesServer();
 const browser = await chromium.launch({ headless: true });
 try {
-  await Promise.all(cases.map((testCase) => runCase(browser, testCase)));
+  await Promise.all([
+    ...cases.map((testCase) => runCase(browser, testCase)),
+    runTrustedTypesCase(browser, trustedTypesHost.url),
+  ]);
 } finally {
   await browser.close();
+  await new Promise((resolve, reject) => trustedTypesHost.server.close((error) => error ? reject(error) : resolve()));
 }
