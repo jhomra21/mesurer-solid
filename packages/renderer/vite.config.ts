@@ -13,7 +13,6 @@ const solidDomRuntime = fileURLToPath(new URL("./src/solid-dom.ts", import.meta.
 export default defineConfig({
   plugins: [
     solid({
-      compiler: "babel",
       solid: {
         generate: "universal",
         moduleName: "@mesurer/solid-dom",
