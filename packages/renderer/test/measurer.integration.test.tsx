@@ -1,6 +1,6 @@
 import { flush } from "solid-js";
 import { render } from "@solidjs/web";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import Measurer from "../src/Measurer";
 
 const settle = async () => {
@@ -17,6 +17,7 @@ afterEach(async () => {
   await settle();
   document.body.replaceChildren();
   document.head.querySelectorAll("#mesurer-solid-styles, #mesurer-solid-xray-styles").forEach((node) => node.remove());
+  vi.restoreAllMocks();
 });
 
 describe("Measurer host integration", () => {
@@ -85,6 +86,32 @@ describe("Measurer host integration", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "m" }));
     await settle();
     expect(selectButton.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("does not emit Solid strict untracked-read diagnostics", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    const dispose = render(() => <Measurer persistKey="integration-strict-reads" />, host);
+    mounted.push(dispose);
+    await settle();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "s" }));
+    await settle();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: ",", ctrlKey: true }));
+    await settle();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await settle();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p" }));
+    await settle();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "m" }));
+    await settle();
+
+    const strictReadWarnings = warn.mock.calls.filter((args) =>
+      args.some((value) => String(value).includes("STRICT_READ_UNTRACKED")),
+    );
+    expect(strictReadWarnings).toEqual([]);
   });
 
   it("creates and cleans up an Element portal host inside a ShadowRoot", async () => {
