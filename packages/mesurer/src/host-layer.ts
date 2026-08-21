@@ -61,6 +61,17 @@ function supportsPopover(container: HTMLDivElement): container is PopoverHost {
     && typeof (container as Partial<PopoverHost>).hidePopover === "function";
 }
 
+const isDialog = (element: Element): element is HTMLDialogElement => element.localName === "dialog";
+
+function isModalDialog(element: Element): element is HTMLDialogElement {
+  if (!isDialog(element) || !element.open) return false;
+  try {
+    return element.matches(":modal");
+  } catch {
+    return false;
+  }
+}
+
 export type MesurerHostLayer = {
   mode: MesurerHostLayerMode;
   bringToFront(): void;
@@ -74,6 +85,11 @@ export type MesurerHostLayer = {
  * itself protect the shadow host from page stacking contexts, clipping, or
  * author styles. A manual popover escapes ordinary document stacking and
  * ancestor clipping. The fixed/max-z-index host is the compatibility fallback.
+ *
+ * Modal dialogs are special: the platform makes every node outside the active
+ * modal inert. When an observable modal opens, Mesurer temporarily reparents
+ * its host into that dialog so the toolbar stays interactive, then restores the
+ * original parent when the modal closes.
  */
 export function mountMesurerHost(
   container: HTMLDivElement,
@@ -84,10 +100,12 @@ export function mountMesurerHost(
 
   const ownerDocument = container.ownerDocument;
   const ownerWindow = ownerDocument.defaultView ?? window;
+  const originalTarget = target;
   let disposed = false;
   let mode: MesurerHostLayerMode = "fixed";
   let topLayer = false;
   let reassertFrame = 0;
+  let modalStack: HTMLDialogElement[] = [];
 
   if (preferTopLayer && supportsPopover(container)) {
     container.popover = "manual";
@@ -104,6 +122,47 @@ export function mountMesurerHost(
       container.removeAttribute("popover");
     }
   }
+
+  const showTopLayer = () => {
+    if (!topLayer || !supportsPopover(container)) return;
+    try {
+      if (!container.matches(":popover-open")) container.showPopover();
+    } catch {
+      // The fixed host remains a usable fallback if the browser temporarily
+      // rejects a top-layer transition.
+    }
+  };
+
+  const moveHost = (parent: HTMLElement | ShadowRoot) => {
+    if (container.parentNode === parent) return;
+    const wasOpen = topLayer && supportsPopover(container) && container.matches(":popover-open");
+    if (wasOpen && supportsPopover(container)) {
+      try {
+        container.hidePopover();
+      } catch {
+        // Continue with the DOM move; showTopLayer() below is best effort.
+      }
+    }
+    parent.append(container);
+    hardenHost(container);
+    if (wasOpen) showTopLayer();
+  };
+
+  const syncModalParent = () => {
+    modalStack = modalStack.filter((dialog) => dialog.isConnected && isModalDialog(dialog));
+    moveHost(modalStack.at(-1) ?? originalTarget);
+  };
+
+  const activateModal = (dialog: HTMLDialogElement) => {
+    modalStack = modalStack.filter((candidate) => candidate !== dialog);
+    modalStack.push(dialog);
+    syncModalParent();
+  };
+
+  const deactivateModal = (dialog: HTMLDialogElement) => {
+    modalStack = modalStack.filter((candidate) => candidate !== dialog);
+    syncModalParent();
+  };
 
   const bringToFront = () => {
     if (disposed || !topLayer || !supportsPopover(container)) return;
@@ -127,16 +186,40 @@ export function mountMesurerHost(
   const handleToggle = (event: Event) => {
     if (!topLayer || event.target === container) return;
     const toggle = event as Event & { newState?: string };
-    if (toggle.newState !== "open") return;
     const element = event.target;
     if (!(element instanceof ownerWindow.Element)) return;
-    if (element.hasAttribute("popover") || element.localName === "dialog") {
+
+    if (isDialog(element)) {
+      if (toggle.newState === "open" && isModalDialog(element)) {
+        activateModal(element);
+        scheduleBringToFront();
+      } else if (toggle.newState === "closed") {
+        deactivateModal(element);
+      } else if (toggle.newState === "open") {
+        scheduleBringToFront();
+      }
+      return;
+    }
+
+    if (toggle.newState === "open" && element.hasAttribute("popover")) {
       scheduleBringToFront();
     }
   };
 
+  const handleClose = (event: Event) => {
+    const element = event.target;
+    if (element instanceof ownerWindow.Element && isDialog(element)) deactivateModal(element);
+  };
+
   const handleFullscreenChange = () => {
     if (ownerDocument.fullscreenElement) scheduleBringToFront();
+  };
+
+  const scanForModals = (root: Element) => {
+    if (isModalDialog(root)) activateModal(root);
+    for (const dialog of root.querySelectorAll("dialog")) {
+      if (isModalDialog(dialog)) activateModal(dialog);
+    }
   };
 
   const observer = new ownerWindow.MutationObserver((records) => {
@@ -144,26 +227,21 @@ export function mountMesurerHost(
     for (const record of records) {
       if (record.type === "attributes") {
         const element = record.target;
-        if (element instanceof ownerWindow.HTMLDialogElement && element.open) {
-          scheduleBringToFront();
-          return;
+        if (element instanceof ownerWindow.Element && isDialog(element)) {
+          if (isModalDialog(element)) activateModal(element);
+          else deactivateModal(element);
         }
       }
       for (const node of record.addedNodes) {
-        if (!(node instanceof ownerWindow.Element)) continue;
-        if (
-          (node instanceof ownerWindow.HTMLDialogElement && node.open)
-          || Boolean(node.querySelector("dialog[open]"))
-        ) {
-          scheduleBringToFront();
-          return;
-        }
+        if (node instanceof ownerWindow.Element) scanForModals(node);
       }
+      if (modalStack.some((dialog) => !dialog.isConnected)) syncModalParent();
     }
   });
 
   if (topLayer) {
     ownerDocument.addEventListener("toggle", handleToggle, true);
+    ownerDocument.addEventListener("close", handleClose, true);
     ownerDocument.addEventListener("fullscreenchange", handleFullscreenChange, true);
     observer.observe(ownerDocument.documentElement, {
       subtree: true,
@@ -171,6 +249,7 @@ export function mountMesurerHost(
       attributes: true,
       attributeFilter: ["open"],
     });
+    scanForModals(ownerDocument.documentElement);
   }
 
   return {
@@ -181,6 +260,7 @@ export function mountMesurerHost(
       disposed = true;
       if (reassertFrame) ownerWindow.cancelAnimationFrame(reassertFrame);
       ownerDocument.removeEventListener("toggle", handleToggle, true);
+      ownerDocument.removeEventListener("close", handleClose, true);
       ownerDocument.removeEventListener("fullscreenchange", handleFullscreenChange, true);
       observer.disconnect();
       if (topLayer && supportsPopover(container) && container.matches(":popover-open")) {
@@ -190,6 +270,7 @@ export function mountMesurerHost(
           // Removing the host below also removes it from the top layer.
         }
       }
+      modalStack = [];
     },
   };
 }
