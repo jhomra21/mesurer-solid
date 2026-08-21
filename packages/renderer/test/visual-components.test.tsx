@@ -1,8 +1,8 @@
-import { render } from "@solidjs/web";
 import { afterEach, describe, expect, it } from "vitest";
 import { MeasurementBox } from "../src/components/MeasurementBox";
 import { DistanceOverlayItem } from "../src/components/DistanceOverlayItem";
 import type { DistanceOverlay, InspectMeasurement } from "../src/core/types";
+import { render } from "../src/solid-dom";
 
 const disposers: Array<() => void> = [];
 afterEach(() => {
