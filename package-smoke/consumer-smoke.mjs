@@ -20,6 +20,159 @@ const cases = [
   },
 ];
 
+async function assertHostIsolation(page, testCase) {
+  const result = await page.evaluate(async () => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const toolbar = island?.shadowRoot?.querySelector("[data-mesurer-toolbar='true']");
+    if (!(island instanceof HTMLElement) || !(toolbar instanceof HTMLElement)) {
+      throw new Error("Mesurer island/toolbar missing during host-isolation smoke test");
+    }
+
+    const frames = async (count = 2) => {
+      for (let index = 0; index < count; index += 1) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+    };
+
+    const originalParent = island.parentNode;
+    const hostileStyle = document.createElement("style");
+    hostileStyle.dataset.hostileMesurerSmoke = "true";
+    hostileStyle.textContent = `
+      html, body { overflow: hidden !important; }
+      body { transform: translateZ(0) !important; contain: paint !important; }
+      [data-mesurer-island='true'] {
+        display: none !important;
+        position: static !important;
+        inset: auto !important;
+        width: 1px !important;
+        height: 1px !important;
+        overflow: hidden !important;
+        z-index: -1 !important;
+        opacity: 0.01 !important;
+        transform: scale(0.01) !important;
+      }
+    `;
+    document.head.append(hostileStyle);
+
+    const blocker = document.createElement("div");
+    blocker.dataset.hostileOverlay = "true";
+    Object.assign(blocker.style, {
+      position: "fixed",
+      inset: "0",
+      zIndex: "2147483647",
+      pointerEvents: "auto",
+      background: "rgba(255, 0, 0, 0.01)",
+    });
+    document.body.append(blocker);
+
+    await frames(3);
+
+    const toolbarRect = toolbar.getBoundingClientRect();
+    const point = {
+      x: toolbarRect.left + toolbarRect.width / 2,
+      y: toolbarRect.top + toolbarRect.height / 2,
+    };
+    const computed = getComputedStyle(island);
+    const ordinaryHit = document.elementFromPoint(point.x, point.y);
+    const topLayer = island.matches(":popover-open");
+
+    let laterPopoverStayedAbove = true;
+    if ("popover" in HTMLElement.prototype && typeof HTMLElement.prototype.showPopover === "function") {
+      const hostPopover = document.createElement("div");
+      hostPopover.popover = "manual";
+      Object.assign(hostPopover.style, {
+        position: "fixed",
+        inset: "0",
+        width: "100vw",
+        height: "100vh",
+        margin: "0",
+        pointerEvents: "auto",
+        background: "rgba(0, 0, 255, 0.01)",
+      });
+      document.body.append(hostPopover);
+      hostPopover.showPopover();
+      await frames(4);
+      laterPopoverStayedAbove = document.elementFromPoint(point.x, point.y) === island;
+      hostPopover.hidePopover();
+      hostPopover.remove();
+    }
+
+    let modalInteractive = true;
+    let restoredAfterModal = true;
+    if (typeof HTMLDialogElement.prototype.showModal === "function") {
+      const dialog = document.createElement("dialog");
+      dialog.textContent = "Host modal";
+      Object.assign(dialog.style, {
+        position: "fixed",
+        inset: "0",
+        width: "100vw",
+        height: "100vh",
+        margin: "0",
+        border: "0",
+        padding: "0",
+      });
+      document.body.append(dialog);
+      dialog.showModal();
+      await frames(4);
+      modalInteractive = island.parentNode === dialog
+        && document.elementFromPoint(point.x, point.y) === island;
+      dialog.close();
+      await frames(3);
+      restoredAfterModal = island.parentNode === originalParent;
+      dialog.remove();
+    }
+
+    blocker.remove();
+    hostileStyle.remove();
+
+    return {
+      topLayer,
+      ordinaryHitIsMesurer: ordinaryHit === island,
+      laterPopoverStayedAbove,
+      modalInteractive,
+      restoredAfterModal,
+      hostStyle: {
+        display: computed.display,
+        position: computed.position,
+        width: computed.width,
+        height: computed.height,
+        zIndex: computed.zIndex,
+        opacity: computed.opacity,
+        transform: computed.transform,
+        overflow: computed.overflow,
+      },
+      toolbarRect: {
+        width: toolbarRect.width,
+        height: toolbarRect.height,
+      },
+    };
+  });
+
+  if (!result.topLayer) {
+    throw new Error(`${testCase.name} did not promote Mesurer into the browser top layer: ${JSON.stringify(result)}`);
+  }
+  if (!result.ordinaryHitIsMesurer) {
+    throw new Error(`${testCase.name} Mesurer toolbar was occluded by an extreme host overlay: ${JSON.stringify(result)}`);
+  }
+  if (!result.laterPopoverStayedAbove) {
+    throw new Error(`${testCase.name} Mesurer did not reassert above a later host popover: ${JSON.stringify(result)}`);
+  }
+  if (!result.modalInteractive || !result.restoredAfterModal) {
+    throw new Error(`${testCase.name} Mesurer did not stay interactive through a modal dialog: ${JSON.stringify(result)}`);
+  }
+  if (
+    result.hostStyle.display === "none"
+    || result.hostStyle.position !== "fixed"
+    || result.hostStyle.opacity !== "1"
+    || result.hostStyle.transform !== "none"
+    || result.hostStyle.overflow !== "visible"
+    || result.toolbarRect.width <= 0
+    || result.toolbarRect.height <= 0
+  ) {
+    throw new Error(`${testCase.name} host-page CSS overrode Mesurer's protected host contract: ${JSON.stringify(result)}`);
+  }
+}
+
 async function runCase(browser, testCase) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
@@ -43,6 +196,8 @@ async function runCase(browser, testCase) {
       const island = document.querySelector("[data-mesurer-island='true']");
       return Boolean(island?.shadowRoot?.querySelector("[data-mesurer-toolbar='true']"));
     });
+
+    await assertHostIsolation(page, testCase);
 
     const button = page.locator("[data-testid='consumer-counter']");
     await button.click();
