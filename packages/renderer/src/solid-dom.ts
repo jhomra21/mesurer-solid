@@ -159,6 +159,8 @@ export const {
   spread,
   setProp,
   mergeProps,
+  applyRef,
+  ref,
   use,
 } = createRenderer<Node>({
   createElement(tagName) {
@@ -194,12 +196,12 @@ export const {
 });
 
 export {
-  ErrorBoundary,
+  Errored,
   For,
-  Index,
+  Loading,
   Match,
+  Repeat,
+  Reveal,
   Show,
-  Suspense,
-  SuspenseList,
   Switch,
 } from "solid-js";
