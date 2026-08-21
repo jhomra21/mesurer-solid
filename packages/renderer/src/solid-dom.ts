@@ -1,4 +1,4 @@
-import { createRenderer } from "solid-js/universal";
+import { createRenderer } from "@solidjs/universal";
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 const XLINK_NAMESPACE = "http://www.w3.org/1999/xlink";
