@@ -1,7 +1,7 @@
 import { flush } from "solid-js";
-import { render } from "@solidjs/web";
 import { afterEach, describe, expect, it } from "vitest";
 import Measurer from "../src/Measurer";
+import { render } from "../src/solid-dom";
 
 const settle = async () => {
   await Promise.resolve();
