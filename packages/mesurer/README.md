@@ -1,6 +1,6 @@
 # @jhomra21/mesurer-solid
 
-Framework-agnostic UI measurement and inspection tools for browser applications and coding agents.
+Framework-agnostic UI measurement and inspection tools for browser applications and coding agents, built as a Solid 2 port/remix and extension of [Mesurer](https://github.com/ibelick/mesurer), originally created by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick).
 
 Mesurer is both an interactive developer tool and a machine-readable inspection layer. Its reference UI is implemented in Solid 2, but the public package bundles that renderer/runtime privately. Host applications do not need Solid 2 and can use Solid 1, Solid 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer.
 
@@ -29,27 +29,20 @@ During the beta:
 bun add -d @jhomra21/mesurer-solid@beta
 ```
 
-## Mount from application code
+## Agent quick start — inject into your existing harness
 
-```ts
-import { mountMeasurer } from "@jhomra21/mesurer-solid";
+**Using Mesurer from an agent should normally require no changes to the target application's source or build.**
 
-const mesurer = mountMeasurer({ agent: true });
-await mesurer.ready;
+The default host-project mutation budget is **zero**. If the harness can execute JavaScript in the current browser page, Electron renderer, WebView, or other DOM host, reuse that existing path:
 
-console.log(mesurer.agent.inspect("[data-testid='save']"));
-console.log(mesurer.agent.distance("#sidebar", "main"));
-console.log(mesurer.hostLayer); // "top-layer" on supported modern browsers
-
-// Later
-mesurer.dispose();
+```text
+existing harness
+  → existing page / renderer
+  → evaluate @jhomra21/mesurer-solid/inject-script
+  → window.__MESURER__
 ```
 
-`mountMeasurer()` creates an isolated ShadowRoot by default. On browsers with Popover API support, the outer host is promoted into the browser top layer so ordinary stacking contexts and ancestor clipping cannot cover it. The mounted instance exposes the live `agent` harness, `pluginHost`, `hostLayer`, `bringToFront()`, `ready`, `describe()`, and `dispose()`.
-
-Useful options include `target`, `isolate`, `shadowMode`, `topLayer`, colors, guide/ruler settings, persistence, `plugins`, `excludePlugins`, a supplied `pluginHost`, and agent bridge configuration.
-
-## Inject from an existing coding-agent browser tool
+Do **not** add Mesurer to application source, create a Mesurer-specific build, add another browser/CDP stack, or introduce project-specific `start:mesurer` / `package:mesurer` commands merely to inspect the UI. Those are optional conveniences only when the user explicitly wants a persistent embedded development workflow.
 
 The preferred transport-neutral agent path is:
 
@@ -57,7 +50,7 @@ The preferred transport-neutral agent path is:
 @jhomra21/mesurer-solid/inject-script
 ```
 
-`inject-script.js` is a self-contained classic script. Resolve/read it as text and execute the source with the browser primitive the agent already owns (`browser_eval`, `browser_execute`, CDP `Runtime.evaluate`, etc.). Do not launch a second browser or duplicate navigation/click/screenshot APIs just for Mesurer.
+Resolve/read it as text and execute the source with the JavaScript primitive the agent already owns (`browser_eval`, `browser_execute`, CDP `Runtime.evaluate`, etc.):
 
 ```js
 import { readFile } from "node:fs/promises";
@@ -81,6 +74,17 @@ window.__MESURER_INSTANCE__ mounted instance and pluginHost access
 
 Reinjection disposes the previous injected instance first.
 
+For packaged applications, prefer the **ordinary packaged artifact** plus an existing attach/evaluate channel. If the normal artifact can be launched with CDP enabled, launch that same artifact, attach the existing harness, and inject Mesurer. Do not compile Mesurer into a special package merely to inspect it.
+
+| Situation | Mesurer workflow |
+| --- | --- |
+| Harness already has browser JavaScript execution | **Inject `/inject-script`** |
+| Electron renderer is reachable through existing CDP | **Attach the existing harness + inject** |
+| Normal packaged app can be launched with CDP | **Launch the same artifact + inject** |
+| User explicitly wants Mesurer every development launch | `mountMeasurer()` may be appropriate |
+| No renderer evaluation path exists | Explain the limitation, then consider source integration |
+| Agent wants a new browser, command, or build just for Mesurer | **Don't; reuse the existing harness** |
+
 Harnesses that specifically support adding an ES module script can alternatively use:
 
 ```text
@@ -100,6 +104,30 @@ window.__MESURER_CONFIG__ = {
 ```
 
 Neither injection entry opens a network listener or remote-control service.
+
+See the shipped [`AGENT_INTEGRATION.md`](./AGENT_INTEGRATION.md) for the concise agent contract.
+
+## Optional app integration — mount from source
+
+Use `mountMeasurer()` from application code when the user explicitly wants Mesurer embedded as a persistent development tool, or when no external JavaScript-evaluation path exists.
+
+```ts
+import { mountMeasurer } from "@jhomra21/mesurer-solid";
+
+const mesurer = mountMeasurer({ agent: true });
+await mesurer.ready;
+
+console.log(mesurer.agent.inspect("[data-testid='save']"));
+console.log(mesurer.agent.distance("#sidebar", "main"));
+console.log(mesurer.hostLayer); // "top-layer" on supported modern browsers
+
+// Later
+mesurer.dispose();
+```
+
+`mountMeasurer()` creates an isolated ShadowRoot by default. On browsers with Popover API support, the outer host is promoted into the browser top layer so ordinary stacking contexts and ancestor clipping cannot cover it. The mounted instance exposes the live `agent` harness, `pluginHost`, `hostLayer`, `bringToFront()`, `ready`, `describe()`, and `dispose()`.
+
+Useful options include `target`, `isolate`, `shadowMode`, `topLayer`, colors, guide/ruler settings, persistence, `plugins`, `excludePlugins`, a supplied `pluginHost`, and agent bridge configuration.
 
 ## Agent API
 
