@@ -45,7 +45,7 @@ bun add -d @jhomra21/mesurer-solid@beta
 | Use Mesurer from Playwright, CDP, Cypress, Electron, or another harness | Reuse the harness that already owns the page/renderer and inject. |
 | Build or replace Mesurer tools | Use the public `/core` plugin/runtime API. |
 
-## Human quick start — your own website
+## Quick start — your own website
 
 Mount Mesurer from client-side application code:
 
@@ -70,7 +70,7 @@ if (import.meta.env.DEV) {
 
 The host app does not need Solid 2; Mesurer carries its own isolated renderer/runtime.
 
-## Human quick start — any website
+## Quick start — any website
 
 You can use Mesurer on a website without changing that site's source. The current no-extension workflow is a saved browser DevTools Snippet built from the published self-contained `/inject-script` payload.
 
@@ -91,7 +91,7 @@ Then in Chrome, Edge, or another Chromium browser:
 
 Run the snippet again after a full page navigation/reload. Re-running it on the same page is safe because Mesurer disposes the previous injected instance before mounting the new one.
 
-This requires a desktop browser that permits DevTools JavaScript execution in the current page. Mesurer does not bypass browser security boundaries. A first-party browser extension is not currently shipped; the saved DevTools Snippet is the current human zero-source-change path for arbitrary websites.
+This requires a desktop browser that permits DevTools JavaScript execution in the current page. Mesurer does not bypass browser security boundaries. A first-party browser extension is not currently shipped; the saved DevTools Snippet is the current zero-source-change path for arbitrary websites.
 
 ## Agent quick start — inject into your existing harness
 
@@ -173,7 +173,7 @@ See the shipped [`AGENT_INTEGRATION.md`](./AGENT_INTEGRATION.md) for the concise
 
 ## App integration API — mount from source
 
-Use `mountMeasurer()` when Mesurer should be embedded in a browser application or automatically present during development. The human quick start above uses this same API; this section shows the optional agent bridge and mounted-instance lifecycle.
+Use `mountMeasurer()` when Mesurer should be embedded in a browser application or automatically present during development. The quick start above uses this same API; this section shows the optional agent bridge and mounted-instance lifecycle.
 
 ```ts
 import { mountMeasurer } from "@jhomra21/mesurer-solid";
