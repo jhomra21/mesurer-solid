@@ -10,6 +10,21 @@ The core rules are simple:
 
 Do not build a second browser-control stack around Mesurer.
 
+## Upstream origin and attribution — preserve this
+
+Mesurer Solid is an adaptation and extension of [`ibelick/mesurer`](https://github.com/ibelick/mesurer), originally created by **Julien Thibeaut (`@ibelick`)**. This provenance is part of the repository's identity, not incidental boilerplate.
+
+When editing this repository:
+
+- preserve clear attribution to the original Mesurer project and Julien Thibeaut in the README, [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md), and any documentation that discusses the project's origin or upstream parity;
+- never rewrite documentation, package copy, release notes, or outreach material in a way that implies Mesurer Solid, the baseline Mesurer UI, or the original measurement tool originated in this repository;
+- do not remove or obscure the upstream repository link, copyright notice, MIT license attribution, or references to the pinned upstream visual/behavioral contract;
+- distinguish upstream-derived work from later Mesurer Solid extensions. It is appropriate to describe this repository's Solid 2 port, framework-independent package boundary, agent bridge, plugin runtime, host-page isolation, Trusted Types renderer, and other new work as extensions, but do not retroactively attribute those additions to the upstream author;
+- if documentation is reorganized, **move attribution rather than deleting it**, and keep it easy for users to discover;
+- treat a change that weakens or hides upstream attribution as a documentation regression that must be corrected before merge.
+
+The authoritative third-party license notice remains [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).
+
 ## 1. Preferred integration: inject into the existing page
 
 A user application does **not** need to import Mesurer.
@@ -415,7 +430,8 @@ When changing public behavior:
 4. keep built-in command names stable when replacing implementation details;
 5. add regression coverage for bugs that would otherwise recur silently;
 6. reduce host-page compatibility bugs to browser primitives instead of adding site-specific patches;
-7. do not bypass the pinned visual/interaction parity gates for default-renderer changes.
+7. do not bypass the pinned visual/interaction parity gates for default-renderer changes;
+8. preserve the upstream Mesurer/Julien Thibeaut attribution invariant above and the authoritative notice in `THIRD_PARTY_LICENSES.md`.
 
 For normal releases, follow [`RELEASING.md`](./RELEASING.md). Do **not** manually edit the public package version, create release tags, or manually `npm publish` as a substitute for the repository release workflow.
 
