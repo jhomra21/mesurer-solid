@@ -1,172 +1,149 @@
-# Browser and agent harness
+# Browser and agent integration
 
-The repository includes a local browser harness for mounting the exact Mesurer Solid `/inject` bundle into pages that do not depend on Mesurer at all. It is intended for manual cross-framework testing, arbitrary-site inspection, and agent/tool adapters.
+Mesurer Solid is designed to sit **on top of whatever browser control the agent already has**. It does not need to own Chromium, duplicate navigation/click/screenshot tools, or run a Mesurer-specific RPC server.
 
-## Build once
+## Primary architecture
 
-The harness injects the built browser entry at `packages/mesurer/dist/inject.js` by default.
-
-```bash
-bun install --frozen-lockfile
-bun run build
+```text
+Codex / Claude Code / Droid / Pi / OpenCode / other harness
+                         │
+                 existing browser tool
+                         │
+          existing Chrome / Electron / tab
+                         │
+              evaluate Mesurer payload
+                         │
+                window.__MESURER__
 ```
 
-You can override the bundle with `--inject /absolute/path/to/inject.js`. This is useful for testing the exact `dist/inject.js` extracted from an npm tarball.
+The outer harness remains responsible for:
 
-## Launch a clean Chromium session
+- selecting/attaching to tabs
+- navigation
+- authentication/session state
+- clicking, typing, keyboard input
+- screenshots
+- browser process lifetime
+- CDP or other browser transport
+
+Mesurer is responsible for measurement, inspection, and its own UI/commands.
+
+## Transport-neutral injection payload
+
+The npm package publishes:
+
+```text
+@jhomra21/mesurer-solid/inject-script
+```
+
+`inject-script.js` is a self-contained classic JavaScript/IIFE payload. It contains Mesurer's private Solid 2 renderer and has no runtime import of the host framework. It is deliberately built without ESM syntax or top-level await so a browser tool can execute its text directly.
+
+A Node-based agent adapter can resolve/read the payload without importing it:
+
+```js
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+
+const url = import.meta.resolve("@jhomra21/mesurer-solid/inject-script");
+const source = await readFile(fileURLToPath(url), "utf8");
+
+await browser.evaluate(source);
+await browser.evaluate(`window.__MESURER__.ready()`);
+```
+
+The exact names of `browser.evaluate`, `browser_execute`, `Runtime.evaluate`, etc. belong to the outer harness. Mesurer does not wrap or replace them.
+
+Within this repository:
 
 ```bash
+bun run build
+bun run browser:inject-script > /tmp/mesurer-inject.js
+```
+
+## In-page API
+
+After evaluation, the default global is:
+
+```js
+window.__MESURER__
+```
+
+Important methods:
+
+```text
+ready()
+stable(frames?)
+inspect(selector, index?)
+inspectAll(selector, limit?)
+at(x, y)
+distance(a, b)
+viewport()
+feedback(selectors?)
+describe()
+command(id, args?)
+state()
+```
+
+A typical agent loop is:
+
+```js
+await browser.evaluate(`window.__MESURER__.stable()`);
+const measurements = await browser.evaluate(`
+  window.__MESURER__.feedback(["header", "main", "button"])
+`);
+const screenshot = await browser.screenshot();
+```
+
+Use Mesurer for geometry instead of estimating geometry from screenshots.
+
+## Configuration before injection
+
+An outer harness can set configuration before evaluating the payload:
+
+```js
+window.__MESURER_CONFIG__ = {
+  globalName: "__MESURER__",
+  target: "body",
+};
+```
+
+Re-evaluating the payload is deterministic: the previous injected Mesurer instance is disposed before the new one mounts.
+
+## Existing browser/CDP sessions
+
+If an agent already knows how to connect to a browser on a port such as `http://127.0.0.1:9222`, use that existing facility. Do not launch the reference Playwright harness too.
+
+This also applies to Electron renderer debugging endpoints. Mesurer needs a browser-like `window`/`document`; it does not care whether those come from Chrome, Chromium, Electron, or another Chromium-based shell.
+
+## Optional Playwright reference adapter
+
+The repository retains a small Playwright adapter for manual testing and CI:
+
+```bash
+bun run build
 bun run browser:harness -- https://example.com
 ```
 
-The harness launches a visible Chromium window, bypasses page CSP for the controlled context, injects Mesurer, waits for `window.__MESURER__.ready()`, and automatically reinjects after navigation.
-
-Use `--headless` for automation:
-
-```bash
-bun run browser:harness -- https://example.com --headless
-```
-
-## Attach to an existing Chrome/Chromium session
-
-Chrome must expose a CDP endpoint. Use a separate user-data directory rather than your normal Chrome profile.
-
-macOS example:
-
-```bash
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir=/tmp/mesurer-chrome-profile
-```
-
-List open tabs without injecting anything:
+It can attach to an existing Chromium endpoint for manual testing:
 
 ```bash
 bun run browser:harness -- \
   --cdp http://127.0.0.1:9222 \
   --list-pages
-```
 
-Attach by zero-based tab index:
-
-```bash
 bun run browser:harness -- \
   --cdp http://127.0.0.1:9222 \
   --page 1
 ```
 
-Or select by a URL/title substring:
+This adapter is **not the agent integration API**. It exists as a reference implementation and deterministic test driver. Playwright remains a repository dev dependency and is not added to the public package's runtime dependencies.
 
-```bash
-bun run browser:harness -- \
-  --cdp http://127.0.0.1:9222 \
-  --page localhost
-```
+## CI proof
 
-For CDP-attached Chromium pages, the harness enables `Page.setBypassCSP` before injecting. Browser-internal pages such as `chrome://settings` remain intentionally unsupported.
+Package smoke intentionally uses Playwright because CI needs a deterministic browser. The important part of the test is that the packed npm `inject-script.js` is read as text and passed to `page.evaluate(source)` in a React application that does not import Mesurer. That models the same primitive an existing coding-agent browser tool provides.
 
-## One-shot machine calls
+## Browser boundaries
 
-The CLI can invoke one stable RPC method and exit. This is useful in CI and shell-driven agents.
+Normal browser security boundaries still apply. A top-level page cannot inspect inside cross-origin iframes through normal DOM APIs, and closed shadow roots remain inaccessible to page JavaScript. Browser-internal privileged URLs are outside Mesurer's scope.
 
-```bash
-bun run browser:harness -- https://example.com \
-  --headless \
-  --once mesurer.inspect \
-  --params '{"selector":"h1"}'
-```
-
-The result is JSON on stdout. Human/status logging stays on stderr.
-
-## JSONL over stdio
-
-Process-based agents can keep one browser session alive and exchange newline-delimited JSON messages:
-
-```bash
-bun run browser:harness -- https://example.com --stdio
-```
-
-Request:
-
-```json
-{"id":"1","method":"mesurer.inspect","params":{"selector":"h1"}}
-```
-
-Response:
-
-```json
-{"id":"1","ok":true,"result":{"tag":"h1"}}
-```
-
-Each request is independent at the RPC layer while sharing the same selected browser tab and Mesurer session.
-
-## Authenticated loopback HTTP
-
-For tools that cannot own a child process, start the loopback RPC server:
-
-```bash
-bun run browser:harness -- http://localhost:5173 --serve
-```
-
-The harness prints a random bearer token and listens only on `127.0.0.1`. Requests with non-loopback Host/Origin headers are rejected to reduce DNS-rebinding exposure.
-
-List tool metadata:
-
-```bash
-curl \
-  -H 'Authorization: Bearer <token>' \
-  http://127.0.0.1:4747/tools
-```
-
-Call a tool:
-
-```bash
-curl \
-  -H 'Authorization: Bearer <token>' \
-  -H 'Content-Type: application/json' \
-  -d '{"id":"1","method":"mesurer.feedback","params":{"selectors":["header","main","button"]}}' \
-  http://127.0.0.1:4747/rpc
-```
-
-The HTTP/JSONL surface is deliberately protocol-neutral. A client-specific MCP adapter can register the same tool metadata and forward calls to this loopback bridge without coupling the public Mesurer package to one agent runtime.
-
-## Stable RPC methods
-
-Browser control:
-
-- `browser.status`
-- `browser.pages`
-- `browser.selectPage`
-- `browser.navigate`
-- `browser.back`
-- `browser.forward`
-- `browser.reload`
-- `browser.click`
-- `browser.hover`
-- `browser.fill`
-- `browser.press`
-- `browser.screenshot`
-
-Mesurer control:
-
-- `mesurer.inject`
-- `mesurer.describe`
-- `mesurer.inspect`
-- `mesurer.inspectAll`
-- `mesurer.at`
-- `mesurer.distance`
-- `mesurer.viewport`
-- `mesurer.feedback`
-- `mesurer.command`
-- `mesurer.state`
-- `mesurer.stable`
-
-`harness.tools` returns the complete tool descriptions and JSON input schemas used by the transports.
-
-## Security and browser boundaries
-
-The harness gives its caller meaningful control over a browser tab. Treat the bearer token and stdio process as privileged local capabilities.
-
-Normal web security boundaries still apply. The top-level Mesurer agent cannot inspect DOM inside a cross-origin iframe from its parent document, and closed shadow roots remain inaccessible to page JavaScript. A future frame-aware harness can attach/inject separately into frames that the automation layer can control.
-
-The harness intentionally does not support browser-internal privileged URLs. Anti-automation behavior on third-party sites is also outside Mesurer itself.
+Whether a particular agent can bypass page CSP, inject into individual frames, or attach to privileged targets depends on that agent's browser transport. Mesurer itself should not duplicate those browser-specific capabilities.
