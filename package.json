@@ -7,6 +7,9 @@
     "packages/*",
     "examples/*"
   ],
+  "overrides": {
+    "babel-preset-solid": "2.0.0-rc.0"
+  },
   "scripts": {
     "build:foundations": "bun run --filter '@jhomra21/mesurer-solid-core' build && bun run --filter '@jhomra21/mesurer-solid-dom' build",
     "build": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid-renderer' build && bun run --filter '@jhomra21/mesurer-solid' build",
