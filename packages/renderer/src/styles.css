@@ -20,11 +20,7 @@
 
 :host {
   all: initial;
-  display: block !important;
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 2147483647 !important;
-  pointer-events: none !important;
+  display: block;
   color-scheme: light;
   color: #0f172a;
   font-family: ui-sans-serif, system-ui, sans-serif;
@@ -122,6 +118,16 @@
 
 .mesurer-root {
   --msr-spacing: 4px;
+}
+
+/* Solid host compatibility: keep the isolated island above host-page chrome
+   without changing upstream Mesurer's internal z-index/token contract. */
+:host {
+  display: block !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+  pointer-events: none !important;
 }
 
 /* Solid host compatibility: visually equivalent to upstream's root utility classes. */
