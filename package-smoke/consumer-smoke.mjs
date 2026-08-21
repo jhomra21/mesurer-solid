@@ -1,10 +1,11 @@
+import { readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 const cases = [
   {
-    name: "React (external injector)",
+    name: "React (external browser-eval injector)",
     url: process.env.REACT_URL ?? "http://127.0.0.1:4190",
-    injectPath: process.env.REACT_INJECT_PATH || "/tmp/mesurer-react/node_modules/@jhomra21/mesurer-solid/dist/inject.js",
+    injectPath: process.env.REACT_INJECT_SCRIPT_PATH || "/tmp/mesurer-react/node_modules/@jhomra21/mesurer-solid/dist/inject-script.js",
     mountedByApp: false,
   },
   {
@@ -32,7 +33,8 @@ async function runCase(browser, testCase) {
     await page.waitForFunction(() => Boolean(window.__HOST_READY__));
 
     if (testCase.injectPath) {
-      await page.addScriptTag({ type: "module", path: testCase.injectPath });
+      const source = await readFile(testCase.injectPath, "utf8");
+      await page.evaluate(source);
     }
 
     await page.waitForFunction(() => Boolean(window.__MESURER__));
