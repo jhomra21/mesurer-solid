@@ -7,7 +7,7 @@ if (packageJson.private === true) throw new Error("The public @jhomra21/mesurer-
 if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
   throw new Error("The public Mesurer beta must not publish runtime workspace dependencies.");
 }
-for (const requiredExport of [".", "./core", "./inject"]) {
+for (const requiredExport of [".", "./core", "./inject", "./inject-script"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
 }
 if (packageJson.publishConfig?.access !== "public") throw new Error("publishConfig.access must be public.");
@@ -16,7 +16,8 @@ if (packageJson.publishConfig?.registry !== "https://registry.npmjs.org/") {
 }
 
 const dist = new URL("../dist/", import.meta.url);
-for (const file of readdirSync(dist)) {
+const distFiles = readdirSync(dist);
+for (const file of distFiles) {
   if (!file.endsWith(".js") && !file.endsWith(".d.ts")) continue;
   const source = readFileSync(new URL(file, dist), "utf8");
   if (privatePackagePattern.test(source)) {
@@ -24,8 +25,8 @@ for (const file of readdirSync(dist)) {
   }
 }
 
-for (const file of ["index.js", "index.d.ts", "core.js", "core.d.ts", "inject.js", "inject.d.ts"]) {
-  if (!readdirSync(dist).includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
+for (const file of ["index.js", "index.d.ts", "core.js", "core.d.ts", "inject.js", "inject.d.ts", "inject-script.js"]) {
+  if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
 
 console.log(`@jhomra21/mesurer-solid@${packageJson.version} publish surface is self-contained.`);
