@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { MeasurementBox } from "../src/components/MeasurementBox";
 import { DistanceOverlayItem } from "../src/components/DistanceOverlayItem";
 import type { DistanceOverlay, InspectMeasurement } from "../src/core/types";
-import { createElement, render, setProp } from "../src/solid-dom";
+import { createElement, render } from "../src/solid-dom";
 
 const disposers: Array<() => void> = [];
 afterEach(() => {
@@ -11,10 +11,11 @@ afterEach(() => {
 });
 
 describe("upstream Mesurer visual contracts", () => {
-  it("writes static class and data attributes through the universal DOM adapter", () => {
-    const element = createElement("div") as HTMLElement;
-    setProp(element, "class", "adapter-class");
-    setProp(element, "data-adapter", true);
+  it("applies compiler-hoisted static props when creating universal DOM elements", () => {
+    const element = createElement("div", {
+      class: "adapter-class",
+      "data-adapter": true,
+    }) as HTMLElement;
     expect(element.className).toBe("adapter-class");
     expect(element.hasAttribute("data-adapter")).toBe(true);
   });
