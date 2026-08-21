@@ -152,6 +152,12 @@ async function runTrustedTypesCase(browser, url) {
       throw new Error(`${name} Mesurer island lost the host stacking/hit-test contest: ${JSON.stringify(stacking)}`);
     }
 
+    const toolbarButton = page.locator("[data-mesurer-toolbar='true'] button").first();
+    await toolbarButton.click();
+    if ((await toolbarButton.getAttribute("aria-pressed")) !== "true") {
+      throw new Error(`${name} toolbar did not remain interactive above hostile host chrome`);
+    }
+
     const inspection = await page.evaluate(() => window.__MESURER__.inspect("h1"));
     if (!inspection || inspection.text !== "Trusted Types host" || inspection.rect.width <= 0) {
       throw new Error(`${name} inspection failed: ${JSON.stringify(inspection)}`);
