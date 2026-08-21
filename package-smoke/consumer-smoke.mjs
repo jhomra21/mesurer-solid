@@ -111,10 +111,22 @@ async function runTrustedTypesCase(browser, url) {
 
     await page.waitForFunction(() => Boolean(window.__MESURER__));
     await page.evaluate(() => window.__MESURER__.ready());
-    await page.waitForFunction(() => {
-      const island = document.querySelector("[data-mesurer-island='true']");
-      return Boolean(island?.shadowRoot?.querySelector("[data-mesurer-toolbar='true']"));
-    });
+    try {
+      await page.waitForFunction(() => {
+        const island = document.querySelector("[data-mesurer-island='true']");
+        return Boolean(island?.shadowRoot?.querySelector("[data-mesurer-toolbar='true']"));
+      }, undefined, { timeout: 5000 });
+    } catch (error) {
+      const dom = await page.evaluate(() => {
+        const island = document.querySelector("[data-mesurer-island='true']");
+        return {
+          island: island?.outerHTML ?? null,
+          shadow: island?.shadowRoot?.innerHTML ?? null,
+          body: document.body.innerHTML,
+        };
+      }).catch((diagnosticError) => ({ diagnosticError: String(diagnosticError) }));
+      throw new Error(`${name} toolbar did not mount. Page errors: ${JSON.stringify(errors)} DOM: ${JSON.stringify(dom)} Cause: ${String(error)}`);
+    }
 
     const inspection = await page.evaluate(() => window.__MESURER__.inspect("h1"));
     if (!inspection || inspection.text !== "Trusted Types host" || inspection.rect.width <= 0) {
