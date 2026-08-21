@@ -10,8 +10,8 @@ const HOST_STYLES: Record<string, string> = {
   display: "block",
   position: "fixed",
   inset: "0",
-  width: "100vw",
-  height: "100vh",
+  width: "0",
+  height: "0",
   "min-width": "0",
   "min-height": "0",
   "max-width": "none",
@@ -22,7 +22,7 @@ const HOST_STYLES: Record<string, string> = {
   overflow: "visible",
   background: "transparent",
   "box-sizing": "border-box",
-  "pointer-events": "none",
+  "pointer-events": "auto",
   "z-index": "2147483647",
   opacity: "1",
   visibility: "visible",
@@ -85,6 +85,10 @@ export type MesurerHostLayer = {
  * itself protect the shadow host from page stacking contexts, clipping, or
  * author styles. A manual popover escapes ordinary document stacking and
  * ancestor clipping. The fixed/max-z-index host is the compatibility fallback.
+ *
+ * The protected host itself is intentionally zero-sized with visible overflow.
+ * This lets Mesurer's fixed-position descendants receive pointer input without
+ * turning the protection layer into a viewport-sized click blocker for the app.
  *
  * Modal dialogs are special: the platform makes every node outside the active
  * modal inert. When an observable modal opens, Mesurer temporarily reparents
