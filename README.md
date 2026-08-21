@@ -12,8 +12,6 @@ During the prerelease period:
 bun add -d @jhomra21/mesurer-solid@beta
 ```
 
-After a stable release, the same package can be installed without the `@beta` tag.
-
 ## Use in any browser UI
 
 ```ts
@@ -23,51 +21,46 @@ const mesurer = mountMeasurer({ agent: true });
 await mesurer.ready;
 ```
 
-`mountMeasurer()` creates an isolated browser island by default. The host framework does not need Solid 2 and does not share Mesurer's renderer runtime.
+`mountMeasurer()` creates an isolated browser island by default. The host framework does not need Solid 2 and does not share Mesurer's renderer runtime. Electron main-process code is not a DOM host; mount or inject Mesurer in the renderer page.
 
-This same entry point is intended for:
+## Coding agents: bring your own browser tool
 
-- Solid 1
-- Solid 2
-- React
-- Vue
-- Svelte
-- vanilla browser applications
-- Electron renderer processes
+Mesurer does not require Playwright, Chromium ownership, a second CDP connection, or a Mesurer-specific browser RPC server. If Codex, Claude Code, Droid, Pi, OpenCode, ChatGPT tooling, or another harness can execute JavaScript in its existing browser tab, it can use Mesurer.
 
-Electron main-process code is not a DOM host; mount Mesurer in the renderer page.
+The package publishes a self-contained classic-script payload:
 
-## Coding-agent feedback loop
-
-Agents should normally avoid modifying the user's application. Instead, resolve and inject the `@jhomra21/mesurer-solid/inject` export from the browser harness:
-
-```js
-import { fileURLToPath } from "node:url";
-
-const injectPath = fileURLToPath(
-  import.meta.resolve("@jhomra21/mesurer-solid/inject"),
-);
-
-await page.addScriptTag({
-  type: "module",
-  path: injectPath,
-});
-
-await page.evaluate(() => window.__MESURER__.ready());
-
-const feedback = await page.evaluate(() =>
-  window.__MESURER__.feedback([
-    "main",
-    "[data-testid='toolbar']",
-  ]),
-);
-
-const screenshot = await page.screenshot();
+```text
+@jhomra21/mesurer-solid/inject-script
 ```
 
-The bridge returns JSON-safe geometry, margin/padding/border, typography, appearance, flex/grid properties, overflow, element-to-element distances, viewport/document dimensions, plugin capabilities, and plugin state. The browser harness supplies the screenshot, allowing an agent to reason from exact measurements and pixels together.
+Resolve/read that file in the agent environment and pass its source to the browser tool's existing JavaScript-evaluation primitive. Conceptually:
 
-See [`AGENTS.md`](./AGENTS.md) for the harness contract.
+```js
+const source = await readMesurerInjectScript();
+await browser.evaluate(source);
+await browser.evaluate(`window.__MESURER__.ready()`);
+
+const result = await browser.evaluate(`
+  window.__MESURER__.feedback(["header", "main", "button"])
+`);
+```
+
+After injection, `window.__MESURER__` exposes exact DOM geometry, box model, typography, appearance, layout, overflow, distances, viewport state, plugin capabilities, commands, and plugin state. Keep using the outer harness for navigation, clicking, typing, screenshots, tabs, authentication, and browser lifetime.
+
+Inside this repository, after `bun run build`, the exact source can be printed with:
+
+```bash
+bun run browser:inject-script
+```
+
+The repository also keeps an **optional reference Playwright adapter** for manual testing only:
+
+```bash
+bun run browser:harness -- https://example.com
+bun run browser:harness -- --cdp http://127.0.0.1:9222 --page 0
+```
+
+Playwright is a dev/CI dependency, not a runtime requirement for agent integrations. See [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md) and [`AGENTS.md`](./AGENTS.md).
 
 ## Plugins and extensions
 
@@ -88,15 +81,16 @@ The public package surface is intentionally small:
 @jhomra21/mesurer-solid
 @jhomra21/mesurer-solid/core
 @jhomra21/mesurer-solid/inject
+@jhomra21/mesurer-solid/inject-script
 ```
 
-The framework-neutral core, DOM adapter, and Solid 2 renderer remain private workspace implementation details.
+`/inject` is the ES-module side-effect entry for browser automation APIs that can add a module script. `/inject-script` is the classic self-executing payload for generic browser-evaluation tools.
 
 ## Visual and behavioral parity
 
 The reference renderer continues to track the pinned upstream Mesurer UI and behavior, including selection, guides, rulers, text inspection, X-ray, color picking, distances, settings, history, and persistence.
 
-CI compares the renderer against the pinned React upstream implementation through matched screenshots and exhaustive interaction gates, including native-3× side-by-side captures.
+CI compares the renderer against the pinned React upstream implementation through matched screenshots, explicit Settings/control/icon geometry contracts, and exhaustive interaction gates, including native-3× side-by-side captures.
 
 ## Development
 
@@ -113,6 +107,6 @@ bun run test
 bun run build
 ```
 
-The package-smoke workflow additionally packs the exact npm artifact, installs that tarball into clean React and Solid 1 applications, typechecks the published declarations, launches the real apps in Chromium, and exercises the mounted package and agent feedback loop.
+The package-smoke workflow packs the exact npm artifact, installs it into clean framework hosts, and evaluates the packed `inject-script.js` directly in a React page that has no Mesurer import. Playwright is used there only as deterministic CI browser infrastructure.
 
 See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for internal boundaries and [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md) for upstream attribution.

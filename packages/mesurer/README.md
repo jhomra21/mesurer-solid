@@ -14,8 +14,6 @@ bun add -d @jhomra21/mesurer-solid@beta
 
 ## Mount from application code
 
-The same API is used regardless of host framework:
-
 ```ts
 import { mountMeasurer } from "@jhomra21/mesurer-solid";
 
@@ -33,8 +31,6 @@ mesurer.dispose();
 
 ## Core/plugin API
 
-Extension authors use a subpath of the same package:
-
 ```ts
 import {
   createMesurerPluginHost,
@@ -44,52 +40,49 @@ import {
 
 There is no second framework-specific package to install.
 
-## Inject from a browser harness
+## Inject from an existing coding-agent browser tool
 
-For coding agents, the preferred path is `@jhomra21/mesurer-solid/inject`: the application does not import Mesurer at all. A Playwright-style harness injects the self-contained module into the already-running page.
+The preferred generic agent path is:
 
-```js
-import { fileURLToPath } from "node:url";
-
-const injectPath = fileURLToPath(
-  import.meta.resolve("@jhomra21/mesurer-solid/inject"),
-);
-
-await page.addScriptTag({
-  type: "module",
-  path: injectPath,
-});
-
-await page.evaluate(() => window.__MESURER__.ready());
-
-const feedback = await page.evaluate(() =>
-  window.__MESURER__.feedback([
-    "[data-testid='toolbar']",
-    "[data-testid='canvas']",
-  ]),
-);
-
-const screenshot = await page.screenshot();
+```text
+@jhomra21/mesurer-solid/inject-script
 ```
 
-The injected module exposes `window.__MESURER__` for JSON-safe measurements and `window.__MESURER_INSTANCE__` for advanced plugin-host access. Reinjection disposes the previous injected instance first, keeping HMR/agent loops deterministic.
+`inject-script.js` is a self-contained classic script. Read the resolved file as text and execute it with the browser primitive the agent already owns (`browser_eval`, `browser_execute`, CDP `Runtime.evaluate`, etc.). Do not launch a second browser or duplicate navigation/click/screenshot APIs just for Mesurer.
+
+```js
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+
+const source = await readFile(
+  fileURLToPath(import.meta.resolve("@jhomra21/mesurer-solid/inject-script")),
+  "utf8",
+);
+
+await browser.evaluate(source);
+await browser.evaluate(`window.__MESURER__.ready()`);
+```
+
+The injected payload exposes `window.__MESURER__` for JSON-safe measurements and `window.__MESURER_INSTANCE__` for advanced plugin-host access. Reinjection disposes the previous injected instance first.
+
+Harnesses that specifically support adding an ES module script can alternatively use:
+
+```text
+@jhomra21/mesurer-solid/inject
+```
 
 Before injection, a harness can optionally configure the bridge:
 
 ```js
-await page.evaluate(() => {
-  window.__MESURER_CONFIG__ = {
-    globalName: "__UI_MEASURE__",
-    excludePlugins: ["color-picker"],
-  };
-});
+window.__MESURER_CONFIG__ = {
+  globalName: "__UI_MEASURE__",
+  excludePlugins: ["color-picker"],
+};
 ```
 
-This surface is intended for development/test automation. It does not create a network listener or remote-control channel by itself.
+Neither injection entry opens a network listener or remote-control service.
 
 ## Agent API
-
-The bridge is deliberately data-first so an agent can combine structured measurements with browser screenshots:
 
 - `ready()` — wait for the Mesurer runtime and plugins.
 - `stable(frames?)` — wait for fonts and animation frames after an edit/HMR update.
@@ -102,21 +95,16 @@ The bridge is deliberately data-first so an agent can combine structured measure
 - `command(id, args?)` — execute Mesurer or extension commands such as `builtin.xray`.
 - `state()` — inspect plugin-owned state.
 
-Element box-model values come from the same framework-neutral DOM inspection primitive used by the visible Select tool rather than a separate automation-only implementation.
-
 ## Intended feedback loop
 
 ```text
-edit UI
-  → HMR/browser update
+outer harness edits/navigates/interacts
+  → evaluate inject-script when needed
   → __MESURER__.stable()
   → __MESURER__.feedback([...important selectors])
-  → browser screenshot
-  → compare geometry/typography/overflow + pixels
-  → revise UI
+  → outer harness screenshot
+  → compare exact geometry + pixels
 ```
-
-The user application does not need to know which framework Mesurer itself uses.
 
 ## Public package surface
 
@@ -124,6 +112,7 @@ The user application does not need to know which framework Mesurer itself uses.
 @jhomra21/mesurer-solid
 @jhomra21/mesurer-solid/core
 @jhomra21/mesurer-solid/inject
+@jhomra21/mesurer-solid/inject-script
 ```
 
-All three are exports of this single npm package.
+All are exports of this single npm package.

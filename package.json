@@ -11,10 +11,13 @@
     "build:foundations": "bun run --filter '@jhomra21/mesurer-solid-core' build && bun run --filter '@jhomra21/mesurer-solid-dom' build",
     "build": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid-renderer' build && bun run --filter '@jhomra21/mesurer-solid' build",
     "typecheck": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid-renderer' build && bun run --filter '@jhomra21/mesurer-solid' typecheck && bun run --filter 'mesurer-solid-renderer-example' typecheck",
-    "test": "bun run check:identity && bun run check:release && bun run --filter '@jhomra21/mesurer-solid-core' test && bun run --filter '@jhomra21/mesurer-solid-dom' test && bun run --filter '@jhomra21/mesurer-solid-renderer' test",
+    "test": "bun run check:identity && bun run check:release && bun run check:browser-harness && bun run --filter '@jhomra21/mesurer-solid-core' test && bun run --filter '@jhomra21/mesurer-solid-dom' test && bun run --filter '@jhomra21/mesurer-solid-renderer' test",
     "dev": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid-renderer' styles && bun run --filter 'mesurer-solid-renderer-example' dev",
+    "browser:harness": "node scripts/browser-harness/cli.mjs",
+    "browser:inject-script": "node scripts/browser-harness/print-inject-script.mjs",
     "check:identity": "node scripts/check-identity.mjs",
-    "check:release": "node --test scripts/release.test.mjs"
+    "check:release": "node --test scripts/release.test.mjs",
+    "check:browser-harness": "node --test scripts/browser-harness/browser-harness.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.55.0"

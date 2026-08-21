@@ -8,6 +8,7 @@ on:
       - "packages/mesurer-dom/**"
       - "packages/renderer/**"
       - "package-smoke/**"
+      - "scripts/browser-harness/**"
       - ".github/workflows/package-smoke.yml"
       - "package.json"
       - "bun.lock"
@@ -109,9 +110,9 @@ jobs:
           cd /tmp/mesurer-react
           npm init -y >/dev/null
           npm install "$PACKAGE_TGZ" react@19 react-dom@19 vite@8.1.5 >/dev/null
-          echo "REACT_INJECT_PATH=$(realpath node_modules/@jhomra21/mesurer-solid/dist/inject.js)" >> "$GITHUB_ENV"
+          echo "REACT_INJECT_SCRIPT_PATH=$(realpath node_modules/@jhomra21/mesurer-solid/dist/inject-script.js)" >> "$GITHUB_ENV"
           cat > index.html <<'HTML'
-          <!doctype html><html><body><div id="root"></div><script type="module" src="/main.js"></script></body></html>
+          <!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'"></head><body><div id="root"></div><script type="module" src="/main.js"></script></body></html>
           HTML
           cat > main.js <<'JS'
           import React from "react";
@@ -273,12 +274,12 @@ jobs:
             fi
           done
 
-      - name: Exercise exact packed package in real framework hosts
+      - name: Exercise exact packed package in real framework hosts and browser-eval injection
         env:
           REACT_URL: http://127.0.0.1:4190
           SOLID1_PACKAGE_URL: http://127.0.0.1:4191
           SOLID2_PACKAGE_URL: http://127.0.0.1:4192
-          REACT_INJECT_PATH: ${{ env.REACT_INJECT_PATH }}
+          REACT_INJECT_SCRIPT_PATH: ${{ env.REACT_INJECT_SCRIPT_PATH }}
         run: bun package-smoke/consumer-smoke.mjs
 
       - name: Upload publish candidate
