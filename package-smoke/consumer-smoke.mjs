@@ -128,6 +128,30 @@ async function runTrustedTypesCase(browser, url) {
       throw new Error(`${name} toolbar did not mount. Page errors: ${JSON.stringify(errors)} DOM: ${JSON.stringify(dom)} Cause: ${String(error)}`);
     }
 
+    const stacking = await page.evaluate(() => {
+      const island = document.querySelector("[data-mesurer-island='true']");
+      const shadow = island?.shadowRoot;
+      const toolbar = shadow?.querySelector("[data-mesurer-toolbar='true']");
+      if (!(island instanceof HTMLElement) || !(toolbar instanceof HTMLElement) || !shadow) {
+        return { ok: false, reason: "missing island or toolbar" };
+      }
+      const rect = toolbar.getBoundingClientRect();
+      const x = rect.left + Math.min(16, rect.width / 2);
+      const y = rect.top + Math.min(16, rect.height / 2);
+      const documentTop = document.elementFromPoint(x, y);
+      const shadowTop = shadow.elementFromPoint(x, y);
+      return {
+        ok: documentTop === island && Boolean(shadowTop && (shadowTop === toolbar || toolbar.contains(shadowTop))),
+        documentTop: documentTop?.id || documentTop?.getAttribute?.("data-hostile-header") || documentTop?.tagName || null,
+        shadowTop: shadowTop?.tagName || null,
+        islandZIndex: getComputedStyle(island).zIndex,
+        rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      };
+    });
+    if (!stacking.ok) {
+      throw new Error(`${name} Mesurer island lost the host stacking/hit-test contest: ${JSON.stringify(stacking)}`);
+    }
+
     const inspection = await page.evaluate(() => window.__MESURER__.inspect("h1"));
     if (!inspection || inspection.text !== "Trusted Types host" || inspection.rect.width <= 0) {
       throw new Error(`${name} inspection failed: ${JSON.stringify(inspection)}`);
@@ -151,7 +175,7 @@ function startTrustedTypesServer() {
       "Content-Type": "text/html; charset=utf-8",
       "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; require-trusted-types-for 'script'; trusted-types 'none'",
     });
-    response.end("<!doctype html><html><body><main><h1>Trusted Types host</h1><p>No Mesurer import.</p></main></body></html>");
+    response.end("<!doctype html><html><body><header data-hostile-header='hostile-header' style='position:fixed;inset:0 0 auto 0;height:80px;z-index:2147483646;background:#111'></header><main><h1>Trusted Types host</h1><p>No Mesurer import.</p></main></body></html>");
   });
 
   return new Promise((resolve, reject) => {
