@@ -162,10 +162,16 @@ export const {
   applyRef,
   ref,
 } = createRenderer<Node>({
-  createElement(tagName) {
-    return SVG_ELEMENTS.has(tagName)
+  createElement(tagName, staticProps) {
+    const node = SVG_ELEMENTS.has(tagName)
       ? document.createElementNS(SVG_NAMESPACE, tagName)
       : document.createElement(tagName);
+    if (staticProps) {
+      for (const [name, value] of Object.entries(staticProps)) {
+        setProperty(node, name, value, undefined);
+      }
+    }
+    return node;
   },
   createTextNode(value) {
     return document.createTextNode(String(value));
