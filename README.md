@@ -12,7 +12,7 @@ Mesurer is useful in three ways:
 
 ## Mesurer in action
 
-Mesurer runs as an isolated inspection layer over real applications, including complex stacking, modal/top-layer UI, and strict Trusted Types pages.
+Mesurer runs as an isolated inspection layer over real applications, including complex stacking, modal/top-layer UI, strict Trusted Types pages, and Electron renderer pages.
 
 <p align="center">
   <img src="docs/assets/showcase/youtube.png" alt="Mesurer Solid inspecting a public YouTube search page" width="100%">
@@ -36,6 +36,14 @@ Mesurer runs as an isolated inspection layer over real applications, including c
     <td align="center"><sub>Google Search</sub></td>
   </tr>
 </table>
+
+### Electron renderer
+
+<p align="center">
+  <img src="docs/assets/showcase/electron-solid.svg" alt="Mesurer Solid running over a packaged Electron application with a Solid 1 renderer" width="100%">
+</p>
+
+<sub>Mesurer running over a packaged Electron application with a Solid 1 renderer.</sub>
 
 ## Capabilities at a glance
 
@@ -94,7 +102,80 @@ During the prerelease period:
 bun add -d @jhomra21/mesurer-solid@beta
 ```
 
-## Mount from application code
+## Agent quick start — inject into your existing harness
+
+**Using Mesurer from an agent should normally require no changes to the target application's source or build.**
+
+The default host-project mutation budget is **zero**. If the harness can execute JavaScript in the current browser page, Electron renderer, WebView, or other DOM host, reuse that path:
+
+```text
+existing harness
+  → existing page / renderer
+  → evaluate @jhomra21/mesurer-solid/inject-script
+  → window.__MESURER__
+```
+
+Do **not** add Mesurer to application source, create a Mesurer-specific build, add another browser/CDP stack, or introduce project-specific `start:mesurer` / `package:mesurer` commands merely to inspect the UI. Convenience integration is optional only when the user explicitly wants Mesurer embedded or automatically present on every development launch.
+
+The transport-neutral agent entry point is:
+
+```text
+@jhomra21/mesurer-solid/inject-script
+```
+
+Resolve/read it as text and evaluate it through the JavaScript-execution primitive the harness already owns:
+
+```js
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+
+const source = await readFile(
+  fileURLToPath(import.meta.resolve("@jhomra21/mesurer-solid/inject-script")),
+  "utf8",
+);
+
+await browser.evaluate(source);
+await browser.evaluate(`window.__MESURER__.ready()`);
+```
+
+Injection exposes:
+
+```text
+window.__MESURER__          JSON-safe agent API
+window.__MESURER_INSTANCE__ advanced mounted instance/pluginHost access
+```
+
+Reinjection is deterministic: the previous injected instance is disposed before the next one mounts.
+
+For packaged applications, prefer the **ordinary packaged artifact** plus an existing attach/evaluate channel. If that artifact can be launched with CDP enabled, launch the same artifact, attach the existing harness, and inject Mesurer. Do not compile Mesurer into a special package merely to inspect the packaged app.
+
+| Situation | Mesurer workflow |
+| --- | --- |
+| Harness already has browser JavaScript execution | **Inject `/inject-script`** |
+| Electron renderer is reachable through existing CDP | **Attach the existing harness + inject** |
+| Normal packaged app can be launched with CDP | **Launch the same artifact + inject** |
+| User explicitly wants Mesurer every development launch | `mountMeasurer()` may be appropriate |
+| No renderer evaluation path exists | Explain the limitation, then consider source integration |
+| Agent wants to create a new browser, command, or build just for Mesurer | **Don't; reuse the existing harness** |
+
+Before injection, a harness may optionally set `window.__MESURER_CONFIG__`:
+
+```js
+window.__MESURER_CONFIG__ = {
+  globalName: "__UI_MEASURE__",
+  target: "#app",
+  excludePlugins: ["color-picker"],
+  persistKey: "my-project:mesurer",
+};
+```
+
+Harnesses that specifically support ES-module script injection may use `@jhomra21/mesurer-solid/inject` instead. `/inject-script` is the transport-neutral default for generic browser evaluation APIs.
+
+The repository also includes a Playwright reference adapter for manual testing/CI, but it is **not** the agent integration API. Do not launch it when the outer harness already has browser execution capability. See [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md) and [`AGENTS.md`](./AGENTS.md).
+
+## Optional app integration — mount from source
+
+Use `mountMeasurer()` from application code when the user explicitly wants Mesurer embedded as a persistent development tool, or when no external JavaScript-evaluation path exists.
 
 ```ts
 import { mountMeasurer } from "@jhomra21/mesurer-solid";
@@ -127,74 +208,6 @@ The mounted instance exposes:
 Useful mount options include `target`, `isolate`, `shadowMode`, `topLayer`, colors, guide/ruler settings, persistence configuration, external `plugins`, `excludePlugins`, a supplied `pluginHost`, and agent bridge configuration.
 
 See [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) for the host-page layering contract, adversarial test strategy, and explicit guarantee boundaries.
-
-## Coding agents: use the browser tool you already have
-
-The preferred agent integration is the self-contained classic-script export:
-
-```text
-@jhomra21/mesurer-solid/inject-script
-```
-
-Resolve/read that file in the agent environment and evaluate its source in the page with the harness's existing JavaScript execution primitive.
-
-For example, in a Node/Bun-side harness:
-
-```js
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-
-const source = await readFile(
-  fileURLToPath(import.meta.resolve("@jhomra21/mesurer-solid/inject-script")),
-  "utf8",
-);
-
-await browser.evaluate(source);
-await browser.evaluate(`window.__MESURER__.ready()`);
-
-const result = await browser.evaluate(`
-  window.__MESURER__.feedback([
-    "header",
-    "main",
-    "button",
-  ])
-`);
-```
-
-Injection exposes:
-
-```text
-window.__MESURER__          JSON-safe agent API
-window.__MESURER_INSTANCE__ advanced mounted instance/pluginHost access
-```
-
-Before injection, a harness may optionally set `window.__MESURER_CONFIG__`:
-
-```js
-window.__MESURER_CONFIG__ = {
-  globalName: "__UI_MEASURE__",
-  target: "#app",
-  excludePlugins: ["color-picker"],
-  persistKey: "my-project:mesurer",
-};
-```
-
-Harnesses that specifically support ES-module script injection may use `@jhomra21/mesurer-solid/inject` instead. `/inject-script` is the transport-neutral default for generic browser evaluation APIs.
-
-Inside this repository, after `bun run build`, print the exact classic-script payload with:
-
-```bash
-bun run browser:inject-script
-```
-
-The repository also includes an optional Playwright reference adapter for manual testing:
-
-```bash
-bun run browser:harness -- https://example.com
-bun run browser:harness -- --cdp http://127.0.0.1:9222 --page 0
-```
-
-Playwright is a dev/CI dependency, not a runtime requirement for agent integrations. See [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md).
 
 ## Agent API
 
@@ -429,6 +442,7 @@ The package-smoke workflow packs the exact sanitized npm artifact, installs it i
 For repository work, also read:
 
 - [`AGENTS.md`](./AGENTS.md) — coding-agent integration and contribution instructions.
+- [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md) — the inject-first browser/Electron harness contract.
 - [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md) — how to keep Mesurer in the UI implementation/validation loop.
 - [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) — cross-site layering/occlusion invariants and adversarial tests.
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — internal boundaries and invariants.

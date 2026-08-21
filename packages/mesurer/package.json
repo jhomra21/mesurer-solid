@@ -17,6 +17,7 @@
   "files": [
     "dist",
     "README.md",
+    "AGENT_INTEGRATION.md",
     "LICENSE",
     "THIRD_PARTY_LICENSES.md"
   ],

@@ -7,7 +7,13 @@ const packageJson = JSON.parse(readFileSync(new URL("package.json", packageDir),
 rmSync(stageDir, { recursive: true, force: true });
 mkdirSync(stageDir, { recursive: true });
 
-for (const path of ["dist", "README.md", "LICENSE", "THIRD_PARTY_LICENSES.md"]) {
+for (const path of [
+  "dist",
+  "README.md",
+  "AGENT_INTEGRATION.md",
+  "LICENSE",
+  "THIRD_PARTY_LICENSES.md",
+]) {
   cpSync(new URL(path, packageDir), new URL(path, stageDir), { recursive: true });
 }
 

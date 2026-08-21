@@ -10,6 +10,25 @@ The core rules are simple:
 
 Do not build a second browser-control stack around Mesurer.
 
+## Zero-mutation default for host projects
+
+**Default host-project mutation budget: zero.** Using Mesurer from an agent should normally require no changes to the target application's source or build.
+
+If the existing browser, Electron, WebView, or automation harness can evaluate JavaScript in the target renderer, install/resolve `@jhomra21/mesurer-solid` in the agent environment, read `@jhomra21/mesurer-solid/inject-script`, and evaluate that payload through the harness that already owns the page.
+
+Use this decision order:
+
+1. existing browser JavaScript execution → inject `/inject-script`;
+2. existing browser/Electron CDP session → attach with the existing harness, then inject;
+3. ordinary packaged app that can be launched with CDP/debug evaluation → launch the **same artifact**, attach, then inject;
+4. only when the user explicitly wants a persistent embedded development tool, or no external renderer-evaluation path exists → consider `mountMeasurer()` from application source.
+
+Do **not** add commands such as `start:mesurer` or `package:mesurer`, Vite/environment flags, custom Playwright adapters, new CDP clients, alternate app builds, Electron main/preload wiring, or other project-specific scaffolding as the default way to use Mesurer. Such conveniences are optional only after the canonical injection path works and only when the user explicitly wants that persistent workflow.
+
+For packaged applications, artifact-faithful inspection means the normal package contains no Mesurer code. Launching that exact artifact with a debugging/evaluation channel enabled does not make it a different build. Prefer that workflow over compiling Mesurer into a special inspection package.
+
+If an already-running packaged app exposes no renderer-evaluation channel, explain that limitation. Do not mutate the application just to manufacture a Mesurer path unless the user asks for embedded integration.
+
 ## Upstream origin and attribution — preserve this
 
 Mesurer Solid is an adaptation and extension of [`ibelick/mesurer`](https://github.com/ibelick/mesurer), originally created by **Julien Thibeaut (`@ibelick`)**. This provenance is part of the repository's identity, not incidental boilerplate.
@@ -372,6 +391,7 @@ const plugin = defineMesurerPlugin({
 - There is no public framework-specific Mesurer package.
 - Mesurer's own UI renderer remains implemented in Solid 2, but that runtime is private to the Mesurer browser island.
 - Electron main-process code is not a DOM host. Mount or inject only in renderer pages.
+- For packaged apps, prefer the ordinary artifact plus an existing renderer-evaluation/debugging channel over a Mesurer-specific package build.
 - Browser transport and browser ownership belong to the outer harness, not Mesurer.
 
 ## 13. Public package contract
@@ -389,6 +409,8 @@ These are subpath exports of the same npm package, not separate packages.
 
 The root export includes the mount API, agent harness/types, plugin types/helpers, and built-in plugin factories. `/core` contains framework-neutral plugin/runtime primitives. `/inject` is the ES-module side-effect injector. `/inject-script` is the classic self-executing browser-evaluation payload.
 
+The published npm artifact also includes a concise `AGENT_INTEGRATION.md` so agents inspecting only the installed package still receive the inject-first contract.
+
 ## 14. Repository architecture invariants
 
 Internal workspaces may remain separated for maintainability, but they are private implementation details:
@@ -401,6 +423,7 @@ Internal workspaces may remain separated for maintainability, but they are priva
 - the staged npm artifact must not expose private workspace names or host runtime dependencies;
 - default rendering must retain the pinned upstream visual/behavioral parity gates;
 - agent integrations must not require Playwright when the outer harness already has browser execution capability;
+- agent integrations should not mutate the host project when an existing renderer-evaluation path is available;
 - host-page occlusion fixes must target browser primitives, not specific websites.
 
 ## 15. Repository contribution instructions
@@ -425,13 +448,14 @@ For changes that affect the browser/package boundary, also inspect the relevant 
 When changing public behavior:
 
 1. update the root README and npm package README when the public capability or API changes;
-2. update this file when the agent contract, browser boundary, command surface, plugin rules, or design-validation expectations change;
+2. update this file and the shipped `packages/mesurer/AGENT_INTEGRATION.md` when the agent contract or integration priority changes;
 3. preserve the one-package public contract unless intentionally redesigning it;
 4. keep built-in command names stable when replacing implementation details;
 5. add regression coverage for bugs that would otherwise recur silently;
 6. reduce host-page compatibility bugs to browser primitives instead of adding site-specific patches;
 7. do not bypass the pinned visual/interaction parity gates for default-renderer changes;
-8. preserve the upstream Mesurer/Julien Thibeaut attribution invariant above and the authoritative notice in `THIRD_PARTY_LICENSES.md`.
+8. preserve the upstream Mesurer/Julien Thibeaut attribution invariant above and the authoritative notice in `THIRD_PARTY_LICENSES.md`;
+9. keep runtime injection ahead of source integration in agent-facing documentation unless the public contract intentionally changes.
 
 For normal releases, follow [`RELEASING.md`](./RELEASING.md). Do **not** manually edit the public package version, create release tags, or manually `npm publish` as a substitute for the repository release workflow.
 
