@@ -27,7 +27,7 @@ The public `mountMeasurer()` boundary owns these invariants.
 
 The outer `[data-mesurer-island="true"]` element receives inline `!important` values for the properties that host pages commonly use to hide, clip, move, or restyle overlays.
 
-The protected contract includes a fixed viewport box, visible overflow, transparent background, no transform/filter/containment, full opacity/visibility, maximum fallback `z-index`, predictable typography inheritance, and `pointer-events: none` at the outer surface so ordinary page interaction still passes through. Mesurer's actual controls opt back into pointer events inside the island.
+The protected host is a fixed, **zero-sized anchor with visible overflow**, transparent background, no transform/filter/containment, full opacity/visibility, maximum fallback `z-index`, and predictable inherited typography. Its fixed-position Mesurer descendants can render and receive pointer input outside that zero-sized box, while the host itself does not become an invisible viewport-sized click blocker for the application.
 
 This protects against broad rules such as `body > div`, `*`, or application overlay resets, including author `!important` declarations for the same properties.
 
@@ -79,9 +79,10 @@ The package-smoke suite creates adversarial host conditions after Mesurer has mo
 4. a later host popover is promoted into the top layer;
 5. a modal dialog is opened and then closed;
 6. the test verifies that the toolbar remains the hit-tested surface and that the host is restored after the modal;
-7. the same packed package is exercised in React, Solid 1, and Solid 2 consumers, including external browser-eval injection.
+7. normal host controls and dynamically contributed Mesurer plugin controls remain clickable;
+8. the same packed package is exercised in React, Solid 1, and Solid 2 consumers, including external browser-eval injection.
 
-This is more general than maintaining a list of YouTube/Twitter/Figma/etc. fixtures. Those sites can change their HTML tomorrow; the underlying stacking, clipping, popover, and modal rules are browser primitives.
+This is more general than maintaining a list of YouTube/Twitter/Figma/etc. fixtures. Those sites can change their HTML tomorrow; the underlying stacking, clipping, popover, modal, and hit-testing rules are browser primitives.
 
 ## What this contract cannot guarantee
 
@@ -96,7 +97,7 @@ Out of scope for a hard guarantee:
 - legacy browsers without Popover API support, where Mesurer uses the fixed fallback;
 - injection blocked before Mesurer executes at all by the surrounding automation/security environment.
 
-Within a normal same-document application on a modern browser, the contract is that ordinary CSS, stacking contexts, clipping, overlays, later popovers/fullscreen changes, and observable modal dialogs must not silently occlude Mesurer.
+Within a normal same-document application on a modern browser, the contract is that ordinary CSS, stacking contexts, clipping, overlays, later popovers/fullscreen changes, and observable modal dialogs must not silently occlude Mesurer or make its controls unusable.
 
 ## Regression rule
 
