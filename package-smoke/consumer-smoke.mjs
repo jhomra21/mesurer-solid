@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { chromium } from "playwright";
 
 const cases = [
@@ -92,7 +93,7 @@ async function runCase(browser, testCase) {
   }
 }
 
-async function runTrustedTypesCase(browser) {
+async function runTrustedTypesCase(browser, url) {
   const name = "Trusted Types browser-eval injector";
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
@@ -102,9 +103,7 @@ async function runTrustedTypesCase(browser) {
   });
 
   try {
-    await page.goto(process.env.TRUSTED_TYPES_URL ?? "http://127.0.0.1:4193", {
-      waitUntil: "domcontentloaded",
-    });
+    await page.goto(url, { waitUntil: "domcontentloaded" });
     const injectPath = process.env.REACT_INJECT_SCRIPT_PATH
       || "/tmp/mesurer-react/node_modules/@jhomra21/mesurer-solid/dist/inject-script.js";
     const source = await readFile(injectPath, "utf8");
@@ -134,12 +133,39 @@ async function runTrustedTypesCase(browser) {
   }
 }
 
+function startTrustedTypesServer() {
+  const server = createServer((request, response) => {
+    response.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; require-trusted-types-for 'script'; trusted-types 'none'",
+    });
+    response.end("<!doctype html><html><body><main><h1>Trusted Types host</h1><p>No Mesurer import.</p></main></body></html>");
+  });
+
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        reject(new Error("Unable to resolve Trusted Types smoke server address"));
+        return;
+      }
+      resolve({
+        server,
+        url: `http://127.0.0.1:${address.port}`,
+      });
+    });
+  });
+}
+
+const trustedTypesHost = await startTrustedTypesServer();
 const browser = await chromium.launch({ headless: true });
 try {
   await Promise.all([
     ...cases.map((testCase) => runCase(browser, testCase)),
-    runTrustedTypesCase(browser),
+    runTrustedTypesCase(browser, trustedTypesHost.url),
   ]);
 } finally {
   await browser.close();
+  await new Promise((resolve, reject) => trustedTypesHost.server.close((error) => error ? reject(error) : resolve()));
 }
