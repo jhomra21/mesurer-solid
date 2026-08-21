@@ -26,8 +26,72 @@ Mesurer deliberately does **not** own browser navigation, clicks, typing, screen
 During the beta:
 
 ```bash
+npm install -D @jhomra21/mesurer-solid@beta
+```
+
+Or with Bun:
+
+```bash
 bun add -d @jhomra21/mesurer-solid@beta
 ```
+
+## Choose how you want to use Mesurer
+
+| Goal | Recommended path |
+| --- | --- |
+| Inspect a website you are developing | Install the package and call `mountMeasurer()` in browser/client code. |
+| Inspect any website manually | Save the published `/inject-script` payload as a browser DevTools Snippet and run it on the current page. |
+| Use Mesurer from a coding agent | Reuse the agent's existing browser/evaluation channel and inject `/inject-script`. |
+| Use Mesurer from Playwright, CDP, Cypress, Electron, or another harness | Reuse the harness that already owns the page/renderer and inject. |
+| Build or replace Mesurer tools | Use the public `/core` plugin/runtime API. |
+
+## Human quick start — your own website
+
+Mount Mesurer from client-side application code:
+
+```ts
+import { mountMeasurer } from "@jhomra21/mesurer-solid";
+
+const mesurer = mountMeasurer();
+```
+
+Start the app normally (`npm run dev`, `bun run dev`, etc.), open it in the browser, and use the floating toolbar. Common shortcuts include `M` to toggle Mesurer, `S` for Select, `A` for Text Inspector, `G` for Guides, `R` for Rulers, `X` for X-ray, `P` for Color Picker, and `Alt` for distance inspection.
+
+For Vite projects that should load Mesurer only in development:
+
+```ts
+if (import.meta.env.DEV) {
+  import("@jhomra21/mesurer-solid").then(({ mountMeasurer }) => {
+    const mesurer = mountMeasurer();
+    import.meta.hot?.dispose(() => mesurer.dispose());
+  });
+}
+```
+
+The host app does not need Solid 2; Mesurer carries its own isolated renderer/runtime.
+
+## Human quick start — any website
+
+You can use Mesurer on a website without changing that site's source. The current no-extension workflow is a saved browser DevTools Snippet built from the published self-contained `/inject-script` payload.
+
+In any throwaway folder:
+
+```bash
+npm install @jhomra21/mesurer-solid@beta
+node --input-type=module -e "import { readFileSync } from 'node:fs'; import { fileURLToPath } from 'node:url'; process.stdout.write(readFileSync(fileURLToPath(import.meta.resolve('@jhomra21/mesurer-solid/inject-script')), 'utf8'))" > mesurer-snippet.js
+```
+
+Then in Chrome, Edge, or another Chromium browser:
+
+1. Open DevTools → **Sources → Snippets**.
+2. Create a snippet named `Mesurer`.
+3. Paste the contents of `mesurer-snippet.js` and save it.
+4. Visit any page you want to inspect and run the snippet (`Cmd/Ctrl+Enter`).
+5. Use the Mesurer toolbar directly on that page.
+
+Run the snippet again after a full page navigation/reload. Re-running it on the same page is safe because Mesurer disposes the previous injected instance before mounting the new one.
+
+This requires a desktop browser that permits DevTools JavaScript execution in the current page. Mesurer does not bypass browser security boundaries. A first-party browser extension is not currently shipped; the saved DevTools Snippet is the current human zero-source-change path for arbitrary websites.
 
 ## Agent quick start — inject into your existing harness
 
@@ -107,9 +171,9 @@ Neither injection entry opens a network listener or remote-control service.
 
 See the shipped [`AGENT_INTEGRATION.md`](./AGENT_INTEGRATION.md) for the concise agent contract.
 
-## Optional app integration — mount from source
+## App integration API — mount from source
 
-Use `mountMeasurer()` from application code when the user explicitly wants Mesurer embedded as a persistent development tool, or when no external JavaScript-evaluation path exists.
+Use `mountMeasurer()` when Mesurer should be embedded in a browser application or automatically present during development. The human quick start above uses this same API; this section shows the optional agent bridge and mounted-instance lifecycle.
 
 ```ts
 import { mountMeasurer } from "@jhomra21/mesurer-solid";
