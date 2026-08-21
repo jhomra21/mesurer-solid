@@ -11,7 +11,7 @@ Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron renderer
                               ▼
                     @jhomra21/mesurer-solid
                     public npm package
-              mount · /core · /inject · agent API
+       mount · /core · /inject · /inject-script · agent API
                               │
                ┌──────────────┴──────────────┐
                ▼                             ▼
@@ -31,17 +31,19 @@ Users install only:
 @jhomra21/mesurer-solid
 ```
 
-The same npm package exposes three entry points:
+The same npm package exposes four primary entry points:
 
 ```text
 @jhomra21/mesurer-solid
 @jhomra21/mesurer-solid/core
 @jhomra21/mesurer-solid/inject
+@jhomra21/mesurer-solid/inject-script
 ```
 
-- root export: framework-agnostic browser mount, plugins, public types, and agent harness;
+- root export: framework-agnostic browser mount, plugins, public types, built-in plugin factories, and agent harness;
 - `/core`: framework-neutral plugin/runtime primitives for extension authors;
-- `/inject`: self-contained development/test injector for browser harnesses and coding agents.
+- `/inject`: self-contained ES-module side-effect injector for browser harnesses that can inject module scripts;
+- `/inject-script`: self-contained classic-script payload for generic JavaScript evaluation APIs and coding agents.
 
 No renderer-specific package is part of the public product surface.
 
@@ -98,6 +100,8 @@ Built-in feature identities are registered through the same plugin architecture 
 
 Built-ins can be excluded, removed, or replaced without forking the renderer. The default distribution preserves the parity-proven UI.
 
+The renderer also provides the opaque `runtime:solid` service after its bridge initializes. Renderer-aware plugins can obtain that service through the public plugin service registry and create Mesurer-owned extension DOM without importing the private renderer workspace.
+
 The renderer workspace is `private: true` and must never be published directly.
 
 ### `packages/mesurer`
@@ -119,18 +123,26 @@ The package build fails if public JS/declaration artifacts leak private workspac
 
 ## Agent/browser harness boundary
 
-`@jhomra21/mesurer-solid/inject` is a self-contained development/test entry intended for browser automation. It lets a coding agent instrument a running user application without editing that application's source code.
+The coding-agent boundary is deliberately transport-neutral. Mesurer does not own browser navigation, clicking, typing, screenshots, tabs, authentication, or browser lifetime.
+
+The preferred generic integration is the classic-script export:
+
+```text
+@jhomra21/mesurer-solid/inject-script
+```
+
+An outer harness resolves/reads that payload and evaluates it in the page with the JavaScript execution primitive it already owns. Harnesses that specifically support ES-module script injection may use `@jhomra21/mesurer-solid/inject` instead.
 
 ```text
 agent edits UI
     ↓
 user dev server / HMR
     ↓
-Playwright/Cypress/browser harness
-    ├── inject @jhomra21/mesurer-solid/inject
-    ├── screenshot page
+existing browser harness
+    ├── evaluate @jhomra21/mesurer-solid/inject-script
+    ├── interact/navigate/screenshot with its own APIs
     └── window.__MESURER__
-           ├── stable()
+           ├── ready()/stable()
            ├── inspect()/inspectAll()/at()
            ├── distance()
            ├── viewport()
@@ -141,6 +153,8 @@ Playwright/Cypress/browser harness
 ```
 
 The structured bridge is JSON-safe so a harness can return exact measurements to an agent alongside screenshots. The injector exists only inside the page where it is loaded; it does not create a network listener or remote service.
+
+Injection also exposes `window.__MESURER_INSTANCE__` for advanced plugin-host access. Reinjection disposes the previous injected instance first.
 
 ## Plugin ownership and disposal
 
@@ -153,7 +167,7 @@ Plugin state slices can opt into:
 
 Nested command dispatch is treated as one transaction so stable built-in command aliases can delegate to replacement plugins without creating duplicate undo checkpoints.
 
-Renderer-aware plugins can request the `runtime:solid` service through the public plugin API. The service is opaque: extension code does not import the private renderer workspace.
+Renderer-aware plugins can request the `runtime:solid` service through the public plugin service API. The service is opaque: extension code does not import the private renderer workspace. Its implementation currently provides owner document/window, portal target, and `createInspectorMount()`.
 
 ## Solid 2 scheduler rule
 
