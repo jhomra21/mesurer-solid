@@ -40,7 +40,7 @@ Mesurer runs as an isolated inspection layer over real applications, including c
 ### Electron renderer
 
 <p align="center">
-  <img src="docs/assets/showcase/electron-solid.webp" alt="Mesurer Solid running over a packaged Electron application with a Solid 1 renderer" width="100%">
+  <img src="docs/assets/showcase/electron-solid.svg" alt="Mesurer Solid running over a packaged Electron application with a Solid 1 renderer" width="100%">
 </p>
 
 <sub>Mesurer running over a packaged Electron application with a Solid 1 renderer.</sub>
