@@ -28,6 +28,25 @@ The outer harness remains responsible for:
 
 Mesurer is responsible for measurement, inspection, and its own UI/commands.
 
+## Default rule: reuse the harness, mutate nothing
+
+**Default host-project mutation budget: zero.** If the outer harness can already execute JavaScript in the target renderer, use that capability and inject Mesurer. Do not edit target source, bundler config, package scripts, Electron main/preload code, or produce a Mesurer-specific build merely to inspect the UI.
+
+Use this decision table:
+
+| Situation | Mesurer workflow |
+| --- | --- |
+| Harness already has browser JavaScript execution | **Inject `/inject-script`** |
+| Existing CDP reaches the renderer | **Attach with the existing harness + inject** |
+| Ordinary packaged app can be launched with CDP | **Launch the same artifact + inject** |
+| User explicitly wants Mesurer on every development launch | Source mounting may be appropriate |
+| No renderer evaluation path exists | Explain the limitation, then consider source integration |
+| Proposed solution adds a new browser/CDP stack or special Mesurer build | **Do not do that by default** |
+
+For packaged apps, the artifact-faithful path is the ordinary package plus an existing attach/evaluate channel. Starting that same executable with a remote-debugging option changes the launch mode, not the packaged artifact. Prefer this over compiling Mesurer into a separate inspection build.
+
+An app that is already running without CDP or another renderer-evaluation mechanism may not be attachable after the fact. That is a transport limitation, not a reason to automatically modify the application.
+
 ## Transport-neutral injection payload
 
 The npm package publishes:
@@ -114,6 +133,18 @@ Re-evaluating the payload is deterministic: the previous injected Mesurer instan
 If an agent already knows how to connect to a browser on a port such as `http://127.0.0.1:9222`, use that existing facility. Do not launch the reference Playwright harness too.
 
 This also applies to Electron renderer debugging endpoints. Mesurer needs a browser-like `window`/`document`; it does not care whether those come from Chrome, Chromium, Electron, or another Chromium-based shell.
+
+For an Electron packaged-app check, the preferred sequence is:
+
+```text
+package normally
+  → launch that exact packaged executable with the project's existing CDP/debug path
+  → verify Mesurer is not already present
+  → attach the existing harness
+  → evaluate @jhomra21/mesurer-solid/inject-script
+  → await window.__MESURER__.ready()
+  → inspect the real renderer
+```
 
 ## Optional Playwright reference adapter
 
