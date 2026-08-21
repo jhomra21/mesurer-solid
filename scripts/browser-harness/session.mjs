@@ -1,10 +1,10 @@
-import { access, mkdir } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const DEFAULT_INJECT_PATH = path.resolve(here, "../../packages/mesurer/dist/inject.js");
+export const DEFAULT_INJECT_PATH = path.resolve(here, "../../packages/mesurer/dist/inject-script.js");
 
 const unsupportedUrl = (url) => /^(chrome|edge|devtools|view-source):/i.test(url);
 
@@ -12,21 +12,9 @@ export const normalizeBrowserUrl = (value) => {
   if (!value) return null;
   const input = String(value).trim();
   if (!input) return null;
-
-  // URL() interprets `localhost:5173` as a custom `localhost:` scheme, so
-  // recognize the common local-development forms before generic parsing.
-  if (/^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(input)) {
-    return new URL(`http://${input}`).href;
-  }
-
-  if (/^[a-z][a-z\d+.-]*:/i.test(input)) {
-    return new URL(input).href;
-  }
-
-  // Bare public hostnames are ergonomic for manual testing while still making
-  // the network scheme explicit before Playwright sees the URL.
+  if (/^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(input)) return new URL(`http://${input}`).href;
+  if (/^[a-z][a-z\d+.-]*:/i.test(input)) return new URL(input).href;
   if (!/\s/.test(input)) return new URL(`https://${input}`).href;
-
   throw new Error(`Invalid URL: ${value}`);
 };
 
@@ -43,7 +31,6 @@ export class BrowserHarnessSession {
       target: options.target ?? null,
       headless: options.headless ?? false,
       autoInject: options.autoInject ?? true,
-      screenshotDir: options.screenshotDir ? toAbsolute(options.screenshotDir) : path.resolve(process.cwd(), "artifacts/mesurer-browser"),
     };
     this.browser = null;
     this.context = null;
@@ -52,19 +39,16 @@ export class BrowserHarnessSession {
     this.started = false;
     this.pageIds = new WeakMap();
     this.nextPageId = 1;
-    this.injecting = new WeakMap();
-    this.cdpSessions = new WeakMap();
+    this.injectSource = null;
     this.disconnected = new Promise((resolve) => { this.resolveDisconnected = resolve; });
   }
 
   async start() {
     if (this.started) return this.status();
-
     if (this.options.cdp) {
       this.browser = await chromium.connectOverCDP(this.options.cdp);
       this.ownsBrowser = false;
-      const contexts = this.browser.contexts();
-      this.context = contexts[0] ?? await this.browser.newContext();
+      this.context = this.browser.contexts()[0] ?? await this.browser.newContext();
     } else {
       this.browser = await chromium.launch({ headless: this.options.headless });
       this.ownsBrowser = true;
@@ -78,59 +62,41 @@ export class BrowserHarnessSession {
     }
 
     const pages = this.flattenPages();
-    if (pages.length === 0) {
-      this.page = await this.context.newPage();
-      this.registerPage(this.page);
-    } else {
-      this.page = await this.pickPage(this.options.page, pages);
-    }
-
+    this.page = pages.length ? await this.pickPage(this.options.page, pages) : await this.context.newPage();
+    this.registerPage(this.page);
     this.started = true;
 
     if (this.options.url) {
-      await this.navigate(this.options.url);
-    } else if (this.options.autoInject && !unsupportedUrl(this.page.url())) {
-      await this.inject().catch((error) => {
-        if (this.page.url() !== "about:blank") throw error;
-      });
+      await this.page.goto(this.options.url, { waitUntil: "domcontentloaded" });
     }
-
+    if (this.options.autoInject && !unsupportedUrl(this.page.url()) && this.page.url() !== "about:blank") await this.inject();
     return this.status();
   }
 
-  async ensureInjectBundle() {
-    try {
-      await access(this.options.injectPath);
-    } catch {
-      throw new Error(
-        `Mesurer injection bundle not found at ${this.options.injectPath}. Run \`bun run build\` first or pass --inject <path>.`,
-      );
-    }
+  async loadInjectSource() {
+    if (this.injectSource) return this.injectSource;
+    try { await access(this.options.injectPath); }
+    catch { throw new Error(`Mesurer injection script not found at ${this.options.injectPath}. Run \`bun run build\` first or pass --inject <path>.`); }
+    this.injectSource = await readFile(this.options.injectPath, "utf8");
+    return this.injectSource;
   }
 
   registerPage(page) {
     if (!this.pageIds.has(page)) this.pageIds.set(page, this.nextPageId++);
-    page.on("domcontentloaded", () => {
-      if (!this.started || !this.options.autoInject || page !== this.page || unsupportedUrl(page.url())) return;
-      void this.injectInto(page).catch(() => {});
-    });
   }
 
   flattenPages() {
-    if (!this.browser) return [];
-    return this.browser.contexts().flatMap((context) => context.pages());
+    return this.browser ? this.browser.contexts().flatMap((context) => context.pages()) : [];
   }
 
   async pickPage(selector, pages = this.flattenPages()) {
     if (!pages.length) throw new Error("No browser tabs are available");
     if (selector === null || selector === undefined || selector === "") return pages[0];
-
     if (/^\d+$/.test(String(selector))) {
-      const index = Number(selector);
-      if (!pages[index]) throw new Error(`No browser tab exists at index ${index}`);
-      return pages[index];
+      const page = pages[Number(selector)];
+      if (!page) throw new Error(`No browser tab exists at index ${selector}`);
+      return page;
     }
-
     const needle = String(selector).toLowerCase();
     for (const page of pages) {
       const title = await page.title().catch(() => "");
@@ -139,92 +105,36 @@ export class BrowserHarnessSession {
     throw new Error(`No browser tab matched ${JSON.stringify(selector)}`);
   }
 
-  async enableCspBypass(page) {
-    if (this.ownsBrowser) return;
-    if (this.cdpSessions.has(page)) return;
-    try {
-      const session = await page.context().newCDPSession(page);
-      await session.send("Page.setBypassCSP", { enabled: true });
-      this.cdpSessions.set(page, session);
-    } catch {
-      // connectOverCDP is Chromium-only, but a page can disappear between
-      // selection and attachment. The subsequent injection produces the useful error.
-    }
-  }
-
-  async injectInto(page) {
-    const existing = this.injecting.get(page);
-    if (existing) return existing;
-    const promise = this.performInjection(page).finally(() => this.injecting.delete(page));
-    this.injecting.set(page, promise);
-    return promise;
-  }
-
-  async performInjection(page) {
-    if (page.isClosed()) throw new Error("Selected browser tab is closed");
-    const url = page.url();
-    if (unsupportedUrl(url)) throw new Error(`Browser-internal pages cannot be injected: ${url}`);
-
-    // Listing/selecting tabs and browser-only control must work without a prior
-    // Mesurer build. The bundle is required only at the moment we inject.
-    await this.ensureInjectBundle();
-    await this.enableCspBypass(page);
-    await page.evaluate(({ globalName, target }) => {
-      globalThis.__MESURER_CONFIG__ = {
-        ...(globalThis.__MESURER_CONFIG__ ?? {}),
-        globalName,
-        ...(target ? { target } : {}),
-      };
-    }, { globalName: this.options.globalName, target: this.options.target });
-
-    await page.addScriptTag({ path: this.options.injectPath, type: "module" });
-    await page.waitForFunction(
-      (globalName) => typeof globalThis[globalName]?.ready === "function",
-      this.options.globalName,
-      { timeout: 15_000 },
-    );
-    await page.evaluate(async (globalName) => {
-      await globalThis[globalName].ready();
-    }, this.options.globalName);
-    return this.status();
-  }
-
-  async ensureInjected() {
-    this.requirePage();
-    const injected = await this.page.evaluate((globalName) => typeof globalThis[globalName]?.ready === "function", this.options.globalName);
-    if (!injected) await this.inject();
-  }
-
-  requirePage() {
+  async inject() {
     if (!this.page || this.page.isClosed()) throw new Error("No active browser tab is selected");
-    return this.page;
+    if (unsupportedUrl(this.page.url())) throw new Error(`Browser-internal pages cannot be injected: ${this.page.url()}`);
+    const source = await this.loadInjectSource();
+    await this.page.evaluate(({ globalName, target }) => {
+      globalThis.__MESURER_CONFIG__ = { ...(globalThis.__MESURER_CONFIG__ ?? {}), globalName, ...(target ? { target } : {}) };
+    }, { globalName: this.options.globalName, target: this.options.target });
+    // Deliberately use plain JavaScript evaluation rather than addScriptTag().
+    // This mirrors the primitive already exposed by agent browser tools.
+    await this.page.evaluate(source);
+    await this.page.evaluate(async (globalName) => { await globalThis[globalName].ready(); }, this.options.globalName);
+    return this.status();
   }
 
   async status() {
     const page = this.page;
-    if (!page || page.isClosed()) {
-      return { started: this.started, connected: Boolean(this.browser), page: null, injected: false };
-    }
-    const injected = await page.evaluate((globalName) => typeof globalThis[globalName]?.ready === "function", this.options.globalName).catch(() => false);
+    const injected = page && !page.isClosed()
+      ? await page.evaluate((globalName) => typeof globalThis[globalName]?.ready === "function", this.options.globalName).catch(() => false)
+      : false;
     return {
-      started: this.started,
       connected: Boolean(this.browser?.isConnected()),
       mode: this.options.cdp ? "cdp" : "launch",
-      autoInject: this.options.autoInject,
-      injectPath: this.options.injectPath,
       globalName: this.options.globalName,
-      page: {
-        id: this.pageIds.get(page) ?? null,
-        url: page.url(),
-        title: await page.title().catch(() => ""),
-      },
+      page: page && !page.isClosed() ? { url: page.url(), title: await page.title().catch(() => "") } : null,
       injected,
     };
   }
 
   async pages() {
-    const pages = this.flattenPages();
-    return Promise.all(pages.map(async (page, index) => ({
+    return Promise.all(this.flattenPages().map(async (page, index) => ({
       index,
       id: this.pageIds.get(page) ?? null,
       selected: page === this.page,
@@ -233,102 +143,10 @@ export class BrowserHarnessSession {
     })));
   }
 
-  async selectPage(selector) {
-    const page = await this.pickPage(selector);
-    this.page = page;
-    if (this.options.autoInject && !unsupportedUrl(page.url())) await this.ensureInjected();
-    return this.status();
-  }
-
-  async navigate(value) {
-    const page = this.requirePage();
-    const url = normalizeBrowserUrl(value);
-    if (!url) throw new Error("url must be non-empty");
-    await page.goto(url, { waitUntil: "domcontentloaded" });
-    if (this.options.autoInject) await this.ensureInjected();
-    return this.status();
-  }
-
-  async back() {
-    const page = this.requirePage();
-    await page.goBack({ waitUntil: "domcontentloaded" });
-    if (this.options.autoInject) await this.ensureInjected();
-    return this.status();
-  }
-
-  async forward() {
-    const page = this.requirePage();
-    await page.goForward({ waitUntil: "domcontentloaded" });
-    if (this.options.autoInject) await this.ensureInjected();
-    return this.status();
-  }
-
-  async reload() {
-    const page = this.requirePage();
-    await page.reload({ waitUntil: "domcontentloaded" });
-    if (this.options.autoInject) await this.ensureInjected();
-    return this.status();
-  }
-
-  async inject() {
-    return this.injectInto(this.requirePage());
-  }
-
-  async callAgent(method, args = []) {
-    await this.ensureInjected();
-    return this.page.evaluate(async ({ globalName, method, args }) => {
-      const api = globalThis[globalName];
-      if (!api) throw new Error(`Mesurer agent global ${globalName} is not available`);
-      const fn = api[method];
-      if (typeof fn !== "function") throw new Error(`Mesurer agent method is not available: ${method}`);
-      return await fn.apply(api, args);
-    }, { globalName: this.options.globalName, method, args });
-  }
-
-  async click(selector, index = 0) {
-    const page = this.requirePage();
-    await page.locator(selector).nth(index).click();
-    return { selector, index };
-  }
-
-  async hover(selector, index = 0) {
-    const page = this.requirePage();
-    await page.locator(selector).nth(index).hover();
-    return { selector, index };
-  }
-
-  async fill(selector, value, index = 0) {
-    const page = this.requirePage();
-    await page.locator(selector).nth(index).fill(value);
-    return { selector, index, value };
-  }
-
-  async press(key, selector = null, index = 0) {
-    const page = this.requirePage();
-    if (selector) await page.locator(selector).nth(index).press(key);
-    else await page.keyboard.press(key);
-    return { key, selector, index };
-  }
-
-  async screenshot({ path: requestedPath = null, fullPage = false } = {}) {
-    const page = this.requirePage();
-    await mkdir(this.options.screenshotDir, { recursive: true });
-    const filename = requestedPath
-      ? toAbsolute(requestedPath)
-      : path.join(this.options.screenshotDir, `mesurer-${new Date().toISOString().replace(/[:.]/g, "-")}.png`);
-    await mkdir(path.dirname(filename), { recursive: true });
-    await page.screenshot({ path: filename, fullPage });
-    return { path: filename, fullPage, url: page.url() };
-  }
-
   async close() {
     if (this.browser?.isConnected()) {
-      if (this.ownsBrowser) {
-        await this.browser.close();
-      } else {
-        // Playwright Browser.close() can send Browser.close over a raw CDP
-        // connection, terminating an externally launched Chrome. Disconnect
-        // only the Playwright client when attached to the user's browser.
+      if (this.ownsBrowser) await this.browser.close();
+      else {
         const connection = this.browser._connection;
         if (connection && typeof connection.close === "function") connection.close();
       }
@@ -336,7 +154,5 @@ export class BrowserHarnessSession {
     this.resolveDisconnected?.();
   }
 
-  async waitForDisconnect() {
-    return this.disconnected;
-  }
+  async waitForDisconnect() { return this.disconnected; }
 }
