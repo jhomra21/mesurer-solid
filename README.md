@@ -1,6 +1,6 @@
 # Mesurer Solid
 
-A framework-agnostic UI measurement, inspection, and extension layer for browser applications and coding agents.
+A framework-agnostic UI measurement, inspection, and extension layer for browser applications and coding agents, built as a Solid 2 port/remix and extension of [Mesurer](https://github.com/ibelick/mesurer), originally created by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick).
 
 Mesurer Solid is implemented with Solid 2 internally, but that renderer/runtime is bundled into an isolated browser island. Host applications do **not** need Solid 2 and can use Solid 1, Solid 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer.
 
@@ -36,8 +36,6 @@ Mesurer runs as an isolated inspection layer over real applications, including c
     <td align="center"><sub>Google Search</sub></td>
   </tr>
 </table>
-
-These captures were generated from the current `main` artifact after the Trusted Types renderer fix at `4006bce`, using public/sanitized pages at a 1440×900 CSS viewport with a native 2× PNG export. The published `0.1.0-beta.5` package predates that fix.
 
 ## Capabilities at a glance
 
