@@ -1,11 +1,11 @@
-import { For, Show, createSignal, onSettled } from "solid-js";
+import { For, Show, createSignal, onSettled, untrack } from "solid-js";
 import { colorToHex, formatColor, type ColorPickerFormat } from "../core/colors";
 import type { MeasurerModel } from "../model/create-measurer-model";
 import { Tooltip, createTooltip } from "./Tooltip";
 
 export function ColorPicker(props: { model: MeasurerModel; ownerWindow: Window }) {
   const [copiedId, setCopiedId] = createSignal<string | null>(null);
-  const tooltip = createTooltip(props.ownerWindow);
+  const tooltip = createTooltip(untrack(() => props.ownerWindow));
   let panel: HTMLDivElement | undefined;
   let copyTimeout: number | null = null;
 

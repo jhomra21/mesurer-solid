@@ -494,10 +494,10 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   };
 
   createEffect(
-    () => model.state.toolMode,
-    (mode) => {
+    () => [model.state.toolMode, model.state.enabled] as const,
+    ([mode, enabled]) => {
       if (!textInspector) return;
-      if (mode === "text-inspector" && model.state.enabled) textInspector.enable();
+      if (mode === "text-inspector" && enabled) textInspector.enable();
       else textInspector.disable();
     },
   );
