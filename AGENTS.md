@@ -1,17 +1,32 @@
-# Mesurer Solid agent integration
+# Mesurer Solid agent instructions
 
-Mesurer Solid is designed to be attached by coding agents from the same browser harness they already use to inspect and test a user's application.
+Mesurer Solid is designed to be attached by coding agents from the **same browser harness they already use** to inspect and test a user's application.
 
-## Preferred path: use the agent's existing browser tool
+The core rule is simple:
 
-A user application does **not** need to import Mesurer. The coding-agent environment should install `@jhomra21/mesurer-solid`, resolve/read its `@jhomra21/mesurer-solid/inject-script` export, and pass that source to the browser tool's existing JavaScript-evaluation primitive.
+> The outer harness owns the browser. Mesurer owns measurement, inspection, Mesurer commands, and the extension runtime.
+
+Do not build a second browser-control stack around Mesurer.
+
+## 1. Preferred integration: inject into the existing page
+
+A user application does **not** need to import Mesurer.
+
+The coding-agent environment should install `@jhomra21/mesurer-solid`, resolve/read its `@jhomra21/mesurer-solid/inject-script` export, and pass that source to the browser tool's existing JavaScript-evaluation primitive.
 
 Do not launch a second Chromium, create a second CDP connection, or wrap navigation/click/type/screenshot APIs when the outer harness already provides them.
 
-Conceptually:
+In a Node/Bun-side harness:
 
 ```js
-const source = await readMesurerInjectScript();
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+
+const source = await readFile(
+  fileURLToPath(import.meta.resolve("@jhomra21/mesurer-solid/inject-script")),
+  "utf8",
+);
+
 await browser.evaluate(source);
 await browser.evaluate(`window.__MESURER__.ready()`);
 ```
@@ -29,22 +44,24 @@ bun run browser:inject-script > /tmp/mesurer-inject.js
 
 The repository's `browser:harness` command is only a Playwright reference adapter for manual testing/CI; it is not the agent integration API. See [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md).
 
-## Feedback loop
+## 2. Injection configuration
 
-After each UI edit or HMR update, use the outer harness to execute:
+Before evaluating the injection payload, a harness may set:
 
 ```js
-await window.__MESURER__.stable();
-const feedback = await window.__MESURER__.feedback([
-  "[data-testid='primary-toolbar']",
-  "main",
-  "[data-testid='inspector']",
-]);
+window.__MESURER_CONFIG__ = {
+  globalName: "__MESURER__",
+  target: "#app",
+  excludePlugins: ["color-picker"],
+  persistKey: "project:mesurer",
+};
 ```
 
-Then use the outer browser harness's existing screenshot tool. Mesurer feedback gives exact geometry, margin/padding/border, typography, flex/grid properties, overflow, element-to-element gaps, viewport/document dimensions, plugin capabilities, and plugin state. Do not infer geometry from screenshots when `window.__MESURER__` can measure it directly.
+`target` is a CSS selector and defaults to `document.body`. `globalName` defaults to `__MESURER__`. Other fields are normal mount options except direct `target` elements and the `agent` option.
 
-## Agent bridge
+Reinjection is deterministic: the previous `window.__MESURER_INSTANCE__` is disposed before the new instance mounts.
+
+## 3. What the agent bridge can observe
 
 Default global: `window.__MESURER__`.
 
@@ -64,11 +81,80 @@ command(id: string, args?: unknown): Promise<void>
 state(): Promise<Record<string, unknown>>
 ```
 
-The advanced mounted instance is available as `window.__MESURER_INSTANCE__`. Use its `pluginHost` only when an agent needs to add, remove, or replace runtime plugins. Prefer the smaller JSON-safe `window.__MESURER__` surface for normal feedback.
+Element inspection includes:
 
-## Built-in commands
+```text
+selector/tag/id/classes/text/role/aria-label
+rect: left/top/right/bottom/x/y/width/height
+margin/padding/border edges
+typography: font family/size/weight, line height, letter spacing, text alignment, color
+appearance: background, border color/radius, shadow, opacity
+layout: display, position, z-index, overflow, flex fields, grid tracks, transform
+scroll: client/scroll dimensions and overflow booleans
+```
 
-The runtime bridge exposes stable built-in command names:
+`distance()` returns horizontal/vertical gaps and center deltas between the first matching elements. `viewport()` reports viewport/document dimensions, DPR, scroll position, and page overflow. `feedback()` combines requested element measurements, viewport data, loaded plugin/capability description, and serialized plugin state into one JSON-safe snapshot.
+
+## 4. Required post-edit feedback loop
+
+After each meaningful UI edit or HMR update:
+
+```js
+await window.__MESURER__.stable();
+
+const feedback = await window.__MESURER__.feedback([
+  "[data-testid='primary-toolbar']",
+  "main",
+  "[data-testid='inspector']",
+]);
+```
+
+Then take a screenshot with the **outer browser harness**.
+
+Use both signals:
+
+```text
+Mesurer numeric feedback  → geometry, box model, computed styles, overflow, capability state
+Outer-harness screenshot  → pixels, composition, clipping, visual regressions
+```
+
+Do not infer exact spacing from screenshots when Mesurer can measure it directly. Do not expect Mesurer to take the screenshot for you.
+
+When a selector matches many nodes, use `inspectAll(selector, limit)` or narrow the selector. The default `inspectAll` limit is 50.
+
+## 5. Browser ownership boundary
+
+Mesurer does **not** provide or own:
+
+- navigation;
+- clicking or typing;
+- screenshots;
+- tabs/windows;
+- authentication/session management;
+- browser process lifetime;
+- a network RPC listener;
+- source-file editing.
+
+Use the outer harness for those operations.
+
+Mesurer does provide exact page inspection, Mesurer command execution, Mesurer/plugin state, runtime plugin management, and the interactive Mesurer UI.
+
+## 6. Built-in features and stable commands
+
+The default renderer includes:
+
+```text
+Select
+X-ray
+Color Picker
+Rulers
+Text Inspector
+Guides
+Distance overlay
+Settings
+```
+
+The runtime bridge exposes these stable built-in command names:
 
 ```text
 builtin.select
@@ -80,87 +166,149 @@ builtin.guides
 builtin.settings
 ```
 
-Commands use the same behavior path as the visible Mesurer tools.
+The Distance feature is an overlay capability and does not currently expose a `builtin.distance` command.
 
-### Replacing a built-in
+Commands use the same behavior path as the visible Mesurer controls.
 
-A plugin can replace a built-in without changing the agent-facing command name. Register the replacement against the same built-in slot and use its own command. Mesurer hides the legacy control, renders the replacement contribution, and delegates the stable `builtin.<name>` command plus the conventional shortcut to the replacement.
+## 7. Advanced mounted instance
+
+Injection also exposes:
+
+```text
+window.__MESURER_INSTANCE__
+```
+
+Use `window.__MESURER__` for normal measurement/feedback because it is intentionally small and JSON-safe.
+
+Use `window.__MESURER_INSTANCE__` only when an agent needs advanced operations such as:
+
+```text
+pluginHost.load(plugin)
+pluginHost.remove(id)
+pluginHost.replace(plugin)
+pluginHost.describe()
+pluginHost.undo()/redo()
+```
+
+Wait for `window.__MESURER__.ready()` before relying on the plugin host being fully initialized.
+
+## 8. Plugin runtime
+
+Plugins may register:
+
+- tools;
+- commands;
+- hooks;
+- overlays;
+- settings contributions;
+- scoped state slices;
+- opaque services;
+- disposal callbacks.
+
+State slices can opt into:
+
+```ts
+history: true
+persist: true
+```
+
+History-aware state participates in plugin undo/redo. Persisted state is stored beside the configured Mesurer persistence key when a mount uses `persistKey`.
+
+Every registration belongs to the plugin that created it and must disappear when that plugin is removed or replaced.
+
+## 9. Replacing a built-in
+
+A plugin can replace a built-in without changing the agent-facing command name or conventional shortcut.
+
+Register a replacement tool against the same `builtin` slot and give it its own command:
 
 ```ts
 import { defineMesurerPlugin } from "@jhomra21/mesurer-solid/core";
 
 const replacement = defineMesurerPlugin({
-  id: "mesurer.xray",
+  id: "example.xray",
   provides: ["tool:xray"],
   setup(ctx) {
-    ctx.state.register({ id: "replacement.xray", initial: false, history: true });
-    ctx.command.register("replacement.xray.toggle", () => {
-      ctx.state.update<boolean>("replacement.xray", (value) => !value);
+    ctx.state.register({
+      id: "example.xray.enabled",
+      initial: false,
+      history: true,
     });
+
+    ctx.command.register("example.xray.toggle", () => {
+      ctx.state.update<boolean>("example.xray.enabled", (value) => !value);
+    });
+
     ctx.tool.register({
       id: "xray",
       builtin: "xray",
       label: "Replacement X-ray",
       shortcut: "X",
-      command: "replacement.xray.toggle",
-      active: () => ctx.state.get("replacement.xray") === true,
+      command: "example.xray.toggle",
+      active: () => ctx.state.get("example.xray.enabled") === true,
     });
   },
 });
 
+await window.__MESURER__.ready();
 await window.__MESURER_INSTANCE__?.pluginHost?.replace(replacement);
 await window.__MESURER__.command("builtin.xray");
 ```
 
-Nested command delegation is one history transaction, so stable built-in commands do not create duplicate undo checkpoints.
+Mesurer hides the legacy control while the replacement is active and delegates the stable `builtin.xray` route to the replacement contribution. Nested command delegation is treated as one history transaction rather than creating duplicate undo checkpoints.
 
-## Runtime plugins
+## 10. Renderer-aware plugin UI
 
-Plugins may register:
+After the renderer bridge loads, it provides the opaque service capability:
 
-- tools
-- commands
-- hooks
-- overlays
-- settings contributions
-- scoped state slices
-- opaque renderer/browser services
-- disposal callbacks
+```text
+runtime:solid
+```
 
-State slices can opt into history and persistence. Registrations must clean up when their plugin is removed or replaced.
+The public package does **not** currently export a named `MesurerSolidRuntimeService` type. Do not import that type from `@jhomra21/mesurer-solid`.
 
-Renderer-aware plugins may request the `runtime:solid` capability and use the public runtime service type exported by `@jhomra21/mesurer-solid`. This does not require importing the private renderer workspace.
+If a plugin needs renderer-owned UI, request the service structurally through the public plugin service API:
 
 ```ts
-import type { MesurerSolidRuntimeService } from "@jhomra21/mesurer-solid";
+import { defineMesurerPlugin } from "@jhomra21/mesurer-solid/core";
 
-const plugin = {
-  id: "example.overlay",
+type RuntimeSolid = {
+  ownerDocument: Document;
+  ownerWindow: Window;
+  portalTarget: HTMLElement | ShadowRoot;
+  createInspectorMount(): {
+    element: HTMLDivElement;
+    dispose(): void;
+  };
+};
+
+const plugin = defineMesurerPlugin({
+  id: "example.overlay-ui",
   requires: ["runtime:solid"],
   setup(ctx) {
-    const runtime = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
-    if (!runtime) throw new Error("Missing renderer runtime service");
+    const runtime = ctx.service.get<RuntimeSolid>("runtime:solid");
+    if (!runtime) throw new Error("Missing runtime:solid service");
 
     const mount = runtime.createInspectorMount();
     mount.element.textContent = "Plugin UI";
     ctx.lifecycle.onDispose(() => mount.dispose());
   },
-};
+});
 ```
 
-`createInspectorMount()` marks plugin-owned DOM as inspector UI so Mesurer does not measure or X-ray its own extension surface. Service values never enter history or persistence; `describe()` exposes service IDs only.
+`createInspectorMount()` marks plugin-owned DOM as inspector UI so Mesurer does not measure or X-ray its own extension surface. Service values never enter plugin history/persistence; `describe()` exposes service IDs, not service object values.
 
-## Framework rules
+## 11. Framework rules
 
-- Solid 1, Solid 2, React, Vue, Svelte, vanilla browser apps, and Electron renderer pages all use the public `@jhomra21/mesurer-solid` mount/injection boundary.
+- Solid 1, Solid 2, React, Vue, Svelte, vanilla browser apps, and Electron renderer pages all use the same public `@jhomra21/mesurer-solid` mount/injection boundary.
 - There is no public framework-specific Mesurer package.
 - Mesurer's own UI renderer remains implemented in Solid 2, but that runtime is private to the Mesurer browser island.
 - Electron main-process code is not a DOM host. Mount or inject only in renderer pages.
 - Browser transport and browser ownership belong to the outer harness, not Mesurer.
 
-## Public package contract
+## 12. Public package contract
 
-Only one package is intended for users:
+Only one npm package is intended for users:
 
 ```text
 @jhomra21/mesurer-solid
@@ -171,19 +319,51 @@ Only one package is intended for users:
 
 These are subpath exports of the same npm package, not separate packages.
 
-## Architecture invariants
+The root export includes the mount API, agent harness/types, plugin types/helpers, and built-in plugin factories. `/core` contains framework-neutral plugin/runtime primitives. `/inject` is the ES-module side-effect injector. `/inject-script` is the classic self-executing browser-evaluation payload.
 
-Internal repository workspaces may remain separated for maintainability, but they are private implementation details:
+## 13. Repository architecture invariants
 
-- framework-neutral core must not depend on Solid, React, or another renderer;
+Internal workspaces may remain separated for maintainability, but they are private implementation details:
+
+- framework-neutral core must not depend on Solid, React, another renderer, Electron, or browser globals;
 - DOM helpers own canonical browser measurements;
 - `packages/renderer` owns the Solid 2 UI/reactive adapter;
 - `packages/mesurer` owns the one public package, isolated mount, public core bundle, and injection payloads;
 - built-in and external features use the same plugin host;
-- the staged npm artifact must not expose private workspace names or runtime dependencies;
+- the staged npm artifact must not expose private workspace names or host runtime dependencies;
 - default rendering must retain the pinned upstream visual/behavioral parity gates;
 - agent integrations must not require Playwright when the outer harness already has browser execution capability.
 
-## Development-only injection
+## 14. Repository contribution instructions
+
+Use Bun for repository development:
+
+```bash
+bun install
+bun run dev
+```
+
+Before considering source changes complete, run the core validation set:
+
+```bash
+bun run typecheck
+bun run test
+bun run build
+```
+
+For changes that affect the browser/package boundary, also inspect the relevant package-smoke, host-compatibility, browser, and visual-parity workflows.
+
+When changing public behavior:
+
+1. update the root README and npm package README when the public capability or API changes;
+2. update this file when the agent contract, browser boundary, command surface, or plugin rules change;
+3. preserve the one-package public contract unless intentionally redesigning it;
+4. keep built-in command names stable when replacing implementation details;
+5. add regression coverage for bugs that would otherwise recur silently;
+6. do not bypass the pinned visual/interaction parity gates for default-renderer changes.
+
+For normal releases, follow [`RELEASING.md`](./RELEASING.md). Do **not** manually edit the public package version, create release tags, or manually `npm publish` as a substitute for the repository release workflow.
+
+## 15. Development-only injection
 
 `@jhomra21/mesurer-solid/inject` and `@jhomra21/mesurer-solid/inject-script` are intended for development, testing, and coding-agent harnesses. They do not open a network port or expose a remote-control service by themselves.
