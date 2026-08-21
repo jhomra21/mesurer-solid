@@ -22,6 +22,7 @@ import type {
   MesurerPluginDescription,
   MesurerPluginHost,
 } from "./core";
+import { mountMesurerHost, type MesurerHostLayerMode } from "./host-layer";
 
 export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 export type MesurerBuiltinPluginId =
@@ -146,6 +147,11 @@ export type MountMeasurerOptions = MesurerOptions & {
   isolate?: boolean;
   /** ShadowRoot mode used when isolate is enabled. Defaults to open for devtools visibility. */
   shadowMode?: ShadowRootMode;
+  /**
+   * Promote the Mesurer host into the browser top layer when supported so host
+   * stacking contexts and ancestor clipping cannot cover it. Defaults to true.
+   */
+  topLayer?: boolean;
   /** Opt in to a window-level agent bridge, or configure its global name/root. */
   agent?: boolean | AgentBridgeOptions;
 };
@@ -153,11 +159,15 @@ export type MountMeasurerOptions = MesurerOptions & {
 export type MountedMeasurer = {
   element: HTMLDivElement;
   root: HTMLDivElement | ShadowRoot;
+  /** Actual host-layer strategy selected for this browser. */
+  readonly hostLayer: MesurerHostLayerMode;
   readonly pluginHost: MesurerPluginHost | undefined;
   /** Resolves after built-ins, renderer bridge, external plugins and persisted plugin state settle. */
   readonly ready: Promise<void>;
   /** JSON-safe browser measurement and command API for coding-agent harnesses. */
   readonly agent: MesurerAgentHarness;
+  /** Reassert Mesurer as the newest top-layer entry after host overlays if needed. */
+  bringToFront(): void;
   describe(): MesurerPluginDescription | undefined;
   dispose(): void;
 };
@@ -171,6 +181,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     target = document.body,
     isolate = true,
     shadowMode = "open",
+    topLayer = true,
     agent: agentOption = false,
     onPluginHost,
     onPluginsReady,
@@ -180,7 +191,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
   const ownerWindow = ownerDocument.defaultView ?? window;
   const container = ownerDocument.createElement("div");
   container.dataset.mesurerIsland = "true";
-  target.append(container);
+  const hostLayer = mountMesurerHost(container, target, topLayer);
 
   let root: HTMLDivElement | ShadowRoot = container;
   let mount: HTMLDivElement = container;
@@ -268,17 +279,20 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
   return {
     element: container,
     root,
+    hostLayer: hostLayer.mode,
     get pluginHost() {
       return pluginHost;
     },
     ready,
     agent,
+    bringToFront: hostLayer.bringToFront,
     describe: () => pluginHost?.describe(),
     dispose() {
       if (disposed) return;
       disposed = true;
       restoreAgentGlobal?.();
       disposeRender();
+      hostLayer.dispose();
       container.remove();
     },
   };
@@ -313,6 +327,7 @@ export type {
   StateSliceDefinition,
   ToolContribution,
 } from "./core";
+export type { MesurerHostLayerMode } from "./host-layer";
 
 export const selectPlugin = rendererSelectPlugin as unknown as () => MesurerPlugin;
 export const xrayPlugin = rendererXrayPlugin as unknown as () => MesurerPlugin;
