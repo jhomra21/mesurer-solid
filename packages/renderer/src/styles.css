@@ -121,13 +121,18 @@
 }
 
 /* Solid host compatibility: keep the isolated island above host-page chrome
-   without changing upstream Mesurer's internal z-index/token contract. */
+   without changing upstream Mesurer's internal z-index/token contract. Keep
+   the host itself at zero area so ordinary page hit testing still passes
+   through outside Mesurer's explicitly interactive descendants. */
 :host {
   display: block !important;
   position: fixed !important;
-  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: visible !important;
   z-index: 2147483647 !important;
-  pointer-events: none !important;
 }
 
 /* Solid host compatibility: visually equivalent to upstream's root utility classes. */
