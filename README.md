@@ -15,7 +15,8 @@ Mesurer is useful in three ways:
 | Capability | What Mesurer provides |
 | --- | --- |
 | Framework-independent mounting | `mountMeasurer()` works in browser DOM hosts without sharing the host framework runtime. |
-| Isolated UI | Open ShadowRoot isolation by default, with an opt-out for specialized integrations. |
+| Isolated UI | ShadowRoot isolation plus a protected host layer so application CSS/stacking is not allowed to casually hide the inspector. |
+| Browser top-layer mounting | Modern browsers promote the Mesurer host into a manual popover, escaping ordinary stacking contexts and ancestor clipping. |
 | Visual inspection tools | Select, X-ray, color picker, rulers, text inspector, guides, distance overlay, and settings. |
 | Exact element inspection | Rect, margin, padding, border, typography, appearance, layout, scroll size, and overflow state. |
 | Geometry comparison | Horizontal/vertical gaps and center deltas between elements. |
@@ -27,6 +28,30 @@ Mesurer is useful in three ways:
 | History and persistence | Plugin state slices can opt into undo/redo history and browser persistence. Mesurer settings/workspace state can also persist. |
 | Transport-neutral injection | A self-contained classic script can be evaluated by an existing browser harness without requiring Playwright or a second CDP connection. |
 | Deterministic reinjection | Injecting again disposes the previous injected instance before mounting the new one. |
+
+## The rendered page is the source of truth
+
+For agent-driven UI work, Mesurer is intended to stay in the development loop rather than appear only at final QA.
+
+A source file saying `gap: 16px`, `align-items: center`, or `width: 100%` does **not** prove that the rendered page has the intended spacing, alignment, dimensions, or overflow. Fonts, intrinsic sizing, parent layout, transforms, breakpoints, wrapping, and neighboring components can all change the actual result.
+
+The default design loop is:
+
+```text
+user requests a UI/design change
+  → agent edits the implementation
+  → real app renders / HMR settles
+  → __MESURER__.stable()
+  → __MESURER__.feedback([...important selectors])
+  → outer harness takes a screenshot
+  → agent compares exact measurements + pixels to the request
+  → agent fixes discrepancies
+  → repeat until the rendered result supports the claim
+```
+
+Use Mesurer to validate statements such as “these edges align,” “the gap is 16 px,” “all buttons are the same height,” “there is no horizontal overflow,” or “this heading is actually using the intended font.” Use the screenshot to judge composition, hierarchy, balance, clipping, and the things that remain visual rather than numeric.
+
+See [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md) for the practical agent workflow and examples.
 
 ## What Mesurer deliberately does not own
 
@@ -60,15 +85,21 @@ console.log(mesurer.agent.distance("#sidebar", "main"));
 mesurer.dispose();
 ```
 
-`mountMeasurer()` creates an isolated ShadowRoot by default. The mounted instance exposes:
+`mountMeasurer()` creates an isolated ShadowRoot by default and, on browsers with Popover API support, promotes the outer host into the browser top layer so ordinary page stacking contexts and ancestor clipping cannot cover it.
+
+The mounted instance exposes:
 
 - `ready` — resolves after built-ins, the renderer bridge, external plugins, and persisted plugin state settle.
 - `agent` — the JSON-safe measurement/command harness.
 - `pluginHost` — the live extension host once created.
+- `hostLayer` — reports `"top-layer"` or the fixed compatibility fallback.
+- `bringToFront()` — explicitly reasserts Mesurer as the newest inspection surface when needed.
 - `describe()` — current plugin/capability description.
 - `dispose()` — removes the Mesurer island and associated globals/listeners.
 
-Useful mount options include `target`, `isolate`, `shadowMode`, colors, guide/ruler settings, persistence configuration, external `plugins`, `excludePlugins`, a supplied `pluginHost`, and agent bridge configuration.
+Useful mount options include `target`, `isolate`, `shadowMode`, `topLayer`, colors, guide/ruler settings, persistence configuration, external `plugins`, `excludePlugins`, a supplied `pluginHost`, and agent bridge configuration.
+
+See [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) for the host-page layering contract, adversarial test strategy, and explicit guarantee boundaries.
 
 ## Coding agents: use the browser tool you already have
 
@@ -167,7 +198,7 @@ layout: display, position, z-index, overflow, flex/grid fields, transform
 scroll: client/scroll dimensions and overflow booleans
 ```
 
-A productive agent loop is:
+For meaningful UI/design changes, this loop should be the default verification step, not an optional final check:
 
 ```text
 edit or interact through the outer harness
@@ -178,7 +209,7 @@ edit or interact through the outer harness
   → repeat
 ```
 
-Prefer Mesurer's numeric geometry over estimating spacing from screenshots.
+Prefer Mesurer's numeric geometry over estimating spacing from screenshots, and prefer the actual rendered measurement over assuming a CSS declaration produced the intended result.
 
 ## Stable built-in commands
 
@@ -266,11 +297,25 @@ mounted.pluginHost?.remove("example.counter");
 await mounted.pluginHost?.replace(nextCounterPlugin);
 ```
 
+### Customize Mesurer by asking your agent
+
+Users do not need to hand-author plugin code. A normal workflow can be:
+
+> “Add a Mesurer plugin that checks whether these cards align to an 8 px spacing grid.”
+
+> “Add a Mesurer tool that highlights overflowing containers.”
+
+> “Replace X-ray with a project-specific overlay that labels our design-system components.”
+
+> “Add a command that measures every toolbar button and reports inconsistent heights.”
+
+The coding agent should generally implement project-specific inspection behavior as a plugin, load it through the public plugin host, and keep Mesurer core reusable.
+
 Built-ins use the same host. You can exclude them with `excludePlugins`, or replace a built-in slot with a plugin contribution that declares the same `builtin` id. Mesurer keeps the stable shortcut and `builtin.<id>` command routing while the replacement is active.
 
 Renderer-aware plugins can request the `runtime:solid` capability through `ctx.service.get("runtime:solid")`. That service provides owner document/window, the portal target, and a `createInspectorMount()` helper for plugin-owned UI. The service is intentionally opaque; extension code should not import private renderer workspaces.
 
-See [`AGENTS.md`](./AGENTS.md) for the coding-agent contract and extension rules.
+See [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md) for practical extension ideas and [`AGENTS.md`](./AGENTS.md) for the coding-agent contract.
 
 ## Built-in feature composition
 
@@ -309,7 +354,7 @@ There is one npm package with four primary public entry points:
 - `/inject` — ES-module side-effect injector for browser automation.
 - `/inject-script` — self-contained classic-script payload for generic JavaScript evaluation.
 
-## Compatibility and isolation
+## Compatibility and host-page isolation
 
 The supported browser-host boundary is intentionally framework independent:
 
@@ -322,6 +367,10 @@ Svelte
 vanilla DOM
 Electron renderer
 ```
+
+We do not attempt to prove compatibility by keeping a list of websites. Instead, package-smoke exercises classes of browser interference against the exact packed artifact: hostile global CSS, transformed/overflow-clipped ancestors, extreme `z-index` overlays, later top-layer popovers, and modal dialogs. Those are the primitives websites compose.
+
+On modern browsers, the preferred manual-popover host lives in the browser top layer, which is above normal document layers and escapes ancestor clipping. The fixed/max-`z-index` path is the compatibility fallback. See [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) for what is guaranteed and what no in-page library can guarantee.
 
 Electron main-process code is not a DOM host. Mount or inject Mesurer inside renderer pages. Mesurer does not import Electron.
 
@@ -348,11 +397,13 @@ bun run test
 bun run build
 ```
 
-The package-smoke workflow packs the exact sanitized npm artifact, installs it into clean consumer hosts, and evaluates the packed `inject-script.js` from a React page with no Mesurer source import.
+The package-smoke workflow packs the exact sanitized npm artifact, installs it into clean consumer hosts, evaluates the packed `inject-script.js` from a React page with no Mesurer source import, and exercises the host-isolation regression contract.
 
 For repository work, also read:
 
 - [`AGENTS.md`](./AGENTS.md) — coding-agent integration and contribution instructions.
+- [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md) — how to keep Mesurer in the UI implementation/validation loop.
+- [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) — cross-site layering/occlusion invariants and adversarial tests.
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — internal boundaries and invariants.
 - [`RELEASING.md`](./RELEASING.md) — release workflow; do not manually publish normal releases.
 - [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md) — upstream attribution.
