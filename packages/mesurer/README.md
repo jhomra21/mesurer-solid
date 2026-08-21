@@ -16,6 +16,7 @@ Mesurer provides:
 - a composable plugin runtime with tools, commands, hooks, overlays, settings, state, services, history, persistence, and disposal;
 - runtime plugin load/remove/replace, including replacement of built-in slots;
 - isolated ShadowRoot mounting by default;
+- protected browser top-layer mounting on modern browsers so normal page stacking/clipping does not cover the inspector;
 - classic-script and ES-module injection paths for existing browser harnesses.
 
 Mesurer deliberately does **not** own browser navigation, clicks, typing, screenshots, tabs, authentication, source editing, browser lifetime, or a network RPC server. Keep those responsibilities in the outer browser/agent harness.
@@ -38,14 +39,15 @@ await mesurer.ready;
 
 console.log(mesurer.agent.inspect("[data-testid='save']"));
 console.log(mesurer.agent.distance("#sidebar", "main"));
+console.log(mesurer.hostLayer); // "top-layer" on supported modern browsers
 
 // Later
 mesurer.dispose();
 ```
 
-`mountMeasurer()` creates an isolated ShadowRoot by default. The mounted instance exposes the live `agent` harness, `pluginHost`, `ready`, `describe()`, and `dispose()`.
+`mountMeasurer()` creates an isolated ShadowRoot by default. On browsers with Popover API support, the outer host is promoted into the browser top layer so ordinary stacking contexts and ancestor clipping cannot cover it. The mounted instance exposes the live `agent` harness, `pluginHost`, `hostLayer`, `bringToFront()`, `ready`, `describe()`, and `dispose()`.
 
-Useful options include `target`, `isolate`, `shadowMode`, colors, guide/ruler settings, persistence, `plugins`, `excludePlugins`, a supplied `pluginHost`, and agent bridge configuration.
+Useful options include `target`, `isolate`, `shadowMode`, `topLayer`, colors, guide/ruler settings, persistence, `plugins`, `excludePlugins`, a supplied `pluginHost`, and agent bridge configuration.
 
 ## Inject from an existing coding-agent browser tool
 
@@ -91,6 +93,7 @@ Before injection, a harness can configure the bridge:
 window.__MESURER_CONFIG__ = {
   globalName: "__UI_MEASURE__",
   target: "#app",
+  topLayer: true,
   excludePlugins: ["color-picker"],
   persistKey: "my-project:mesurer",
 };
@@ -111,17 +114,21 @@ Neither injection entry opens a network listener or remote-control service.
 - `command(id, args?)` — execute Mesurer or extension commands.
 - `state()` — serialize plugin-owned state.
 
-Recommended feedback loop:
+## Use Mesurer as the design feedback loop
+
+For meaningful UI/design work, do not stop when the source CSS looks plausible. Validate what the browser actually rendered:
 
 ```text
-outer harness edits/navigates/interacts
+agent edits the UI
+  → real app/HMR settles
   → __MESURER__.stable()
   → __MESURER__.feedback([...important selectors])
   → outer harness screenshot
-  → compare exact geometry + pixels
+  → compare actual alignment/spacing/sizing/overflow/computed styles + pixels
+  → fix discrepancies and repeat
 ```
 
-Prefer Mesurer's numeric geometry over estimating spacing from screenshots.
+Use Mesurer measurements to prove claims such as “these edges align,” “the gap is 16 px,” “all buttons are the same height,” or “there is no horizontal overflow.” Use screenshots for composition, hierarchy, clipping, and visual balance. The rendered page—not the CSS declaration—is the final source of truth.
 
 ## Stable built-in commands
 
@@ -150,6 +157,8 @@ import {
 Plugins can register tools, commands, hooks, overlays, settings contributions, scoped state slices, opaque services, and disposal callbacks. State slices may opt into history and persistence.
 
 Plugins may be loaded, removed, or replaced while Mesurer is mounted. Built-in slots can also be excluded or replaced while preserving their stable shortcut and `builtin.<id>` command routing.
+
+Users can customize Mesurer by asking their coding agent to create project-specific plugins—for example an 8 px grid audit, overflow highlighter, component-label overlay, or consistency checker—rather than forking the renderer.
 
 Renderer-aware plugins may request the opaque `runtime:solid` service through `ctx.service.get("runtime:solid")`. It supplies the owner document/window, portal target, and a `createInspectorMount()` helper for plugin-owned UI. Extension code should not import private renderer workspaces.
 
