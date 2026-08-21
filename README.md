@@ -10,6 +10,35 @@ Mesurer is useful in three ways:
 2. **Agent feedback API** — exact, JSON-safe DOM geometry and computed-style data that coding agents can read through the browser tool they already use.
 3. **Composable runtime** — built-ins and third-party extensions share one plugin host, so tools can be added, removed, replaced, or driven by stable commands at runtime.
 
+## Mesurer in action
+
+Mesurer runs as an isolated inspection layer over real applications, including complex stacking, modal/top-layer UI, and strict Trusted Types pages.
+
+<p align="center">
+  <img src="docs/assets/showcase/youtube.png" alt="Mesurer Solid inspecting a public YouTube search page" width="100%">
+</p>
+
+<table>
+  <tr>
+    <td><img src="docs/assets/showcase/github.png" alt="Mesurer Solid inspecting GitHub" width="100%"></td>
+    <td><img src="docs/assets/showcase/google-maps.png" alt="Mesurer Solid inspecting Google Maps" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>GitHub</sub></td>
+    <td align="center"><sub>Google Maps</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/showcase/reddit.png" alt="Mesurer Solid inspecting Reddit" width="100%"></td>
+    <td><img src="docs/assets/showcase/google-search.png" alt="Mesurer Solid inspecting Google Search" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Reddit</sub></td>
+    <td align="center"><sub>Google Search</sub></td>
+  </tr>
+</table>
+
+These captures were generated from the current `main` artifact after the Trusted Types renderer fix at `4006bce`, using public/sanitized pages at a 1440×900 CSS viewport with a native 2× PNG export. The published `0.1.0-beta.5` package predates that fix.
+
 ## Capabilities at a glance
 
 | Capability | What Mesurer provides |
