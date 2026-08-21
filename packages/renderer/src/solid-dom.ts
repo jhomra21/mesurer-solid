@@ -161,7 +161,6 @@ export const {
   mergeProps,
   applyRef,
   ref,
-  use,
 } = createRenderer<Node>({
   createElement(tagName) {
     return SVG_ELEMENTS.has(tagName)
@@ -185,13 +184,13 @@ export const {
     parent.removeChild(node);
   },
   getParentNode(node) {
-    return node.parentNode;
+    return node.parentNode ?? undefined;
   },
   getFirstChild(node) {
-    return node.firstChild;
+    return node.firstChild ?? undefined;
   },
   getNextSibling(node) {
-    return node.nextSibling;
+    return node.nextSibling ?? undefined;
   },
 });
 
