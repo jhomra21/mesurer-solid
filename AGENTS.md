@@ -2,70 +2,47 @@
 
 Mesurer Solid is designed to be attached by coding agents from the same browser harness they already use to inspect and test a user's application.
 
-## Preferred path: inject, do not modify the app
+## Preferred path: use the agent's existing browser tool
 
-A user application does **not** need to import Mesurer. Install `@jhomra21/mesurer-solid` in the harness/tooling environment, resolve its `@jhomra21/mesurer-solid/inject` export, and inject that file into the running page.
+A user application does **not** need to import Mesurer. The coding-agent environment should install `@jhomra21/mesurer-solid`, resolve/read its `@jhomra21/mesurer-solid/inject-script` export, and pass that source to the browser tool's existing JavaScript-evaluation primitive.
 
-The repository now ships a reference harness for this path:
+Do not launch a second Chromium, create a second CDP connection, or wrap navigation/click/type/screenshot APIs when the outer harness already provides them.
+
+Conceptually:
+
+```js
+const source = await readMesurerInjectScript();
+await browser.evaluate(source);
+await browser.evaluate(`window.__MESURER__.ready()`);
+```
+
+`inject-script.js` is a self-contained classic script. It contains Mesurer's private Solid 2 renderer/runtime and mounts into an isolated ShadowRoot without depending on or replacing the application's Solid, React, Vue, Svelte, or other renderer runtime.
+
+Harnesses that specifically support module-script injection may alternatively use `@jhomra21/mesurer-solid/inject`, but `/inject-script` is the transport-neutral default for generic `browser_eval`, `browser_execute`, or CDP `Runtime.evaluate` APIs.
+
+Within this repository:
 
 ```bash
 bun run build
-bun run browser:harness -- http://localhost:5173
+bun run browser:inject-script > /tmp/mesurer-inject.js
 ```
 
-For a process-based agent, use newline-delimited JSON over stdio:
-
-```bash
-bun run browser:harness -- http://localhost:5173 --stdio
-```
-
-For an external adapter, use the authenticated loopback bridge:
-
-```bash
-bun run browser:harness -- http://localhost:5173 --serve
-```
-
-`GET /tools` exposes the stable RPC names plus JSON input schemas and `POST /rpc` executes them. The loopback server binds only to `127.0.0.1`, rejects non-loopback Host/Origin values, and requires the printed bearer token. See [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md).
-
-Harnesses that already own a Playwright page can still inject directly:
-
-```js
-import { fileURLToPath } from "node:url";
-
-const injectPath = fileURLToPath(
-  import.meta.resolve("@jhomra21/mesurer-solid/inject"),
-);
-
-await page.addScriptTag({ type: "module", path: injectPath });
-await page.evaluate(() => window.__MESURER__.ready());
-```
-
-The injector bundles Mesurer's private Solid 2 renderer/runtime and mounts into an isolated ShadowRoot. It must not depend on or replace the application's Solid, React, Vue, Svelte, or other renderer runtime.
+The repository's `browser:harness` command is only a Playwright reference adapter for manual testing/CI; it is not the agent integration API. See [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md).
 
 ## Feedback loop
 
-After each UI edit or HMR update:
+After each UI edit or HMR update, use the outer harness to execute:
 
 ```js
-await page.evaluate(() => window.__MESURER__.stable());
-
-const feedback = await page.evaluate(() =>
-  window.__MESURER__.feedback([
-    "[data-testid='primary-toolbar']",
-    "main",
-    "[data-testid='inspector']",
-  ]),
-);
-
-const screenshot = await page.screenshot();
+await window.__MESURER__.stable();
+const feedback = await window.__MESURER__.feedback([
+  "[data-testid='primary-toolbar']",
+  "main",
+  "[data-testid='inspector']",
+]);
 ```
 
-Use both outputs:
-
-- Mesurer feedback gives exact geometry, margin/padding/border, typography, flex/grid properties, overflow, element-to-element gaps, viewport/document dimensions, plugin capabilities, and plugin state.
-- The browser screenshot gives visual appearance that structured DOM data cannot fully represent.
-
-Do not infer geometry from screenshots when `window.__MESURER__` can measure it directly.
+Then use the outer browser harness's existing screenshot tool. Mesurer feedback gives exact geometry, margin/padding/border, typography, flex/grid properties, overflow, element-to-element gaps, viewport/document dimensions, plugin capabilities, and plugin state. Do not infer geometry from screenshots when `window.__MESURER__` can measure it directly.
 
 ## Agent bridge
 
@@ -86,8 +63,6 @@ describe(): Promise<MesurerPluginDescription | undefined>
 command(id: string, args?: unknown): Promise<void>
 state(): Promise<Record<string, unknown>>
 ```
-
-The reference harness maps these to stable transport names such as `mesurer.inspect`, `mesurer.feedback`, `mesurer.command`, and `mesurer.state`, and adds browser-level methods for navigation, tab selection, host-page input, and screenshots.
 
 The advanced mounted instance is available as `window.__MESURER_INSTANCE__`. Use its `pluginHost` only when an agent needs to add, remove, or replace runtime plugins. Prefer the smaller JSON-safe `window.__MESURER__` surface for normal feedback.
 
@@ -181,6 +156,7 @@ const plugin = {
 - There is no public framework-specific Mesurer package.
 - Mesurer's own UI renderer remains implemented in Solid 2, but that runtime is private to the Mesurer browser island.
 - Electron main-process code is not a DOM host. Mount or inject only in renderer pages.
+- Browser transport and browser ownership belong to the outer harness, not Mesurer.
 
 ## Public package contract
 
@@ -190,9 +166,10 @@ Only one package is intended for users:
 @jhomra21/mesurer-solid
 @jhomra21/mesurer-solid/core
 @jhomra21/mesurer-solid/inject
+@jhomra21/mesurer-solid/inject-script
 ```
 
-`/core` and `/inject` are subpath exports of the same npm package, not separate packages.
+These are subpath exports of the same npm package, not separate packages.
 
 ## Architecture invariants
 
@@ -201,11 +178,12 @@ Internal repository workspaces may remain separated for maintainability, but the
 - framework-neutral core must not depend on Solid, React, or another renderer;
 - DOM helpers own canonical browser measurements;
 - `packages/renderer` owns the Solid 2 UI/reactive adapter;
-- `packages/mesurer` owns the one public package, isolated mount, public core bundle, and agent injector;
+- `packages/mesurer` owns the one public package, isolated mount, public core bundle, and injection payloads;
 - built-in and external features use the same plugin host;
 - the staged npm artifact must not expose private workspace names or runtime dependencies;
-- default rendering must retain the pinned upstream visual/behavioral parity gates.
+- default rendering must retain the pinned upstream visual/behavioral parity gates;
+- agent integrations must not require Playwright when the outer harness already has browser execution capability.
 
 ## Development-only injection
 
-`@jhomra21/mesurer-solid/inject` is intended for development, testing, and coding-agent harnesses. It does not open a network port or expose a remote-control service by itself. The optional repository harness owns any local HTTP/stdio control plane outside the public package and treats that control plane as a privileged local capability.
+`@jhomra21/mesurer-solid/inject` and `@jhomra21/mesurer-solid/inject-script` are intended for development, testing, and coding-agent harnesses. They do not open a network port or expose a remote-control service by themselves.
