@@ -20,7 +20,11 @@
 
 :host {
   all: initial;
-  display: block;
+  display: block !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+  pointer-events: none !important;
   color-scheme: light;
   color: #0f172a;
   font-family: ui-sans-serif, system-ui, sans-serif;
