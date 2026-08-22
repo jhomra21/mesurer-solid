@@ -12,25 +12,24 @@ export function createXrayScope(options: {
   instanceId: number;
 }) {
   const { ownerDocument, target, instanceId } = options;
+  const ownerWindow = ownerDocument.defaultView ?? window;
+  const ShadowRootCtor = (ownerWindow as Window & typeof globalThis).ShadowRoot;
+  const shadowTarget = target instanceof ShadowRootCtor;
   const className = token(instanceId);
   const style = ownerDocument.createElement("style");
+  style.textContent = scopedRules(shadowTarget ? ":host" : `.${className}`);
   let visible = false;
-
-  if (target instanceof (ownerDocument.defaultView ?? window).ShadowRoot) {
-    style.textContent = scopedRules(":host");
-  } else {
-    style.textContent = scopedRules(`.${className}`);
-  }
 
   const setVisible = (next: boolean) => {
     if (visible === next) return;
     visible = next;
-    if (target instanceof (ownerDocument.defaultView ?? window).ShadowRoot) {
+    if (shadowTarget) {
       if (next) target.append(style);
       else style.remove();
       return;
     }
-    target.classList.toggle(className, next);
+    const element = target as HTMLElement;
+    element.classList.toggle(className, next);
     if (next && !style.isConnected) ownerDocument.head.append(style);
     if (!next) style.remove();
   };
