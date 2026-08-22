@@ -97,7 +97,7 @@ const createService = (
     const value = await context(request);
     const text = formatMesurerContext(value);
     const plan = createMesurerCapturePlan(value);
-    let images = [] as Awaited<ReturnType<MesurerEvidenceProvider>>;
+    let images: Awaited<ReturnType<MesurerEvidenceProvider>> = [];
     if (options.evidenceProvider) {
       runtime.prepareCapture();
       try {
@@ -144,7 +144,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       const service = createService(runtime, solid.ownerDocument, solid.ownerWindow, options);
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
 
-      ctx.command.register("context.copy", (args) => service.copyContext(args as MesurerContextRequest | undefined));
+      ctx.command.register("context.copy", () => service.copyContext());
       ctx.command.register("context.copy-selection", () => service.copyContext({ scope: "selection" }));
       if (options.sendContext) {
         ctx.command.register("context.send-selection", () => service.sendContext({ scope: "selection" }));
@@ -154,17 +154,13 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
       if (options.ui !== false) {
         uiMount = solid.createInspectorMount();
-        disposeUi = render(
-          () => (
-            <ContextActions
-              runtime={runtime}
-              onCopy={service.copyContext}
-              onSend={options.sendContext ? service.sendContext : undefined}
-              sendLabel={options.sendLabel}
-            />
-          ),
-          uiMount.element,
-        );
+        const actionProps = {
+          runtime,
+          onCopy: service.copyContext,
+          ...(options.sendContext ? { onSend: service.sendContext } : {}),
+          ...(options.sendLabel ? { sendLabel: options.sendLabel } : {}),
+        };
+        disposeUi = render(() => <ContextActions {...actionProps} />, uiMount.element);
       }
 
       ctx.lifecycle.onDispose(() => {
