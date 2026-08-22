@@ -78,7 +78,8 @@ export type MesurerWorkspaceRuntime = {
 };
 
 type RuntimeStore = { annotations: MesurerAnnotation[]; listeners: Set<() => void> };
-const STORE = Symbol.for("mesurer.workspace-context.v1");
+const STORE_KEY = "__MESURER_WORKSPACE_CONTEXT_V1__" as const;
+type RuntimeWindow = Window & { [STORE_KEY]?: RuntimeStore };
 const cloneRect = (value: Rect): Rect => ({ ...value });
 
 const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => ({
@@ -113,12 +114,11 @@ const randomId = (ownerWindow: Window, prefix: string) => {
   return `${prefix}-${value}`;
 };
 
-const getStore = (ownerWindow: Window): RuntimeStore => {
-  const record = ownerWindow as unknown as Record<PropertyKey, unknown>;
-  const existing = record[STORE] as RuntimeStore | undefined;
+const getStore = (ownerWindow: RuntimeWindow): RuntimeStore => {
+  const existing = ownerWindow[STORE_KEY];
   if (existing) return existing;
   const created: RuntimeStore = { annotations: [], listeners: new Set() };
-  record[STORE] = created;
+  ownerWindow[STORE_KEY] = created;
   return created;
 };
 
@@ -137,13 +137,16 @@ const selectedElements = (model: MeasurerModel | null) => {
   return elements;
 };
 
-const stripMeasurement = (measurement: Measurement<HTMLElement>) => ({
-  id: measurement.id,
-  rect: cloneRect(measurement.rect),
-  deltaX: measurement.deltaX,
-  deltaY: measurement.deltaY,
-  ...(measurement.snapped === undefined ? {} : { snapped: measurement.snapped }),
-});
+const stripMeasurement = (measurement: Measurement<HTMLElement>): MesurerAnnotationBaseline["measurements"][number] => {
+  const value: MesurerAnnotationBaseline["measurements"][number] = {
+    id: measurement.id,
+    rect: cloneRect(measurement.rect),
+    deltaX: measurement.deltaX,
+    deltaY: measurement.deltaY,
+  };
+  if (measurement.snapped !== undefined) value.snapped = measurement.snapped;
+  return value;
+};
 const stripDistance = (distance: DistanceOverlay<HTMLElement>) => ({
   id: distance.id,
   rectA: cloneRect(distance.rectA),
@@ -179,12 +182,15 @@ export function createMesurerWorkspaceRuntime(options: {
 
   const resolveTarget = (target: MesurerAnnotationTarget) => {
     let candidates: Element[] = [];
-    try { candidates = [...ownerDocument.querySelectorAll(target.selector)]; } catch { candidates = []; }
+    try {
+      candidates = [...ownerDocument.querySelectorAll(target.selector)];
+    } catch {
+      candidates = [];
+    }
     const compatible = candidates.filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
     if (compatible.length !== 1) return null;
     const element = compatible[0];
-    const HTMLElementCtor = (ownerWindow as Window & typeof globalThis).HTMLElement;
-    return element instanceof HTMLElementCtor ? element : null;
+    return element instanceof HTMLElement ? element : null;
   };
   const refreshAnnotations = () => {
     let changed = false;
@@ -204,10 +210,12 @@ export function createMesurerWorkspaceRuntime(options: {
   };
   const scheduleRefresh = () => {
     if (mutationFrame || disposed) return;
-    mutationFrame = ownerWindow.requestAnimationFrame(() => { mutationFrame = 0; refreshAnnotations(); });
+    mutationFrame = ownerWindow.requestAnimationFrame(() => {
+      mutationFrame = 0;
+      refreshAnnotations();
+    });
   };
-  const MutationObserverCtor = (ownerWindow as Window & typeof globalThis).MutationObserver;
-  const observer = new MutationObserverCtor(scheduleRefresh);
+  const observer = new MutationObserver(scheduleRefresh);
   if (ownerDocument.documentElement) observer.observe(ownerDocument.documentElement, { childList: true, subtree: true, attributes: true });
   ownerWindow.addEventListener("resize", scheduleRefresh);
   ownerWindow.addEventListener("scroll", scheduleRefresh, true);
@@ -263,7 +271,10 @@ export function createMesurerWorkspaceRuntime(options: {
       const current = model();
       return { elements: selectedElements(current), region: current?.current.selectionOriginRect ? cloneRect(current.current.selectionOriginRect) : null };
     },
-    annotations() { refreshAnnotations(); return store.annotations.map(copyAnnotation); },
+    annotations() {
+      refreshAnnotations();
+      return store.annotations.map(copyAnnotation);
+    },
     annotation(id) {
       refreshAnnotations();
       const annotation = store.annotations.find((item) => item.id === id);
@@ -280,7 +291,9 @@ export function createMesurerWorkspaceRuntime(options: {
       const annotation = store.annotations.find((item) => item.id === id);
       if (!annotation) return null;
       if (annotation.anchor.kind === "region") return cloneRect(annotation.anchor.rect);
-      const rects = annotation.anchor.targets.map((target) => resolveTarget(target)?.getBoundingClientRect()).filter(Boolean) as DOMRect[];
+      const rects = annotation.anchor.targets
+        .map((target) => resolveTarget(target)?.getBoundingClientRect())
+        .filter((value): value is DOMRect => value !== undefined);
       if (!rects.length) return annotation.anchor.targets[0]?.lastRect ? cloneRect(annotation.anchor.targets[0].lastRect) : null;
       const left = Math.min(...rects.map((value) => value.left));
       const top = Math.min(...rects.map((value) => value.top));
@@ -312,9 +325,13 @@ export function createMesurerWorkspaceRuntime(options: {
     removeAnnotation(id) {
       const next = store.annotations.filter((annotation) => annotation.id !== id);
       if (next.length === store.annotations.length) return;
-      store.annotations = next; notify();
+      store.annotations = next;
+      notify();
     },
-    subscribe(listener) { store.listeners.add(listener); return () => store.listeners.delete(listener); },
+    subscribe(listener) {
+      store.listeners.add(listener);
+      return () => store.listeners.delete(listener);
+    },
     prepareCapture() {
       if (!uiRoot) return;
       const selector = [
@@ -331,7 +348,10 @@ export function createMesurerWorkspaceRuntime(options: {
       }
     },
     finishCapture() {
-      for (const [element, display] of hidden) { if (display) element.style.display = display; else element.style.removeProperty("display"); }
+      for (const [element, display] of hidden) {
+        if (display) element.style.display = display;
+        else element.style.removeProperty("display");
+      }
       hidden.clear();
     },
     dispose() {
@@ -343,7 +363,10 @@ export function createMesurerWorkspaceRuntime(options: {
       observer.disconnect();
       ownerWindow.removeEventListener("resize", scheduleRefresh);
       ownerWindow.removeEventListener("scroll", scheduleRefresh, true);
-      for (const [element, display] of hidden) { if (display) element.style.display = display; else element.style.removeProperty("display"); }
+      for (const [element, display] of hidden) {
+        if (display) element.style.display = display;
+        else element.style.removeProperty("display");
+      }
       hidden.clear();
     },
   };
