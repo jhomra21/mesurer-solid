@@ -86,15 +86,6 @@ export function Toolbar(props: ToolbarProps) {
     const above = Math.max(0, rect.top - VIEWPORT_PADDING);
     return below >= SETTINGS_MENU_IDEAL_HEIGHT || below >= above ? "bottom" : "top";
   };
-  const settingsMenuMaxHeight = () => {
-    position();
-    const rect = toolbarElement?.getBoundingClientRect();
-    if (!rect) return Math.max(0, viewportHeight() - VIEWPORT_PADDING * 2);
-    const available = settingsMenuSide() === "bottom"
-      ? viewportHeight() - rect.bottom - VIEWPORT_PADDING * 2
-      : rect.top - VIEWPORT_PADDING * 2;
-    return Math.max(0, Math.floor(available));
-  };
 
   const updateMenuAlign = () => {
     const anchorRect = guideMenuElement?.getBoundingClientRect();
@@ -259,8 +250,7 @@ export function Toolbar(props: ToolbarProps) {
         <ToolbarButton id="settings" active={props.model.state.settingsOpen} label="Settings" shortcut="⌘/Ctrl+," onClick={toggleSettings} {...buttonProps("settings")}><GearIcon size={20} /></ToolbarButton>
         <Show when={props.model.state.settingsOpen}>
           <div
-            class={`mesurer-menu-surface msr:absolute msr:-right-1 msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:overflow-y-auto msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
-            style={{ "max-height": `${settingsMenuMaxHeight()}px` }}
+            class={`mesurer-menu-surface msr:absolute msr:-right-1 msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
             data-mesurer-inspector-ui="true"
             role="dialog"
             aria-label="Settings"
