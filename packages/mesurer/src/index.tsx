@@ -87,7 +87,7 @@ export type MountMeasurerOptions = MesurerOptions & {
   shadowMode?: ShadowRootMode;
   topLayer?: boolean;
   agent?: boolean | AgentBridgeOptions;
-  /** Show Copy Context and annotation controls. Defaults to true. */
+  /** Show Copy Context and annotation controls. Defaults to false for source-mount visual compatibility; inject/extension enable it by default. */
   contextUi?: boolean;
   /** Optional screenshot provider. Mesurer plans evidence; the host captures pixels. */
   evidenceProvider?: MesurerEvidenceProvider;
@@ -131,7 +131,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
   if (typeof document === "undefined") throw new Error("mountMeasurer() requires a browser or Electron renderer document.");
   const {
     target = document.body, isolate = true, shadowMode = "open", topLayer = true,
-    agent: agentOption = false, contextUi = true, evidenceProvider,
+    agent: agentOption = false, contextUi = false, evidenceProvider,
     sendContext: sendContextOption, sendLabel, onPluginHost, onPluginsReady, ...measurerProps
   } = options;
   const ownerDocument = target.ownerDocument ?? document;
@@ -195,6 +195,12 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
   const agent = Object.assign(baseAgent, { capabilities, context, contextText, annotations, review, capturePlan, prepareCapture, finishCapture, sendContext }) as MesurerBrowserAgent;
 
   const rendererProps = measurerProps as RendererMeasurerProps;
+  const contextActionsProps = {
+    runtime: workspace,
+    onCopy: copyContext,
+    ...(sendContextOption ? { onSend: sendContext } : {}),
+    ...(sendLabel ? { sendLabel } : {}),
+  };
   const disposeRender = render(
     () => (<>
       <RendererMeasurer
@@ -212,7 +218,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
           onPluginsReady?.(publicHost);
         }}
       />
-      {contextUi ? <ContextActions runtime={workspace} onCopy={copyContext} onSend={sendContextOption ? sendContext : undefined} sendLabel={sendLabel} /> : null}
+      {contextUi ? <ContextActions {...contextActionsProps} /> : null}
     </>),
     mount,
   );
