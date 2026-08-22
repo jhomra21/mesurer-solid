@@ -362,7 +362,8 @@ export default function ComposableMeasurer(props: MeasurerProps) {
         return;
       }
 
-      const custom = customTools().find((tool) => tool.shortcut && matchesShortcut(event, tool.shortcut));
+      const custom = customTools().find((tool) =>
+        tool.shortcut && !tool.disabled?.() && matchesShortcut(event, tool.shortcut));
       if (custom) {
         event.preventDefault();
         event.stopImmediatePropagation();
