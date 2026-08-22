@@ -32,7 +32,7 @@ type ContextToolbarButtonProps = {
 };
 
 function ContextToolbarButton(props: ContextToolbarButtonProps) {
-  const inactiveClass = props.disabled
+  const inactiveClass = () => props.disabled
     ? "msr:cursor-default msr:bg-transparent msr:text-black/30"
     : "msr:bg-transparent msr:text-black msr:hover:bg-black/4";
   return (
@@ -42,7 +42,7 @@ function ContextToolbarButton(props: ContextToolbarButtonProps) {
         aria-pressed={props.active ? "true" : "false"}
         aria-label={`${props.label}${props.shortcut ? ` (${props.shortcut})` : ""}`}
         disabled={props.disabled}
-        class={`msr:flex msr:size-8 msr:select-none msr:items-center msr:justify-center msr:rounded-[8px] msr:border-0 msr:outline-none ${props.active ? "msr:bg-[#0d99ff] msr:text-white" : inactiveClass}`}
+        class={`msr:flex msr:size-8 msr:select-none msr:items-center msr:justify-center msr:rounded-[8px] msr:border-0 msr:outline-none ${props.active ? "msr:bg-[#0d99ff] msr:text-white" : inactiveClass()}`}
         onClick={props.onClick}
       >
         {props.children}
@@ -172,7 +172,7 @@ export function ContextActions(props: ContextActionsProps) {
     const findToolbar = () => {
       if (!anchorElement) return;
       const root = anchorElement.getRootNode();
-      if (!(root instanceof currentWindow.Document || root instanceof currentWindow.ShadowRoot)) return;
+      if (!(root instanceof Document || root instanceof ShadowRoot)) return;
       const toolbar = root.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
       if (!toolbar) {
         mountFrame = currentWindow.requestAnimationFrame(findToolbar);
@@ -189,15 +189,11 @@ export function ContextActions(props: ContextActionsProps) {
     };
     findToolbar();
 
-    const isEditable = (target: EventTarget | null) => {
-      const realm = currentWindow as Window & typeof globalThis;
-      return target instanceof realm.HTMLElement && (
+    const isEditable = (target: EventTarget | null) =>
+      target instanceof HTMLElement && (
         target.isContentEditable ||
-        target instanceof realm.HTMLInputElement ||
-        target instanceof realm.HTMLTextAreaElement ||
-        target instanceof realm.HTMLSelectElement
+        target.matches("input, textarea, select")
       );
-    };
     const handleShortcut = (event: KeyboardEvent) => {
       if (isEditable(event.target) || event.altKey) return;
       const key = event.key.toLowerCase();
@@ -216,10 +212,11 @@ export function ContextActions(props: ContextActionsProps) {
         openNoteComposer();
         return;
       }
-      if (mod && !event.shiftKey && event.key === "Enter" && props.onSend && hasSelection()) {
+      const send = props.onSend;
+      if (mod && !event.shiftKey && event.key === "Enter" && send && hasSelection()) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        void run("send-selection", () => props.onSend!({ scope: "selection" }), "Sent");
+        void run("send-selection", () => send({ scope: "selection" }), "Sent");
       }
     };
     currentWindow.addEventListener("keydown", handleShortcut, true);
