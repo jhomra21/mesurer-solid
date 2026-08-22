@@ -15,6 +15,7 @@ import {
   isElementFingerprintCompatible,
   isElementFingerprintRebindable,
 } from "@jhomra21/mesurer-solid-dom";
+import { GUIDE_SNAP_DISTANCE } from "../core/constants";
 import type { MeasurerModel } from "../model/create-measurer-model";
 
 export type {
@@ -32,6 +33,7 @@ export type MesurerWorkspaceSnapshot = {
   enabled: boolean;
   rulersVisible: boolean;
   xrayVisible: boolean;
+  guideRelevanceTolerance: number;
   selectedMeasurements: MeasurerModel["current"]["selectedMeasurements"];
   selectionOriginRect: Rect | null;
   measurements: Measurement<HTMLElement>[];
@@ -57,6 +59,25 @@ export type MesurerWorkspaceRuntime = {
 };
 
 const cloneRect = (value: Rect): Rect => ({ ...value });
+const overlaps = (left: Rect, right: Rect) =>
+  left.left <= right.left + right.width
+  && left.left + left.width >= right.left
+  && left.top <= right.top + right.height
+  && left.top + left.height >= right.top;
+const unionRects = (values: Rect[]): Rect | null => {
+  if (!values.length) return null;
+  const left = Math.min(...values.map((value) => value.left));
+  const top = Math.min(...values.map((value) => value.top));
+  const right = Math.max(...values.map((value) => value.left + value.width));
+  const bottom = Math.max(...values.map((value) => value.top + value.height));
+  return { left, top, width: right - left, height: bottom - top };
+};
+const guideTouches = (guide: Guide, regions: Rect[]) =>
+  regions.some((region) => guide.orientation === "vertical"
+    ? guide.position >= region.left - GUIDE_SNAP_DISTANCE
+      && guide.position <= region.left + region.width + GUIDE_SNAP_DISTANCE
+    : guide.position >= region.top - GUIDE_SNAP_DISTANCE
+      && guide.position <= region.top + region.height + GUIDE_SNAP_DISTANCE);
 
 const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => ({
   ...annotation,
@@ -246,18 +267,35 @@ export function createMesurerWorkspaceRuntime(options: {
 
   const modelUnsubscribe = model.subscribe(notify);
 
-  const baseline = (targets: MesurerAnnotationTarget[]): MesurerAnnotationBaseline => {
+  const baseline = (options: {
+    targets: MesurerAnnotationTarget[];
+    elements?: HTMLElement[];
+    region?: Rect | null;
+  }): MesurerAnnotationBaseline => {
+    const { targets, elements = [], region = null } = options;
+    const elementSet = new Set(elements);
+    const targetRegion = unionRects(targets.map((target) => target.lastRect));
+    const regions = targetRegion ? [targetRegion] : region ? [region] : [];
+    const matchesElement = (element: HTMLElement | null | undefined) => Boolean(element && elementSet.has(element));
+    const matchesRect = (value: Rect) => regions.some((anchor) => overlaps(value, anchor));
     const measurements = [
       ...model.current.measurements,
       ...(model.current.activeMeasurement && !model.current.measurements.some((item) => item.id === model.current.activeMeasurement?.id)
         ? [model.current.activeMeasurement]
         : []),
-    ];
+    ].filter((measurement) => matchesElement(measurement.elementRef) || matchesRect(measurement.rect));
+    const distances = model.current.heldDistances.filter((distance) =>
+      matchesElement(distance.elementRefA)
+      || matchesElement(distance.elementRefB)
+      || matchesRect(distance.rectA)
+      || matchesRect(distance.rectB));
+    const guides = model.current.guides.filter((guide) => guideTouches(guide, regions));
+
     return {
       targets: targets.map((target) => ({ id: target.id, selector: target.selector, rect: cloneRect(target.lastRect) })),
-      guides: model.current.guides.map((guide) => ({ ...guide })),
+      guides: guides.map((guide) => ({ ...guide })),
       measurements: measurements.map(stripMeasurement),
-      distances: model.current.heldDistances.map(stripDistance),
+      distances: distances.map(stripDistance),
     };
   };
 
@@ -286,12 +324,13 @@ export function createMesurerWorkspaceRuntime(options: {
   const addRegionAnnotation = (note: string, value: Rect) => {
     const text = note.trim();
     if (!text) throw new Error("Annotation note cannot be empty.");
+    const region = cloneRect(value);
     return pushAnnotation({
       id: randomId(ownerWindow, "annotation"),
       note: text,
       createdAt: Date.now(),
-      anchor: { kind: "region", rect: cloneRect(value) },
-      baseline: baseline([]),
+      anchor: { kind: "region", rect: region },
+      baseline: baseline({ targets: [], region }),
     });
   };
 
@@ -310,7 +349,7 @@ export function createMesurerWorkspaceRuntime(options: {
       note: value,
       createdAt: Date.now(),
       anchor: { kind: "elements", targets, region },
-      baseline: baseline(targets),
+      baseline: baseline({ targets, elements }),
     }, elements);
   };
 
@@ -320,6 +359,7 @@ export function createMesurerWorkspaceRuntime(options: {
         enabled: model.current.enabled,
         rulersVisible: model.current.rulersVisible,
         xrayVisible: model.current.xrayVisible,
+        guideRelevanceTolerance: GUIDE_SNAP_DISTANCE,
         selectedMeasurements: [...model.current.selectedMeasurements],
         selectionOriginRect: model.current.selectionOriginRect ? cloneRect(model.current.selectionOriginRect) : null,
         measurements: [...model.current.measurements],
@@ -362,14 +402,15 @@ export function createMesurerWorkspaceRuntime(options: {
         .map((target) => resolveTarget(annotation.id, target)?.getBoundingClientRect())
         .filter((value): value is DOMRect => value !== undefined);
       if (!rects.length) {
-        const fallback = annotation.anchor.targets[0]?.lastRect;
+        const fallback = unionRects(annotation.anchor.targets.map((target) => target.lastRect));
         return fallback ? cloneRect(fallback) : null;
       }
-      const left = Math.min(...rects.map((value) => value.left));
-      const top = Math.min(...rects.map((value) => value.top));
-      const right = Math.max(...rects.map((value) => value.right));
-      const bottom = Math.max(...rects.map((value) => value.bottom));
-      return { left, top, width: right - left, height: bottom - top };
+      return unionRects(rects.map((value) => ({
+        left: value.left,
+        top: value.top,
+        width: value.width,
+        height: value.height,
+      })));
     },
     addSelectionAnnotation,
     addRegionAnnotation,
