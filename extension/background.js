@@ -23,16 +23,6 @@ async function toggleMesurer(tab) {
     });
     if (disposed) return;
 
-    await run(tab.id, {
-      func: () => {
-        const globalObject = globalThis;
-        const existing = globalObject.__MESURER_CONFIG__;
-        globalObject.__MESURER_CONFIG__ = existing
-          ? { ...existing, contextUi: true }
-          : { contextUi: true };
-      },
-    });
-
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       world: "MAIN",
