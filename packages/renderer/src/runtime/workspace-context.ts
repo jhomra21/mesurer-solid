@@ -6,7 +6,7 @@ import {
   isElementFingerprintCompatible,
   type DomElementFingerprint,
 } from "@jhomra21/mesurer-solid-dom";
-import type { MeasurerModel } from "../model/create-measurer-model";
+import { getLatestMeasurerModel, type MeasurerModel } from "../model/create-measurer-model";
 
 export type MesurerContextRequest =
   | { scope?: "workspace" }
@@ -145,10 +145,11 @@ const stripDistance = (distance: DistanceOverlay<HTMLElement>) => ({
 export function createMesurerWorkspaceRuntime(options: {
   ownerDocument: Document;
   ownerWindow: Window;
-  model: MeasurerModel;
   uiRoot?: ParentNode;
 }): MesurerWorkspaceRuntime {
-  const { ownerDocument, ownerWindow, model, uiRoot } = options;
+  const { ownerDocument, ownerWindow, uiRoot } = options;
+  const model = getLatestMeasurerModel();
+  if (!model) throw new Error("Mesurer renderer model is unavailable for context plugin setup.");
   const annotations: MesurerAnnotation[] = [];
   const listeners = new Set<() => void>();
   const hidden = new Map<HTMLElement, string>();
