@@ -206,7 +206,8 @@ export function createMesurerWorkspaceRuntime(options: {
     if (mutationFrame || disposed) return;
     mutationFrame = ownerWindow.requestAnimationFrame(() => { mutationFrame = 0; refreshAnnotations(); });
   };
-  const observer = new ownerWindow.MutationObserver(scheduleRefresh);
+  const MutationObserverCtor = (ownerWindow as Window & typeof globalThis).MutationObserver;
+  const observer = new MutationObserverCtor(scheduleRefresh);
   if (ownerDocument.documentElement) observer.observe(ownerDocument.documentElement, { childList: true, subtree: true, attributes: true });
   ownerWindow.addEventListener("resize", scheduleRefresh);
   ownerWindow.addEventListener("scroll", scheduleRefresh, true);
