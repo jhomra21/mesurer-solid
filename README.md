@@ -20,6 +20,41 @@ Mesurer gives humans and coding agents the same browser-visible evidence:
 
 Mesurer does **not** own source editing, dev servers, browser navigation, clicks/typing, browser lifetime, screenshots, authentication, or an ACP process/session. Those stay with the application or outer agent/browser harness.
 
+## Mesurer in action
+
+Mesurer runs as an isolated inspection layer over real applications, including complex stacking, modal/top-layer UI, strict Trusted Types pages, and Electron renderer pages.
+
+<p align="center">
+  <img src="docs/assets/showcase/youtube.png" alt="Mesurer Solid inspecting a public YouTube search page" width="100%">
+</p>
+
+<table>
+  <tr>
+    <td><img src="docs/assets/showcase/github.png" alt="Mesurer Solid inspecting GitHub" width="100%"></td>
+    <td><img src="docs/assets/showcase/google-maps.png" alt="Mesurer Solid inspecting Google Maps" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>GitHub</sub></td>
+    <td align="center"><sub>Google Maps</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/showcase/reddit.png" alt="Mesurer Solid inspecting Reddit" width="100%"></td>
+    <td><img src="docs/assets/showcase/google-search.png" alt="Mesurer Solid inspecting Google Search" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Reddit</sub></td>
+    <td align="center"><sub>Google Search</sub></td>
+  </tr>
+</table>
+
+### Electron renderer
+
+<p align="center">
+  <img src="docs/assets/showcase/electron-solid.jpg" alt="Mesurer Solid running over a packaged Electron application with a Solid 1 renderer" width="100%">
+</p>
+
+<sub>Mesurer running over a packaged Electron application with a Solid 1 renderer.</sub>
+
 ## Install in an app
 
 During beta:
