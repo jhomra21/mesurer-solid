@@ -7,12 +7,21 @@ import {
   type ToolContribution,
 } from "@jhomra21/mesurer-solid-core";
 import LegacyMeasurer, { type MeasurerProps as LegacyMeasurerProps } from "./Measurer";
+import {
+  MeasurerModelRegistrationContext,
+  type MeasurerModel,
+} from "./model/create-measurer-model";
 import { composeMesurerPlugins, type MesurerBuiltinPluginId } from "./plugins/builtins";
+import {
+  createMesurerWorkspaceRuntime,
+  type MesurerWorkspaceRuntime,
+} from "./runtime/workspace-context";
 
 export type MesurerSolidRuntimeService = {
   ownerDocument: Document;
   ownerWindow: Window;
   portalTarget: HTMLElement | ShadowRoot;
+  createWorkspaceRuntime(): MesurerWorkspaceRuntime;
   /** Create Mesurer-owned DOM that is automatically excluded from inspection/X-ray. */
   createInspectorMount(): { element: HTMLDivElement; dispose(): void };
 };
@@ -83,6 +92,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   const initialExclusions = new Set(untrack(() => props.excludePlugins ?? []));
   const initialBuiltinPlugins = untrack(() => composeMesurerPlugins([], props.excludePlugins ?? []));
   const initialExternalPlugins = untrack(() => [...(props.plugins ?? [])]);
+  let rendererModel: MeasurerModel | null = null;
   const [revision, setRevision] = createSignal(0);
   const [ready, setReady] = createSignal(false);
   const [extensionMount, setExtensionMount] = createSignal<HTMLDivElement | null>(null);
@@ -169,6 +179,17 @@ export default function ComposableMeasurer(props: MeasurerProps) {
           element.remove();
         },
       };
+    };
+
+    const createWorkspaceRuntime = () => {
+      const model = rendererModel;
+      if (!model) throw new Error("Mesurer renderer model is unavailable for runtime bridge setup.");
+      return createMesurerWorkspaceRuntime({
+        model,
+        ownerDocument,
+        ownerWindow,
+        uiRoot: target,
+      });
     };
 
     const visibilityStyle = ownerDocument.createElement("style");
@@ -286,6 +307,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
             ownerDocument,
             ownerWindow,
             portalTarget: target,
+            createWorkspaceRuntime,
             createInspectorMount,
           });
           for (const id of Object.keys(BUILTIN_KEYS) as MesurerBuiltinPluginId[]) {
@@ -407,13 +429,16 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       setExtensionMount(null);
       extensionMountHandle.dispose();
       visibilityStyle.remove();
+      rendererModel = null;
       if (ownsHost) runtimeHost.dispose();
     };
   });
 
   return (
     <>
-      <LegacyMeasurer {...props} />
+      <MeasurerModelRegistrationContext.Provider value={(model) => { rendererModel = model; }}>
+        <LegacyMeasurer {...props} />
+      </MeasurerModelRegistrationContext.Provider>
       <Show when={extensionMount()}>{(mount) => (
         <Portal mount={mount()}>
           <Show when={customTools().length > 0}>
