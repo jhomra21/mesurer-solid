@@ -1,28 +1,88 @@
-import { inspectDomElement, type DomElementInspection } from "@jhomra21/mesurer-solid-dom";
-import type {
-  MesurerAnnotationBaseline,
-  MesurerContextRequest,
-  MesurerWorkspaceRuntime,
-} from "@jhomra21/mesurer-solid-renderer";
+import { inspectDomElement } from "@jhomra21/mesurer-solid-dom";
 
-export type MesurerContextTarget = { ref: string; inspection: DomElementInspection };
+export type MesurerContextRequest =
+  | { scope?: "workspace" }
+  | { scope: "selection" }
+  | { annotation: string };
+
+export type MesurerContextRect = { left: number; top: number; width: number; height: number };
+export type MesurerContextEdges = { top: number; right: number; bottom: number; left: number };
+export type MesurerElementFingerprint = {
+  tag: string;
+  id: string | null;
+  testId: string | null;
+  role: string | null;
+  ariaLabel: string | null;
+  classes: string[];
+};
+export type MesurerElementInspection = {
+  selector: string;
+  tag: string;
+  id: string | null;
+  classes: string[];
+  text: string;
+  role: string | null;
+  ariaLabel: string | null;
+  rect: MesurerContextRect & { right: number; bottom: number; x: number; y: number };
+  margin: MesurerContextEdges;
+  padding: MesurerContextEdges;
+  border: MesurerContextEdges;
+  typography: {
+    fontFamily: string; fontSize: string; fontWeight: string; lineHeight: string;
+    letterSpacing: string; textAlign: string; color: string;
+  };
+  appearance: {
+    backgroundColor: string; borderColor: string; borderRadius: string; boxShadow: string; opacity: string;
+  };
+  layout: {
+    display: string; position: string; zIndex: string; overflowX: string; overflowY: string;
+    flexDirection: string; alignItems: string; justifyContent: string; gap: string;
+    gridTemplateColumns: string; gridTemplateRows: string; transform: string;
+  };
+  scroll: {
+    clientWidth: number; clientHeight: number; scrollWidth: number; scrollHeight: number;
+    overflowsX: boolean; overflowsY: boolean;
+  };
+};
+
+export type MesurerAnnotationTarget = {
+  id: string;
+  selector: string;
+  fingerprint: MesurerElementFingerprint;
+  lastRect: MesurerContextRect;
+};
+export type MesurerAnnotationBaseline = {
+  targets: Array<{ id: string; selector: string; rect: MesurerContextRect }>;
+  guides: Array<{ id: string; orientation: "vertical" | "horizontal"; position: number }>;
+  measurements: Array<{ id: string; rect: MesurerContextRect; deltaX: number; deltaY: number; snapped?: boolean }>;
+  distances: Array<{
+    id: string;
+    rectA: MesurerContextRect;
+    rectB: MesurerContextRect;
+    horizontal: { x1: number; x2: number; y: number; value: number } | null;
+    vertical: { y1: number; y2: number; x: number; value: number } | null;
+  }>;
+};
+export type MesurerAnnotation = {
+  id: string;
+  note: string;
+  createdAt: number;
+  anchor:
+    | { kind: "elements"; targets: MesurerAnnotationTarget[]; region: MesurerContextRect | null }
+    | { kind: "region"; rect: MesurerContextRect };
+  baseline: MesurerAnnotationBaseline;
+};
+
+export type MesurerContextTarget = { ref: string; inspection: MesurerElementInspection };
 export type MesurerContextGuide = { id: string; orientation: "vertical" | "horizontal"; position: number };
 export type MesurerContextMeasurement = {
-  id: string;
-  rect: { left: number; top: number; width: number; height: number };
-  deltaX: number;
-  deltaY: number;
-  snapped?: boolean;
-  targetRef?: string;
+  id: string; rect: MesurerContextRect; deltaX: number; deltaY: number; snapped?: boolean; targetRef?: string;
 };
 export type MesurerContextDistance = {
-  id: string;
-  rectA: { left: number; top: number; width: number; height: number };
-  rectB: { left: number; top: number; width: number; height: number };
+  id: string; rectA: MesurerContextRect; rectB: MesurerContextRect;
   horizontal: { x1: number; x2: number; y: number; value: number } | null;
   vertical: { y1: number; y2: number; x: number; value: number } | null;
-  targetARef?: string;
-  targetBRef?: string;
+  targetARef?: string; targetBRef?: string;
 };
 
 export type MesurerContextV1 = {
@@ -38,20 +98,12 @@ export type MesurerContextV1 = {
   coordinateSpace: "viewport-css-px";
   visualState: { rulersVisible: boolean; xrayVisible: boolean };
   targets: MesurerContextTarget[];
-  visualContext: {
-    guides: MesurerContextGuide[];
-    measurements: MesurerContextMeasurement[];
-    distances: MesurerContextDistance[];
-  };
+  visualContext: { guides: MesurerContextGuide[]; measurements: MesurerContextMeasurement[]; distances: MesurerContextDistance[] };
 };
 
 export type MesurerReviewChange = {
   kind: "target-rect" | "guide" | "measurement" | "distance";
-  label: string;
-  before: number;
-  current: number;
-  delta: number;
-  unit: "px";
+  label: string; before: number; current: number; delta: number; unit: "px";
 };
 export type MesurerReviewV1 = {
   schema: "mesurer.review/v1";
@@ -62,7 +114,6 @@ export type MesurerReviewV1 = {
   current: MesurerContextV1;
   changes: MesurerReviewChange[];
 };
-
 export type MesurerCapturePlanV1 = {
   schema: "mesurer.capture/v1";
   contextId: string;
@@ -70,7 +121,7 @@ export type MesurerCapturePlanV1 = {
   evidence: "show";
   captures: Array<
     | { id: "viewport"; kind: "viewport" }
-    | { id: "focus"; kind: "clip"; rect: { left: number; top: number; width: number; height: number } }
+    | { id: "focus"; kind: "clip"; rect: MesurerContextRect }
   >;
 };
 export type MesurerEvidenceImage = {
@@ -87,10 +138,31 @@ export type AcpTextContentBlock = { type: "text"; text: string };
 export type AcpImageContentBlock = { type: "image"; mimeType: string; data: string };
 export type MesurerAcpContentBlock = AcpTextContentBlock | AcpImageContentBlock;
 
-const rect = (value: { left: number; top: number; width: number; height: number }) => ({ left: value.left, top: value.top, width: value.width, height: value.height });
-const overlaps = (a: { left: number; top: number; width: number; height: number }, b: { left: number; top: number; width: number; height: number }) =>
+/** Structural renderer source used internally; kept public-package-safe so declarations never depend on private workspace packages. */
+export type MesurerWorkspaceContextSource = {
+  snapshot(): {
+    rulersVisible: boolean;
+    xrayVisible: boolean;
+    measurements: Array<{ id: string; rect: MesurerContextRect; deltaX: number; deltaY: number; snapped?: boolean; elementRef?: HTMLElement | null }>;
+    activeMeasurement: { id: string; rect: MesurerContextRect; deltaX: number; deltaY: number; snapped?: boolean; elementRef?: HTMLElement | null } | null;
+    heldDistances: Array<{
+      id: string; rectA: MesurerContextRect; rectB: MesurerContextRect;
+      elementRefA?: HTMLElement | null; elementRefB?: HTMLElement | null;
+      horizontal: { x1: number; x2: number; y: number; value: number } | null;
+      vertical: { y1: number; y2: number; x: number; value: number } | null;
+    }>;
+    guides: Array<{ id: string; orientation: "vertical" | "horizontal"; position: number }>;
+  } | null;
+  currentSelection(): { elements: HTMLElement[]; region: MesurerContextRect | null };
+  annotations(): MesurerAnnotation[];
+  annotation(id: string): (MesurerAnnotation & { resolvedTargets: Array<{ target: MesurerAnnotationTarget; element: HTMLElement | null }> }) | null;
+  annotationRect(id: string): MesurerContextRect | null;
+};
+
+const rect = (value: MesurerContextRect): MesurerContextRect => ({ left: value.left, top: value.top, width: value.width, height: value.height });
+const overlaps = (a: MesurerContextRect, b: MesurerContextRect) =>
   a.left <= b.left + b.width && a.left + a.width >= b.left && a.top <= b.top + b.height && a.top + a.height >= b.top;
-const unionRects = (values: Array<{ left: number; top: number; width: number; height: number }>) => {
+const unionRects = (values: MesurerContextRect[]) => {
   if (!values.length) return null;
   const left = Math.min(...values.map((value) => value.left));
   const top = Math.min(...values.map((value) => value.top));
@@ -99,22 +171,21 @@ const unionRects = (values: Array<{ left: number; top: number; width: number; he
   return { left, top, width: right - left, height: bottom - top };
 };
 const uniqueElements = (values: Array<HTMLElement | null | undefined>) => {
-  const seen = new Set<HTMLElement>();
-  const result: HTMLElement[] = [];
+  const seen = new Set<HTMLElement>(), result: HTMLElement[] = [];
   for (const value of values) {
     if (!value?.isConnected || seen.has(value)) continue;
     seen.add(value); result.push(value);
   }
   return result;
 };
-const guideTouches = (guide: MesurerContextGuide, regions: Array<{ left: number; top: number; width: number; height: number }>, tolerance = 4) =>
+const guideTouches = (guide: MesurerContextGuide, regions: MesurerContextRect[], tolerance = 4) =>
   regions.some((region) => guide.orientation === "vertical"
     ? guide.position >= region.left - tolerance && guide.position <= region.left + region.width + tolerance
     : guide.position >= region.top - tolerance && guide.position <= region.top + region.height + tolerance);
 const randomId = (ownerWindow: Window) => ownerWindow.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export function captureMesurerContext(options: {
-  runtime: MesurerWorkspaceRuntime;
+  runtime: MesurerWorkspaceContextSource;
   ownerDocument: Document;
   ownerWindow: Window;
   request?: MesurerContextRequest;
@@ -125,24 +196,18 @@ export function captureMesurerContext(options: {
   if (!snapshot) throw new Error("Mesurer workspace is not ready yet.");
 
   let anchorElements: HTMLElement[] = [];
-  let anchorRegions: Array<{ left: number; top: number; width: number; height: number }> = [];
+  let anchorRegions: MesurerContextRect[] = [];
   let scope: MesurerContextV1["scope"] = { kind: "workspace" };
-
   if ("annotation" in request) {
     const annotation = runtime.annotation(request.annotation);
     if (!annotation) throw new Error(`Mesurer annotation not found: ${request.annotation}`);
     anchorElements = uniqueElements(annotation.resolvedTargets.map((item) => item.element));
     const annotationRect = runtime.annotationRect(annotation.id);
     if (annotationRect) anchorRegions = [annotationRect];
-    const total = annotation.resolvedTargets.length;
-    const resolved = anchorElements.length;
-    const targetStatus = annotation.anchor.kind === "region"
-      ? "connected" as const
-      : total === 0 || resolved === 0
-        ? "stale" as const
-        : resolved === total
-          ? "connected" as const
-          : "partial" as const;
+    const total = annotation.resolvedTargets.length, resolved = anchorElements.length;
+    const targetStatus = annotation.anchor.kind === "region" ? "connected" as const
+      : total === 0 || resolved === 0 ? "stale" as const
+        : resolved === total ? "connected" as const : "partial" as const;
     scope = { kind: "annotation", annotationId: annotation.id, note: annotation.note, targetStatus };
   } else if (request.scope === "selection") {
     const selection = runtime.currentSelection();
@@ -159,7 +224,7 @@ export function captureMesurerContext(options: {
     ]);
   }
 
-  const regionMatches = (value: { left: number; top: number; width: number; height: number }) => scope.kind === "workspace" || anchorRegions.some((region) => overlaps(value, region));
+  const regionMatches = (value: MesurerContextRect) => scope.kind === "workspace" || anchorRegions.some((region) => overlaps(value, region));
   const elementMatches = (element: HTMLElement | null | undefined) => scope.kind === "workspace" || Boolean(element && anchorElements.includes(element));
   const measurements = [
     ...snapshot.measurements,
@@ -176,21 +241,18 @@ export function captureMesurerContext(options: {
     ...distances.flatMap((distance) => [distance.elementRefA, distance.elementRefB]),
   ]);
   const refByElement = new Map<HTMLElement, string>();
-  const targets = targetElements.map((element, index) => {
+  const targets: MesurerContextTarget[] = targetElements.map((element, index) => {
     const ref = `target-${index + 1}`;
     refByElement.set(element, ref);
-    return { ref, inspection: inspectDomElement(element) };
+    return { ref, inspection: inspectDomElement(element) as MesurerElementInspection };
   });
 
   return {
-    schema: "mesurer.context/v1",
-    id: randomId(ownerWindow),
-    createdAt: new Date().toISOString(),
-    scope,
+    schema: "mesurer.context/v1", id: randomId(ownerWindow), createdAt: new Date().toISOString(), scope,
     page: { url: ownerWindow.location?.href ?? ownerDocument.URL, title: ownerDocument.title },
     viewport: {
-      width: ownerWindow.innerWidth, height: ownerWindow.innerHeight,
-      devicePixelRatio: ownerWindow.devicePixelRatio, scrollX: ownerWindow.scrollX, scrollY: ownerWindow.scrollY,
+      width: ownerWindow.innerWidth, height: ownerWindow.innerHeight, devicePixelRatio: ownerWindow.devicePixelRatio,
+      scrollX: ownerWindow.scrollX, scrollY: ownerWindow.scrollY,
     },
     coordinateSpace: "viewport-css-px",
     visualState: { rulersVisible: snapshot.rulersVisible, xrayVisible: snapshot.xrayVisible },
@@ -214,7 +276,7 @@ export function captureMesurerContext(options: {
 }
 
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
-const lineRect = (value: { left: number; top: number; width: number; height: number }) => `x=${px(value.left)} y=${px(value.top)} w=${px(value.width)} h=${px(value.height)}`;
+const lineRect = (value: MesurerContextRect) => `x=${px(value.left)} y=${px(value.top)} w=${px(value.width)} h=${px(value.height)}`;
 export function formatMesurerContext(context: MesurerContextV1): string {
   const lines: string[] = [
     "Mesurer visual context", "", `Page: ${context.page.url}`,
@@ -257,7 +319,7 @@ export function formatMesurerContext(context: MesurerContextV1): string {
 }
 
 export function createMesurerCapturePlan(context: MesurerContextV1): MesurerCapturePlanV1 {
-  const evidenceRects = [
+  const evidenceRects: MesurerContextRect[] = [
     ...context.targets.map((target) => target.inspection.rect),
     ...context.visualContext.measurements.map((measurement) => measurement.rect),
     ...context.visualContext.distances.flatMap((distance) => [distance.rectA, distance.rectB]),
@@ -279,7 +341,7 @@ const addChange = (changes: MesurerReviewChange[], kind: MesurerReviewChange["ki
   changes.push({ kind, label, before, current, delta: current - before, unit: "px" });
 };
 export function reviewMesurerAnnotation(options: {
-  runtime: MesurerWorkspaceRuntime;
+  runtime: MesurerWorkspaceContextSource;
   ownerDocument: Document;
   ownerWindow: Window;
   annotationId: string;
@@ -333,5 +395,3 @@ export async function copyTextToClipboard(ownerDocument: Document, ownerWindow: 
   textarea.remove();
   if (!copied) throw new Error("Unable to copy Mesurer context to the clipboard.");
 }
-
-export type { MesurerContextRequest } from "@jhomra21/mesurer-solid-renderer";
