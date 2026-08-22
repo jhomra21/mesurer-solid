@@ -1,7 +1,6 @@
 import { render } from "@solidjs/web";
 import {
   ContextActions,
-  createMesurerWorkspaceRuntime,
   type ContextActionsController,
   type MesurerWorkspaceRuntime,
 } from "@jhomra21/mesurer-solid-renderer";
@@ -72,6 +71,7 @@ type SolidRuntimeService = {
   ownerDocument: Document;
   ownerWindow: Window;
   portalTarget: HTMLElement | ShadowRoot;
+  createWorkspaceRuntime(): MesurerWorkspaceRuntime;
   createInspectorMount(): { element: HTMLDivElement; dispose(): void };
 };
 
@@ -157,11 +157,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       const solid = ctx.service.get<SolidRuntimeService>("runtime:solid");
       if (!solid) throw new Error("Mesurer context plugin requires the renderer runtime service.");
 
-      const runtime = createMesurerWorkspaceRuntime({
-        ownerDocument: solid.ownerDocument,
-        ownerWindow: solid.ownerWindow,
-        uiRoot: solid.portalTarget,
-      });
+      const runtime = solid.createWorkspaceRuntime();
       const service = createService(runtime, solid.ownerDocument, solid.ownerWindow, options);
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
 
