@@ -27,6 +27,7 @@ export type ToolbarProps = {
 const TOOLBAR_DRAG_SLOP = 6;
 const GUIDE_MENU_WIDTH = 176;
 const VIEWPORT_PADDING = 8;
+const GUIDE_MENU_IDEAL_HEIGHT = 72;
 const SETTINGS_MENU_IDEAL_HEIGHT = 360;
 
 type ToolbarButtonProps = {
@@ -77,7 +78,14 @@ export function Toolbar(props: ToolbarProps) {
   const nearTop = () => position().y < 56;
   const nearBottom = () => viewportHeight() > 0 && position().y > viewportHeight() - 56;
   const tooltipSide = (): "top" | "bottom" => nearTop() && !nearBottom() ? "bottom" : "top";
-  const guideMenuSide = (): "top" | "bottom" => nearBottom() ? "top" : "bottom";
+  const guideMenuSide = (): "top" | "bottom" => {
+    position();
+    const rect = guideMenuElement?.getBoundingClientRect();
+    if (!rect) return nearBottom() ? "top" : "bottom";
+    const below = Math.max(0, viewportHeight() - rect.bottom - VIEWPORT_PADDING);
+    const above = Math.max(0, rect.top - VIEWPORT_PADDING);
+    return below >= GUIDE_MENU_IDEAL_HEIGHT || below >= above ? "bottom" : "top";
+  };
   const settingsMenuSide = (): "top" | "bottom" => {
     position();
     const rect = toolbarElement?.getBoundingClientRect();
