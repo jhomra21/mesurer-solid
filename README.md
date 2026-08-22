@@ -131,19 +131,19 @@ The DevTools Snippet workflow remains available when an extension cannot be inst
 
 ## Human annotations and Copy Context
 
-With the context plugin installed, use Select to target one or more page elements and choose **Add note**. The note is anchored to durable selector/fingerprint metadata and records a visual baseline.
+With the context plugin installed, use Select to target one or more page elements **or drag an arbitrary region**, then choose **Add note**. Element notes retain conservative DOM identity plus a visual baseline; region-only notes retain the selected viewport rectangle even when no element sits inside it.
 
 The toolbar supports:
 
 - **Copy context** — meaningful whole workspace;
-- **Copy selection** — current target plus related evidence;
-- **Add note** — persist human intent on a target;
-- annotation **Copy context** — only that note/target and relevant visual evidence;
+- **Copy selection** — current target/region plus related evidence;
+- **Add note** — persist human intent on a target or region;
+- annotation **Copy context** — only that note/scope and relevant visual evidence;
 - **Send to agent** only when `contextPlugin()` was configured with a sender callback.
 
-The context buttons live in the existing draggable top toolbar. Shortcuts are `C`, `Shift+C`, `N`, and optional `Cmd/Ctrl+Enter` for Send Selection.
+The context buttons are normal plugin contributions rendered by the same canonical draggable top-toolbar button component as built-ins. Shortcuts are `C`, `Shift+C`, `N`, and optional `Cmd/Ctrl+Enter` for Send Selection.
 
-Context relevance is deterministic: Mesurer includes guides that touch/cross the scope, measurements that reference/overlap it, and held distances involving/overlapping it.
+Context relevance is deterministic: Mesurer includes guides that touch/cross the scope, measurements that reference/overlap it, and held distances involving/overlapping it. Scoped context exposes the requested rectangles in `regions`.
 
 ```ts
 const all = await mesurer.context();
@@ -175,6 +175,7 @@ iterate or hand back to human
 ```
 
 ```js
+await window.__MESURER__.ready()
 window.__MESURER__.capabilities()
 await window.__MESURER__.annotations()
 await window.__MESURER__.context({ annotation: annotationId })
@@ -184,7 +185,9 @@ await window.__MESURER__.stable()
 const review = await window.__MESURER__.review(annotationId)
 ```
 
-Annotations conservatively rebind after DOM replacement only when their selector resolves to exactly one fingerprint-compatible target. Ambiguous/missing targets are reported stale rather than silently attached to another element.
+Annotations keep the exact DOM node while it remains connected. After replacement, Mesurer only rebinds when strong identity or a unique compatible weaker fingerprint proves the target. Ambiguous or incompatible replacements are reported stale rather than silently attaching the note to another element.
+
+Review compares by stable annotation target IDs rather than regenerated selectors. Relevant targets/guides/measurements/distances that disappear are reported explicitly as `kind: "missing"`.
 
 ## Clean screenshot evidence
 
@@ -202,7 +205,7 @@ try {
 }
 ```
 
-Capture mode hides toolbar/settings/comment/action chrome but preserves useful evidence such as rulers, guides, measurements, distances, pixel labels, selections, and annotation markers.
+The focused crop includes scoped `regions` as well as relevant element/measurement/distance evidence, so an element-free whitespace/alignment annotation still gets a close-up. Capture mode hides toolbar/settings/comment/action chrome but preserves useful evidence such as rulers, guides, measurements, distances, pixel labels, selections, and annotation markers.
 
 ## One portable Agent Skill
 
@@ -214,27 +217,22 @@ Install the single canonical Agent Skill into the current repository:
 npx --yes --package=@jhomra21/mesurer-solid@beta mesurer-skill install
 ```
 
-This writes:
+This transient install leaves a self-contained skill:
 
 ```text
-.agents/skills/mesurer-ui/SKILL.md
+.agents/skills/mesurer-ui/
+├── SKILL.md
+└── assets/
+    └── inject-script.js
 ```
 
-Harnesses that support the Agent Skills convention can discover the same workflow. The skill teaches agents to use Mesurer for visual frontend work and revalidate the rendered result after edits before claiming completion.
+Harnesses that support the Agent Skills convention can discover the same workflow and evaluate the included injector through the browser/evaluation channel they already own. The npm package does not need to remain installed in application source after the skill installer exits.
 
 This repository dogfoods the same skill under `.agents/skills/mesurer-ui/`.
 
 ## Inject into an existing agent/browser harness
 
-Default host-project mutation budget is zero. If the harness can already execute page JavaScript, reuse it:
-
-```text
-existing browser / renderer
-        ↓
-evaluate @jhomra21/mesurer-solid/inject-script
-        ↓
-window.__MESURER__
-```
+Default host-project mutation budget is zero. If the harness can already execute page JavaScript, reuse it. With an installed Agent Skill, evaluate `.agents/skills/mesurer-ui/assets/inject-script.js`. If the package itself is already installed, `/inject-script` is the equivalent distribution path:
 
 ```js
 import { readFile } from "node:fs/promises";
@@ -283,6 +281,8 @@ capturePlan()
 prepareCapture()/finishCapture()
 sendContext()  // when the plugin was configured with a sender
 ```
+
+Root-scoped agents keep `at()` consistent with `inspect()`/`inspectAll()`: a document-level hit-test fallback is discarded unless the hit element belongs to that configured root.
 
 See [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md).
 
@@ -335,7 +335,9 @@ import {
 
 Plugins can contribute tools, commands, hooks, overlays, settings, scoped state, services, history/persistence, lifecycle cleanup, and renderer-owned UI through the opaque runtime service. Built-ins can be excluded/replaced without forking the renderer.
 
-The new context workflow follows that same model: `contextPlugin()` is loaded, removed, and replaced through `pluginHost` and provides its public behavior through `context:v1`.
+Programmatic built-in commands use one controller owned by the renderer instance; toolbar clicks and human shortcuts converge on that same path. Commands do not depend on toolbar labels, `.click()`, or synthetic window keyboard events.
+
+The context workflow follows the same plugin model: `contextPlugin()` is loaded, removed, and replaced through `pluginHost` and provides its public behavior through `context:v1`.
 
 ## Public package surface
 
@@ -359,7 +361,7 @@ bun run test
 bun run build
 ```
 
-`bun run build` builds the public package and then writes an unpacked MV3 extension to `extension/dist/`.
+`bun run build` builds the public package and then writes an unpacked MV3 extension to `extension/dist/`. The package build also smoke-installs the portable Agent Skill into a temporary project and verifies its embedded injector matches the exact built `inject-script` bytes.
 
 Compatibility, package-smoke, visual-parity, and interaction workflows remain regression gates. Agent-session/ACP ownership flows should additionally be exercised locally with the actual harnesses because CI cannot meaningfully stand in for a user's live local coding-agent/browser session.
 
