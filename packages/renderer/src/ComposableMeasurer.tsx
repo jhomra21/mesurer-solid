@@ -153,6 +153,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     const target = input.portalTarget ?? document.body;
     const ownerDocument = target.ownerDocument ?? document;
     const ownerWindow = ownerDocument.defaultView ?? window;
+    const pageTarget = input.pageTarget ?? ownerDocument.body;
     const queryRoot: ParentNode = target;
 
     const requireModel = () => {
@@ -185,6 +186,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       ownerDocument,
       ownerWindow,
       uiRoot: target,
+      pageTarget,
     });
 
     const visibilityStyle = ownerDocument.createElement("style");
