@@ -21,18 +21,24 @@ The npm package ships one canonical `mesurer-ui` Agent Skill:
 npx --yes --package=@jhomra21/mesurer-solid@beta mesurer-skill install
 ```
 
-Use `--force` only when intentionally replacing an existing local copy. The skill teaches agents to use Mesurer for frontend visual work, consume human annotations before editing, and revalidate the rendered result after HMR instead of treating typecheck/build success as visual completion.
+Use `--force` only when intentionally replacing an existing local copy. The install is self-contained: it writes the skill plus the exact packaged classic injector to:
+
+```text
+.agents/skills/mesurer-ui/
+├── SKILL.md
+└── assets/
+    └── inject-script.js
+```
+
+The skill teaches agents to use Mesurer for frontend visual work, consume human annotations before editing, and revalidate the rendered result after HMR instead of treating typecheck/build success as visual completion.
 
 ## Default browser integration: inject
 
-**Default host-project mutation budget: zero.** If the existing browser, Electron, WebView, or automation harness can execute JavaScript in the target renderer, reuse that channel:
+**Default host-project mutation budget: zero.** If the existing browser, Electron, WebView, or automation harness can execute JavaScript in the target renderer, reuse that channel.
 
-```text
-existing harness
-  → existing page / renderer
-  → evaluate @jhomra21/mesurer-solid/inject-script
-  → window.__MESURER__
-```
+When the Agent Skill is installed, read `.agents/skills/mesurer-ui/assets/inject-script.js` and evaluate those bytes in the page. No project dependency is required after the transient installer exits.
+
+When `@jhomra21/mesurer-solid` is already installed as a project/tooling dependency, the equivalent package path is the `/inject-script` export:
 
 ```js
 import { readFile } from "node:fs/promises";
@@ -47,7 +53,7 @@ await browser.evaluate(source);
 await browser.evaluate(`window.__MESURER__.ready()`);
 ```
 
-The injection entry points install the removable `mesurer.context` plugin by default. They do not bake a second context implementation into the bridge. A harness that deliberately wants only the low-level inspector can set:
+Both routes evaluate the same built injector artifact. The injection entry points install the removable `mesurer.context` plugin by default. A harness that deliberately wants only the low-level inspector can set:
 
 ```js
 window.__MESURER_CONFIG__ = { context: false };
@@ -57,8 +63,13 @@ Do not create another Chromium instance, another CDP connection, a Mesurer-speci
 
 ## Discover the browser contract
 
+Wait for plugin setup before reading dynamic capabilities:
+
 ```js
-window.__MESURER__?.capabilities()
+if (window.__MESURER__) {
+  await window.__MESURER__.ready()
+  window.__MESURER__.capabilities()
+}
 ```
 
 `capabilities().capabilities.context` reflects whether the `context:v1` plugin service is currently present. Removing `mesurer.context` switches the context/review/capture capabilities off dynamically while the original inspection API keeps working.
@@ -75,7 +86,7 @@ await window.__MESURER__.context()
 await window.__MESURER__.contextText({ annotation: annotationId })
 ```
 
-`context()` combines the human's selected target and note with exact DOM inspection and relevant guides, measurements, and held distances. It excludes transient hover/drag state.
+`context()` combines the human's selected elements or dragged region and note with exact DOM inspection and relevant guides, measurements, and held distances. Scoped contexts expose their requested viewport rectangles in `regions`, so a region-only note remains useful even when no DOM element sits inside it. Transient hover/drag state is excluded.
 
 ### Revalidate after edits
 
@@ -84,7 +95,9 @@ await window.__MESURER__.stable()
 const review = await window.__MESURER__.review(annotationId)
 ```
 
-Annotations store a durable selector/fingerprint baseline. After ordinary HMR DOM replacement, the plugin only rebinds when the selector resolves to exactly one fingerprint-compatible target. Ambiguous or missing targets are reported stale.
+Annotations retain exact live DOM identity while the original node remains connected. After DOM replacement/HMR, rebinding is deliberately conservative: strong IDs are preferred, and weaker fingerprints must resolve uniquely. Ambiguous or incompatible replacements are reported stale instead of silently attaching the note to another element.
+
+`review()` matches targets by stable annotation target IDs rather than regenerated selectors. Relevant baseline evidence that genuinely disappears is reported with `kind: "missing"` instead of being silently omitted.
 
 ### Clean screenshots
 
@@ -95,13 +108,13 @@ const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
 await window.__MESURER__.prepareCapture()
 try {
   // harness screenshot: current viewport
-  // optional close-up: plan.captures.find(c => c.id === "focus")
+  // close-up when present: plan.captures.find(c => c.id === "focus")
 } finally {
   await window.__MESURER__.finishCapture()
 }
 ```
 
-Capture mode hides toolbars, settings, comment editors, and action panels while preserving rulers, guides, selection/annotation markers, measurements, distance overlays, and pixel labels.
+Capture planning includes the scoped `regions`, so an arbitrary whitespace/alignment annotation can still produce a focused close-up. Capture mode hides toolbars, settings, comment editors, and action panels while preserving rulers, guides, selection/annotation markers, measurements, distance overlays, and pixel labels.
 
 Use screenshots together with structured context. Screenshots are strong visual evidence; Mesurer geometry is stronger evidence for exact spacing/alignment claims.
 
@@ -166,6 +179,8 @@ await window.__MESURER__.feedback([".selector"])
 await window.__MESURER__.state()
 await window.__MESURER__.stable()
 ```
+
+When an agent is mounted with a scoped root, `inspect`, `inspectAll`, `distance`, and `at` all respect that root. A document-level hit test is never returned by `at()` unless the hit element belongs to the configured root.
 
 Prefer scoped `context()` and `review()` for normal human-in-the-loop visual development when the context plugin is available; use the low-level primitives for narrower measurement questions.
 
