@@ -12,6 +12,7 @@
     "build": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid-renderer' build && bun run --filter '@jhomra21/mesurer-solid' build",
     "typecheck": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid-renderer' build && bun run --filter '@jhomra21/mesurer-solid' typecheck && bun run --filter 'mesurer-solid-renderer-example' typecheck",
     "test": "bun run check:identity && bun run check:release && bun run check:browser-harness && bun run --filter '@jhomra21/mesurer-solid-core' test && bun run --filter '@jhomra21/mesurer-solid-dom' test && bun run --filter '@jhomra21/mesurer-solid-renderer' test",
+    "lint": "oxlint",
     "dev": "bun run build:foundations && bun run --filter '@jhomra21/mesurer-solid-renderer' styles && bun run --filter 'mesurer-solid-renderer-example' dev",
     "browser:harness": "node scripts/browser-harness/cli.mjs",
     "browser:inject-script": "node scripts/browser-harness/print-inject-script.mjs",
@@ -20,6 +21,8 @@
     "check:browser-harness": "node --test scripts/browser-harness/browser-harness.test.mjs"
   },
   "devDependencies": {
+    "@oxlint/plugins": "1.79.0",
+    "oxlint": "1.79.0",
     "playwright": "^1.55.0"
   }
 }
