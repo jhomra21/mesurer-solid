@@ -12,7 +12,7 @@ import {
   type MeasurerModel,
 } from "./model/create-measurer-model";
 import { composeMesurerPlugins, type MesurerBuiltinPluginId } from "./plugins/builtins";
-import { createMeasurerBuiltinController } from "./runtime/builtin-actions";
+import type { MeasurerBuiltinController } from "./runtime/builtin-actions";
 import {
   createMesurerWorkspaceRuntime,
   type MesurerWorkspaceRuntime,
@@ -85,6 +85,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   const initialBuiltinPlugins = untrack(() => composeMesurerPlugins([], props.excludePlugins ?? []));
   const initialExternalPlugins = untrack(() => [...(props.plugins ?? [])]);
   let rendererModel: MeasurerModel | null = null;
+  let builtinController: MeasurerBuiltinController | null = null;
   const [revision, setRevision] = createSignal(0);
   const [ready, setReady] = createSignal(false);
 
@@ -158,6 +159,10 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       if (!rendererModel) throw new Error("Mesurer renderer model is unavailable for runtime bridge setup.");
       return rendererModel;
     };
+    const requireBuiltinController = () => {
+      if (!builtinController) throw new Error("Mesurer built-in controller is unavailable for runtime bridge setup.");
+      return builtinController;
+    };
 
     const createInspectorMount = () => {
       const element = ownerDocument.createElement("div");
@@ -188,10 +193,6 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     visibilityStyle.textContent = visibilityCss();
     target.append(visibilityStyle);
 
-    const deactivateBuiltin = (id: MesurerBuiltinPluginId) => {
-      createMeasurerBuiltinController({ model: requireModel(), ownerWindow }).deactivate(id);
-    };
-
     const pluginStorageKey = input.persistKey ? `${input.persistKey}:plugins` : null;
     const persistPluginState = () => {
       if (!pluginStorageKey) return;
@@ -212,7 +213,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
         persistPluginState();
       }
       if (event.reason === "remove" && event.pluginId?.startsWith("mesurer.")) {
-        deactivateBuiltin(event.pluginId.slice("mesurer.".length) as MesurerBuiltinPluginId);
+        requireBuiltinController().deactivate(event.pluginId.slice("mesurer.".length) as MesurerBuiltinPluginId);
       }
     });
 
@@ -234,7 +235,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
         return;
       }
       if (!builtinEnabled(id)) return;
-      await createMeasurerBuiltinController({ model: requireModel(), ownerWindow }).run(id);
+      await requireBuiltinController().run(id);
     };
 
     const setupPlugins = async () => {
@@ -355,6 +356,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       unsubscribe();
       visibilityStyle.remove();
       rendererModel = null;
+      builtinController = null;
       if (ownsHost) runtimeHost.dispose();
     };
   });
@@ -365,6 +367,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
         {...props}
         pluginTools={customTools()}
         onPluginTool={(tool) => runTool(tool)}
+        onBuiltinController={(controller) => { builtinController = controller; }}
       />
     </MeasurerModelRegistrationContext>
   );
