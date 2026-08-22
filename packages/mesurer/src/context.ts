@@ -159,6 +159,7 @@ export type MesurerWorkspaceContextSource = {
   annotationRect(id: string): MesurerContextRect | null;
 };
 
+const GUIDE_RELEVANCE_TOLERANCE = 10;
 const rect = (value: MesurerContextRect): MesurerContextRect => ({ left: value.left, top: value.top, width: value.width, height: value.height });
 const overlaps = (a: MesurerContextRect, b: MesurerContextRect) =>
   a.left <= b.left + b.width && a.left + a.width >= b.left && a.top <= b.top + b.height && a.top + a.height >= b.top;
@@ -171,17 +172,19 @@ const unionRects = (values: MesurerContextRect[]) => {
   return { left, top, width: right - left, height: bottom - top };
 };
 const uniqueElements = (values: Array<HTMLElement | null | undefined>) => {
-  const seen = new Set<HTMLElement>(), result: HTMLElement[] = [];
+  const seen = new Set<HTMLElement>();
+  const result: HTMLElement[] = [];
   for (const value of values) {
     if (!value?.isConnected || seen.has(value)) continue;
-    seen.add(value); result.push(value);
+    seen.add(value);
+    result.push(value);
   }
   return result;
 };
-const guideTouches = (guide: MesurerContextGuide, regions: MesurerContextRect[], tolerance = 4) =>
+const guideTouches = (guide: MesurerContextGuide, regions: MesurerContextRect[]) =>
   regions.some((region) => guide.orientation === "vertical"
-    ? guide.position >= region.left - tolerance && guide.position <= region.left + region.width + tolerance
-    : guide.position >= region.top - tolerance && guide.position <= region.top + region.height + tolerance);
+    ? guide.position >= region.left - GUIDE_RELEVANCE_TOLERANCE && guide.position <= region.left + region.width + GUIDE_RELEVANCE_TOLERANCE
+    : guide.position >= region.top - GUIDE_RELEVANCE_TOLERANCE && guide.position <= region.top + region.height + GUIDE_RELEVANCE_TOLERANCE);
 const randomId = (ownerWindow: Window) => ownerWindow.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export function captureMesurerContext(options: {
@@ -204,7 +207,8 @@ export function captureMesurerContext(options: {
     anchorElements = uniqueElements(annotation.resolvedTargets.map((item) => item.element));
     const annotationRect = runtime.annotationRect(annotation.id);
     if (annotationRect) anchorRegions = [annotationRect];
-    const total = annotation.resolvedTargets.length, resolved = anchorElements.length;
+    const total = annotation.resolvedTargets.length;
+    const resolved = anchorElements.length;
     const targetStatus = annotation.anchor.kind === "region" ? "connected" as const
       : total === 0 || resolved === 0 ? "stale" as const
         : resolved === total ? "connected" as const : "partial" as const;
@@ -244,7 +248,33 @@ export function captureMesurerContext(options: {
   const targets: MesurerContextTarget[] = targetElements.map((element, index) => {
     const ref = `target-${index + 1}`;
     refByElement.set(element, ref);
-    return { ref, inspection: inspectDomElement(element) as MesurerElementInspection };
+    return { ref, inspection: inspectDomElement(element) };
+  });
+  const contextMeasurements = measurements.map((measurement): MesurerContextMeasurement => {
+    const value: MesurerContextMeasurement = {
+      id: measurement.id,
+      rect: rect(measurement.rect),
+      deltaX: measurement.deltaX,
+      deltaY: measurement.deltaY,
+    };
+    if (measurement.snapped !== undefined) value.snapped = measurement.snapped;
+    const targetRef = measurement.elementRef ? refByElement.get(measurement.elementRef) : undefined;
+    if (targetRef) value.targetRef = targetRef;
+    return value;
+  });
+  const contextDistances = distances.map((distance): MesurerContextDistance => {
+    const value: MesurerContextDistance = {
+      id: distance.id,
+      rectA: rect(distance.rectA),
+      rectB: rect(distance.rectB),
+      horizontal: distance.horizontal ? { ...distance.horizontal } : null,
+      vertical: distance.vertical ? { ...distance.vertical } : null,
+    };
+    const targetARef = distance.elementRefA ? refByElement.get(distance.elementRefA) : undefined;
+    const targetBRef = distance.elementRefB ? refByElement.get(distance.elementRefB) : undefined;
+    if (targetARef) value.targetARef = targetARef;
+    if (targetBRef) value.targetBRef = targetBRef;
+    return value;
   });
 
   return {
@@ -259,18 +289,8 @@ export function captureMesurerContext(options: {
     targets,
     visualContext: {
       guides: guides.map((guide) => ({ ...guide })),
-      measurements: measurements.map((measurement) => ({
-        id: measurement.id, rect: rect(measurement.rect), deltaX: measurement.deltaX, deltaY: measurement.deltaY,
-        ...(measurement.snapped === undefined ? {} : { snapped: measurement.snapped }),
-        ...(measurement.elementRef && refByElement.has(measurement.elementRef) ? { targetRef: refByElement.get(measurement.elementRef)! } : {}),
-      })),
-      distances: distances.map((distance) => ({
-        id: distance.id, rectA: rect(distance.rectA), rectB: rect(distance.rectB),
-        horizontal: distance.horizontal ? { ...distance.horizontal } : null,
-        vertical: distance.vertical ? { ...distance.vertical } : null,
-        ...(distance.elementRefA && refByElement.has(distance.elementRefA) ? { targetARef: refByElement.get(distance.elementRefA)! } : {}),
-        ...(distance.elementRefB && refByElement.has(distance.elementRefB) ? { targetBRef: refByElement.get(distance.elementRefB)! } : {}),
-      })),
+      measurements: contextMeasurements,
+      distances: contextDistances,
     },
   };
 }
@@ -379,8 +399,14 @@ export function reviewMesurerAnnotation(options: {
 }
 
 export function toAcpContentBlocks(context: MesurerContextV1, images: MesurerEvidenceImage[] = []): MesurerAcpContentBlock[] {
-  return [{ type: "text", text: formatMesurerContext(context) }, ...images.map((image) => ({ type: "image" as const, mimeType: image.mimeType, data: image.data }))];
+  const blocks: MesurerAcpContentBlock[] = [{ type: "text", text: formatMesurerContext(context) }];
+  for (const image of images) {
+    blocks.push({ type: "text", text: `Mesurer visual evidence: ${image.kind} (${image.id})` });
+    blocks.push({ type: "image", mimeType: image.mimeType, data: image.data });
+  }
+  return blocks;
 }
+
 export async function copyTextToClipboard(ownerDocument: Document, ownerWindow: Window, text: string) {
   try {
     if (ownerWindow.navigator.clipboard?.writeText) { await ownerWindow.navigator.clipboard.writeText(text); return; }
