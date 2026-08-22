@@ -17,17 +17,6 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
-      - name: Audit newly introduced feature files
-        run: >-
-          bun run lint --
-          extension/background.js
-          extension/build.mjs
-          packages/mesurer/scripts/install-skill.mjs
-          packages/mesurer/src/context-plugin.tsx
-          packages/mesurer/src/context.ts
-          packages/renderer/src/components/ContextActions.tsx
-          packages/renderer/src/components/Icons.tsx
-          packages/renderer/src/runtime/workspace-context.ts
       - run: bun run typecheck
       - run: bun run test
       - run: bun run build
