@@ -420,6 +420,14 @@ export function reviewMesurerAnnotation(options: {
   if (!annotation) throw new Error(`Mesurer annotation not found: ${options.annotationId}`);
   const current = captureMesurerContext({ runtime: options.runtime, ownerDocument: options.ownerDocument, ownerWindow: options.ownerWindow, request: { annotation: options.annotationId } });
   if (current.scope.kind !== "annotation") throw new Error("Mesurer annotation context invariant failed.");
+  const workspace = options.runtime.snapshot();
+  if (!workspace) throw new Error("Mesurer workspace is not ready yet.");
+  const workspaceMeasurements = [
+    ...workspace.measurements,
+    ...(workspace.activeMeasurement && !workspace.measurements.some((item) => item.id === workspace.activeMeasurement?.id)
+      ? [workspace.activeMeasurement]
+      : []),
+  ];
   const changes: MesurerReviewChange[] = [];
   for (const baseline of annotation.baseline.targets) {
     const target = current.targets.find((item) => item.ref === baseline.id);
@@ -433,7 +441,8 @@ export function reviewMesurerAnnotation(options: {
     addMetricChange(changes, "target-rect", `${target.inspection.selector} height`, baseline.rect.height, target.inspection.rect.height);
   }
   for (const baseline of annotation.baseline.guides) {
-    const value = current.visualContext.guides.find((guide) => guide.id === baseline.id);
+    const value = current.visualContext.guides.find((guide) => guide.id === baseline.id)
+      ?? workspace.guides.find((guide) => guide.id === baseline.id);
     if (!value) {
       addMissing(changes, "guide", baseline.id, `${baseline.orientation} guide ${baseline.id}`);
       continue;
@@ -441,7 +450,8 @@ export function reviewMesurerAnnotation(options: {
     addMetricChange(changes, "guide", `${baseline.orientation} guide ${baseline.id}`, baseline.position, value.position);
   }
   for (const baseline of annotation.baseline.measurements) {
-    const value = current.visualContext.measurements.find((measurement) => measurement.id === baseline.id);
+    const value = current.visualContext.measurements.find((measurement) => measurement.id === baseline.id)
+      ?? workspaceMeasurements.find((measurement) => measurement.id === baseline.id);
     if (!value) {
       addMissing(changes, "measurement", baseline.id, baseline.id);
       continue;
@@ -450,7 +460,8 @@ export function reviewMesurerAnnotation(options: {
     addMetricChange(changes, "measurement", `${baseline.id} height`, baseline.rect.height, value.rect.height);
   }
   for (const baseline of annotation.baseline.distances) {
-    const value = current.visualContext.distances.find((distance) => distance.id === baseline.id);
+    const value = current.visualContext.distances.find((distance) => distance.id === baseline.id)
+      ?? workspace.heldDistances.find((distance) => distance.id === baseline.id);
     if (!value) {
       addMissing(changes, "distance", baseline.id, baseline.id);
       continue;
