@@ -14,6 +14,7 @@ export type MesurerElementFingerprint = {
   role: string | null;
   ariaLabel: string | null;
   classes: string[];
+  text: string | null;
 };
 export type MesurerElementInspection = {
   selector: string;
@@ -101,10 +102,21 @@ export type MesurerContextV1 = {
   visualContext: { guides: MesurerContextGuide[]; measurements: MesurerContextMeasurement[]; distances: MesurerContextDistance[] };
 };
 
-export type MesurerReviewChange = {
+export type MesurerReviewMetricChange = {
   kind: "target-rect" | "guide" | "measurement" | "distance";
-  label: string; before: number; current: number; delta: number; unit: "px";
+  label: string;
+  before: number;
+  current: number;
+  delta: number;
+  unit: "px";
 };
+export type MesurerReviewPresenceChange = {
+  kind: "missing";
+  evidence: "target" | "guide" | "measurement" | "distance";
+  id: string;
+  label: string;
+};
+export type MesurerReviewChange = MesurerReviewMetricChange | MesurerReviewPresenceChange;
 export type MesurerReviewV1 = {
   schema: "mesurer.review/v1";
   annotationId: string;
@@ -138,7 +150,10 @@ export type AcpTextContentBlock = { type: "text"; text: string };
 export type AcpImageContentBlock = { type: "image"; mimeType: string; data: string };
 export type MesurerAcpContentBlock = AcpTextContentBlock | AcpImageContentBlock;
 
-/** Structural renderer source used internally; kept public-package-safe so declarations never depend on private workspace packages. */
+/**
+ * Explicit renderer-to-protocol adapter source. The renderer owns live DOM references;
+ * this public boundary deliberately describes only the fields that may enter JSON context.
+ */
 export type MesurerWorkspaceContextSource = {
   snapshot(): {
     rulersVisible: boolean;
@@ -201,14 +216,18 @@ export function captureMesurerContext(options: {
   let anchorElements: HTMLElement[] = [];
   let anchorRegions: MesurerContextRect[] = [];
   let scope: MesurerContextV1["scope"] = { kind: "workspace" };
+  const preferredRefByElement = new Map<HTMLElement, string>();
   if ("annotation" in request) {
     const annotation = runtime.annotation(request.annotation);
     if (!annotation) throw new Error(`Mesurer annotation not found: ${request.annotation}`);
+    for (const item of annotation.resolvedTargets) {
+      if (item.element?.isConnected) preferredRefByElement.set(item.element, item.target.id);
+    }
     anchorElements = uniqueElements(annotation.resolvedTargets.map((item) => item.element));
     const annotationRect = runtime.annotationRect(annotation.id);
     if (annotationRect) anchorRegions = [annotationRect];
     const total = annotation.resolvedTargets.length;
-    const resolved = anchorElements.length;
+    const resolved = annotation.resolvedTargets.filter((item) => item.element?.isConnected).length;
     const targetStatus = annotation.anchor.kind === "region" ? "connected" as const
       : total === 0 || resolved === 0 ? "stale" as const
         : resolved === total ? "connected" as const : "partial" as const;
@@ -245,8 +264,16 @@ export function captureMesurerContext(options: {
     ...distances.flatMap((distance) => [distance.elementRefA, distance.elementRefB]),
   ]);
   const refByElement = new Map<HTMLElement, string>();
-  const targets: MesurerContextTarget[] = targetElements.map((element, index) => {
-    const ref = `target-${index + 1}`;
+  const usedRefs = new Set(preferredRefByElement.values());
+  let generatedRef = 1;
+  const nextRef = () => {
+    let value = `target-${generatedRef++}`;
+    while (usedRefs.has(value)) value = `target-${generatedRef++}`;
+    usedRefs.add(value);
+    return value;
+  };
+  const targets: MesurerContextTarget[] = targetElements.map((element) => {
+    const ref = preferredRefByElement.get(element) ?? nextRef();
     refByElement.set(element, ref);
     return { ref, inspection: inspectDomElement(element) };
   });
@@ -356,10 +383,23 @@ export function createMesurerCapturePlan(context: MesurerContextV1): MesurerCapt
   return { schema: "mesurer.capture/v1", contextId: context.id, chrome: "hide", evidence: "show", captures };
 }
 
-const addChange = (changes: MesurerReviewChange[], kind: MesurerReviewChange["kind"], label: string, before: number, current: number) => {
+const addMetricChange = (
+  changes: MesurerReviewChange[],
+  kind: MesurerReviewMetricChange["kind"],
+  label: string,
+  before: number,
+  current: number,
+) => {
   if (!Number.isFinite(before) || !Number.isFinite(current) || Math.abs(before - current) < 0.01) return;
   changes.push({ kind, label, before, current, delta: current - before, unit: "px" });
 };
+const addMissing = (
+  changes: MesurerReviewChange[],
+  evidence: MesurerReviewPresenceChange["evidence"],
+  id: string,
+  label: string,
+) => changes.push({ kind: "missing", evidence, id, label });
+
 export function reviewMesurerAnnotation(options: {
   runtime: MesurerWorkspaceContextSource;
   ownerDocument: Document;
@@ -372,28 +412,43 @@ export function reviewMesurerAnnotation(options: {
   if (current.scope.kind !== "annotation") throw new Error("Mesurer annotation context invariant failed.");
   const changes: MesurerReviewChange[] = [];
   for (const baseline of annotation.baseline.targets) {
-    const target = current.targets.find((item) => item.inspection.selector === baseline.selector);
-    if (!target) continue;
-    addChange(changes, "target-rect", `${baseline.selector} left`, baseline.rect.left, target.inspection.rect.left);
-    addChange(changes, "target-rect", `${baseline.selector} top`, baseline.rect.top, target.inspection.rect.top);
-    addChange(changes, "target-rect", `${baseline.selector} width`, baseline.rect.width, target.inspection.rect.width);
-    addChange(changes, "target-rect", `${baseline.selector} height`, baseline.rect.height, target.inspection.rect.height);
+    const target = current.targets.find((item) => item.ref === baseline.id);
+    if (!target) {
+      addMissing(changes, "target", baseline.id, baseline.selector);
+      continue;
+    }
+    addMetricChange(changes, "target-rect", `${target.inspection.selector} left`, baseline.rect.left, target.inspection.rect.left);
+    addMetricChange(changes, "target-rect", `${target.inspection.selector} top`, baseline.rect.top, target.inspection.rect.top);
+    addMetricChange(changes, "target-rect", `${target.inspection.selector} width`, baseline.rect.width, target.inspection.rect.width);
+    addMetricChange(changes, "target-rect", `${target.inspection.selector} height`, baseline.rect.height, target.inspection.rect.height);
   }
   for (const baseline of annotation.baseline.guides) {
     const value = current.visualContext.guides.find((guide) => guide.id === baseline.id);
-    if (value) addChange(changes, "guide", `${baseline.orientation} guide ${baseline.id}`, baseline.position, value.position);
+    if (!value) {
+      addMissing(changes, "guide", baseline.id, `${baseline.orientation} guide ${baseline.id}`);
+      continue;
+    }
+    addMetricChange(changes, "guide", `${baseline.orientation} guide ${baseline.id}`, baseline.position, value.position);
   }
   for (const baseline of annotation.baseline.measurements) {
     const value = current.visualContext.measurements.find((measurement) => measurement.id === baseline.id);
-    if (!value) continue;
-    addChange(changes, "measurement", `${baseline.id} width`, baseline.rect.width, value.rect.width);
-    addChange(changes, "measurement", `${baseline.id} height`, baseline.rect.height, value.rect.height);
+    if (!value) {
+      addMissing(changes, "measurement", baseline.id, baseline.id);
+      continue;
+    }
+    addMetricChange(changes, "measurement", `${baseline.id} width`, baseline.rect.width, value.rect.width);
+    addMetricChange(changes, "measurement", `${baseline.id} height`, baseline.rect.height, value.rect.height);
   }
   for (const baseline of annotation.baseline.distances) {
     const value = current.visualContext.distances.find((distance) => distance.id === baseline.id);
-    if (!value) continue;
-    if (baseline.horizontal && value.horizontal) addChange(changes, "distance", `${baseline.id} horizontal`, baseline.horizontal.value, value.horizontal.value);
-    if (baseline.vertical && value.vertical) addChange(changes, "distance", `${baseline.id} vertical`, baseline.vertical.value, value.vertical.value);
+    if (!value) {
+      addMissing(changes, "distance", baseline.id, baseline.id);
+      continue;
+    }
+    if (baseline.horizontal && value.horizontal) addMetricChange(changes, "distance", `${baseline.id} horizontal`, baseline.horizontal.value, value.horizontal.value);
+    else if (baseline.horizontal && !value.horizontal) addMissing(changes, "distance", baseline.id, `${baseline.id} horizontal`);
+    if (baseline.vertical && value.vertical) addMetricChange(changes, "distance", `${baseline.id} vertical`, baseline.vertical.value, value.vertical.value);
+    else if (baseline.vertical && !value.vertical) addMissing(changes, "distance", baseline.id, `${baseline.id} vertical`);
   }
   return { schema: "mesurer.review/v1", annotationId: annotation.id, note: annotation.note, targetStatus: current.scope.targetStatus, baseline: annotation.baseline, current, changes };
 }
