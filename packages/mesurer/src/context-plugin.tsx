@@ -147,6 +147,11 @@ const createService = (
   };
 };
 
+const hasContextSelection = (runtime: MesurerWorkspaceRuntime) => {
+  const selection = runtime.currentSelection();
+  return selection.elements.length > 0 || selection.region !== null;
+};
+
 export function contextPlugin(options: MesurerContextPluginOptions = {}): MesurerPlugin {
   return {
     id: MESURER_CONTEXT_PLUGIN_ID,
@@ -175,11 +180,11 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       if (options.ui !== false) {
         ctx.state.register<ContextUiState>({
           id: CONTEXT_UI_STATE_ID,
-          initial: { hasSelection: runtime.currentSelection().elements.length > 0 },
+          initial: { hasSelection: hasContextSelection(runtime) },
         });
         const hasSelection = () => ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection === true;
         const syncSelection = () => {
-          const next = runtime.currentSelection().elements.length > 0;
+          const next = hasContextSelection(runtime);
           const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
           if (next !== current) ctx.state.update<ContextUiState>(CONTEXT_UI_STATE_ID, () => ({ hasSelection: next }));
         };
@@ -225,8 +230,6 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         }
 
         uiMount = solid.createInspectorMount();
-        // The plugin root contains both evidence markers and chrome. Capture mode keeps
-        // this root mounted while child nodes mark their own evidence/chrome role.
         uiMount.element.dataset.mesurerLayer = "evidence";
         const actionProps = {
           runtime,
