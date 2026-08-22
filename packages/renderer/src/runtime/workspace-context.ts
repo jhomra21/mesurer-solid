@@ -61,6 +61,8 @@ export type MesurerWorkspaceSnapshot = {
 };
 
 export type MesurerWorkspaceRuntime = {
+  /** Bind the model created by the immediately preceding renderer mount. */
+  bindCurrentModel(): void;
   snapshot(): MesurerWorkspaceSnapshot | null;
   currentSelection(): { elements: HTMLElement[]; region: Rect | null };
   annotations(): MesurerAnnotation[];
@@ -159,23 +161,21 @@ export function createMesurerWorkspaceRuntime(options: {
   const store = getStore(ownerWindow);
   let disposed = false;
   let mutationFrame = 0;
-  let modelFrame = 0;
+  let boundModel: MeasurerModel | null = null;
   let modelUnsubscribe: (() => void) | null = null;
   const hidden = new Map<HTMLElement, string>();
 
-  const model = () => getLatestMeasurerModel();
+  const model = () => boundModel;
   const notify = () => { for (const listener of store.listeners) listener(); };
-  const bindModel = () => {
-    if (disposed || modelUnsubscribe) return;
-    const current = model();
-    if (current) {
-      modelUnsubscribe = current.subscribe(() => notify());
-      notify();
-      return;
-    }
-    modelFrame = ownerWindow.requestAnimationFrame(bindModel);
+  const bindCurrentModel = () => {
+    if (disposed) return;
+    const current = getLatestMeasurerModel();
+    if (!current) throw new Error("Mesurer renderer model was not created during mount.");
+    modelUnsubscribe?.();
+    boundModel = current;
+    modelUnsubscribe = current.subscribe(() => notify());
+    notify();
   };
-  modelFrame = ownerWindow.requestAnimationFrame(bindModel);
 
   const resolveTarget = (target: MesurerAnnotationTarget) => {
     let candidates: Element[] = [];
@@ -213,10 +213,18 @@ export function createMesurerWorkspaceRuntime(options: {
 
   const baseline = (targets: MesurerAnnotationTarget[]): MesurerAnnotationBaseline => {
     const current = model();
+    const measurements = current
+      ? [
+          ...current.current.measurements,
+          ...(current.current.activeMeasurement && !current.current.measurements.some((item) => item.id === current.current.activeMeasurement?.id)
+            ? [current.current.activeMeasurement]
+            : []),
+        ]
+      : [];
     return {
       targets: targets.map((target) => ({ id: target.id, selector: target.selector, rect: cloneRect(target.lastRect) })),
       guides: current?.current.guides.map((guide) => ({ ...guide })) ?? [],
-      measurements: current?.current.measurements.map(stripMeasurement) ?? [],
+      measurements: measurements.map(stripMeasurement),
       distances: current?.current.heldDistances.map(stripDistance) ?? [],
     };
   };
@@ -233,6 +241,7 @@ export function createMesurerWorkspaceRuntime(options: {
   };
 
   return {
+    bindCurrentModel,
     snapshot() {
       const current = model();
       if (!current) return null;
@@ -328,8 +337,8 @@ export function createMesurerWorkspaceRuntime(options: {
       if (disposed) return;
       disposed = true;
       if (mutationFrame) ownerWindow.cancelAnimationFrame(mutationFrame);
-      if (modelFrame) ownerWindow.cancelAnimationFrame(modelFrame);
       modelUnsubscribe?.();
+      boundModel = null;
       observer.disconnect();
       ownerWindow.removeEventListener("resize", scheduleRefresh);
       ownerWindow.removeEventListener("scroll", scheduleRefresh, true);
