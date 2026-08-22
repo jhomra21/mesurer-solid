@@ -47,12 +47,20 @@ export function createXrayScope(options: {
 }) {
   const { ownerDocument, target, instanceId } = options;
   const ownerWindow = ownerDocument.defaultView ?? window;
-  const ShadowRootCtor = (ownerWindow as Window & typeof globalThis).ShadowRoot;
-  const shadowTarget = target instanceof ShadowRootCtor;
-  const documentTarget = !shadowTarget && (target === ownerDocument.body || target === ownerDocument.documentElement);
+  const realm = ownerWindow as Window & typeof globalThis;
+  const shadowTarget = target instanceof realm.ShadowRoot;
+  const documentTarget = !shadowTarget
+    && (target === ownerDocument.body || target === ownerDocument.documentElement);
   const className = token(instanceId);
   const style = ownerDocument.createElement("style");
+  style.dataset.mesurerXrayStyle = "true";
   style.textContent = scopedRules(shadowTarget ? ":host" : `.${className}`);
+  const elementStyleRoot = !shadowTarget
+    ? target.getRootNode()
+    : null;
+  const scopedStyleHost = elementStyleRoot instanceof realm.ShadowRoot
+    ? elementStyleRoot
+    : ownerDocument.head;
   let visible = false;
 
   const setVisible = (next: boolean) => {
@@ -65,14 +73,13 @@ export function createXrayScope(options: {
     }
 
     if (shadowTarget) {
-      if (next) target.append(style);
-      else style.remove();
+      if (next && !style.isConnected) target.append(style);
+      else if (!next) style.remove();
       return;
     }
 
-    const element = target as HTMLElement;
-    element.classList.toggle(className, next);
-    if (next && !style.isConnected) ownerDocument.head?.append(style);
+    target.classList.toggle(className, next);
+    if (next && !style.isConnected) scopedStyleHost?.append(style);
     if (!next) style.remove();
   };
 
