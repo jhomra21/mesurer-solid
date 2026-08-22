@@ -1,5 +1,20 @@
 export { default as Measurer } from "./ComposableMeasurer";
 export type { MeasurerProps, MesurerSolidRuntimeService } from "./ComposableMeasurer";
+export { ContextActions } from "./components/ContextActions";
+export type { ContextActionsProps } from "./components/ContextActions";
+export {
+  createMesurerWorkspaceRuntime,
+  rectsOverlap,
+} from "./runtime/workspace-context";
+export type {
+  MesurerAnnotation,
+  MesurerAnnotationBaseline,
+  MesurerAnnotationTarget,
+  MesurerContextRequest,
+  MesurerResolvedAnnotation,
+  MesurerWorkspaceRuntime,
+  MesurerWorkspaceSnapshot,
+} from "./runtime/workspace-context";
 export {
   colorPickerPlugin,
   composeMesurerPlugins,
