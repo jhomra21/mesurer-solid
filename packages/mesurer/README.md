@@ -45,11 +45,15 @@ const annotation = await mesurer.context({ annotation: annotationId });
 await mesurer.copyContext({ annotation: annotationId });
 ```
 
+A scoped context includes `regions`, the viewport rectangles the person actually selected or annotated. That keeps arbitrary-area feedback useful even when no DOM element is inside the region, and gives screenshot planning the same focus area the structured context uses.
+
 After a source edit/HMR cycle:
 
 ```ts
 const review = await mesurer.review(annotationId);
 ```
+
+Review uses stable annotation target IDs, conservatively rebinds replaced DOM, and reports relevant baseline evidence that disappears with `kind: "missing"`.
 
 Remove the complete feature through the same plugin host used by every extension:
 
@@ -62,9 +66,10 @@ The mounted/browser convenience methods resolve `context:v1`; they do not mainta
 
 ## Coding-agent browser API
 
-With `agent: true` and the context plugin loaded:
+With `agent: true` and the context plugin loaded, wait for plugin initialization before reading dynamic capabilities:
 
 ```js
+await window.__MESURER__.ready()
 window.__MESURER__.capabilities()
 await window.__MESURER__.annotations()
 await window.__MESURER__.context({ annotation: annotationId })
@@ -119,7 +124,7 @@ try {
 }
 ```
 
-Capture mode hides Mesurer controls while preserving guides, rulers, measurements, distances, annotation/selection markers, and pixel labels.
+The focus crop includes scoped `regions`, so element-free area annotations still get close-up evidence. Capture mode hides Mesurer controls while preserving guides, rulers, measurements, distances, annotation/selection markers, and pixel labels.
 
 ## Optional host delivery
 
@@ -152,7 +157,7 @@ There are no Mesurer packages for individual harnesses. The npm package ships on
 npx --yes --package=@jhomra21/mesurer-solid@beta mesurer-skill install
 ```
 
-It writes `.agents/skills/mesurer-ui/SKILL.md` for Agent-Skills-compatible harnesses.
+The transient installer leaves a self-contained skill at `.agents/skills/mesurer-ui/`, including `assets/inject-script.js`. An Agent-Skills-compatible harness can therefore discover the workflow and inject Mesurer through its existing browser evaluation channel without keeping the npm package installed in the application.
 
 ## ACP
 
@@ -176,7 +181,7 @@ import {
 } from "@jhomra21/mesurer-solid/core";
 ```
 
-Plugins can contribute tools, commands, hooks, overlays, settings, state, services, history/persistence, renderer-owned UI, and lifecycle cleanup. Built-ins can be excluded/replaced without forking the renderer.
+Plugins can contribute tools, commands, hooks, overlays, settings, state, services, history/persistence, renderer-owned UI, and lifecycle cleanup. Built-ins can be excluded/replaced without forking the renderer. Plugin tools render through the same canonical toolbar button path as built-ins; programmatic built-in commands use the owning renderer instance rather than toolbar DOM labels or synthetic keyboard events.
 
 ## Public surface
 
