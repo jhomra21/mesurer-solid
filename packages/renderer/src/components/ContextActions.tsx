@@ -1,4 +1,3 @@
-import { Portal } from "@solidjs/web";
 import { For, Show, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
 import type { MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import { CloseIcon, CopyIcon, SendIcon, TrashIcon } from "./Icons";
@@ -22,7 +21,7 @@ const annotationButtonClass = "msr:flex msr:size-7 msr:items-center msr:justify-
 
 export function ContextActions(props: ContextActionsProps) {
   const [revision, setRevision] = createSignal(0);
-  const [noteMount, setNoteMount] = createSignal<HTMLElement | null>(null);
+  const [noteAnchor, setNoteAnchor] = createSignal<HTMLElement | null>(null);
   const [activeAnnotationId, setActiveAnnotationId] = createSignal<string | null>(null);
   const [noteComposerOpen, setNoteComposerOpen] = createSignal(false);
   const [note, setNote] = createSignal("");
@@ -61,7 +60,7 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const notePanelPosition = () => {
-    const tool = noteMount();
+    const tool = noteAnchor();
     if (!tool) return { left: 8, top: 8 };
     const currentWindow = ownerWindow();
     const rect = tool.getBoundingClientRect();
@@ -132,23 +131,20 @@ export function ContextActions(props: ContextActionsProps) {
 
     const findNoteTool = () => {
       if (!anchorElement) return;
-      const root = anchorElement.getRootNode();
-      // SAFETY: currentWindow owns anchorElement and therefore the root returned above.
-      const realm = currentWindow as Window & typeof globalThis;
-      if (!(root instanceof realm.Document || root instanceof realm.ShadowRoot)) return;
-      const tool = root.querySelector<HTMLElement>("[data-mesurer-tool-id='context.add-note']");
+      const root = anchorElement.getRootNode() as ParentNode;
+      const tool = root.querySelector?.<HTMLElement>("[data-mesurer-tool-id='context.add-note']") ?? null;
       if (!tool) {
         mountFrame = currentWindow.requestAnimationFrame(findNoteTool);
         return;
       }
-      setNoteMount(tool);
+      setNoteAnchor(tool);
     };
     findNoteTool();
 
     return () => {
       currentWindow.cancelAnimationFrame(mountFrame);
       props.onController?.(null);
-      setNoteMount(null);
+      setNoteAnchor(null);
     };
   });
 
@@ -156,49 +152,45 @@ export function ContextActions(props: ContextActionsProps) {
     <>
       <span ref={(element) => { anchorElement = element; }} aria-hidden="true" style={{ display: "none" }} />
 
-      <Show when={noteMount()}>{(mount) => (
-        <Portal mount={mount()}>
-          <Show when={noteComposerOpen()}>
-            <div
-              data-mesurer-layer="chrome"
-              data-mesurer-inspector-ui="true"
-              class="mesurer-menu-surface msr:fixed msr:z-[70] msr:w-[280px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-2"
-              style={{ left: `${notePanelPosition().left}px`, top: `${notePanelPosition().top}px` }}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <textarea
-                autofocus
-                value={note()}
-                placeholder="Describe what should change…"
-                onInput={(event) => {
-                  setNote(event.currentTarget.value);
-                  setNoteError(null);
-                }}
-                onKeyDown={(event) => {
-                  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                    event.preventDefault();
-                    addNote();
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    setNoteComposerOpen(false);
-                  }
-                }}
-                class="msr:box-border msr:h-20 msr:w-full msr:resize-y msr:rounded-md msr:border msr:border-ink-200 msr:bg-white msr:p-2 msr:text-[12px] msr:text-black msr:outline-none msr:focus:border-ink-400"
-              />
-              <Show when={noteError()}>{(message) => <div class="msr:mt-1.5 msr:text-[11px] msr:text-red-600">{message()}</div>}</Show>
-              <div class="msr:mt-2 msr:flex msr:items-center msr:justify-between msr:gap-2">
-                <span class="msr:text-[10px] msr:text-ink-500">⌘/Ctrl + Enter</span>
-                <div class="msr:flex msr:gap-1">
-                  <button type="button" class="msr:rounded-md msr:border-0 msr:bg-transparent msr:px-2 msr:py-1.5 msr:text-[11px] msr:text-black msr:hover:bg-black/4" onClick={() => setNoteComposerOpen(false)}>Cancel</button>
-                  <button type="button" class="msr:rounded-md msr:border-0 msr:bg-[#0d99ff] msr:px-2 msr:py-1.5 msr:text-[11px] msr:font-medium msr:text-white" onClick={addNote}>Add note</button>
-                </div>
-              </div>
+      <Show when={noteComposerOpen() && noteAnchor()}>
+        <div
+          data-mesurer-layer="chrome"
+          data-mesurer-inspector-ui="true"
+          class="mesurer-menu-surface msr:pointer-events-auto msr:fixed msr:z-[95] msr:w-[280px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-2"
+          style={{ left: `${notePanelPosition().left}px`, top: `${notePanelPosition().top}px` }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <textarea
+            autofocus
+            value={note()}
+            placeholder="Describe what should change…"
+            onInput={(event) => {
+              setNote(event.currentTarget.value);
+              setNoteError(null);
+            }}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                addNote();
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setNoteComposerOpen(false);
+              }
+            }}
+            class="msr:box-border msr:h-20 msr:w-full msr:resize-y msr:rounded-md msr:border msr:border-ink-200 msr:bg-white msr:p-2 msr:text-[12px] msr:text-black msr:outline-none msr:focus:border-ink-400"
+          />
+          <Show when={noteError()}>{(message) => <div class="msr:mt-1.5 msr:text-[11px] msr:text-red-600">{message()}</div>}</Show>
+          <div class="msr:mt-2 msr:flex msr:items-center msr:justify-between msr:gap-2">
+            <span class="msr:text-[10px] msr:text-ink-500">⌘/Ctrl + Enter</span>
+            <div class="msr:flex msr:gap-1">
+              <button type="button" class="msr:rounded-md msr:border-0 msr:bg-transparent msr:px-2 msr:py-1.5 msr:text-[11px] msr:text-black msr:hover:bg-black/4" onClick={() => setNoteComposerOpen(false)}>Cancel</button>
+              <button type="button" class="msr:rounded-md msr:border-0 msr:bg-[#0d99ff] msr:px-2 msr:py-1.5 msr:text-[11px] msr:font-medium msr:text-white" onClick={addNote}>Add note</button>
             </div>
-          </Show>
-        </Portal>
-      )}</Show>
+          </div>
+        </div>
+      </Show>
 
       <For each={annotations()}>{(annotation, index) => {
         const position = () => markerPosition(annotation.id);
@@ -229,6 +221,7 @@ export function ContextActions(props: ContextActionsProps) {
                 "font-weight": 700,
                 "line-height": "18px",
                 padding: "0",
+                "pointer-events": "auto",
                 "z-index": 2147483300,
               }}
             >{index() + 1}</button>
@@ -242,8 +235,10 @@ export function ContextActions(props: ContextActionsProps) {
           <div
             data-mesurer-layer="chrome"
             data-mesurer-inspector-ui="true"
-            class="mesurer-menu-surface msr:fixed msr:z-[95] msr:w-[280px] msr:max-h-[220px] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-2 msr:text-black"
+            class="mesurer-menu-surface msr:pointer-events-auto msr:fixed msr:z-[95] msr:w-[280px] msr:max-h-[220px] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-2 msr:text-black"
             style={{ left: `${position().left}px`, top: `${position().top}px` }}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
           >
             <div class="msr:flex msr:items-center msr:justify-between msr:gap-2">
               <div class="msr:min-w-0 msr:flex-1 msr:text-[11px] msr:font-medium msr:text-ink-500">Note {annotations().findIndex((item) => item.id === annotation().id) + 1}</div>
