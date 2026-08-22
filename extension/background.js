@@ -26,10 +26,10 @@ async function toggleMesurer(tab) {
     await run(tab.id, {
       func: () => {
         const globalObject = globalThis;
-        globalObject.__MESURER_CONFIG__ = {
-          ...(globalObject.__MESURER_CONFIG__ ?? {}),
-          contextUi: true,
-        };
+        const existing = globalObject.__MESURER_CONFIG__;
+        globalObject.__MESURER_CONFIG__ = existing
+          ? { ...existing, contextUi: true }
+          : { contextUi: true };
       },
     });
 
