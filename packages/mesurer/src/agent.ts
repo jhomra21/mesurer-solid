@@ -135,6 +135,12 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
     return matches.item(index) || null;
   };
 
+  const containsPointElement = (element: Element) => {
+    if (root === options.ownerDocument) return true;
+    const container = root as ParentNode & { contains?: (node: Node | null) => boolean };
+    return container.contains?.(element) === true;
+  };
+
   const viewport = (): AgentViewportSnapshot => {
     const documentElement = options.ownerDocument.documentElement;
     const body = options.ownerDocument.body;
@@ -178,8 +184,10 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
     },
     at(x, y) {
       const pointRoot = root as ParentNode & { elementFromPoint?: (x: number, y: number) => Element | null };
-      const element = pointRoot.elementFromPoint?.(x, y) ?? options.ownerDocument.elementFromPoint(x, y);
-      return element ? inspectElement(element) : null;
+      const nativePointElement = pointRoot.elementFromPoint?.(x, y) ?? null;
+      if (nativePointElement) return containsPointElement(nativePointElement) ? inspectElement(nativePointElement) : null;
+      const documentElement = options.ownerDocument.elementFromPoint(x, y);
+      return documentElement && containsPointElement(documentElement) ? inspectElement(documentElement) : null;
     },
     distance(a, b) {
       const left = query(a);
