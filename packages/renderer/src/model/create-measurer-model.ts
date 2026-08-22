@@ -1,4 +1,4 @@
-import { createMemo, createStore, getOwner, onCleanup } from "solid-js";
+import { createContext, createMemo, createStore, getOwner, onCleanup, useContext } from "solid-js";
 import {
   createMeasurerModelCore,
   type MeasurerCoreModel,
@@ -18,13 +18,11 @@ export type MeasurerModel = MeasurerCoreModel<HTMLElement> & {
   state: MeasurerModelState<HTMLElement>;
 };
 
-const activeModels: MeasurerModel[] = [];
-
-export function getLatestMeasurerModel(): MeasurerModel | null {
-  return activeModels.at(-1) ?? null;
-}
+export const MeasurerModelRegistrationContext = createContext<(model: MeasurerModel) => void>();
 
 export function createMeasurerModel(options: MeasurerModelOptions = {}): MeasurerModel {
+  const owner = getOwner();
+  const registerModel = owner ? useContext(MeasurerModelRegistrationContext) : undefined;
   const core = createMeasurerModelCore<HTMLElement>(options);
   const [state, setState] = createStore<MeasurerModelState<HTMLElement>>(core.getSnapshot());
   const unsubscribe = core.subscribe((snapshot) => setState(() => snapshot));
@@ -44,13 +42,11 @@ export function createMeasurerModel(options: MeasurerModelOptions = {}): Measure
   function dispose() {
     if (disposed) return;
     disposed = true;
-    const index = activeModels.indexOf(model);
-    if (index >= 0) activeModels.splice(index, 1);
     unsubscribe();
     disposeCore();
   }
 
-  activeModels.push(model);
-  if (getOwner()) onCleanup(dispose);
+  registerModel?.(model);
+  if (owner) onCleanup(dispose);
   return model;
 }
