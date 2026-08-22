@@ -18,11 +18,15 @@ export type MeasurerModel = MeasurerCoreModel<HTMLElement> & {
   state: MeasurerModelState<HTMLElement>;
 };
 
-export const MeasurerModelRegistrationContext = createContext<(model: MeasurerModel) => void>();
+const ignoreModelRegistration = (_model: MeasurerModel) => undefined;
+
+export const MeasurerModelRegistrationContext = createContext<(model: MeasurerModel) => void>(
+  ignoreModelRegistration,
+);
 
 export function createMeasurerModel(options: MeasurerModelOptions = {}): MeasurerModel {
   const owner = getOwner();
-  const registerModel = owner ? useContext(MeasurerModelRegistrationContext) : undefined;
+  const registerModel = owner ? useContext(MeasurerModelRegistrationContext) : ignoreModelRegistration;
   const core = createMeasurerModelCore<HTMLElement>(options);
   const [state, setState] = createStore<MeasurerModelState<HTMLElement>>(core.getSnapshot());
   const unsubscribe = core.subscribe((snapshot) => setState(() => snapshot));
@@ -46,7 +50,7 @@ export function createMeasurerModel(options: MeasurerModelOptions = {}): Measure
     disposeCore();
   }
 
-  registerModel?.(model);
+  registerModel(model);
   if (owner) onCleanup(dispose);
   return model;
 }
