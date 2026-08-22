@@ -1,17 +1,22 @@
 import { Show, createSignal, onSettled } from "solid-js";
 import type { ToolMode } from "../core/types";
 import type { MeasurerModel } from "../model/create-measurer-model";
+import type { ContextActionsProps } from "./ContextActions";
 import { SettingsPanel } from "./SettingsPanel";
 import { Tooltip, createTooltip } from "./Tooltip";
 import {
   CaretDownIcon,
   CheckIcon,
   ColorPickerIcon,
+  CopyIcon,
+  CopySelectionIcon,
   CursorIcon,
   GearIcon,
   MinusIcon,
+  NoteIcon,
   RulerIcon,
   RulersIcon,
+  SendIcon,
   TextInspectorIcon,
   XrayIcon,
 } from "./Icons";
@@ -22,6 +27,7 @@ export type ToolbarProps = {
   onColorPicker: () => void;
   onClearWorkspace: () => void;
   onResetSettings: () => void;
+  contextActions?: ContextActionsProps;
 };
 
 const TOOLBAR_DRAG_SLOP = 6;
@@ -31,6 +37,7 @@ const VIEWPORT_PADDING = 8;
 type ToolbarButtonProps = {
   id: string;
   active: boolean;
+  disabled?: boolean;
   label: string;
   shortcut?: string;
   onClick: () => void;
@@ -43,13 +50,17 @@ type ToolbarButtonProps = {
 };
 
 function ToolbarButton(props: ToolbarButtonProps) {
+  const inactiveClass = props.disabled
+    ? "msr:cursor-default msr:bg-transparent msr:text-black/30"
+    : "msr:bg-transparent msr:text-black msr:hover:bg-black/4";
   return (
     <div class="msr:relative" onMouseEnter={() => props.onTooltipEnter(props.id)} onMouseLeave={() => props.onTooltipLeave()}>
       <button
         type="button"
         aria-pressed={props.active ? "true" : "false"}
         aria-label={`${props.label}${props.shortcut ? ` (${props.shortcut})` : ""}`}
-        class={`msr:flex msr:size-8 msr:select-none msr:items-center msr:justify-center msr:rounded-[8px] msr:outline-none ${props.active ? "msr:bg-[#0d99ff] msr:text-white" : "msr:bg-transparent msr:text-black msr:hover:bg-black/4"}`}
+        disabled={props.disabled}
+        class={`msr:flex msr:size-8 msr:select-none msr:items-center msr:justify-center msr:rounded-[8px] msr:outline-none ${props.active ? "msr:bg-[#0d99ff] msr:text-white" : inactiveClass}`}
         onClick={() => props.onClick()}
       >
         {props.children}
@@ -64,19 +75,27 @@ export function Toolbar(props: ToolbarProps) {
   const [guideMenuOpen, setGuideMenuOpen] = createSignal(false);
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
   const [menuAlign, setMenuAlign] = createSignal<"left" | "right">("right");
+  const [noteComposerOpen, setNoteComposerOpen] = createSignal(false);
+  const [note, setNote] = createSignal("");
+  const [noteError, setNoteError] = createSignal<string | null>(null);
+  const [contextBusy, setContextBusy] = createSignal(false);
+  const [contextFlash, setContextFlash] = createSignal<string | null>(null);
   const tooltip = createTooltip(props.ownerWindow);
   let toolbarElement: HTMLDivElement | undefined;
   let settingsElement: HTMLDivElement | undefined;
   let guideMenuElement: HTMLDivElement | undefined;
+  let noteComposerElement: HTMLDivElement | undefined;
+  let contextFlashTimer = 0;
   let suppressClick = false;
   let previousUserSelect: string | null = null;
 
-  const tooltipsEnabled = () => !guideMenuOpen() && !props.model.state.settingsOpen;
+  const tooltipsEnabled = () => !guideMenuOpen() && !props.model.state.settingsOpen && !noteComposerOpen();
   const viewportHeight = () => props.ownerWindow.innerHeight || 0;
   const nearTop = () => position().y < 56;
   const nearBottom = () => viewportHeight() > 0 && position().y > viewportHeight() - 56;
   const tooltipSide = (): "top" | "bottom" => nearTop() && !nearBottom() ? "bottom" : "top";
   const menuSide = (): "top" | "bottom" => nearBottom() ? "top" : "bottom";
+  const hasSelection = () => props.model.state.selectedMeasurements.length > 0 || Boolean(props.model.state.selectedMeasurement);
 
   const updateMenuAlign = () => {
     const anchorRect = guideMenuElement?.getBoundingClientRect();
@@ -150,11 +169,46 @@ export function Toolbar(props: ToolbarProps) {
     props.model.setTransient({ settingsOpen: open, settingsTab: open ? settingsTab : props.model.current.settingsTab });
   };
 
+  const flashContextAction = (id: string) => {
+    props.ownerWindow.clearTimeout(contextFlashTimer);
+    setContextFlash(id);
+    contextFlashTimer = props.ownerWindow.setTimeout(() => setContextFlash(null), 800);
+  };
+  const runContextAction = async (id: string, action: () => Promise<void>) => {
+    if (contextBusy()) return;
+    setContextBusy(true);
+    try {
+      await action();
+      flashContextAction(id);
+    } finally {
+      setContextBusy(false);
+    }
+  };
+  const openNoteComposer = () => {
+    if (!props.contextActions || !hasSelection()) return;
+    setNoteError(null);
+    setNoteComposerOpen(true);
+  };
+  const addNote = () => {
+    const contextActions = props.contextActions;
+    if (!contextActions) return;
+    try {
+      contextActions.runtime.addSelectionAnnotation(note());
+      setNote("");
+      setNoteError(null);
+      setNoteComposerOpen(false);
+      flashContextAction("add-note");
+    } catch (error) {
+      setNoteError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   onSettled(() => {
     const handlePointerDown = (event: PointerEvent) => {
       const path = event.composedPath();
       if (guideMenuOpen() && guideMenuElement && !path.includes(guideMenuElement)) setGuideMenuOpen(false);
       if (props.model.current.settingsOpen && settingsElement && !path.includes(settingsElement)) props.model.setTransient({ settingsOpen: false });
+      if (noteComposerOpen() && noteComposerElement && !path.includes(noteComposerElement)) setNoteComposerOpen(false);
     };
     const handleClickCapture = (event: MouseEvent) => {
       if (!suppressClick) return;
@@ -162,12 +216,51 @@ export function Toolbar(props: ToolbarProps) {
       event.stopPropagation();
       suppressClick = false;
     };
+    const isEditable = (target: EventTarget | null) => {
+      const realm = props.ownerWindow as Window & typeof globalThis;
+      return target instanceof realm.HTMLElement && (
+        target.isContentEditable ||
+        target instanceof realm.HTMLInputElement ||
+        target instanceof realm.HTMLTextAreaElement ||
+        target instanceof realm.HTMLSelectElement
+      );
+    };
+    const handleContextShortcut = (event: KeyboardEvent) => {
+      const contextActions = props.contextActions;
+      if (!contextActions || isEditable(event.target) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      const mod = event.metaKey || event.ctrlKey;
+      if (!mod && key === "c") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.shiftKey && hasSelection()) {
+          void runContextAction("copy-selection", () => contextActions.onCopy({ scope: "selection" }));
+        } else if (!event.shiftKey) {
+          void runContextAction("copy-context", () => contextActions.onCopy());
+        }
+        return;
+      }
+      if (!mod && !event.shiftKey && key === "n" && hasSelection()) {
+        event.preventDefault();
+        event.stopPropagation();
+        openNoteComposer();
+        return;
+      }
+      if (mod && !event.shiftKey && event.key === "Enter" && contextActions.onSend && hasSelection()) {
+        event.preventDefault();
+        event.stopPropagation();
+        void runContextAction("send-selection", () => contextActions.onSend!({ scope: "selection" }));
+      }
+    };
     const resize = () => { if (guideMenuOpen()) updateMenuAlign(); };
     props.ownerWindow.addEventListener("pointerdown", handlePointerDown);
+    props.ownerWindow.addEventListener("keydown", handleContextShortcut);
     props.ownerWindow.addEventListener("resize", resize);
     toolbarElement?.addEventListener("click", handleClickCapture, true);
     return () => {
+      props.ownerWindow.clearTimeout(contextFlashTimer);
       props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);
+      props.ownerWindow.removeEventListener("keydown", handleContextShortcut);
       props.ownerWindow.removeEventListener("resize", resize);
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
@@ -236,6 +329,59 @@ export function Toolbar(props: ToolbarProps) {
           </div>
         </Show>
       </div>
+
+      <Show when={props.contextActions}>{(contextActions) => (
+        <>
+          <div class="msr:mx-0.5 msr:h-5 msr:w-px msr:bg-black/10" aria-hidden="true" />
+          <ToolbarButton id="copy-context" active={contextFlash() === "copy-context"} disabled={contextBusy()} label="Copy context" shortcut="C" onClick={() => void runContextAction("copy-context", () => contextActions().onCopy())} {...buttonProps("copy-context")}><CopyIcon size={20} /></ToolbarButton>
+          <ToolbarButton id="copy-selection" active={contextFlash() === "copy-selection"} disabled={contextBusy() || !hasSelection()} label="Copy selection" shortcut="⇧C" onClick={() => void runContextAction("copy-selection", () => contextActions().onCopy({ scope: "selection" }))} {...buttonProps("copy-selection")}><CopySelectionIcon size={20} /></ToolbarButton>
+          <div class="msr:relative">
+            <ToolbarButton id="add-note" active={noteComposerOpen() || contextFlash() === "add-note"} disabled={!hasSelection()} label="Add note" shortcut="N" onClick={openNoteComposer} {...buttonProps("add-note")}><NoteIcon size={20} /></ToolbarButton>
+            <Show when={noteComposerOpen()}>
+              <div
+                ref={(element) => { noteComposerElement = element; }}
+                data-mesurer-layer="chrome"
+                data-mesurer-inspector-ui="true"
+                class={`mesurer-menu-surface msr:absolute msr:left-0 msr:z-[70] msr:w-[280px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-2 ${menuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <textarea
+                  autofocus
+                  value={note()}
+                  placeholder="Describe what should change…"
+                  onInput={(event) => {
+                    setNote(event.currentTarget.value);
+                    setNoteError(null);
+                  }}
+                  onKeyDown={(event) => {
+                    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                      event.preventDefault();
+                      addNote();
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      setNoteComposerOpen(false);
+                    }
+                  }}
+                  class="msr:box-border msr:h-20 msr:w-full msr:resize-y msr:rounded-md msr:border msr:border-ink-200 msr:bg-white msr:p-2 msr:text-[12px] msr:text-black msr:outline-none msr:focus:border-ink-400"
+                />
+                <Show when={noteError()}>{(message) => <div class="msr:mt-1.5 msr:text-[11px] msr:text-red-600">{message()}</div>}</Show>
+                <div class="msr:mt-2 msr:flex msr:items-center msr:justify-between msr:gap-2">
+                  <span class="msr:text-[10px] msr:text-ink-500">⌘/Ctrl + Enter</span>
+                  <div class="msr:flex msr:gap-1">
+                    <button type="button" class="msr:rounded-md msr:border-0 msr:bg-transparent msr:px-2 msr:py-1.5 msr:text-[11px] msr:text-black msr:hover:bg-black/4" onClick={() => setNoteComposerOpen(false)}>Cancel</button>
+                    <button type="button" class="msr:rounded-md msr:border-0 msr:bg-[#0d99ff] msr:px-2 msr:py-1.5 msr:text-[11px] msr:font-medium msr:text-white" onClick={addNote}>Add note</button>
+                  </div>
+                </div>
+              </div>
+            </Show>
+          </div>
+          <Show when={contextActions().onSend}>{(send) => (
+            <ToolbarButton id="send-selection" active={contextFlash() === "send-selection"} disabled={contextBusy() || !hasSelection()} label={contextActions().sendLabel ?? "Send to agent"} shortcut="⌘/Ctrl+Enter" onClick={() => void runContextAction("send-selection", () => send()({ scope: "selection" }))} {...buttonProps("send-selection")}><SendIcon size={20} /></ToolbarButton>
+          )}</Show>
+        </>
+      )}</Show>
 
       <div ref={(element) => { settingsElement = element; }} class="msr:relative msr:flex">
         <ToolbarButton id="settings" active={props.model.state.settingsOpen} label="Settings" shortcut="⌘/Ctrl+," onClick={toggleSettings} {...buttonProps("settings")}><GearIcon size={20} /></ToolbarButton>
