@@ -1,3 +1,8 @@
+import {
+  collectMesurerWorkspaceMeasurements,
+  selectMesurerRelevantEvidence,
+  unionMesurerRects,
+} from "@jhomra21/mesurer-solid-core";
 import { inspectDomElement } from "@jhomra21/mesurer-solid-dom";
 
 export type MesurerContextRequest =
@@ -178,17 +183,12 @@ export type MesurerWorkspaceContextSource = {
 };
 
 const DEFAULT_GUIDE_RELEVANCE_TOLERANCE = 10;
-const rect = (value: MesurerContextRect): MesurerContextRect => ({ left: value.left, top: value.top, width: value.width, height: value.height });
-const overlaps = (a: MesurerContextRect, b: MesurerContextRect) =>
-  a.left <= b.left + b.width && a.left + a.width >= b.left && a.top <= b.top + b.height && a.top + a.height >= b.top;
-const unionRects = (values: MesurerContextRect[]) => {
-  if (!values.length) return null;
-  const left = Math.min(...values.map((value) => value.left));
-  const top = Math.min(...values.map((value) => value.top));
-  const right = Math.max(...values.map((value) => value.left + value.width));
-  const bottom = Math.max(...values.map((value) => value.top + value.height));
-  return { left, top, width: right - left, height: bottom - top };
-};
+const rect = (value: MesurerContextRect): MesurerContextRect => ({
+  left: value.left,
+  top: value.top,
+  width: value.width,
+  height: value.height,
+});
 const uniqueElements = (values: Array<HTMLElement | null | undefined>) => {
   const seen = new Set<HTMLElement>();
   const result: HTMLElement[] = [];
@@ -199,11 +199,8 @@ const uniqueElements = (values: Array<HTMLElement | null | undefined>) => {
   }
   return result;
 };
-const guideTouches = (guide: MesurerContextGuide, regions: MesurerContextRect[], tolerance: number) =>
-  regions.some((region) => guide.orientation === "vertical"
-    ? guide.position >= region.left - tolerance && guide.position <= region.left + region.width + tolerance
-    : guide.position >= region.top - tolerance && guide.position <= region.top + region.height + tolerance);
-const randomId = (ownerWindow: Window) => ownerWindow.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const randomId = (ownerWindow: Window) =>
+  ownerWindow.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export function captureMesurerContext(options: {
   runtime: MesurerWorkspaceContextSource;
@@ -239,7 +236,9 @@ export function captureMesurerContext(options: {
     const selection = runtime.currentSelection();
     anchorElements = uniqueElements(selection.elements);
     if (!anchorElements.length && !selection.region) throw new Error("Mesurer has no current selection.");
-    anchorRegions = selection.region ? [selection.region] : anchorElements.map((element) => rect(element.getBoundingClientRect()));
+    anchorRegions = selection.region
+      ? [selection.region]
+      : anchorElements.map((element) => rect(element.getBoundingClientRect()));
     scope = { kind: "selection" };
   } else {
     anchorElements = uniqueElements([
@@ -250,17 +249,26 @@ export function captureMesurerContext(options: {
     ]);
   }
 
-  const regionMatches = (value: MesurerContextRect) => scope.kind === "workspace" || anchorRegions.some((region) => overlaps(value, region));
-  const elementMatches = (element: HTMLElement | null | undefined) => scope.kind === "workspace" || Boolean(element && anchorElements.includes(element));
-  const measurements = [
-    ...snapshot.measurements,
-    ...(snapshot.activeMeasurement && !snapshot.measurements.some((item) => item.id === snapshot.activeMeasurement?.id) ? [snapshot.activeMeasurement] : []),
-  ].filter((measurement) => elementMatches(measurement.elementRef) || regionMatches(measurement.rect));
-  const distances = snapshot.heldDistances.filter((distance) =>
-    elementMatches(distance.elementRefA) || elementMatches(distance.elementRefB) || regionMatches(distance.rectA) || regionMatches(distance.rectB));
-  const regionsForGuides = scope.kind === "workspace" ? [] : anchorRegions.length ? anchorRegions : anchorElements.map((element) => rect(element.getBoundingClientRect()));
-  const guideTolerance = snapshot.guideRelevanceTolerance ?? DEFAULT_GUIDE_RELEVANCE_TOLERANCE;
-  const guides = snapshot.guides.filter((guide) => scope.kind === "workspace" || guideTouches(guide, regionsForGuides, guideTolerance));
+  const evidenceRegions = scope.kind === "workspace"
+    ? []
+    : anchorRegions.length
+      ? anchorRegions
+      : anchorElements.map((element) => rect(element.getBoundingClientRect()));
+  const evidence = selectMesurerRelevantEvidence({
+    workspace: {
+      guides: snapshot.guides,
+      measurements: snapshot.measurements,
+      activeMeasurement: snapshot.activeMeasurement,
+      distances: snapshot.heldDistances,
+    },
+    scope: scope.kind === "workspace"
+      ? { kind: "workspace" }
+      : { kind: "scoped", elements: anchorElements, regions: evidenceRegions },
+    guideTolerance: snapshot.guideRelevanceTolerance ?? DEFAULT_GUIDE_RELEVANCE_TOLERANCE,
+  });
+  const measurements = evidence.measurements;
+  const distances = evidence.distances;
+  const guides = evidence.guides;
 
   const targetElements = uniqueElements([
     ...anchorElements,
@@ -309,18 +317,24 @@ export function captureMesurerContext(options: {
   });
 
   return {
-    schema: "mesurer.context/v1", id: randomId(ownerWindow), createdAt: new Date().toISOString(), scope,
+    schema: "mesurer.context/v1",
+    id: randomId(ownerWindow),
+    createdAt: new Date().toISOString(),
+    scope,
     page: { url: ownerWindow.location?.href ?? ownerDocument.URL, title: ownerDocument.title },
     viewport: {
-      width: ownerWindow.innerWidth, height: ownerWindow.innerHeight, devicePixelRatio: ownerWindow.devicePixelRatio,
-      scrollX: ownerWindow.scrollX, scrollY: ownerWindow.scrollY,
+      width: ownerWindow.innerWidth,
+      height: ownerWindow.innerHeight,
+      devicePixelRatio: ownerWindow.devicePixelRatio,
+      scrollX: ownerWindow.scrollX,
+      scrollY: ownerWindow.scrollY,
     },
     coordinateSpace: "viewport-css-px",
     regions: scope.kind === "workspace" ? [] : anchorRegions.map(rect),
     visualState: { rulersVisible: snapshot.rulersVisible, xrayVisible: snapshot.xrayVisible },
     targets,
     visualContext: {
-      guides: guides.map((guide) => ({ ...guide })),
+      guides,
       measurements: contextMeasurements,
       distances: contextDistances,
     },
@@ -328,25 +342,38 @@ export function captureMesurerContext(options: {
 }
 
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
-const lineRect = (value: MesurerContextRect) => `x=${px(value.left)} y=${px(value.top)} w=${px(value.width)} h=${px(value.height)}`;
+const lineRect = (value: MesurerContextRect) =>
+  `x=${px(value.left)} y=${px(value.top)} w=${px(value.width)} h=${px(value.height)}`;
 export function formatMesurerContext(context: MesurerContextV1): string {
   const lines: string[] = [
-    "Mesurer visual context", "", `Page: ${context.page.url}`,
+    "Mesurer visual context",
+    "",
+    `Page: ${context.page.url}`,
     `Viewport: ${context.viewport.width} × ${context.viewport.height} CSS px; scroll x=${context.viewport.scrollX} y=${context.viewport.scrollY}`,
   ];
-  if (context.scope.kind === "annotation") lines.push("", "Annotation", context.scope.note, `Target status: ${context.scope.targetStatus}`);
-  else lines.push("", `Scope: ${context.scope.kind}`);
+  if (context.scope.kind === "annotation") {
+    lines.push("", "Annotation", context.scope.note, `Target status: ${context.scope.targetStatus}`);
+  } else {
+    lines.push("", `Scope: ${context.scope.kind}`);
+  }
   if (context.regions.length) {
     lines.push("", "Requested regions");
-    context.regions.forEach((region, index) => lines.push(`- region-${index + 1}: ${lineRect(region)}`));
+    context.regions.forEach((region, index) =>
+      lines.push(`- region-${index + 1}: ${lineRect(region)}`));
   }
-  if (context.visualState.rulersVisible || context.visualState.xrayVisible) lines.push("", `Visual state: rulers=${context.visualState.rulersVisible ? "on" : "off"}; x-ray=${context.visualState.xrayVisible ? "on" : "off"}`);
+  if (context.visualState.rulersVisible || context.visualState.xrayVisible) {
+    lines.push(
+      "",
+      `Visual state: rulers=${context.visualState.rulersVisible ? "on" : "off"}; x-ray=${context.visualState.xrayVisible ? "on" : "off"}`,
+    );
+  }
   if (context.targets.length) {
     lines.push("", "Targets");
     for (const target of context.targets) {
       const value = target.inspection;
       lines.push(
-        `[${target.ref}] ${value.selector}`, `  rect: ${lineRect(value.rect)}`,
+        `[${target.ref}] ${value.selector}`,
+        `  rect: ${lineRect(value.rect)}`,
         `  margin: ${px(value.margin.top)} ${px(value.margin.right)} ${px(value.margin.bottom)} ${px(value.margin.left)}`,
         `  padding: ${px(value.padding.top)} ${px(value.padding.right)} ${px(value.padding.bottom)} ${px(value.padding.left)}`,
         `  layout: display=${value.layout.display}; position=${value.layout.position}; gap=${value.layout.gap}`,
@@ -357,17 +384,24 @@ export function formatMesurerContext(context: MesurerContextV1): string {
   }
   if (context.visualContext.guides.length) {
     lines.push("", "Relevant guides");
-    for (const guide of context.visualContext.guides) lines.push(`- ${guide.orientation} ${guide.orientation === "vertical" ? "x" : "y"}=${px(guide.position)}`);
+    for (const guide of context.visualContext.guides) {
+      lines.push(`- ${guide.orientation} ${guide.orientation === "vertical" ? "x" : "y"}=${px(guide.position)}`);
+    }
   }
   if (context.visualContext.measurements.length) {
     lines.push("", "Relevant measurements");
-    for (const measurement of context.visualContext.measurements) lines.push(`- ${measurement.targetRef ? `${measurement.targetRef}: ` : ""}${lineRect(measurement.rect)}; delta=${px(measurement.deltaX)} × ${px(measurement.deltaY)}`);
+    for (const measurement of context.visualContext.measurements) {
+      lines.push(`- ${measurement.targetRef ? `${measurement.targetRef}: ` : ""}${lineRect(measurement.rect)}; delta=${px(measurement.deltaX)} × ${px(measurement.deltaY)}`);
+    }
   }
   if (context.visualContext.distances.length) {
     lines.push("", "Relevant distances");
     for (const distance of context.visualContext.distances) {
       const refs = [distance.targetARef, distance.targetBRef].filter(Boolean).join(" → ");
-      const values = [distance.horizontal ? `horizontal=${px(distance.horizontal.value)}` : null, distance.vertical ? `vertical=${px(distance.vertical.value)}` : null].filter(Boolean).join("; ");
+      const values = [
+        distance.horizontal ? `horizontal=${px(distance.horizontal.value)}` : null,
+        distance.vertical ? `vertical=${px(distance.vertical.value)}` : null,
+      ].filter(Boolean).join("; ");
       lines.push(`- ${refs ? `${refs}: ` : ""}${values || "overlapping"}`);
     }
   }
@@ -381,16 +415,29 @@ export function createMesurerCapturePlan(context: MesurerContextV1): MesurerCapt
     ...context.visualContext.measurements.map((measurement) => measurement.rect),
     ...context.visualContext.distances.flatMap((distance) => [distance.rectA, distance.rectB]),
   ];
-  const union = unionRects(evidenceRects);
+  const union = unionMesurerRects(evidenceRects);
   const captures: MesurerCapturePlanV1["captures"] = [{ id: "viewport", kind: "viewport" }];
   if (union) {
     const padding = 48;
-    const left = Math.max(0, union.left - padding), top = Math.max(0, union.top - padding);
+    const left = Math.max(0, union.left - padding);
+    const top = Math.max(0, union.top - padding);
     const right = Math.min(context.viewport.width, union.left + union.width + padding);
     const bottom = Math.min(context.viewport.height, union.top + union.height + padding);
-    if (right > left && bottom > top) captures.push({ id: "focus", kind: "clip", rect: { left, top, width: right - left, height: bottom - top } });
+    if (right > left && bottom > top) {
+      captures.push({
+        id: "focus",
+        kind: "clip",
+        rect: { left, top, width: right - left, height: bottom - top },
+      });
+    }
   }
-  return { schema: "mesurer.capture/v1", contextId: context.id, chrome: "hide", evidence: "show", captures };
+  return {
+    schema: "mesurer.capture/v1",
+    contextId: context.id,
+    chrome: "hide",
+    evidence: "show",
+    captures,
+  };
 }
 
 const addMetricChange = (
@@ -418,16 +465,21 @@ export function reviewMesurerAnnotation(options: {
 }): MesurerReviewV1 {
   const annotation = options.runtime.annotation(options.annotationId);
   if (!annotation) throw new Error(`Mesurer annotation not found: ${options.annotationId}`);
-  const current = captureMesurerContext({ runtime: options.runtime, ownerDocument: options.ownerDocument, ownerWindow: options.ownerWindow, request: { annotation: options.annotationId } });
-  if (current.scope.kind !== "annotation") throw new Error("Mesurer annotation context invariant failed.");
+  const current = captureMesurerContext({
+    runtime: options.runtime,
+    ownerDocument: options.ownerDocument,
+    ownerWindow: options.ownerWindow,
+    request: { annotation: options.annotationId },
+  });
+  if (current.scope.kind !== "annotation") {
+    throw new Error("Mesurer annotation context invariant failed.");
+  }
   const workspace = options.runtime.snapshot();
   if (!workspace) throw new Error("Mesurer workspace is not ready yet.");
-  const workspaceMeasurements = [
-    ...workspace.measurements,
-    ...(workspace.activeMeasurement && !workspace.measurements.some((item) => item.id === workspace.activeMeasurement?.id)
-      ? [workspace.activeMeasurement]
-      : []),
-  ];
+  const workspaceMeasurements = collectMesurerWorkspaceMeasurements({
+    measurements: workspace.measurements,
+    activeMeasurement: workspace.activeMeasurement,
+  });
   const changes: MesurerReviewChange[] = [];
   for (const baseline of annotation.baseline.targets) {
     const target = current.targets.find((item) => item.ref === baseline.id);
@@ -466,15 +518,32 @@ export function reviewMesurerAnnotation(options: {
       addMissing(changes, "distance", baseline.id, baseline.id);
       continue;
     }
-    if (baseline.horizontal && value.horizontal) addMetricChange(changes, "distance", `${baseline.id} horizontal`, baseline.horizontal.value, value.horizontal.value);
-    else if (baseline.horizontal && !value.horizontal) addMissing(changes, "distance", baseline.id, `${baseline.id} horizontal`);
-    if (baseline.vertical && value.vertical) addMetricChange(changes, "distance", `${baseline.id} vertical`, baseline.vertical.value, value.vertical.value);
-    else if (baseline.vertical && !value.vertical) addMissing(changes, "distance", baseline.id, `${baseline.id} vertical`);
+    if (baseline.horizontal && value.horizontal) {
+      addMetricChange(changes, "distance", `${baseline.id} horizontal`, baseline.horizontal.value, value.horizontal.value);
+    } else if (baseline.horizontal && !value.horizontal) {
+      addMissing(changes, "distance", baseline.id, `${baseline.id} horizontal`);
+    }
+    if (baseline.vertical && value.vertical) {
+      addMetricChange(changes, "distance", `${baseline.id} vertical`, baseline.vertical.value, value.vertical.value);
+    } else if (baseline.vertical && !value.vertical) {
+      addMissing(changes, "distance", baseline.id, `${baseline.id} vertical`);
+    }
   }
-  return { schema: "mesurer.review/v1", annotationId: annotation.id, note: annotation.note, targetStatus: current.scope.targetStatus, baseline: annotation.baseline, current, changes };
+  return {
+    schema: "mesurer.review/v1",
+    annotationId: annotation.id,
+    note: annotation.note,
+    targetStatus: current.scope.targetStatus,
+    baseline: annotation.baseline,
+    current,
+    changes,
+  };
 }
 
-export function toAcpContentBlocks(context: MesurerContextV1, images: MesurerEvidenceImage[] = []): MesurerAcpContentBlock[] {
+export function toAcpContentBlocks(
+  context: MesurerContextV1,
+  images: MesurerEvidenceImage[] = [],
+): MesurerAcpContentBlock[] {
   const blocks: MesurerAcpContentBlock[] = [{ type: "text", text: formatMesurerContext(context) }];
   for (const image of images) {
     blocks.push({ type: "text", text: `Mesurer visual evidence: ${image.kind} (${image.id})` });
@@ -485,14 +554,21 @@ export function toAcpContentBlocks(context: MesurerContextV1, images: MesurerEvi
 
 export async function copyTextToClipboard(ownerDocument: Document, ownerWindow: Window, text: string) {
   try {
-    if (ownerWindow.navigator.clipboard?.writeText) { await ownerWindow.navigator.clipboard.writeText(text); return; }
+    if (ownerWindow.navigator.clipboard?.writeText) {
+      await ownerWindow.navigator.clipboard.writeText(text);
+      return;
+    }
   } catch {
     // Fall through for pages where Clipboard API access is unavailable or blocked.
   }
   const textarea = ownerDocument.createElement("textarea");
-  textarea.value = text; textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed"; textarea.style.opacity = "0"; textarea.style.pointerEvents = "none";
-  ownerDocument.body.append(textarea); textarea.select();
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+  ownerDocument.body.append(textarea);
+  textarea.select();
   const copied = ownerDocument.execCommand?.("copy") ?? false;
   textarea.remove();
   if (!copied) throw new Error("Unable to copy Mesurer context to the clipboard.");
