@@ -272,6 +272,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
       <RendererMeasurer
         {...rendererProps}
         portalTarget={portalTarget}
+        pageTarget={target}
         onPluginHost={(host) => {
           const publicHost = host as unknown as MesurerPluginHost;
           if (!pluginHost) resolvePluginHost(publicHost);
@@ -381,6 +382,8 @@ export type {
   MesurerEvidenceImage,
   MesurerEvidenceProvider,
   MesurerReviewChange,
+  MesurerReviewMetricChange,
+  MesurerReviewPresenceChange,
   MesurerReviewV1,
 } from "./context";
 export {
