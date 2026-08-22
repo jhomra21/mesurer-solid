@@ -17,7 +17,24 @@ Mesurer visual evidence
 clipboard    ACP
 ```
 
-The clipboard and ACP paths use the same context and formatter. ACP is not a separate richer interpretation of the user's feedback.
+The clipboard and ACP paths use the same context and formatter. ACP is not a separate interpretation of the user's feedback.
+
+## Context controls
+
+When `contextUi` is enabled, the context actions live in the existing draggable Mesurer toolbar rather than in a second floating action bar. They use the same 32 px icon-button, tooltip, active-state, and popover patterns as the existing tools.
+
+The default shortcuts are:
+
+| Action | Shortcut | Availability |
+| --- | --- | --- |
+| Copy context | `C` | Always |
+| Copy selection | `Shift+C` | When a page element is selected |
+| Add note | `N` | When a page element is selected |
+| Send selection | `Cmd/Ctrl+Enter` | Only when the host supplied `sendContext` |
+
+Copy actions briefly flash their toolbar icon on success instead of adding a toast over page content. **Add note** opens a compact toolbar popover. Annotation-specific Copy/Send/Delete/Close actions open beside the numbered annotation marker.
+
+The context controls are inserted before Settings so Settings remains the final regular toolbar control. Annotation markers and their popovers are clamped to the viewport edges.
 
 ## Context scopes
 
@@ -51,16 +68,16 @@ The user note is intent. Computed DOM data and visual measurements are supportin
 
 ## Relevance rules
 
-Context collection is intentionally deterministic rather than AI-powered.
+Context collection is deterministic rather than model-powered.
 
 For selection/annotation scope:
 
 - a measurement is relevant when it references a selected target or overlaps the scoped region;
 - a held distance is relevant when either endpoint references a selected target or either endpoint rect overlaps the scoped region;
-- a guide is relevant when it crosses/touches the scoped rect, including a small edge tolerance;
-- rulers/X-ray are recorded as visual-state metadata rather than being treated as semantic instructions themselves.
+- a guide is relevant when it crosses/touches the scoped rect within the same 10 px tolerance used by Mesurer guide snapping;
+- rulers/X-ray are recorded as visual-state metadata rather than treated as semantic instructions themselves.
 
-This keeps the payload explainable and stable.
+This keeps the payload explainable and consistent with the evidence visible in the UI.
 
 ## Annotation rebinding after HMR
 
@@ -73,7 +90,7 @@ A live `HTMLElement` cannot survive DOM replacement. Each element annotation the
 
 A MutationObserver triggers refresh after DOM changes. Mesurer rebinds only when the selector resolves to exactly one fingerprint-compatible element. Otherwise the target remains stale.
 
-This conservative rule is important: a visual QA tool must not silently validate the wrong component after a refactor.
+This conservative rule prevents Mesurer from silently validating the wrong component after a refactor.
 
 ## Review after an agent edit
 
@@ -114,7 +131,7 @@ const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
 await window.__MESURER__.prepareCapture()
 try {
   // capture the actual current viewport
-  // capture plan.focus when available
+  // capture the focus clip from plan.captures when available
 } finally {
   await window.__MESURER__.finishCapture()
 }
@@ -125,9 +142,9 @@ A capture plan always asks for the current viewport and may add a focused eviden
 During capture:
 
 **Hidden chrome**
-- main/tool extension toolbars;
+- the main toolbar, including context buttons;
 - settings and tool panels;
-- context/comment editor;
+- the Add Note editor and annotation action popovers;
 - Copy/Send controls;
 - other Mesurer inspector controls.
 
@@ -140,7 +157,7 @@ During capture:
 
 ## Copy Context
 
-The visible **Copy context** action and `copyContext()` format the same `MesurerContextV1` used elsewhere.
+The toolbar **Copy context** action and `copyContext()` format the same `MesurerContextV1` used elsewhere.
 
 ```js
 await window.__MESURER_INSTANCE__.copyContext({ annotation: annotationId })
@@ -164,7 +181,7 @@ import { toAcpContentBlocks } from "@jhomra21/mesurer-solid";
 const prompt = toAcpContentBlocks(context, evidenceImages);
 ```
 
-The ACP client that already owns the target session sends those content blocks. If images are not supported by that ACP agent/session, send the text block only.
+The ACP client that already owns the target session sends those content blocks. Each screenshot is preceded by a small text block identifying its evidence kind/id (for example viewport vs focused crop) so the receiving agent can distinguish the images. If images are not supported by that ACP agent/session, send the context text block only.
 
 There are no Mesurer-specific OpenCode/Pi/Cursor/etc. transports.
 
