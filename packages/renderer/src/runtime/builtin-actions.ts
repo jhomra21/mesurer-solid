@@ -1,6 +1,11 @@
 import type { ToolMode } from "@jhomra21/mesurer-solid-core";
+import { formatColor, parseCssColor } from "../core/colors";
 import type { MeasurerModel } from "../model/create-measurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
+
+type EyeDropperResult = { sRGBHex: string };
+type EyeDropperLike = { open: () => Promise<EyeDropperResult> };
+type WindowWithEyeDropper = Window & { EyeDropper?: new () => EyeDropperLike };
 
 export type MeasurerBuiltinController = {
   run(id: Exclude<MesurerBuiltinPluginId, "distance">): Promise<void>;
@@ -20,11 +25,33 @@ const settingsTab = (model: MeasurerModel) =>
         : model.current.toolMode === "select" || model.current.toolMode === "text-inspector" ? "select" as const
           : "general" as const;
 
+const openColorPicker = async (model: MeasurerModel, ownerWindow: Window) => {
+  model.setEnabled(true, !model.current.enabled);
+  model.setToolMode("none", model.current.toolMode !== "none");
+  const EyeDropper = (ownerWindow as WindowWithEyeDropper).EyeDropper;
+  model.setTransient({ colorPickerActive: true, colorPickerSample: null, colorPickerUnsupported: !EyeDropper });
+  if (!EyeDropper) return;
+  try {
+    const result = await new EyeDropper().open();
+    const sample = parseCssColor(result.sRGBHex);
+    if (!sample) return;
+    model.setTransient({ colorPickerSample: sample, colorPickerUnsupported: false });
+    void ownerWindow.navigator.clipboard?.writeText(
+      formatColor(sample, model.current.settings.colorPickerClickFormat),
+    ).catch(() => undefined);
+  } catch (error) {
+    const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;
+    if (error instanceof DOMExceptionCtor && error.name === "AbortError") {
+      model.setTransient({ colorPickerActive: false });
+    }
+  }
+};
+
 export function createMeasurerBuiltinController(options: {
   model: MeasurerModel;
-  openColorPicker(): void | Promise<void>;
+  ownerWindow: Window;
 }): MeasurerBuiltinController {
-  const { model } = options;
+  const { model, ownerWindow } = options;
 
   return {
     async run(id) {
@@ -42,7 +69,7 @@ export function createMeasurerBuiltinController(options: {
             model.setTransient({ colorPickerActive: false });
             return;
           }
-          await options.openColorPicker();
+          await openColorPicker(model, ownerWindow);
           return;
         case "rulers":
           model.setEnabled(true);
