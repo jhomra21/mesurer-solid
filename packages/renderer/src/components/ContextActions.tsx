@@ -60,6 +60,23 @@ export function ContextActions(props: ContextActionsProps) {
     };
   };
 
+  const notePanelPosition = () => {
+    const tool = noteMount();
+    if (!tool) return { left: 8, top: 8 };
+    const currentWindow = ownerWindow();
+    const rect = tool.getBoundingClientRect();
+    const width = 280;
+    const height = 150;
+    const padding = 8;
+    const gap = 8;
+    const left = clamp(rect.right - width, padding, currentWindow.innerWidth - width - padding);
+    const below = rect.bottom + gap;
+    const top = below + height <= currentWindow.innerHeight - padding
+      ? below
+      : clamp(rect.top - height - gap, padding, currentWindow.innerHeight - height - padding);
+    return { left, top };
+  };
+
   const panelPosition = (annotationId: string) => {
     const value = props.runtime.annotationRect(annotationId);
     if (!value) return { left: 8, top: 8 };
@@ -116,7 +133,9 @@ export function ContextActions(props: ContextActionsProps) {
     const findNoteTool = () => {
       if (!anchorElement) return;
       const root = anchorElement.getRootNode();
-      if (!(root instanceof Document || root instanceof ShadowRoot)) return;
+      // SAFETY: currentWindow owns anchorElement and therefore the root returned above.
+      const realm = currentWindow as Window & typeof globalThis;
+      if (!(root instanceof realm.Document || root instanceof realm.ShadowRoot)) return;
       const tool = root.querySelector<HTMLElement>("[data-mesurer-tool-id='context.add-note']");
       if (!tool) {
         mountFrame = currentWindow.requestAnimationFrame(findNoteTool);
@@ -143,7 +162,8 @@ export function ContextActions(props: ContextActionsProps) {
             <div
               data-mesurer-layer="chrome"
               data-mesurer-inspector-ui="true"
-              class="mesurer-menu-surface msr:absolute msr:right-0 msr:top-full msr:z-[70] msr:mt-2 msr:w-[280px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-2"
+              class="mesurer-menu-surface msr:fixed msr:z-[70] msr:w-[280px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-2"
+              style={{ left: `${notePanelPosition().left}px`, top: `${notePanelPosition().top}px` }}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
             >
