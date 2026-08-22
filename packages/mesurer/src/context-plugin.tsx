@@ -154,6 +154,9 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
       if (options.ui !== false) {
         uiMount = solid.createInspectorMount();
+        // The plugin root contains both evidence markers and chrome. Capture mode keeps
+        // this root mounted while child nodes mark their own evidence/chrome role.
+        uiMount.element.dataset.mesurerLayer = "evidence";
         const actionProps = {
           runtime,
           onCopy: service.copyContext,
