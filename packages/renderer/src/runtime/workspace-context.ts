@@ -150,6 +150,8 @@ export function createMesurerWorkspaceRuntime(options: {
   const { ownerDocument, ownerWindow, uiRoot } = options;
   const model = getLatestMeasurerModel();
   if (!model) throw new Error("Mesurer renderer model is unavailable for context plugin setup.");
+  // SAFETY: ownerWindow is ownerDocument.defaultView for this mounted Mesurer instance, so its DOM constructors are the correct realm.
+  const realm = ownerWindow as Window & typeof globalThis;
   const annotations: MesurerAnnotation[] = [];
   const listeners = new Set<() => void>();
   const hidden = new Map<HTMLElement, string>();
@@ -170,8 +172,7 @@ export function createMesurerWorkspaceRuntime(options: {
     const compatible = candidates.filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
     if (compatible.length !== 1) return null;
     const element = compatible[0];
-    const HTMLElementCtor = (ownerWindow as Window & typeof globalThis).HTMLElement;
-    return element instanceof HTMLElementCtor ? element as HTMLElement : null;
+    return element instanceof realm.HTMLElement ? element : null;
   };
 
   const refreshAnnotations = () => {
@@ -199,8 +200,7 @@ export function createMesurerWorkspaceRuntime(options: {
     });
   };
 
-  const MutationObserverCtor = (ownerWindow as Window & typeof globalThis).MutationObserver;
-  const observer = new MutationObserverCtor(scheduleRefresh);
+  const observer = new realm.MutationObserver(scheduleRefresh);
   if (ownerDocument.documentElement) {
     observer.observe(ownerDocument.documentElement, { childList: true, subtree: true, attributes: true });
   }
