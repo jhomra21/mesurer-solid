@@ -27,6 +27,8 @@ export type ToolbarProps = {
 const TOOLBAR_DRAG_SLOP = 6;
 const GUIDE_MENU_WIDTH = 176;
 const VIEWPORT_PADDING = 8;
+const GUIDE_MENU_IDEAL_HEIGHT = 72;
+const SETTINGS_MENU_IDEAL_HEIGHT = 360;
 
 type ToolbarButtonProps = {
   id: string;
@@ -76,7 +78,22 @@ export function Toolbar(props: ToolbarProps) {
   const nearTop = () => position().y < 56;
   const nearBottom = () => viewportHeight() > 0 && position().y > viewportHeight() - 56;
   const tooltipSide = (): "top" | "bottom" => nearTop() && !nearBottom() ? "bottom" : "top";
-  const menuSide = (): "top" | "bottom" => nearBottom() ? "top" : "bottom";
+  const guideMenuSide = (): "top" | "bottom" => {
+    position();
+    const rect = guideMenuElement?.getBoundingClientRect();
+    if (!rect) return nearBottom() ? "top" : "bottom";
+    const below = Math.max(0, viewportHeight() - rect.bottom - VIEWPORT_PADDING);
+    const above = Math.max(0, rect.top - VIEWPORT_PADDING);
+    return below >= GUIDE_MENU_IDEAL_HEIGHT || below >= above ? "bottom" : "top";
+  };
+  const settingsMenuSide = (): "top" | "bottom" => {
+    position();
+    const rect = toolbarElement?.getBoundingClientRect();
+    if (!rect) return nearBottom() ? "top" : "bottom";
+    const below = Math.max(0, viewportHeight() - rect.bottom - VIEWPORT_PADDING);
+    const above = Math.max(0, rect.top - VIEWPORT_PADDING);
+    return below >= SETTINGS_MENU_IDEAL_HEIGHT || below >= above ? "bottom" : "top";
+  };
 
   const updateMenuAlign = () => {
     const anchorRect = guideMenuElement?.getBoundingClientRect();
@@ -220,7 +237,7 @@ export function Toolbar(props: ToolbarProps) {
         <span class={`msr:pointer-events-none msr:absolute msr:left-1/2 msr:-translate-x-1/2 msr:whitespace-nowrap msr:rounded msr:bg-black msr:px-2 msr:py-1 msr:text-[11px] msr:text-white msr:transition-opacity msr:duration-150 msr:select-none ${tooltipSide() === "top" ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"} ${tooltip.visibleTooltipId() === "guide-menu" && tooltipsEnabled() ? "msr:opacity-100" : "msr:opacity-0"}`}>Orientation Guide</span>
         <Show when={guideMenuOpen()}>
           <div
-            class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:w-44 msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:focus:outline-none msr:flex msr:flex-col msr:gap-px ${menuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"} ${menuAlign() === "left" ? "msr:left-0" : "msr:right-0"}`}
+            class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:w-44 msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:focus:outline-none msr:flex msr:flex-col msr:gap-px ${guideMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"} ${menuAlign() === "left" ? "msr:left-0" : "msr:right-0"}`}
             role="menu"
             tabindex={0}
             onKeyDown={(event) => {
@@ -241,7 +258,7 @@ export function Toolbar(props: ToolbarProps) {
         <ToolbarButton id="settings" active={props.model.state.settingsOpen} label="Settings" shortcut="⌘/Ctrl+," onClick={toggleSettings} {...buttonProps("settings")}><GearIcon size={20} /></ToolbarButton>
         <Show when={props.model.state.settingsOpen}>
           <div
-            class={`mesurer-menu-surface msr:absolute msr:-right-1 msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${menuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
+            class={`mesurer-menu-surface msr:absolute msr:-right-1 msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
             data-mesurer-inspector-ui="true"
             role="dialog"
             aria-label="Settings"
