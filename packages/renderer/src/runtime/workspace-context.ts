@@ -344,15 +344,15 @@ export function createMesurerWorkspaceRuntime(options: {
       const annotation = annotations.find((item) => item.id === id);
       if (!annotation) return null;
       const copy = copyAnnotation(annotation);
-      return {
-        ...copy,
-        resolvedTargets: copy.anchor.kind === "elements" && annotation.anchor.kind === "elements"
-          ? copy.anchor.targets.map((target, index) => ({
-              target,
-              element: resolveTarget(annotation.id, annotation.anchor.targets[index]),
-            }))
-          : [],
-      };
+      let resolvedTargets: MesurerResolvedAnnotation["resolvedTargets"] = [];
+      if (copy.anchor.kind === "elements" && annotation.anchor.kind === "elements") {
+        const sourceTargets = annotation.anchor.targets;
+        resolvedTargets = copy.anchor.targets.map((target, index) => ({
+          target,
+          element: resolveTarget(annotation.id, sourceTargets[index]),
+        }));
+      }
+      return { ...copy, resolvedTargets };
     },
     annotationRect(id) {
       const annotation = annotations.find((item) => item.id === id);
