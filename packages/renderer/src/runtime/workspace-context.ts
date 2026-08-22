@@ -23,13 +23,7 @@ export type MesurerAnnotationTarget = {
 export type MesurerAnnotationBaseline = {
   targets: Array<{ id: string; selector: string; rect: Rect }>;
   guides: Guide[];
-  measurements: Array<{
-    id: string;
-    rect: Rect;
-    deltaX: number;
-    deltaY: number;
-    snapped?: boolean;
-  }>;
+  measurements: Array<{ id: string; rect: Rect; deltaX: number; deltaY: number; snapped?: boolean }>;
   distances: Array<{
     id: string;
     rectA: Rect;
@@ -44,23 +38,13 @@ export type MesurerAnnotation = {
   note: string;
   createdAt: number;
   anchor:
-    | {
-        kind: "elements";
-        targets: MesurerAnnotationTarget[];
-        region: Rect | null;
-      }
-    | {
-        kind: "region";
-        rect: Rect;
-      };
+    | { kind: "elements"; targets: MesurerAnnotationTarget[]; region: Rect | null }
+    | { kind: "region"; rect: Rect };
   baseline: MesurerAnnotationBaseline;
 };
 
 export type MesurerResolvedAnnotation = MesurerAnnotation & {
-  resolvedTargets: Array<{
-    target: MesurerAnnotationTarget;
-    element: HTMLElement | null;
-  }>;
+  resolvedTargets: Array<{ target: MesurerAnnotationTarget; element: HTMLElement | null }>;
 };
 
 export type MesurerWorkspaceSnapshot = {
@@ -91,17 +75,9 @@ export type MesurerWorkspaceRuntime = {
   dispose(): void;
 };
 
-type RuntimeStore = {
-  annotations: MesurerAnnotation[];
-  listeners: Set<() => void>;
-};
-
+type RuntimeStore = { annotations: MesurerAnnotation[]; listeners: Set<() => void> };
 const STORE = Symbol.for("mesurer.workspace-context.v1");
-
-const cloneRect = (rect: Rect): Rect => ({ ...rect });
-const intersects = (a: Rect, b: Rect) =>
-  a.left <= b.left + b.width && a.left + a.width >= b.left &&
-  a.top <= b.top + b.height && a.top + a.height >= b.top;
+const cloneRect = (value: Rect): Rect => ({ ...value });
 
 const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => ({
   ...annotation,
@@ -166,7 +142,6 @@ const stripMeasurement = (measurement: Measurement<HTMLElement>) => ({
   deltaY: measurement.deltaY,
   ...(measurement.snapped === undefined ? {} : { snapped: measurement.snapped }),
 });
-
 const stripDistance = (distance: DistanceOverlay<HTMLElement>) => ({
   id: distance.id,
   rectA: cloneRect(distance.rectA),
@@ -184,19 +159,27 @@ export function createMesurerWorkspaceRuntime(options: {
   const store = getStore(ownerWindow);
   let disposed = false;
   let mutationFrame = 0;
+  let modelFrame = 0;
+  let modelUnsubscribe: (() => void) | null = null;
   const hidden = new Map<HTMLElement, string>();
 
   const model = () => getLatestMeasurerModel();
-  const notify = () => {
-    for (const listener of store.listeners) listener();
+  const notify = () => { for (const listener of store.listeners) listener(); };
+  const bindModel = () => {
+    if (disposed || modelUnsubscribe) return;
+    const current = model();
+    if (current) {
+      modelUnsubscribe = current.subscribe(() => notify());
+      notify();
+      return;
+    }
+    modelFrame = ownerWindow.requestAnimationFrame(bindModel);
   };
+  modelFrame = ownerWindow.requestAnimationFrame(bindModel);
+
   const resolveTarget = (target: MesurerAnnotationTarget) => {
     let candidates: Element[] = [];
-    try {
-      candidates = [...ownerDocument.querySelectorAll(target.selector)];
-    } catch {
-      candidates = [];
-    }
+    try { candidates = [...ownerDocument.querySelectorAll(target.selector)]; } catch { candidates = []; }
     const compatible = candidates.filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
     if (compatible.length !== 1) return null;
     const element = compatible[0];
@@ -210,12 +193,9 @@ export function createMesurerWorkspaceRuntime(options: {
       for (const target of annotation.anchor.targets) {
         const element = resolveTarget(target);
         if (!element) continue;
-        const rect = getRectFromDom(element);
-        if (
-          rect.left !== target.lastRect.left || rect.top !== target.lastRect.top ||
-          rect.width !== target.lastRect.width || rect.height !== target.lastRect.height
-        ) {
-          target.lastRect = rect;
+        const value = getRectFromDom(element);
+        if (value.left !== target.lastRect.left || value.top !== target.lastRect.top || value.width !== target.lastRect.width || value.height !== target.lastRect.height) {
+          target.lastRect = value;
           changed = true;
         }
       }
@@ -224,10 +204,7 @@ export function createMesurerWorkspaceRuntime(options: {
   };
   const scheduleRefresh = () => {
     if (mutationFrame || disposed) return;
-    mutationFrame = ownerWindow.requestAnimationFrame(() => {
-      mutationFrame = 0;
-      refreshAnnotations();
-    });
+    mutationFrame = ownerWindow.requestAnimationFrame(() => { mutationFrame = 0; refreshAnnotations(); });
   };
   const observer = new ownerWindow.MutationObserver(scheduleRefresh);
   if (ownerDocument.documentElement) observer.observe(ownerDocument.documentElement, { childList: true, subtree: true, attributes: true });
@@ -274,15 +251,9 @@ export function createMesurerWorkspaceRuntime(options: {
     },
     currentSelection() {
       const current = model();
-      return {
-        elements: selectedElements(current),
-        region: current?.current.selectionOriginRect ? cloneRect(current.current.selectionOriginRect) : null,
-      };
+      return { elements: selectedElements(current), region: current?.current.selectionOriginRect ? cloneRect(current.current.selectionOriginRect) : null };
     },
-    annotations() {
-      refreshAnnotations();
-      return store.annotations.map(copyAnnotation);
-    },
+    annotations() { refreshAnnotations(); return store.annotations.map(copyAnnotation); },
     annotation(id) {
       refreshAnnotations();
       const annotation = store.annotations.find((item) => item.id === id);
@@ -301,10 +272,10 @@ export function createMesurerWorkspaceRuntime(options: {
       if (annotation.anchor.kind === "region") return cloneRect(annotation.anchor.rect);
       const rects = annotation.anchor.targets.map((target) => resolveTarget(target)?.getBoundingClientRect()).filter(Boolean) as DOMRect[];
       if (!rects.length) return annotation.anchor.targets[0]?.lastRect ? cloneRect(annotation.anchor.targets[0].lastRect) : null;
-      const left = Math.min(...rects.map((rect) => rect.left));
-      const top = Math.min(...rects.map((rect) => rect.top));
-      const right = Math.max(...rects.map((rect) => rect.right));
-      const bottom = Math.max(...rects.map((rect) => rect.bottom));
+      const left = Math.min(...rects.map((value) => value.left));
+      const top = Math.min(...rects.map((value) => value.top));
+      const right = Math.max(...rects.map((value) => value.right));
+      const bottom = Math.max(...rects.map((value) => value.bottom));
       return { left, top, width: right - left, height: bottom - top };
     },
     addSelectionAnnotation(note) {
@@ -315,39 +286,25 @@ export function createMesurerWorkspaceRuntime(options: {
       if (!elements.length) throw new Error("Select at least one page element before adding an annotation.");
       const targets = elements.map(makeTarget);
       return pushAnnotation({
-        id: randomId(ownerWindow, "annotation"),
-        note: value,
-        createdAt: Date.now(),
-        anchor: {
-          kind: "elements",
-          targets,
-          region: current?.current.selectionOriginRect ? cloneRect(current.current.selectionOriginRect) : null,
-        },
+        id: randomId(ownerWindow, "annotation"), note: value, createdAt: Date.now(),
+        anchor: { kind: "elements", targets, region: current?.current.selectionOriginRect ? cloneRect(current.current.selectionOriginRect) : null },
         baseline: baseline(targets),
       });
     },
-    addRegionAnnotation(note, rect) {
-      const value = note.trim();
-      if (!value) throw new Error("Annotation note cannot be empty.");
-      const annotation: MesurerAnnotation = {
-        id: randomId(ownerWindow, "annotation"),
-        note: value,
-        createdAt: Date.now(),
-        anchor: { kind: "region", rect: cloneRect(rect) },
-        baseline: baseline([]),
-      };
-      return pushAnnotation(annotation);
+    addRegionAnnotation(note, value) {
+      const text = note.trim();
+      if (!text) throw new Error("Annotation note cannot be empty.");
+      return pushAnnotation({
+        id: randomId(ownerWindow, "annotation"), note: text, createdAt: Date.now(),
+        anchor: { kind: "region", rect: cloneRect(value) }, baseline: baseline([]),
+      });
     },
     removeAnnotation(id) {
       const next = store.annotations.filter((annotation) => annotation.id !== id);
       if (next.length === store.annotations.length) return;
-      store.annotations = next;
-      notify();
+      store.annotations = next; notify();
     },
-    subscribe(listener) {
-      store.listeners.add(listener);
-      return () => store.listeners.delete(listener);
-    },
+    subscribe(listener) { store.listeners.add(listener); return () => store.listeners.delete(listener); },
     prepareCapture() {
       if (!uiRoot) return;
       const selector = [
@@ -364,28 +321,20 @@ export function createMesurerWorkspaceRuntime(options: {
       }
     },
     finishCapture() {
-      for (const [element, display] of hidden) {
-        if (display) element.style.display = display;
-        else element.style.removeProperty("display");
-      }
+      for (const [element, display] of hidden) { if (display) element.style.display = display; else element.style.removeProperty("display"); }
       hidden.clear();
     },
     dispose() {
       if (disposed) return;
       disposed = true;
       if (mutationFrame) ownerWindow.cancelAnimationFrame(mutationFrame);
+      if (modelFrame) ownerWindow.cancelAnimationFrame(modelFrame);
+      modelUnsubscribe?.();
       observer.disconnect();
       ownerWindow.removeEventListener("resize", scheduleRefresh);
       ownerWindow.removeEventListener("scroll", scheduleRefresh, true);
-      for (const [element, display] of hidden) {
-        if (display) element.style.display = display;
-        else element.style.removeProperty("display");
-      }
+      for (const [element, display] of hidden) { if (display) element.style.display = display; else element.style.removeProperty("display"); }
       hidden.clear();
     },
   };
-}
-
-export function rectsOverlap(a: Rect, b: Rect) {
-  return intersects(a, b);
 }
