@@ -147,6 +147,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     let active = true;
     let persistTimer = 0;
     let dispatchingBuiltin = false;
+    let extensionMountFrame = 0;
     const runtimeHost: MesurerPluginHost = host;
     const input: MeasurerProps = props;
     const target = input.portalTarget ?? document.body;
@@ -179,7 +180,20 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     const extensionMountHandle = createInspectorMount();
     const extensionHost = extensionMountHandle.element;
     extensionHost.dataset.mesurerExtensionHost = "true";
-    setExtensionMount(extensionHost);
+    extensionHost.style.display = "contents";
+    const mountExtensionTools = () => {
+      if (!active) return;
+      const toolbar = queryRoot.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
+      if (!toolbar) {
+        extensionMountFrame = ownerWindow.requestAnimationFrame(mountExtensionTools);
+        return;
+      }
+      const settingsButton = toolbar.querySelector<HTMLButtonElement>("button[aria-label^='Settings']");
+      const settingsWrapper = settingsButton?.parentElement?.parentElement ?? null;
+      toolbar.insertBefore(extensionHost, settingsWrapper);
+      setExtensionMount(extensionHost);
+    };
+    mountExtensionTools();
 
     const dispatchBuiltin = (id: MesurerBuiltinPluginId) => {
       dispatchingBuiltin = true;
@@ -305,6 +319,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     void setupPlugins();
 
     const isEditable = (eventTarget: EventTarget | null) => {
+      // SAFETY: ownerWindow is the realm that owns every event target handled by this mounted renderer.
       const realm = ownerWindow as Window & typeof globalThis;
       return eventTarget instanceof realm.HTMLElement && (
         eventTarget.isContentEditable ||
@@ -384,6 +399,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     return () => {
       active = false;
       ownerWindow.clearTimeout(persistTimer);
+      ownerWindow.cancelAnimationFrame(extensionMountFrame);
       ownerWindow.removeEventListener("keydown", captureShortcut, true);
       unsubscribe();
       ownerDocument.body.classList.remove("mesurer-solid-xray");
@@ -401,24 +417,19 @@ export default function ComposableMeasurer(props: MeasurerProps) {
         <Portal mount={mount()}>
           <Show when={customTools().length > 0}>
             <div
-              data-mesurer-extension-toolbar="true"
-              data-mesurer-inspector-ui="true"
-              style={{
-                position: "fixed",
-                top: "16px",
-                right: "16px",
-                display: "flex",
-                gap: "4px",
-                padding: "4px",
-                "z-index": 2147483000,
-                "border-radius": "12px",
-                background: "white",
-                "box-shadow": "0 4px 14px rgb(0 0 0 / 14%)",
-              }}
-            >
-              <For each={customTools()}>{(tool) => (
+              data-mesurer-plugin-tool-separator="true"
+              aria-hidden="true"
+              style={{ width: "1px", height: "20px", background: "rgb(0 0 0 / 10%)", margin: "0 2px" }}
+            />
+            <For each={customTools()}>{(tool) => (
+              <div
+                data-mesurer-tool-id={tool.id}
+                data-mesurer-inspector-ui="true"
+                style={{ position: "relative", display: "flex" }}
+              >
                 <button
                   type="button"
+                  data-mesurer-tool-id={tool.id}
                   aria-label={`${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ""}`}
                   aria-pressed={tool.active?.() ? "true" : "false"}
                   disabled={tool.disabled?.() ?? false}
@@ -431,22 +442,23 @@ export default function ComposableMeasurer(props: MeasurerProps) {
                     "place-items": "center",
                     border: "0",
                     "border-radius": "8px",
+                    outline: "none",
                     background: tool.active?.() ? "#0d99ff" : "transparent",
-                    color: tool.active?.() ? "white" : "black",
-                    cursor: tool.disabled?.() ? "not-allowed" : "pointer",
+                    color: tool.active?.() ? "white" : tool.disabled?.() ? "rgb(0 0 0 / 30%)" : "black",
+                    cursor: tool.disabled?.() ? "default" : "pointer",
                     "font-family": "ui-sans-serif, system-ui, sans-serif",
                     "font-size": "12px",
                     "font-weight": 600,
                   }}
                 >
                   <Show when={tool.icon} fallback={tool.label.slice(0, 1).toUpperCase()}>{(icon) => (
-                    <svg width="18" height="18" viewBox={icon().viewBox ?? "0 0 24 24"} aria-hidden="true">
+                    <svg width="20" height="20" viewBox={icon().viewBox ?? "0 0 24 24"} aria-hidden="true">
                       <For each={icon().paths}>{(path) => <path d={path} fill="currentColor" />}</For>
                     </svg>
                   )}</Show>
                 </button>
-              )}</For>
-            </div>
+              </div>
+            )}</For>
           </Show>
         </Portal>
       )}</Show>
