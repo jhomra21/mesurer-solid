@@ -156,7 +156,6 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   onSettled(() => {
     let active = true;
     let persistTimer = 0;
-    let dispatchingBuiltin = false;
     let extensionMountFrame = 0;
     const runtimeHost: MesurerPluginHost = host;
     const input: MeasurerProps = props;
@@ -216,36 +215,19 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     };
     mountExtensionTools();
 
-    const dispatchBuiltin = (id: MesurerBuiltinPluginId) => {
-      dispatchingBuiltin = true;
-      try {
-        if (id === "settings") {
-          ownerWindow.dispatchEvent(new ownerWindow.KeyboardEvent("keydown", {
-            key: ",",
-            ctrlKey: true,
-            bubbles: true,
-            cancelable: true,
-          }));
-          return;
-        }
-        const key = BUILTIN_KEYS[id];
-        if (key) {
-          ownerWindow.dispatchEvent(new ownerWindow.KeyboardEvent("keydown", {
-            key,
-            bubbles: true,
-            cancelable: true,
-          }));
-        }
-      } finally {
-        dispatchingBuiltin = false;
-      }
+    const runLocalBuiltin = (id: MesurerBuiltinPluginId) => {
+      const label = LABELS[id];
+      if (!label) return;
+      const button = queryRoot.querySelector<HTMLButtonElement>(toolSelector(label));
+      if (!button) throw new Error(`Mesurer built-in control is unavailable for ${id}.`);
+      button.click();
     };
 
     const deactivateBuiltin = (id: MesurerBuiltinPluginId) => {
       const label = LABELS[id];
       if (label) {
         const button = queryRoot.querySelector<HTMLButtonElement>(toolSelector(label));
-        if (button?.getAttribute("aria-pressed") === "true") dispatchBuiltin(id);
+        if (button?.getAttribute("aria-pressed") === "true") runLocalBuiltin(id);
       }
       if (id === "xray") ownerDocument.body.classList.remove("mesurer-solid-xray");
     };
@@ -291,7 +273,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
         await executeTool(replacement, { source: "builtin-command", builtin: id });
         return;
       }
-      if (builtinEnabled(id)) dispatchBuiltin(id);
+      if (builtinEnabled(id)) runLocalBuiltin(id);
     };
 
     const setupPlugins = async () => {
@@ -366,7 +348,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     };
 
     const captureShortcut = (event: KeyboardEvent) => {
-      if (dispatchingBuiltin || isEditable(event.target)) return;
+      if (isEditable(event.target)) return;
 
       const slot = builtinShortcut(event);
       const replacement = slot ? replacementBuiltinTool(slot) : undefined;
