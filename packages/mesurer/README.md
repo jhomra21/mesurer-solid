@@ -12,7 +12,7 @@ bun add -d @jhomra21/mesurer-solid@beta
 npm install -D @jhomra21/mesurer-solid@beta
 ```
 
-## Mount in your app
+## Mount the base inspector
 
 ```ts
 import { mountMeasurer } from "@jhomra21/mesurer-solid";
@@ -20,21 +20,30 @@ import { mountMeasurer } from "@jhomra21/mesurer-solid";
 const mesurer = mountMeasurer();
 ```
 
-Mesurer includes Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, Settings, annotations, Copy Context, and agent-readable context/review APIs.
+The base inspector contains Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, Settings, the plugin host, and the low-level agent inspection API.
 
-## Human annotations and context
+## Add annotations and agent context as a plugin
 
-Select one or more page elements and choose **Add note**. Mesurer anchors the human note to durable selector/fingerprint data and records a visual baseline.
+```ts
+import {
+  contextPlugin,
+  mountMeasurer,
+} from "@jhomra21/mesurer-solid";
+
+const mesurer = mountMeasurer({
+  agent: true,
+  plugins: [contextPlugin()],
+});
+```
+
+`contextPlugin()` is a normal removable Mesurer extension. It provides the `context:v1` service and owns annotation state, Copy Context/Copy Selection/Add Note UI, shortcuts, review/capture behavior, optional delivery callbacks, and cleanup.
 
 ```ts
 const workspace = await mesurer.context();
 const selected = await mesurer.context({ scope: "selection" });
 const annotation = await mesurer.context({ annotation: annotationId });
-
 await mesurer.copyContext({ annotation: annotationId });
 ```
-
-Scoped context automatically includes relevant guides, measurements, held distances, exact DOM inspection, viewport state, and the user's annotation note. Relevance is deterministic geometry/reference matching rather than model inference.
 
 After a source edit/HMR cycle:
 
@@ -42,16 +51,18 @@ After a source edit/HMR cycle:
 const review = await mesurer.review(annotationId);
 ```
 
-`review()` compares the annotation baseline with freshly resolved geometry. Annotation targets only rebind after DOM replacement when the selector has exactly one fingerprint-compatible result; otherwise Mesurer reports them stale.
+Remove the complete feature through the same plugin host used by every extension:
+
+```ts
+mesurer.pluginHost?.remove("mesurer.context");
+console.log(mesurer.agent.capabilities().capabilities.context); // false
+```
+
+The mounted/browser convenience methods resolve `context:v1`; they do not maintain a second hidden context implementation.
 
 ## Coding-agent browser API
 
-Enable the page global with `agent: true`, or use one of the injection entry points:
-
-```ts
-const mesurer = mountMeasurer({ agent: true });
-await mesurer.ready;
-```
+With `agent: true` and the context plugin loaded:
 
 ```js
 window.__MESURER__.capabilities()
@@ -61,7 +72,7 @@ await window.__MESURER__.stable()
 await window.__MESURER__.review(annotationId)
 ```
 
-The original low-level inspection API remains available:
+The original low-level inspection API remains available regardless of the context plugin:
 
 ```text
 inspect / inspectAll / at
@@ -86,37 +97,62 @@ await browser.evaluate(source);
 await browser.evaluate(`window.__MESURER__.ready()`);
 ```
 
-The injector disposes a previous injected instance before remounting.
+Injection installs `contextPlugin()` by default and disposes a previous injected instance before remounting. To inject only the base/low-level inspector:
+
+```js
+window.__MESURER_CONFIG__ = { context: false };
+```
 
 See [`AGENT_INTEGRATION.md`](./AGENT_INTEGRATION.md).
 
 ## Clean screenshot evidence
 
-Mesurer does not own a browser screenshot engine. It prepares the actual page so the outer harness can capture real pixels:
+The context plugin does not own a screenshot engine. It prepares the actual page so the outer harness can capture real pixels:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
 await window.__MESURER__.prepareCapture()
 try {
-  // Capture the real viewport and optional plan.focus rectangle.
+  // Capture the real viewport and optional focus crop.
 } finally {
   await window.__MESURER__.finishCapture()
 }
 ```
 
-Capture mode hides Mesurer controls while preserving evidence such as guides, rulers, measurements, distances, annotation/selection markers, and rendered pixel labels.
+Capture mode hides Mesurer controls while preserving guides, rulers, measurements, distances, annotation/selection markers, and pixel labels.
+
+## Optional host delivery
+
+Screenshot and direct-send capabilities belong to the plugin configuration rather than core mount options:
+
+```ts
+const mesurer = mountMeasurer({
+  agent: true,
+  plugins: [
+    contextPlugin({
+      evidenceProvider: async ({ context, plan }) => {
+        // Use the host/harness real screenshot primitive.
+        return [];
+      },
+      sendContext: async ({ context, text, images }) => {
+        // Deliver with the ACP client/session already owned by the host.
+      },
+    }),
+  ],
+});
+```
+
+Without `sendContext`, the plugin does not render a Send control.
 
 ## Portable Agent Skill
 
-There are no Mesurer packages for individual harnesses.
-
-The npm package ships one canonical `mesurer-ui` Agent Skill. Install it into the current repository with:
+There are no Mesurer packages for individual harnesses. The npm package ships one canonical `mesurer-ui` Agent Skill:
 
 ```bash
 npx --yes --package=@jhomra21/mesurer-solid@beta mesurer-skill install
 ```
 
-It writes `.agents/skills/mesurer-ui/SKILL.md`, where Agent-Skills-compatible harnesses can discover the human-in-the-loop visual validation workflow.
+It writes `.agents/skills/mesurer-ui/SKILL.md` for Agent-Skills-compatible harnesses.
 
 ## ACP
 
@@ -128,23 +164,7 @@ import { toAcpContentBlocks } from "@jhomra21/mesurer-solid";
 const blocks = toAcpContentBlocks(context, images);
 ```
 
-The result is one text block plus optional image blocks. If image prompts are unavailable, send the text block only. Copy Context remains the universal fallback.
-
-## Optional host callbacks
-
-```ts
-const mesurer = mountMeasurer({
-  evidenceProvider: async ({ context, plan }) => {
-    // Use the host/harness real screenshot primitive.
-    return [];
-  },
-  sendContext: async ({ context, text, images }) => {
-    // Deliver with the ACP client/session already owned by the host.
-  },
-});
-```
-
-`sendContext` is inversion of control, not another Mesurer transport protocol. If it is absent, the Send button is not shown.
+The result is one context text block plus optional labeled image blocks. If image prompts are unavailable, send the text block only. Copy Context remains the universal fallback.
 
 ## Plugins
 
@@ -156,7 +176,7 @@ import {
 } from "@jhomra21/mesurer-solid/core";
 ```
 
-Plugins can contribute tools, commands, hooks, overlays, settings, state, services, history/persistence, and cleanup. Built-ins can be excluded/replaced without forking the renderer.
+Plugins can contribute tools, commands, hooks, overlays, settings, state, services, history/persistence, renderer-owned UI, and lifecycle cleanup. Built-ins can be excluded/replaced without forking the renderer.
 
 ## Public surface
 
