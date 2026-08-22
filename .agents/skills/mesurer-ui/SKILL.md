@@ -9,13 +9,25 @@ Mesurer is a shared visual inspection and feedback layer between the person revi
 
 ## Discover Mesurer
 
-When you have a browser/evaluation channel, check for `window.__MESURER__` before inventing another visual-inspection workflow.
+When you have a browser/evaluation channel, wait for an existing Mesurer instance before inspecting its capabilities:
 
 ```js
-window.__MESURER__?.capabilities()
+if (window.__MESURER__) {
+  await window.__MESURER__.ready()
+  window.__MESURER__.capabilities()
+}
 ```
 
-If Mesurer is absent and the harness already has a page/renderer JavaScript-evaluation primitive, prefer injecting the published `@jhomra21/mesurer-solid/inject-script` through that existing channel. Do not add Mesurer to application source, create another browser, or change the app build unless the user explicitly wants Mesurer embedded.
+If Mesurer is absent, use the browser JavaScript-evaluation primitive the harness already owns. Do not add Mesurer to application source, create another browser, or change the app build just to inspect the page.
+
+The installed skill is self-contained: `assets/inject-script.js` beside this file is the packaged classic injector. Read that file and evaluate its contents in the page. In the Mesurer repository itself, the equivalent development artifact is `packages/mesurer/dist/inject-script.js`. If `@jhomra21/mesurer-solid` is already installed in the project, its `/inject-script` export is the same distribution path.
+
+After injection:
+
+```js
+await window.__MESURER__.ready()
+window.__MESURER__.capabilities()
+```
 
 ## Human feedback comes first
 
@@ -34,6 +46,8 @@ For the current unsaved selection, use:
 await window.__MESURER__.context({ scope: "selection" })
 ```
 
+A selection may be one or more elements or a dragged visual region. Region annotations are useful for whitespace, alignment, or other feedback where no single DOM element is the right target.
+
 For the whole meaningful workspace, use:
 
 ```js
@@ -49,11 +63,11 @@ For a requested visual change:
 3. Let the normal dev server/HMR update the page.
 4. Wait for the rendered UI to settle with `await window.__MESURER__.stable()`.
 5. Re-read the affected annotation with `await window.__MESURER__.review(annotationId)`.
-6. Inspect measurable before/current changes. If a gap, alignment, width, height, or guide relationship is still wrong, iterate.
+6. Inspect measurable before/current changes and any explicit missing evidence. If a gap, alignment, width, height, guide relationship, or expected target is still wrong, iterate.
 7. If the harness supports screenshots, inspect the current visual evidence as well.
 8. For visual tasks, do not declare completion merely because typecheck/tests/build pass when Mesurer is available for browser validation.
 
-Annotations use durable selectors/fingerprints and can rebind after normal HMR DOM replacement. If Mesurer reports a target as stale, do not silently assume another element is the same target; ask for/re-establish the intended target when necessary.
+Annotations keep the original live DOM target while it remains connected. After DOM replacement, Mesurer rebinds only when the stored selector and fingerprint resolve conservatively and uniquely. If Mesurer reports a target as stale, do not silently assume another element is the same target; ask for or re-establish the intended target when necessary.
 
 ## Screenshot evidence
 
