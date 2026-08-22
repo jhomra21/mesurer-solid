@@ -6,7 +6,7 @@ import {
   isElementFingerprintCompatible,
   type DomElementFingerprint,
 } from "@jhomra21/mesurer-solid-dom";
-import { getLatestMeasurerModel, type MeasurerModel } from "../model/create-measurer-model";
+import type { MeasurerModel } from "../model/create-measurer-model";
 
 export type MesurerContextRequest =
   | { scope?: "workspace" }
@@ -61,9 +61,7 @@ export type MesurerWorkspaceSnapshot = {
 };
 
 export type MesurerWorkspaceRuntime = {
-  /** Bind the model created by the immediately preceding renderer mount. */
-  bindCurrentModel(): void;
-  snapshot(): MesurerWorkspaceSnapshot | null;
+  snapshot(): MesurerWorkspaceSnapshot;
   currentSelection(): { elements: HTMLElement[]; region: Rect | null };
   annotations(): MesurerAnnotation[];
   annotation(id: string): MesurerResolvedAnnotation | null;
@@ -77,9 +75,6 @@ export type MesurerWorkspaceRuntime = {
   dispose(): void;
 };
 
-type RuntimeStore = { annotations: MesurerAnnotation[]; listeners: Set<() => void> };
-const STORE_KEY = "__MESURER_WORKSPACE_CONTEXT_V1__" as const;
-type RuntimeWindow = Window & { [STORE_KEY]?: RuntimeStore };
 const cloneRect = (value: Rect): Rect => ({ ...value });
 
 const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => ({
@@ -114,16 +109,7 @@ const randomId = (ownerWindow: Window, prefix: string) => {
   return `${prefix}-${value}`;
 };
 
-const getStore = (ownerWindow: RuntimeWindow): RuntimeStore => {
-  const existing = ownerWindow[STORE_KEY];
-  if (existing) return existing;
-  const created: RuntimeStore = { annotations: [], listeners: new Set() };
-  ownerWindow[STORE_KEY] = created;
-  return created;
-};
-
-const selectedElements = (model: MeasurerModel | null) => {
-  if (!model) return [];
+const selectedElements = (model: MeasurerModel) => {
   const seen = new Set<HTMLElement>();
   const elements: HTMLElement[] = [];
   for (const measurement of model.current.selectedMeasurements) {
@@ -147,6 +133,7 @@ const stripMeasurement = (measurement: Measurement<HTMLElement>): MesurerAnnotat
   if (measurement.snapped !== undefined) value.snapped = measurement.snapped;
   return value;
 };
+
 const stripDistance = (distance: DistanceOverlay<HTMLElement>) => ({
   id: distance.id,
   rectA: cloneRect(distance.rectA),
@@ -158,26 +145,18 @@ const stripDistance = (distance: DistanceOverlay<HTMLElement>) => ({
 export function createMesurerWorkspaceRuntime(options: {
   ownerDocument: Document;
   ownerWindow: Window;
+  model: MeasurerModel;
   uiRoot?: ParentNode;
 }): MesurerWorkspaceRuntime {
-  const { ownerDocument, ownerWindow, uiRoot } = options;
-  const store = getStore(ownerWindow);
+  const { ownerDocument, ownerWindow, model, uiRoot } = options;
+  const annotations: MesurerAnnotation[] = [];
+  const listeners = new Set<() => void>();
+  const hidden = new Map<HTMLElement, string>();
   let disposed = false;
   let mutationFrame = 0;
-  let boundModel: MeasurerModel | null = null;
-  let modelUnsubscribe: (() => void) | null = null;
-  const hidden = new Map<HTMLElement, string>();
 
-  const model = () => boundModel;
-  const notify = () => { for (const listener of store.listeners) listener(); };
-  const bindCurrentModel = () => {
-    if (disposed) return;
-    const current = getLatestMeasurerModel();
-    if (!current) throw new Error("Mesurer renderer model was not created during mount.");
-    modelUnsubscribe?.();
-    boundModel = current;
-    modelUnsubscribe = current.subscribe(() => notify());
-    notify();
+  const notify = () => {
+    for (const listener of listeners) listener();
   };
 
   const resolveTarget = (target: MesurerAnnotationTarget) => {
@@ -190,11 +169,13 @@ export function createMesurerWorkspaceRuntime(options: {
     const compatible = candidates.filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
     if (compatible.length !== 1) return null;
     const element = compatible[0];
-    return element instanceof HTMLElement ? element : null;
+    const HTMLElementCtor = (ownerWindow as Window & typeof globalThis).HTMLElement;
+    return element instanceof HTMLElementCtor ? element as HTMLElement : null;
   };
+
   const refreshAnnotations = () => {
     let changed = false;
-    for (const annotation of store.annotations) {
+    for (const annotation of annotations) {
       if (annotation.anchor.kind !== "elements") continue;
       for (const target of annotation.anchor.targets) {
         const element = resolveTarget(target);
@@ -208,6 +189,7 @@ export function createMesurerWorkspaceRuntime(options: {
     }
     if (changed) notify();
   };
+
   const scheduleRefresh = () => {
     if (mutationFrame || disposed) return;
     mutationFrame = ownerWindow.requestAnimationFrame(() => {
@@ -215,69 +197,72 @@ export function createMesurerWorkspaceRuntime(options: {
       refreshAnnotations();
     });
   };
-  const observer = new MutationObserver(scheduleRefresh);
-  if (ownerDocument.documentElement) observer.observe(ownerDocument.documentElement, { childList: true, subtree: true, attributes: true });
+
+  const MutationObserverCtor = (ownerWindow as Window & typeof globalThis).MutationObserver;
+  const observer = new MutationObserverCtor(scheduleRefresh);
+  if (ownerDocument.documentElement) {
+    observer.observe(ownerDocument.documentElement, { childList: true, subtree: true, attributes: true });
+  }
   ownerWindow.addEventListener("resize", scheduleRefresh);
   ownerWindow.addEventListener("scroll", scheduleRefresh, true);
+  const modelUnsubscribe = model.subscribe(notify);
 
   const baseline = (targets: MesurerAnnotationTarget[]): MesurerAnnotationBaseline => {
-    const current = model();
-    const measurements = current
-      ? [
-          ...current.current.measurements,
-          ...(current.current.activeMeasurement && !current.current.measurements.some((item) => item.id === current.current.activeMeasurement?.id)
-            ? [current.current.activeMeasurement]
-            : []),
-        ]
-      : [];
+    const measurements = [
+      ...model.current.measurements,
+      ...(model.current.activeMeasurement && !model.current.measurements.some((item) => item.id === model.current.activeMeasurement?.id)
+        ? [model.current.activeMeasurement]
+        : []),
+    ];
     return {
       targets: targets.map((target) => ({ id: target.id, selector: target.selector, rect: cloneRect(target.lastRect) })),
-      guides: current?.current.guides.map((guide) => ({ ...guide })) ?? [],
+      guides: model.current.guides.map((guide) => ({ ...guide })),
       measurements: measurements.map(stripMeasurement),
-      distances: current?.current.heldDistances.map(stripDistance) ?? [],
+      distances: model.current.heldDistances.map(stripDistance),
     };
   };
+
   const makeTarget = (element: HTMLElement, index: number): MesurerAnnotationTarget => ({
     id: `target-${index + 1}`,
     selector: getElementSelector(element),
     fingerprint: getElementFingerprint(element),
     lastRect: getRectFromDom(element),
   });
+
   const pushAnnotation = (annotation: MesurerAnnotation) => {
-    store.annotations = [...store.annotations, annotation];
+    annotations.push(annotation);
     notify();
     return copyAnnotation(annotation);
   };
 
   return {
-    bindCurrentModel,
     snapshot() {
-      const current = model();
-      if (!current) return null;
       return {
-        enabled: current.current.enabled,
-        rulersVisible: current.current.rulersVisible,
-        xrayVisible: current.current.xrayVisible,
-        selectedMeasurements: [...current.current.selectedMeasurements],
-        selectionOriginRect: current.current.selectionOriginRect ? cloneRect(current.current.selectionOriginRect) : null,
-        measurements: [...current.current.measurements],
-        activeMeasurement: current.current.activeMeasurement,
-        heldDistances: [...current.current.heldDistances],
-        guides: current.current.guides.map((guide) => ({ ...guide })),
-        annotations: store.annotations.map(copyAnnotation),
+        enabled: model.current.enabled,
+        rulersVisible: model.current.rulersVisible,
+        xrayVisible: model.current.xrayVisible,
+        selectedMeasurements: [...model.current.selectedMeasurements],
+        selectionOriginRect: model.current.selectionOriginRect ? cloneRect(model.current.selectionOriginRect) : null,
+        measurements: [...model.current.measurements],
+        activeMeasurement: model.current.activeMeasurement,
+        heldDistances: [...model.current.heldDistances],
+        guides: model.current.guides.map((guide) => ({ ...guide })),
+        annotations: annotations.map(copyAnnotation),
       };
     },
     currentSelection() {
-      const current = model();
-      return { elements: selectedElements(current), region: current?.current.selectionOriginRect ? cloneRect(current.current.selectionOriginRect) : null };
+      return {
+        elements: selectedElements(model),
+        region: model.current.selectionOriginRect ? cloneRect(model.current.selectionOriginRect) : null,
+      };
     },
     annotations() {
       refreshAnnotations();
-      return store.annotations.map(copyAnnotation);
+      return annotations.map(copyAnnotation);
     },
     annotation(id) {
       refreshAnnotations();
-      const annotation = store.annotations.find((item) => item.id === id);
+      const annotation = annotations.find((item) => item.id === id);
       if (!annotation) return null;
       const copy = copyAnnotation(annotation);
       return {
@@ -288,13 +273,16 @@ export function createMesurerWorkspaceRuntime(options: {
       };
     },
     annotationRect(id) {
-      const annotation = store.annotations.find((item) => item.id === id);
+      const annotation = annotations.find((item) => item.id === id);
       if (!annotation) return null;
       if (annotation.anchor.kind === "region") return cloneRect(annotation.anchor.rect);
       const rects = annotation.anchor.targets
         .map((target) => resolveTarget(target)?.getBoundingClientRect())
         .filter((value): value is DOMRect => value !== undefined);
-      if (!rects.length) return annotation.anchor.targets[0]?.lastRect ? cloneRect(annotation.anchor.targets[0].lastRect) : null;
+      if (!rects.length) {
+        const fallback = annotation.anchor.targets[0]?.lastRect;
+        return fallback ? cloneRect(fallback) : null;
+      }
       const left = Math.min(...rects.map((value) => value.left));
       const top = Math.min(...rects.map((value) => value.top));
       const right = Math.max(...rects.map((value) => value.right));
@@ -304,13 +292,18 @@ export function createMesurerWorkspaceRuntime(options: {
     addSelectionAnnotation(note) {
       const value = note.trim();
       if (!value) throw new Error("Annotation note cannot be empty.");
-      const current = model();
-      const elements = selectedElements(current);
+      const elements = selectedElements(model);
       if (!elements.length) throw new Error("Select at least one page element before adding an annotation.");
       const targets = elements.map(makeTarget);
       return pushAnnotation({
-        id: randomId(ownerWindow, "annotation"), note: value, createdAt: Date.now(),
-        anchor: { kind: "elements", targets, region: current?.current.selectionOriginRect ? cloneRect(current.current.selectionOriginRect) : null },
+        id: randomId(ownerWindow, "annotation"),
+        note: value,
+        createdAt: Date.now(),
+        anchor: {
+          kind: "elements",
+          targets,
+          region: model.current.selectionOriginRect ? cloneRect(model.current.selectionOriginRect) : null,
+        },
         baseline: baseline(targets),
       });
     },
@@ -318,19 +311,22 @@ export function createMesurerWorkspaceRuntime(options: {
       const text = note.trim();
       if (!text) throw new Error("Annotation note cannot be empty.");
       return pushAnnotation({
-        id: randomId(ownerWindow, "annotation"), note: text, createdAt: Date.now(),
-        anchor: { kind: "region", rect: cloneRect(value) }, baseline: baseline([]),
+        id: randomId(ownerWindow, "annotation"),
+        note: text,
+        createdAt: Date.now(),
+        anchor: { kind: "region", rect: cloneRect(value) },
+        baseline: baseline([]),
       });
     },
     removeAnnotation(id) {
-      const next = store.annotations.filter((annotation) => annotation.id !== id);
-      if (next.length === store.annotations.length) return;
-      store.annotations = next;
+      const index = annotations.findIndex((annotation) => annotation.id === id);
+      if (index < 0) return;
+      annotations.splice(index, 1);
       notify();
     },
     subscribe(listener) {
-      store.listeners.add(listener);
-      return () => store.listeners.delete(listener);
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
     prepareCapture() {
       if (!uiRoot) return;
@@ -358,8 +354,7 @@ export function createMesurerWorkspaceRuntime(options: {
       if (disposed) return;
       disposed = true;
       if (mutationFrame) ownerWindow.cancelAnimationFrame(mutationFrame);
-      modelUnsubscribe?.();
-      boundModel = null;
+      modelUnsubscribe();
       observer.disconnect();
       ownerWindow.removeEventListener("resize", scheduleRefresh);
       ownerWindow.removeEventListener("scroll", scheduleRefresh, true);
@@ -368,6 +363,8 @@ export function createMesurerWorkspaceRuntime(options: {
         else element.style.removeProperty("display");
       }
       hidden.clear();
+      annotations.length = 0;
+      listeners.clear();
     },
   };
 }
