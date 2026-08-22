@@ -135,7 +135,7 @@ export function getElementSelector(element: Element): string {
   let current: Element | null = element;
   while (current && parts.length < 5) {
     let part = current.localName;
-    const parent = current.parentElement;
+    const parent: Element | null = current.parentElement;
     if (parent) {
       const siblings = [...parent.children].filter((candidate) => candidate.localName === current!.localName);
       if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
