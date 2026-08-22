@@ -124,7 +124,7 @@ export type CreateMesurerAgentHarnessOptions = {
 };
 
 const inspectElement = (element: Element): AgentElementInspection =>
-  inspectDomElement(element) as AgentElementInspection;
+  inspectDomElement(element);
 
 export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOptions): MesurerAgentHarness {
   const root = options.root ?? options.ownerDocument;
