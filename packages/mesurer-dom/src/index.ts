@@ -1,4 +1,8 @@
-import type { InspectMeasurement, Rect } from "@jhomra21/mesurer-solid-core";
+import type {
+  InspectMeasurement,
+  MesurerElementFingerprint,
+  Rect,
+} from "@jhomra21/mesurer-solid-core";
 
 export type DomHost = {
   ownerWindow: Window;
@@ -50,15 +54,7 @@ export type DomInspectionRect = {
 };
 
 export type DomEdges = { top: number; right: number; bottom: number; left: number };
-
-export type DomElementFingerprint = {
-  tag: string;
-  id: string | null;
-  testId: string | null;
-  role: string | null;
-  ariaLabel: string | null;
-  classes: string[];
-};
+export type DomElementFingerprint = MesurerElementFingerprint;
 
 export type DomElementInspection = {
   selector: string;
@@ -120,6 +116,11 @@ const escapeCss = (value: string, ownerWindow: Window) => {
   return css?.escape ? css.escape(value) : value.replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`);
 };
 
+const normalizedFingerprintText = (element: Element) => {
+  const text = (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+  return text || null;
+};
+
 export function getRectFromDom(element: Element): Rect {
   const rect = element.getBoundingClientRect();
   return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
@@ -154,7 +155,19 @@ export function getElementFingerprint(element: Element): DomElementFingerprint {
     role: element.getAttribute("role"),
     ariaLabel: element.getAttribute("aria-label"),
     classes: [...element.classList],
+    text: normalizedFingerprintText(element),
   };
+}
+
+export function isElementFingerprintRebindable(fingerprint: DomElementFingerprint): boolean {
+  return Boolean(
+    fingerprint.id
+    || fingerprint.testId
+    || fingerprint.role
+    || fingerprint.ariaLabel
+    || fingerprint.classes.length
+    || fingerprint.text,
+  );
 }
 
 export function isElementFingerprintCompatible(element: Element, fingerprint: DomElementFingerprint): boolean {
@@ -163,8 +176,13 @@ export function isElementFingerprintCompatible(element: Element, fingerprint: Do
   if (fingerprint.testId && element.getAttribute("data-testid") !== fingerprint.testId) return false;
   if (fingerprint.role && element.getAttribute("role") !== fingerprint.role) return false;
   if (fingerprint.ariaLabel && element.getAttribute("aria-label") !== fingerprint.ariaLabel) return false;
-  if (fingerprint.classes.length > 0 && !fingerprint.classes.some((className) => element.classList.contains(className))) return false;
-  return true;
+
+  const hasStrongIdentity = Boolean(fingerprint.id || fingerprint.testId);
+  if (hasStrongIdentity) return true;
+
+  if (fingerprint.classes.some((className) => !element.classList.contains(className))) return false;
+  if (fingerprint.text && normalizedFingerprintText(element) !== fingerprint.text) return false;
+  return isElementFingerprintRebindable(fingerprint);
 }
 
 /**
