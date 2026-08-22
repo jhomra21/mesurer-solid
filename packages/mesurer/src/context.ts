@@ -97,6 +97,8 @@ export type MesurerContextV1 = {
   page: { url: string; title: string };
   viewport: { width: number; height: number; devicePixelRatio: number; scrollX: number; scrollY: number };
   coordinateSpace: "viewport-css-px";
+  /** Requested/annotated viewport regions. Empty for whole-workspace context. */
+  regions: MesurerContextRect[];
   visualState: { rulersVisible: boolean; xrayVisible: boolean };
   targets: MesurerContextTarget[];
   visualContext: { guides: MesurerContextGuide[]; measurements: MesurerContextMeasurement[]; distances: MesurerContextDistance[] };
@@ -158,6 +160,7 @@ export type MesurerWorkspaceContextSource = {
   snapshot(): {
     rulersVisible: boolean;
     xrayVisible: boolean;
+    guideRelevanceTolerance?: number;
     measurements: Array<{ id: string; rect: MesurerContextRect; deltaX: number; deltaY: number; snapped?: boolean; elementRef?: HTMLElement | null }>;
     activeMeasurement: { id: string; rect: MesurerContextRect; deltaX: number; deltaY: number; snapped?: boolean; elementRef?: HTMLElement | null } | null;
     heldDistances: Array<{
@@ -174,7 +177,7 @@ export type MesurerWorkspaceContextSource = {
   annotationRect(id: string): MesurerContextRect | null;
 };
 
-const GUIDE_RELEVANCE_TOLERANCE = 10;
+const DEFAULT_GUIDE_RELEVANCE_TOLERANCE = 10;
 const rect = (value: MesurerContextRect): MesurerContextRect => ({ left: value.left, top: value.top, width: value.width, height: value.height });
 const overlaps = (a: MesurerContextRect, b: MesurerContextRect) =>
   a.left <= b.left + b.width && a.left + a.width >= b.left && a.top <= b.top + b.height && a.top + a.height >= b.top;
@@ -196,10 +199,10 @@ const uniqueElements = (values: Array<HTMLElement | null | undefined>) => {
   }
   return result;
 };
-const guideTouches = (guide: MesurerContextGuide, regions: MesurerContextRect[]) =>
+const guideTouches = (guide: MesurerContextGuide, regions: MesurerContextRect[], tolerance: number) =>
   regions.some((region) => guide.orientation === "vertical"
-    ? guide.position >= region.left - GUIDE_RELEVANCE_TOLERANCE && guide.position <= region.left + region.width + GUIDE_RELEVANCE_TOLERANCE
-    : guide.position >= region.top - GUIDE_RELEVANCE_TOLERANCE && guide.position <= region.top + region.height + GUIDE_RELEVANCE_TOLERANCE);
+    ? guide.position >= region.left - tolerance && guide.position <= region.left + region.width + tolerance
+    : guide.position >= region.top - tolerance && guide.position <= region.top + region.height + tolerance);
 const randomId = (ownerWindow: Window) => ownerWindow.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export function captureMesurerContext(options: {
@@ -256,7 +259,8 @@ export function captureMesurerContext(options: {
   const distances = snapshot.heldDistances.filter((distance) =>
     elementMatches(distance.elementRefA) || elementMatches(distance.elementRefB) || regionMatches(distance.rectA) || regionMatches(distance.rectB));
   const regionsForGuides = scope.kind === "workspace" ? [] : anchorRegions.length ? anchorRegions : anchorElements.map((element) => rect(element.getBoundingClientRect()));
-  const guides = snapshot.guides.filter((guide) => scope.kind === "workspace" || guideTouches(guide, regionsForGuides));
+  const guideTolerance = snapshot.guideRelevanceTolerance ?? DEFAULT_GUIDE_RELEVANCE_TOLERANCE;
+  const guides = snapshot.guides.filter((guide) => scope.kind === "workspace" || guideTouches(guide, regionsForGuides, guideTolerance));
 
   const targetElements = uniqueElements([
     ...anchorElements,
@@ -312,6 +316,7 @@ export function captureMesurerContext(options: {
       scrollX: ownerWindow.scrollX, scrollY: ownerWindow.scrollY,
     },
     coordinateSpace: "viewport-css-px",
+    regions: scope.kind === "workspace" ? [] : anchorRegions.map(rect),
     visualState: { rulersVisible: snapshot.rulersVisible, xrayVisible: snapshot.xrayVisible },
     targets,
     visualContext: {
@@ -331,6 +336,10 @@ export function formatMesurerContext(context: MesurerContextV1): string {
   ];
   if (context.scope.kind === "annotation") lines.push("", "Annotation", context.scope.note, `Target status: ${context.scope.targetStatus}`);
   else lines.push("", `Scope: ${context.scope.kind}`);
+  if (context.regions.length) {
+    lines.push("", "Requested regions");
+    context.regions.forEach((region, index) => lines.push(`- region-${index + 1}: ${lineRect(region)}`));
+  }
   if (context.visualState.rulersVisible || context.visualState.xrayVisible) lines.push("", `Visual state: rulers=${context.visualState.rulersVisible ? "on" : "off"}; x-ray=${context.visualState.xrayVisible ? "on" : "off"}`);
   if (context.targets.length) {
     lines.push("", "Targets");
@@ -367,6 +376,7 @@ export function formatMesurerContext(context: MesurerContextV1): string {
 
 export function createMesurerCapturePlan(context: MesurerContextV1): MesurerCapturePlanV1 {
   const evidenceRects: MesurerContextRect[] = [
+    ...context.regions,
     ...context.targets.map((target) => target.inspection.rect),
     ...context.visualContext.measurements.map((measurement) => measurement.rect),
     ...context.visualContext.distances.flatMap((distance) => [distance.rectA, distance.rectB]),
