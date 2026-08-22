@@ -436,9 +436,9 @@ export default function ComposableMeasurer(props: MeasurerProps) {
 
   return (
     <>
-      <MeasurerModelRegistrationContext.Provider value={(model) => { rendererModel = model; }}>
+      <MeasurerModelRegistrationContext value={(model: MeasurerModel) => { rendererModel = model; }}>
         <LegacyMeasurer {...props} />
-      </MeasurerModelRegistrationContext.Provider>
+      </MeasurerModelRegistrationContext>
       <Show when={extensionMount()}>{(mount) => (
         <Portal mount={mount()}>
           <Show when={customTools().length > 0}>
