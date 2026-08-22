@@ -29,7 +29,6 @@ export function ContextActions(props: ContextActionsProps) {
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
   let anchorElement: HTMLSpanElement | undefined;
-  let mountFrame = 0;
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
   const unsubscribe = props.runtime.subscribe(() => setRevision((value) => value + 1));
@@ -47,7 +46,7 @@ export function ContextActions(props: ContextActionsProps) {
     const id = activeAnnotationId();
     return id ? annotations().find((annotation) => annotation.id === id) ?? null : null;
   });
-  const hasSelection = () => selection().elements.length > 0;
+  const hasSelection = () => selection().elements.length > 0 || selection().region !== null;
 
   const markerPosition = (annotationId: string) => {
     const value = props.runtime.annotationRect(annotationId);
@@ -106,8 +105,16 @@ export function ContextActions(props: ContextActionsProps) {
     }
   };
 
+  const findNoteAnchor = () => {
+    const root = anchorElement?.getRootNode() as ParentNode | undefined;
+    return root?.querySelector?.<HTMLElement>("[data-mesurer-tool-id='context.add-note']") ?? null;
+  };
+
   const openNoteComposer = () => {
     if (!hasSelection()) return;
+    const tool = findNoteAnchor();
+    if (!tool) return;
+    setNoteAnchor(tool);
     setNoteError(null);
     setStatus(null);
     setNoteComposerOpen(true);
@@ -126,23 +133,8 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   onSettled(() => {
-    const currentWindow = ownerWindow();
     props.onController?.({ openNoteComposer });
-
-    const findNoteTool = () => {
-      if (!anchorElement) return;
-      const root = anchorElement.getRootNode() as ParentNode;
-      const tool = root.querySelector?.<HTMLElement>("[data-mesurer-tool-id='context.add-note']") ?? null;
-      if (!tool) {
-        mountFrame = currentWindow.requestAnimationFrame(findNoteTool);
-        return;
-      }
-      setNoteAnchor(tool);
-    };
-    findNoteTool();
-
     return () => {
-      currentWindow.cancelAnimationFrame(mountFrame);
       props.onController?.(null);
       setNoteAnchor(null);
     };
