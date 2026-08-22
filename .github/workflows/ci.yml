@@ -17,6 +17,22 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      - name: Lint feature-changed code
+        run: >-
+          bun run lint --
+          extension/background.js
+          extension/build.mjs
+          packages/mesurer-dom/src/index.ts
+          packages/mesurer/scripts/install-skill.mjs
+          packages/mesurer/scripts/stage-package.mjs
+          packages/mesurer/src/agent.ts
+          packages/mesurer/src/context.ts
+          packages/mesurer/src/index.tsx
+          packages/mesurer/src/inject.ts
+          packages/renderer/src/components/ContextActions.tsx
+          packages/renderer/src/index.ts
+          packages/renderer/src/model/create-measurer-model.ts
+          packages/renderer/src/runtime/workspace-context.ts
       - run: bun run typecheck
       - run: bun run test
       - run: bun run build
