@@ -23,6 +23,7 @@ jobs:
           extension/background.js
           extension/build.mjs
           packages/mesurer/scripts/install-skill.mjs
+          packages/mesurer/src/context-plugin.tsx
           packages/mesurer/src/context.ts
           packages/renderer/src/components/ContextActions.tsx
           packages/renderer/src/components/Icons.tsx
