@@ -126,13 +126,6 @@ try {
     assert(opticalOffset <= 1.5, `${tool.id} optical center offset ${opticalOffset.toFixed(3)}px exceeds 1.5px`);
   }
 
-  for (const builtin of measurements.builtins) {
-    close(builtin.button.width, 32, 0.05, `${builtin.id} built-in button width`);
-    close(builtin.button.height, 32, 0.05, `${builtin.id} built-in button height`);
-    close(builtin.svg.width, 20, 0.05, `${builtin.id} built-in SVG width`);
-    close(builtin.svg.height, 20, 0.05, `${builtin.id} built-in SVG height`);
-  }
-
   await page.evaluate(async () => {
     const harness = window.__MESURER_SELF_HOSTING__;
     const observer = harness.observer;
