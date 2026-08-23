@@ -91,7 +91,10 @@ describe("upstream Mesurer visual contracts", () => {
 
     expect(host.querySelector('[data-mesurer-distance-kind="selection-spacing"]')).toBeTruthy();
     expect(host.querySelectorAll('[class*="msr:border-[#2563eb]/70"]')).toHaveLength(0);
-    expect(host.querySelector('[class*="msr:bg-[#2563eb]"]')).toBeTruthy();
+    const guide = host.querySelector<HTMLElement>('[data-mesurer-distance-line="horizontal"]');
+    expect(guide).toBeTruthy();
+    expect(guide!.className).toContain("msr:border-dashed");
+    expect(guide!.className).toContain("msr:border-[#2563eb]");
     expect(host.textContent?.trim()).toBe("24");
   });
 });
