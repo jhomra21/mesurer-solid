@@ -19,7 +19,7 @@ type PositionedRect = { left: number; top: number; width: number; height: number
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
-const annotationButtonClass = "msr:flex msr:size-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:cursor-default msr:disabled:opacity-40";
+const annotationButtonClass = "msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:cursor-default msr:disabled:opacity-40";
 
 const unionRects = (rects: PositionedRect[]): PositionedRect | null => {
   if (!rects.length) return null;
@@ -217,7 +217,7 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-annotation-trigger="true"
             aria-label="Annotate selection"
             title="Annotate selection"
-            class="msr:pointer-events-auto msr:fixed msr:z-[95] msr:flex msr:size-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
+            class="msr:pointer-events-auto msr:fixed msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
             style={{ left: `${position().left}px`, top: `${position().top}px` }}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => { event.stopPropagation(); openNoteComposer(); }}
@@ -293,7 +293,7 @@ export function ContextActions(props: ContextActionsProps) {
                 setActiveAnnotationId(annotation.id);
                 setStatus(null);
               }}
-              class="msr:pointer-events-auto msr:fixed msr:z-[94] msr:flex msr:size-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-[#0d99ff] msr:bg-white msr:text-[#0d99ff] msr:outline-none msr:hover:bg-[#0d99ff]/8"
+              class="msr:pointer-events-auto msr:fixed msr:z-[94] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-[#0d99ff] msr:bg-white msr:text-[#0d99ff] msr:outline-none msr:hover:bg-[#0d99ff]/8"
               style={{ left: `${value().left}px`, top: `${value().top}px` }}
             ><NoteIcon size={14} /></button>
           )}</Show>
