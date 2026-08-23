@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mesurer inspecting Mesurer</title>
+    <style>
+      :root {
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #0f172a;
+        background: #f8fafc;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: #f8fafc; }
+      .fixture-shell { min-height: 100vh; padding: 48px; }
+      .fixture-copy { max-width: 640px; }
+      .fixture-kicker { margin: 0 0 8px; color: #64748b; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: 30px; line-height: 1.15; letter-spacing: -.02em; }
+      .fixture-copy > p:last-child { margin: 12px 0 0; max-width: 560px; color: #475569; font-size: 14px; line-height: 1.55; }
+      .fixture-target {
+        position: absolute;
+        left: 760px;
+        top: 158px;
+        width: 240px;
+        min-height: 112px;
+        padding: 18px;
+        border: 1px solid #cbd5e1;
+        border-radius: 14px;
+        background: white;
+        box-shadow: 0 8px 24px rgb(15 23 42 / .06);
+      }
+      .fixture-target strong { display: block; margin-bottom: 6px; font-size: 13px; }
+      .fixture-target span { color: #64748b; font-size: 12px; line-height: 1.45; }
+      .self-host-report {
+        position: fixed;
+        right: 32px;
+        bottom: 28px;
+        z-index: 2147483200;
+        width: 360px;
+        padding: 14px 16px;
+        border: 1px solid #dbe3ec;
+        border-radius: 12px;
+        background: rgb(255 255 255 / .96);
+        box-shadow: 0 12px 32px rgb(15 23 42 / .08);
+        color: #0f172a;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .self-host-report strong { display: block; margin-bottom: 4px; font-size: 13px; }
+      .self-host-report code { color: #334155; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <main class="fixture-shell">
+      <div class="fixture-copy">
+        <p class="fixture-kicker">Self-hosted visual regression</p>
+        <h1>Mesurer inspecting Mesurer</h1>
+        <p>The upper toolbar is the subject under test. A second Mesurer instance is mounted below it and scoped to inspect the subject’s rendered toolbar geometry.</p>
+      </div>
+      <button class="fixture-target" data-self-host-target type="button">
+        <strong>Selection target</strong>
+        <span>This target is selected first so every context action is enabled before icon geometry is measured.</span>
+      </button>
+    </main>
+    <script type="module" src="/src/self-hosting.ts"></script>
+  </body>
+</html>
