@@ -4,7 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Make context and annotation controls match Mesurer's visual language, with normalized toolbar icons, a 24×24 annotation affordance beside the selected target, and compact target-anchored annotation composer/marker/panel surfaces.
+- Add true sparse Shift multi-selection and automatic dashed pixel-spacing guides between selected elements, including non-contiguous selections such as A + C without visually selecting elements in between.
 
 ## 0.1.0-beta.7 - 2026-08-23
 
@@ -35,7 +36,6 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## 0.1.0-beta.3 - 2026-08-20
 
 - No user-facing changes.
-
 
 
 
