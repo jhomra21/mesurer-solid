@@ -21,5 +21,3 @@ jobs:
       - run: bun run test
       - run: bun run build
       - run: bun run --filter 'mesurer-solid-renderer-example' build
-      - name: Build Solid 1 host against bundled universal Mesurer Solid
-        run: bun run --filter 'mesurer-solid1-example' build

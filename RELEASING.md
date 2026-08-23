@@ -32,7 +32,9 @@ Supported version strategies are:
 
 The workflow updates `packages/mesurer/package.json`, moves `Unreleased` changelog entries into the new version section, creates `release/v<version>`, and opens a `release: v<version>` PR.
 
-Only one release PR may be open at a time. GitHub can suppress or gate normal workflow recursion for PRs created by `GITHUB_TOKEN`, so `prepare-release` explicitly dispatches `release-check.yml` against the generated release branch after opening the PR. No PAT is required.
+Only one release PR may be open at a time. The generated release commit contains GitHub's native `[skip ci]` marker because the release PR is metadata-only and runtime/source compatibility was already validated before release preparation. That prevents normal `push` and `pull_request` workflows from being instantiated for the bot-created release PR, avoiding the separate maintainer approval prompt for those checks.
+
+`prepare-release` explicitly dispatches `release-check.yml` against the generated release branch after opening the PR. `workflow_dispatch` is not suppressed by the release commit's skip marker, so **release-check is the single expected release-PR validation gate**. No PAT or long-lived publishing token is required.
 
 If GitHub Actions is not allowed to create pull requests in the repository settings, PR creation fails closed and the workflow removes the remote release branch so it can be retried after the setting is enabled.
 
