@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "packages/renderer/src/components/Icons.tsx"
+      - "packages/renderer/src/components/ContextActions.tsx"
       - "packages/mesurer/src/context-plugin.tsx"
       - "examples/basic/self-hosting.html"
       - "examples/basic/src/self-hosting.ts"
@@ -95,6 +96,8 @@ jobs:
           }
           console.log("");
           console.log(`Maximum glyph optical-center offset: **${report.maxOpticalOffset.toFixed(2)} px**`);
+          console.log(`Annotation trigger: **${report.annotation.trigger.width.toFixed(0)}×${report.annotation.trigger.height.toFixed(0)}px**, target anchored`);
+          console.log(`Annotation composer: **${report.annotation.composer.width.toFixed(0)}px** wide, target anchored`);
           NODE
 
       - name: Upload Mesurer self-hosting evidence
