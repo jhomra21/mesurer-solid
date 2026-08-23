@@ -35,6 +35,24 @@ const clickCard = async (id) => {
   await page.mouse.click(point.x, point.y);
 };
 
+const captureGrid = async (name) => {
+  const gridRect = await page.locator(".spacing-grid").boundingBox();
+  assert(gridRect, "Spacing grid must have a bounding box");
+  const paddingX = 28;
+  const paddingY = 60;
+  const clipX = Math.max(0, gridRect.x - paddingX);
+  const clipY = Math.max(0, gridRect.y - paddingY);
+  await page.screenshot({
+    path: path.join(outputDir, `${name}-${deviceScaleFactor}x.png`),
+    clip: {
+      x: clipX,
+      y: clipY,
+      width: Math.min(1280 - clipX, gridRect.width + paddingX * 2),
+      height: Math.min(720 - clipY, gridRect.height + paddingY * 2),
+    },
+  });
+};
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_MULTI_SPACING_FIXTURE__?.mesurer));
@@ -43,11 +61,49 @@ try {
     await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.select");
   });
 
+  // First prove the UX the feature is meant to unlock: A + C only.
+  // B and D must remain unselected even though they sit inside the overall grid.
   await clickCard("a");
   await page.keyboard.down("Shift");
   try {
-    await clickCard("b");
     await clickCard("c");
+  } finally {
+    await page.keyboard.up("Shift");
+  }
+
+  await page.waitForFunction(() =>
+    document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]').length === 2
+    && document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]').length === 1,
+  );
+
+  const sparseEvidence = await page.evaluate(async () => {
+    const instance = window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer;
+    await instance.agent.stable();
+    const spacingRoots = [...document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]')];
+    const group = document.querySelector('[data-mesurer-selection-group="true"]');
+    return {
+      aToC: instance.agent.distance("[data-spacing-card='a']", "[data-spacing-card='c']"),
+      selectionTargetCount: document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]').length,
+      spacingOverlayCount: spacingRoots.length,
+      spacingLabels: spacingRoots.map((root) => root.textContent?.trim() ?? "").filter(Boolean),
+      groupChildCount: group?.children.length ?? 0,
+      dashedLines: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length,
+    };
+  });
+
+  assert.equal(sparseEvidence.selectionTargetCount, 2, "A + C should be the only selected elements");
+  assert.equal(sparseEvidence.spacingOverlayCount, 1, "Sparse A + C selection should render one spacing overlay");
+  assert.deepEqual(sparseEvidence.spacingLabels, ["32"], "Sparse A + C spacing label");
+  assert.equal(sparseEvidence.aToC?.verticalGap, 32, "A→C vertical spacing");
+  assert.equal(sparseEvidence.groupChildCount, 1, "Aggregate selection should keep only its size readout, not a filled union box");
+  assert.equal(sparseEvidence.dashedLines, 1, "Sparse spacing should use a dashed measurement line");
+
+  await captureGrid("multi-selection-sparse");
+
+  // Expand to the complete grid and verify the sparse neighbor graph.
+  await page.keyboard.down("Shift");
+  try {
+    await clickCard("b");
     await clickCard("d");
   } finally {
     await page.keyboard.up("Shift");
@@ -82,6 +138,7 @@ try {
       selectionTargets,
       spacingLabels,
       spacingOverlayCount: spacingRoots.length,
+      dashedLineCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length,
     };
   });
 
@@ -94,6 +151,7 @@ try {
   assert.equal(evidence.spacingOverlayCount, 4, "Only adjacent row/column spacing overlays should render");
   assert.deepEqual(evidence.spacingLabels, ["24", "24", "32", "32"], "Rendered spacing labels");
   assert.equal(evidence.selectionTargets.length, 4, "Every selected card should retain an individual outline");
+  assert.equal(evidence.dashedLineCount, 4, "Every automatic spacing guide should use the dashed measurement treatment");
 
   const report = {
     deviceScaleFactor,
@@ -102,6 +160,7 @@ try {
       vertical: 32,
       overlayCount: 4,
     },
+    sparseEvidence,
     evidence,
   };
 
@@ -115,24 +174,12 @@ try {
     fullPage: false,
   });
 
-  const gridRect = await page.locator(".spacing-grid").boundingBox();
-  assert(gridRect, "Spacing grid must have a bounding box");
-  const paddingX = 28;
-  const paddingY = 60;
-  const clipX = Math.max(0, gridRect.x - paddingX);
-  const clipY = Math.max(0, gridRect.y - paddingY);
-  await page.screenshot({
-    path: path.join(outputDir, `multi-selection-spacing-detail-${deviceScaleFactor}x.png`),
-    clip: {
-      x: clipX,
-      y: clipY,
-      width: Math.min(1280 - clipX, gridRect.width + paddingX * 2),
-      height: Math.min(720 - clipY, gridRect.height + paddingY * 2),
-    },
-  });
+  await captureGrid("multi-selection-spacing-detail");
 
   console.log(JSON.stringify({
     result: "PASS",
+    sparseSelection: "A + C only",
+    sparseSpacing: sparseEvidence.aToC?.verticalGap,
     horizontalSpacing: evidence.distances.aToB?.horizontalGap,
     verticalSpacing: evidence.distances.aToC?.verticalGap,
     spacingLabels: evidence.spacingLabels,
