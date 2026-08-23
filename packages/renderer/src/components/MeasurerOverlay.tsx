@@ -1,6 +1,7 @@
 import { For, Show, onSettled } from "solid-js";
 import { GUIDE_DRAG_HOLD_MS, GUIDE_HITBOX_SIZE, MEASURE_LABEL_OFFSET } from "../core/constants";
 import { getEdgeVisibilityForRects } from "../core/edge-visibility";
+import { trySetPointerCapture } from "../core/events";
 import type { Guide, InspectMeasurement, Rect } from "../core/types";
 import { formatValue } from "../core/utils";
 import type { MeasurerModel } from "../model/create-measurer-model";
@@ -103,7 +104,7 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
         if (guideHoldId === guide.id) props.model.setTransient({ draggingGuideId: guide.id });
       }, GUIDE_DRAG_HOLD_MS);
     }
-    event.currentTarget.setPointerCapture(event.pointerId);
+    trySetPointerCapture(event.currentTarget, event.pointerId);
   };
 
   const interactiveGuideUp = (guide: Guide, event: PointerEvent & { currentTarget: HTMLDivElement }) => {

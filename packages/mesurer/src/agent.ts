@@ -1,4 +1,4 @@
-import { inspectDomElement } from "@jhomra21/mesurer-solid-dom";
+import { getDeepestElementAtPoint, inspectDomElement, isElementWithinDomTarget, withPointerEventsDisabled } from "@jhomra21/mesurer-solid-dom";
 import type {
   MesurerPluginDescription,
   MesurerPluginHost,
@@ -137,8 +137,7 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
 
   const containsPointElement = (element: Element) => {
     if (root === options.ownerDocument) return true;
-    const container = root as ParentNode & { contains?: (node: Node | null) => boolean };
-    return container.contains?.(element) === true;
+    return isElementWithinDomTarget(element, root as HTMLElement | ShadowRoot);
   };
 
   const viewport = (): AgentViewportSnapshot => {
@@ -183,11 +182,15 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
       return [...root.querySelectorAll(selector)].slice(0, Math.max(0, limit)).map(inspectElement);
     },
     at(x, y) {
-      const pointRoot = root as ParentNode & { elementFromPoint?: (x: number, y: number) => Element | null };
-      const nativePointElement = pointRoot.elementFromPoint?.(x, y) ?? null;
-      if (nativePointElement) return containsPointElement(nativePointElement) ? inspectElement(nativePointElement) : null;
-      const documentElement = options.ownerDocument.elementFromPoint(x, y);
-      return documentElement && containsPointElement(documentElement) ? inspectElement(documentElement) : null;
+      const target = root === options.ownerDocument
+        ? options.ownerDocument
+        : root as HTMLElement | ShadowRoot;
+      const inspectorHost = root.querySelector?.<HTMLElement>("[data-mesurer-island]") ?? null;
+      const inspectorLayer = inspectorHost?.shadowRoot?.querySelector<HTMLElement>("[data-mesurer-root='true']") ?? inspectorHost;
+      return withPointerEventsDisabled(inspectorLayer, () => {
+        const nativePointElement = getDeepestElementAtPoint({ x, y }, target, options.ownerDocument);
+        return nativePointElement && containsPointElement(nativePointElement) ? inspectElement(nativePointElement) : null;
+      });
     },
     distance(a, b) {
       const left = query(a);

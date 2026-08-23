@@ -126,6 +126,69 @@ export function getRectFromDom(element: Element): Rect {
   return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
 }
 
+export type DomHitTestTarget = Document | HTMLElement | ShadowRoot;
+
+export function getDomTreeRoot(element: Element): Document | ShadowRoot {
+  const root = element.getRootNode();
+  return root.nodeType === 11 ? root as ShadowRoot : element.ownerDocument;
+}
+
+const pointRoot = (target: DomHitTestTarget, ownerDocument: Document): Document | ShadowRoot => {
+  if (target.nodeType === 9 || target.nodeType === 11) return target as Document | ShadowRoot;
+  const root = getDomTreeRoot(target as HTMLElement);
+  return root.nodeType === 11 ? root : ownerDocument;
+};
+
+/** Resolve the deepest open-ShadowRoot element at a viewport point. */
+export function getDeepestElementAtPoint(
+  point: { x: number; y: number },
+  target: DomHitTestTarget,
+  ownerDocument: Document = target.nodeType === 9 ? target as Document : target.ownerDocument ?? document,
+): Element | null {
+  let current: Element | null = (pointRoot(target, ownerDocument) as Document | ShadowRoot & {
+    elementFromPoint?: (x: number, y: number) => Element | null;
+  }).elementFromPoint?.(point.x, point.y) ?? null;
+  while (current?.shadowRoot) {
+    const nested = (current.shadowRoot as ShadowRoot & {
+      elementFromPoint?: (x: number, y: number) => Element | null;
+    }).elementFromPoint?.(point.x, point.y) ?? null;
+    if (!nested || nested === current) break;
+    current = nested;
+  }
+  return current;
+}
+
+export function isElementWithinDomTarget(element: Element, target: DomHitTestTarget): boolean {
+  if (target.nodeType === 9) return true;
+  let current: Element | null = element;
+  while (current) {
+    if (target === current || target.contains(current)) return true;
+    const root = current.getRootNode();
+    if (root.nodeType !== 11) return false;
+    current = (root as ShadowRoot).host;
+  }
+  return false;
+}
+
+export function withPointerEventsDisabled<T>(element: HTMLElement | null, operation: () => T): T {
+  if (!element) return operation();
+  const elements = [element, ...element.querySelectorAll<HTMLElement>("*")];
+  const previous = elements.map((current) => [
+    current,
+    current.style.getPropertyValue("pointer-events"),
+    current.style.getPropertyPriority("pointer-events"),
+  ] as const);
+  for (const current of elements) current.style.setProperty("pointer-events", "none", "important");
+  try {
+    return operation();
+  } finally {
+    for (const [current, value, priority] of previous) {
+      if (value) current.style.setProperty("pointer-events", value, priority);
+      else current.style.removeProperty("pointer-events");
+    }
+  }
+}
+
 export function getElementSelector(element: Element): string {
   const ownerWindow = element.ownerDocument.defaultView ?? window;
   if (element.id) return `#${escapeCss(element.id, ownerWindow)}`;

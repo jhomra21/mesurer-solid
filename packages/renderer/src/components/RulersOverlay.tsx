@@ -1,4 +1,5 @@
 import { For, Show, createSignal, onSettled } from "solid-js";
+import { trySetPointerCapture } from "../core/events";
 import type { Guide } from "../core/types";
 import type { RulerSettings } from "../core/persistence";
 
@@ -54,7 +55,7 @@ export function RulersOverlay(props: RulersOverlayProps) {
     setDragPosition(position);
     setDragOrientation(orientation);
     drag = { orientation, pointerId: event.pointerId, id: props.onStartGuide(orientation, position) };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    trySetPointerCapture(event.currentTarget, event.pointerId);
   };
   const moveGuide = (event: PointerEvent) => {
     if (!drag || drag.pointerId !== event.pointerId) return;

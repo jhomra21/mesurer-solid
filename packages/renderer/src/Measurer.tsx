@@ -9,7 +9,7 @@ import type { ColorPickerFormat } from "./core/colors";
 import { GUIDE_DRAG_HOLD_MS } from "./core/constants";
 import { getDistanceOverlay, updateDistanceForResize } from "./core/distances";
 import { getInspectMeasurement, updateMeasurementForResize } from "./core/dom";
-import { isEditableKeyboardEvent } from "./core/events";
+import { isEditableKeyboardEvent, trySetPointerCapture } from "./core/events";
 import { getRectFromPoints, getViewportSize } from "./core/geometry";
 import { getGuideRect, getSnapGuidePosition } from "./core/guides";
 import {
@@ -143,6 +143,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   const env = untrack(() => props.env);
   const input = untrack(() => props.input);
   const { ownerDocument, ownerWindow } = env;
+  const pageTarget = input.pageTarget ?? ownerDocument.body;
   const instanceId = ++instanceCount;
   const storageKey = input.persistKey ?? `mesurer-state:${getTabId(ownerWindow)}${instanceId === 1 ? "" : `:${instanceId}`}`;
   const selectionCache: SelectionEntriesCache = { key: "", entries: [], overlayNode: null, frame: -1 };
@@ -218,7 +219,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   });
 
   const updateHover = (point: Point) => {
-    const target = getTargetElement(point, rootElement, ownerDocument);
+    const target = getTargetElement(point, rootElement, ownerDocument, pageTarget);
     if (!target) {
       model.setHoverTarget(null, null);
       return;
@@ -305,7 +306,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
       model.setSelectedGuideIds(model.current.settings.selectNewGuideEnabled ? [id] : []);
       model.setTransient({ guidePreview: null });
       scheduleGuideDragHold(id);
-      event.currentTarget.setPointerCapture?.(event.pointerId);
+      trySetPointerCapture(event.currentTarget, event.pointerId);
       return;
     }
 
@@ -319,7 +320,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
       ? (getSelectedMeasurementHit({ point, selectedMeasurements: model.current.selectedMeasurements, overlayNode: rootElement, document: ownerDocument })?.elementRef ?? null)
       : null;
     model.setTransient({ start: point, end: point, isDragging: false, selectionOriginRect: null });
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    trySetPointerCapture(event.currentTarget, event.pointerId);
   };
 
   const pointerMove = (event: PointerEvent) => {
@@ -367,7 +368,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
 
     if (model.current.isDragging) {
       const rect = getRectFromPoints(start, point);
-      const elements = getElementsInRectCached(rect, rootElement, selectionCache, ownerDocument);
+      const elements = getElementsInRectCached(rect, rootElement, selectionCache, ownerDocument, pageTarget);
       const next = elements.map((element) => ({ ...getInspectMeasurement(element, ownerWindow), originRect: rect }));
       let merged: InspectMeasurement[] = next;
       if (event.shiftKey) {
@@ -395,9 +396,9 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
     }
 
     const target = event.shiftKey
-      ? (getTargetElement(point, rootElement, ownerDocument) ??
-        getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument))
-      : getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument);
+      ? (getTargetElement(point, rootElement, ownerDocument, pageTarget) ??
+        getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument, pageTarget))
+      : getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument, pageTarget);
     if (target) {
       const measurement = getInspectMeasurement(target, ownerWindow);
       model.checkpoint();
@@ -435,7 +436,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
     }
     model.setSelectedGuideIds([guide.id]);
     model.setTransient({ draggingGuideId: guide.id });
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    trySetPointerCapture(event.currentTarget, event.pointerId);
   };
   const guidePointerUp = (_guide: Guide, event: PointerEvent & { currentTarget: HTMLDivElement }) => {
     event.stopPropagation();
