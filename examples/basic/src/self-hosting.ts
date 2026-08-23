@@ -34,7 +34,7 @@ const subject = mountMeasurer({
 });
 
 await subject.ready;
-moveToolbar(subject, 72, 156);
+moveToolbar(subject, 72, 240);
 
 let observer: MountedMeasurer | null = null;
 
@@ -74,7 +74,7 @@ const harness: SelfHostingHarness = {
       persistKey: "mesurer-self-host-observer",
     });
     await observer.ready;
-    moveToolbar(observer, 72, 312);
+    moveToolbar(observer, 72, 390);
     harness.observer = observer;
     return observer;
   },
