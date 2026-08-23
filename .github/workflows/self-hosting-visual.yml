@@ -1,0 +1,107 @@
+name: self-hosting-visual
+
+on:
+  pull_request:
+    paths:
+      - "packages/renderer/src/components/Icons.tsx"
+      - "packages/mesurer/src/context-plugin.tsx"
+      - "examples/basic/self-hosting.html"
+      - "examples/basic/src/self-hosting.ts"
+      - "visual-parity/self-hosting-context.mjs"
+      - ".github/workflows/self-hosting-visual.yml"
+  workflow_dispatch:
+
+jobs:
+  context-icons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Mesurer Solid
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install workspace
+        run: bun install --frozen-lockfile
+
+      - name: Generate renderer styles
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
+
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Start self-hosting fixture
+        shell: bash
+        run: |
+          (
+            cd examples/basic
+            bunx vite --host 127.0.0.1 --port 4174 --strictPort > ../../self-hosting-vite.log 2>&1 &
+            echo $! > ../../self-hosting-vite.pid
+          )
+
+          ready=0
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent --show-error http://127.0.0.1:4174/self-hosting.html >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "Self-hosting fixture did not become ready."
+            cat self-hosting-vite.log || true
+            exit 1
+          fi
+
+      - name: Measure Mesurer with Mesurer and capture screenshots
+        env:
+          SELF_HOST_URL: http://127.0.0.1:4174/self-hosting.html
+          SELF_HOST_OUT: self-hosting-artifacts
+          SELF_HOST_DPR: 3
+        run: node visual-parity/self-hosting-context.mjs
+
+      - name: Add self-hosting measurement summary
+        if: always()
+        shell: bash
+        run: |
+          if [ ! -f self-hosting-artifacts/self-hosting-measurements.json ]; then
+            echo "## Mesurer inspecting Mesurer" >> "$GITHUB_STEP_SUMMARY"
+            echo "Self-hosting measurements were not produced." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          const fs = require("node:fs");
+          const report = JSON.parse(fs.readFileSync("self-hosting-artifacts/self-hosting-measurements.json", "utf8"));
+          console.log("## Mesurer inspecting Mesurer");
+          console.log("");
+          console.log(`Native capture: **${report.deviceScaleFactor}x DPR**`);
+          console.log("");
+          console.log("| Tool | button | SVG | glyph | SVG center Δ | glyph center Δ |");
+          console.log("|---|---:|---:|---:|---:|---:|");
+          for (const tool of report.measurements.tools) {
+            const button = `${tool.button.width.toFixed(1)}×${tool.button.height.toFixed(1)}`;
+            const svg = `${tool.svg.width.toFixed(1)}×${tool.svg.height.toFixed(1)}`;
+            const glyph = `${tool.glyph.width.toFixed(1)}×${tool.glyph.height.toFixed(1)}`;
+            const svgDelta = `${tool.svgCenterDelta.x.toFixed(2)}, ${tool.svgCenterDelta.y.toFixed(2)}`;
+            const glyphDelta = `${tool.opticalCenterDelta.x.toFixed(2)}, ${tool.opticalCenterDelta.y.toFixed(2)}`;
+            console.log(`| ${tool.id} | ${button} | ${svg} | ${glyph} | ${svgDelta} | ${glyphDelta} |`);
+          }
+          console.log("");
+          console.log(`Maximum glyph optical-center offset: **${report.maxOpticalOffset.toFixed(2)} px**`);
+          NODE
+
+      - name: Upload Mesurer self-hosting evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesurer-self-hosting-icons
+          path: self-hosting-artifacts
+          if-no-files-found: warn
+          retention-days: 14
