@@ -15,6 +15,7 @@ const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any 
 );
 
 export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
+  const selectionSpacing = () => props.kind === "selection-spacing";
   return (
     <div
       data-mesurer-distance="true"
@@ -31,11 +32,19 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
         : <div class="msr:absolute msr:border-t msr:border-dashed msr:border-[#2563eb]/70" style={{ left: `${Math.min(connector.x1, connector.x2)}px`, top: `${connector.y1}px`, width: `${Math.abs(connector.x2 - connector.x1)}px` }} />}
       </For>
       <Show when={props.distance.horizontal}>{(line) => <Show when={line().value > 0}><>
-        <div class="msr:absolute msr:h-px msr:bg-[#2563eb]" style={{ left: `${Math.min(line().x1, line().x2)}px`, width: `${Math.abs(line().x2 - line().x1)}px`, top: `${line().y}px` }} />
+        <div
+          data-mesurer-distance-line="horizontal"
+          class={selectionSpacing() ? "msr:absolute msr:h-0 msr:border-t msr:border-dashed msr:border-[#2563eb]" : "msr:absolute msr:h-px msr:bg-[#2563eb]"}
+          style={{ left: `${Math.min(line().x1, line().x2)}px`, width: `${Math.abs(line().x2 - line().x1)}px`, top: `${line().y}px` }}
+        />
         <Tag axis="x" left={(line().x1 + line().x2) / 2} top={line().y + MEASURE_LABEL_OFFSET}>{formatValue(line().value)}</Tag>
       </></Show>}</Show>
       <Show when={props.distance.vertical}>{(line) => <Show when={line().value > 0}><>
-        <div class="msr:absolute msr:w-px msr:bg-[#2563eb]" style={{ top: `${Math.min(line().y1, line().y2)}px`, height: `${Math.abs(line().y2 - line().y1)}px`, left: `${line().x}px` }} />
+        <div
+          data-mesurer-distance-line="vertical"
+          class={selectionSpacing() ? "msr:absolute msr:w-0 msr:border-l msr:border-dashed msr:border-[#2563eb]" : "msr:absolute msr:w-px msr:bg-[#2563eb]"}
+          style={{ top: `${Math.min(line().y1, line().y2)}px`, height: `${Math.abs(line().y2 - line().y1)}px`, left: `${line().x}px` }}
+        />
         <Tag axis="y" left={line().x + MEASURE_LABEL_OFFSET} top={(line().y1 + line().y2) / 2}>{formatValue(line().value)}</Tag>
       </></Show>}</Show>
     </div>
