@@ -1,4 +1,4 @@
-import { chromium } from "@playwright/test";
+import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -58,10 +58,6 @@ try {
     const observer = harness.observer;
     if (!observer) throw new Error("Observer Mesurer did not mount.");
 
-    const rect = (inspection) => {
-      if (!inspection) return null;
-      return inspection.rect;
-    };
     const center = (value) => ({
       x: value.left + value.width / 2,
       y: value.top + value.height / 2,
@@ -70,26 +66,26 @@ try {
     const tools = ids.map((id) => {
       const button = observer.agent.inspect(`[data-mesurer-tool-id='${id}'] button`);
       const svg = observer.agent.inspect(`[data-mesurer-tool-id='${id}'] button svg`);
-      const path = observer.agent.inspect(`[data-mesurer-tool-id='${id}'] button svg path`);
-      if (!button || !svg || !path) throw new Error(`Missing rendered geometry for ${id}`);
+      const glyph = observer.agent.inspect(`[data-mesurer-tool-id='${id}'] button svg path`);
+      if (!button || !svg || !glyph) throw new Error(`Missing rendered geometry for ${id}`);
       const buttonCenter = center(button.rect);
       const svgCenter = center(svg.rect);
-      const pathCenter = center(path.rect);
+      const glyphCenter = center(glyph.rect);
       return {
         id,
-        button: rect(button),
-        svg: rect(svg),
-        path: rect(path),
+        button: button.rect,
+        svg: svg.rect,
+        glyph: glyph.rect,
         buttonCenter,
         svgCenter,
-        pathCenter,
+        glyphCenter,
         svgCenterDelta: {
           x: svgCenter.x - buttonCenter.x,
           y: svgCenter.y - buttonCenter.y,
         },
         opticalCenterDelta: {
-          x: pathCenter.x - svgCenter.x,
-          y: pathCenter.y - svgCenter.y,
+          x: glyphCenter.x - svgCenter.x,
+          y: glyphCenter.y - svgCenter.y,
         },
       };
     });
@@ -123,8 +119,8 @@ try {
     close(tool.svgCenterDelta.x, 0, 0.05, `${tool.id} horizontal centering`);
     close(tool.svgCenterDelta.y, 0, 0.05, `${tool.id} vertical centering`);
     close(tool.buttonCenter.y, toolbarCenterY, 0.05, `${tool.id} toolbar center line`);
-    assert(tool.path.width >= 11 && tool.path.width <= 18.5, `${tool.id} path width ${tool.path.width} is outside the existing toolbar icon envelope`);
-    assert(tool.path.height >= 11 && tool.path.height <= 18.5, `${tool.id} path height ${tool.path.height} is outside the existing toolbar icon envelope`);
+    assert(tool.glyph.width >= 11 && tool.glyph.width <= 18.5, `${tool.id} glyph width ${tool.glyph.width} is outside the existing toolbar icon envelope`);
+    assert(tool.glyph.height >= 11 && tool.glyph.height <= 18.5, `${tool.id} glyph height ${tool.glyph.height} is outside the existing toolbar icon envelope`);
     const opticalOffset = Math.hypot(tool.opticalCenterDelta.x, tool.opticalCenterDelta.y);
     maxOpticalOffset = Math.max(maxOpticalOffset, opticalOffset);
     assert(opticalOffset <= 1.5, `${tool.id} optical center offset ${opticalOffset.toFixed(3)}px exceeds 1.5px`);
@@ -169,7 +165,7 @@ try {
       svgBox: "20x20 ± 0.05px",
       svgCenterDelta: "≤ 0.05px per axis",
       toolbarCenterLineDelta: "≤ 0.05px",
-      pathEnvelope: "11–18.5px per axis",
+      glyphEnvelope: "11–18.5px per axis",
       opticalCenterOffset: "≤ 1.5px",
     },
     maxOpticalOffset,
@@ -194,13 +190,15 @@ try {
   });
   assert(subjectToolbarRect, "Subject toolbar must exist for detail capture");
   const padding = 24;
+  const clipX = Math.max(0, subjectToolbarRect.x - padding);
+  const clipY = Math.max(0, subjectToolbarRect.y - padding);
   await page.screenshot({
     path: path.join(outputDir, `context-toolbar-detail-${deviceScaleFactor}x.png`),
     clip: {
-      x: Math.max(0, subjectToolbarRect.x - padding),
-      y: Math.max(0, subjectToolbarRect.y - padding),
-      width: Math.min(1280 - Math.max(0, subjectToolbarRect.x - padding), subjectToolbarRect.width + padding * 2),
-      height: subjectToolbarRect.height + padding * 2,
+      x: clipX,
+      y: clipY,
+      width: Math.min(1280 - clipX, subjectToolbarRect.width + padding * 2),
+      height: Math.min(720 - clipY, subjectToolbarRect.height + padding * 2),
     },
   });
 
