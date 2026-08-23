@@ -117,16 +117,17 @@ try {
 
   const gridRect = await page.locator(".spacing-grid").boundingBox();
   assert(gridRect, "Spacing grid must have a bounding box");
-  const padding = 70;
-  const clipX = Math.max(0, gridRect.x - padding);
-  const clipY = Math.max(0, gridRect.y - padding);
+  const paddingX = 28;
+  const paddingY = 60;
+  const clipX = Math.max(0, gridRect.x - paddingX);
+  const clipY = Math.max(0, gridRect.y - paddingY);
   await page.screenshot({
     path: path.join(outputDir, `multi-selection-spacing-detail-${deviceScaleFactor}x.png`),
     clip: {
       x: clipX,
       y: clipY,
-      width: Math.min(1280 - clipX, gridRect.width + padding * 2),
-      height: Math.min(720 - clipY, gridRect.height + padding * 2),
+      width: Math.min(1280 - clipX, gridRect.width + paddingX * 2),
+      height: Math.min(720 - clipY, gridRect.height + paddingY * 2),
     },
   });
 
