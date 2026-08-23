@@ -112,21 +112,45 @@ export function ContextActions(props: ContextActionsProps) {
     };
   };
 
-  const markerPosition = (annotationId: string) => {
+  const annotationLayout = (annotationId: string) => {
     const value = props.runtime.annotationRect(annotationId);
     if (!value) return null;
     const currentWindow = ownerWindow();
-    const size = 24;
-    const gap = 6;
-    const right = value.left + value.width + gap;
-    const left = right + size <= currentWindow.innerWidth - 4
-      ? right
-      : value.left + value.width - size;
+    const padding = 8;
+    const markerSize = 24;
+    const targetGap = 6;
+    const panelGap = 8;
+    const panelWidth = 272;
+    const panelHeight = 176;
+    const rightMarkerLeft = value.left + value.width + targetGap;
+    const rightPanelLeft = rightMarkerLeft + markerSize + panelGap;
+    const leftMarkerLeft = value.left - targetGap - markerSize;
+    const leftPanelLeft = leftMarkerLeft - panelGap - panelWidth;
+    const fitsRight = rightPanelLeft + panelWidth <= currentWindow.innerWidth - padding;
+    const fitsLeft = leftPanelLeft >= padding;
+    const markerLeft = fitsRight
+      ? rightMarkerLeft
+      : fitsLeft
+        ? leftMarkerLeft
+        : clamp(rightMarkerLeft, padding, currentWindow.innerWidth - markerSize - padding);
+    const panelLeft = fitsRight
+      ? rightPanelLeft
+      : fitsLeft
+        ? leftPanelLeft
+        : placeSurfaceNear(value, panelWidth, panelHeight, currentWindow).left;
     return {
-      left: clamp(left, 4, currentWindow.innerWidth - size - 4),
-      top: clamp(value.top - size / 2, 4, currentWindow.innerHeight - size - 4),
+      marker: {
+        left: markerLeft,
+        top: clamp(value.top - markerSize / 2, 4, currentWindow.innerHeight - markerSize - 4),
+      },
+      panel: {
+        left: panelLeft,
+        top: clamp(value.top, padding, currentWindow.innerHeight - panelHeight - padding),
+      },
     };
   };
+
+  const markerPosition = (annotationId: string) => annotationLayout(annotationId)?.marker ?? null;
 
   const notePanelPosition = () => {
     const value = selectionRect();
@@ -134,11 +158,7 @@ export function ContextActions(props: ContextActionsProps) {
     return placeSurfaceNear(value, 272, 154, ownerWindow());
   };
 
-  const panelPosition = (annotationId: string) => {
-    const value = props.runtime.annotationRect(annotationId);
-    if (!value) return { left: 8, top: 8 };
-    return placeSurfaceNear(value, 272, 176, ownerWindow(), 38);
-  };
+  const panelPosition = (annotationId: string) => annotationLayout(annotationId)?.panel ?? { left: 8, top: 8 };
 
   const run = async (action: () => Promise<void>, success: string) => {
     if (busy()) return;
