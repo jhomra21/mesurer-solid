@@ -35,9 +35,9 @@ const placeSurfaceNear = (
   width: number,
   height: number,
   ownerWindow: Window,
+  gap = 8,
 ) => {
   const padding = 8;
-  const gap = 8;
   const maxLeft = ownerWindow.innerWidth - width - padding;
   const maxTop = ownerWindow.innerHeight - height - padding;
   const right = rect.left + rect.width + gap;
@@ -137,7 +137,7 @@ export function ContextActions(props: ContextActionsProps) {
   const panelPosition = (annotationId: string) => {
     const value = props.runtime.annotationRect(annotationId);
     if (!value) return { left: 8, top: 8 };
-    return placeSurfaceNear(value, 272, 176, ownerWindow());
+    return placeSurfaceNear(value, 272, 176, ownerWindow(), 38);
   };
 
   const run = async (action: () => Promise<void>, success: string) => {
