@@ -1,5 +1,6 @@
 import { For, Show, onSettled } from "solid-js";
 import { GUIDE_DRAG_HOLD_MS, GUIDE_HITBOX_SIZE, MEASURE_LABEL_OFFSET } from "../core/constants";
+import { getSelectionSpacingOverlays } from "../core/distances";
 import { getEdgeVisibilityForRects } from "../core/edge-visibility";
 import { trySetPointerCapture } from "../core/events";
 import type { Guide, InspectMeasurement, Rect } from "../core/types";
@@ -52,6 +53,12 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
     : props.model.state.activeMeasurement ? [props.model.state.activeMeasurement] : [];
   const measurementEdges = () => getEdgeVisibilityForRects(displayedMeasurements().map((item) => item.rect));
   const selectedEdges = () => getEdgeVisibilityForRects(props.displayedSelectedMeasurements.map((item) => item.rect));
+  const selectionSpacingOverlays = () => {
+    const selected = props.model.state.selectedMeasurements;
+    if (!selectionVisible() || selected.length < 2) return [];
+    const ownerWindow = overlayElement?.ownerDocument.defaultView;
+    return ownerWindow ? getSelectionSpacingOverlays(selected, ownerWindow) : [];
+  };
   const hoverEdges = () => {
     const hoverRect = props.model.state.hoverRect;
     if (!hoverRect) return null;
@@ -242,11 +249,32 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
 
       <Show when={selectionVisible()}>
         <For each={props.displayedSelectedMeasurements}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={selectedEdges()[index()]} outlineColor={outline()} fillColor={fill()} />}</For>
+        <Show when={props.model.state.selectedMeasurements.length > 1}>
+          <For each={props.model.state.selectedMeasurements}>{(measurement) => (
+            <div
+              data-mesurer-selection-spacing-target="true"
+              class="msr:pointer-events-none msr:absolute msr:rounded msr:border msr:border-[#2563eb]/70"
+              style={{
+                left: `${measurement.rect.left}px`,
+                top: `${measurement.rect.top}px`,
+                width: `${measurement.rect.width}px`,
+                height: `${measurement.rect.height}px`,
+              }}
+            />
+          )}</For>
+          <For each={selectionSpacingOverlays()}>{(distance) => (
+            <DistanceOverlayItem
+              distance={distance}
+              showRects={false}
+              kind="selection-spacing"
+            />
+          )}</For>
+        </Show>
       </Show>
 
-      <For each={props.model.state.heldDistances}>{(distance) => <DistanceOverlayItem distance={distance} onRemove={props.model.removeHeldDistance} />}</For>
-      <Show when={selectionVisible() && props.model.state.altPressed && props.optionPairOverlay}><DistanceOverlayItem distance={props.optionPairOverlay!} /></Show>
-      <Show when={props.interactive && guidesMode() && props.model.state.altPressed && props.guideDistanceOverlay}><DistanceOverlayItem distance={props.guideDistanceOverlay!} /></Show>
+      <For each={props.model.state.heldDistances}>{(distance) => <DistanceOverlayItem distance={distance} onRemove={props.model.removeHeldDistance} kind="held" />}</For>
+      <Show when={selectionVisible() && props.model.state.altPressed && props.optionPairOverlay}><DistanceOverlayItem distance={props.optionPairOverlay!} kind="preview" /></Show>
+      <Show when={props.interactive && guidesMode() && props.model.state.altPressed && props.guideDistanceOverlay}><DistanceOverlayItem distance={props.guideDistanceOverlay!} kind="preview" /></Show>
 
       <Show when={selectionVisible() && props.model.state.altPressed && props.optionContainerLines}>{(lines) => <>
         <Show when={lines().top.value > 0}><><div class="msr:absolute msr:w-px msr:bg-[#2563eb]" style={{ top: `${lines().top.y1}px`, height: `${lines().top.y2 - lines().top.y1}px`, left: `${lines().top.x}px` }} /><Tag axis="y" left={lines().top.x + MEASURE_LABEL_OFFSET} top={(lines().top.y1 + lines().top.y2) / 2}>{formatValue(lines().top.value)}</Tag></></Show>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mesurer multi-selection spacing</title>
+    <style>
+      :root {
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #0f172a;
+        background: #f8fafc;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: #f8fafc; }
+      .fixture-shell { min-height: 100vh; padding: 52px; }
+      .fixture-kicker { margin: 0 0 8px; color: #64748b; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: 30px; line-height: 1.15; letter-spacing: -.02em; }
+      .fixture-description { margin: 12px 0 0; max-width: 590px; color: #475569; font-size: 14px; line-height: 1.55; }
+      .spacing-grid {
+        position: absolute;
+        left: 356px;
+        top: 244px;
+        display: grid;
+        grid-template-columns: 120px 120px;
+        grid-template-rows: 72px 72px;
+        column-gap: 24px;
+        row-gap: 32px;
+      }
+      .spacing-card {
+        width: 120px;
+        height: 72px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        background: white;
+        box-shadow: 0 6px 18px rgb(15 23 42 / .05);
+        color: #334155;
+        font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+      }
+      .fixture-note {
+        position: absolute;
+        left: 704px;
+        top: 274px;
+        width: 300px;
+        padding: 14px 16px;
+        border: 1px solid #dbe3ec;
+        border-radius: 12px;
+        background: rgb(255 255 255 / .94);
+        color: #475569;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .fixture-note strong { display: block; margin-bottom: 4px; color: #0f172a; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main class="fixture-shell">
+      <p class="fixture-kicker">Multi-selection spacing regression</p>
+      <h1>Select several elements. See their real gaps.</h1>
+      <p class="fixture-description">The four cards below are deliberately arranged with 24px horizontal spacing and 32px vertical spacing. Mesurer should show only those adjacent design gaps after all four are selected.</p>
+
+      <div class="spacing-grid" aria-label="Spacing fixture grid">
+        <button class="spacing-card" data-spacing-card="a" type="button">A</button>
+        <button class="spacing-card" data-spacing-card="b" type="button">B</button>
+        <button class="spacing-card" data-spacing-card="c" type="button">C</button>
+        <button class="spacing-card" data-spacing-card="d" type="button">D</button>
+      </div>
+
+      <aside class="fixture-note">
+        <strong>Expected spacing</strong>
+        Horizontal: 24px between A–B and C–D.<br />
+        Vertical: 32px between A–C and B–D.
+      </aside>
+    </main>
+    <script type="module" src="/src/multi-spacing.ts"></script>
+  </body>
+</html>

@@ -69,4 +69,32 @@ describe("upstream Mesurer visual contracts", () => {
     expect(host.querySelector('[class*="msr:bg-[#2563eb]"]')).toBeTruthy();
     expect(host.textContent?.trim()).toBe("24");
   });
+
+  it("renders automatic selection spacing without duplicating selected-element outlines", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const distance: DistanceOverlay = {
+      id: "selection-spacing:x:a:b",
+      rectA: { left: 0, top: 0, width: 20, height: 20 },
+      rectB: { left: 44, top: 0, width: 20, height: 20 },
+      normalizedRectA: { left: 0, top: 0, width: 0.2, height: 0.2 },
+      normalizedRectB: { left: 0.44, top: 0, width: 0.2, height: 0.2 },
+      horizontal: { x1: 20, x2: 44, y: 10, value: 24 },
+      vertical: null,
+      connectors: [],
+    };
+
+    disposers.push(render(
+      () => <DistanceOverlayItem distance={distance} showRects={false} kind="selection-spacing" />,
+      host,
+    ));
+
+    expect(host.querySelector('[data-mesurer-distance-kind="selection-spacing"]')).toBeTruthy();
+    expect(host.querySelectorAll('[class*="msr:border-[#2563eb]/70"]')).toHaveLength(0);
+    const guide = host.querySelector<HTMLElement>('[data-mesurer-distance-line="horizontal"]');
+    expect(guide).toBeTruthy();
+    expect(guide!.className).toContain("msr:border-dashed");
+    expect(guide!.className).toContain("msr:border-[#2563eb]");
+    expect(host.textContent?.trim()).toBe("24");
+  });
 });
