@@ -10,7 +10,20 @@ Do not manually edit the public package version, create release tags, or run `np
 
 ## Prepare a release
 
-From GitHub Actions, run **prepare-release** from `main` and choose one version strategy:
+There are two supported entry points into the same **prepare-release** workflow:
+
+1. From GitHub Actions, run **prepare-release** from `main` and choose a version strategy.
+2. Post an owner-only release command on the repository's **Release Control** issue (#32):
+   - `/release beta-next`
+   - `/release promote-stable`
+   - `/release patch`
+   - `/release minor`
+   - `/release major`
+   - `/release explicit X.Y.Z`
+
+The Release Control path is deliberately narrow: only new comments on issue #32 from the repository owner are accepted, and it only prepares a release. It cannot publish directly.
+
+Supported version strategies are:
 
 - `beta-next`: `0.1.0-beta.2` -> `0.1.0-beta.3`; from a stable version such as `0.1.0`, starts `0.1.1-beta.0`.
 - `promote-stable`: `0.1.0-beta.3` -> `0.1.0`.
