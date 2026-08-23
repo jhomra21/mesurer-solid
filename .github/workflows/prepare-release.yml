@@ -18,6 +18,8 @@ on:
         description: Exact version when release_type is explicit
         required: false
         type: string
+  issue_comment:
+    types: [created]
 
 permissions:
   actions: write
@@ -30,13 +32,22 @@ concurrency:
 
 jobs:
   prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.number == 32 &&
+        github.event.issue.pull_request == null &&
+        github.event.comment.user.login == github.repository_owner &&
+        startsWith(github.event.comment.body, '/release ')
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Require the default branch as release source
         shell: bash
         run: |
           if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "Release preparation must be dispatched from main; got ${GITHUB_REF}."
+            echo "Release preparation must run from main; got ${GITHUB_REF}."
             exit 1
           fi
 
@@ -48,6 +59,51 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "24"
+
+      - name: Resolve release request
+        id: request
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_TYPE: ${{ inputs.release_type }}
+          MANUAL_VERSION: ${{ inputs.version }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        shell: bash
+        run: |
+          release_type="$MANUAL_TYPE"
+          version="$MANUAL_VERSION"
+
+          if [[ "$EVENT_NAME" == "issue_comment" ]]; then
+            command=""
+            extra=""
+            read -r command release_type version extra <<< "$COMMENT_BODY"
+
+            if [[ "$command" != "/release" || -n "$extra" ]]; then
+              echo "Invalid release command. Expected: /release <type> [version]"
+              exit 1
+            fi
+          fi
+
+          case "$release_type" in
+            beta-next|promote-stable|patch|minor|major)
+              if [[ -n "$version" ]]; then
+                echo "${release_type} does not accept an explicit version."
+                exit 1
+              fi
+              ;;
+            explicit)
+              if [[ -z "$version" ]]; then
+                echo "An explicit version is required when release_type=explicit."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Unsupported release type: ${release_type:-<empty>}"
+              exit 1
+              ;;
+          esac
+
+          echo "release_type=${release_type}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Refuse a second open release PR
         env:
@@ -63,16 +119,12 @@ jobs:
       - name: Prepare version and changelog
         id: release
         env:
-          RELEASE_TYPE: ${{ inputs.release_type }}
-          EXPLICIT_VERSION: ${{ inputs.version }}
+          RELEASE_TYPE: ${{ steps.request.outputs.release_type }}
+          EXPLICIT_VERSION: ${{ steps.request.outputs.version }}
         shell: bash
         run: |
           args=(prepare --type "$RELEASE_TYPE")
           if [[ "$RELEASE_TYPE" == "explicit" ]]; then
-            if [[ -z "$EXPLICIT_VERSION" ]]; then
-              echo "An explicit version is required when release_type=explicit."
-              exit 1
-            fi
             args+=(--version "$EXPLICIT_VERSION")
           fi
           node scripts/release.mjs "${args[@]}"
