@@ -80,40 +80,37 @@ export const GearIcon = (props: IconProps) => (
 );
 
 export const CopyIcon = (props: IconProps) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 24 24" fill="none" aria-hidden="true" class={props.class}>
-    <rect x="8" y="8" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.5" />
-    <path d="M15 8V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-  </svg>
+  <IconBase size={props.size ?? 20} class={props.class}>
+    <path d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z" />
+  </IconBase>
 );
 
 export const CopySelectionIcon = (props: IconProps) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 24 24" fill="none" aria-hidden="true" class={props.class}>
-    <path d="M5 9V7a2 2 0 0 1 2-2h2M15 5h2a2 2 0 0 1 2 2v2M19 15v2a2 2 0 0 1-2 2h-2M9 19H7a2 2 0 0 1-2-2v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-    <rect x="9" y="9" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5" />
-  </svg>
+  <IconBase size={props.size ?? 20} class={props.class}>
+    <path d="M152,40a8,8,0,0,1-8,8H112a8,8,0,0,1,0-16h32A8,8,0,0,1,152,40Zm-8,168H112a8,8,0,0,0,0,16h32a8,8,0,0,0,0-16ZM208,32H184a8,8,0,0,0,0,16h24V72a8,8,0,0,0,16,0V48A16,16,0,0,0,208,32Zm8,72a8,8,0,0,0-8,8v32a8,8,0,0,0,16,0V112A8,8,0,0,0,216,104Zm0,72a8,8,0,0,0-8,8v24H184a8,8,0,0,0,0,16h24a16,16,0,0,0,16-16V184A8,8,0,0,0,216,176ZM40,152a8,8,0,0,0,8-8V112a8,8,0,0,0-16,0v32A8,8,0,0,0,40,152Zm32,56H48V184a8,8,0,0,0-16,0v24a16,16,0,0,0,16,16H72a8,8,0,0,0,0-16ZM72,32H48A16,16,0,0,0,32,48V72a8,8,0,0,0,16,0V48H72a8,8,0,0,0,0-16Z" />
+  </IconBase>
 );
 
 export const NoteIcon = (props: IconProps) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 24 24" fill="none" aria-hidden="true" class={props.class}>
-    <path d="M6.5 5.5h11A1.5 1.5 0 0 1 19 7v7.5a1.5 1.5 0 0 1-1.5 1.5h-6L8 19v-3H6.5A1.5 1.5 0 0 1 5 14.5V7a1.5 1.5 0 0 1 1.5-1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
-    <path d="M9 10.75h6M12 7.75v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-  </svg>
+  <IconBase size={props.size ?? 20} class={props.class}>
+    <path d="M229.66,58.34l-32-32a8,8,0,0,0-11.32,0l-96,96A8,8,0,0,0,88,128v32a8,8,0,0,0,8,8h32a8,8,0,0,0,5.66-2.34l96-96A8,8,0,0,0,229.66,58.34ZM124.69,152H104V131.31l64-64L188.69,88ZM200,76.69,179.31,56,192,43.31,212.69,64ZM224,128v80a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32h80a8,8,0,0,1,0,16H48V208H208V128a8,8,0,0,1,16,0Z" />
+  </IconBase>
 );
 
 export const SendIcon = (props: IconProps) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 24 24" fill="none" aria-hidden="true" class={props.class}>
-    <path d="m5 6 14-2-2 14-5-5-3.5 3.5-1-1L11 12 5 6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
-  </svg>
+  <IconBase size={props.size ?? 20} class={props.class}>
+    <path d="M231.87,114l-168-95.89A16,16,0,0,0,40.92,37.34L71.55,128,40.92,218.67A16,16,0,0,0,56,240a16.15,16.15,0,0,0,7.93-2.1l167.92-96.05a16,16,0,0,0,.05-27.89ZM56,224a.56.56,0,0,0,0-.12L85.74,136H144a8,8,0,0,0,0-16H85.74L56.06,32.16A.46.46,0,0,0,56,32l168,95.83Z" />
+  </IconBase>
 );
 
 export const TrashIcon = (props: IconProps) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 18} height={props.size ?? 18} viewBox="0 0 24 24" fill="none" aria-hidden="true" class={props.class}>
-    <path d="M8 8v9m4-9v9m4-9v9M5 6h14M9 6V4h6v2m2 0-1 14H8L7 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-  </svg>
+  <IconBase size={props.size ?? 18} class={props.class}>
+    <path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z" />
+  </IconBase>
 );
 
 export const CloseIcon = (props: IconProps) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 18} height={props.size ?? 18} viewBox="0 0 24 24" fill="none" aria-hidden="true" class={props.class}>
-    <path d="m7 7 10 10M17 7 7 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-  </svg>
+  <IconBase size={props.size ?? 18} class={props.class}>
+    <path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z" />
+  </IconBase>
 );
