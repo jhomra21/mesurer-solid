@@ -4,7 +4,12 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Add the removable `mesurer.context` plugin with workspace, selection, and annotation context; Copy Context / Copy Selection / Add Note toolbar actions; durable annotation anchors; scoped review; and region-aware capture planning.
+- Add agent-facing context, annotation, review, capture, and optional send APIs, plus deterministic text/ACP content mapping for coding-agent workflows.
+- Ship one portable `mesurer-ui` Agent Skill whose installer includes the exact built `inject-script.js`, so agents can attach Mesurer without adding it to the target application's dependencies.
+- Add a first-party Manifest V3 browser extension and make both module and classic injection load the context plugin by default while retaining an explicit low-level `context: false` mode.
+- Harden multi-instance and Shadow DOM behavior with instance-local built-in commands, root-scoped inspection and selection, conservative annotation rebinding, ShadowRoot-aware hit testing/snapping, and correctly scoped X-ray ownership.
+- Preserve exact capture presentation across hide/restore cycles, including inline `!important` display declarations, and distinguish evidence that moved outside annotation scope from evidence that was actually removed.
 
 ## 0.1.0-beta.6 - 2026-08-21
 
