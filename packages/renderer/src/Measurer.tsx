@@ -317,7 +317,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
 
     shiftDrag = event.shiftKey;
     shiftToggleElement = event.shiftKey
-      ? (getSelectedMeasurementHit({ point, selectedMeasurements: model.current.selectedMeasurements, overlayNode: rootElement, document: ownerDocument })?.elementRef ?? null)
+      ? (getSelectedMeasurementHit({ point, selectedMeasurements: model.current.selectedMeasurements, overlayNode: rootElement, document: ownerDocument, exact: true })?.elementRef ?? null)
       : null;
     model.setTransient({ start: point, end: point, isDragging: false, selectionOriginRect: null });
     trySetPointerCapture(event.currentTarget, event.pointerId);
@@ -385,7 +385,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
 
     const selectedHit = shiftToggleElement
       ? model.current.selectedMeasurements.find((item) => item.elementRef === shiftToggleElement) ?? null
-      : getSelectedMeasurementHit({ point, selectedMeasurements: model.current.selectedMeasurements, overlayNode: rootElement, document: ownerDocument });
+      : getSelectedMeasurementHit({ point, selectedMeasurements: model.current.selectedMeasurements, overlayNode: rootElement, document: ownerDocument, exact: event.shiftKey });
 
     if ((event.shiftKey || !model.current.settings.hoverHighlightEnabled) && selectedHit) {
       model.checkpoint();
