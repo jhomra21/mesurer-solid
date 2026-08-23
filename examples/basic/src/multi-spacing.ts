@@ -25,7 +25,7 @@ const moveToolbar = (left: number, top: number) => {
   toolbar.style.top = `${top}px`;
 };
 
-moveToolbar(52, 164);
+moveToolbar(52, 244);
 
 const harness: MultiSpacingHarness = {
   mesurer,
