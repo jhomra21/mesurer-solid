@@ -23,6 +23,30 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 
+const boxGap = (a, b) => {
+  const horizontal = Math.max(0, Math.max(a.x, b.x) - Math.min(a.x + a.width, b.x + b.width));
+  const vertical = Math.max(0, Math.max(a.y, b.y) - Math.min(a.y + a.height, b.y + b.height));
+  return Math.hypot(horizontal, vertical);
+};
+
+const captureAround = async (boxes, name, padding = 24) => {
+  const left = Math.min(...boxes.map((box) => box.x));
+  const top = Math.min(...boxes.map((box) => box.y));
+  const right = Math.max(...boxes.map((box) => box.x + box.width));
+  const bottom = Math.max(...boxes.map((box) => box.y + box.height));
+  const clipX = Math.max(0, left - padding);
+  const clipY = Math.max(0, top - padding);
+  await page.screenshot({
+    path: path.join(outputDir, `${name}-${deviceScaleFactor}x.png`),
+    clip: {
+      x: clipX,
+      y: clipY,
+      width: Math.min(1280 - clipX, right - left + padding * 2),
+      height: Math.min(720 - clipY, bottom - top + padding * 2),
+    },
+  });
+};
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_SELF_HOSTING__?.subject));
@@ -41,6 +65,46 @@ try {
     const button = document.querySelector("button[data-mesurer-tool-id='context.copy-selection']");
     return button instanceof HTMLButtonElement && !button.disabled;
   });
+
+  // Validate the selection-owned annotation affordance before mounting the observer.
+  const annotationTrigger = page.locator("[data-mesurer-annotation-trigger='true']");
+  await annotationTrigger.waitFor({ state: "visible" });
+  const triggerBox = await annotationTrigger.boundingBox();
+  assert(triggerBox, "Annotation trigger must have a bounding box");
+  assert.equal(triggerBox.width, 24, "Annotation trigger width");
+  assert.equal(triggerBox.height, 24, "Annotation trigger height");
+  assert(boxGap(targetBox, triggerBox) <= 8.5, `Annotation trigger should hug the selected element; gap was ${boxGap(targetBox, triggerBox).toFixed(2)}px`);
+
+  await annotationTrigger.click();
+  const composer = page.locator("[data-mesurer-annotation-composer='true']");
+  await composer.waitFor({ state: "visible" });
+  const composerBox = await composer.boundingBox();
+  assert(composerBox, "Annotation composer must have a bounding box");
+  assert(boxGap(targetBox, composerBox) <= 8.5, `Annotation composer should stay beside the selected element; gap was ${boxGap(targetBox, composerBox).toFixed(2)}px`);
+  assert(composerBox.width <= 272.5, `Annotation composer should remain compact; width was ${composerBox.width}px`);
+
+  const noteText = "Increase the spacing above this control to 24px.";
+  await composer.locator("textarea").fill(noteText);
+  await page.screenshot({
+    path: path.join(outputDir, `annotation-composer-${deviceScaleFactor}x.png`),
+    fullPage: false,
+  });
+  await captureAround([targetBox, composerBox], "annotation-composer-detail", 28);
+
+  await composer.getByRole("button", { name: "Add note" }).click();
+  const annotationPanel = page.locator("[data-mesurer-annotation-panel='true']");
+  const annotationMarker = page.locator("[data-mesurer-annotation-marker='true']");
+  await annotationPanel.waitFor({ state: "visible" });
+  await annotationMarker.waitFor({ state: "visible" });
+  const panelBox = await annotationPanel.boundingBox();
+  const markerBox = await annotationMarker.boundingBox();
+  assert(panelBox && markerBox, "Saved annotation panel and marker must have bounding boxes");
+  assert.equal(markerBox.width, 24, "Saved annotation marker width");
+  assert.equal(markerBox.height, 24, "Saved annotation marker height");
+  assert(boxGap(targetBox, panelBox) <= 8.5, `Saved annotation panel should stay beside its target; gap was ${boxGap(targetBox, panelBox).toFixed(2)}px`);
+  assert.equal((await annotationPanel.textContent())?.includes(noteText), true, "Saved annotation should render the note text");
+  await captureAround([targetBox, panelBox], "annotation-panel-detail", 28);
+  await annotationPanel.getByRole("button", { name: "Close annotation" }).click();
 
   await page.evaluate(async () => {
     await window.__MESURER_SELF_HOSTING__.mountObserver();
@@ -147,6 +211,8 @@ try {
     `context buttons: ${measurements.tools.length} × 32×32px`,
     "context SVG boxes: 20×20px, centered in every button",
     `max glyph optical-center offset: ${maxOpticalOffset.toFixed(2)}px`,
+    "annotation trigger: 24×24px beside selected element",
+    "annotation composer: compact, target-anchored Mesurer surface",
     "observer selection: Copy context button",
   ];
   await page.evaluate((lines) => window.__MESURER_SELF_HOSTING__.setReport(lines), summaryLines);
@@ -160,8 +226,19 @@ try {
       toolbarCenterLineDelta: "≤ 0.05px",
       glyphEnvelope: "11–18.5px per axis",
       opticalCenterOffset: "≤ 1.5px",
+      annotationTrigger: "24x24px, ≤8.5px from selection",
+      annotationComposer: "≤272.5px wide, ≤8.5px from selection",
+      annotationPanel: "≤8.5px from annotated target",
     },
     maxOpticalOffset,
+    annotation: {
+      target: targetBox,
+      trigger: triggerBox,
+      composer: composerBox,
+      marker: markerBox,
+      panel: panelBox,
+      note: noteText,
+    },
     measurements,
   };
 
@@ -199,6 +276,8 @@ try {
     result: "PASS",
     toolIds,
     maxOpticalOffset,
+    annotationTriggerGap: boxGap(targetBox, triggerBox),
+    annotationComposerGap: boxGap(targetBox, composerBox),
     outputDir,
   }, null, 2));
 } finally {
