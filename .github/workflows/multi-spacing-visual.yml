@@ -5,6 +5,7 @@ on:
     paths:
       - "packages/renderer/src/core/distances.ts"
       - "packages/renderer/src/components/DistanceOverlayItem.tsx"
+      - "packages/renderer/src/components/MeasurementBox.tsx"
       - "packages/renderer/src/components/MeasurerOverlay.tsx"
       - "packages/renderer/test/distances.test.ts"
       - "examples/basic/multi-spacing.html"
@@ -88,10 +89,12 @@ jobs:
           console.log("");
           console.log(`Native capture: **${report.deviceScaleFactor}x DPR**`);
           console.log("");
+          console.log(`Sparse selection: **A + C only**, measured vertical gap **${report.sparseEvidence.aToC.verticalGap}px**`);
           console.log(`Mesurer measured horizontal gaps: **${report.evidence.distances.aToB.horizontalGap}px**, **${report.evidence.distances.cToD.horizontalGap}px**`);
           console.log(`Mesurer measured vertical gaps: **${report.evidence.distances.aToC.verticalGap}px**, **${report.evidence.distances.bToD.verticalGap}px**`);
           console.log(`Rendered spacing labels: **${report.evidence.spacingLabels.join(", ")}**`);
           console.log(`Adjacent spacing overlays: **${report.evidence.spacingOverlayCount}**`);
+          console.log("Automatic spacing lines: **dashed**");
           NODE
 
       - name: Upload multi-selection spacing evidence
