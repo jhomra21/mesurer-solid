@@ -59,14 +59,15 @@ try {
   const target = page.locator("[data-self-host-target]");
   const targetBox = await target.boundingBox();
   assert(targetBox, "Self-host selection target must have a bounding box");
-  await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+  // Hit the button's own padding instead of nested copy so the annotation evidence
+  // is anchored to the actual control being selected.
+  await page.mouse.click(targetBox.x + 10, targetBox.y + 10);
 
   await page.waitForFunction(() => {
     const button = document.querySelector("button[data-mesurer-tool-id='context.copy-selection']");
     return button instanceof HTMLButtonElement && !button.disabled;
   });
 
-  // Validate the selection-owned annotation affordance before mounting the observer.
   const annotationTrigger = page.locator("[data-mesurer-annotation-trigger='true']");
   await annotationTrigger.waitFor({ state: "visible" });
   const triggerBox = await annotationTrigger.boundingBox();
@@ -101,9 +102,10 @@ try {
   assert(panelBox && markerBox, "Saved annotation panel and marker must have bounding boxes");
   assert.equal(markerBox.width, 24, "Saved annotation marker width");
   assert.equal(markerBox.height, 24, "Saved annotation marker height");
-  assert(boxGap(targetBox, panelBox) <= 8.5, `Saved annotation panel should stay beside its target; gap was ${boxGap(targetBox, panelBox).toFixed(2)}px`);
+  assert(boxGap(targetBox, markerBox) <= 8.5, `Saved annotation marker should hug its target; gap was ${boxGap(targetBox, markerBox).toFixed(2)}px`);
+  assert(boxGap(markerBox, panelBox) <= 8.5, `Saved annotation panel should clear the marker by one compact gap; gap was ${boxGap(markerBox, panelBox).toFixed(2)}px`);
   assert.equal((await annotationPanel.textContent())?.includes(noteText), true, "Saved annotation should render the note text");
-  await captureAround([targetBox, panelBox], "annotation-panel-detail", 28);
+  await captureAround([targetBox, markerBox, panelBox], "annotation-panel-detail", 28);
   await annotationPanel.getByRole("button", { name: "Close annotation" }).click();
 
   await page.evaluate(async () => {
@@ -213,6 +215,7 @@ try {
     `max glyph optical-center offset: ${maxOpticalOffset.toFixed(2)}px`,
     "annotation trigger: 24×24px beside selected element",
     "annotation composer: compact, target-anchored Mesurer surface",
+    "saved marker: clear between target and note panel",
     "observer selection: Copy context button",
   ];
   await page.evaluate((lines) => window.__MESURER_SELF_HOSTING__.setReport(lines), summaryLines);
@@ -228,7 +231,7 @@ try {
       opticalCenterOffset: "≤ 1.5px",
       annotationTrigger: "24x24px, ≤8.5px from selection",
       annotationComposer: "≤272.5px wide, ≤8.5px from selection",
-      annotationPanel: "≤8.5px from annotated target",
+      annotationPanel: "marker ≤8.5px from target; panel ≤8.5px from marker",
     },
     maxOpticalOffset,
     annotation: {
@@ -278,6 +281,8 @@ try {
     maxOpticalOffset,
     annotationTriggerGap: boxGap(targetBox, triggerBox),
     annotationComposerGap: boxGap(targetBox, composerBox),
+    annotationMarkerGap: boxGap(targetBox, markerBox),
+    annotationPanelGap: boxGap(markerBox, panelBox),
     outputDir,
   }, null, 2));
 } finally {
