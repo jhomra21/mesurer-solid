@@ -6,6 +6,8 @@ import { MEASURE_LABEL_OFFSET } from "../core/constants";
 export type DistanceOverlayItemProps = {
   distance: DistanceOverlay;
   onRemove?: (id: string) => void;
+  showRects?: boolean;
+  kind?: "held" | "preview" | "selection-spacing";
 };
 
 const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any }) => (
@@ -14,9 +16,16 @@ const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any 
 
 export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
   return (
-    <div data-mesurer-distance="true" class={props.onRemove ? "msr:pointer-events-auto" : "msr:pointer-events-none"} onClick={props.onRemove ? (event) => { event.stopPropagation(); props.onRemove?.(props.distance.id); } : undefined}>
-      <div class="msr:absolute msr:rounded msr:border msr:border-[#2563eb]/70" style={{ left: `${props.distance.rectA.left}px`, top: `${props.distance.rectA.top}px`, width: `${props.distance.rectA.width}px`, height: `${props.distance.rectA.height}px` }} />
-      <div class="msr:absolute msr:rounded msr:border msr:border-[#2563eb]/70" style={{ left: `${props.distance.rectB.left}px`, top: `${props.distance.rectB.top}px`, width: `${props.distance.rectB.width}px`, height: `${props.distance.rectB.height}px` }} />
+    <div
+      data-mesurer-distance="true"
+      data-mesurer-distance-kind={props.kind}
+      class={props.onRemove ? "msr:pointer-events-auto" : "msr:pointer-events-none"}
+      onClick={props.onRemove ? (event) => { event.stopPropagation(); props.onRemove?.(props.distance.id); } : undefined}
+    >
+      <Show when={props.showRects !== false}>
+        <div class="msr:absolute msr:rounded msr:border msr:border-[#2563eb]/70" style={{ left: `${props.distance.rectA.left}px`, top: `${props.distance.rectA.top}px`, width: `${props.distance.rectA.width}px`, height: `${props.distance.rectA.height}px` }} />
+        <div class="msr:absolute msr:rounded msr:border msr:border-[#2563eb]/70" style={{ left: `${props.distance.rectB.left}px`, top: `${props.distance.rectB.top}px`, width: `${props.distance.rectB.width}px`, height: `${props.distance.rectB.height}px` }} />
+      </Show>
       <For each={props.distance.connectors}>{(connector) => Math.abs(connector.x1 - connector.x2) < 1
         ? <div class="msr:absolute msr:border-l msr:border-dashed msr:border-[#2563eb]/70" style={{ left: `${connector.x1}px`, top: `${Math.min(connector.y1, connector.y2)}px`, height: `${Math.abs(connector.y2 - connector.y1)}px` }} />
         : <div class="msr:absolute msr:border-t msr:border-dashed msr:border-[#2563eb]/70" style={{ left: `${Math.min(connector.x1, connector.x2)}px`, top: `${connector.y1}px`, width: `${Math.abs(connector.x2 - connector.x1)}px` }} />}
