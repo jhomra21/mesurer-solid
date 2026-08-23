@@ -1,6 +1,7 @@
-import { Show, createSignal, onSettled } from "solid-js";
-import type { ToolMode } from "../core/types";
+import { For, Show, createSignal, onSettled } from "solid-js";
+import type { ToolContribution } from "@jhomra21/mesurer-solid-core";
 import type { MeasurerModel } from "../model/create-measurer-model";
+import type { MesurerBuiltinPluginId } from "../plugins/builtins";
 import { SettingsPanel } from "./SettingsPanel";
 import { Tooltip, createTooltip } from "./Tooltip";
 import {
@@ -19,7 +20,9 @@ import {
 export type ToolbarProps = {
   model: MeasurerModel;
   ownerWindow: Window;
-  onColorPicker: () => void;
+  onBuiltinAction: (id: Exclude<MesurerBuiltinPluginId, "distance">) => void;
+  pluginTools?: ToolContribution[];
+  onPluginTool?: (tool: ToolContribution) => void;
   onClearWorkspace: () => void;
   onResetSettings: () => void;
 };
@@ -27,10 +30,15 @@ export type ToolbarProps = {
 const TOOLBAR_DRAG_SLOP = 6;
 const GUIDE_MENU_WIDTH = 176;
 const VIEWPORT_PADDING = 8;
+const GUIDE_MENU_IDEAL_HEIGHT = 72;
+const SETTINGS_MENU_IDEAL_HEIGHT = 360;
 
 type ToolbarButtonProps = {
   id: string;
   active: boolean;
+  disabled?: boolean;
+  builtin?: string;
+  toolId?: string;
   label: string;
   shortcut?: string;
   onClick: () => void;
@@ -43,13 +51,25 @@ type ToolbarButtonProps = {
 };
 
 function ToolbarButton(props: ToolbarButtonProps) {
+  const inactiveClass = () => props.disabled
+    ? "msr:bg-transparent msr:text-black/30 msr:cursor-default"
+    : "msr:bg-transparent msr:text-black msr:hover:bg-black/4";
   return (
-    <div class="msr:relative" onMouseEnter={() => props.onTooltipEnter(props.id)} onMouseLeave={() => props.onTooltipLeave()}>
+    <div
+      class="msr:relative"
+      data-mesurer-builtin={props.builtin}
+      data-mesurer-tool-id={props.toolId}
+      onMouseEnter={() => props.onTooltipEnter(props.id)}
+      onMouseLeave={() => props.onTooltipLeave()}
+    >
       <button
         type="button"
+        data-mesurer-builtin={props.builtin}
+        data-mesurer-tool-id={props.toolId}
         aria-pressed={props.active ? "true" : "false"}
         aria-label={`${props.label}${props.shortcut ? ` (${props.shortcut})` : ""}`}
-        class={`msr:flex msr:size-8 msr:select-none msr:items-center msr:justify-center msr:rounded-[8px] msr:outline-none ${props.active ? "msr:bg-[#0d99ff] msr:text-white" : "msr:bg-transparent msr:text-black msr:hover:bg-black/4"}`}
+        disabled={props.disabled ?? false}
+        class={`msr:flex msr:size-8 msr:select-none msr:items-center msr:justify-center msr:rounded-[8px] msr:outline-none ${props.active ? "msr:bg-[#0d99ff] msr:text-white" : inactiveClass()}`}
         onClick={() => props.onClick()}
       >
         {props.children}
@@ -76,7 +96,22 @@ export function Toolbar(props: ToolbarProps) {
   const nearTop = () => position().y < 56;
   const nearBottom = () => viewportHeight() > 0 && position().y > viewportHeight() - 56;
   const tooltipSide = (): "top" | "bottom" => nearTop() && !nearBottom() ? "bottom" : "top";
-  const menuSide = (): "top" | "bottom" => nearBottom() ? "top" : "bottom";
+  const guideMenuSide = (): "top" | "bottom" => {
+    position();
+    const rect = guideMenuElement?.getBoundingClientRect();
+    if (!rect) return nearBottom() ? "top" : "bottom";
+    const below = Math.max(0, viewportHeight() - rect.bottom - VIEWPORT_PADDING);
+    const above = Math.max(0, rect.top - VIEWPORT_PADDING);
+    return below >= GUIDE_MENU_IDEAL_HEIGHT || below >= above ? "bottom" : "top";
+  };
+  const settingsMenuSide = (): "top" | "bottom" => {
+    position();
+    const rect = toolbarElement?.getBoundingClientRect();
+    if (!rect) return nearBottom() ? "top" : "bottom";
+    const below = Math.max(0, viewportHeight() - rect.bottom - VIEWPORT_PADDING);
+    const above = Math.max(0, rect.top - VIEWPORT_PADDING);
+    return below >= SETTINGS_MENU_IDEAL_HEIGHT || below >= above ? "bottom" : "top";
+  };
 
   const updateMenuAlign = () => {
     const anchorRect = guideMenuElement?.getBoundingClientRect();
@@ -130,24 +165,11 @@ export function Toolbar(props: ToolbarProps) {
     props.ownerWindow.addEventListener("pointercancel", end);
   };
 
-  const activate = (mode: ToolMode) => {
-    props.model.setEnabled(true, !props.model.current.enabled);
-    props.model.setTransient({ colorPickerActive: false, toolbarActive: true });
-    props.model.toggleToolMode(mode);
-  };
   const selectGuideOrientation = (orientation: "vertical" | "horizontal") => {
     props.model.setEnabled(true);
     if (props.model.current.toolMode !== "guides") props.model.toggleToolMode("guides");
     props.model.setGuideOrientation(orientation, true);
     setGuideMenuOpen(false);
-  };
-  const toggleSettings = () => {
-    const open = !props.model.current.settingsOpen;
-    const settingsTab = props.model.current.colorPickerActive ? "color-picker"
-      : props.model.current.rulersVisible ? "rulers"
-      : props.model.current.toolMode === "guides" ? "guides"
-      : props.model.current.toolMode === "select" || props.model.current.toolMode === "text-inspector" ? "select" : "general";
-    props.model.setTransient({ settingsOpen: open, settingsTab: open ? settingsTab : props.model.current.settingsTab });
   };
 
   onSettled(() => {
@@ -193,24 +215,14 @@ export function Toolbar(props: ToolbarProps) {
       onClick={(event) => event.stopPropagation()}
       onMouseLeave={tooltip.onTooltipContainerLeave}
     >
-      <ToolbarButton id="select" active={props.model.state.toolMode === "select"} label="Select" shortcut="S" onClick={() => activate("select")} {...buttonProps("select")}><CursorIcon size={20} /></ToolbarButton>
-      <ToolbarButton id="xray" active={props.model.state.xrayVisible} label="X-ray" shortcut="X" onClick={() => { props.model.setEnabled(true); props.model.setTransient({ colorPickerActive: false }); props.model.toggleXray(); }} {...buttonProps("xray")}><XrayIcon size={20} /></ToolbarButton>
-      <ToolbarButton
-        id="color-picker"
-        active={props.model.state.colorPickerActive}
-        label="Color picker"
-        shortcut="P"
-        onClick={() => {
-          if (props.model.current.colorPickerActive) props.model.setTransient({ colorPickerActive: false });
-          else props.onColorPicker();
-        }}
-        {...buttonProps("color-picker")}
-      ><ColorPickerIcon size={20} /></ToolbarButton>
-      <ToolbarButton id="rulers" active={props.model.state.rulersVisible} label="Rulers" shortcut="R" onClick={() => { props.model.setEnabled(true); props.model.setTransient({ colorPickerActive: false }); props.model.toggleRulers(); }} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>
-      <ToolbarButton id="text-inspector" active={props.model.state.toolMode === "text-inspector"} label="Text inspector" shortcut="A" onClick={() => activate("text-inspector")} {...buttonProps("text-inspector")}><TextInspectorIcon size={20} /></ToolbarButton>
-      <ToolbarButton id="guides" active={props.model.state.toolMode === "guides"} label="Guides" shortcut="G" onClick={() => activate("guides")} {...buttonProps("guides")}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
+      <ToolbarButton id="select" builtin="select" active={props.model.state.toolMode === "select"} label="Select" shortcut="S" onClick={() => props.onBuiltinAction("select")} {...buttonProps("select")}><CursorIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="xray" builtin="xray" active={props.model.state.xrayVisible} label="X-ray" shortcut="X" onClick={() => props.onBuiltinAction("xray")} {...buttonProps("xray")}><XrayIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="color-picker" builtin="color-picker" active={props.model.state.colorPickerActive} label="Color picker" shortcut="P" onClick={() => props.onBuiltinAction("color-picker")} {...buttonProps("color-picker")}><ColorPickerIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="rulers" builtin="rulers" active={props.model.state.rulersVisible} label="Rulers" shortcut="R" onClick={() => props.onBuiltinAction("rulers")} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="text-inspector" builtin="text-inspector" active={props.model.state.toolMode === "text-inspector"} label="Text inspector" shortcut="A" onClick={() => props.onBuiltinAction("text-inspector")} {...buttonProps("text-inspector")}><TextInspectorIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="guides" builtin="guides" active={props.model.state.toolMode === "guides"} label="Guides" shortcut="G" onClick={() => props.onBuiltinAction("guides")} {...buttonProps("guides")}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
 
-      <div ref={(element) => { guideMenuElement = element; }} class="msr:group msr:relative msr:-ml-1 msr:flex msr:items-stretch" onMouseEnter={() => tooltip.onTooltipEnter("guide-menu")} onMouseLeave={tooltip.onTooltipLeave}>
+      <div data-mesurer-builtin="guides-menu" ref={(element) => { guideMenuElement = element; }} class="msr:group msr:relative msr:-ml-1 msr:flex msr:items-stretch" onMouseEnter={() => tooltip.onTooltipEnter("guide-menu")} onMouseLeave={tooltip.onTooltipLeave}>
         <button
           type="button"
           aria-label="Guide orientation menu"
@@ -220,7 +232,7 @@ export function Toolbar(props: ToolbarProps) {
         <span class={`msr:pointer-events-none msr:absolute msr:left-1/2 msr:-translate-x-1/2 msr:whitespace-nowrap msr:rounded msr:bg-black msr:px-2 msr:py-1 msr:text-[11px] msr:text-white msr:transition-opacity msr:duration-150 msr:select-none ${tooltipSide() === "top" ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"} ${tooltip.visibleTooltipId() === "guide-menu" && tooltipsEnabled() ? "msr:opacity-100" : "msr:opacity-0"}`}>Orientation Guide</span>
         <Show when={guideMenuOpen()}>
           <div
-            class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:w-44 msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:focus:outline-none msr:flex msr:flex-col msr:gap-px ${menuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"} ${menuAlign() === "left" ? "msr:left-0" : "msr:right-0"}`}
+            class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:w-44 msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:focus:outline-none msr:flex msr:flex-col msr:gap-px ${guideMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"} ${menuAlign() === "left" ? "msr:left-0" : "msr:right-0"}`}
             role="menu"
             tabindex={0}
             onKeyDown={(event) => {
@@ -237,11 +249,33 @@ export function Toolbar(props: ToolbarProps) {
         </Show>
       </div>
 
-      <div ref={(element) => { settingsElement = element; }} class="msr:relative msr:flex">
-        <ToolbarButton id="settings" active={props.model.state.settingsOpen} label="Settings" shortcut="⌘/Ctrl+," onClick={toggleSettings} {...buttonProps("settings")}><GearIcon size={20} /></ToolbarButton>
+      <Show when={(props.pluginTools?.length ?? 0) > 0}>
+        <div data-mesurer-plugin-tool-separator="true" aria-hidden="true" class="msr:mx-0.5 msr:h-5 msr:w-px msr:bg-black/10" />
+        <For each={props.pluginTools ?? []}>{(tool) => (
+          <ToolbarButton
+            id={`plugin:${tool.id}`}
+            toolId={tool.id}
+            active={tool.active?.() ?? false}
+            disabled={tool.disabled?.() ?? false}
+            label={tool.label}
+            shortcut={tool.shortcut}
+            onClick={() => props.onPluginTool?.(tool)}
+            {...buttonProps(`plugin:${tool.id}`)}
+          >
+            <Show when={tool.icon} fallback={<span class="msr:text-[12px] msr:font-semibold">{tool.label.slice(0, 1).toUpperCase()}</span>}>{(icon) => (
+              <svg width="20" height="20" viewBox={icon().viewBox ?? "0 0 24 24"} aria-hidden="true">
+                <For each={icon().paths}>{(path) => <path d={path} fill="currentColor" />}</For>
+              </svg>
+            )}</Show>
+          </ToolbarButton>
+        )}</For>
+      </Show>
+
+      <div data-mesurer-builtin="settings" ref={(element) => { settingsElement = element; }} class="msr:relative msr:flex">
+        <ToolbarButton id="settings" builtin="settings" active={props.model.state.settingsOpen} label="Settings" shortcut="⌘/Ctrl+," onClick={() => props.onBuiltinAction("settings")} {...buttonProps("settings")}><GearIcon size={20} /></ToolbarButton>
         <Show when={props.model.state.settingsOpen}>
           <div
-            class={`mesurer-menu-surface msr:absolute msr:-right-1 msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${menuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
+            class={`mesurer-menu-surface msr:absolute msr:-right-1 msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
             data-mesurer-inspector-ui="true"
             role="dialog"
             aria-label="Settings"

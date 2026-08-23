@@ -134,6 +134,61 @@ scroll: client/scroll dimensions and overflow booleans
 
 `distance()` returns horizontal/vertical gaps and center deltas between the first matching elements. `viewport()` reports viewport/document dimensions, DPR, scroll position, and page overflow. `feedback()` combines requested element measurements, viewport data, loaded plugin/capability description, and serialized plugin state into one JSON-safe snapshot.
 
+### Context, annotations, review, and capture
+
+The `/inject` and `/inject-script` entry points load the removable `mesurer.context` plugin by default. Source-mounted applications opt in with `plugins: [contextPlugin()]`. Set `window.__MESURER_CONFIG__ = { context: false }` before injection only when deliberately using the low-level inspector without context UI.
+
+Dynamic capabilities are part of plugin readiness, so always wait before reading them:
+
+```js
+await window.__MESURER__.ready();
+const capabilities = window.__MESURER__.capabilities();
+```
+
+When `capabilities.capabilities.context` is true, the same bridge exposes:
+
+```ts
+context(request?: MesurerContextRequest): Promise<MesurerContextV1>
+contextText(request?: MesurerContextRequest): Promise<string>
+annotations(): Promise<MesurerAnnotation[]>
+review(annotationId?: string): Promise<MesurerReviewV1 | MesurerReviewV1[]>
+capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>
+prepareCapture(): Promise<void>
+finishCapture(): Promise<void>
+sendContext(request?: MesurerContextRequest): Promise<void>
+```
+
+Use the smallest useful scope:
+
+```js
+await window.__MESURER__.context(); // workspace
+await window.__MESURER__.context({ scope: "selection" });
+await window.__MESURER__.context({ annotation: annotationId });
+```
+
+`MesurerContextV1.regions` carries explicit selected/annotated viewport rectangles, including region-only annotations with no DOM target. `visualContext` contains only the guides, measurements, and held distances relevant to that scope. The note is human intent; rendered geometry and screenshots are evidence.
+
+Annotations retain the exact live DOM node while it remains connected. After DOM replacement/HMR, rebinding is deliberately conservative and is restricted to the configured page target/tree. Strong identity or a unique compatible weaker fingerprint may rebind; ambiguous or out-of-scope candidates must leave the annotation stale rather than attach human intent to the wrong element.
+
+`review(annotationId)` compares the immutable scoped baseline against the current render using stable annotation/evidence IDs. Evidence that moves outside current annotation relevance is still compared through the complete live workspace and is **not** called missing. `kind: "missing"` means that baseline evidence no longer exists in the workspace.
+
+Mesurer plans screenshot evidence but does not own screenshot capture. Use the outer harness and always restore Mesurer presentation in `finally`:
+
+```js
+const plan = await window.__MESURER__.capturePlan({ annotation: annotationId });
+await window.__MESURER__.prepareCapture();
+try {
+  // Capture the real viewport, and plan.captures focus clip when present,
+  // using the browser/Electron harness that already owns the page.
+} finally {
+  await window.__MESURER__.finishCapture();
+}
+```
+
+Capture preparation hides Mesurer chrome while retaining useful evidence, and restoration must preserve the exact prior inline presentation. Do not replace this with DOM-to-canvas rendering or add a second browser driver.
+
+The portable Agent Skill installer leaves both `SKILL.md` and the exact built `assets/inject-script.js` under `.agents/skills/mesurer-ui`, so an agent can inject that asset through its existing browser channel without keeping Mesurer in the host application's dependencies.
+
 ## 4. Required design feedback loop
 
 For every **meaningful visual change**, use Mesurer before claiming completion.

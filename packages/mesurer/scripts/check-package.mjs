@@ -1,4 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const privatePackagePattern = /@jhomra21\/mesurer-solid-(?:core|dom|renderer)/;
@@ -29,4 +33,26 @@ for (const file of ["index.js", "index.d.ts", "core.js", "core.d.ts", "inject.js
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
 
-console.log(`@jhomra21/mesurer-solid@${packageJson.version} publish surface is self-contained.`);
+const skillSource = new URL("../skills/mesurer-ui/SKILL.md", import.meta.url);
+if (!existsSync(skillSource)) throw new Error("Missing packaged Agent Skill: skills/mesurer-ui/SKILL.md");
+
+const installRoot = mkdtempSync(join(tmpdir(), "mesurer-skill-smoke-"));
+try {
+  execFileSync(process.execPath, [fileURLToPath(new URL("./install-skill.mjs", import.meta.url)), "install"], {
+    cwd: installRoot,
+    stdio: "pipe",
+  });
+  const installedSkill = join(installRoot, ".agents/skills/mesurer-ui/SKILL.md");
+  const installedInjector = join(installRoot, ".agents/skills/mesurer-ui/assets/inject-script.js");
+  if (!existsSync(installedSkill)) throw new Error("mesurer-skill install did not create SKILL.md.");
+  if (!existsSync(installedInjector)) throw new Error("mesurer-skill install did not create assets/inject-script.js.");
+  const sourceInjector = readFileSync(new URL("../dist/inject-script.js", import.meta.url), "utf8");
+  const copiedInjector = readFileSync(installedInjector, "utf8");
+  if (!sourceInjector || copiedInjector !== sourceInjector) {
+    throw new Error("Installed Agent Skill injector does not match the packaged inject-script artifact.");
+  }
+} finally {
+  rmSync(installRoot, { recursive: true, force: true });
+}
+
+console.log(`@jhomra21/mesurer-solid@${packageJson.version} publish surface and Agent Skill installer are self-contained.`);

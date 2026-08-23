@@ -1,4 +1,8 @@
-import type { InspectMeasurement, Rect } from "@jhomra21/mesurer-solid-core";
+import type {
+  InspectMeasurement,
+  MesurerElementFingerprint,
+  Rect,
+} from "@jhomra21/mesurer-solid-core";
 
 export type DomHost = {
   ownerWindow: Window;
@@ -38,12 +42,210 @@ export function createLocalStorageAdapter(ownerWindow: Window = window): Storage
   };
 }
 
+export type DomInspectionRect = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+};
+
+export type DomEdges = { top: number; right: number; bottom: number; left: number };
+export type DomElementFingerprint = MesurerElementFingerprint;
+
+export type DomElementInspection = {
+  selector: string;
+  tag: string;
+  id: string | null;
+  classes: string[];
+  text: string;
+  role: string | null;
+  ariaLabel: string | null;
+  rect: DomInspectionRect;
+  margin: DomEdges;
+  padding: DomEdges;
+  border: DomEdges;
+  typography: {
+    fontFamily: string;
+    fontSize: string;
+    fontWeight: string;
+    lineHeight: string;
+    letterSpacing: string;
+    textAlign: string;
+    color: string;
+  };
+  appearance: {
+    backgroundColor: string;
+    borderColor: string;
+    borderRadius: string;
+    boxShadow: string;
+    opacity: string;
+  };
+  layout: {
+    display: string;
+    position: string;
+    zIndex: string;
+    overflowX: string;
+    overflowY: string;
+    flexDirection: string;
+    alignItems: string;
+    justifyContent: string;
+    gap: string;
+    gridTemplateColumns: string;
+    gridTemplateRows: string;
+    transform: string;
+  };
+  scroll: {
+    clientWidth: number;
+    clientHeight: number;
+    scrollWidth: number;
+    scrollHeight: number;
+    overflowsX: boolean;
+    overflowsY: boolean;
+  };
+};
+
 const parseEdge = (value: string) => Number.parseFloat(value) || 0;
 let inspectionId = 0;
+
+const escapeCss = (value: string, ownerWindow: Window) => {
+  const css = (ownerWindow as Window & typeof globalThis).CSS;
+  return css?.escape ? css.escape(value) : value.replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`);
+};
+
+const normalizedFingerprintText = (element: Element) => {
+  const text = (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+  return text || null;
+};
 
 export function getRectFromDom(element: Element): Rect {
   const rect = element.getBoundingClientRect();
   return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+}
+
+export type DomHitTestTarget = Document | HTMLElement | ShadowRoot;
+
+export function getDomTreeRoot(element: Element): Document | ShadowRoot {
+  const root = element.getRootNode();
+  return root.nodeType === 11 ? root as ShadowRoot : element.ownerDocument;
+}
+
+const pointRoot = (target: DomHitTestTarget, ownerDocument: Document): Document | ShadowRoot => {
+  if (target.nodeType === 9 || target.nodeType === 11) return target as Document | ShadowRoot;
+  const root = getDomTreeRoot(target as HTMLElement);
+  return root.nodeType === 11 ? root : ownerDocument;
+};
+
+/** Resolve the deepest open-ShadowRoot element at a viewport point. */
+export function getDeepestElementAtPoint(
+  point: { x: number; y: number },
+  target: DomHitTestTarget,
+  ownerDocument: Document = target.nodeType === 9 ? target as Document : target.ownerDocument ?? document,
+): Element | null {
+  let current: Element | null = (pointRoot(target, ownerDocument) as Document | ShadowRoot & {
+    elementFromPoint?: (x: number, y: number) => Element | null;
+  }).elementFromPoint?.(point.x, point.y) ?? null;
+  while (current?.shadowRoot) {
+    const nested = (current.shadowRoot as ShadowRoot & {
+      elementFromPoint?: (x: number, y: number) => Element | null;
+    }).elementFromPoint?.(point.x, point.y) ?? null;
+    if (!nested || nested === current) break;
+    current = nested;
+  }
+  return current;
+}
+
+export function isElementWithinDomTarget(element: Element, target: DomHitTestTarget): boolean {
+  if (target.nodeType === 9) return true;
+  let current: Element | null = element;
+  while (current) {
+    if (target === current || target.contains(current)) return true;
+    const root = current.getRootNode();
+    if (root.nodeType !== 11) return false;
+    current = (root as ShadowRoot).host;
+  }
+  return false;
+}
+
+export function withPointerEventsDisabled<T>(element: HTMLElement | null, operation: () => T): T {
+  if (!element) return operation();
+  const elements = [element, ...element.querySelectorAll<HTMLElement>("*")];
+  const previous = elements.map((current) => [
+    current,
+    current.style.getPropertyValue("pointer-events"),
+    current.style.getPropertyPriority("pointer-events"),
+  ] as const);
+  for (const current of elements) current.style.setProperty("pointer-events", "none", "important");
+  try {
+    return operation();
+  } finally {
+    for (const [current, value, priority] of previous) {
+      if (value) current.style.setProperty("pointer-events", value, priority);
+      else current.style.removeProperty("pointer-events");
+    }
+  }
+}
+
+export function getElementSelector(element: Element): string {
+  const ownerWindow = element.ownerDocument.defaultView ?? window;
+  if (element.id) return `#${escapeCss(element.id, ownerWindow)}`;
+  const testId = element.getAttribute("data-testid");
+  if (testId) return `[data-testid=${JSON.stringify(testId)}]`;
+
+  const parts: string[] = [];
+  let current: Element | null = element;
+  while (current && parts.length < 5) {
+    let part = current.localName;
+    const parent: Element | null = current.parentElement;
+    if (parent) {
+      const siblings = [...parent.children].filter((candidate) => candidate.localName === current!.localName);
+      if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
+    }
+    parts.unshift(part);
+    current = parent;
+  }
+  return parts.join(" > ");
+}
+
+export function getElementFingerprint(element: Element): DomElementFingerprint {
+  return {
+    tag: element.localName,
+    id: element.id || null,
+    testId: element.getAttribute("data-testid"),
+    role: element.getAttribute("role"),
+    ariaLabel: element.getAttribute("aria-label"),
+    classes: [...element.classList],
+    text: normalizedFingerprintText(element),
+  };
+}
+
+export function isElementFingerprintRebindable(fingerprint: DomElementFingerprint): boolean {
+  return Boolean(
+    fingerprint.id
+    || fingerprint.testId
+    || fingerprint.role
+    || fingerprint.ariaLabel
+    || fingerprint.classes.length
+    || fingerprint.text,
+  );
+}
+
+export function isElementFingerprintCompatible(element: Element, fingerprint: DomElementFingerprint): boolean {
+  if (element.localName !== fingerprint.tag) return false;
+  if (fingerprint.id && element.id !== fingerprint.id) return false;
+  if (fingerprint.testId && element.getAttribute("data-testid") !== fingerprint.testId) return false;
+  if (fingerprint.role && element.getAttribute("role") !== fingerprint.role) return false;
+  if (fingerprint.ariaLabel && element.getAttribute("aria-label") !== fingerprint.ariaLabel) return false;
+
+  const hasStrongIdentity = Boolean(fingerprint.id || fingerprint.testId);
+  if (hasStrongIdentity) return true;
+
+  if (fingerprint.classes.some((className) => !element.classList.contains(className))) return false;
+  if (fingerprint.text && normalizedFingerprintText(element) !== fingerprint.text) return false;
+  return isElementFingerprintRebindable(fingerprint);
 }
 
 /**
@@ -94,5 +296,85 @@ export function getInspectMeasurement(
     margin,
     label: `${tag}${elementId}${className}`,
     elementRef: element,
+  };
+}
+
+export function inspectDomElement(element: Element): DomElementInspection {
+  const ownerWindow = element.ownerDocument.defaultView ?? window;
+  const style = ownerWindow.getComputedStyle(element);
+  const HTMLElementCtor = (ownerWindow as Window & typeof globalThis).HTMLElement;
+  const html = element instanceof HTMLElementCtor ? element : null;
+  const bounding = element.getBoundingClientRect();
+  const canonical = html ? getInspectMeasurement(html, ownerWindow) : null;
+  const number = (value: string) => {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const edges = (prefix: "margin" | "padding" | "border"): DomEdges => ({
+    top: number(style.getPropertyValue(`${prefix}-top${prefix === "border" ? "-width" : ""}`)),
+    right: number(style.getPropertyValue(`${prefix}-right${prefix === "border" ? "-width" : ""}`)),
+    bottom: number(style.getPropertyValue(`${prefix}-bottom${prefix === "border" ? "-width" : ""}`)),
+    left: number(style.getPropertyValue(`${prefix}-left${prefix === "border" ? "-width" : ""}`)),
+  });
+
+  return {
+    selector: getElementSelector(element),
+    tag: element.localName,
+    id: element.id || null,
+    classes: [...element.classList],
+    text: (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 500),
+    role: element.getAttribute("role"),
+    ariaLabel: element.getAttribute("aria-label"),
+    rect: {
+      left: bounding.left,
+      top: bounding.top,
+      right: bounding.right,
+      bottom: bounding.bottom,
+      width: bounding.width,
+      height: bounding.height,
+      x: bounding.x,
+      y: bounding.y,
+    },
+    margin: canonical?.margin ?? edges("margin"),
+    padding: canonical?.padding ?? edges("padding"),
+    border: edges("border"),
+    typography: {
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      lineHeight: style.lineHeight,
+      letterSpacing: style.letterSpacing,
+      textAlign: style.textAlign,
+      color: style.color,
+    },
+    appearance: {
+      backgroundColor: style.backgroundColor,
+      borderColor: style.borderColor,
+      borderRadius: style.borderRadius,
+      boxShadow: style.boxShadow,
+      opacity: style.opacity,
+    },
+    layout: {
+      display: style.display,
+      position: style.position,
+      zIndex: style.zIndex,
+      overflowX: style.overflowX,
+      overflowY: style.overflowY,
+      flexDirection: style.flexDirection,
+      alignItems: style.alignItems,
+      justifyContent: style.justifyContent,
+      gap: style.gap,
+      gridTemplateColumns: style.gridTemplateColumns,
+      gridTemplateRows: style.gridTemplateRows,
+      transform: style.transform,
+    },
+    scroll: {
+      clientWidth: html?.clientWidth ?? 0,
+      clientHeight: html?.clientHeight ?? 0,
+      scrollWidth: html?.scrollWidth ?? 0,
+      scrollHeight: html?.scrollHeight ?? 0,
+      overflowsX: (html?.scrollWidth ?? 0) > (html?.clientWidth ?? 0) + 1,
+      overflowsY: (html?.scrollHeight ?? 0) > (html?.clientHeight ?? 0) + 1,
+    },
   };
 }

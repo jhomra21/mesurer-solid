@@ -1,5 +1,6 @@
 import { For, Show, createSignal } from "solid-js";
 import { colorToHex, parseCssColor, type ColorPickerFormat } from "../core/colors";
+import { trySetPointerCapture } from "../core/events";
 import type { GuideStyle } from "../core/persistence";
 import type { MeasurerModel, SettingsTab } from "../model/create-measurer-model";
 import { Tooltip, createTooltip } from "./Tooltip";
@@ -65,7 +66,7 @@ function SliderControl(props: {
             class="msr:relative msr:min-w-0 msr:flex-1 msr:touch-none msr:select-none msr:px-2"
             style={{ height: "20px" }}
             data-slider-container="true"
-            onPointerDown={(event) => { event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId); updateFromPointer(event); }}
+            onPointerDown={(event) => { event.stopPropagation(); trySetPointerCapture(event.currentTarget, event.pointerId); updateFromPointer(event); }}
             onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updateFromPointer(event); }}
             onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
             onPointerCancel={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}

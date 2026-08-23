@@ -1,14 +1,15 @@
 # Mesurer Solid
 
-A framework-agnostic UI measurement, inspection, and extension layer for browser applications and coding agents, built as a Solid 2 port/remix and extension of [Mesurer](https://github.com/ibelick/mesurer), originally created by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick).
+A framework-agnostic UI measurement, inspection, annotation, and extension layer for browser applications and coding agents, built as a Solid 2 port/remix and extension of [Mesurer](https://github.com/ibelick/mesurer), originally created by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick).
 
 Mesurer Solid is implemented with Solid 2 internally, but that renderer/runtime is bundled into an isolated browser island. Host applications do **not** need Solid 2 and can use Solid 1, Solid 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer.
 
-Mesurer is useful in three ways:
+Mesurer is useful in four related ways:
 
 1. **Interactive devtool** — interactive selection, measurements, guides, rulers, text inspection, X-ray, color picking, distances, settings, history, and persistence.
-2. **Agent feedback API** — exact, JSON-safe DOM geometry and computed-style data that coding agents can read through the browser tool they already use.
-3. **Composable runtime** — built-ins and third-party extensions share one plugin host, so tools can be added, removed, replaced, or driven by stable commands at runtime.
+2. **Human/agent visual context** — optional annotations, arbitrary-region feedback, scoped context, deterministic review, and clean screenshot planning through the removable `mesurer.context` plugin.
+3. **Agent feedback API** — exact, JSON-safe DOM geometry and computed-style data that coding agents can read through the browser tool they already use.
+4. **Composable runtime** — built-ins and third-party extensions share one plugin host, so tools can be added, removed, replaced, or driven by stable commands at runtime.
 
 ## Mesurer in action
 
@@ -53,15 +54,22 @@ Mesurer runs as an isolated inspection layer over real applications, including c
 | Isolated UI | ShadowRoot isolation plus a protected host layer so application CSS/stacking is not allowed to casually hide the inspector. |
 | Browser top-layer mounting | Modern browsers promote the Mesurer host into a manual popover, escaping ordinary stacking contexts and ancestor clipping. |
 | Visual inspection tools | Select, X-ray, color picker, rulers, text inspector, guides, distance overlay, and settings. |
+| Human annotations | Element or arbitrary-region notes with conservative HMR rebinding and immutable scoped baselines. |
+| Scoped visual context | `MesurerContextV1` combines intent with inspected targets, regions, relevant guides, measurements, distances, and visual state. |
+| Deterministic revalidation | `review()` compares fresh rendered evidence to an annotation baseline and reports changed or missing evidence. |
+| Clean screenshot planning | Viewport plus optional focus capture plans; Mesurer chrome can be hidden while visual evidence remains. |
 | Exact element inspection | Rect, margin, padding, border, typography, appearance, layout, scroll size, and overflow state. |
 | Geometry comparison | Horizontal/vertical gaps and center deltas between elements. |
 | Viewport diagnostics | Viewport/document dimensions, DPR, scroll position, and page overflow signals. |
 | Agent iteration snapshots | `feedback()` combines requested element measurements, viewport state, loaded capabilities, and plugin state. |
-| Stable command surface | Agents and extensions can execute built-in or plugin commands without simulating toolbar clicks. |
+| Stable command surface | Agents and extensions can execute built-in or plugin commands without simulating toolbar clicks or keyboard events. |
 | Runtime extensions | Plugins can register tools, commands, hooks, overlays, settings contributions, state, services, and disposal logic. |
+| Canonical plugin toolbar | Plugin tools render through the same toolbar button/tooltip path as built-ins rather than a second injected toolbar implementation. |
 | Hot replacement | Plugins can be loaded, removed, or replaced while the mounted instance is alive. Built-in slots can be replaced while retaining stable `builtin.*` command names and shortcuts. |
 | History and persistence | Plugin state slices can opt into undo/redo history and browser persistence. Mesurer settings/workspace state can also persist. |
-| Transport-neutral injection | A self-contained classic script can be evaluated by an existing browser harness without requiring Playwright or a second CDP connection. |
+| Arbitrary-site extension | A thin first-party Manifest V3 extension injects the same built runtime without modifying website source. |
+| Portable Agent Skill | One self-contained `mesurer-ui` Agent Skill teaches compatible harnesses the workflow and includes the exact classic injector. |
+| Transport-neutral injection | The same self-contained classic script can be evaluated by an existing browser harness without requiring Playwright or a second CDP connection. |
 | Deterministic reinjection | Injecting again disposes the previous injected instance before mounting the new one. |
 
 ## The rendered page is the source of truth
@@ -73,26 +81,27 @@ A source file saying `gap: 16px`, `align-items: center`, or `width: 100%` does *
 The default design loop is:
 
 ```text
-user requests a UI/design change
+human request / Mesurer annotation
+  → agent reads scoped rendered context
   → agent edits the implementation
   → real app renders / HMR settles
   → __MESURER__.stable()
-  → __MESURER__.feedback([...important selectors])
-  → outer harness takes a screenshot
+  → __MESURER__.review(annotationId) and/or feedback(...)
+  → outer harness takes real screenshots when useful
   → agent compares exact measurements + pixels to the request
   → agent fixes discrepancies
   → repeat until the rendered result supports the claim
 ```
 
-Use Mesurer to validate statements such as “these edges align,” “the gap is 16 px,” “all buttons are the same height,” “there is no horizontal overflow,” or “this heading is actually using the intended font.” Use the screenshot to judge composition, hierarchy, balance, clipping, and the things that remain visual rather than numeric.
+Use Mesurer to validate statements such as “these edges align,” “the gap is 16 px,” “all buttons are the same height,” “there is no horizontal overflow,” or “this heading is actually using the intended font.” Use screenshots to judge composition, hierarchy, balance, clipping, and the things that remain visual rather than numeric.
 
-See [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md) for the practical agent workflow and examples.
+See [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md) for the practical agent workflow and [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) for the annotation/context model.
 
 ## What Mesurer deliberately does not own
 
-Mesurer is **not** a browser driver or an agent orchestration server. It does not own navigation, clicking, typing, screenshots, tabs, authentication, browser lifetime, source editing, or a network RPC listener. Those responsibilities stay with Playwright, Chrome DevTools Protocol, Cypress, a coding-agent browser tool, Electron, or whatever outer harness already controls the page.
+Mesurer is **not** a browser driver or an agent orchestration server. It does not own navigation, clicking, typing, screenshots, tabs, authentication, browser lifetime, source editing, dev servers, or an ACP process/session. Those responsibilities stay with Playwright, Chrome DevTools Protocol, Cypress, a coding-agent browser tool, Electron, or whatever outer harness already controls the page.
 
-That separation is intentional: Mesurer measures and exposes UI state; the outer harness interacts with the browser.
+That separation is intentional: Mesurer measures, annotates, and exposes visual state; the outer harness interacts with the browser and edits the project.
 
 ## Install
 
@@ -113,12 +122,14 @@ bun add -d @jhomra21/mesurer-solid@beta
 | Goal | Recommended path |
 | --- | --- |
 | Inspect a website you are developing | Install the package and call `mountMeasurer()` in browser/client code. |
-| Inspect any website manually | Save the published `/inject-script` payload as a browser DevTools Snippet and run it on the current page. |
-| Use Mesurer from a coding agent | Reuse the agent's existing browser/evaluation channel and inject `/inject-script`. |
+| Add human annotations/context to an embedded inspector | Mount with `plugins: [contextPlugin()]`. |
+| Inspect any Chromium website manually | Use the first-party extension; keep the DevTools Snippet as the no-extension fallback. |
+| Use Mesurer from a coding agent | Install the portable Agent Skill or reuse the package `/inject-script`, then evaluate it through the harness's existing browser channel. |
 | Use Mesurer from Playwright, CDP, Cypress, Electron, or another harness | Reuse the harness that already owns the page/renderer and inject. |
+| Deliver context directly to an agent | Use the ACP session already owned by the host; Mesurer maps context/images to ACP content blocks. |
 | Build or replace Mesurer tools | Use the public `/core` plugin/runtime API. |
 
-The same runtime powers all of these paths. Use the visible toolbar directly; agents and automation can use the JSON-safe bridge and stable commands.
+The same runtime powers all of these paths. Humans use the visible toolbar directly; agents and automation use the JSON-safe bridge, scoped context, and stable commands.
 
 ## Quick start — use Mesurer in your own website
 
@@ -152,11 +163,74 @@ if (import.meta.env.DEV) {
 
 The host application does not need Solid 2. Mesurer carries its own isolated renderer/runtime.
 
+### Add annotations and agent context as a plugin
+
+The human/agent context workflow is a normal removable extension:
+
+```ts
+import {
+  contextPlugin,
+  mountMeasurer,
+} from "@jhomra21/mesurer-solid";
+
+const mesurer = mountMeasurer({
+  agent: true,
+  plugins: [contextPlugin()],
+});
+```
+
+`mesurer.context` provides the `context:v1` service and owns annotation state, Copy Context/Copy Selection/Add Note tools, shortcuts, review/capture behavior, optional delivery callbacks, and cleanup. The actions appear in the existing draggable toolbar because plugin tools use the same canonical button renderer as built-ins.
+
+```ts
+const workspace = await mesurer.context();
+const selected = await mesurer.context({ scope: "selection" });
+const annotation = await mesurer.context({ annotation: annotationId });
+await mesurer.copyContext({ annotation: annotationId });
+```
+
+A selection can contain DOM elements or only a dragged visual region. Scoped contexts expose their requested viewport rectangles in `regions`, so feedback such as “this whitespace is too large” remains useful even when no DOM element is the right target.
+
+After a source edit/HMR cycle:
+
+```ts
+const review = await mesurer.review(annotationId);
+```
+
+Review uses stable annotation target IDs, conservative target rebinding, like-for-like scoped evidence, and explicit `kind: "missing"` changes when relevant evidence disappears.
+
+Remove the complete feature through the same plugin host used by every extension:
+
+```ts
+mesurer.pluginHost?.remove("mesurer.context");
+console.log(mesurer.agent.capabilities().capabilities.context); // false
+```
+
 ## Quick start — use Mesurer on any website
 
-You do not need to modify a website's source to use Mesurer manually. The current no-extension workflow is to save the published self-contained `inject-script` as a DevTools Snippet once, then run that snippet on whatever page you are inspecting.
+### Recommended: first-party browser extension
 
-### One-time setup
+The first-party Manifest V3 extension is the easiest zero-source-change path for arbitrary Chromium pages. During repository/beta development:
+
+```bash
+bun install
+bun run build
+```
+
+Then:
+
+1. Open Chrome/Edge extensions and enable Developer mode.
+2. Choose **Load unpacked**.
+3. Select `extension/dist/`.
+4. Visit an ordinary `http:` or `https:` page.
+5. Click the Mesurer extension action to toggle Mesurer on/off.
+
+The extension requests `activeTab` and `scripting`, not persistent access to every website. Browser-protected pages such as `chrome://` pages cannot be injected.
+
+The extension is only a distribution shell: its build copies the exact public `inject-script` artifact, which mounts the same runtime and `mesurer.context` plugin used everywhere else. See [`extension/README.md`](./extension/README.md).
+
+### No-extension fallback: DevTools Snippet
+
+You can still save the published self-contained `inject-script` as a DevTools Snippet once and run it on whatever page you are inspecting.
 
 In any throwaway folder, install the package and write the published injection payload to a file:
 
@@ -165,47 +239,51 @@ npm install @jhomra21/mesurer-solid@beta
 node --input-type=module -e "import { readFileSync } from 'node:fs'; import { fileURLToPath } from 'node:url'; process.stdout.write(readFileSync(fileURLToPath(import.meta.resolve('@jhomra21/mesurer-solid/inject-script')), 'utf8'))" > mesurer-snippet.js
 ```
 
-Then in a Chromium browser such as Chrome or Edge:
+Then in Chrome or Edge:
 
 1. Open DevTools.
 2. Open **Sources → Snippets**.
 3. Create a snippet named `Mesurer`.
 4. Paste the contents of `mesurer-snippet.js` into it and save.
+5. Visit a page and run the snippet (`Cmd/Ctrl+Enter`).
 
-### Use it on a page
+Re-running the payload on the same page is safe: Mesurer disposes the previous injected instance before mounting the new one. A full page navigation/reload removes in-page injection until the extension or snippet runs again.
 
-1. Visit the website you want to inspect.
-2. Open DevTools → **Sources → Snippets**.
-3. Run the saved `Mesurer` snippet (`Cmd/Ctrl+Enter`).
-4. Use the Mesurer toolbar directly on the page.
-5. Run the snippet again after a full page navigation/reload when you want Mesurer back.
-
-Re-running the payload on the same page is safe: Mesurer disposes the previous injected instance before mounting the new one.
-
-This saved-snippet path requires a desktop browser that allows DevTools JavaScript execution in the current page. Mesurer does not bypass browser security boundaries. A first-party browser extension is not currently shipped; the saved DevTools Snippet is the current zero-source-change path for arbitrary websites.
-
-## Agent quick start — inject into your existing harness
+## Agent quick start — discover once, reuse any harness
 
 **Using Mesurer from an agent should normally require no changes to the target application's source or build.**
 
-The default host-project mutation budget is **zero**. If the harness can execute JavaScript in the current browser page, Electron renderer, WebView, or other DOM host, reuse that path:
+Mesurer does not ship OpenCode-, Pi-, Cursor-, Codex-, or other harness-specific adapter packages. Instead it ships one Agent Skill plus one browser contract.
+
+Install the portable skill into the current repository:
+
+```bash
+npx --yes --package=@jhomra21/mesurer-solid@beta mesurer-skill install
+```
+
+The transient installer leaves a self-contained directory:
+
+```text
+.agents/skills/mesurer-ui/
+├── SKILL.md
+└── assets/
+    └── inject-script.js
+```
+
+The skill teaches compatible agents when to use Mesurer, to read human annotations before editing, to revalidate after HMR, and to use the harness/browser's existing screenshot primitive. The included injector is byte-for-byte the package's built `inject-script.js`, so the npm package does not need to remain installed in application source after the skill installer exits.
+
+If the harness can execute JavaScript in the current browser page, Electron renderer, WebView, or other DOM host, reuse that path:
 
 ```text
 existing harness
   → existing page / renderer
-  → evaluate @jhomra21/mesurer-solid/inject-script
+  → evaluate skill asset or @jhomra21/mesurer-solid/inject-script
   → window.__MESURER__
 ```
 
-Do **not** add Mesurer to application source, create a Mesurer-specific build, add another browser/CDP stack, or introduce project-specific `start:mesurer` / `package:mesurer` commands merely to inspect the UI. Convenience integration is optional only when the user explicitly wants Mesurer embedded or automatically present on every development launch.
+Do **not** add Mesurer to application source, create a Mesurer-specific build, add another browser/CDP stack, or introduce project-specific browser orchestration merely to inspect the UI. Convenience source integration is optional only when the user explicitly wants Mesurer embedded or automatically present on every development launch.
 
-The transport-neutral agent entry point is:
-
-```text
-@jhomra21/mesurer-solid/inject-script
-```
-
-Resolve/read it as text and evaluate it through the JavaScript-execution primitive the harness already owns:
+If the package is already installed, resolve/read the transport-neutral entry point and evaluate it through the JavaScript-execution primitive the harness already owns:
 
 ```js
 import { readFile } from "node:fs/promises";
@@ -227,20 +305,20 @@ window.__MESURER__          JSON-safe agent API
 window.__MESURER_INSTANCE__ advanced mounted instance/pluginHost access
 ```
 
-Reinjection is deterministic: the previous injected instance is disposed before the next one mounts.
+After injection, wait for `ready()` **before** reading dynamic context capabilities:
 
-For packaged applications, prefer the **ordinary packaged artifact** plus an existing attach/evaluate channel. If that artifact can be launched with CDP enabled, launch the same artifact, attach the existing harness, and inject Mesurer. Do not compile Mesurer into a special package merely to inspect the packaged app.
+```js
+await window.__MESURER__.ready()
+window.__MESURER__.capabilities()
+```
 
-| Situation | Mesurer workflow |
-| --- | --- |
-| Harness already has browser JavaScript execution | **Inject `/inject-script`** |
-| Electron renderer is reachable through existing CDP | **Attach the existing harness + inject** |
-| Normal packaged app can be launched with CDP | **Launch the same artifact + inject** |
-| User explicitly wants Mesurer every development launch | `mountMeasurer()` may be appropriate |
-| No renderer evaluation path exists | Explain the limitation, then consider source integration |
-| Agent wants to create a new browser, command, or build just for Mesurer | **Don't; reuse the existing harness** |
+Injection installs `contextPlugin()` by default. A harness that deliberately wants only the low-level inspector can set:
 
-Before injection, a harness may optionally set `window.__MESURER_CONFIG__`:
+```js
+window.__MESURER_CONFIG__ = { context: false };
+```
+
+Other injection options remain available:
 
 ```js
 window.__MESURER_CONFIG__ = {
@@ -251,13 +329,65 @@ window.__MESURER_CONFIG__ = {
 };
 ```
 
+Reinjection is deterministic: the previous injected instance is disposed before the next one mounts.
+
+For packaged applications, prefer the **ordinary packaged artifact** plus an existing attach/evaluate channel. If that artifact can be launched with CDP enabled, launch the same artifact, attach the existing harness, and inject Mesurer. Do not compile Mesurer into a special package merely to inspect the packaged app.
+
+| Situation | Mesurer workflow |
+| --- | --- |
+| Harness already has browser JavaScript execution | **Evaluate the installed skill asset or `/inject-script`** |
+| Electron renderer is reachable through existing CDP | **Attach the existing harness + inject** |
+| Normal packaged app can be launched with CDP | **Launch the same artifact + inject** |
+| User explicitly wants Mesurer every development launch | `mountMeasurer()` may be appropriate |
+| No renderer evaluation path exists | Explain the limitation, then consider source integration |
+| Agent wants to create a new browser, command, or build just for Mesurer | **Don't; reuse the existing harness** |
+
 Harnesses that specifically support ES-module script injection may use `@jhomra21/mesurer-solid/inject` instead. `/inject-script` is the transport-neutral default for generic browser evaluation APIs.
 
-The repository also includes a Playwright reference adapter for manual testing/CI, but it is **not** the agent integration API. Do not launch it when the outer harness already has browser execution capability. See [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md) and [`AGENTS.md`](./AGENTS.md).
+The repository also includes a Playwright reference adapter for manual testing/CI, but it is **not** the agent integration API. Do not launch it when the outer harness already has browser execution capability. See [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md), [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md), and [`AGENTS.md`](./AGENTS.md).
+
+## Human-in-the-loop annotation workflow
+
+With `mesurer.context` loaded, people can select one or more elements **or drag an arbitrary region** and add a note. The note is intent; exact DOM geometry, guides, measurements, distances, visual toggles, and screenshots are evidence.
+
+```js
+await window.__MESURER__.ready()
+const annotations = await window.__MESURER__.annotations()
+const context = await window.__MESURER__.context({ annotation: annotations[0].id })
+
+// agent edits normal project source, then HMR updates the page
+await window.__MESURER__.stable()
+const review = await window.__MESURER__.review(annotations[0].id)
+```
+
+Element annotations retain the exact live node while it remains connected. After replacement, Mesurer only rebinds when strong identity or a unique compatible weaker fingerprint proves the target. Ambiguous or incompatible replacements remain stale instead of silently moving the user's note to another element.
+
+The annotation baseline is scoped using the same deterministic relevance rules as current context. Targets are compared by immutable annotation target ID rather than regenerated selector strings; relevant guides, measurements, distances, or targets that disappear are reported explicitly as `kind: "missing"`.
+
+See [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md).
+
+## Clean screenshot evidence
+
+Mesurer does not render a fake DOM screenshot. The outer browser/harness owns the real screenshot primitive.
+
+```js
+const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
+await window.__MESURER__.prepareCapture()
+try {
+  // capture the real current viewport
+  // when present, also capture/crop plan.captures.find(c => c.id === "focus")
+} finally {
+  await window.__MESURER__.finishCapture()
+}
+```
+
+Capture mode hides toolbar/settings/comment/action chrome while preserving rulers, guides, selected outlines, annotations, measurements, distances, and pixel labels. A focused crop includes scoped `regions`, so an element-free whitespace/alignment note still gets close-up evidence.
+
+Use screenshots together with structured context: geometry is stronger for exact spacing/alignment claims; images are stronger for surrounding composition and visual judgment.
 
 ## App integration API — mount from source
 
-Use `mountMeasurer()` when Mesurer should be embedded in a browser application or automatically present during development. The quick start above uses this same API; this section shows its lifecycle and optional agent bridge.
+Use `mountMeasurer()` when Mesurer should be embedded in a browser application or automatically present during development. This section shows its lifecycle and optional agent bridge.
 
 ```ts
 import { mountMeasurer } from "@jhomra21/mesurer-solid";
@@ -287,6 +417,8 @@ The mounted instance exposes:
 - `describe()` — current plugin/capability description.
 - `dispose()` — removes the Mesurer island and associated globals/listeners.
 
+With `contextPlugin()` loaded, the mounted instance also exposes `context()`, `contextText()`, `copyContext()`, `annotations()`, `review()`, `capturePlan()`, `prepareCapture()`, `finishCapture()`, and `sendContext()`. These convenience methods resolve the live plugin service; they are not a second context implementation.
+
 Useful mount options include `target`, `isolate`, `shadowMode`, `topLayer`, colors, guide/ruler settings, persistence configuration, external `plugins`, `excludePlugins`, a supplied `pluginHost`, and agent bridge configuration.
 
 See [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) for the host-page layering contract, adversarial test strategy, and explicit guarantee boundaries.
@@ -301,13 +433,20 @@ The default global is `window.__MESURER__`.
 | `stable(frames?)` | Wait for fonts plus one or more animation frames after HMR or UI edits. |
 | `inspect(selector, index?)` | Inspect one matching element. |
 | `inspectAll(selector, limit?)` | Inspect multiple matching elements, default limit 50. |
-| `at(x, y)` | Inspect the element under a viewport coordinate. |
+| `at(x, y)` | Inspect the element under a viewport coordinate, respecting a configured agent root. |
 | `distance(a, b)` | Compare two elements by gap and center deltas. |
 | `viewport()` | Read viewport/document dimensions, DPR, scrolling, and overflow. |
 | `feedback(selectors?)` | Get one iteration snapshot containing viewport, requested elements, plugin capabilities, and plugin state. |
 | `describe()` | List loaded plugins, tools, settings, overlays, state slices, commands, hooks, and services. |
 | `command(id, args?)` | Execute a built-in or extension command. |
 | `state()` | Serialize all plugin-owned state. |
+| `capabilities()` | Report dynamic context/review/capture/send capabilities when using the browser bridge. |
+| `context(request?)` | Capture workspace, selection, or annotation-scoped visual context. |
+| `contextText(request?)` | Format the same context into deterministic copy/prompt text. |
+| `annotations()` | Read current human annotations. |
+| `review(annotationId?)` | Compare annotation baselines against the current rendered page. |
+| `capturePlan(request?)` | Describe viewport/focus screenshot evidence. |
+| `prepareCapture()` / `finishCapture()` | Hide/restore Mesurer chrome around a real harness screenshot. |
 
 An element inspection includes identity/text plus:
 
@@ -320,13 +459,15 @@ layout: display, position, z-index, overflow, flex/grid fields, transform
 scroll: client/scroll dimensions and overflow booleans
 ```
 
+When an agent is configured with a scoped root, `inspect()`, `inspectAll()`, `distance()`, and `at()` all respect that root. A document-level `elementFromPoint()` fallback is discarded unless the hit element belongs to the configured root.
+
 For meaningful UI/design changes, this loop should be the default verification step, not an optional final check:
 
 ```text
 edit or interact through the outer harness
   → __MESURER__.stable()
-  → __MESURER__.feedback([...important selectors])
-  → take a screenshot with the outer harness
+  → __MESURER__.review(annotationId) and/or feedback([...important selectors])
+  → take a real screenshot with the outer harness when useful
   → compare exact geometry + visual pixels
   → repeat
 ```
@@ -347,7 +488,7 @@ builtin.guides
 builtin.settings
 ```
 
-They follow the same behavior path as the corresponding visible controls. The distance feature is an overlay capability rather than a standalone `builtin.distance` command.
+Toolbar clicks, human shortcuts, and programmatic `builtin.*` commands converge on the same controller owned by that renderer instance. Programmatic commands do not depend on toolbar labels, button `.click()`, or synthetic window `keydown` events. The distance feature is an overlay capability rather than a standalone `builtin.distance` command.
 
 ## Plugins and extension composition
 
@@ -419,6 +560,8 @@ mounted.pluginHost?.remove("example.counter");
 await mounted.pluginHost?.replace(nextCounterPlugin);
 ```
 
+Plugin tool contributions are rendered by the canonical `ToolbarButton` path, including icon, active/disabled, tooltip, and shortcut presentation. There is no extension-only toolbar renderer or perpetual DOM-discovery loop.
+
 ### Customize Mesurer by asking your agent
 
 Users do not need to hand-author plugin code. A normal workflow can be:
@@ -437,7 +580,9 @@ Built-ins use the same host. You can exclude them with `excludePlugins`, or repl
 
 Renderer-aware plugins can request the `runtime:solid` capability through `ctx.service.get("runtime:solid")`. That service provides owner document/window, the portal target, and a `createInspectorMount()` helper for plugin-owned UI. The service is intentionally opaque; extension code should not import private renderer workspaces.
 
-See [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md) for practical extension ideas and [`AGENTS.md`](./AGENTS.md) for the coding-agent contract.
+`contextPlugin()` follows this same architecture. Removing `mesurer.context` removes its tools, annotation UI/state, observation/listeners, service, and shortcuts while the base inspector keeps running.
+
+See [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md) for practical extension ideas, [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) for the human/agent extension, and [`AGENTS.md`](./AGENTS.md) for the coding-agent contract.
 
 ## Built-in feature composition
 
@@ -458,7 +603,19 @@ import {
 } from "@jhomra21/mesurer-solid";
 ```
 
-This lets an integration start with the default feature set, exclude selected built-ins, or compose a custom set without forking Mesurer.
+This lets an integration start with the default feature set, exclude selected built-ins, or compose a custom set without forking Mesurer. `contextPlugin()` is intentionally separate from the default source-mounted built-ins, while generic injection and the browser extension install it by default for the human/agent workflow.
+
+## ACP delivery
+
+Mesurer does not discover agents, manage their processes, or choose sessions. The ACP client/harness that already owns the target session sends Mesurer output.
+
+```ts
+import { toAcpContentBlocks } from "@jhomra21/mesurer-solid";
+
+const blocks = toAcpContentBlocks(context, images);
+```
+
+The result is one deterministic context text block plus optional labeled image blocks. The caller performs ACP initialization/capability negotiation and its normal `session/prompt` flow. If image prompts are unsupported, send the text block only. `contextText()` / **Copy context** remains the universal fallback.
 
 ## Public package surface
 
@@ -471,10 +628,12 @@ There is one npm package with four primary public entry points:
 @jhomra21/mesurer-solid/inject-script
 ```
 
-- root — mount API, agent harness/types, plugin types/helpers, built-in plugin factories.
+- root — mount API, agent/context types and helpers, plugin factories, and the bundled renderer.
 - `/core` — framework-neutral plugin/runtime primitives.
 - `/inject` — ES-module side-effect injector for browser automation.
 - `/inject-script` — self-contained classic-script payload for generic JavaScript evaluation.
+
+Only `@jhomra21/mesurer-solid` is published. Private core/DOM/renderer workspaces are bundled and must not leak into public JS/declaration artifacts. The public context declarations remain self-contained while compile-time contract assertions prevent the internal framework-neutral annotation model from silently drifting away from the public JSON shapes.
 
 ## Compatibility and host-page isolation
 
@@ -498,11 +657,13 @@ Electron main-process code is not a DOM host. Mount or inject Mesurer inside ren
 
 The package build fails if public artifacts leak private workspace package names or leave Solid as a runtime dependency for the host application.
 
+X-ray preserves the established full-page behavior for body/document mounts while its lifecycle is reference-counted per document, so disposing one Mesurer instance cannot turn off another active instance. Element and ShadowRoot mounts scope X-ray to their own target.
+
 ## Visual and behavioral parity
 
 The default renderer continues to track the pinned upstream Mesurer UI and behavior. CI compares the Solid renderer against the pinned React reference through screenshot parity, explicit control/icon geometry contracts, interaction gates, and native-3× captures.
 
-Framework independence and plugin composition are architectural changes; they are not permission to silently drift the default UI.
+Framework independence and plugin composition are architectural changes; they are not permission to silently drift the default UI. New plugin tools use the same toolbar primitives rather than introducing a visually separate action bar.
 
 ## Development
 
@@ -521,12 +682,19 @@ bun run build
 
 The package-smoke workflow packs the exact sanitized npm artifact, installs it into clean consumer hosts, evaluates the packed `inject-script.js` from a React page with no Mesurer source import, and exercises the host-isolation regression contract.
 
+`bun run build` also writes the unpacked MV3 extension to `extension/dist/`. The public-package build smoke-installs the portable Agent Skill into a temporary project and verifies the installed `assets/inject-script.js` exactly matches the built injector bytes.
+
+Agent-session/ACP ownership flows should additionally be exercised locally with actual harnesses because CI cannot meaningfully stand in for a user's live local coding-agent/browser session.
+
 For repository work, also read:
 
 - [`AGENTS.md`](./AGENTS.md) — coding-agent integration and contribution instructions.
 - [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md) — the inject-first browser/Electron harness contract.
 - [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md) — how to keep Mesurer in the UI implementation/validation loop.
+- [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — annotations, scoped context, review, screenshots, Agent Skill, and ACP delivery.
 - [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) — cross-site layering/occlusion invariants and adversarial tests.
+- [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md) — harness-facing browser/context contract.
+- [`extension/README.md`](./extension/README.md) — first-party browser extension workflow.
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — internal boundaries and invariants.
 - [`RELEASING.md`](./RELEASING.md) — release workflow; do not manually publish normal releases.
 - [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md) — upstream attribution.

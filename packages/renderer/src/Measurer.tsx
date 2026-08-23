@@ -1,13 +1,15 @@
 import { Show, createEffect, createMemo, createSignal, onSettled, untrack } from "solid-js";
 import { Portal } from "@solidjs/web";
+import type { ToolContribution } from "@jhomra21/mesurer-solid-core";
 import { ColorPicker } from "./components/ColorPicker";
 import { MeasurerOverlay } from "./components/MeasurerOverlay";
 import { RulersOverlay } from "./components/RulersOverlay";
 import { Toolbar } from "./components/Toolbar";
-import { formatColor, parseCssColor, type ColorPickerFormat } from "./core/colors";
+import type { ColorPickerFormat } from "./core/colors";
 import { GUIDE_DRAG_HOLD_MS } from "./core/constants";
 import { getDistanceOverlay, updateDistanceForResize } from "./core/distances";
 import { getInspectMeasurement, updateMeasurementForResize } from "./core/dom";
+import { isEditableKeyboardEvent, trySetPointerCapture } from "./core/events";
 import { getRectFromPoints, getViewportSize } from "./core/geometry";
 import { getGuideRect, getSnapGuidePosition } from "./core/guides";
 import {
@@ -34,15 +36,20 @@ import {
   type SelectionEntriesCache,
 } from "./core/selection";
 import { getSelectedMeasurementHit } from "./core/selection-helpers";
-import type { Guide, InspectMeasurement, Point, Rect, ToolMode } from "./core/types";
+import type { Guide, InspectMeasurement, Point, Rect } from "./core/types";
 import { createId } from "./core/utils";
 import {
   createMeasurerModel,
   type MeasurerModel,
   type MeasurerSettings,
 } from "./model/create-measurer-model";
+import {
+  createMeasurerBuiltinController,
+  type MeasurerBuiltinController,
+} from "./runtime/builtin-actions";
 import { ensureMeasurerStyles } from "./runtime/style-inject";
 import { createTextInspector, type TextInspectorAPI } from "./runtime/text-inspector";
+import { createXrayScope } from "./runtime/xray-scope";
 import { MESURER_STYLES } from "./styles.generated";
 
 export type MeasurerProps = {
@@ -51,6 +58,8 @@ export type MeasurerProps = {
   hoverHighlightEnabled?: boolean;
   persistOnReload?: boolean;
   portalTarget?: HTMLElement | ShadowRoot;
+  /** Host-page scope for page-facing visual effects such as X-ray. Defaults to document.body. */
+  pageTarget?: HTMLElement | ShadowRoot;
   persistKey?: string;
   colorPickerFormats?: ColorPickerFormat[];
   colorPickerClickFormat?: ColorPickerFormat;
@@ -62,6 +71,10 @@ export type MeasurerProps = {
   rulerSettings?: Partial<RulerSettings>;
   persistence?: MesurerPersistence;
   onPersistenceError?: (error: unknown) => void;
+  /** Internal composable-runtime contributions rendered by the canonical toolbar. */
+  pluginTools?: ToolContribution[];
+  onPluginTool?: (tool: ToolContribution) => void;
+  onBuiltinController?: (controller: MeasurerBuiltinController | null) => void;
 };
 
 type Environment = {
@@ -72,28 +85,10 @@ type Environment = {
   ownedPortalMount: boolean;
 };
 
-type EyeDropperResult = { sRGBHex: string };
-type EyeDropperLike = { open: () => Promise<EyeDropperResult> };
-type WindowWithEyeDropper = Window & { EyeDropper?: new () => EyeDropperLike };
-
 let instanceCount = 0;
 const TAB_ID_KEY = "mesurer:tab-id";
 const SETTINGS_STORAGE_KEY = "mesurer-settings";
 const LEGACY_STORAGE_KEY = "mesurer-state";
-const XRAY_STYLE_ID = "mesurer-solid-xray-styles";
-const XRAY_STYLES = `
-.mesurer-solid-xray *{outline:solid 1px #2563eb!important}
-.mesurer-solid-xray [data-mesurer-root],.mesurer-solid-xray [data-mesurer-root] *{outline:none!important}
-.mesurer-solid-xray .mesurer-ti-box,.mesurer-solid-xray .mesurer-ti-card,.mesurer-solid-xray .mesurer-ti-card *{outline:none!important}
-`;
-
-const isEditable = (target: EventTarget | null, ownerWindow: Window) => {
-  const realm = ownerWindow as Window & typeof globalThis;
-  return target instanceof realm.HTMLElement && (
-    target.isContentEditable || target instanceof realm.HTMLInputElement ||
-    target instanceof realm.HTMLTextAreaElement || target instanceof realm.HTMLSelectElement
-  );
-};
 
 const getTabId = (ownerWindow: Window) => {
   try {
@@ -148,6 +143,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   const env = untrack(() => props.env);
   const input = untrack(() => props.input);
   const { ownerDocument, ownerWindow } = env;
+  const pageTarget = input.pageTarget ?? ownerDocument.body;
   const instanceId = ++instanceCount;
   const storageKey = input.persistKey ?? `mesurer-state:${getTabId(ownerWindow)}${instanceId === 1 ? "" : `:${instanceId}`}`;
   const selectionCache: SelectionEntriesCache = { key: "", entries: [], overlayNode: null, frame: -1 };
@@ -163,6 +159,13 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   let guideDragHoldTimer = 0;
   let guideDragHoldId: string | null = null;
   let scrollPosition = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
+  const builtinController = createMeasurerBuiltinController({ model, ownerWindow });
+  const xrayScope = createXrayScope({
+    ownerDocument,
+    target: input.pageTarget ?? ownerDocument.body,
+    instanceId,
+  });
+  input.onBuiltinController?.(builtinController);
 
   const activeRect = createMemo(() => {
     const start = model.state.start, end = model.state.end;
@@ -216,7 +219,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   });
 
   const updateHover = (point: Point) => {
-    const target = getTargetElement(point, rootElement, ownerDocument);
+    const target = getTargetElement(point, rootElement, ownerDocument, pageTarget);
     if (!target) {
       model.setHoverTarget(null, null);
       return;
@@ -303,7 +306,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
       model.setSelectedGuideIds(model.current.settings.selectNewGuideEnabled ? [id] : []);
       model.setTransient({ guidePreview: null });
       scheduleGuideDragHold(id);
-      event.currentTarget.setPointerCapture?.(event.pointerId);
+      trySetPointerCapture(event.currentTarget, event.pointerId);
       return;
     }
 
@@ -317,7 +320,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
       ? (getSelectedMeasurementHit({ point, selectedMeasurements: model.current.selectedMeasurements, overlayNode: rootElement, document: ownerDocument })?.elementRef ?? null)
       : null;
     model.setTransient({ start: point, end: point, isDragging: false, selectionOriginRect: null });
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    trySetPointerCapture(event.currentTarget, event.pointerId);
   };
 
   const pointerMove = (event: PointerEvent) => {
@@ -365,7 +368,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
 
     if (model.current.isDragging) {
       const rect = getRectFromPoints(start, point);
-      const elements = getElementsInRectCached(rect, rootElement, selectionCache, ownerDocument);
+      const elements = getElementsInRectCached(rect, rootElement, selectionCache, ownerDocument, pageTarget);
       const next = elements.map((element) => ({ ...getInspectMeasurement(element, ownerWindow), originRect: rect }));
       let merged: InspectMeasurement[] = next;
       if (event.shiftKey) {
@@ -393,9 +396,9 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
     }
 
     const target = event.shiftKey
-      ? (getTargetElement(point, rootElement, ownerDocument) ??
-        getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument))
-      : getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument);
+      ? (getTargetElement(point, rootElement, ownerDocument, pageTarget) ??
+        getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument, pageTarget))
+      : getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument, pageTarget);
     if (target) {
       const measurement = getInspectMeasurement(target, ownerWindow);
       model.checkpoint();
@@ -433,7 +436,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
     }
     model.setSelectedGuideIds([guide.id]);
     model.setTransient({ draggingGuideId: guide.id });
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    trySetPointerCapture(event.currentTarget, event.pointerId);
   };
   const guidePointerUp = (_guide: Guide, event: PointerEvent & { currentTarget: HTMLDivElement }) => {
     event.stopPropagation();
@@ -467,26 +470,6 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   };
   const cancelGuideFromRuler = (id: string) => model.setGuides(model.current.guides.filter((item) => item.id !== id));
 
-  const openColorPicker = async () => {
-    model.setEnabled(true, !model.current.enabled);
-    model.setToolMode("none", model.current.toolMode !== "none");
-    const EyeDropper = (ownerWindow as WindowWithEyeDropper).EyeDropper;
-    model.setTransient({ colorPickerActive: true, colorPickerSample: null, colorPickerUnsupported: !EyeDropper });
-    if (!EyeDropper) return;
-    try {
-      const result = await new EyeDropper().open();
-      const sample = parseCssColor(result.sRGBHex);
-      if (!sample) return;
-      model.setTransient({ colorPickerSample: sample, colorPickerUnsupported: false });
-      void ownerWindow.navigator.clipboard?.writeText(formatColor(sample, model.current.settings.colorPickerClickFormat)).catch(() => undefined);
-    } catch (error) {
-      const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;
-      if (error instanceof DOMExceptionCtor && error.name === "AbortError") {
-        model.setTransient({ colorPickerActive: false });
-      }
-    }
-  };
-
   const clearWorkspace = () => {
     model.clearWorkspace();
     textInspector?.clear();
@@ -504,14 +487,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
 
   createEffect(
     () => model.state.xrayVisible,
-    (visible) => {
-      let style = ownerDocument.getElementById(XRAY_STYLE_ID);
-      if (!style) {
-        style = ownerDocument.createElement("style"); style.id = XRAY_STYLE_ID; style.textContent = XRAY_STYLES; ownerDocument.head.append(style);
-      }
-      ownerDocument.body.classList.toggle("mesurer-solid-xray", visible);
-      return () => ownerDocument.body.classList.remove("mesurer-solid-xray");
-    },
+    (visible) => xrayScope.setVisible(visible),
   );
 
   createEffect(
@@ -566,6 +542,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
     const unsubscribe = persistence.subscribe?.(applyExternal);
 
     const keydown = (event: KeyboardEvent) => {
+      if (isEditableKeyboardEvent(event, ownerWindow)) return;
       const key = event.key.toLowerCase();
       const mod = event.metaKey || event.ctrlKey;
       if (key === "escape") {
@@ -575,9 +552,8 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
         model.clearAll();
         return;
       }
-      if (isEditable(event.target, ownerWindow)) return;
       if (event.key === "Alt") { model.setTransient({ altPressed: true }); return; }
-      if (mod && key === ",") { event.preventDefault(); model.setTransient({ settingsOpen: !model.current.settingsOpen }); return; }
+      if (mod && key === ",") { event.preventDefault(); void builtinController.run("settings"); return; }
       if (mod && key === "z") {
         event.preventDefault();
         if (model.current.toolMode === "text-inspector") {
@@ -591,13 +567,12 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
         event.preventDefault(); model.removeGuides(model.current.selectedGuideIds); return;
       }
       if (key === "m") { model.toggleEnabled(true); return; }
-      if (key === "s" || key === "a" || key === "g") {
-        const mode: ToolMode = key === "s" ? "select" : key === "a" ? "text-inspector" : "guides";
-        model.setEnabled(true, !model.current.enabled); model.toggleToolMode(mode); return;
-      }
-      if (key === "p") { void openColorPicker(); return; }
-      if (key === "x") { model.setEnabled(true); model.toggleXray(); return; }
-      if (key === "r") { model.setEnabled(true); model.toggleRulers(); return; }
+      if (key === "s") { void builtinController.run("select"); return; }
+      if (key === "a") { void builtinController.run("text-inspector"); return; }
+      if (key === "g") { void builtinController.run("guides"); return; }
+      if (key === "p") { void builtinController.run("color-picker"); return; }
+      if (key === "x") { void builtinController.run("xray"); return; }
+      if (key === "r") { void builtinController.run("rulers"); return; }
       if (key === "h") { model.setGuideOrientation("horizontal", true); return; }
       if (key === "v") { model.setGuideOrientation("vertical", true); }
     };
@@ -668,7 +643,8 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
       ownerWindow.removeEventListener("pointerup", globalGuideEnd, true);
       ownerWindow.removeEventListener("pointercancel", globalGuideEnd, true);
       textInspector?.destroy(); textInspector = null;
-      ownerDocument.body.classList.remove("mesurer-solid-xray");
+      xrayScope.dispose();
+      input.onBuiltinController?.(null);
     };
   });
 
@@ -709,7 +685,9 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
         <Toolbar
           model={model}
           ownerWindow={ownerWindow}
-          onColorPicker={() => void openColorPicker()}
+          onBuiltinAction={(id) => { void builtinController.run(id); }}
+          pluginTools={input.pluginTools}
+          onPluginTool={input.onPluginTool}
           onClearWorkspace={clearWorkspace}
           onResetSettings={() => { model.resetSettings(); activePersistence?.clearSettings(); }}
         />
