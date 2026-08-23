@@ -2,7 +2,7 @@ import {
   contextPlugin,
   mountMeasurer,
   type MountedMeasurer,
-} from "../../../packages/mesurer/src/index.tsx";
+} from "../../../packages/mesurer/src/index";
 
 type SelfHostingHarness = {
   subject: MountedMeasurer;
