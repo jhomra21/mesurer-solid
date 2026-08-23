@@ -19,15 +19,15 @@ From GitHub Actions, run **prepare-release** from `main` and choose one version 
 
 The workflow updates `packages/mesurer/package.json`, moves `Unreleased` changelog entries into the new version section, creates `release/v<version>`, and opens a `release: v<version>` PR.
 
-Only one release PR may be open at a time. GitHub can suppress or gate normal workflow recursion for PRs created by `GITHUB_TOKEN`, so `prepare-release` explicitly dispatches `ci` and `package-smoke` against the generated release branch after opening the PR. No PAT is required.
+Only one release PR may be open at a time. GitHub can suppress or gate normal workflow recursion for PRs created by `GITHUB_TOKEN`, so `prepare-release` explicitly dispatches `release-check.yml` against the generated release branch after opening the PR. No PAT is required.
 
 If GitHub Actions is not allowed to create pull requests in the repository settings, PR creation fails closed and the workflow removes the remote release branch so it can be retried after the setting is enabled.
 
 ## Review the release PR
 
-Review the version and changelog like any other code change. Merge only after `ci` and `package-smoke` are green.
+Review the version and changelog like any other code change. Merge only after **release-check** is green.
 
-`package-smoke` packs the sanitized npm candidate and exercises that exact tarball in clean TypeScript, React 19, Solid 1, and compiled Solid 2 consumers. The tarball and its `npm pack --json` metadata are uploaded together as the version-independent `npm-package` workflow artifact.
+`release-check` is intentionally lightweight because the generated release PR may change only `packages/mesurer/package.json` and `CHANGELOG.md`. It verifies the `release/v<version>` branch matches the package version, the version increases correctly, the matching changelog section exists, exactly those two files changed, `package.json` changed only its version field, and the release identity/tooling tests pass. Runtime, framework-host, browser, and package compatibility belong to the already-reviewed source changes and are not repeated on the metadata-only release PR.
 
 ## Automatic publish after merge
 
@@ -36,14 +36,15 @@ Review the version and changelog like any other code change. Merge only after `c
 For an approved release, the workflow:
 
 1. Verifies the release branch name matches the package version, the new version is greater than the pre-release base version, and `CHANGELOG.md` has the matching version section.
-2. Runs the reusable packed-package smoke workflow again on the merged release commit.
-3. Downloads the exact tarball that passed the smoke tests.
-4. Requires exactly one tarball, verifies its package name/version, and recomputes SHA-512 over the downloaded bytes to match `npm pack` integrity metadata.
-5. If the npm version does not exist, publishes that exact `.tgz` through Trusted Publishing/OIDC.
-6. If the npm version already exists, verifies its registry integrity matches the tarball and continues recovery instead of republishing.
-7. Verifies the expected npm dist-tag (`beta` for prereleases, `latest` for stable releases).
-8. Creates `v<version>` only after npm succeeds, and refuses an existing tag that points at another commit.
-9. Creates the GitHub Release from the matching changelog section; prerelease versions are marked as prereleases.
+2. Builds the workspace and publishable package from the merged release commit.
+3. Stages and packs the exact sanitized npm candidate, verifies its package name/version and SHA-512 integrity metadata, performs an npm publish dry-run, and imports that exact tarball from a clean consumer.
+4. Uploads that exact tarball and its `npm pack --json` metadata as the `npm-package` artifact.
+5. Downloads the same artifact in the publish job and recomputes SHA-512 over the downloaded bytes before any registry action.
+6. If the npm version does not exist, publishes that exact `.tgz` through Trusted Publishing/OIDC.
+7. If the npm version already exists, verifies its registry integrity matches the tarball and continues recovery instead of republishing.
+8. Verifies the expected npm dist-tag (`beta` for prereleases, `latest` for stable releases).
+9. Creates `v<version>` only after npm succeeds, and refuses an existing tag that points at another commit.
+10. Creates the GitHub Release from the matching changelog section; prerelease versions are marked as prereleases.
 
 The npm publishing job is serialized with `cancel-in-progress: false`, so release jobs cannot race each other. Release-sensitive third-party Actions and the npm CLI used to pack/publish are pinned to immutable versions/revisions.
 
