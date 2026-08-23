@@ -68,10 +68,21 @@ describe("multi-selection spacing", () => {
     expect(overlays.some((item) => item.id.startsWith("selection-spacing:fallback:") && item.id.includes("isolated"))).toBe(true);
   });
 
-  it("does not invent spacing for fully overlapping selections", () => {
+  it("shows nearest edge offsets for nested selections", () => {
     const overlays = getSelectionSpacingOverlays([
       selected("a", { left: 20, top: 20, width: 100, height: 100 }),
       selected("b", { left: 40, top: 40, width: 40, height: 40 }),
+    ]);
+
+    expect(overlays).toHaveLength(1);
+    expect(overlays[0].horizontal?.value).toBe(20);
+    expect(overlays[0].vertical?.value).toBe(20);
+  });
+
+  it("does not invent spacing for identical selections", () => {
+    const overlays = getSelectionSpacingOverlays([
+      selected("a", { left: 20, top: 20, width: 100, height: 100 }),
+      selected("b", { left: 20, top: 20, width: 100, height: 100 }),
     ]);
 
     expect(overlays).toEqual([]);
