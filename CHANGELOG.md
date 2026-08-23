@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.0-beta.7 - 2026-08-23
+
 - Add the removable `mesurer.context` plugin with workspace, selection, and annotation context; Copy Context / Copy Selection / Add Note toolbar actions; durable annotation anchors; scoped review; and region-aware capture planning.
 - Add agent-facing context, annotation, review, capture, and optional send APIs, plus deterministic text/ACP content mapping for coding-agent workflows.
 - Ship one portable `mesurer-ui` Agent Skill whose installer includes the exact built `inject-script.js`, so agents can attach Mesurer without adding it to the target application's dependencies.
@@ -31,6 +35,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## 0.1.0-beta.3 - 2026-08-20
 
 - No user-facing changes.
+
 
 
 
