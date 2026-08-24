@@ -1,5 +1,6 @@
 import { For, Show, createSignal, onSettled } from "solid-js";
 import type { ToolContribution } from "@jhomra21/mesurer-solid-core";
+import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MeasurerModel } from "../model/create-measurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
 import { SettingsPanel } from "./SettingsPanel";
@@ -25,6 +26,8 @@ export type ToolbarProps = {
   onPluginTool?: (tool: ToolContribution) => void;
   onClearWorkspace: () => void;
   onResetSettings: () => void;
+  selectionSpacingStyle: SelectionSpacingStyle;
+  onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void;
 };
 
 const TOOLBAR_DRAG_SLOP = 6;
@@ -284,7 +287,7 @@ export function Toolbar(props: ToolbarProps) {
             onPointerUp={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
-            <SettingsPanel model={props.model} ownerWindow={props.ownerWindow} onResetSettings={props.onResetSettings} onClearWorkspace={props.onClearWorkspace} />
+            <SettingsPanel model={props.model} ownerWindow={props.ownerWindow} onResetSettings={props.onResetSettings} onClearWorkspace={props.onClearWorkspace} selectionSpacingStyle={props.selectionSpacingStyle} onSelectionSpacingStyleChange={props.onSelectionSpacingStyleChange} />
           </div>
         </Show>
       </div>

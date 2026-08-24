@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { MeasurementBox } from "../src/components/MeasurementBox";
 import { DistanceOverlayItem } from "../src/components/DistanceOverlayItem";
+import { DEFAULT_SELECTION_SPACING_STYLE } from "../src/core/persistence";
 import type { DistanceOverlay, InspectMeasurement } from "../src/core/types";
 import { createElement, render } from "../src/solid-dom";
 
@@ -93,9 +94,38 @@ describe("upstream Mesurer visual contracts", () => {
     expect(host.querySelectorAll('[class*="msr:border-[#2563eb]/70"]')).toHaveLength(0);
     const guide = host.querySelector<HTMLElement>('[data-mesurer-distance-line="horizontal"]');
     expect(guide).toBeTruthy();
-    expect(guide!.className).toContain("msr:border-dashed");
-    expect(guide!.className).toContain("msr:border-[#2563eb]");
+    expect(guide!.dataset.mesurerLinePattern).toBe("dashed");
+    expect(guide!.dataset.mesurerLineColor).toBe("#2563eb");
+    expect(guide!.dataset.mesurerLineWidth).toBe("1");
+    expect(guide!.style.backgroundImage).toContain("repeating-linear-gradient");
     expect(host.textContent?.trim()).toBe("24");
+  });
+
+  it("applies custom selection-spacing color, weight, opacity, and dotted pattern", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const distance: DistanceOverlay = {
+      id: "selection-spacing:x:a:b",
+      rectA: { left: 0, top: 0, width: 20, height: 20 },
+      rectB: { left: 44, top: 0, width: 20, height: 20 },
+      normalizedRectA: { left: 0, top: 0, width: 0.2, height: 0.2 },
+      normalizedRectB: { left: 0.44, top: 0, width: 0.2, height: 0.2 },
+      horizontal: { x1: 20, x2: 44, y: 10, value: 24 },
+      vertical: null,
+      connectors: [],
+    };
+    const selectionSpacingStyle = { ...DEFAULT_SELECTION_SPACING_STYLE, color: "#ff00aa", width: 3, opacity: 0.5, pattern: "dotted" as const, dashLength: 5, gap: 2 };
+
+    disposers.push(render(() => <DistanceOverlayItem distance={distance} showRects={false} kind="selection-spacing" selectionSpacingStyle={selectionSpacingStyle} />, host));
+
+    const guide = host.querySelector<HTMLElement>('[data-mesurer-distance-line="horizontal"]');
+    expect(guide).toBeTruthy();
+    expect(guide!.dataset.mesurerLinePattern).toBe("dotted");
+    expect(guide!.dataset.mesurerLineColor).toBe("#ff00aa");
+    expect(guide!.dataset.mesurerLineWidth).toBe("3");
+    expect(guide!.style.height).toBe("3px");
+    expect(guide!.style.opacity).toBe("0.5");
+    expect(guide!.style.backgroundImage).toContain("radial-gradient");
   });
 
   it("renders every nested selection edge distance as a dashed side guide", () => {
@@ -130,7 +160,7 @@ describe("upstream Mesurer visual contracts", () => {
       "vertical-bottom",
       "vertical-top",
     ]);
-    expect(sideGuides.every((guide) => guide.className.includes("msr:border-dashed"))).toBe(true);
+    expect(sideGuides.every((guide) => guide.dataset.mesurerLinePattern === "dashed")).toBe(true);
     expect(host.textContent?.replace(/\s+/g, " ").trim()).toContain("20");
     expect(host.textContent?.replace(/\s+/g, " ").trim()).toContain("40");
     expect(host.textContent?.replace(/\s+/g, " ").trim()).toContain("30");

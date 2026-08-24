@@ -30,8 +30,11 @@ import { mountMesurerHost, type MesurerHostLayerMode } from "./host-layer";
 
 export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 export type MesurerBuiltinPluginId = "select" | "xray" | "color-picker" | "rulers" | "text-inspector" | "guides" | "distance" | "settings";
-export type GuidePattern = "solid" | "dashed" | "dotted";
-export type GuideStyle = { opacity: number; width: number; pattern: GuidePattern; dashLength: number; gap: number };
+export type LinePattern = "solid" | "dashed" | "dotted";
+export type LineStyle = { opacity: number; width: number; pattern: LinePattern; dashLength: number; gap: number };
+export type GuidePattern = LinePattern;
+export type GuideStyle = LineStyle;
+export type SelectionSpacingStyle = LineStyle & { enabled: boolean; color: string };
 export type RulerSettings = { opacity: number; edgeReveal: boolean };
 export type MesurerRect = { left: number; top: number; width: number; height: number };
 export type MesurerMeasurement = { id: string; rect: MesurerRect; normalizedRect: MesurerRect; deltaX: number; deltaY: number; snapped?: boolean };
@@ -58,6 +61,7 @@ export type MesurerStoredSettings = {
   multiMeasureEnabled?: boolean;
   persistOnReload?: boolean;
   guideStyle?: Partial<GuideStyle>;
+  selectionSpacingStyle?: Partial<SelectionSpacingStyle>;
   rulerSettings?: Partial<RulerSettings>;
 };
 export type MesurerStoredWorkspace = {
@@ -99,6 +103,7 @@ export type MesurerOptions = {
   selectNewGuideEnabled?: boolean;
   multiMeasureEnabled?: boolean;
   guideStyle?: Partial<GuideStyle>;
+  selectionSpacingStyle?: Partial<SelectionSpacingStyle>;
   rulerSettings?: Partial<RulerSettings>;
   plugins?: MesurerPlugin[];
   excludePlugins?: MesurerBuiltinPluginId[];

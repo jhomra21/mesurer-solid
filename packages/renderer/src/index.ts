@@ -66,7 +66,10 @@ export type {
   MesurerPersistenceSnapshot,
   MesurerStoredSettings,
   MesurerStoredWorkspace,
+  LinePattern,
+  LineStyle,
   GuidePattern,
   GuideStyle,
+  SelectionSpacingStyle,
   RulerSettings,
 } from "./core/persistence";

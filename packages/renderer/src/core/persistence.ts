@@ -3,9 +3,13 @@ import type { ColorPickerFormat } from "./colors";
 import type { DistanceOverlay, Guide, Measurement, ToolMode } from "./types";
 
 export const MESURER_STORAGE_VERSION = 2;
-export type GuidePattern = "solid" | "dashed" | "dotted";
-export type GuideStyle = { opacity: number; width: number; pattern: GuidePattern; dashLength: number; gap: number };
+export type LinePattern = "solid" | "dashed" | "dotted";
+export type LineStyle = { opacity: number; width: number; pattern: LinePattern; dashLength: number; gap: number };
+export type GuidePattern = LinePattern;
+export type GuideStyle = LineStyle;
+export type SelectionSpacingStyle = LineStyle & { enabled: boolean; color: string };
 export const DEFAULT_GUIDE_STYLE: GuideStyle = { opacity: 1, width: 1, pattern: "solid", dashLength: 6, gap: 4 };
+export const DEFAULT_SELECTION_SPACING_STYLE: SelectionSpacingStyle = { enabled: true, color: "#2563eb", opacity: 1, width: 1, pattern: "dashed", dashLength: 4, gap: 3 };
 export type RulerSettings = { opacity: number; edgeReveal: boolean };
 export const DEFAULT_RULER_SETTINGS: RulerSettings = { opacity: 1, edgeReveal: false };
 
@@ -14,7 +18,7 @@ export type MesurerStoredSettings = {
   colorPickerFormats?: ColorPickerFormat[]; colorPickerClickFormat?: ColorPickerFormat;
   snapEnabled?: boolean; snapGuidesEnabled?: boolean; selectNewGuideEnabled?: boolean;
   multiMeasureEnabled?: boolean; persistOnReload?: boolean; guideStyle?: Partial<GuideStyle>;
-  rulerSettings?: Partial<RulerSettings>;
+  selectionSpacingStyle?: Partial<SelectionSpacingStyle>; rulerSettings?: Partial<RulerSettings>;
 };
 export type MesurerStoredWorkspace = {
   enabled: boolean; xrayVisible: boolean; toolMode: ToolMode; rulersVisible: boolean;
@@ -37,14 +41,16 @@ type StoredRecord = { version: number; settings?: MesurerStoredSettings; workspa
 const isFormat = (value: unknown): value is ColorPickerFormat => value === "hex" || value === "rgb" || value === "hsl" || value === "oklch";
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const isRect = (value: unknown): value is { left: number; top: number; width: number; height: number } => { if (!value || typeof value !== "object") return false; const r = value as Record<string, unknown>; return isFiniteNumber(r.left) && isFiniteNumber(r.top) && isFiniteNumber(r.width) && r.width >= 0 && isFiniteNumber(r.height) && r.height >= 0; };
-const normalizeGuideStyle = (value: unknown): GuideStyle | undefined => { if (!value || typeof value !== "object") return undefined; const input = value as Record<string, unknown>; return { opacity: typeof input.opacity === "number" ? Math.min(1, Math.max(0, input.opacity)) : DEFAULT_GUIDE_STYLE.opacity, width: typeof input.width === "number" ? Math.min(4, Math.max(1, input.width)) : DEFAULT_GUIDE_STYLE.width, pattern: input.pattern === "dashed" || input.pattern === "dotted" ? input.pattern : DEFAULT_GUIDE_STYLE.pattern, dashLength: typeof input.dashLength === "number" ? Math.min(24, Math.max(2, input.dashLength)) : DEFAULT_GUIDE_STYLE.dashLength, gap: typeof input.gap === "number" ? Math.min(24, Math.max(0, input.gap)) : DEFAULT_GUIDE_STYLE.gap }; };
+const normalizeLineStyle = (value: unknown, defaults: LineStyle): LineStyle | undefined => { if (!value || typeof value !== "object") return undefined; const input = value as Record<string, unknown>; return { opacity: typeof input.opacity === "number" ? Math.min(1, Math.max(0, input.opacity)) : defaults.opacity, width: typeof input.width === "number" ? Math.min(4, Math.max(1, input.width)) : defaults.width, pattern: input.pattern === "solid" || input.pattern === "dashed" || input.pattern === "dotted" ? input.pattern : defaults.pattern, dashLength: typeof input.dashLength === "number" ? Math.min(24, Math.max(2, input.dashLength)) : defaults.dashLength, gap: typeof input.gap === "number" ? Math.min(24, Math.max(0, input.gap)) : defaults.gap }; };
+const normalizeGuideStyle = (value: unknown): GuideStyle | undefined => normalizeLineStyle(value, DEFAULT_GUIDE_STYLE);
+const normalizeSelectionSpacingStyle = (value: unknown): SelectionSpacingStyle | undefined => { if (!value || typeof value !== "object") return undefined; const input = value as Record<string, unknown>; const line = normalizeLineStyle(value, DEFAULT_SELECTION_SPACING_STYLE); if (!line) return undefined; return { ...line, enabled: typeof input.enabled === "boolean" ? input.enabled : DEFAULT_SELECTION_SPACING_STYLE.enabled, color: typeof input.color === "string" ? input.color : DEFAULT_SELECTION_SPACING_STYLE.color }; };
 const normalizeRulerSettings = (value: unknown): RulerSettings | undefined => { if (!value || typeof value !== "object") return undefined; const input = value as Record<string, unknown>; return { opacity: typeof input.opacity === "number" ? Math.min(1, Math.max(0.2, input.opacity)) : DEFAULT_RULER_SETTINGS.opacity, edgeReveal: typeof input.edgeReveal === "boolean" ? input.edgeReveal : DEFAULT_RULER_SETTINGS.edgeReveal }; };
 const isMeasurement = (value: unknown): value is Measurement => { if (!value || typeof value !== "object") return false; const m = value as Record<string, unknown>; return typeof m.id === "string" && isRect(m.rect) && isRect(m.normalizedRect) && isFiniteNumber(m.deltaX) && isFiniteNumber(m.deltaY); };
 const isGuide = (value: unknown): value is Guide => { if (!value || typeof value !== "object") return false; const g = value as Record<string, unknown>; return typeof g.id === "string" && (g.orientation === "vertical" || g.orientation === "horizontal") && isFiniteNumber(g.position); };
 const isDistanceOverlay = (value: unknown): value is DistanceOverlay => { if (!value || typeof value !== "object") return false; const d = value as Record<string, unknown>; return typeof d.id === "string" && isRect(d.rectA) && isRect(d.rectB) && isRect(d.normalizedRectA) && isRect(d.normalizedRectB) && Array.isArray(d.connectors); };
 
 export const normalizeStoredSettings = (value: unknown): MesurerStoredSettings => {
-  if (!value || typeof value !== "object") return {}; const input = value as Record<string, unknown>; const guideStyle = normalizeGuideStyle(input.guideStyle); const rulerSettings = normalizeRulerSettings(input.rulerSettings);
+  if (!value || typeof value !== "object") return {}; const input = value as Record<string, unknown>; const guideStyle = normalizeGuideStyle(input.guideStyle); const selectionSpacingStyle = normalizeSelectionSpacingStyle(input.selectionSpacingStyle); const rulerSettings = normalizeRulerSettings(input.rulerSettings);
   return {
     ...(typeof input.highlightColor === "string" ? { highlightColor: input.highlightColor } : {}),
     ...(typeof input.guideColor === "string" ? { guideColor: input.guideColor } : {}),
@@ -56,7 +62,7 @@ export const normalizeStoredSettings = (value: unknown): MesurerStoredSettings =
     ...(typeof input.selectNewGuideEnabled === "boolean" ? { selectNewGuideEnabled: input.selectNewGuideEnabled } : {}),
     ...(typeof input.multiMeasureEnabled === "boolean" ? { multiMeasureEnabled: input.multiMeasureEnabled } : {}),
     ...(typeof input.persistOnReload === "boolean" ? { persistOnReload: input.persistOnReload } : {}),
-    ...(guideStyle ? { guideStyle } : {}), ...(rulerSettings ? { rulerSettings } : {}),
+    ...(guideStyle ? { guideStyle } : {}), ...(selectionSpacingStyle ? { selectionSpacingStyle } : {}), ...(rulerSettings ? { rulerSettings } : {}),
   };
 };
 export const normalizeStoredWorkspace = (value: unknown): MesurerStoredWorkspace | null => {

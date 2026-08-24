@@ -176,6 +176,55 @@ try {
 
   await captureGrid("multi-selection-spacing-detail");
 
+  await page.evaluate(async () => {
+    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
+  });
+  const spacingSettings = page.locator('[data-mesurer-distance="true"]').filter({ hasText: "Selection spacing" });
+  await spacingSettings.getByRole("radio", { name: "Dotted spacing pattern" }).click();
+  const weight = spacingSettings.getByRole("slider", { name: "Weight" });
+  await weight.focus();
+  await weight.press("ArrowRight");
+  await weight.press("ArrowRight");
+  const colorInput = spacingSettings.getByLabel("Line color hex value");
+  await colorInput.fill("FF00AA");
+  await page.waitForTimeout(100);
+  await page.evaluate(async () => {
+    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
+  });
+  await page.waitForFunction(() => {
+    const line = document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]');
+    return line?.getAttribute("data-mesurer-line-pattern") === "dotted"
+      && line?.getAttribute("data-mesurer-line-width") === "3"
+      && line?.getAttribute("data-mesurer-line-color")?.toLowerCase() === "#ff00aa";
+  });
+  const customStyleEvidence = await page.evaluate(() => {
+    const line = document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]');
+    const style = line ? getComputedStyle(line) : null;
+    const stored = JSON.parse(localStorage.getItem("mesurer-settings") ?? "null");
+    return {
+      pattern: line?.getAttribute("data-mesurer-line-pattern"),
+      width: line?.getAttribute("data-mesurer-line-width"),
+      color: line?.getAttribute("data-mesurer-line-color"),
+      backgroundImage: style?.backgroundImage ?? "",
+      storedStyle: stored?.settings?.selectionSpacingStyle ?? null,
+    };
+  });
+  assert.equal(customStyleEvidence.pattern, "dotted", "Selection spacing pattern should update live");
+  assert.equal(customStyleEvidence.width, "3", "Selection spacing weight should update live");
+  assert.equal(customStyleEvidence.color?.toLowerCase(), "#ff00aa", "Selection spacing color should update live");
+  assert.match(customStyleEvidence.backgroundImage, /radial-gradient/i, "Dotted spacing should use the dotted renderer");
+  assert.equal(customStyleEvidence.storedStyle?.pattern, "dotted", "Selection spacing pattern should persist");
+  assert.equal(customStyleEvidence.storedStyle?.width, 3, "Selection spacing weight should persist");
+
+  await page.evaluate(async () => {
+    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
+  });
+  await page.getByRole("button", { name: "Reset settings to defaults" }).click();
+  await page.evaluate(async () => {
+    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
+  });
+  await page.waitForFunction(() => document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]')?.getAttribute("data-mesurer-line-pattern") === "dashed");
+
   console.log(JSON.stringify({
     result: "PASS",
     sparseSelection: "A + C only",
@@ -183,6 +232,7 @@ try {
     horizontalSpacing: evidence.distances.aToB?.horizontalGap,
     verticalSpacing: evidence.distances.aToC?.verticalGap,
     spacingLabels: evidence.spacingLabels,
+    customStyleEvidence,
     outputDir,
   }, null, 2));
 } finally {

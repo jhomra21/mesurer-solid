@@ -3,6 +3,7 @@ import { GUIDE_DRAG_HOLD_MS, GUIDE_HITBOX_SIZE, MEASURE_LABEL_OFFSET } from "../
 import { getSelectionSpacingOverlays } from "../core/distances";
 import { getEdgeVisibilityForRects } from "../core/edge-visibility";
 import { trySetPointerCapture } from "../core/events";
+import type { SelectionSpacingStyle } from "../core/persistence";
 import type { Guide, InspectMeasurement, Rect } from "../core/types";
 import { formatValue } from "../core/utils";
 import type { MeasurerModel } from "../model/create-measurer-model";
@@ -17,6 +18,7 @@ export type MeasurerOverlayProps = {
   guideDistanceOverlay: import("../core/types").DistanceOverlay | null;
   optionContainerLines: ReturnType<typeof import("../core/option-measurements").getOptionContainerLines>;
   hoverGuide: Guide | null;
+  selectionSpacingStyle: SelectionSpacingStyle;
   interactive: boolean;
   onPointerDown: (event: any) => void;
   onPointerMove: (event: any) => void;
@@ -55,7 +57,7 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
   const selectedEdges = () => getEdgeVisibilityForRects(props.displayedSelectedMeasurements.map((item) => item.rect));
   const selectionSpacingOverlays = () => {
     const selected = props.model.state.selectedMeasurements;
-    if (!selectionVisible() || selected.length < 2) return [];
+    if (!selectionVisible() || !props.selectionSpacingStyle.enabled || selected.length < 2) return [];
     const ownerWindow = overlayElement?.ownerDocument.defaultView;
     return ownerWindow ? getSelectionSpacingOverlays(selected, ownerWindow) : [];
   };
@@ -267,7 +269,8 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
               distance={distance}
               showRects={false}
               kind="selection-spacing"
-            />
+            selectionSpacingStyle={props.selectionSpacingStyle}
+          />
           )}</For>
         </Show>
       </Show>
