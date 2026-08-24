@@ -57,5 +57,21 @@ jobs:
               raise SystemExit('Could not locate strict staged replace helper')
           script = script.replace(strict, tolerant, 1)
           script = script.replace('Path(".github/workflows/agent-selection-spacing-settings.yml").unlink()\n', '')
-          exec(compile(script, '/tmp/selection-spacing-implementation.py', 'exec'), {'__name__': '__main__'})
+          namespace = {'__name__': '__main__'}
+          exec(compile(script, '/tmp/selection-spacing-implementation.py', 'exec'), namespace)
+
+          path = Path('packages/renderer/src/Measurer.tsx')
+          text = path.read_text()
+          text = text.replace('props.onSelectionSpacingStyleChange', 'onSelectionSpacingStyleChange')
+          text = text.replace('props.onResetSelectionSpacingStyle', 'onResetSelectionSpacingStyle')
+          anchor = '  const input = untrack(() => props.input);\n'
+          capture = '  const input = untrack(() => props.input);\n  const onSelectionSpacingStyleChange = untrack(() => props.onSelectionSpacingStyleChange);\n  const onResetSelectionSpacingStyle = untrack(() => props.onResetSelectionSpacingStyle);\n'
+          if anchor not in text:
+              raise SystemExit('Missing MeasurerClient input capture')
+          text = text.replace(anchor, capture, 1)
+          old_save = 'selectionSpacingStyle: { ...props.selectionSpacingStyle }'
+          if old_save not in text:
+              raise SystemExit('Missing spacing persistence serialization')
+          text = text.replace(old_save, 'selectionSpacingStyle: { ...untrack(() => props.selectionSpacingStyle) }', 1)
+          path.write_text(text)
           PY
