@@ -18,7 +18,7 @@ There is no required OpenCode, Pi, Cursor, Codex, or other Mesurer adapter packa
 The npm package ships one canonical `mesurer-ui` Agent Skill:
 
 ```bash
-npx --yes --package=@jhomra21/mesurer-solid@beta mesurer-skill install
+npx --yes --package=mesurer-solid@beta mesurer-skill install
 ```
 
 Use `--force` only when intentionally replacing an existing local copy. The install is self-contained: it writes the skill plus the exact packaged classic injector to:
@@ -38,14 +38,14 @@ The skill teaches agents to use Mesurer for frontend visual work, consume human 
 
 When the Agent Skill is installed, read `.agents/skills/mesurer-ui/assets/inject-script.js` and evaluate those bytes in the page. No project dependency is required after the transient installer exits.
 
-When `@jhomra21/mesurer-solid` is already installed as a project/tooling dependency, the equivalent package path is the `/inject-script` export:
+When `mesurer-solid` is already installed as a project/tooling dependency, the equivalent package path is the `/inject-script` export:
 
 ```js
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const source = await readFile(
-  fileURLToPath(import.meta.resolve("@jhomra21/mesurer-solid/inject-script")),
+  fileURLToPath(import.meta.resolve("mesurer-solid/inject-script")),
   "utf8",
 );
 
@@ -126,7 +126,7 @@ When Mesurer is mounted from application code, explicitly install the same plugi
 import {
   contextPlugin,
   mountMeasurer,
-} from "@jhomra21/mesurer-solid";
+} from "mesurer-solid";
 
 const mesurer = mountMeasurer({
   agent: true,
@@ -158,7 +158,7 @@ The context UI, annotation runtime, shortcuts, service, and listeners are dispos
 Mesurer does not own an ACP process or session. The ACP client/harness that already owns the session sends Mesurer output.
 
 ```ts
-import { toAcpContentBlocks } from "@jhomra21/mesurer-solid";
+import { toAcpContentBlocks } from "mesurer-solid";
 
 const blocks = toAcpContentBlocks(context, images);
 ```
