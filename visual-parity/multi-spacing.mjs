@@ -219,6 +219,7 @@ try {
   await page.evaluate(async () => {
     await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
   });
+  await page.getByRole("tab", { name: "General" }).click();
   await page.getByRole("button", { name: "Reset settings to defaults" }).click();
   await page.evaluate(async () => {
     await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
