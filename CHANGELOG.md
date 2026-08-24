@@ -4,10 +4,12 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.0-beta.9 - 2026-08-24
+
 - Keep the target-anchored annotation UI's generated stylesheet in sync with its current source classes.
 - Improve nested and overlapping multi-selection by preserving descendant Shift-selection semantics and showing all available dashed edge offsets for stacked selections.
-
-<!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.1.0-beta.8 - 2026-08-23
 
@@ -43,6 +45,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## 0.1.0-beta.3 - 2026-08-20
 
 - No user-facing changes.
+
 
 
 
