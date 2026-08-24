@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.0-beta.11 - 2026-08-24
+
 - Improve annotation note UX for multi-selection: the floating annotation affordance follows the selected element under the pointer, note surfaces show the selected-element count, saved annotations retain all selected targets, markers reopen notes reliably, and both the composer and saved panels can be dragged without disturbing the selection.
 - Keep distance labels readable near viewport edges by anchoring labels to the visible part of their measurement segment, while hiding labels whose measurement line is entirely outside the viewport and preserving the underlying distance geometry.
 - Document how to enable `mesurer.context`, use Copy Context / Copy Selection / Add Note, annotate single or multiple elements and arbitrary regions, run context/review/capture APIs programmatically, use injection defaults, and opt into API-only context with `ui: false`.
@@ -51,6 +55,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## 0.1.0-beta.3 - 2026-08-20
 
 - No user-facing changes.
+
 
 
 
