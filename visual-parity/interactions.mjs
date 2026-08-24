@@ -34,6 +34,9 @@ async function openSettings(page) {
 async function openSettingsTab(page, name) {
   await openSettings(page);
   await realClick(tab(page, name));
+  // A real click leaves the pointer over the selected tab. Move it to a neutral
+  // fixture area so parity captures the settled selected state, not :hover.
+  await page.mouse.move(900, 700);
   await sleep(page, 80);
 }
 
