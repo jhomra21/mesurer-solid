@@ -54,11 +54,25 @@ const placeSurfaceNear = (
 export function ContextActions(props: ContextActionsProps) {
   const [revision, setRevision] = createSignal(0);
   const [activeAnnotationId, setActiveAnnotationId] = createSignal<string | null>(null);
+  const [panelPositions, setPanelPositions] = createSignal<Record<string, { left: number; top: number }>>({});
+  const [composerPosition, setComposerPosition] = createSignal<{ left: number; top: number } | null>(null);
   const [noteComposerOpen, setNoteComposerOpen] = createSignal(false);
   const [note, setNote] = createSignal("");
   const [noteError, setNoteError] = createSignal<string | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
+  const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
+  let surfaceDrag: {
+    surfaceId: string;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originLeft: number;
+    originTop: number;
+    width: number;
+    height: number;
+  } | null = null;
+  let surfaceDragCleanup: (() => void) | null = null;
   let anchorElement: HTMLSpanElement | undefined;
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
@@ -138,14 +152,19 @@ export function ContextActions(props: ContextActionsProps) {
       : fitsLeft
         ? leftPanelLeft
         : placeSurfaceNear(value, panelWidth, panelHeight, currentWindow).left;
+    const draggedPanel = panelPositions()[annotationId];
     return {
       marker: {
         left: markerLeft,
         top: clamp(value.top - markerSize / 2, 4, currentWindow.innerHeight - markerSize - 4),
       },
       panel: {
-        left: panelLeft,
-        top: clamp(value.top, padding, currentWindow.innerHeight - panelHeight - padding),
+        left: draggedPanel
+          ? clamp(draggedPanel.left, padding, currentWindow.innerWidth - panelWidth - padding)
+          : panelLeft,
+        top: draggedPanel
+          ? clamp(draggedPanel.top, padding, currentWindow.innerHeight - panelHeight - padding)
+          : clamp(value.top, padding, currentWindow.innerHeight - panelHeight - padding),
       },
     };
   };
@@ -154,11 +173,93 @@ export function ContextActions(props: ContextActionsProps) {
 
   const notePanelPosition = () => {
     const value = selectionRect();
+    const currentWindow = ownerWindow();
+    const width = 272;
+    const height = 154;
+    const dragged = composerPosition();
+    if (dragged) {
+      return {
+        left: clamp(dragged.left, 8, currentWindow.innerWidth - width - 8),
+        top: clamp(dragged.top, 8, currentWindow.innerHeight - height - 8),
+      };
+    }
     if (!value) return { left: 8, top: 8 };
-    return placeSurfaceNear(value, 272, 154, ownerWindow());
+    return placeSurfaceNear(value, width, height, currentWindow);
   };
 
   const panelPosition = (annotationId: string) => annotationLayout(annotationId)?.panel ?? { left: 8, top: 8 };
+
+  const openAnnotation = (annotationId: string) => {
+    setNoteComposerOpen(false);
+    setActiveAnnotationId(annotationId);
+    setStatus(null);
+  };
+
+  const startSurfaceDrag = (event: PointerEvent & { currentTarget: HTMLDivElement }, surfaceId: string) => {
+    if (event.button !== 0 || (event.target as Element | null)?.closest("button")) return;
+    const panel = event.currentTarget.parentElement;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    const currentWindow = ownerWindow();
+    const root = currentWindow.document.documentElement;
+    const previousUserSelect = root.style.userSelect;
+    root.style.setProperty("user-select", "none", "important");
+    surfaceDrag = {
+      surfaceId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originLeft: rect.left,
+      originTop: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+    setDraggingSurfaceId(surfaceId);
+    event.preventDefault();
+    event.stopPropagation();
+
+    const move = (next: PointerEvent) => {
+      if (!surfaceDrag || next.pointerId !== surfaceDrag.pointerId) return;
+      const drag = surfaceDrag;
+      const maxLeft = Math.max(8, currentWindow.innerWidth - drag.width - 8);
+      const maxTop = Math.max(8, currentWindow.innerHeight - drag.height - 8);
+      const position = {
+        left: clamp(drag.originLeft + next.clientX - drag.startX, 8, maxLeft),
+        top: clamp(drag.originTop + next.clientY - drag.startY, 8, maxTop),
+      };
+      if (surfaceId === "composer") {
+        setComposerPosition(position);
+      } else {
+        setPanelPositions((positions) => ({ ...positions, [surfaceId]: position }));
+      }
+    };
+    const end = (next: PointerEvent) => {
+      if (!surfaceDrag || next.pointerId !== surfaceDrag.pointerId) return;
+      root.style.userSelect = previousUserSelect;
+      currentWindow.removeEventListener("pointermove", move);
+      currentWindow.removeEventListener("pointerup", end);
+      currentWindow.removeEventListener("pointercancel", end);
+      surfaceDrag = null;
+      setDraggingSurfaceId(null);
+      surfaceDragCleanup = null;
+    };
+    currentWindow.addEventListener("pointermove", move);
+    currentWindow.addEventListener("pointerup", end);
+    currentWindow.addEventListener("pointercancel", end);
+    surfaceDragCleanup = () => {
+      root.style.userSelect = previousUserSelect;
+      currentWindow.removeEventListener("pointermove", move);
+      currentWindow.removeEventListener("pointerup", end);
+      currentWindow.removeEventListener("pointercancel", end);
+      setDraggingSurfaceId(null);
+    };
+  };
+
+  onCleanup(() => {
+    surfaceDragCleanup?.();
+    surfaceDragCleanup = null;
+    surfaceDrag = null;
+  });
 
   const run = async (action: () => Promise<void>, success: string) => {
     if (busy()) return;
@@ -179,12 +280,14 @@ export function ContextActions(props: ContextActionsProps) {
     setNoteError(null);
     setStatus(null);
     setActiveAnnotationId(null);
+    setComposerPosition(null);
     setNoteComposerOpen(true);
   };
 
   const closeNoteComposer = () => {
     setNoteComposerOpen(false);
     setNoteError(null);
+    setComposerPosition(null);
   };
 
   const addNote = () => {
@@ -193,6 +296,7 @@ export function ContextActions(props: ContextActionsProps) {
       setNote("");
       setNoteError(null);
       setNoteComposerOpen(false);
+      setComposerPosition(null);
       setActiveAnnotationId(annotation.id);
     } catch (error) {
       setNoteError(error instanceof Error ? error.message : String(error));
@@ -237,7 +341,12 @@ export function ContextActions(props: ContextActionsProps) {
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
         >
-          <div class="msr:flex msr:h-7 msr:items-center msr:gap-1.5 msr:px-1">
+          <div
+            class="msr:flex msr:h-7 msr:items-center msr:gap-1.5 msr:px-1"
+            style={{ cursor: draggingSurfaceId() === "composer" ? "grabbing" : "grab" }}
+            aria-label="Drag note composer"
+            onPointerDown={(event) => startSurfaceDrag(event, "composer")}
+          >
             <NoteIcon size={14} class="msr:text-ink-700" />
             <div class="msr:min-w-0 msr:flex-1">
               <div class="msr:text-[11px] msr:font-medium msr:text-ink-900">Add note</div>
@@ -286,12 +395,17 @@ export function ContextActions(props: ContextActionsProps) {
               data-mesurer-annotation-marker="true"
               aria-label={`Mesurer annotation ${index() + 1}: ${annotation.note}`}
               title={annotation.note}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
+              aria-expanded={activeAnnotationId() === annotation.id ? "true" : "false"}
+              onPointerDown={(event) => {
+                event.preventDefault();
                 event.stopPropagation();
-                setNoteComposerOpen(false);
-                setActiveAnnotationId(annotation.id);
-                setStatus(null);
+                openAnnotation(annotation.id);
+              }}
+              onPointerUp={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                openAnnotation(annotation.id);
               }}
               class="msr:pointer-events-auto msr:fixed msr:z-[94] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-[#0d99ff] msr:bg-white msr:text-[#0d99ff] msr:outline-none msr:hover:bg-[#0d99ff]/8"
               style={{ left: `${value().left}px`, top: `${value().top}px` }}
@@ -312,7 +426,12 @@ export function ContextActions(props: ContextActionsProps) {
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
-            <div class="msr:flex msr:h-7 msr:items-center msr:gap-1.5 msr:px-1">
+            <div
+              class="msr:flex msr:h-7 msr:items-center msr:gap-1.5 msr:px-1"
+              style={{ cursor: draggingSurfaceId() === annotation().id ? "grabbing" : "grab" }}
+              aria-label="Drag annotation panel"
+              onPointerDown={(event) => startSurfaceDrag(event, annotation().id)}
+            >
               <NoteIcon size={14} class="msr:text-[#0d99ff]" />
               <div class="msr:min-w-0 msr:flex-1 msr:text-[11px] msr:font-medium msr:text-ink-700">Note {annotations().findIndex((item) => item.id === annotation().id) + 1}</div>
               <div class="msr:flex msr:items-center msr:gap-0.5">
@@ -322,6 +441,11 @@ export function ContextActions(props: ContextActionsProps) {
                 )}</Show>
                 <button type="button" class={annotationButtonClass} aria-label="Delete annotation" title="Delete" onClick={() => {
                   props.runtime.removeAnnotation(annotation().id);
+                  setPanelPositions((positions) => {
+                    const next = { ...positions };
+                    delete next[annotation().id];
+                    return next;
+                  });
                   setActiveAnnotationId(null);
                   setStatus(null);
                 }}><TrashIcon size={14} /></button>
