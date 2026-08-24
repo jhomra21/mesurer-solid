@@ -49,6 +49,16 @@ async function openColorPicker(page) {
   await sleep(page, 80);
 }
 
+// Interaction parity compares the upstream-shared controls. Solid-only,
+// explicitly plugin-owned settings are exercised by browser-contracts instead.
+async function normalizeSharedParitySurface(page, implementation) {
+  if (implementation !== "solid") return;
+  const extension = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"]');
+  if ((await extension.count()) === 0) return;
+  await extension.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
+  await sleep(page, 20);
+}
+
 async function stateSnapshot(page) {
   const toolbar = page.locator(".mesurer-toolbar-surface").first();
   const toolbarButtons = await toolbar.locator("button[aria-label]").evaluateAll((nodes) =>
@@ -182,6 +192,7 @@ try {
       // screenshot so the comparison measures the final pressed state rather
       // than framework scheduling within the animation.
       await sleep(page, 240);
+      await normalizeSharedParitySurface(page, implementation);
       await page.screenshot({ path: path.join(outputDir, `${implementation}-${item.name}.png`), fullPage: false, scale: "device" });
       await fs.writeFile(path.join(outputDir, `${implementation}-${item.name}.json`), JSON.stringify(await stateSnapshot(page), null, 2));
       await context.close();
