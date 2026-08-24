@@ -156,7 +156,7 @@ jobs:
           integrity=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].integrity)')
           expected="${{ needs.detect.outputs.version }}"
 
-          if [[ "$package" != "@jhomra21/mesurer-solid" ]]; then
+          if [[ "$package" != "mesurer-solid" ]]; then
             echo "Packed package name ${package} is not the public Mesurer Solid package."
             exit 1
           fi
@@ -195,8 +195,8 @@ jobs:
           npm init -y >/dev/null
           npm install "$PACKAGE_TGZ" >/dev/null
           node --input-type=module <<'NODE'
-          const main = await import("@jhomra21/mesurer-solid");
-          const core = await import("@jhomra21/mesurer-solid/core");
+          const main = await import("mesurer-solid");
+          const core = await import("mesurer-solid/core");
           for (const key of ["mountMeasurer", "defineMesurerPlugin"]) {
             if (typeof main[key] !== "function") throw new Error(`Missing main export: ${key}`);
           }
@@ -268,7 +268,7 @@ jobs:
           integrity=$(node -e 'const p=require("./release-artifact/pack.json")[0]; process.stdout.write(p.integrity)')
           expected="${{ needs.detect.outputs.version }}"
 
-          if [[ "$package" != "@jhomra21/mesurer-solid" ]]; then
+          if [[ "$package" != "mesurer-solid" ]]; then
             echo "Packed package name ${package} is not the public Mesurer Solid package."
             exit 1
           fi
