@@ -18,7 +18,7 @@ if (command !== "install") {
     console.error(`Mesurer skill already exists at ${destination}. Use --force to replace it.`);
     process.exitCode = 1;
   } else if (!existsSync(injector)) {
-    console.error("Mesurer inject-script asset is missing. Reinstall @jhomra21/mesurer-solid and retry.");
+    console.error("Mesurer inject-script asset is missing. Reinstall mesurer-solid and retry.");
     process.exitCode = 1;
   } else {
     if (force) rmSync(destination, { recursive: true, force: true });

@@ -6,9 +6,13 @@ import { fileURLToPath } from "node:url";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const privatePackagePattern = /@jhomra21\/mesurer-solid-(?:core|dom|renderer)/;
+const skillBinPath = "scripts/install-skill.mjs";
 
 if (packageJson.name !== "@jhomra21/mesurer-solid") {
   throw new Error(`Expected internal workspace package name @jhomra21/mesurer-solid, got ${packageJson.name}.`);
+}
+if (packageJson.bin?.["mesurer-skill"] !== skillBinPath) {
+  throw new Error(`Expected mesurer-skill bin path ${skillBinPath}, got ${packageJson.bin?.["mesurer-skill"] ?? "<missing>"}.`);
 }
 if (packageJson.private === true) throw new Error("The public Mesurer package workspace cannot be private.");
 if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
@@ -44,6 +48,9 @@ execFileSync(process.execPath, [stageScript], { stdio: "pipe" });
 const stagedPackageJson = JSON.parse(readFileSync(new URL("../.publish/package.json", import.meta.url), "utf8"));
 if (stagedPackageJson.name !== "mesurer-solid") {
   throw new Error(`Expected staged npm package name mesurer-solid, got ${stagedPackageJson.name}.`);
+}
+if (stagedPackageJson.bin?.["mesurer-skill"] !== skillBinPath) {
+  throw new Error(`Expected staged mesurer-skill bin path ${skillBinPath}, got ${stagedPackageJson.bin?.["mesurer-skill"] ?? "<missing>"}.`);
 }
 for (const privateName of ["@jhomra21/mesurer-solid-core", "@jhomra21/mesurer-solid-dom", "@jhomra21/mesurer-solid-renderer"]) {
   if (JSON.stringify(stagedPackageJson).includes(privateName)) {
