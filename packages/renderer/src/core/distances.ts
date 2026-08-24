@@ -21,11 +21,12 @@ export const getDistanceOverlay = (
   const centerAY = rectA.top + rectA.height / 2;
   let horizontal: DistanceOverlay["horizontal"] = null;
   let vertical: DistanceOverlay["vertical"] = null;
+  let edgeDistances: NonNullable<DistanceOverlay["edgeDistances"]> = [];
   const connectors: DistanceOverlay["connectors"] = [];
   const separatedX = rightA <= rectB.left || rightB <= rectA.left;
   const separatedY = bottomA <= rectB.top || bottomB <= rectA.top;
 
-  const overlappingEdgeLine = (
+  const overlappingEdgeLines = (
     first: number,
     firstEnd: number,
     second: number,
@@ -36,22 +37,21 @@ export const getDistanceOverlay = (
     overlapEndB: number,
   ) => {
     const candidates = [
-      { x1: first, x2: second },
-      { x1: firstEnd, x2: secondEnd },
+      { side: "start" as const, x1: first, x2: second },
+      { side: "end" as const, x1: firstEnd, x2: secondEnd },
     ]
       .map((candidate) => ({ ...candidate, value: Math.abs(candidate.x2 - candidate.x1) }))
       .filter((candidate) => candidate.value > 0.5)
       .sort((a, b) => a.value - b.value);
-    const candidate = candidates[0];
-    if (!candidate) return null;
     const overlapStart = Math.max(overlapStartA, overlapStartB);
     const overlapEnd = Math.min(overlapEndA, overlapEndB);
-    return {
+    return candidates.map((candidate) => ({
       x1: candidate.x1,
       x2: candidate.x2,
+      side: candidate.side,
       value: candidate.value,
       midpoint: (overlapStart + overlapEnd) / 2,
-    };
+    }));
   };
 
   if (separatedX) {
@@ -66,7 +66,7 @@ export const getDistanceOverlay = (
   }
 
   if (!separatedX && !separatedY) {
-    const edge = overlappingEdgeLine(
+    const edges = overlappingEdgeLines(
       rectA.left,
       rightA,
       rectB.left,
@@ -76,7 +76,16 @@ export const getDistanceOverlay = (
       rectB.top,
       bottomB,
     );
+    const edge = edges[0];
     if (edge) horizontal = { x1: edge.x1, x2: edge.x2, y: edge.midpoint, value: edge.value };
+    edgeDistances.push(...edges.map((line) => ({
+      axis: "x" as const,
+      side: line.side === "start" ? "left" as const : "right" as const,
+      x1: line.x1,
+      x2: line.x2,
+      y: line.midpoint,
+      value: line.value,
+    })));
   }
 
   if (separatedY) {
@@ -91,7 +100,7 @@ export const getDistanceOverlay = (
   }
 
   if (!separatedX && !separatedY) {
-    const edge = overlappingEdgeLine(
+    const edges = overlappingEdgeLines(
       rectA.top,
       bottomA,
       rectB.top,
@@ -101,7 +110,16 @@ export const getDistanceOverlay = (
       rectB.left,
       rightB,
     );
+    const edge = edges[0];
     if (edge) vertical = { y1: edge.x1, y2: edge.x2, x: edge.midpoint, value: edge.value };
+    edgeDistances.push(...edges.map((line) => ({
+      axis: "y" as const,
+      side: line.side === "start" ? "top" as const : "bottom" as const,
+      y1: line.x1,
+      y2: line.x2,
+      x: line.midpoint,
+      value: line.value,
+    })));
   }
 
   const normalizedConnectors = connectors
@@ -123,6 +141,7 @@ export const getDistanceOverlay = (
     elementRefB,
     horizontal,
     vertical,
+    edgeDistances: edgeDistances.length ? edgeDistances : undefined,
     connectors: normalizedConnectors,
   };
 };
