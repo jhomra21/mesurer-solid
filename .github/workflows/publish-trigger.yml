@@ -1,0 +1,75 @@
+name: publish-trigger
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: publish-trigger
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Dispatch publish for an untagged release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version=$(node -p 'require("./packages/mesurer/package.json").version')
+          tag="v${version}"
+          git fetch --tags --force
+
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "${tag} already exists; nothing to publish."
+            exit 0
+          fi
+
+          release_sha=""
+          while read -r sha; do
+            commit_version=$(git show "${sha}:packages/mesurer/package.json" | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => process.stdout.write(JSON.parse(s).version))')
+            if [[ "$commit_version" != "$version" ]]; then
+              continue
+            fi
+
+            parent_sha=$(git rev-parse "${sha}^" 2>/dev/null || true)
+            parent_version=""
+            if [[ -n "$parent_sha" ]] && git cat-file -e "${parent_sha}:packages/mesurer/package.json" 2>/dev/null; then
+              parent_version=$(git show "${parent_sha}:packages/mesurer/package.json" | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => process.stdout.write(JSON.parse(s).version))')
+            fi
+
+            if [[ "$parent_version" != "$version" ]]; then
+              release_sha="$sha"
+              break
+            fi
+          done < <(git log --first-parent --format=%H -- packages/mesurer/package.json)
+
+          if [[ -z "$release_sha" ]]; then
+            echo "Could not locate the main-branch commit that introduced ${version}; refusing to dispatch publish."
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$release_sha" HEAD; then
+            echo "Resolved release commit ${release_sha} is not an ancestor of current main."
+            exit 1
+          fi
+
+          if ! git diff --quiet "$release_sha" HEAD -- packages package.json bun.lock; then
+            echo "Package-affecting files changed after release commit ${release_sha}; leaving publication to an explicit recovery after review."
+            git diff --name-only "$release_sha" HEAD -- packages package.json bun.lock
+            exit 0
+          fi
+
+          node scripts/release.mjs notes --version "$version" >/dev/null
+          echo "Dispatching publish.yml recovery for ${version} from ${release_sha}."
+          gh workflow run publish.yml --ref main
