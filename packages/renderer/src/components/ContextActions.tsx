@@ -1,5 +1,5 @@
 import { For, Show, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
-import type { MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
+import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import { CloseIcon, CopyIcon, NoteIcon, SendIcon, TrashIcon } from "./Icons";
 
 export type ContextActionsController = {
@@ -110,9 +110,25 @@ export function ContextActions(props: ContextActionsProps) {
     return "Selected region";
   };
 
+  const annotationSelectionLabel = (value: MesurerAnnotation) => {
+    if (value.anchor.kind !== "elements") return "Selected region";
+    return `${value.anchor.targets.length} selected ${value.anchor.targets.length === 1 ? "element" : "elements"}`;
+  };
+
+  const selectionTriggerElement = () => {
+    const elements = selection().elements;
+    if (!elements.length) return null;
+    const hovered = props.runtime.hoveredElement();
+    return elements.find((element) => element === hovered)
+      ?? elements.find((element) => hovered && element.contains(hovered))
+      ?? elements[0];
+  };
+
   const selectionTriggerPosition = () => {
-    const value = selectionRect();
-    if (!value) return null;
+    const element = selectionTriggerElement();
+    if (!element?.isConnected) return null;
+    const rect = element.getBoundingClientRect();
+    const value = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
     const currentWindow = ownerWindow();
     const size = 24;
     const gap = 6;
@@ -335,7 +351,7 @@ export function ContextActions(props: ContextActionsProps) {
     <>
       <span ref={(element) => { anchorElement = element; }} aria-hidden="true" style={{ display: "none" }} />
 
-      <Show when={selection().elements.length === 1 && !noteComposerOpen() && !activeAnnotation()}>
+      <Show when={selection().elements.length > 0 && !noteComposerOpen() && !activeAnnotation()}>
         <Show when={selectionTriggerPosition()}>{(position) => (
           <button
             type="button"
@@ -456,7 +472,10 @@ export function ContextActions(props: ContextActionsProps) {
               onPointerDown={(event) => startSurfaceDrag(event, annotation().id)}
             >
               <NoteIcon size={14} class="msr:text-[#0d99ff]" />
-              <div class="msr:min-w-0 msr:flex-1 msr:text-[11px] msr:font-medium msr:text-ink-700">Note {annotations().findIndex((item) => item.id === annotation().id) + 1}</div>
+              <div class="msr:min-w-0 msr:flex-1">
+                <div class="msr:text-[11px] msr:font-medium msr:text-ink-700">Note {annotations().findIndex((item) => item.id === annotation().id) + 1}</div>
+                <div class="msr:text-[9px] msr:text-ink-500">{annotationSelectionLabel(annotation())}</div>
+              </div>
               <div class="msr:flex msr:items-center msr:gap-0.5">
                 <button type="button" class={annotationButtonClass} aria-label="Copy annotation context" title="Copy context" disabled={busy()} onClick={() => void run(() => props.onCopy({ annotation: annotation().id }), "Copied")}><CopyIcon size={14} /></button>
                 <Show when={props.onSend}>{(send) => (
