@@ -36,6 +36,42 @@ jobs:
           end = workflow.index("\n          PY\n", start)
           lines = workflow[start:end].splitlines()
           script = "\n".join(line[10:] if line.startswith("          ") else line for line in lines) + "\n"
+          strict = '''def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              found = text.count(old)
+              if found < count:
+                  raise SystemExit(f"{path}: expected at least {count} occurrence(s), found {found}: {old[:100]!r}")
+              text = text.replace(old, new, count)
+              p.write_text(text)
+'''
+          tolerant = '''def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              found = text.count(old)
+              if found >= count:
+                  p.write_text(text.replace(old, new, count))
+                  return
+              source_lines = text.splitlines()
+              old_lines = old.strip("\\n").splitlines()
+              new_lines = new.strip("\\n").splitlines()
+              wanted = [line.strip() for line in old_lines]
+              matches = []
+              limit = len(source_lines) - len(old_lines) + 1
+              for index in range(max(0, limit)):
+                  if [line.strip() for line in source_lines[index:index + len(old_lines)]] == wanted:
+                      matches.append(index)
+                      if len(matches) == count:
+                          break
+              if len(matches) < count:
+                  raise SystemExit(f"{path}: expected at least {count} normalized occurrence(s), found {len(matches)}: {old[:100]!r}")
+              for index in reversed(matches):
+                  source_lines[index:index + len(old_lines)] = new_lines
+              p.write_text("\\n".join(source_lines) + "\\n")
+'''
+          if strict not in script:
+              raise SystemExit('Could not locate strict staged replace helper')
+          script = script.replace(strict, tolerant, 1)
           Path('/tmp/selection-spacing-implementation.py').write_text(script)
           PY
           python3 /tmp/selection-spacing-implementation.py
