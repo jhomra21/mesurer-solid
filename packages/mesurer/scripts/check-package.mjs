@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const privatePackagePattern = /@jhomra21\/mesurer-solid-(?:core|dom|renderer)/;
 
-if (packageJson.private === true) throw new Error("The public @jhomra21/mesurer-solid package cannot be private.");
+if (packageJson.name !== "mesurer-solid") throw new Error(`Expected public package name mesurer-solid, got ${packageJson.name}.`);
+if (packageJson.private === true) throw new Error("The public mesurer-solid package cannot be private.");
 if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
   throw new Error("The public Mesurer beta must not publish runtime workspace dependencies.");
 }
@@ -55,4 +56,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`@jhomra21/mesurer-solid@${packageJson.version} publish surface and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} publish surface and Agent Skill installer are self-contained.`);
