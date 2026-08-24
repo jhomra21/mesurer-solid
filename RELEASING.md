@@ -46,12 +46,14 @@ Review the version and changelog like any other code change. Merge only after **
 
 ## Automatic publish after merge
 
-`publish.yml` listens for merged pull requests into `main`, but only activates publication when the merged head branch is exactly `release/v<package-version>`. An ordinary PR, a direct version edit, or a closed-but-unmerged release PR does not publish.
+`publish-trigger.yml` listens for pushes to `main`. It reads the package version currently on `main` and exits immediately when `v<version>` already exists. If the current version is untagged, it locates the first-parent release commit that introduced that version and dispatches `publish.yml` only when no package-affecting files (`packages`, root `package.json`, or `bun.lock`) changed after that release commit.
 
-For an approved release, the workflow:
+This push-trigger bridge is intentionally separate from the generated release PR's `pull_request` event. The release commit uses `[skip ci]`, which suppresses normal `push`/`pull_request` workflow creation for that commit, while the human merge creates a new `main` merge commit without the skip marker. The bridge then uses GitHub's `workflow_dispatch` exception to start the hardened publisher with the repository `GITHUB_TOKEN`; no PAT is needed.
 
-1. Verifies the release branch name matches the package version, the new version is greater than the pre-release base version, and `CHANGELOG.md` has the matching version section.
-2. Builds the workspace and publishable package from the merged release commit.
+`publish.yml` remains the only workflow that can publish to npm. Its `workflow_dispatch` recovery path resolves the approved release commit from `main`, verifies the current package source still matches it, and then performs the full release pipeline:
+
+1. Verifies the current version maps to a valid main-branch release commit and `CHANGELOG.md` has the matching version section.
+2. Builds the workspace and publishable package from the approved package source.
 3. Stages and packs the exact sanitized npm candidate, verifies its package name/version and SHA-512 integrity metadata, performs an npm publish dry-run, and imports that exact tarball from a clean consumer.
 4. Uploads that exact tarball and its `npm pack --json` metadata as the `npm-package` artifact.
 5. Downloads the same artifact in the publish job and recomputes SHA-512 over the downloaded bytes before any registry action.
@@ -80,10 +82,10 @@ A GitHub deployment Environment can be added later as an additional approval bou
 
 If npm publication succeeds but a later tag/GitHub Release step fails, first rerun the failed GitHub Actions job/run. That preserves the original release commit and is the safest recovery path.
 
-`publish.yml` also supports `workflow_dispatch` for recovery of the version currently on `main`. Manual recovery is rejected from any other ref. It verifies the already-published npm integrity before doing any post-publish work.
+`publish.yml` also supports direct `workflow_dispatch` for recovery of the version currently on `main`. Manual recovery is rejected from any other ref. It verifies the package source has not changed since the release commit and verifies any already-published npm integrity before doing post-publish work.
 
 Never reuse or overwrite an npm version. If the existing registry integrity differs from the candidate, the workflow fails closed.
 
 ## Repository protection
 
-After this release flow is proven, protect `main` with a GitHub ruleset that requires pull requests and the normal CI checks. The release workflow already refuses ordinary merged PRs as release triggers, but branch protection makes the human review boundary enforceable for all repository changes as well.
+After this release flow is proven, protect `main` with a GitHub ruleset that requires pull requests and the normal CI checks. The release workflow already refuses package-source drift after a release, but branch protection makes the human review boundary enforceable for all repository changes as well.
