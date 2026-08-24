@@ -13,7 +13,7 @@ export type DistanceOverlayItemProps = {
 };
 
 const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any }) => (
-  <div class={`msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:bg-ink-900/90 ${props.axis === "x" ? "msr:-translate-x-1/2" : "msr:-translate-y-1/2"}`} style={{ left: `${props.left}px`, top: `${props.top}px` }}>{props.children}</div>
+  <div data-mesurer-distance-label="true" class={`msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:bg-ink-900/90 ${props.axis === "x" ? "msr:-translate-x-1/2" : "msr:-translate-y-1/2"}`} style={{ left: `${props.left}px`, top: `${props.top}px` }}>{props.children}</div>
 );
 
 const selectionLineStyle = (style: SelectionSpacingStyle, axis: "horizontal" | "vertical") => {
@@ -36,9 +36,43 @@ const selectionLineStyle = (style: SelectionSpacingStyle, axis: "horizontal" | "
   };
 };
 
+const clampToViewport = (value: number, limit: number) => Math.max(0, Math.min(limit, value));
+
+const visibleSegmentMidpoint = (start: number, end: number, limit: number) => {
+  const segmentStart = Math.min(start, end);
+  const segmentEnd = Math.max(start, end);
+  const inset = Math.min(20, Math.max(0, limit / 2));
+  if (segmentEnd < 0) return inset;
+  if (segmentStart > limit) return limit - inset;
+  const visibleStart = clampToViewport(segmentStart, limit);
+  const visibleEnd = clampToViewport(segmentEnd, limit);
+  return (visibleStart + visibleEnd) / 2;
+};
+
+const visibleLabelMidpoint = (start: number, end: number, limit?: number) =>
+  limit && limit > 0 ? visibleSegmentMidpoint(start, end, limit) : (start + end) / 2;
+
+const positionDistanceLabelAnchor = (value: number, limit: number) => {
+  const inset = Math.min(20, Math.max(0, limit / 2));
+  if (value < 0) return inset;
+  if (value > limit) return limit - inset;
+  return Math.max(inset, Math.min(limit - inset, value));
+};
+
 export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
   const selectionSpacing = () => props.kind === "selection-spacing";
   const spacingStyle = () => props.selectionSpacingStyle ?? DEFAULT_SELECTION_SPACING_STYLE;
+  const ownerWindow = () => props.distance.elementRefA?.ownerDocument.defaultView
+    ?? props.distance.elementRefB?.ownerDocument.defaultView
+    ?? globalThis.window;
+  const labelLeft = (value: number) => {
+    const width = ownerWindow()?.innerWidth;
+    return width && width > 0 ? positionDistanceLabelAnchor(value, width) : value;
+  };
+  const labelTop = (value: number) => {
+    const height = ownerWindow()?.innerHeight;
+    return height && height > 0 ? positionDistanceLabelAnchor(value, height) : value;
+  };
   return (
     <div
       data-mesurer-distance="true"
@@ -66,7 +100,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
             ? { left: `${Math.min(line().x1, line().x2)}px`, width: `${Math.abs(line().x2 - line().x1)}px`, top: `${line().y - spacingStyle().width / 2}px`, height: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "horizontal") }
             : { left: `${Math.min(line().x1, line().x2)}px`, width: `${Math.abs(line().x2 - line().x1)}px`, top: `${line().y}px` }}
         />
-        <Tag axis="x" left={(line().x1 + line().x2) / 2} top={line().y + MEASURE_LABEL_OFFSET}>{formatValue(line().value)}</Tag>
+        <Tag axis="x" left={labelLeft(visibleLabelMidpoint(line().x1, line().x2, ownerWindow()?.innerWidth))} top={labelTop(line().y + MEASURE_LABEL_OFFSET)}>{formatValue(line().value)}</Tag>
       </></Show>}</Show>
       <Show when={props.distance.vertical}>{(line) => <Show when={line().value > 0}><>
         <div
@@ -79,18 +113,18 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
             ? { top: `${Math.min(line().y1, line().y2)}px`, height: `${Math.abs(line().y2 - line().y1)}px`, left: `${line().x - spacingStyle().width / 2}px`, width: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "vertical") }
             : { top: `${Math.min(line().y1, line().y2)}px`, height: `${Math.abs(line().y2 - line().y1)}px`, left: `${line().x}px` }}
         />
-        <Tag axis="y" left={line().x + MEASURE_LABEL_OFFSET} top={(line().y1 + line().y2) / 2}>{formatValue(line().value)}</Tag>
+        <Tag axis="y" left={labelLeft(line().x + MEASURE_LABEL_OFFSET)} top={labelTop(visibleLabelMidpoint(line().y1, line().y2, ownerWindow()?.innerHeight))}>{formatValue(line().value)}</Tag>
       </></Show>}</Show>
       </Show>
       <Show when={selectionSpacing() && props.distance.edgeDistances?.length}>
         <For each={props.distance.edgeDistances}>{(edge) => edge.axis === "x"
           ? <Show when={edge.value > 0}><>
             <div data-mesurer-distance-line={`horizontal-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ left: `${Math.min(edge.x1, edge.x2)}px`, width: `${Math.abs(edge.x2 - edge.x1)}px`, top: `${edge.y - spacingStyle().width / 2}px`, height: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "horizontal") }} />
-            <Tag axis="x" left={(edge.x1 + edge.x2) / 2} top={edge.y + MEASURE_LABEL_OFFSET}>{formatValue(edge.value)}</Tag>
+            <Tag axis="x" left={labelLeft(visibleLabelMidpoint(edge.x1, edge.x2, ownerWindow()?.innerWidth))} top={labelTop(edge.y + MEASURE_LABEL_OFFSET)}>{formatValue(edge.value)}</Tag>
           </></Show>
           : <Show when={edge.value > 0}><>
             <div data-mesurer-distance-line={`vertical-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ top: `${Math.min(edge.y1, edge.y2)}px`, height: `${Math.abs(edge.y2 - edge.y1)}px`, left: `${edge.x - spacingStyle().width / 2}px`, width: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "vertical") }} />
-            <Tag axis="y" left={edge.x + MEASURE_LABEL_OFFSET} top={edge.side === "top" ? Math.min(edge.y1, edge.y2) - MEASURE_LABEL_OFFSET : (edge.y1 + edge.y2) / 2}>{formatValue(edge.value)}</Tag>
+            <Tag axis="y" left={labelLeft(edge.x + MEASURE_LABEL_OFFSET)} top={labelTop(visibleLabelMidpoint(edge.y1, edge.y2, ownerWindow()?.innerHeight))}>{formatValue(edge.value)}</Tag>
           </></Show>}
         </For>
       </Show>

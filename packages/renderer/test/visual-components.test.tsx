@@ -165,5 +165,53 @@ describe("upstream Mesurer visual contracts", () => {
     expect(host.textContent?.replace(/\s+/g, " ").trim()).toContain("40");
     expect(host.textContent?.replace(/\s+/g, " ").trim()).toContain("30");
     expect(host.textContent?.replace(/\s+/g, " ").trim()).toContain("10");
+
+    const labels = [...host.querySelectorAll<HTMLElement>("[data-mesurer-distance-label]")];
+    expect(labels.find((element) => element.textContent?.trim() === "30")?.style.top).toBe("35px");
+    expect(labels.find((element) => element.textContent?.trim() === "10")?.style.top).toBe("115px");
+  });
+
+  it("tracks visible edge segments and pins fully offscreen labels", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const distance: DistanceOverlay = {
+      id: "selection-spacing:offscreen:parent:child",
+      rectA: { left: 0, top: -500, width: 100, height: 1000 },
+      rectB: { left: 40, top: -200, width: 20, height: 200 },
+      elementRefA: document.body,
+      normalizedRectA: { left: 0, top: 0, width: 0.1, height: 1 },
+      normalizedRectB: { left: 0.04, top: 0, width: 0.02, height: 0.2 },
+      horizontal: null,
+      vertical: null,
+      edgeDistances: [
+        { axis: "y", side: "top", y1: -500, y2: 200, x: 50, value: 700 },
+        { axis: "y", side: "bottom", y1: 600, y2: 1500, x: 50, value: 900 },
+        { axis: "y", side: "top", y1: -500, y2: -200, x: 50, value: 300 },
+        { axis: "y", side: "bottom", y1: 1000, y2: 1500, x: 50, value: 500 },
+        { axis: "x", side: "left", x1: -500, x2: -200, y: 50, value: 300 },
+        { axis: "x", side: "right", x1: 1200, x2: 1500, y: 50, value: 500 },
+        { axis: "x", side: "right", x1: 100, x2: 300, y: -500, value: 200 },
+        { axis: "x", side: "left", x1: 100, x2: 300, y: 1500, value: 200 },
+      ],
+      connectors: [],
+    };
+
+    disposers.push(render(
+      () => <DistanceOverlayItem distance={distance} showRects={false} kind="selection-spacing" />,
+      host,
+    ));
+
+    const labels = [...host.querySelectorAll<HTMLElement>("[data-mesurer-distance-label]")];
+    const viewportWidth = document.defaultView?.innerWidth ?? window.innerWidth;
+    const viewportHeight = document.defaultView?.innerHeight ?? window.innerHeight;
+    expect(labels.map((label) => label.textContent?.trim())).toEqual(["700", "900", "300", "500", "300", "500", "200", "200"]);
+    expect(labels.slice(0, 4).map((label) => label.style.top)).toEqual([
+      "100px",
+      `${(600 + viewportHeight) / 2}px`,
+      "20px",
+      `${viewportHeight - 20}px`,
+    ]);
+    expect(labels.slice(4, 6).map((label) => label.style.left)).toEqual(["20px", `${viewportWidth - 20}px`]);
+    expect(labels.slice(6).map((label) => label.style.top)).toEqual(["20px", `${viewportHeight - 20}px`]);
   });
 });
