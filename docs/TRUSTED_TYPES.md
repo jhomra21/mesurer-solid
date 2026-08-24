@@ -51,7 +51,7 @@ Node.insertBefore()
 
 Static JSX props are applied through the same property/attribute path. The renderer does not need to parse compiled static JSX through an HTML-string sink during startup.
 
-Solid 2's custom-renderer runtime comes from `@solidjs/universal`. This renderer remains private implementation detail; host applications still consume the framework-neutral `@jhomra21/mesurer-solid` package and do not need to provide Solid 2 or `@solidjs/universal` themselves.
+Solid 2's custom-renderer runtime comes from `@solidjs/universal`. This renderer remains private implementation detail; host applications consume the framework-neutral `mesurer-solid` package and do not need to provide Solid 2 or `@solidjs/universal` themselves.
 
 ## Exact-artifact regression test
 
@@ -89,7 +89,7 @@ Reduce any future startup failure to the specific browser sink or renderer opera
 
 ## Browser-harness boundary
 
-Mesurer still does not own browser process or script-injection policy. The outer harness is responsible for getting the self-contained `@jhomra21/mesurer-solid/inject-script` source into the page's JavaScript execution context.
+Mesurer still does not own browser process or script-injection policy. The outer harness is responsible for getting the self-contained `mesurer-solid/inject-script` source into the page's JavaScript execution context.
 
 The Trusted Types contract begins once that payload is evaluated. Mesurer guarantees that its own renderer startup does not require the host page to grant TrustedHTML or weaken `require-trusted-types-for 'script'`.
 

@@ -108,14 +108,16 @@ That separation is intentional: Mesurer measures, annotates, and exposes visual 
 During the prerelease period:
 
 ```bash
-npm install -D @jhomra21/mesurer-solid@beta
+npm install -D mesurer-solid@beta
 ```
 
 Or with Bun:
 
 ```bash
-bun add -d @jhomra21/mesurer-solid@beta
+bun add -d mesurer-solid@beta
 ```
+
+> **Package rename:** prereleases through `0.1.0-beta.11` were published as `@jhomra21/mesurer-solid`. New releases use the canonical unscoped package name `mesurer-solid`. The runtime API is unchanged; update dependency and import specifiers to the new package name.
 
 ## Choose how you want to use Mesurer
 
@@ -136,7 +138,7 @@ The same runtime powers all of these paths. Humans use the visible toolbar direc
 If you are already running your app with `npm run dev`, `bun run dev`, Vite, Next, Astro, or another browser development server, mount Mesurer from your client-side code:
 
 ```ts
-import { mountMeasurer } from "@jhomra21/mesurer-solid";
+import { mountMeasurer } from "mesurer-solid";
 
 const mesurer = mountMeasurer();
 ```
@@ -154,7 +156,7 @@ If Mesurer should exist only during local Vite development, a client entry modul
 
 ```ts
 if (import.meta.env.DEV) {
-  import("@jhomra21/mesurer-solid").then(({ mountMeasurer }) => {
+  import("mesurer-solid").then(({ mountMeasurer }) => {
     const mesurer = mountMeasurer();
     import.meta.hot?.dispose(() => mesurer.dispose());
   });
@@ -171,7 +173,7 @@ The human/agent context workflow is a normal removable extension:
 import {
   contextPlugin,
   mountMeasurer,
-} from "@jhomra21/mesurer-solid";
+} from "mesurer-solid";
 
 const mesurer = mountMeasurer({
   agent: true,
@@ -235,8 +237,8 @@ You can still save the published self-contained `inject-script` as a DevTools Sn
 In any throwaway folder, install the package and write the published injection payload to a file:
 
 ```bash
-npm install @jhomra21/mesurer-solid@beta
-node --input-type=module -e "import { readFileSync } from 'node:fs'; import { fileURLToPath } from 'node:url'; process.stdout.write(readFileSync(fileURLToPath(import.meta.resolve('@jhomra21/mesurer-solid/inject-script')), 'utf8'))" > mesurer-snippet.js
+npm install mesurer-solid@beta
+node --input-type=module -e "import { readFileSync } from 'node:fs'; import { fileURLToPath } from 'node:url'; process.stdout.write(readFileSync(fileURLToPath(import.meta.resolve('mesurer-solid/inject-script')), 'utf8'))" > mesurer-snippet.js
 ```
 
 Then in Chrome or Edge:
@@ -258,7 +260,7 @@ Mesurer does not ship OpenCode-, Pi-, Cursor-, Codex-, or other harness-specific
 Install the portable skill into the current repository:
 
 ```bash
-npx --yes --package=@jhomra21/mesurer-solid@beta mesurer-skill install
+npx --yes --package=mesurer-solid@beta mesurer-skill install
 ```
 
 The transient installer leaves a self-contained directory:
@@ -277,7 +279,7 @@ If the harness can execute JavaScript in the current browser page, Electron rend
 ```text
 existing harness
   → existing page / renderer
-  → evaluate skill asset or @jhomra21/mesurer-solid/inject-script
+  → evaluate skill asset or mesurer-solid/inject-script
   → window.__MESURER__
 ```
 
@@ -290,7 +292,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const source = await readFile(
-  fileURLToPath(import.meta.resolve("@jhomra21/mesurer-solid/inject-script")),
+  fileURLToPath(import.meta.resolve("mesurer-solid/inject-script")),
   "utf8",
 );
 
@@ -342,7 +344,7 @@ For packaged applications, prefer the **ordinary packaged artifact** plus an exi
 | No renderer evaluation path exists | Explain the limitation, then consider source integration |
 | Agent wants to create a new browser, command, or build just for Mesurer | **Don't; reuse the existing harness** |
 
-Harnesses that specifically support ES-module script injection may use `@jhomra21/mesurer-solid/inject` instead. `/inject-script` is the transport-neutral default for generic browser evaluation APIs.
+Harnesses that specifically support ES-module script injection may use `mesurer-solid/inject` instead. `/inject-script` is the transport-neutral default for generic browser evaluation APIs.
 
 The repository also includes a Playwright reference adapter for manual testing/CI, but it is **not** the agent integration API. Do not launch it when the outer harness already has browser execution capability. See [`docs/BROWSER_HARNESS.md`](./docs/BROWSER_HARNESS.md), [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md), and [`AGENTS.md`](./AGENTS.md).
 
@@ -390,7 +392,7 @@ Use screenshots together with structured context: geometry is stronger for exact
 Use `mountMeasurer()` when Mesurer should be embedded in a browser application or automatically present during development. This section shows its lifecycle and optional agent bridge.
 
 ```ts
-import { mountMeasurer } from "@jhomra21/mesurer-solid";
+import { mountMeasurer } from "mesurer-solid";
 
 const mesurer = mountMeasurer({
   agent: true,
@@ -499,7 +501,7 @@ import {
   createMesurerPluginHost,
   createMesurerRuntime,
   defineMesurerPlugin,
-} from "@jhomra21/mesurer-solid/core";
+} from "mesurer-solid/core";
 ```
 
 A plugin can register:
@@ -518,7 +520,7 @@ disposal callbacks
 Example:
 
 ```ts
-import { defineMesurerPlugin } from "@jhomra21/mesurer-solid/core";
+import { defineMesurerPlugin } from "mesurer-solid/core";
 
 export const counterPlugin = defineMesurerPlugin({
   id: "example.counter",
@@ -600,7 +602,7 @@ import {
   settingsPlugin,
   textInspectorPlugin,
   xrayPlugin,
-} from "@jhomra21/mesurer-solid";
+} from "mesurer-solid";
 ```
 
 This lets an integration start with the default feature set, exclude selected built-ins, or compose a custom set without forking Mesurer. `contextPlugin()` is intentionally separate from the default source-mounted built-ins, while generic injection and the browser extension install it by default for the human/agent workflow.
@@ -610,7 +612,7 @@ This lets an integration start with the default feature set, exclude selected bu
 Mesurer does not discover agents, manage their processes, or choose sessions. The ACP client/harness that already owns the target session sends Mesurer output.
 
 ```ts
-import { toAcpContentBlocks } from "@jhomra21/mesurer-solid";
+import { toAcpContentBlocks } from "mesurer-solid";
 
 const blocks = toAcpContentBlocks(context, images);
 ```
@@ -622,10 +624,10 @@ The result is one deterministic context text block plus optional labeled image b
 There is one npm package with four primary public entry points:
 
 ```text
-@jhomra21/mesurer-solid
-@jhomra21/mesurer-solid/core
-@jhomra21/mesurer-solid/inject
-@jhomra21/mesurer-solid/inject-script
+mesurer-solid
+mesurer-solid/core
+mesurer-solid/inject
+mesurer-solid/inject-script
 ```
 
 - root — mount API, agent/context types and helpers, plugin factories, and the bundled renderer.
@@ -633,7 +635,7 @@ There is one npm package with four primary public entry points:
 - `/inject` — ES-module side-effect injector for browser automation.
 - `/inject-script` — self-contained classic-script payload for generic JavaScript evaluation.
 
-Only `@jhomra21/mesurer-solid` is published. Private core/DOM/renderer workspaces are bundled and must not leak into public JS/declaration artifacts. The public context declarations remain self-contained while compile-time contract assertions prevent the internal framework-neutral annotation model from silently drifting away from the public JSON shapes.
+Only `mesurer-solid` is published under the canonical package name. Private core/DOM/renderer workspaces remain internal and must not leak into public JS/declaration artifacts. The public context declarations remain self-contained while compile-time contract assertions prevent the internal framework-neutral annotation model from silently drifting away from the public JSON shapes.
 
 ## Compatibility and host-page isolation
 

@@ -19,7 +19,7 @@ for (const path of [
   cpSync(new URL(path, packageDir), new URL(path, stageDir), { recursive: true });
 }
 
-const published = { ...packageJson };
+const published = { ...packageJson, name: "mesurer-solid" };
 delete published.scripts;
 delete published.devDependencies;
 delete published.dependencies;
@@ -30,5 +30,6 @@ const serialized = JSON.stringify(published);
 for (const privateName of ["@jhomra21/mesurer-solid-core", "@jhomra21/mesurer-solid-dom", "@jhomra21/mesurer-solid-renderer"]) {
   if (serialized.includes(privateName)) throw new Error(`Staged package metadata leaked private package name: ${privateName}`);
 }
+if (published.name !== "mesurer-solid") throw new Error(`Unexpected staged package name: ${published.name}`);
 
 console.log(`Staged ${published.name}@${published.version} in packages/mesurer/.publish`);

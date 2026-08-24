@@ -41,7 +41,7 @@ export function parseBrowserHarnessArgs(argv) {
 export const BROWSER_HARNESS_USAGE = `Mesurer Solid reference browser harness
 
 This CLI is optional development tooling. Coding agents should normally use their
-existing browser/CDP tool and evaluate @jhomra21/mesurer-solid/inject-script.
+existing browser/CDP tool and evaluate mesurer-solid/inject-script.
 
 Usage:
   bun run browser:harness -- [url] [options]

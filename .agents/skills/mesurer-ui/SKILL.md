@@ -20,7 +20,7 @@ if (window.__MESURER__) {
 
 If Mesurer is absent, use the browser JavaScript-evaluation primitive the harness already owns. Do not add Mesurer to application source, create another browser, or change the app build just to inspect the page.
 
-The installed skill is self-contained: `assets/inject-script.js` beside this file is the packaged classic injector. Read that file and evaluate its contents in the page. In the Mesurer repository itself, the equivalent development artifact is `packages/mesurer/dist/inject-script.js`. If `@jhomra21/mesurer-solid` is already installed in the project, its `/inject-script` export is the same distribution path.
+The installed skill is self-contained: `assets/inject-script.js` beside this file is the packaged classic injector. Read that file and evaluate its contents in the page. In the Mesurer repository itself, the equivalent development artifact is `packages/mesurer/dist/inject-script.js`. If `mesurer-solid` is already installed in the project, its `/inject-script` export is the same distribution path.
 
 After injection:
 

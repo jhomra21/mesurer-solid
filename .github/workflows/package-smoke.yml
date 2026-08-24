@@ -69,11 +69,11 @@ jobs:
             mountMeasurer,
             type MountMeasurerOptions,
             type MesurerPlugin,
-          } from "@jhomra21/mesurer-solid";
+          } from "mesurer-solid";
           import {
             createMesurerPluginHost,
             type MesurerPluginHost,
-          } from "@jhomra21/mesurer-solid/core";
+          } from "mesurer-solid/core";
 
           const plugin: MesurerPlugin = defineMesurerPlugin({
             id: "consumer.types",
@@ -110,7 +110,7 @@ jobs:
           cd /tmp/mesurer-react
           npm init -y >/dev/null
           npm install "$PACKAGE_TGZ" react@19 react-dom@19 vite@8.1.5 >/dev/null
-          echo "REACT_INJECT_SCRIPT_PATH=$(realpath node_modules/@jhomra21/mesurer-solid/dist/inject-script.js)" >> "$GITHUB_ENV"
+          echo "REACT_INJECT_SCRIPT_PATH=$(realpath node_modules/mesurer-solid/dist/inject-script.js)" >> "$GITHUB_ENV"
           cat > index.html <<'HTML'
           <!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'"></head><body><div id="root"></div><script type="module" src="/main.js"></script></body></html>
           HTML
@@ -157,7 +157,7 @@ jobs:
           cat > main.js <<'JS'
           import { createEffect, createSignal } from "solid-js";
           import { render } from "solid-js/web";
-          import { defineMesurerPlugin, mountMeasurer } from "@jhomra21/mesurer-solid";
+          import { defineMesurerPlugin, mountMeasurer } from "mesurer-solid";
 
           const root = document.getElementById("root");
           render(() => {
@@ -214,7 +214,7 @@ jobs:
           cat > src/main.tsx <<'TSX'
           import { createSignal } from "solid-js";
           import { render } from "@solidjs/web";
-          import { defineMesurerPlugin, mountMeasurer } from "@jhomra21/mesurer-solid";
+          import { defineMesurerPlugin, mountMeasurer } from "mesurer-solid";
 
           function App() {
             const [count, setCount] = createSignal(0);

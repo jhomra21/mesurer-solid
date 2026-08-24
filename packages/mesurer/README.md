@@ -1,4 +1,4 @@
-# @jhomra21/mesurer-solid
+# mesurer-solid
 
 Framework-agnostic UI measurement, annotation, inspection, and agent-ready visual context for browser applications.
 
@@ -7,15 +7,17 @@ The renderer is implemented privately in Solid 2, but consumers can use Solid 1/
 ## Install
 
 ```bash
-bun add -d @jhomra21/mesurer-solid@beta
+bun add -d mesurer-solid@beta
 # or
-npm install -D @jhomra21/mesurer-solid@beta
+npm install -D mesurer-solid@beta
 ```
+
+> **Package rename:** prereleases through `0.1.0-beta.11` were published as `@jhomra21/mesurer-solid`. New releases use the canonical unscoped package name `mesurer-solid`. The API is unchanged; update dependency and import specifiers to the new name.
 
 ## Mount the base inspector
 
 ```ts
-import { mountMeasurer } from "@jhomra21/mesurer-solid";
+import { mountMeasurer } from "mesurer-solid";
 
 const mesurer = mountMeasurer();
 ```
@@ -30,7 +32,7 @@ Context and annotation features are provided by the removable `mesurer.context` 
 import {
   contextPlugin,
   mountMeasurer,
-} from "@jhomra21/mesurer-solid";
+} from "mesurer-solid";
 
 const mesurer = mountMeasurer({
   agent: true,
@@ -128,7 +130,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const source = await readFile(
-  fileURLToPath(import.meta.resolve("@jhomra21/mesurer-solid/inject-script")),
+  fileURLToPath(import.meta.resolve("mesurer-solid/inject-script")),
   "utf8",
 );
 
@@ -188,7 +190,7 @@ Without `sendContext`, the plugin does not render a Send control.
 There are no Mesurer packages for individual harnesses. The npm package ships one canonical `mesurer-ui` Agent Skill:
 
 ```bash
-npx --yes --package=@jhomra21/mesurer-solid@beta mesurer-skill install
+npx --yes --package=mesurer-solid@beta mesurer-skill install
 ```
 
 The transient installer leaves a self-contained skill at `.agents/skills/mesurer-ui/`, including `assets/inject-script.js`. An Agent-Skills-compatible harness can therefore discover the workflow and inject Mesurer through its existing browser evaluation channel without keeping the npm package installed in the application.
@@ -198,7 +200,7 @@ The transient installer leaves a self-contained skill at `.agents/skills/mesurer
 Mesurer does not discover agents, manage processes, or choose sessions. The ACP client/harness that already owns a target session sends Mesurer output.
 
 ```ts
-import { toAcpContentBlocks } from "@jhomra21/mesurer-solid";
+import { toAcpContentBlocks } from "mesurer-solid";
 
 const blocks = toAcpContentBlocks(context, images);
 ```
@@ -212,7 +214,7 @@ import {
   createMesurerPluginHost,
   createMesurerRuntime,
   defineMesurerPlugin,
-} from "@jhomra21/mesurer-solid/core";
+} from "mesurer-solid/core";
 ```
 
 Plugins can contribute tools, commands, hooks, overlays, settings, state, services, history/persistence, renderer-owned UI, and lifecycle cleanup. Built-ins can be excluded/replaced without forking the renderer. Plugin tools render through the same canonical toolbar button path as built-ins; programmatic built-in commands use the owning renderer instance rather than toolbar DOM labels or synthetic keyboard events.
@@ -220,10 +222,10 @@ Plugins can contribute tools, commands, hooks, overlays, settings, state, servic
 ## Public surface
 
 ```text
-@jhomra21/mesurer-solid
-@jhomra21/mesurer-solid/core
-@jhomra21/mesurer-solid/inject
-@jhomra21/mesurer-solid/inject-script
+mesurer-solid
+mesurer-solid/core
+mesurer-solid/inject
+mesurer-solid/inject-script
 ```
 
 The package is self-contained. Private core/DOM/renderer workspaces and the internal Solid runtime must not leak into the published consumer surface.

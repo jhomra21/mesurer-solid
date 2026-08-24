@@ -27,7 +27,7 @@ The context/annotation workflow is not hard-wired into the renderer or mount lif
 import {
   contextPlugin,
   mountMeasurer,
-} from "@jhomra21/mesurer-solid";
+} from "mesurer-solid";
 
 const mesurer = mountMeasurer({
   plugins: [contextPlugin()],
@@ -279,7 +279,7 @@ Without `sendContext`, no Send button is rendered.
 Mesurer does not discover or manage individual coding agents.
 
 ```ts
-import { toAcpContentBlocks } from "@jhomra21/mesurer-solid";
+import { toAcpContentBlocks } from "mesurer-solid";
 
 const prompt = toAcpContentBlocks(context, evidenceImages);
 ```
@@ -293,7 +293,7 @@ There are no Mesurer-specific OpenCode/Pi/Cursor/Codex transports.
 The npm package ships one portable `skills/mesurer-ui/SKILL.md` and a generic installer:
 
 ```bash
-npx --yes --package=@jhomra21/mesurer-solid@beta mesurer-skill install
+npx --yes --package=mesurer-solid@beta mesurer-skill install
 ```
 
 The transient installer leaves a self-contained `.agents/skills/mesurer-ui/` directory containing both `SKILL.md` and `assets/inject-script.js`. The harness can therefore discover the workflow and inject Mesurer through its existing page-evaluation primitive without leaving the npm package installed in application source.
