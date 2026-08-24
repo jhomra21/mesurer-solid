@@ -5,6 +5,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## Unreleased
 
 - Publish the canonical npm package as `mesurer-solid` instead of `@jhomra21/mesurer-solid`; the runtime API and export paths are unchanged apart from the package specifier, and the old scoped prereleases remain available for existing installs.
+- Preserve the `mesurer-skill` executable in the canonical npm artifact and point installer recovery guidance at the unscoped `mesurer-solid` package.
 
 ## 0.1.0-beta.11 - 2026-08-24
 
