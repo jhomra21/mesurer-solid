@@ -4,9 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Make automatic multi-selection spacing a configurable `mesurer.distance` settings surface, with persisted/API-configurable visibility, color, line weight, solid/dashed/dotted pattern, dash length, and gap.
-
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.0-beta.10 - 2026-08-24
+
+- Make automatic multi-selection spacing a configurable `mesurer.distance` settings surface, with persisted/API-configurable visibility, color, line weight, solid/dashed/dotted pattern, dash length, and gap.
 
 ## 0.1.0-beta.9 - 2026-08-24
 
@@ -47,6 +49,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## 0.1.0-beta.3 - 2026-08-20
 
 - No user-facing changes.
+
 
 
 
