@@ -22,7 +22,9 @@ const mesurer = mountMeasurer();
 
 The base inspector contains Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, Settings, the plugin host, and the low-level agent inspection API.
 
-## Add annotations and agent context as a plugin
+## Enable context, copy actions, and annotations
+
+Context and annotation features are provided by the removable `mesurer.context` plugin. Source-mounted applications opt in explicitly:
 
 ```ts
 import {
@@ -36,7 +38,28 @@ const mesurer = mountMeasurer({
 });
 ```
 
-`contextPlugin()` is a normal removable Mesurer extension. It provides the `context:v1` service and owns annotation state, Copy Context/Copy Selection/Add Note UI, shortcuts, review/capture behavior, optional delivery callbacks, and cleanup.
+With the default `contextPlugin()` UI enabled, Mesurer adds these controls to the existing draggable toolbar:
+
+| Action | Shortcut | What it does |
+| --- | --- | --- |
+| Copy Context | `C` | Copies the current workspace context. |
+| Copy Selection | `Shift+C` | Copies context scoped to the selected element(s) or dragged region. |
+| Add Note | `N` | Creates an annotation for the current element selection or dragged region. |
+| Send selection | `Cmd/Ctrl+Enter` | Appears only when `sendContext` is configured and sends scoped context through the host callback. |
+
+### Annotating elements, multi-selection, and regions
+
+For one element, select it and use the floating annotation button, **Add Note** in the toolbar, or `N`.
+
+For multiple elements, Shift-select the elements you want to annotate. The floating annotation button starts on the first selected element and follows the selected element currently under the pointer. The composer shows the selected-element count, and the saved annotation keeps **all** selected targets in its context rather than only the element that hosted the button.
+
+Saved annotation markers can be clicked to reopen their note panel. The note composer and saved annotation panels can both be dragged by their header, while the underlying selection remains intact. Saved panels also show how many elements the note applies to.
+
+For an arbitrary dragged region with no element target, use **Add Note** in the toolbar or `N`. Region-only notes are fully supported even though the small floating annotation button is element-selection focused.
+
+### Use the same context programmatically
+
+`contextPlugin()` provides the `context:v1` service and owns annotation state, Copy Context/Copy Selection/Add Note UI, shortcuts, review/capture behavior, optional delivery callbacks, and cleanup.
 
 ```ts
 const workspace = await mesurer.context();
@@ -54,6 +77,17 @@ const review = await mesurer.review(annotationId);
 ```
 
 Review uses stable annotation target IDs, conservatively rebinds replaced DOM, and reports relevant baseline evidence that disappears with `kind: "missing"`.
+
+### Context without visible UI
+
+If a host wants the context/review APIs but not the Copy/Add Note toolbar controls or annotation UI, keep the plugin and disable only its UI:
+
+```ts
+const mesurer = mountMeasurer({
+  agent: true,
+  plugins: [contextPlugin({ ui: false })],
+});
+```
 
 Remove the complete feature through the same plugin host used by every extension:
 
@@ -102,7 +136,7 @@ await browser.evaluate(source);
 await browser.evaluate(`window.__MESURER__.ready()`);
 ```
 
-Injection installs `contextPlugin()` by default and disposes a previous injected instance before remounting. To inject only the base/low-level inspector:
+Injection installs `contextPlugin()` **by default**, so Copy Context, Copy Selection, Add Note, annotation markers, and the context/review APIs are available without extra configuration. To inject only the base/low-level inspector:
 
 ```js
 window.__MESURER_CONFIG__ = { context: false };

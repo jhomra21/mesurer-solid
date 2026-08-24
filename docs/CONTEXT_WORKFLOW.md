@@ -17,9 +17,11 @@ clipboard    ACP
 
 The clipboard and ACP paths use the same context and formatter.
 
-## The feature is a plugin
+## Enable the feature
 
 The context/annotation workflow is not hard-wired into the renderer or mount lifecycle. It is provided by the removable `mesurer.context` plugin.
+
+### Source-mounted applications
 
 ```ts
 import {
@@ -32,6 +34,31 @@ const mesurer = mountMeasurer({
   agent: true,
 });
 ```
+
+With the default `contextPlugin()` options, the visible Copy Context, Copy Selection, Add Note, annotation marker/panel UI, and context/review APIs are all enabled.
+
+If a host wants the service and programmatic APIs without visible context controls or annotation UI, disable only the plugin UI:
+
+```ts
+const mesurer = mountMeasurer({
+  plugins: [contextPlugin({ ui: false })],
+  agent: true,
+});
+```
+
+The plugin still provides `context:v1`; it simply does not render Copy/Add Note controls or annotation surfaces.
+
+### Injection and browser extension
+
+The generic `/inject` and `/inject-script` entry points install `contextPlugin()` by default because context/annotations are the intended human/agent injection workflow. The first-party browser extension uses that same injected runtime.
+
+A harness that deliberately wants only the low-level inspector can set this before injection:
+
+```js
+window.__MESURER_CONFIG__ = { context: false };
+```
+
+### Remove it at runtime
 
 `contextPlugin()` owns:
 
@@ -53,22 +80,53 @@ console.log(mesurer.agent.capabilities().capabilities.context); // false
 
 Other Mesurer tools continue running. Reloading/replacing `mesurer.context` uses the same plugin host lifecycle as other extensions.
 
-The generic `/inject` and `/inject-script` entry points install `contextPlugin()` by default because context/annotations are the intended human/agent injection workflow. Set `window.__MESURER_CONFIG__.context = false` before injection when a harness deliberately wants the lower-level inspector without the context plugin.
-
 ## Context controls
 
 When `contextPlugin()` renders its UI, the context actions live in the existing draggable Mesurer toolbar rather than in a second floating action bar. Plugin tools are rendered by the canonical toolbar button component; there is no DOM-label discovery or animation-frame polling layer.
 
-| Action | Shortcut | Availability |
-| --- | --- | --- |
-| Copy context | `C` | Always |
-| Copy selection | `Shift+C` | When an element or dragged region is selected |
-| Add note | `N` | When an element or dragged region is selected |
-| Send selection | `Cmd/Ctrl+Enter` | Only when the plugin was configured with `sendContext` |
+| Action | Shortcut | Availability | Result |
+| --- | --- | --- | --- |
+| Copy Context | `C` | Always | Copies the current workspace context. |
+| Copy Selection | `Shift+C` | When an element or dragged region is selected | Copies context scoped to the current selection. |
+| Add Note | `N` | When an element or dragged region is selected | Opens the annotation composer for that selection. |
+| Send selection | `Cmd/Ctrl+Enter` | Only when the plugin was configured with `sendContext` | Sends selection-scoped context through the host callback. |
 
-Copy actions briefly flash their toolbar icon on success instead of adding a toast over page content. **Add note** opens a compact toolbar popover. Annotation-specific Copy/Send/Delete/Close actions open beside the numbered annotation marker.
+Copy actions briefly flash their toolbar icon on success instead of adding a toast over page content. The context controls are inserted before Settings so Settings remains the final regular toolbar control. Keyboard shortcuts inspect the composed event path, so typing inside Mesurer inputs/textareas does not trigger page-inspection shortcuts across the Shadow DOM boundary.
 
-The context controls are inserted before Settings so Settings remains the final regular toolbar control. Annotation markers and their popovers are clamped to viewport edges. Keyboard shortcuts inspect the composed event path, so typing inside Mesurer inputs/textareas does not trigger page-inspection shortcuts across the Shadow DOM boundary.
+## Annotation UI workflow
+
+### One selected element
+
+Select an element and use the small floating annotation button, **Add Note** in the toolbar, or `N`. The compact composer opens beside the selection. Saving the note creates a numbered annotation marker anchored to that target.
+
+Click the marker later to reopen the saved note panel. The composer and saved panel are draggable by their header, and their position is clamped to the viewport so they remain usable near edges.
+
+### Multiple selected elements
+
+Shift-select the elements that belong to one piece of feedback. The floating annotation button initially anchors to the first selected element. Moving the pointer over another selected element moves the button to that selected target, which keeps the affordance near the part of the selection the person is currently inspecting.
+
+The composer labels the scope with the selected-element count, for example `2 selected elements`. Saving the note stores **all** selected targets in the annotation context, not just the element where the floating button happened to be displayed. The saved panel also shows the selected-element count.
+
+The multi-selection itself remains intact while the composer or saved note panel is dragged.
+
+### Arbitrary dragged region
+
+Region-only annotations remain supported when no DOM element is the right target. Drag the area in Select mode, then use **Add Note** in the toolbar or `N`.
+
+The small floating annotation button is intentionally element-selection focused, so a region-only selection uses the toolbar/shortcut path. The saved annotation still records the requested viewport region and can be reviewed/captured later even when it has no element targets.
+
+## Copy Context vs Copy Selection
+
+**Copy Context** is the broad workspace handoff. Use it when an agent should understand the current visual state around the page: selected/referenced targets, relevant guides and measurements, held distances, viewport state, rulers/X-ray state, and computed DOM inspection.
+
+**Copy Selection** is the scoped handoff. Use it after selecting one or more elements or dragging a region when the agent should receive only evidence relevant to that selected area.
+
+The programmatic equivalents use the same formatter and data model:
+
+```js
+await window.__MESURER__.context()
+await window.__MESURER__.context({ scope: "selection" })
+```
 
 ## Context scopes
 
@@ -90,7 +148,7 @@ Captures the current selected element(s) or dragged selection region plus only r
 
 ### Annotation
 
-A user selects one or more page elements **or drags an arbitrary area** and chooses **Add note**. The plugin stores durable target identity when elements exist, the requested region, a scoped baseline, and the user's note.
+A user selects one or more page elements **or drags an arbitrary area** and chooses **Add Note**. The plugin stores durable target identity when elements exist, the requested region, a scoped baseline, and the user's note.
 
 ```js
 await window.__MESURER__.context({ annotation: annotationId })
@@ -99,6 +157,29 @@ await window.__MESURER__.context({ annotation: annotationId })
 The user note is intent. Computed DOM data and visual measurements are supporting evidence.
 
 Scoped `MesurerContextV1` values expose `regions`, the viewport rectangles that define the selected/annotated area. Region-only notes therefore retain useful geometry even when `targets` is empty.
+
+## Programmatic context, annotations, and review
+
+The same functionality used by the toolbar is available through the mounted instance or the injected browser bridge.
+
+```ts
+const workspace = await mesurer.context();
+const selected = await mesurer.context({ scope: "selection" });
+const annotation = await mesurer.context({ annotation: annotationId });
+await mesurer.copyContext({ annotation: annotationId });
+const review = await mesurer.review(annotationId);
+```
+
+For injected usage, wait for plugin initialization before reading dynamic capabilities:
+
+```js
+await window.__MESURER__.ready()
+window.__MESURER__.capabilities()
+await window.__MESURER__.annotations()
+await window.__MESURER__.context({ annotation: annotationId })
+await window.__MESURER__.stable()
+await window.__MESURER__.review(annotationId)
+```
 
 ## Relevance rules
 
