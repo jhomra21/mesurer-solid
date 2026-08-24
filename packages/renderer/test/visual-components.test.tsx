@@ -97,4 +97,43 @@ describe("upstream Mesurer visual contracts", () => {
     expect(guide!.className).toContain("msr:border-[#2563eb]");
     expect(host.textContent?.trim()).toBe("24");
   });
+
+  it("renders every nested selection edge distance as a dashed side guide", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const distance: DistanceOverlay = {
+      id: "selection-spacing:pair:child:parent",
+      rectA: { left: 20, top: 20, width: 100, height: 100 },
+      rectB: { left: 40, top: 50, width: 40, height: 60 },
+      normalizedRectA: { left: 0.02, top: 0.02, width: 0.1, height: 0.1 },
+      normalizedRectB: { left: 0.04, top: 0.05, width: 0.04, height: 0.06 },
+      horizontal: { x1: 20, x2: 40, y: 80, value: 20 },
+      vertical: { y1: 110, y2: 120, x: 60, value: 10 },
+      edgeDistances: [
+        { axis: "x", side: "left", x1: 20, x2: 40, y: 80, value: 20 },
+        { axis: "x", side: "right", x1: 120, x2: 80, y: 80, value: 40 },
+        { axis: "y", side: "top", y1: 20, y2: 50, x: 60, value: 30 },
+        { axis: "y", side: "bottom", y1: 120, y2: 110, x: 60, value: 10 },
+      ],
+      connectors: [],
+    };
+
+    disposers.push(render(
+      () => <DistanceOverlayItem distance={distance} showRects={false} kind="selection-spacing" />,
+      host,
+    ));
+
+    const sideGuides = [...host.querySelectorAll<HTMLElement>('[data-mesurer-distance-line]')];
+    expect(sideGuides.map((guide) => guide.dataset.mesurerDistanceLine).sort()).toEqual([
+      "horizontal-left",
+      "horizontal-right",
+      "vertical-bottom",
+      "vertical-top",
+    ]);
+    expect(sideGuides.every((guide) => guide.className.includes("msr:border-dashed"))).toBe(true);
+    expect(host.textContent?.replace(/\s+/g, " ").trim()).toContain("20");
+    expect(host.textContent?.replace(/\s+/g, " ").trim()).toContain("40");
+    expect(host.textContent?.replace(/\s+/g, " ").trim()).toContain("30");
+    expect(host.textContent?.replace(/\s+/g, " ").trim()).toContain("10");
+  });
 });

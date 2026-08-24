@@ -31,6 +31,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
         ? <div class="msr:absolute msr:border-l msr:border-dashed msr:border-[#2563eb]/70" style={{ left: `${connector.x1}px`, top: `${Math.min(connector.y1, connector.y2)}px`, height: `${Math.abs(connector.y2 - connector.y1)}px` }} />
         : <div class="msr:absolute msr:border-t msr:border-dashed msr:border-[#2563eb]/70" style={{ left: `${Math.min(connector.x1, connector.x2)}px`, top: `${connector.y1}px`, width: `${Math.abs(connector.x2 - connector.x1)}px` }} />}
       </For>
+      <Show when={!selectionSpacing() || !props.distance.edgeDistances?.length}>
       <Show when={props.distance.horizontal}>{(line) => <Show when={line().value > 0}><>
         <div
           data-mesurer-distance-line="horizontal"
@@ -47,6 +48,19 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
         />
         <Tag axis="y" left={line().x + MEASURE_LABEL_OFFSET} top={(line().y1 + line().y2) / 2}>{formatValue(line().value)}</Tag>
       </></Show>}</Show>
+      </Show>
+      <Show when={selectionSpacing() && props.distance.edgeDistances?.length}>
+        <For each={props.distance.edgeDistances}>{(edge) => edge.axis === "x"
+          ? <Show when={edge.value > 0}><>
+            <div data-mesurer-distance-line={`horizontal-${edge.side}`} class="msr:absolute msr:h-0 msr:border-t msr:border-dashed msr:border-[#2563eb]" style={{ left: `${Math.min(edge.x1, edge.x2)}px`, width: `${Math.abs(edge.x2 - edge.x1)}px`, top: `${edge.y}px` }} />
+            <Tag axis="x" left={(edge.x1 + edge.x2) / 2} top={edge.y + MEASURE_LABEL_OFFSET}>{formatValue(edge.value)}</Tag>
+          </></Show>
+          : <Show when={edge.value > 0}><>
+            <div data-mesurer-distance-line={`vertical-${edge.side}`} class="msr:absolute msr:w-0 msr:border-l msr:border-dashed msr:border-[#2563eb]" style={{ top: `${Math.min(edge.y1, edge.y2)}px`, height: `${Math.abs(edge.y2 - edge.y1)}px`, left: `${edge.x}px` }} />
+            <Tag axis="y" left={edge.x + MEASURE_LABEL_OFFSET} top={edge.side === "top" ? Math.min(edge.y1, edge.y2) - MEASURE_LABEL_OFFSET : (edge.y1 + edge.y2) / 2}>{formatValue(edge.value)}</Tag>
+          </></Show>}
+        </For>
+      </Show>
     </div>
   );
 }

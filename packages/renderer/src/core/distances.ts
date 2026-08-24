@@ -21,9 +21,38 @@ export const getDistanceOverlay = (
   const centerAY = rectA.top + rectA.height / 2;
   let horizontal: DistanceOverlay["horizontal"] = null;
   let vertical: DistanceOverlay["vertical"] = null;
+  let edgeDistances: NonNullable<DistanceOverlay["edgeDistances"]> = [];
   const connectors: DistanceOverlay["connectors"] = [];
   const separatedX = rightA <= rectB.left || rightB <= rectA.left;
   const separatedY = bottomA <= rectB.top || bottomB <= rectA.top;
+
+  const overlappingEdgeLines = (
+    first: number,
+    firstEnd: number,
+    second: number,
+    secondEnd: number,
+    overlapStartA: number,
+    overlapEndA: number,
+    overlapStartB: number,
+    overlapEndB: number,
+  ) => {
+    const candidates = [
+      { side: "start" as const, x1: first, x2: second },
+      { side: "end" as const, x1: firstEnd, x2: secondEnd },
+    ]
+      .map((candidate) => ({ ...candidate, value: Math.abs(candidate.x2 - candidate.x1) }))
+      .filter((candidate) => candidate.value > 0.5)
+      .sort((a, b) => a.value - b.value);
+    const overlapStart = Math.max(overlapStartA, overlapStartB);
+    const overlapEnd = Math.min(overlapEndA, overlapEndB);
+    return candidates.map((candidate) => ({
+      x1: candidate.x1,
+      x2: candidate.x2,
+      side: candidate.side,
+      value: candidate.value,
+      midpoint: (overlapStart + overlapEnd) / 2,
+    }));
+  };
 
   if (separatedX) {
     const aIsLeft = rightA <= rectB.left;
@@ -36,6 +65,29 @@ export const getDistanceOverlay = (
     else if (y > bottomB) connectors.push({ x1: edgeBX, y1: y, x2: edgeBX, y2: bottomB });
   }
 
+  if (!separatedX && !separatedY) {
+    const edges = overlappingEdgeLines(
+      rectA.left,
+      rightA,
+      rectB.left,
+      rightB,
+      rectA.top,
+      bottomA,
+      rectB.top,
+      bottomB,
+    );
+    const edge = edges[0];
+    if (edge) horizontal = { x1: edge.x1, x2: edge.x2, y: edge.midpoint, value: edge.value };
+    edgeDistances.push(...edges.map((line) => ({
+      axis: "x" as const,
+      side: line.side === "start" ? "left" as const : "right" as const,
+      x1: line.x1,
+      x2: line.x2,
+      y: line.midpoint,
+      value: line.value,
+    })));
+  }
+
   if (separatedY) {
     const aIsTop = bottomA <= rectB.top;
     const y1 = aIsTop ? bottomA : bottomB;
@@ -45,6 +97,29 @@ export const getDistanceOverlay = (
     const edgeBY = aIsTop ? rectB.top : bottomB;
     if (x < rectB.left) connectors.push({ x1: x, y1: edgeBY, x2: rectB.left, y2: edgeBY });
     else if (x > rightB) connectors.push({ x1: x, y1: edgeBY, x2: rightB, y2: edgeBY });
+  }
+
+  if (!separatedX && !separatedY) {
+    const edges = overlappingEdgeLines(
+      rectA.top,
+      bottomA,
+      rectB.top,
+      bottomB,
+      rectA.left,
+      rightA,
+      rectB.left,
+      rightB,
+    );
+    const edge = edges[0];
+    if (edge) vertical = { y1: edge.x1, y2: edge.x2, x: edge.midpoint, value: edge.value };
+    edgeDistances.push(...edges.map((line) => ({
+      axis: "y" as const,
+      side: line.side === "start" ? "top" as const : "bottom" as const,
+      y1: line.x1,
+      y2: line.x2,
+      x: line.midpoint,
+      value: line.value,
+    })));
   }
 
   const normalizedConnectors = connectors
@@ -66,6 +141,7 @@ export const getDistanceOverlay = (
     elementRefB,
     horizontal,
     vertical,
+    edgeDistances: edgeDistances.length ? edgeDistances : undefined,
     connectors: normalizedConnectors,
   };
 };

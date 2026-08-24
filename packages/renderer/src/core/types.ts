@@ -57,6 +57,10 @@ export type DistanceOverlay = {
   elementRefB?: HTMLElement | null;
   horizontal: { x1: number; x2: number; y: number; value: number } | null;
   vertical: { y1: number; y2: number; x: number; value: number } | null;
+  edgeDistances?: Array<
+    | { axis: "x"; side: "left" | "right"; x1: number; x2: number; y: number; value: number }
+    | { axis: "y"; side: "top" | "bottom"; y1: number; y2: number; x: number; value: number }
+  >;
   connectors: Array<{ x1: number; y1: number; x2: number; y2: number }>;
 };
 
