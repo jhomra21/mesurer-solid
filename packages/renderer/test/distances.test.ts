@@ -17,6 +17,12 @@ const axisValues = (items: ReturnType<typeof getSelectionSpacingOverlays>) => ({
   vertical: items.flatMap((item) => item.vertical ? [item.vertical.value] : []),
 });
 
+const translated = (measurement: InspectMeasurement, dx: number, dy: number) => selected(measurement.id, {
+  ...measurement.rect,
+  left: measurement.rect.left + dx,
+  top: measurement.rect.top + dy,
+});
+
 describe("multi-selection spacing", () => {
   it("shows the direct x and y gaps for exactly two selected elements", () => {
     const overlays = getSelectionSpacingOverlays([
@@ -94,6 +100,21 @@ describe("multi-selection spacing", () => {
       ["top", 30],
       ["bottom", 10],
     ]));
+  });
+
+  it("keeps spacing values stable while viewport rects translate during page scroll", () => {
+    const parent = selected("parent", { left: 20, top: 720, width: 100, height: 100 });
+    const child = selected("child", { left: 40, top: 750, width: 40, height: 60 });
+    const before = getSelectionSpacingOverlays([parent, child]);
+    const after = getSelectionSpacingOverlays([
+      translated(parent, 0, -600),
+      translated(child, 0, -600),
+    ]);
+
+    expect(axisValues(after)).toEqual(axisValues(before));
+    expect(after[0].edgeDistances?.map((edge) => edge.value)).toEqual(before[0].edgeDistances?.map((edge) => edge.value));
+    expect(after[0].vertical?.y1).toBe((before[0].vertical?.y1 ?? 0) - 600);
+    expect(after[0].vertical?.y2).toBe((before[0].vertical?.y2 ?? 0) - 600);
   });
 
   it("does not invent spacing for identical selections", () => {
