@@ -46,9 +46,10 @@ export const settingsPlugin = () => toolPlugin("settings", "Settings", "⌘/Ctrl
 export const distancePlugin = (): MesurerPlugin => defineMesurerPlugin({
   id: "mesurer.distance",
   version: "0.1.0",
-  provides: ["overlay:distance"],
+  provides: ["overlay:distance", "settings:selection-spacing"],
   setup(ctx) {
     ctx.overlay.register({ id: "distance", builtin: "distance", order: 30 });
+    ctx.settings.register({ id: "selection-spacing", label: "Selection spacing", builtin: "distance", order: 30 });
   },
 });
 

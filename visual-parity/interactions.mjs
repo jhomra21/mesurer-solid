@@ -34,6 +34,13 @@ async function openSettings(page) {
 async function openSettingsTab(page, name) {
   await openSettings(page);
   await realClick(tab(page, name));
+  // Compare the settled selected-tab surface rather than browser-specific
+  // pointer/focus rasterization left behind by a real mouse click.
+  await page.evaluate(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+  });
+  await page.mouse.move(900, 700);
   await sleep(page, 80);
 }
 
@@ -47,6 +54,19 @@ async function openColorPicker(page) {
   await realClick(button(page, /^Color picker/));
   await page.locator(".mesurer-color-picker").waitFor();
   await sleep(page, 80);
+}
+
+// Interaction parity compares the upstream-shared controls. Solid-only,
+// explicitly plugin-owned settings are exercised by browser-contracts instead.
+async function normalizeSharedParitySurface(page, implementation) {
+  if (implementation !== "solid") return;
+  const extension = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"]');
+  if ((await extension.count()) === 0) return;
+  await extension.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
+  // Removing the extension changes the Select panel's layout. Give the shared
+  // surface the same >150ms settle window used for settings/control transitions
+  // before taking a zero-tolerance pixel snapshot.
+  await sleep(page, 240);
 }
 
 async function stateSnapshot(page) {
@@ -182,6 +202,7 @@ try {
       // screenshot so the comparison measures the final pressed state rather
       // than framework scheduling within the animation.
       await sleep(page, 240);
+      await normalizeSharedParitySurface(page, implementation);
       await page.screenshot({ path: path.join(outputDir, `${implementation}-${item.name}.png`), fullPage: false, scale: "device" });
       await fs.writeFile(path.join(outputDir, `${implementation}-${item.name}.json`), JSON.stringify(await stateSnapshot(page), null, 2));
       await context.close();

@@ -1,7 +1,7 @@
 import { For, Show, createSignal } from "solid-js";
 import { colorToHex, parseCssColor, type ColorPickerFormat } from "../core/colors";
 import { trySetPointerCapture } from "../core/events";
-import type { GuideStyle } from "../core/persistence";
+import type { GuideStyle, SelectionSpacingStyle } from "../core/persistence";
 import type { MeasurerModel, SettingsTab } from "../model/create-measurer-model";
 import { Tooltip, createTooltip } from "./Tooltip";
 
@@ -179,11 +179,12 @@ function ColorField(props: { label: string; value: string; fallback: string; own
   );
 }
 
-export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window; onResetSettings: () => void; onClearWorkspace: () => void }) {
+export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window; onResetSettings: () => void; onClearWorkspace: () => void; selectionSpacingStyle: SelectionSpacingStyle; onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void }) {
   const patternTooltip = createTooltip(props.ownerWindow);
   const setTab = (tab: SettingsTab) => props.model.setTransient({ settingsTab: tab });
   const settings = () => props.model.state.settings;
   const updateGuide = (patch: Partial<GuideStyle>) => props.model.updateSettings({ guideStyle: { ...props.model.current.settings.guideStyle, ...patch } });
+  const updateSpacing = (patch: Partial<SelectionSpacingStyle>) => props.onSelectionSpacingStyleChange(patch);
   const toggleFormat = (format: ColorPickerFormat) => {
     const current = props.model.current.settings.colorPickerFormats;
     const next = current.includes(format) ? current.filter((item) => item !== format) : [...current, format];
@@ -255,7 +256,42 @@ export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window
           <SettingsSwitch label="Hover" checked={settings().hoverHighlightEnabled} onChange={(hoverHighlightEnabled) => props.model.updateSettings({ hoverHighlightEnabled })} />
           <SettingsSwitch label="Element snap" checked={settings().snapEnabled} onChange={(snapEnabled) => props.model.updateSettings({ snapEnabled })} />
           <SettingsSwitch label="Stack" checked={settings().multiMeasureEnabled} onChange={(multiMeasureEnabled) => props.model.updateSettings({ multiMeasureEnabled })} />
-        </section>
+        <div data-mesurer-distance="true" class="msr:col-span-2 msr:mt-1 msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1 msr:border-t msr:border-ink-100 msr:pt-2">
+          <div class="msr:col-span-2 msr:text-[10px] msr:font-semibold msr:text-ink-500">Selection spacing</div>
+          <SettingsSwitch label="Show" checked={props.selectionSpacingStyle.enabled} onChange={(enabled) => updateSpacing({ enabled })} />
+          <ColorField label="Line color" value={props.selectionSpacingStyle.color} fallback="#2563eb" ownerWindow={props.ownerWindow} onChange={(color) => updateSpacing({ color })} />
+          <SliderControl label="Weight" min={1} max={4} step={1} value={props.selectionSpacingStyle.width} formatValue={(value) => `${value}px`} parseInput={(input) => Number.parseFloat(input)} onChange={(width) => updateSpacing({ width })} />
+          <div class="msr:col-span-2 msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-3">
+            <span class="msr:text-[12px] msr:text-ink-700">Pattern</span>
+            <div class="msr:flex msr:gap-1" role="radiogroup" aria-label="Selection spacing pattern" onMouseLeave={patternTooltip.onTooltipContainerLeave}>
+              <For each={GUIDE_PATTERNS}>{({ value, label }) => {
+                const selected = () => props.selectionSpacingStyle.pattern === value;
+                const tooltipId = `spacing-pattern-${value}`;
+                return (
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-label={`${label} spacing pattern`}
+                    aria-checked={selected() ? "true" : "false"}
+                    class={`msr:relative msr:flex msr:h-6 msr:min-w-0 msr:flex-1 msr:items-center msr:justify-center msr:rounded-[5px] msr:border msr:px-1 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#0d99ff] ${selected() ? "msr:border-[#0d99ff] msr:bg-[#0d99ff]/10" : "msr:border-ink-200 msr:bg-ink-50 msr:hover:bg-ink-100"}`}
+                    onClick={() => updateSpacing({ pattern: value })}
+                    onMouseEnter={() => patternTooltip.onTooltipEnter(tooltipId)}
+                    onFocus={() => patternTooltip.onTooltipEnter(tooltipId)}
+                    onBlur={patternTooltip.onTooltipLeave}
+                  >
+                    <span aria-hidden="true" class={`msr:block msr:w-full msr:border-t-2 msr:border-ink-700 ${value === "dashed" ? "msr:border-dashed" : value === "dotted" ? "msr:border-dotted" : "msr:border-solid"}`} />
+                    <Tooltip label={label} visible={patternTooltip.visibleTooltipId() === tooltipId} instant={patternTooltip.tooltipInstant()} class="msr:z-10" />
+                  </button>
+                );
+              }}</For>
+            </div>
+          </div>
+          <Show when={props.selectionSpacingStyle.pattern !== "solid"}>
+            <SliderControl label="Length" min={2} max={24} step={1} value={props.selectionSpacingStyle.dashLength} formatValue={(value) => `${value}px`} onChange={(dashLength) => updateSpacing({ dashLength })} />
+            <SliderControl label="Gap" min={0} max={24} step={1} value={props.selectionSpacingStyle.gap} formatValue={(value) => `${value}px`} onChange={(gap) => updateSpacing({ gap })} />
+          </Show>
+        </div>
+      </section>
       </Show>
 
       <Show when={props.model.state.settingsTab === "color-picker"}>

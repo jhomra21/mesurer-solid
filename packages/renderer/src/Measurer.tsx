@@ -22,12 +22,14 @@ import {
   createLocalStoragePersistence,
   DEFAULT_GUIDE_STYLE,
   DEFAULT_RULER_SETTINGS,
+  DEFAULT_SELECTION_SPACING_STYLE,
   type GuideStyle,
   type MesurerPersistence,
   type MesurerPersistenceSnapshot,
   type MesurerStoredSettings,
   type PersistenceChangeSource,
   type RulerSettings,
+  type SelectionSpacingStyle,
 } from "./core/persistence";
 import {
   getElementsInRectCached,
@@ -68,6 +70,7 @@ export type MeasurerProps = {
   selectNewGuideEnabled?: boolean;
   multiMeasureEnabled?: boolean;
   guideStyle?: Partial<GuideStyle>;
+  selectionSpacingStyle?: Partial<SelectionSpacingStyle>;
   rulerSettings?: Partial<RulerSettings>;
   persistence?: MesurerPersistence;
   onPersistenceError?: (error: unknown) => void;
@@ -106,10 +109,14 @@ const sanitizeStoredSettings = (ownerWindow: Window, settings: MesurerStoredSett
   const supportsColor = (value: string | undefined) =>
     value !== undefined &&
     (ownerWindow as Window & { CSS?: { supports: (property: string, value: string) => boolean } }).CSS?.supports("color", value) === true;
+  const selectionSpacingStyle = settings.selectionSpacingStyle
+    ? { ...settings.selectionSpacingStyle, ...(settings.selectionSpacingStyle.color === undefined || supportsColor(settings.selectionSpacingStyle.color) ? {} : { color: undefined }) }
+    : undefined;
   return {
     ...settings,
     ...(supportsColor(settings.highlightColor) ? {} : { highlightColor: undefined }),
     ...(supportsColor(settings.guideColor) ? {} : { guideColor: undefined }),
+    ...(selectionSpacingStyle ? { selectionSpacingStyle } : {}),
   };
 };
 
@@ -138,10 +145,12 @@ const unionSelection = (items: InspectMeasurement[], origin: Rect | null): Inspe
   };
 };
 
-function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: MeasurerProps }) {
+function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: MeasurerProps; selectionSpacingStyle: SelectionSpacingStyle; onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void; onResetSelectionSpacingStyle: () => void }) {
   const model = untrack(() => props.model);
   const env = untrack(() => props.env);
   const input = untrack(() => props.input);
+  const onSelectionSpacingStyleChange = untrack(() => props.onSelectionSpacingStyleChange);
+  const onResetSelectionSpacingStyle = untrack(() => props.onResetSelectionSpacingStyle);
   const { ownerDocument, ownerWindow } = env;
   const pageTarget = input.pageTarget ?? ownerDocument.body;
   const instanceId = ++instanceCount;
@@ -498,10 +507,11 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
       model.state.settings.snapGuidesEnabled, model.state.settings.selectNewGuideEnabled,
       model.state.settings.multiMeasureEnabled, model.state.settings.colorPickerFormats.join("|"),
       JSON.stringify(model.state.settings.guideStyle), JSON.stringify(model.state.settings.rulerSettings),
+      JSON.stringify(props.selectionSpacingStyle),
     ],
     () => {
       if (!persistenceReady || !activePersistence) return;
-      activePersistence.saveSettings(model.serializeSettings());
+      activePersistence.saveSettings({ ...model.serializeSettings(), selectionSpacingStyle: { ...untrack(() => props.selectionSpacingStyle) } });
     },
   );
 
@@ -529,14 +539,22 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
     activePersistence = persistence;
     persistence.setErrorHandler?.(input.onPersistenceError);
     const stored = persistence.load();
-    if (stored?.settings) model.applyStoredSettings(sanitizeStoredSettings(ownerWindow, stored.settings));
+    if (stored?.settings) {
+      const storedSettings = sanitizeStoredSettings(ownerWindow, stored.settings);
+      model.applyStoredSettings(storedSettings);
+      if (storedSettings.selectionSpacingStyle) onSelectionSpacingStyleChange(storedSettings.selectionSpacingStyle);
+    }
     if ((model.current.settings.persistOnReload || input.persistOnReload) && stored?.workspace) model.applyStoredWorkspace(stored.workspace);
     persistenceReady = true;
     if (model.current.toolMode === "text-inspector" && model.current.enabled) textInspector.enable();
 
     const applyExternal = (snapshot: MesurerPersistenceSnapshot | null, source?: PersistenceChangeSource) => {
       if (!snapshot) return;
-      if (source?.settings !== false) model.applyStoredSettings(sanitizeStoredSettings(ownerWindow, snapshot.settings));
+      if (source?.settings !== false) {
+      const storedSettings = sanitizeStoredSettings(ownerWindow, snapshot.settings);
+      model.applyStoredSettings(storedSettings);
+      if (storedSettings.selectionSpacingStyle) onSelectionSpacingStyleChange(storedSettings.selectionSpacingStyle);
+    }
       if (source?.workspace !== false && snapshot.workspace && model.current.settings.persistOnReload) model.applyStoredWorkspace(snapshot.workspace);
     };
     const unsubscribe = persistence.subscribe?.(applyExternal);
@@ -673,6 +691,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
           guideDistanceOverlay={guideDistanceOverlay()}
           optionContainerLines={optionContainerLines()}
           hoverGuide={hoverGuide()}
+          selectionSpacingStyle={props.selectionSpacingStyle}
           interactive={model.state.enabled && !model.state.settingsOpen}
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
@@ -689,7 +708,9 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
           pluginTools={input.pluginTools}
           onPluginTool={input.onPluginTool}
           onClearWorkspace={clearWorkspace}
-          onResetSettings={() => { model.resetSettings(); activePersistence?.clearSettings(); }}
+          selectionSpacingStyle={props.selectionSpacingStyle}
+          onSelectionSpacingStyleChange={onSelectionSpacingStyleChange}
+          onResetSettings={() => { model.resetSettings(); onResetSelectionSpacingStyle(); activePersistence?.clearSettings(); }}
         />
       </div>
     </Portal>
@@ -697,6 +718,10 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
 }
 
 export default function Measurer(props: MeasurerProps) {
+  const initialSelectionSpacingStyle = untrack(() => ({ ...DEFAULT_SELECTION_SPACING_STYLE, ...props.selectionSpacingStyle }));
+  const [selectionSpacingStyle, setSelectionSpacingStyle] = createSignal<SelectionSpacingStyle>({ ...initialSelectionSpacingStyle });
+  const updateSelectionSpacingStyle = (patch: Partial<SelectionSpacingStyle>) => setSelectionSpacingStyle((current) => ({ ...current, ...patch }));
+  const resetSelectionSpacingStyle = () => setSelectionSpacingStyle({ ...initialSelectionSpacingStyle });
   const initial = untrack(() => ({
     highlightColor: props.highlightColor ?? "oklch(0.62 0.18 255)",
     guideColor: props.guideColor ?? "oklch(0.63 0.26 29.23)",
@@ -734,7 +759,7 @@ export default function Measurer(props: MeasurerProps) {
 
   return (
     <Show when={environment()}>
-      {(env) => <MeasurerClient model={model} env={env()} input={props} />}
+      {(env) => <MeasurerClient model={model} env={env()} input={props} selectionSpacingStyle={selectionSpacingStyle()} onSelectionSpacingStyleChange={updateSelectionSpacingStyle} onResetSelectionSpacingStyle={resetSelectionSpacingStyle} />}
     </Show>
   );
 }

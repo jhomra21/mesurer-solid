@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js";
 import type { DistanceOverlay } from "../core/types";
+import { DEFAULT_SELECTION_SPACING_STYLE, type SelectionSpacingStyle } from "../core/persistence";
 import { formatValue } from "../core/utils";
 import { MEASURE_LABEL_OFFSET } from "../core/constants";
 
@@ -8,14 +9,36 @@ export type DistanceOverlayItemProps = {
   onRemove?: (id: string) => void;
   showRects?: boolean;
   kind?: "held" | "preview" | "selection-spacing";
+  selectionSpacingStyle?: SelectionSpacingStyle;
 };
 
 const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any }) => (
   <div class={`msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:bg-ink-900/90 ${props.axis === "x" ? "msr:-translate-x-1/2" : "msr:-translate-y-1/2"}`} style={{ left: `${props.left}px`, top: `${props.top}px` }}>{props.children}</div>
 );
 
+const selectionLineStyle = (style: SelectionSpacingStyle, axis: "horizontal" | "vertical") => {
+  const period = style.dashLength + style.gap;
+  const direction = axis === "horizontal" ? "to right" : "to bottom";
+  const dotRadius = Math.max(0.5, style.width / 2);
+  const backgroundImage = style.pattern === "solid"
+    ? undefined
+    : style.pattern === "dotted"
+      ? `radial-gradient(circle, ${style.color} 0 ${dotRadius}px, transparent ${dotRadius + 0.5}px)`
+      : `repeating-linear-gradient(${direction}, ${style.color} 0 ${style.dashLength}px, transparent ${style.dashLength}px ${period}px)`;
+  const backgroundSize = style.pattern === "dotted"
+    ? axis === "horizontal" ? `${period}px ${style.width}px` : `${style.width}px ${period}px`
+    : undefined;
+  return {
+    "background-color": style.pattern === "solid" ? style.color : "transparent",
+    "background-image": backgroundImage,
+    "background-size": backgroundSize,
+    opacity: style.opacity,
+  };
+};
+
 export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
   const selectionSpacing = () => props.kind === "selection-spacing";
+  const spacingStyle = () => props.selectionSpacingStyle ?? DEFAULT_SELECTION_SPACING_STYLE;
   return (
     <div
       data-mesurer-distance="true"
@@ -35,16 +58,26 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
       <Show when={props.distance.horizontal}>{(line) => <Show when={line().value > 0}><>
         <div
           data-mesurer-distance-line="horizontal"
-          class={selectionSpacing() ? "msr:absolute msr:h-0 msr:border-t msr:border-dashed msr:border-[#2563eb]" : "msr:absolute msr:h-px msr:bg-[#2563eb]"}
-          style={{ left: `${Math.min(line().x1, line().x2)}px`, width: `${Math.abs(line().x2 - line().x1)}px`, top: `${line().y}px` }}
+          data-mesurer-line-pattern={selectionSpacing() ? spacingStyle().pattern : undefined}
+          data-mesurer-line-width={selectionSpacing() ? String(spacingStyle().width) : undefined}
+          data-mesurer-line-color={selectionSpacing() ? spacingStyle().color : undefined}
+          class={selectionSpacing() ? "msr:absolute" : "msr:absolute msr:h-px msr:bg-[#2563eb]"}
+          style={selectionSpacing()
+            ? { left: `${Math.min(line().x1, line().x2)}px`, width: `${Math.abs(line().x2 - line().x1)}px`, top: `${line().y - spacingStyle().width / 2}px`, height: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "horizontal") }
+            : { left: `${Math.min(line().x1, line().x2)}px`, width: `${Math.abs(line().x2 - line().x1)}px`, top: `${line().y}px` }}
         />
         <Tag axis="x" left={(line().x1 + line().x2) / 2} top={line().y + MEASURE_LABEL_OFFSET}>{formatValue(line().value)}</Tag>
       </></Show>}</Show>
       <Show when={props.distance.vertical}>{(line) => <Show when={line().value > 0}><>
         <div
           data-mesurer-distance-line="vertical"
-          class={selectionSpacing() ? "msr:absolute msr:w-0 msr:border-l msr:border-dashed msr:border-[#2563eb]" : "msr:absolute msr:w-px msr:bg-[#2563eb]"}
-          style={{ top: `${Math.min(line().y1, line().y2)}px`, height: `${Math.abs(line().y2 - line().y1)}px`, left: `${line().x}px` }}
+          data-mesurer-line-pattern={selectionSpacing() ? spacingStyle().pattern : undefined}
+          data-mesurer-line-width={selectionSpacing() ? String(spacingStyle().width) : undefined}
+          data-mesurer-line-color={selectionSpacing() ? spacingStyle().color : undefined}
+          class={selectionSpacing() ? "msr:absolute" : "msr:absolute msr:w-px msr:bg-[#2563eb]"}
+          style={selectionSpacing()
+            ? { top: `${Math.min(line().y1, line().y2)}px`, height: `${Math.abs(line().y2 - line().y1)}px`, left: `${line().x - spacingStyle().width / 2}px`, width: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "vertical") }
+            : { top: `${Math.min(line().y1, line().y2)}px`, height: `${Math.abs(line().y2 - line().y1)}px`, left: `${line().x}px` }}
         />
         <Tag axis="y" left={line().x + MEASURE_LABEL_OFFSET} top={(line().y1 + line().y2) / 2}>{formatValue(line().value)}</Tag>
       </></Show>}</Show>
@@ -52,11 +85,11 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
       <Show when={selectionSpacing() && props.distance.edgeDistances?.length}>
         <For each={props.distance.edgeDistances}>{(edge) => edge.axis === "x"
           ? <Show when={edge.value > 0}><>
-            <div data-mesurer-distance-line={`horizontal-${edge.side}`} class="msr:absolute msr:h-0 msr:border-t msr:border-dashed msr:border-[#2563eb]" style={{ left: `${Math.min(edge.x1, edge.x2)}px`, width: `${Math.abs(edge.x2 - edge.x1)}px`, top: `${edge.y}px` }} />
+            <div data-mesurer-distance-line={`horizontal-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ left: `${Math.min(edge.x1, edge.x2)}px`, width: `${Math.abs(edge.x2 - edge.x1)}px`, top: `${edge.y - spacingStyle().width / 2}px`, height: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "horizontal") }} />
             <Tag axis="x" left={(edge.x1 + edge.x2) / 2} top={edge.y + MEASURE_LABEL_OFFSET}>{formatValue(edge.value)}</Tag>
           </></Show>
           : <Show when={edge.value > 0}><>
-            <div data-mesurer-distance-line={`vertical-${edge.side}`} class="msr:absolute msr:w-0 msr:border-l msr:border-dashed msr:border-[#2563eb]" style={{ top: `${Math.min(edge.y1, edge.y2)}px`, height: `${Math.abs(edge.y2 - edge.y1)}px`, left: `${edge.x}px` }} />
+            <div data-mesurer-distance-line={`vertical-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ top: `${Math.min(edge.y1, edge.y2)}px`, height: `${Math.abs(edge.y2 - edge.y1)}px`, left: `${edge.x - spacingStyle().width / 2}px`, width: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "vertical") }} />
             <Tag axis="y" left={edge.x + MEASURE_LABEL_OFFSET} top={edge.side === "top" ? Math.min(edge.y1, edge.y2) - MEASURE_LABEL_OFFSET : (edge.y1 + edge.y2) / 2}>{formatValue(edge.value)}</Tag>
           </></Show>}
         </For>

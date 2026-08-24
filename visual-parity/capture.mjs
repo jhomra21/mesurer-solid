@@ -251,6 +251,18 @@ const openSettings = async (page) => {
   await page.getByRole("dialog", { name: "Settings" }).waitFor();
 };
 
+// The React repository is the contract for the shared Mesurer UI. Solid can
+// add plugin-owned controls beyond that surface. Remove only those explicitly
+// marked extension controls before parity capture; browser-contracts exercises
+// the extension itself in a real browser.
+const normalizeSharedParitySurface = async (page, implementation) => {
+  if (implementation !== "solid") return;
+  const extension = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"]');
+  if ((await extension.count()) === 0) return;
+  await extension.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
+  await page.waitForTimeout(20);
+};
+
 const states = [
   { name: "toolbar", run: async () => {} },
   {
@@ -390,6 +402,7 @@ try {
       await page.waitForTimeout(120);
       await state.run(page);
       await page.waitForTimeout(120);
+      await normalizeSharedParitySurface(page, implementation);
 
       await page.screenshot({
         path: path.join(outputDir, `${implementation}-${state.name}.png`),
