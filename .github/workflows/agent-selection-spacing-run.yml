@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   implement:
-    if: github.event.pull_request.head.ref == 'feat/selection-spacing-settings' && github.actor != 'github-actions[bot]'
+    if: github.event.pull_request.head.ref == 'feat/selection-spacing-settings'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
