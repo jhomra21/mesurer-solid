@@ -56,7 +56,6 @@ jobs:
           if strict not in script:
               raise SystemExit('Could not locate strict staged replace helper')
           script = script.replace(strict, tolerant, 1)
+          script = script.replace('Path(".github/workflows/agent-selection-spacing-settings.yml").unlink()\n', '')
           exec(compile(script, '/tmp/selection-spacing-implementation.py', 'exec'), {'__name__': '__main__'})
-          Path('.github/workflows/agent-selection-spacing-patch-source.txt').unlink(missing_ok=True)
-          Path('.github/workflows/agent-selection-spacing-run2.yml').unlink(missing_ok=True)
           PY
