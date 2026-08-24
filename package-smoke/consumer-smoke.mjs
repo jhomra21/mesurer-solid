@@ -6,7 +6,7 @@ const cases = [
   {
     name: "React (external browser-eval injector)",
     url: process.env.REACT_URL ?? "http://127.0.0.1:4190",
-    injectPath: process.env.REACT_INJECT_SCRIPT_PATH || "/tmp/mesurer-react/node_modules/@jhomra21/mesurer-solid/dist/inject-script.js",
+    injectPath: process.env.REACT_INJECT_SCRIPT_PATH || "/tmp/mesurer-react/node_modules/mesurer-solid/dist/inject-script.js",
     mountedByApp: false,
   },
   {
@@ -260,7 +260,7 @@ async function runTrustedTypesCase(browser, url) {
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
     const injectPath = process.env.REACT_INJECT_SCRIPT_PATH
-      || "/tmp/mesurer-react/node_modules/@jhomra21/mesurer-solid/dist/inject-script.js";
+      || "/tmp/mesurer-react/node_modules/mesurer-solid/dist/inject-script.js";
     const source = await readFile(injectPath, "utf8");
     await page.evaluate(source);
 
