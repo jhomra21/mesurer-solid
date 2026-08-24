@@ -51,6 +51,7 @@ export type MesurerWorkspaceSnapshot = {
 export type MesurerWorkspaceRuntime = {
   snapshot(): MesurerWorkspaceSnapshot;
   currentSelection(): { elements: HTMLElement[]; region: Rect | null };
+  hoveredElement(): HTMLElement | null;
   annotations(): MesurerAnnotation[];
   annotation(id: string): MesurerResolvedAnnotation | null;
   annotationRect(id: string): Rect | null;
@@ -384,6 +385,11 @@ export function createMesurerWorkspaceRuntime(options: {
           ? cloneMesurerRect(model.current.selectionOriginRect)
           : null,
       };
+    },
+    hoveredElement() {
+      return model.current.hoverElement?.isConnected && isInPageTarget(model.current.hoverElement)
+        ? model.current.hoverElement
+        : null;
     },
     annotations() {
       refreshAnnotations();
