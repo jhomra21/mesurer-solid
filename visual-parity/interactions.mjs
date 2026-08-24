@@ -56,7 +56,10 @@ async function normalizeSharedParitySurface(page, implementation) {
   const extension = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"]');
   if ((await extension.count()) === 0) return;
   await extension.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
-  await sleep(page, 20);
+  // Removing the extension changes the Select panel's layout. Give the shared
+  // surface the same >150ms settle window used for settings/control transitions
+  // before taking a zero-tolerance pixel snapshot.
+  await sleep(page, 240);
 }
 
 async function stateSnapshot(page) {
