@@ -116,13 +116,36 @@ export function ContextActions(props: ContextActionsProps) {
     const currentWindow = ownerWindow();
     const size = 24;
     const gap = 6;
-    const right = value.left + value.width + gap;
-    const left = right + size <= currentWindow.innerWidth - 4
-      ? right
-      : value.left + value.width - size;
+    const padding = 4;
+    const right = value.left + value.width;
+    const bottom = value.top + value.height;
+    const candidates = [
+      { space: currentWindow.innerWidth - right, points: [
+        { left: right + gap, top: value.top },
+        { left: right + gap, top: bottom - size },
+      ] },
+      { space: value.left, points: [
+        { left: value.left - size - gap, top: value.top },
+        { left: value.left - size - gap, top: bottom - size },
+      ] },
+      { space: currentWindow.innerHeight - bottom, points: [
+        { left: right - size, top: bottom + gap },
+        { left: value.left, top: bottom + gap },
+      ] },
+      { space: value.top, points: [
+        { left: right - size, top: value.top - size - gap },
+        { left: value.left, top: value.top - size - gap },
+      ] },
+    ].sort((a, b) => b.space - a.space);
+    const fitsViewport = (point: { left: number; top: number }) =>
+      point.left >= padding && point.top >= padding
+      && point.left + size <= currentWindow.innerWidth - padding
+      && point.top + size <= currentWindow.innerHeight - padding;
+    const fitted = candidates.flatMap((candidate) => candidate.points).find(fitsViewport);
+    const fallback = { left: right + gap, top: value.top };
     return {
-      left: clamp(left, 4, currentWindow.innerWidth - size - 4),
-      top: clamp(value.top - size / 2, 4, currentWindow.innerHeight - size - 4),
+      left: clamp((fitted ?? fallback).left, padding, currentWindow.innerWidth - size - padding),
+      top: clamp((fitted ?? fallback).top, padding, currentWindow.innerHeight - size - padding),
     };
   };
 
@@ -312,7 +335,7 @@ export function ContextActions(props: ContextActionsProps) {
     <>
       <span ref={(element) => { anchorElement = element; }} aria-hidden="true" style={{ display: "none" }} />
 
-      <Show when={hasSelection() && !noteComposerOpen() && !activeAnnotation()}>
+      <Show when={selection().elements.length === 1 && !noteComposerOpen() && !activeAnnotation()}>
         <Show when={selectionTriggerPosition()}>{(position) => (
           <button
             type="button"
