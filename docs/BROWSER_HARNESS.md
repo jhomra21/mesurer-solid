@@ -52,7 +52,7 @@ An app that is already running without CDP or another renderer-evaluation mechan
 The npm package publishes:
 
 ```text
-@jhomra21/mesurer-solid/inject-script
+mesurer-solid/inject-script
 ```
 
 `inject-script.js` is a self-contained classic JavaScript/IIFE payload. It contains Mesurer's private Solid 2 renderer and has no runtime import of the host framework. It is deliberately built without ESM syntax or top-level await so a browser tool can execute its text directly.
@@ -63,7 +63,7 @@ A Node-based agent adapter can resolve/read the payload without importing it:
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-const url = import.meta.resolve("@jhomra21/mesurer-solid/inject-script");
+const url = import.meta.resolve("mesurer-solid/inject-script");
 const source = await readFile(fileURLToPath(url), "utf8");
 
 await browser.evaluate(source);
@@ -141,7 +141,7 @@ package normally
   → launch that exact packaged executable with the project's existing CDP/debug path
   → verify Mesurer is not already present
   → attach the existing harness
-  → evaluate @jhomra21/mesurer-solid/inject-script
+  → evaluate mesurer-solid/inject-script
   → await window.__MESURER__.ready()
   → inspect the real renderer
 ```
