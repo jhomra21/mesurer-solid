@@ -55,11 +55,11 @@ export type DistanceOverlay = {
   normalizedRectB: NormalizedRect;
   elementRefA?: HTMLElement | null;
   elementRefB?: HTMLElement | null;
-  horizontal: { x1: number; x2: number; y: number; value: number } | null;
-  vertical: { y1: number; y2: number; x: number; value: number } | null;
+  horizontal: { x1: number; x2: number; y: number; value: number; showLabel?: boolean } | null;
+  vertical: { y1: number; y2: number; x: number; value: number; showLabel?: boolean } | null;
   edgeDistances?: Array<
-    | { axis: "x"; side: "left" | "right"; x1: number; x2: number; y: number; value: number }
-    | { axis: "y"; side: "top" | "bottom"; y1: number; y2: number; x: number; value: number }
+    | { axis: "x"; side: "left" | "right"; x1: number; x2: number; y: number; value: number; showLabel?: boolean }
+    | { axis: "y"; side: "top" | "bottom"; y1: number; y2: number; x: number; value: number; showLabel?: boolean }
   >;
   connectors: Array<{ x1: number; y1: number; x2: number; y2: number }>;
 };
