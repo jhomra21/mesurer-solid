@@ -159,8 +159,8 @@ const labelKey = (line: DistanceLine) => "x1" in line
   ? `x:${Math.min(line.x1, line.x2)}:${Math.max(line.x1, line.x2)}:${line.y}:${line.value}`
   : `y:${Math.min(line.y1, line.y2)}:${Math.max(line.y1, line.y2)}:${line.x}:${line.value}`;
 
-const dedupeSelectionSpacingLabels = (overlays: DistanceOverlay[]) => {
-  const seen = new Set<string>();
+const groupSelectionSpacingLabels = (overlays: DistanceOverlay[]) => {
+  const groups = new Map<string, DistanceLine[]>();
   for (const overlay of overlays) {
     const lines: DistanceLine[] = overlay.edgeDistances?.length
       ? overlay.edgeDistances
@@ -170,9 +170,19 @@ const dedupeSelectionSpacingLabels = (overlays: DistanceOverlay[]) => {
         ];
     for (const line of lines) {
       const key = labelKey(line);
-      line.showLabel = !seen.has(key);
-      seen.add(key);
+      const group = groups.get(key) ?? [];
+      group.push(line);
+      groups.set(key, group);
     }
+  }
+
+  for (const [key, lines] of groups) {
+    lines.forEach((line, index) => {
+      line.labelKey = key;
+      line.labelIndex = index;
+      line.labelCount = lines.length;
+      line.showLabel = index === 0;
+    });
   }
 };
 
@@ -210,7 +220,7 @@ export const getSelectionSpacingOverlays = (
     }
   }
 
-  dedupeSelectionSpacingLabels(overlays);
+  groupSelectionSpacingLabels(overlays);
   return overlays;
 };
 
