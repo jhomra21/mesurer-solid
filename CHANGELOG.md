@@ -7,6 +7,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 <!-- Add user-facing changes here before preparing a release. -->
 
 - Measure every unique pair in multi-selection spacing so additional selected elements no longer lose pairwise or nested edge-distance evidence.
+- Keep all pairwise spacing lines while rendering only one label for identical measurement geometry.
 
 ## 0.1.0-beta.12 - 2026-08-24
 
