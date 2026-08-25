@@ -120,7 +120,7 @@ const scheduleCollapse = (scope: HTMLElement) => {
 const Tag = (props: DistanceLabelProps) => {
   const primary = () => props.primary !== false;
   const interactive = () => Boolean(props.interactive && props.labelKey && props.distanceId);
-  const handleEnter = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const handleEnter = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     if (!interactive() || !props.labelKey || !props.distanceId) return;
     const scope = spacingScope(event.currentTarget);
     if (!scope) return;
@@ -128,7 +128,7 @@ const Tag = (props: DistanceLabelProps) => {
     if ((props.labelCount ?? 1) > 1) expandLabelGroup(scope, props.labelKey);
     setSpacingFocus(scope, props.distanceId);
   };
-  const handleLeave = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const handleLeave = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     if (!interactive()) return;
     const scope = spacingScope(event.currentTarget);
     if (scope) scheduleCollapse(scope);
@@ -149,9 +149,9 @@ const Tag = (props: DistanceLabelProps) => {
         opacity: primary() ? 1 : 0,
         "pointer-events": interactive() && primary() ? "auto" : "none",
       }}
-      onPointerEnter={handleEnter}
-      onPointerLeave={handleLeave}
-      onPointerDown={interactive() ? (event) => event.stopPropagation() : undefined}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+      onMouseDown={interactive() ? (event) => event.stopPropagation() : undefined}
     >
       {props.children}
     </div>
