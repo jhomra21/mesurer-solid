@@ -169,7 +169,6 @@ const scheduleCollapse = (scope: HTMLElement) => {
 };
 
 const stopOverlayPointer = (event: PointerEvent) => event.stopPropagation();
-const stopOverlayClick = (event: MouseEvent) => event.stopPropagation();
 
 const Tag = (props: DistanceLabelProps) => {
   const primary = createMemo(() => props.primary !== false);
@@ -193,7 +192,7 @@ const Tag = (props: DistanceLabelProps) => {
     if (interaction) scheduleCollapse(interaction.scope);
   };
 
-  const handlePointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const handleClick = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     event.stopPropagation();
     const interaction = labelInteraction(event.currentTarget);
     if (!interaction || interaction.labelCount <= 1) return;
@@ -237,9 +236,9 @@ const Tag = (props: DistanceLabelProps) => {
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
       onPointerMove={interactive() ? stopOverlayPointer : undefined}
-      onPointerDown={interactive() ? handlePointerDown : undefined}
+      onPointerDown={interactive() ? stopOverlayPointer : undefined}
       onPointerUp={interactive() ? stopOverlayPointer : undefined}
-      onClick={interactive() ? stopOverlayClick : undefined}
+      onClick={interactive() ? handleClick : undefined}
     >
       {props.children}
     </div>
