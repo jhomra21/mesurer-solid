@@ -146,29 +146,18 @@ export const getDistanceOverlay = (
   };
 };
 
-const intervalOverlap = (startA: number, endA: number, startB: number, endB: number) =>
-  Math.min(endA, endB) - Math.max(startA, startB);
-
-const rectCenterDistanceSquared = (a: Rect, b: Rect) => {
-  const dx = (a.left + a.width / 2) - (b.left + b.width / 2);
-  const dy = (a.top + a.height / 2) - (b.top + b.height / 2);
-  return dx * dx + dy * dy;
-};
-
-const stablePairId = (a: InspectMeasurement, b: InspectMeasurement, kind: string) => {
+const stablePairId = (a: InspectMeasurement, b: InspectMeasurement) => {
   const [first, second] = [a.id, b.id].sort();
-  return `selection-spacing:${kind}:${first}:${second}`;
+  return `selection-spacing:pair:${first}:${second}`;
 };
 
 /**
- * Build a sparse spacing graph for the current multi-selection.
+ * Build complete spacing evidence for the current multi-selection.
  *
- * Two selected elements get their direct x/y distance. Larger selections connect
- * each element to its nearest neighbor on the right and below when their
- * perpendicular projections overlap. That produces the gaps designers usually
- * care about in rows, columns, and grids without rendering every possible pair.
- * Isolated diagonal elements get one nearest-neighbor fallback so they are not
- * silently omitted.
+ * Every unique pair of selected elements gets a direct overlay. This intentionally
+ * scales as n * (n - 1) / 2: multi-selection spacing is measurement evidence, so
+ * omitting non-neighbor pairs can hide relevant geometry from both people and
+ * agent context. Identical geometries still produce no zero-value overlay.
  */
 export const getSelectionSpacingOverlays = (
   selected: InspectMeasurement[],
@@ -176,80 +165,24 @@ export const getSelectionSpacingOverlays = (
 ): DistanceOverlay[] => {
   if (selected.length < 2) return [];
 
-  const makeOverlay = (a: InspectMeasurement, b: InspectMeasurement, kind: string) => {
-    const overlay = getDistanceOverlay(a.rect, b.rect, a.elementRef, b.elementRef, ownerWindow);
-    return {
-      ...overlay,
-      id: stablePairId(a, b, kind),
-    };
-  };
-
-  if (selected.length === 2) {
-    const overlay = makeOverlay(selected[0], selected[1], "pair");
-    return overlay.horizontal || overlay.vertical ? [overlay] : [];
-  }
-
   const overlays: DistanceOverlay[] = [];
-  const seen = new Set<string>();
-  const connected = new Set<string>();
-
-  const addPair = (a: InspectMeasurement, b: InspectMeasurement, kind: "x" | "y" | "fallback") => {
-    const key = stablePairId(a, b, kind);
-    if (seen.has(key)) return;
-    const overlay = makeOverlay(a, b, kind);
-    if (!overlay.horizontal && !overlay.vertical) return;
-    seen.add(key);
-    connected.add(a.id);
-    connected.add(b.id);
-    overlays.push(overlay);
-  };
-
-  for (const item of selected) {
-    const right = selected
-      .filter((candidate) => candidate !== item)
-      .filter((candidate) => item.rect.left + item.rect.width <= candidate.rect.left)
-      .filter((candidate) => intervalOverlap(
-        item.rect.top,
-        item.rect.top + item.rect.height,
-        candidate.rect.top,
-        candidate.rect.top + candidate.rect.height,
-      ) > 0)
-      .sort((a, b) => {
-        const gapA = a.rect.left - (item.rect.left + item.rect.width);
-        const gapB = b.rect.left - (item.rect.left + item.rect.width);
-        if (gapA !== gapB) return gapA - gapB;
-        const centerA = Math.abs((a.rect.top + a.rect.height / 2) - (item.rect.top + item.rect.height / 2));
-        const centerB = Math.abs((b.rect.top + b.rect.height / 2) - (item.rect.top + item.rect.height / 2));
-        return centerA - centerB;
-      })[0];
-    if (right) addPair(item, right, "x");
-
-    const below = selected
-      .filter((candidate) => candidate !== item)
-      .filter((candidate) => item.rect.top + item.rect.height <= candidate.rect.top)
-      .filter((candidate) => intervalOverlap(
-        item.rect.left,
-        item.rect.left + item.rect.width,
-        candidate.rect.left,
-        candidate.rect.left + candidate.rect.width,
-      ) > 0)
-      .sort((a, b) => {
-        const gapA = a.rect.top - (item.rect.top + item.rect.height);
-        const gapB = b.rect.top - (item.rect.top + item.rect.height);
-        if (gapA !== gapB) return gapA - gapB;
-        const centerA = Math.abs((a.rect.left + a.rect.width / 2) - (item.rect.left + item.rect.width / 2));
-        const centerB = Math.abs((b.rect.left + b.rect.width / 2) - (item.rect.left + item.rect.width / 2));
-        return centerA - centerB;
-      })[0];
-    if (below) addPair(item, below, "y");
-  }
-
-  for (const item of selected) {
-    if (connected.has(item.id)) continue;
-    const nearest = selected
-      .filter((candidate) => candidate !== item)
-      .sort((a, b) => rectCenterDistanceSquared(item.rect, a.rect) - rectCenterDistanceSquared(item.rect, b.rect))[0];
-    if (nearest) addPair(item, nearest, "fallback");
+  for (let firstIndex = 0; firstIndex < selected.length - 1; firstIndex += 1) {
+    const first = selected[firstIndex];
+    for (let secondIndex = firstIndex + 1; secondIndex < selected.length; secondIndex += 1) {
+      const second = selected[secondIndex];
+      const overlay = getDistanceOverlay(
+        first.rect,
+        second.rect,
+        first.elementRef,
+        second.elementRef,
+        ownerWindow,
+      );
+      if (!overlay.horizontal && !overlay.vertical) continue;
+      overlays.push({
+        ...overlay,
+        id: stablePairId(first, second),
+      });
+    }
   }
 
   return overlays;

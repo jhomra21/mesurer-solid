@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Measure every unique pair in multi-selection spacing so additional selected elements no longer lose pairwise or nested edge-distance evidence.
+
 ## 0.1.0-beta.12 - 2026-08-24
 
 - Publish the canonical npm package as `mesurer-solid` instead of `@jhomra21/mesurer-solid`; the runtime API and export paths are unchanged apart from the package specifier, and the old scoped prereleases remain available for existing installs.
