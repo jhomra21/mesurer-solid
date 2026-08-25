@@ -3,7 +3,12 @@ const MAX_LANES = 64;
 const COLLISION_X = "--mesurer-spacing-label-collision-x";
 const COLLISION_Y = "--mesurer-spacing-label-collision-y";
 
-const scheduledLayouts = new WeakMap<HTMLElement, number>();
+type ScheduledLayout = {
+  frame: number;
+  dirty: boolean;
+};
+
+const scheduledLayouts = new WeakMap<HTMLElement, ScheduledLayout>();
 
 type Box = {
   left: number;
@@ -115,12 +120,19 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
 };
 
 export const scheduleSpacingLabelLayout = (scope: HTMLElement) => {
-  if (scheduledLayouts.has(scope)) return;
+  const pending = scheduledLayouts.get(scope);
+  if (pending) {
+    pending.dirty = true;
+    return;
+  }
   const ownerWindow = scope.ownerDocument.defaultView;
   if (!ownerWindow) return;
   const frame = ownerWindow.requestAnimationFrame(() => {
     scheduledLayouts.delete(scope);
-    if (scope.isConnected) layoutSpacingLabels(scope);
+    if (!scope.isConnected) return;
+    layoutSpacingLabels(scope);
+    if (state.dirty) scheduleSpacingLabelLayout(scope);
   });
-  scheduledLayouts.set(scope, frame);
+  const state: ScheduledLayout = { frame, dirty: false };
+  scheduledLayouts.set(scope, state);
 };

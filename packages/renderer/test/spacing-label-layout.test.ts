@@ -91,6 +91,27 @@ describe("selection spacing label layout", () => {
     expect(offset(second, COLLISION_Y)).toBe(0);
   });
 
+  it("moves perpendicular labels into separate lanes", () => {
+    const { scope, root } = setup();
+    const horizontalRect = { left: 100, top: 100, width: 30, height: 16 };
+    const verticalRect = { left: 105, top: 104, width: 30, height: 16 };
+    const horizontal = label(root, "x", horizontalRect);
+    const vertical = label(root, "y", verticalRect);
+
+    layoutSpacingLabels(scope);
+
+    const horizontalX = offset(horizontal, COLLISION_X);
+    const horizontalY = offset(horizontal, COLLISION_Y);
+    const verticalX = offset(vertical, COLLISION_X);
+    const verticalY = offset(vertical, COLLISION_Y);
+    expect(intersects(
+      shifted(horizontalRect, horizontalX, horizontalY),
+      shifted(verticalRect, verticalX, verticalY),
+    )).toBe(false);
+    expect(verticalX).not.toBe(0);
+    expect(verticalY).toBe(0);
+  });
+
   it("ignores hidden duplicate labels until they become visible", () => {
     const { scope, root } = setup();
     const rect = { left: 300, top: 180, width: 32, height: 16 };

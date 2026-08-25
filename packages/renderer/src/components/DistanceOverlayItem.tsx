@@ -49,6 +49,19 @@ const pinnedDismissers = new WeakMap<HTMLElement, (event: PointerEvent) => void>
 const spacingScope = (label: HTMLElement) =>
   label.closest<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')?.parentElement ?? null;
 
+const scheduleSpacingLabelLayoutAfterRender = (scope: HTMLElement) => {
+  queueMicrotask(() => scheduleSpacingLabelLayout(scope));
+};
+
+const scheduleLabelLayoutAfterMount = (label: HTMLElement) => {
+  const schedule = () => {
+    const scope = spacingScope(label);
+    if (scope) scheduleSpacingLabelLayout(scope);
+  };
+  queueMicrotask(schedule);
+  label.ownerDocument.defaultView?.requestAnimationFrame(schedule);
+};
+
 const labelInteraction = (label: HTMLElement): LabelInteraction | null => {
   const scope = spacingScope(label);
   const labelKey = label.getAttribute("data-mesurer-distance-label-key");
@@ -65,19 +78,19 @@ const labelInteraction = (label: HTMLElement): LabelInteraction | null => {
 const collapseLabelGroups = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
   scope.removeAttribute("data-mesurer-spacing-label-group");
   interaction?.setExpandedKey(null);
-  scheduleSpacingLabelLayout(scope);
+  scheduleSpacingLabelLayoutAfterRender(scope);
 };
 
 const expandLabelGroup = (scope: HTMLElement, key: string, interaction?: SelectionSpacingInteraction) => {
   if (scope.getAttribute("data-mesurer-spacing-label-group") === key) {
     interaction?.setExpandedKey(key);
-    scheduleSpacingLabelLayout(scope);
+    scheduleSpacingLabelLayoutAfterRender(scope);
     return;
   }
   collapseLabelGroups(scope, interaction);
   scope.setAttribute("data-mesurer-spacing-label-group", key);
   interaction?.setExpandedKey(key);
-  scheduleSpacingLabelLayout(scope);
+  scheduleSpacingLabelLayoutAfterRender(scope);
 };
 
 const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
@@ -225,8 +238,7 @@ const Tag = (props: DistanceLabelProps) => {
   return (
     <div
       ref={(element) => {
-        const scope = spacingScope(element);
-        if (scope) scheduleSpacingLabelLayout(scope);
+        scheduleLabelLayoutAfterMount(element);
       }}
       data-mesurer-distance-label={visible() ? "true" : "hidden"}
       data-mesurer-distance-label-state={primary() ? "primary" : "duplicate"}
