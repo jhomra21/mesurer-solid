@@ -35,7 +35,7 @@ describe("multi-selection spacing", () => {
     expect(overlays[0].vertical?.value).toBe(32);
   });
 
-  it("connects only adjacent neighbors in a horizontal row", () => {
+  it("measures every pair in a horizontal row", () => {
     const overlays = getSelectionSpacingOverlays([
       selected("a", { left: 0, top: 40, width: 100, height: 60 }),
       selected("b", { left: 124, top: 40, width: 100, height: 60 }),
@@ -43,13 +43,13 @@ describe("multi-selection spacing", () => {
     ]);
     const values = axisValues(overlays);
 
-    expect(overlays).toHaveLength(2);
-    expect(values.horizontal.sort((a, b) => a - b)).toEqual([24, 36]);
+    expect(overlays).toHaveLength(3);
+    expect(values.horizontal.sort((a, b) => a - b)).toEqual([24, 36, 160]);
     expect(values.vertical).toEqual([]);
-    expect(overlays.some((item) => item.id.includes(":a:c"))).toBe(false);
+    expect(overlays.some((item) => item.id === "selection-spacing:pair:a:c")).toBe(true);
   });
 
-  it("produces the four useful gaps for a two-by-two grid without diagonal clutter", () => {
+  it("measures every unordered pair in a two-by-two grid", () => {
     const overlays = getSelectionSpacingOverlays([
       selected("a", { left: 40, top: 40, width: 100, height: 60 }),
       selected("b", { left: 164, top: 40, width: 100, height: 60 }),
@@ -58,20 +58,30 @@ describe("multi-selection spacing", () => {
     ]);
     const values = axisValues(overlays);
 
-    expect(overlays).toHaveLength(4);
-    expect(values.horizontal.sort((a, b) => a - b)).toEqual([24, 24]);
-    expect(values.vertical.sort((a, b) => a - b)).toEqual([32, 32]);
-    expect(overlays.every((item) => Boolean(item.horizontal) !== Boolean(item.vertical))).toBe(true);
+    expect(overlays).toHaveLength(6);
+    expect(values.horizontal.sort((a, b) => a - b)).toEqual([24, 24, 24, 24]);
+    expect(values.vertical.sort((a, b) => a - b)).toEqual([32, 32, 32, 32]);
+    expect(overlays.map((item) => item.id).sort()).toEqual([
+      "selection-spacing:pair:a:b",
+      "selection-spacing:pair:a:c",
+      "selection-spacing:pair:a:d",
+      "selection-spacing:pair:b:c",
+      "selection-spacing:pair:b:d",
+      "selection-spacing:pair:c:d",
+    ]);
+    expect(overlays.filter((item) => item.horizontal && item.vertical)).toHaveLength(2);
   });
 
-  it("gives an isolated diagonal selection one nearest-neighbor fallback", () => {
+  it("keeps every diagonal element connected to every other selection", () => {
     const overlays = getSelectionSpacingOverlays([
       selected("a", { left: 0, top: 0, width: 80, height: 50 }),
       selected("b", { left: 104, top: 0, width: 80, height: 50 }),
       selected("isolated", { left: 280, top: 180, width: 80, height: 50 }),
     ]);
 
-    expect(overlays.some((item) => item.id.startsWith("selection-spacing:fallback:") && item.id.includes("isolated"))).toBe(true);
+    expect(overlays).toHaveLength(3);
+    expect(overlays.some((item) => item.id === "selection-spacing:pair:a:isolated")).toBe(true);
+    expect(overlays.some((item) => item.id === "selection-spacing:pair:b:isolated")).toBe(true);
   });
 
   it("shows nearest edge offsets for nested selections", () => {
@@ -100,6 +110,40 @@ describe("multi-selection spacing", () => {
       ["top", 30],
       ["bottom", 10],
     ]));
+  });
+
+  it("keeps all pair and side distances when a parent and two children are selected", () => {
+    const overlays = getSelectionSpacingOverlays([
+      selected("parent", { left: 0, top: 0, width: 400, height: 300 }),
+      selected("first", { left: 20, top: 30, width: 100, height: 80 }),
+      selected("second", { left: 240, top: 160, width: 120, height: 90 }),
+    ]);
+
+    expect(overlays).toHaveLength(3);
+    expect(overlays.map((item) => item.id).sort()).toEqual([
+      "selection-spacing:pair:first:parent",
+      "selection-spacing:pair:first:second",
+      "selection-spacing:pair:parent:second",
+    ]);
+
+    const parentToFirst = overlays.find((item) => item.id === "selection-spacing:pair:first:parent");
+    const parentToSecond = overlays.find((item) => item.id === "selection-spacing:pair:parent:second");
+    const firstToSecond = overlays.find((item) => item.id === "selection-spacing:pair:first:second");
+
+    expect(new Map(parentToFirst?.edgeDistances?.map((edge) => [edge.side, edge.value]))).toEqual(new Map([
+      ["left", 20],
+      ["right", 280],
+      ["top", 30],
+      ["bottom", 190],
+    ]));
+    expect(new Map(parentToSecond?.edgeDistances?.map((edge) => [edge.side, edge.value]))).toEqual(new Map([
+      ["left", 240],
+      ["right", 40],
+      ["top", 160],
+      ["bottom", 50],
+    ]));
+    expect(firstToSecond?.horizontal?.value).toBe(120);
+    expect(firstToSecond?.vertical?.value).toBe(50);
   });
 
   it("keeps spacing values stable while viewport rects translate during page scroll", () => {
