@@ -181,8 +181,10 @@ const clearPinnedGroup = (scope: HTMLElement, interaction?: SelectionSpacingInte
 const attachPinnedDismiss = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
   if (pinnedDismissers.has(scope)) return;
   const dismiss = (event: PointerEvent) => {
-    const target = event.target as Element | null;
-    const label = target?.closest("[data-mesurer-distance-label-key]") as HTMLElement | null;
+    const target = event.target;
+    const label = target instanceof Element
+      ? target.closest<HTMLElement>("[data-mesurer-distance-label-key]")
+      : null;
     if (label && spacingScope(label) === scope) return;
     clearPinnedGroup(scope, interaction);
   };
@@ -301,8 +303,10 @@ const Tag = (props: DistanceLabelProps) => {
   const handleLeave = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
     if (!interaction || interaction.scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
-    const next = event.relatedTarget as Element | null;
-    const nextLabel = next?.closest("[data-mesurer-distance-label-key]") as HTMLElement | null;
+    const next = event.relatedTarget;
+    const nextLabel = next instanceof Element
+      ? next.closest<HTMLElement>("[data-mesurer-distance-label-key]")
+      : null;
     const nextInteraction = nextLabel ? labelInteraction(nextLabel) : null;
     if (nextInteraction?.scope === interaction.scope && nextInteraction.labelKey === interaction.labelKey) {
       clearCollapseTimer(interaction.scope);
