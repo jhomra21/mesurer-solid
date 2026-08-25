@@ -151,6 +151,41 @@ const stablePairId = (a: InspectMeasurement, b: InspectMeasurement) => {
   return `selection-spacing:pair:${first}:${second}`;
 };
 
+type DistanceLine = NonNullable<DistanceOverlay["horizontal"]>
+  | NonNullable<DistanceOverlay["vertical"]>
+  | NonNullable<DistanceOverlay["edgeDistances"]>[number];
+
+const labelKey = (line: DistanceLine) => "x1" in line
+  ? `x:${Math.min(line.x1, line.x2)}:${Math.max(line.x1, line.x2)}:${line.y}:${line.value}`
+  : `y:${Math.min(line.y1, line.y2)}:${Math.max(line.y1, line.y2)}:${line.x}:${line.value}`;
+
+const groupSelectionSpacingLabels = (overlays: DistanceOverlay[]) => {
+  const groups = new Map<string, DistanceLine[]>();
+  for (const overlay of overlays) {
+    const lines: DistanceLine[] = overlay.edgeDistances?.length
+      ? overlay.edgeDistances
+      : [
+          ...(overlay.horizontal ? [overlay.horizontal] : []),
+          ...(overlay.vertical ? [overlay.vertical] : []),
+        ];
+    for (const line of lines) {
+      const key = labelKey(line);
+      const group = groups.get(key) ?? [];
+      group.push(line);
+      groups.set(key, group);
+    }
+  }
+
+  for (const [key, lines] of groups) {
+    lines.forEach((line, index) => {
+      line.labelKey = key;
+      line.labelIndex = index;
+      line.labelCount = lines.length;
+      line.showLabel = index === 0;
+    });
+  }
+};
+
 /**
  * Build complete spacing evidence for the current multi-selection.
  *
@@ -185,6 +220,7 @@ export const getSelectionSpacingOverlays = (
     }
   }
 
+  groupSelectionSpacingLabels(overlays);
   return overlays;
 };
 

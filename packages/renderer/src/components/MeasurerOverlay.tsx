@@ -1,4 +1,4 @@
-import { For, Show, onSettled } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { GUIDE_DRAG_HOLD_MS, GUIDE_HITBOX_SIZE, MEASURE_LABEL_OFFSET } from "../core/constants";
 import { getSelectionSpacingOverlays } from "../core/distances";
 import { getEdgeVisibilityForRects } from "../core/edge-visibility";
@@ -7,7 +7,7 @@ import type { SelectionSpacingStyle } from "../core/persistence";
 import type { Guide, InspectMeasurement, Rect } from "../core/types";
 import { formatValue } from "../core/utils";
 import type { MeasurerModel } from "../model/create-measurer-model";
-import { DistanceOverlayItem } from "./DistanceOverlayItem";
+import { DistanceOverlayItem, type SelectionSpacingInteraction } from "./DistanceOverlayItem";
 import { MeasurementBox } from "./MeasurementBox";
 
 export type MeasurerOverlayProps = {
@@ -42,6 +42,14 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
   } | null = null;
   let guideHoldTimer = 0;
   let guideHoldId: string | null = null;
+  const [expandedSpacingGroup, setExpandedSpacingGroup] = createSignal<string | null>(null);
+  const [pinnedSpacingGroup, setPinnedSpacingGroup] = createSignal<string | null>(null);
+  const spacingInteraction: SelectionSpacingInteraction = {
+    expandedKey: expandedSpacingGroup,
+    setExpandedKey: setExpandedSpacingGroup,
+    pinnedKey: pinnedSpacingGroup,
+    setPinnedKey: setPinnedSpacingGroup,
+  };
 
   const selectionVisible = () => props.model.state.toolMode === "select";
   const guidesMode = () => props.model.state.toolMode === "guides";
@@ -61,6 +69,14 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
     const ownerWindow = overlayElement?.ownerDocument.defaultView;
     return ownerWindow ? getSelectionSpacingOverlays(selected, ownerWindow) : [];
   };
+  const selectedSpacingIds = createMemo(() => props.model.state.selectedMeasurements.map((measurement) => measurement.id).join("|"));
+  createEffect(
+    () => selectedSpacingIds(),
+    () => {
+      setExpandedSpacingGroup(null);
+      setPinnedSpacingGroup(null);
+    },
+  );
   const hoverEdges = () => {
     const hoverRect = props.model.state.hoverRect;
     if (!hoverRect) return null;
@@ -269,7 +285,8 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
               distance={distance}
               showRects={false}
               kind="selection-spacing"
-            selectionSpacingStyle={props.selectionSpacingStyle}
+              selectionSpacingStyle={props.selectionSpacingStyle}
+              spacingInteraction={spacingInteraction}
           />
           )}</For>
         </Show>
