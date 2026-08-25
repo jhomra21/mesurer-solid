@@ -143,6 +143,17 @@
   opacity: 0.32;
 }
 
+/* A spacing pill represents one orthogonal component of a pair, not the whole pair.
+   Keep only that component and the connector that projects it to the second element
+   at full strength; dim the pair's other axis so diagonal pairs never read as a
+   diagonal distance. */
+[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="x"]:hover) [data-mesurer-distance-line^="vertical"],
+[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="x"]:hover) [data-mesurer-distance-connector="true"][class~="msr:border-t"],
+[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="y"]:hover) [data-mesurer-distance-line^="horizontal"],
+[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="y"]:hover) [data-mesurer-distance-connector="true"][class~="msr:border-l"] {
+  opacity: 0.16 !important;
+}
+
 /* Upstream X-ray appearance wins over the legacy Solid host class name. */
 body.mesurer-solid-xray * {
   outline: solid 1px blue !important;
