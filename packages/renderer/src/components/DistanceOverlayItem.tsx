@@ -192,7 +192,7 @@ const Tag = (props: DistanceLabelProps) => {
     if (labelInteraction(event.currentTarget)) event.stopPropagation();
   };
 
-  const handleClick = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
+  const handleMouseDown = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
     if (!interaction) return;
     event.stopPropagation();
@@ -208,6 +208,10 @@ const Tag = (props: DistanceLabelProps) => {
     expandLabelGroup(interaction.scope, interaction.labelKey);
     attachPinnedDismiss(interaction.scope);
     setSpacingFocus(interaction.scope, interaction.distanceId);
+  };
+
+  const handleClick = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
+    if (labelInteraction(event.currentTarget)) event.stopPropagation();
   };
 
   return (
@@ -228,6 +232,7 @@ const Tag = (props: DistanceLabelProps) => {
       }}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
+      onMouseDown={handleMouseDown}
       onPointerMove={handlePointer}
       onPointerDown={handlePointer}
       onPointerUp={handlePointer}
@@ -237,7 +242,6 @@ const Tag = (props: DistanceLabelProps) => {
     </div>
   );
 };
-
 const selectionLineStyle = (style: SelectionSpacingStyle, axis: "horizontal" | "vertical") => {
   const period = style.dashLength + style.gap;
   const direction = axis === "horizontal" ? "to right" : "to bottom";
