@@ -136,6 +136,13 @@
   border: 0;
 }
 
+/* A focused spacing pair already gets its own full-strength 2px endpoint outlines.
+   Quiet the normal selection chrome so those active endpoints read immediately. */
+[data-mesurer-spacing-focus] [data-mesurer-selected-measurement="true"],
+[data-mesurer-spacing-focus] [data-mesurer-selection-spacing-target="true"] {
+  opacity: 0.32;
+}
+
 /* Upstream X-ray appearance wins over the legacy Solid host class name. */
 body.mesurer-solid-xray * {
   outline: solid 1px blue !important;
