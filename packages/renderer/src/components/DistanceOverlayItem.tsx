@@ -1,4 +1,4 @@
-import { For, Show, createMemo, onCleanup } from "solid-js";
+import { For, Show, createMemo } from "solid-js";
 import type { DistanceOverlay } from "../core/types";
 import { DEFAULT_SELECTION_SPACING_STYLE, type SelectionSpacingStyle } from "../core/persistence";
 import { formatValue } from "../core/utils";
@@ -173,8 +173,6 @@ const stopOverlayPointer = (event: PointerEvent) => event.stopPropagation();
 const Tag = (props: DistanceLabelProps) => {
   const primary = createMemo(() => props.primary !== false);
   const interactive = createMemo(() => Boolean(props.interactive && props.labelKey && props.distanceId));
-  let pinnedScope: HTMLElement | null = null;
-  let cleanupPinnedKey: string | null = null;
 
   const handleEnter = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
@@ -204,18 +202,10 @@ const Tag = (props: DistanceLabelProps) => {
       return;
     }
     interaction.scope.setAttribute(PINNED_GROUP_ATTRIBUTE, interaction.labelKey);
-    pinnedScope = interaction.scope;
-    cleanupPinnedKey = interaction.labelKey;
     expandLabelGroup(interaction.scope, interaction.labelKey);
     attachPinnedDismiss(interaction.scope);
     setSpacingFocus(interaction.scope, interaction.distanceId);
   };
-
-  onCleanup(() => {
-    if (pinnedScope && cleanupPinnedKey && pinnedScope.getAttribute(PINNED_GROUP_ATTRIBUTE) === cleanupPinnedKey) {
-      clearPinnedGroup(pinnedScope);
-    }
-  });
 
   return (
     <div
