@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { For, Show, createMemo, onCleanup } from "solid-js";
 import type { DistanceOverlay } from "../core/types";
 import { DEFAULT_SELECTION_SPACING_STYLE, type SelectionSpacingStyle } from "../core/persistence";
 import { formatValue } from "../core/utils";
@@ -25,10 +25,32 @@ type DistanceLabelProps = {
   children: any;
 };
 
+type LabelInteraction = {
+  scope: HTMLElement;
+  labelKey: string;
+  distanceId: string;
+  labelCount: number;
+};
+
+const PINNED_GROUP_ATTRIBUTE = "data-mesurer-spacing-label-pinned";
 const collapseTimers = new WeakMap<HTMLElement, number>();
+const pinnedDismissers = new WeakMap<HTMLElement, (event: PointerEvent) => void>();
 
 const spacingScope = (label: HTMLElement) =>
   label.closest<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')?.parentElement ?? null;
+
+const labelInteraction = (label: HTMLElement): LabelInteraction | null => {
+  const scope = spacingScope(label);
+  const labelKey = label.getAttribute("data-mesurer-distance-label-key");
+  const distanceId = label.getAttribute("data-mesurer-distance-id");
+  if (!scope || !labelKey || !distanceId) return null;
+  return {
+    scope,
+    labelKey,
+    distanceId,
+    labelCount: Number(label.getAttribute("data-mesurer-distance-label-count") ?? "1"),
+  };
+};
 
 const collapseLabelGroups = (scope: HTMLElement) => {
   scope.removeAttribute("data-mesurer-spacing-label-group");
@@ -106,35 +128,96 @@ const clearCollapseTimer = (scope: HTMLElement) => {
   collapseTimers.delete(scope);
 };
 
+const detachPinnedDismiss = (scope: HTMLElement) => {
+  const dismiss = pinnedDismissers.get(scope);
+  if (!dismiss) return;
+  scope.ownerDocument.removeEventListener("pointerdown", dismiss, true);
+  pinnedDismissers.delete(scope);
+};
+
+const clearPinnedGroup = (scope: HTMLElement) => {
+  clearCollapseTimer(scope);
+  detachPinnedDismiss(scope);
+  scope.removeAttribute(PINNED_GROUP_ATTRIBUTE);
+  collapseLabelGroups(scope);
+  setSpacingFocus(scope, null);
+};
+
+const attachPinnedDismiss = (scope: HTMLElement) => {
+  if (pinnedDismissers.has(scope)) return;
+  const dismiss = (event: PointerEvent) => {
+    const target = event.target as Element | null;
+    const label = target?.closest("[data-mesurer-distance-label-key]") as HTMLElement | null;
+    if (label && spacingScope(label) === scope) return;
+    clearPinnedGroup(scope);
+  };
+  pinnedDismissers.set(scope, dismiss);
+  scope.ownerDocument.addEventListener("pointerdown", dismiss, true);
+};
+
 const scheduleCollapse = (scope: HTMLElement) => {
   clearCollapseTimer(scope);
+  if (scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
   const ownerWindow = scope.ownerDocument.defaultView;
   if (!ownerWindow) return;
   collapseTimers.set(scope, ownerWindow.setTimeout(() => {
     collapseTimers.delete(scope);
+    if (scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
     collapseLabelGroups(scope);
     setSpacingFocus(scope, null);
   }, 250));
 };
 
 const stopOverlayPointer = (event: PointerEvent) => event.stopPropagation();
+const stopOverlayClick = (event: MouseEvent) => event.stopPropagation();
 
 const Tag = (props: DistanceLabelProps) => {
-  const primary = () => props.primary !== false;
-  const interactive = () => Boolean(props.interactive && props.labelKey && props.distanceId);
+  const primary = createMemo(() => props.primary !== false);
+  const interactive = createMemo(() => Boolean(props.interactive && props.labelKey && props.distanceId));
+  let pinnedScope: HTMLElement | null = null;
+  let pinnedKey: string | null = null;
+
   const handleEnter = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
-    if (!interactive() || !props.labelKey || !props.distanceId) return;
-    const scope = spacingScope(event.currentTarget);
-    if (!scope) return;
-    clearCollapseTimer(scope);
-    if ((props.labelCount ?? 1) > 1) expandLabelGroup(scope, props.labelKey);
-    setSpacingFocus(scope, props.distanceId);
+    const interaction = labelInteraction(event.currentTarget);
+    if (!interaction) return;
+    clearCollapseTimer(interaction.scope);
+    const pinnedKey = interaction.scope.getAttribute(PINNED_GROUP_ATTRIBUTE);
+    if ((!pinnedKey || pinnedKey === interaction.labelKey) && interaction.labelCount > 1) {
+      expandLabelGroup(interaction.scope, interaction.labelKey);
+    }
+    setSpacingFocus(interaction.scope, interaction.distanceId);
   };
+
   const handleLeave = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
-    if (!interactive()) return;
-    const scope = spacingScope(event.currentTarget);
-    if (scope) scheduleCollapse(scope);
+    const interaction = labelInteraction(event.currentTarget);
+    if (interaction) scheduleCollapse(interaction.scope);
   };
+
+  const handlePointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+    event.stopPropagation();
+    const interaction = labelInteraction(event.currentTarget);
+    if (!interaction || interaction.labelCount <= 1) return;
+    clearCollapseTimer(interaction.scope);
+    const pinnedKey = interaction.scope.getAttribute(PINNED_GROUP_ATTRIBUTE);
+    const primaryLabel = event.currentTarget.getAttribute("data-mesurer-distance-label-state") === "primary";
+    if (pinnedKey === interaction.labelKey && primaryLabel) {
+      clearPinnedGroup(interaction.scope);
+      return;
+    }
+    interaction.scope.setAttribute(PINNED_GROUP_ATTRIBUTE, interaction.labelKey);
+    pinnedScope = interaction.scope;
+    pinnedKey = interaction.labelKey;
+    expandLabelGroup(interaction.scope, interaction.labelKey);
+    attachPinnedDismiss(interaction.scope);
+    setSpacingFocus(interaction.scope, interaction.distanceId);
+  };
+
+  onCleanup(() => {
+    if (pinnedScope && pinnedKey && pinnedScope.getAttribute(PINNED_GROUP_ATTRIBUTE) === pinnedKey) {
+      clearPinnedGroup(pinnedScope);
+    }
+  });
+
   return (
     <div
       data-mesurer-distance-label={primary() ? "true" : "hidden"}
@@ -154,8 +237,9 @@ const Tag = (props: DistanceLabelProps) => {
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
       onPointerMove={interactive() ? stopOverlayPointer : undefined}
-      onPointerDown={interactive() ? stopOverlayPointer : undefined}
+      onPointerDown={interactive() ? handlePointerDown : undefined}
       onPointerUp={interactive() ? stopOverlayPointer : undefined}
+      onClick={interactive() ? stopOverlayClick : undefined}
     >
       {props.children}
     </div>
