@@ -38,6 +38,7 @@ const collapseLabelGroups = (scope: HTMLElement) => {
     node.style.pointerEvents = primary ? "auto" : "none";
     node.style.marginLeft = "0px";
     node.style.marginTop = "0px";
+    node.style.zIndex = "";
   }
 };
 
@@ -50,6 +51,7 @@ const expandLabelGroup = (scope: HTMLElement, key: string) => {
     node.setAttribute("data-mesurer-distance-label", "true");
     node.style.opacity = "1";
     node.style.pointerEvents = "auto";
+    node.style.zIndex = String(10 + index);
     if (axis === "x") node.style.marginTop = `${index * 16}px`;
     else node.style.marginLeft = `${index * 22}px`;
   }
@@ -109,7 +111,7 @@ const scheduleCollapse = (scope: HTMLElement) => {
     collapseTimers.delete(scope);
     collapseLabelGroups(scope);
     setSpacingFocus(scope, null);
-  }, 120));
+  }, 600));
 };
 
 const Tag = (props: DistanceLabelProps) => {
@@ -137,7 +139,7 @@ const Tag = (props: DistanceLabelProps) => {
       data-mesurer-distance-label-count={props.labelCount ?? 1}
       data-mesurer-distance-label-axis={props.axis}
       data-mesurer-distance-id={props.distanceId}
-      class={`${interactive() && primary() ? "msr:pointer-events-auto" : "msr:pointer-events-none"} msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:bg-ink-900/90 ${props.axis === "x" ? "msr:-translate-x-1/2" : "msr:-translate-y-1/2"}`}
+      class={`msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:bg-ink-900/90 ${props.axis === "x" ? "msr:-translate-x-1/2" : "msr:-translate-y-1/2"}`}
       style={{
         left: `${props.left}px`,
         top: `${props.top}px`,
