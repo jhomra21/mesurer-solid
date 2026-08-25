@@ -1,8 +1,9 @@
-import { For, Show, createMemo, type Accessor, type Setter } from "solid-js";
+import { For, Show, createEffect, createMemo, type Accessor, type Setter } from "solid-js";
 import type { DistanceOverlay } from "../core/types";
 import { DEFAULT_SELECTION_SPACING_STYLE, type SelectionSpacingStyle } from "../core/persistence";
 import { formatValue } from "../core/utils";
 import { MEASURE_LABEL_OFFSET } from "../core/constants";
+import { scheduleSpacingLabelLayout } from "./spacing-label-layout";
 
 export type DistanceOverlayItemProps = {
   distance: DistanceOverlay;
@@ -164,6 +165,7 @@ const scheduleCollapse = (scope: HTMLElement, interaction?: SelectionSpacingInte
 };
 
 const Tag = (props: DistanceLabelProps) => {
+  let labelElement: HTMLDivElement | undefined;
   const primary = createMemo(() => props.primary !== false);
   const interactive = createMemo(() => Boolean(props.interactive && props.labelKey && props.distanceId));
   const expanded = createMemo(() => Boolean(
@@ -174,6 +176,16 @@ const Tag = (props: DistanceLabelProps) => {
       && props.spacingInteraction.expandedKey() === props.labelKey,
   ));
   const visible = createMemo(() => primary() || expanded());
+
+  createEffect(() => {
+    props.left;
+    props.top;
+    visible();
+    expanded();
+    if (!interactive() || !labelElement) return;
+    const scope = spacingScope(labelElement);
+    if (scope) scheduleSpacingLabelLayout(scope);
+  });
 
   const handleEnter = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
@@ -220,6 +232,11 @@ const Tag = (props: DistanceLabelProps) => {
 
   return (
     <div
+      ref={(element) => {
+        labelElement = element;
+        const scope = spacingScope(element);
+        if (scope) scheduleSpacingLabelLayout(scope);
+      }}
       data-mesurer-distance-label={visible() ? "true" : "hidden"}
       data-mesurer-distance-label-state={primary() ? "primary" : "duplicate"}
       data-mesurer-distance-label-key={props.labelKey}
@@ -233,8 +250,8 @@ const Tag = (props: DistanceLabelProps) => {
         top: `${props.top}px`,
         opacity: visible() ? 1 : 0,
         "pointer-events": interactive() && visible() ? "auto" : "none",
-        "margin-left": expanded() && props.axis === "y" ? `${(props.labelIndex ?? 0) * 22}px` : "0px",
-        "margin-top": expanded() && props.axis === "x" ? `${(props.labelIndex ?? 0) * 16}px` : "0px",
+        "margin-left": `calc(var(--mesurer-spacing-label-collision-x, 0px) + ${expanded() && props.axis === "y" ? (props.labelIndex ?? 0) * 22 : 0}px)`,
+        "margin-top": `calc(var(--mesurer-spacing-label-collision-y, 0px) + ${expanded() && props.axis === "x" ? (props.labelIndex ?? 0) * 16 : 0}px)`,
         "z-index": expanded() ? String(10 + (props.labelIndex ?? 0)) : undefined,
       }}
       onMouseEnter={handleEnter}
