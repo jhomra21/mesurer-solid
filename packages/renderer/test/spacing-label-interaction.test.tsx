@@ -72,46 +72,66 @@ const setup = () => {
     x: 100, y: 116, left: 100, top: 116, right: 120, bottom: 132, width: 20, height: 16, toJSON: () => ({}),
   });
 
-  return { host, primary, duplicate };
+  return { primary, duplicate };
 };
 
-const mouse = (target: EventTarget, type: string, init: MouseEventInit = {}) => {
-  target.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: 110, clientY: 108, ...init }));
+type MouseHandlerProperty = "onmouseenter" | "onmouseleave" | "onmousedown";
+
+const invokeMouseHandler = (
+  target: HTMLElement,
+  property: MouseHandlerProperty,
+  type: string,
+  init: MouseEventInit = {},
+) => {
+  const handler = (target as unknown as Record<string, unknown>)[property];
+  expect(handler).toBeTypeOf("function");
+  const event = new MouseEvent(type, { clientX: 110, clientY: 108, ...init });
+  Object.defineProperty(event, "currentTarget", { value: target });
+  Object.defineProperty(event, "target", { value: target });
+  (handler as (event: MouseEvent) => void)(event);
+};
+
+const pointerMove = (clientX: number, clientY: number) => {
+  document.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX, clientY }));
 };
 
 describe("selection spacing label fan-out interaction", () => {
   it("keeps a hover fan-out open while the pointer crosses the group envelope", async () => {
-    vi.useFakeTimers();
     const { primary, duplicate } = setup();
+    vi.useFakeTimers();
 
-    mouse(primary, "mouseenter");
+    invokeMouseHandler(primary, "onmouseenter", "mouseenter");
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("true");
 
-    mouse(primary, "mouseleave", { relatedTarget: null });
-    mouse(document, "pointermove", { clientX: 110, clientY: 122 });
+    invokeMouseHandler(primary, "onmouseleave", "mouseleave", { relatedTarget: null });
+    pointerMove(110, 122);
     await vi.advanceTimersByTimeAsync(350);
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("true");
 
-    mouse(document, "pointermove", { clientX: 300, clientY: 300 });
+    pointerMove(300, 300);
     await vi.advanceTimersByTimeAsync(350);
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("hidden");
   });
 
-  it("does not let hover immediately reopen a group that was explicitly unpinned", () => {
+  it("does not let hover immediately reopen a group that was explicitly unpinned", async () => {
     const { primary, duplicate } = setup();
+    vi.useFakeTimers();
 
-    mouse(primary, "mouseenter");
-    mouse(primary, "mousedown");
+    invokeMouseHandler(primary, "onmouseenter", "mouseenter");
+    invokeMouseHandler(primary, "onmousedown", "mousedown");
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("true");
 
-    mouse(primary, "mousedown");
+    invokeMouseHandler(primary, "onmousedown", "mousedown");
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("hidden");
 
-    mouse(primary, "mouseenter");
+    invokeMouseHandler(primary, "onmouseenter", "mouseenter");
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("hidden");
 
-    mouse(document, "pointermove", { clientX: 300, clientY: 300 });
-    mouse(primary, "mouseenter");
+    pointerMove(300, 300);
+    invokeMouseHandler(primary, "onmouseenter", "mouseenter");
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("true");
+
+    pointerMove(300, 300);
+    await vi.advanceTimersByTimeAsync(350);
   });
 });
