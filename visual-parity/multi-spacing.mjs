@@ -215,7 +215,7 @@ try {
   await captureGrid("multi-selection-spacing-hover");
 
   await page.mouse.move(10, 10);
-  await page.waitForTimeout(180);
+  await page.waitForTimeout(700);
   const collapsedEvidence = await page.evaluate(() => ({
     visibleLabelCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]').length,
     activeDistanceCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]').length,
