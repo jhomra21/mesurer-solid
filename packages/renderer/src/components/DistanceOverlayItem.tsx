@@ -175,7 +175,7 @@ const Tag = (props: DistanceLabelProps) => {
   const primary = createMemo(() => props.primary !== false);
   const interactive = createMemo(() => Boolean(props.interactive && props.labelKey && props.distanceId));
   let pinnedScope: HTMLElement | null = null;
-  let pinnedKey: string | null = null;
+  let cleanupPinnedKey: string | null = null;
 
   const handleEnter = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
@@ -206,14 +206,14 @@ const Tag = (props: DistanceLabelProps) => {
     }
     interaction.scope.setAttribute(PINNED_GROUP_ATTRIBUTE, interaction.labelKey);
     pinnedScope = interaction.scope;
-    pinnedKey = interaction.labelKey;
+    cleanupPinnedKey = interaction.labelKey;
     expandLabelGroup(interaction.scope, interaction.labelKey);
     attachPinnedDismiss(interaction.scope);
     setSpacingFocus(interaction.scope, interaction.distanceId);
   };
 
   onCleanup(() => {
-    if (pinnedScope && pinnedKey && pinnedScope.getAttribute(PINNED_GROUP_ATTRIBUTE) === pinnedKey) {
+    if (pinnedScope && cleanupPinnedKey && pinnedScope.getAttribute(PINNED_GROUP_ATTRIBUTE) === cleanupPinnedKey) {
       clearPinnedGroup(pinnedScope);
     }
   });
