@@ -57,6 +57,7 @@ describe("multi-selection spacing", () => {
       selected("d", { left: 164, top: 132, width: 100, height: 60 }),
     ]);
     const values = axisValues(overlays);
+    const lines = overlays.flatMap((item) => [item.horizontal, item.vertical].filter((line) => line !== null));
 
     expect(overlays).toHaveLength(6);
     expect(values.horizontal.sort((a, b) => a - b)).toEqual([24, 24, 24, 24]);
@@ -70,6 +71,8 @@ describe("multi-selection spacing", () => {
       "selection-spacing:pair:c:d",
     ]);
     expect(overlays.filter((item) => item.horizontal && item.vertical)).toHaveLength(2);
+    expect(lines).toHaveLength(8);
+    expect(lines.filter((line) => line.showLabel !== false).map((line) => line.value).sort((a, b) => a - b)).toEqual([24, 24, 32, 32]);
   });
 
   it("keeps every diagonal element connected to every other selection", () => {
