@@ -92,15 +92,15 @@ try {
   });
 
   assert.equal(sparseEvidence.selectionTargetCount, 2, "A + C should be the only selected elements");
-  assert.equal(sparseEvidence.spacingOverlayCount, 1, "Sparse A + C selection should render one spacing overlay");
-  assert.deepEqual(sparseEvidence.spacingLabels, ["32"], "Sparse A + C spacing label");
+  assert.equal(sparseEvidence.spacingOverlayCount, 1, "A + C selection should render one spacing overlay");
+  assert.deepEqual(sparseEvidence.spacingLabels, ["32"], "A + C spacing label");
   assert.equal(sparseEvidence.aToC?.verticalGap, 32, "A→C vertical spacing");
   assert.equal(sparseEvidence.groupChildCount, 1, "Aggregate selection should keep only its size readout, not a filled union box");
-  assert.equal(sparseEvidence.dashedLines, 1, "Sparse spacing should use a dashed measurement line");
+  assert.equal(sparseEvidence.dashedLines, 1, "Selection spacing should use a dashed measurement line");
 
   await captureGrid("multi-selection-sparse");
 
-  // Expand to the complete grid and verify the sparse neighbor graph.
+  // Expand to the complete grid and verify every unordered selected pair is measured.
   await page.keyboard.down("Shift");
   try {
     await clickCard("b");
@@ -111,7 +111,7 @@ try {
 
   await page.waitForFunction(() =>
     document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]').length === 4
-    && document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]').length === 4,
+    && document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]').length === 6,
   );
 
   const evidence = await page.evaluate(async () => {
@@ -121,14 +121,16 @@ try {
     const distances = {
       aToB: instance.agent.distance("[data-spacing-card='a']", "[data-spacing-card='b']"),
       aToC: instance.agent.distance("[data-spacing-card='a']", "[data-spacing-card='c']"),
+      aToD: instance.agent.distance("[data-spacing-card='a']", "[data-spacing-card='d']"),
+      bToC: instance.agent.distance("[data-spacing-card='b']", "[data-spacing-card='c']"),
       cToD: instance.agent.distance("[data-spacing-card='c']", "[data-spacing-card='d']"),
       bToD: instance.agent.distance("[data-spacing-card='b']", "[data-spacing-card='d']"),
     };
     const feedback = await instance.agent.feedback(["[data-spacing-card]"]);
     const selectionTargets = instance.agent.inspectAll('[data-mesurer-selection-spacing-target="true"]');
     const spacingRoots = [...document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]')];
-    const spacingLabels = spacingRoots
-      .map((root) => root.textContent?.trim() ?? "")
+    const spacingLabels = [...document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]')]
+      .map((label) => label.textContent?.trim() ?? "")
       .filter(Boolean)
       .sort((a, b) => Number(a) - Number(b));
 
@@ -148,17 +150,22 @@ try {
   assert.equal(evidence.distances.aToC?.horizontalGap, 0, "A→C horizontal overlap");
   assert.equal(evidence.distances.aToC?.verticalGap, 32, "A→C vertical spacing");
   assert.equal(evidence.distances.bToD?.verticalGap, 32, "B→D vertical spacing");
-  assert.equal(evidence.spacingOverlayCount, 4, "Only adjacent row/column spacing overlays should render");
-  assert.deepEqual(evidence.spacingLabels, ["24", "24", "32", "32"], "Rendered spacing labels");
+  assert.equal(evidence.distances.aToD?.horizontalGap, 24, "A→D horizontal spacing");
+  assert.equal(evidence.distances.aToD?.verticalGap, 32, "A→D vertical spacing");
+  assert.equal(evidence.distances.bToC?.horizontalGap, 24, "B→C horizontal spacing");
+  assert.equal(evidence.distances.bToC?.verticalGap, 32, "B→C vertical spacing");
+  assert.equal(evidence.spacingOverlayCount, 6, "Every unordered selected pair should render a spacing overlay");
+  assert.deepEqual(evidence.spacingLabels, ["24", "24", "24", "24", "32", "32", "32", "32"], "Rendered spacing labels");
   assert.equal(evidence.selectionTargets.length, 4, "Every selected card should retain an individual outline");
-  assert.equal(evidence.dashedLineCount, 4, "Every automatic spacing guide should use the dashed measurement treatment");
+  assert.equal(evidence.dashedLineCount, 8, "Every automatic pairwise spacing guide should use the dashed measurement treatment");
 
   const report = {
     deviceScaleFactor,
     expected: {
       horizontal: 24,
       vertical: 32,
-      overlayCount: 4,
+      overlayCount: 6,
+      lineCount: 8,
     },
     sparseEvidence,
     evidence,
