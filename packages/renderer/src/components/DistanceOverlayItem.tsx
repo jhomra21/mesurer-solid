@@ -118,7 +118,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
             ? { left: `${Math.min(line().x1, line().x2)}px`, width: `${Math.abs(line().x2 - line().x1)}px`, top: `${line().y - spacingStyle().width / 2}px`, height: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "horizontal") }
             : { left: `${Math.min(line().x1, line().x2)}px`, width: `${Math.abs(line().x2 - line().x1)}px`, top: `${line().y}px` }}
         />
-        <Show when={horizontalLineVisible(line().x1, line().x2, line().y, selectionSpacing() ? spacingStyle().width : 1)}>
+        <Show when={line().showLabel !== false && horizontalLineVisible(line().x1, line().x2, line().y, selectionSpacing() ? spacingStyle().width : 1)}>
           <Tag axis="x" left={labelLeft(visibleLabelMidpoint(line().x1, line().x2, ownerWindow()?.innerWidth))} top={labelTop(line().y + MEASURE_LABEL_OFFSET)}>{formatValue(line().value)}</Tag>
         </Show>
       </></Show>}</Show>
@@ -133,7 +133,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
             ? { top: `${Math.min(line().y1, line().y2)}px`, height: `${Math.abs(line().y2 - line().y1)}px`, left: `${line().x - spacingStyle().width / 2}px`, width: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "vertical") }
             : { top: `${Math.min(line().y1, line().y2)}px`, height: `${Math.abs(line().y2 - line().y1)}px`, left: `${line().x}px` }}
         />
-        <Show when={verticalLineVisible(line().x, line().y1, line().y2, selectionSpacing() ? spacingStyle().width : 1)}>
+        <Show when={line().showLabel !== false && verticalLineVisible(line().x, line().y1, line().y2, selectionSpacing() ? spacingStyle().width : 1)}>
           <Tag axis="y" left={labelLeft(line().x + MEASURE_LABEL_OFFSET)} top={labelTop(visibleLabelMidpoint(line().y1, line().y2, ownerWindow()?.innerHeight))}>{formatValue(line().value)}</Tag>
         </Show>
       </></Show>}</Show>
@@ -142,13 +142,13 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
         <For each={props.distance.edgeDistances}>{(edge) => edge.axis === "x"
           ? <Show when={edge.value > 0}><>
             <div data-mesurer-distance-line={`horizontal-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ left: `${Math.min(edge.x1, edge.x2)}px`, width: `${Math.abs(edge.x2 - edge.x1)}px`, top: `${edge.y - spacingStyle().width / 2}px`, height: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "horizontal") }} />
-            <Show when={horizontalLineVisible(edge.x1, edge.x2, edge.y, spacingStyle().width)}>
+            <Show when={edge.showLabel !== false && horizontalLineVisible(edge.x1, edge.x2, edge.y, spacingStyle().width)}>
               <Tag axis="x" left={labelLeft(visibleLabelMidpoint(edge.x1, edge.x2, ownerWindow()?.innerWidth))} top={labelTop(edge.y + MEASURE_LABEL_OFFSET)}>{formatValue(edge.value)}</Tag>
             </Show>
           </></Show>
           : <Show when={edge.value > 0}><>
             <div data-mesurer-distance-line={`vertical-${edge.side}`} data-mesurer-line-pattern={spacingStyle().pattern} data-mesurer-line-width={String(spacingStyle().width)} data-mesurer-line-color={spacingStyle().color} class="msr:absolute" style={{ top: `${Math.min(edge.y1, edge.y2)}px`, height: `${Math.abs(edge.y2 - edge.y1)}px`, left: `${edge.x - spacingStyle().width / 2}px`, width: `${spacingStyle().width}px`, ...selectionLineStyle(spacingStyle(), "vertical") }} />
-            <Show when={verticalLineVisible(edge.x, edge.y1, edge.y2, spacingStyle().width)}>
+            <Show when={edge.showLabel !== false && verticalLineVisible(edge.x, edge.y1, edge.y2, spacingStyle().width)}>
               <Tag axis="y" left={labelLeft(edge.x + MEASURE_LABEL_OFFSET)} top={labelTop(visibleLabelMidpoint(edge.y1, edge.y2, ownerWindow()?.innerHeight))}>{formatValue(edge.value)}</Tag>
             </Show>
           </></Show>}
