@@ -151,43 +151,27 @@ const stablePairId = (a: InspectMeasurement, b: InspectMeasurement) => {
   return `selection-spacing:pair:${first}:${second}`;
 };
 
-const labelKey = (axis: "x" | "y", start: number, end: number, cross: number, value: number) =>
-  `${axis}:${Math.min(start, end)}:${Math.max(start, end)}:${cross}:${value}`;
+type DistanceLine = NonNullable<DistanceOverlay["horizontal"]>
+  | NonNullable<DistanceOverlay["vertical"]>
+  | NonNullable<DistanceOverlay["edgeDistances"]>[number];
+
+const labelKey = (line: DistanceLine) => "x1" in line
+  ? `x:${Math.min(line.x1, line.x2)}:${Math.max(line.x1, line.x2)}:${line.y}:${line.value}`
+  : `y:${Math.min(line.y1, line.y2)}:${Math.max(line.y1, line.y2)}:${line.x}:${line.value}`;
 
 const dedupeSelectionSpacingLabels = (overlays: DistanceOverlay[]) => {
   const seen = new Set<string>();
-  const claim = (key: string) => {
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  };
-
   for (const overlay of overlays) {
-    if (overlay.edgeDistances?.length) {
-      for (const edge of overlay.edgeDistances) {
-        edge.showLabel = edge.axis === "x"
-          ? claim(labelKey("x", edge.x1, edge.x2, edge.y, edge.value))
-          : claim(labelKey("y", edge.y1, edge.y2, edge.x, edge.value));
-      }
-      continue;
-    }
-    if (overlay.horizontal) {
-      overlay.horizontal.showLabel = claim(labelKey(
-        "x",
-        overlay.horizontal.x1,
-        overlay.horizontal.x2,
-        overlay.horizontal.y,
-        overlay.horizontal.value,
-      ));
-    }
-    if (overlay.vertical) {
-      overlay.vertical.showLabel = claim(labelKey(
-        "y",
-        overlay.vertical.y1,
-        overlay.vertical.y2,
-        overlay.vertical.x,
-        overlay.vertical.value,
-      ));
+    const lines: DistanceLine[] = overlay.edgeDistances?.length
+      ? overlay.edgeDistances
+      : [
+          ...(overlay.horizontal ? [overlay.horizontal] : []),
+          ...(overlay.vertical ? [overlay.vertical] : []),
+        ];
+    for (const line of lines) {
+      const key = labelKey(line);
+      line.showLabel = !seen.has(key);
+      seen.add(key);
     }
   }
 };
