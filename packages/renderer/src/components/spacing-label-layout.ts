@@ -4,7 +4,6 @@ const COLLISION_X = "--mesurer-spacing-label-collision-x";
 const COLLISION_Y = "--mesurer-spacing-label-collision-y";
 
 type ScheduledLayout = {
-  frame: number;
   dirty: boolean;
 };
 
@@ -127,12 +126,12 @@ export const scheduleSpacingLabelLayout = (scope: HTMLElement) => {
   }
   const ownerWindow = scope.ownerDocument.defaultView;
   if (!ownerWindow) return;
-  const frame = ownerWindow.requestAnimationFrame(() => {
+  const state: ScheduledLayout = { dirty: false };
+  scheduledLayouts.set(scope, state);
+  ownerWindow.requestAnimationFrame(() => {
     scheduledLayouts.delete(scope);
     if (!scope.isConnected) return;
     layoutSpacingLabels(scope);
     if (state.dirty) scheduleSpacingLabelLayout(scope);
   });
-  const state: ScheduledLayout = { frame, dirty: false };
-  scheduledLayouts.set(scope, state);
 };
