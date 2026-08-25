@@ -6,6 +6,7 @@ import type { DistanceOverlay } from "../src/core/types";
 import { render } from "../src/solid-dom";
 
 const disposers: Array<() => void> = [];
+const GROUP_KEY = "shared-horizontal-gap";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -24,7 +25,7 @@ const distance = (id: string, labelIndex: number, showLabel: boolean): DistanceO
     x2: 44,
     y: 10,
     value: 24,
-    labelKey: "shared-horizontal-gap",
+    labelKey: GROUP_KEY,
     labelIndex,
     labelCount: 2,
     showLabel,
@@ -60,7 +61,7 @@ const setup = () => {
     />
   </>, host));
 
-  const labels = [...host.querySelectorAll<HTMLElement>('[data-mesurer-distance-label-key="shared-horizontal-gap"]')];
+  const labels = [...host.querySelectorAll<HTMLElement>(`[data-mesurer-distance-label-key="${GROUP_KEY}"]`)];
   expect(labels).toHaveLength(2);
   const primary = labels.find((label) => label.getAttribute("data-mesurer-distance-label-state") === "primary")!;
   const duplicate = labels.find((label) => label.getAttribute("data-mesurer-distance-label-state") === "duplicate")!;
@@ -72,7 +73,7 @@ const setup = () => {
     x: 100, y: 116, left: 100, top: 116, right: 120, bottom: 132, width: 20, height: 16, toJSON: () => ({}),
   });
 
-  return { primary, duplicate };
+  return { host, primary, duplicate };
 };
 
 type MouseHandlerProperty = "onmouseenter" | "onmouseleave" | "onmousedown";
@@ -95,40 +96,56 @@ const pointerMove = (clientX: number, clientY: number) => {
   document.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX, clientY }));
 };
 
+const flushSolid = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
 describe("selection spacing label fan-out interaction", () => {
   it("keeps a hover fan-out open while the pointer crosses the group envelope", async () => {
-    const { primary, duplicate } = setup();
+    const { host, primary, duplicate } = setup();
     vi.useFakeTimers();
 
     invokeMouseHandler(primary, "onmouseenter", "mouseenter");
+    expect(host.getAttribute("data-mesurer-spacing-label-group")).toBe(GROUP_KEY);
+    await flushSolid();
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("true");
 
     invokeMouseHandler(primary, "onmouseleave", "mouseleave", { relatedTarget: null });
     pointerMove(110, 122);
     await vi.advanceTimersByTimeAsync(350);
+    await flushSolid();
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("true");
 
     pointerMove(300, 300);
     await vi.advanceTimersByTimeAsync(350);
+    await flushSolid();
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("hidden");
   });
 
   it("does not let hover immediately reopen a group that was explicitly unpinned", async () => {
-    const { primary, duplicate } = setup();
+    const { host, primary, duplicate } = setup();
     vi.useFakeTimers();
 
     invokeMouseHandler(primary, "onmouseenter", "mouseenter");
+    await flushSolid();
     invokeMouseHandler(primary, "onmousedown", "mousedown");
+    await flushSolid();
+    expect(host.getAttribute("data-mesurer-spacing-label-pinned")).toBe(GROUP_KEY);
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("true");
 
     invokeMouseHandler(primary, "onmousedown", "mousedown");
+    await flushSolid();
+    expect(host.hasAttribute("data-mesurer-spacing-label-pinned")).toBe(false);
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("hidden");
 
     invokeMouseHandler(primary, "onmouseenter", "mouseenter");
+    await flushSolid();
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("hidden");
 
     pointerMove(300, 300);
     invokeMouseHandler(primary, "onmouseenter", "mouseenter");
+    await flushSolid();
     expect(duplicate.getAttribute("data-mesurer-distance-label")).toBe("true");
 
     pointerMove(300, 300);
