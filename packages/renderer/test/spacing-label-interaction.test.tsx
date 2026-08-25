@@ -63,8 +63,9 @@ const setup = () => {
 
   const labels = [...host.querySelectorAll<HTMLElement>(`[data-mesurer-distance-label-key="${GROUP_KEY}"]`)];
   expect(labels).toHaveLength(2);
-  const primary = labels.find((label) => label.getAttribute("data-mesurer-distance-label-state") === "primary")!;
-  const duplicate = labels.find((label) => label.getAttribute("data-mesurer-distance-label-state") === "duplicate")!;
+  const primary = labels.find((label) => label.getAttribute("data-mesurer-distance-label-state") === "primary");
+  const duplicate = labels.find((label) => label.getAttribute("data-mesurer-distance-label-state") === "duplicate");
+  if (!primary || !duplicate) throw new Error("Expected primary and duplicate spacing labels");
 
   primary.getBoundingClientRect = () => ({
     x: 100, y: 100, left: 100, top: 100, right: 120, bottom: 116, width: 20, height: 16, toJSON: () => ({}),
@@ -84,12 +85,13 @@ const invokeMouseHandler = (
   type: string,
   init: MouseEventInit = {},
 ) => {
-  const handler = (target as unknown as Record<string, unknown>)[property];
+  const handler = target[property];
   expect(handler).toBeTypeOf("function");
+  if (!handler) throw new Error(`Expected ${property} handler`);
   const event = new MouseEvent(type, { clientX: 110, clientY: 108, ...init });
   Object.defineProperty(event, "currentTarget", { value: target });
   Object.defineProperty(event, "target", { value: target });
-  (handler as (event: MouseEvent) => void)(event);
+  handler.call(target, event);
 };
 
 const pointerMove = (clientX: number, clientY: number) => {
