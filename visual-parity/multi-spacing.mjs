@@ -22,6 +22,12 @@ const context = await browser.newContext({
   deviceScaleFactor,
 });
 const page = await context.newPage();
+const strictReadWarnings = [];
+page.on("console", (message) => {
+  if (message.type() === "warning" && message.text().includes("STRICT_READ_UNTRACKED")) {
+    strictReadWarnings.push(message.text());
+  }
+});
 
 const center = (box) => ({
   x: box.x + box.width / 2,
@@ -220,8 +226,64 @@ try {
     visibleLabelCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]').length,
     activeDistanceCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]').length,
   }));
-  assert.equal(collapsedEvidence.visibleLabelCount, 4, "Leaving the labels should collapse duplicate values again");
-  assert.equal(collapsedEvidence.activeDistanceCount, 0, "Leaving the labels should clear pair emphasis");
+  assert.equal(collapsedEvidence.visibleLabelCount, 4, "Leaving hover-only labels should collapse duplicate values again");
+  assert.equal(collapsedEvidence.activeDistanceCount, 0, "Leaving hover-only labels should clear pair emphasis");
+
+  await groupedLabel.click();
+  await page.waitForFunction((key) => {
+    const primary = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
+      .find((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
+    const scope = primary?.closest('[data-mesurer-distance-kind="selection-spacing"]')?.parentElement;
+    const labels = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
+      .filter((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
+    return scope?.getAttribute("data-mesurer-spacing-label-pinned") === key
+      && labels.length > 1
+      && labels.every((label) => label.getAttribute("data-mesurer-distance-label") === "true");
+  }, groupKey);
+
+  await page.mouse.move(10, 10);
+  await page.waitForTimeout(700);
+  const pinnedEvidence = await page.evaluate((key) => {
+    const primary = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
+      .find((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
+    const scope = primary?.closest('[data-mesurer-distance-kind="selection-spacing"]')?.parentElement;
+    const labels = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
+      .filter((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
+    return {
+      pinnedKey: scope?.getAttribute("data-mesurer-spacing-label-pinned") ?? null,
+      visibleGroupSize: labels.filter((label) => label.getAttribute("data-mesurer-distance-label") === "true").length,
+      selectionTargetCount: document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]').length,
+    };
+  }, groupKey);
+  assert.equal(pinnedEvidence.pinnedKey, groupKey, "Pointer-down should pin the shared spacing group open");
+  assert.equal(pinnedEvidence.visibleGroupSize, groupCount, "Pinned spacing labels should remain expanded after the pointer leaves");
+  assert.equal(pinnedEvidence.selectionTargetCount, 4, "Pinning a spacing label must not change the selection");
+
+  const pinnedDuplicate = page.locator(`[data-mesurer-distance-label-key="${groupKey}"][data-mesurer-distance-label-state="duplicate"]`).first();
+  const pinnedDuplicateDistanceId = await pinnedDuplicate.getAttribute("data-mesurer-distance-id");
+  assert(pinnedDuplicateDistanceId, "Pinned duplicate label should retain its pair id");
+  await pinnedDuplicate.hover();
+  await page.waitForFunction((distanceId) =>
+    document.querySelector('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]')?.getAttribute("data-mesurer-distance-id") === distanceId,
+  pinnedDuplicateDistanceId);
+  await captureGrid("multi-selection-spacing-pinned");
+
+  await groupedLabel.click();
+  await page.waitForFunction((key) => {
+    const primary = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
+      .find((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
+    const scope = primary?.closest('[data-mesurer-distance-kind="selection-spacing"]')?.parentElement;
+    return !scope?.hasAttribute("data-mesurer-spacing-label-pinned");
+  }, groupKey);
+  const unpinnedEvidence = await page.evaluate(() => ({
+    visibleLabelCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]').length,
+    activeDistanceCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]').length,
+    selectionTargetCount: document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]').length,
+  }));
+  assert.equal(unpinnedEvidence.visibleLabelCount, 4, "Pressing the primary label again should collapse the pinned group");
+  assert.equal(unpinnedEvidence.activeDistanceCount, 0, "Unpinning should clear pair emphasis");
+  assert.equal(unpinnedEvidence.selectionTargetCount, 4, "Unpinning must not change the selection");
+  assert.equal(strictReadWarnings.length, 0, `Spacing label interaction should not emit STRICT_READ_UNTRACKED warnings: ${strictReadWarnings.join("\n")}`);
 
   const report = {
     deviceScaleFactor,
@@ -236,6 +298,9 @@ try {
     evidence,
     hoverEvidence,
     collapsedEvidence,
+    pinnedEvidence,
+    unpinnedEvidence,
+    strictReadWarnings,
   };
 
   await fs.writeFile(
@@ -308,7 +373,9 @@ try {
     verticalSpacing: evidence.distances.aToC?.verticalGap,
     spacingLabels: evidence.spacingLabels,
     hoverEvidence,
+    pinnedEvidence,
     customStyleEvidence,
+    strictReadWarnings,
     outputDir,
   }, null, 2));
 } finally {
