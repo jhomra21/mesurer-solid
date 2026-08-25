@@ -1,4 +1,4 @@
-import { For, Show, createMemo } from "solid-js";
+import { For, Show, createMemo, type Accessor, type Setter } from "solid-js";
 import type { DistanceOverlay } from "../core/types";
 import { DEFAULT_SELECTION_SPACING_STYLE, type SelectionSpacingStyle } from "../core/persistence";
 import { formatValue } from "../core/utils";
@@ -10,6 +10,7 @@ export type DistanceOverlayItemProps = {
   showRects?: boolean;
   kind?: "held" | "preview" | "selection-spacing";
   selectionSpacingStyle?: SelectionSpacingStyle;
+  spacingInteraction?: SelectionSpacingInteraction;
 };
 
 type DistanceLabelProps = {
@@ -22,7 +23,15 @@ type DistanceLabelProps = {
   labelCount?: number;
   primary?: boolean;
   interactive?: boolean;
+  spacingInteraction?: SelectionSpacingInteraction;
   children: any;
+};
+
+export type SelectionSpacingInteraction = {
+  expandedKey: Accessor<string | null>;
+  setExpandedKey: Setter<string | null>;
+  pinnedKey: Accessor<string | null>;
+  setPinnedKey: Setter<string | null>;
 };
 
 type LabelInteraction = {
@@ -52,34 +61,19 @@ const labelInteraction = (label: HTMLElement): LabelInteraction | null => {
   };
 };
 
-const collapseLabelGroups = (scope: HTMLElement) => {
+const collapseLabelGroups = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
   scope.removeAttribute("data-mesurer-spacing-label-group");
-  for (const node of scope.querySelectorAll<HTMLElement>("[data-mesurer-distance-label-key]")) {
-    const primary = node.getAttribute("data-mesurer-distance-label-state") === "primary";
-    node.setAttribute("data-mesurer-distance-label", primary ? "true" : "hidden");
-    node.style.opacity = primary ? "1" : "0";
-    node.style.pointerEvents = primary ? "auto" : "none";
-    node.style.marginLeft = "0px";
-    node.style.marginTop = "0px";
-    node.style.zIndex = "";
-  }
+  interaction?.setExpandedKey(null);
 };
 
-const expandLabelGroup = (scope: HTMLElement, key: string) => {
-  if (scope.getAttribute("data-mesurer-spacing-label-group") === key) return;
-  collapseLabelGroups(scope);
-  scope.setAttribute("data-mesurer-spacing-label-group", key);
-  for (const node of scope.querySelectorAll<HTMLElement>("[data-mesurer-distance-label-key]")) {
-    if (node.getAttribute("data-mesurer-distance-label-key") !== key) continue;
-    const index = Number(node.getAttribute("data-mesurer-distance-label-index") ?? "0");
-    const axis = node.getAttribute("data-mesurer-distance-label-axis");
-    node.setAttribute("data-mesurer-distance-label", "true");
-    node.style.opacity = "1";
-    node.style.pointerEvents = "auto";
-    node.style.zIndex = String(10 + index);
-    if (axis === "x") node.style.marginTop = `${index * 16}px`;
-    else node.style.marginLeft = `${index * 22}px`;
+const expandLabelGroup = (scope: HTMLElement, key: string, interaction?: SelectionSpacingInteraction) => {
+  if (scope.getAttribute("data-mesurer-spacing-label-group") === key) {
+    interaction?.setExpandedKey(key);
+    return;
   }
+  collapseLabelGroups(scope, interaction);
+  scope.setAttribute("data-mesurer-spacing-label-group", key);
+  interaction?.setExpandedKey(key);
 };
 
 const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
@@ -135,27 +129,28 @@ const detachPinnedDismiss = (scope: HTMLElement) => {
   pinnedDismissers.delete(scope);
 };
 
-const clearPinnedGroup = (scope: HTMLElement) => {
+const clearPinnedGroup = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
   clearCollapseTimer(scope);
   detachPinnedDismiss(scope);
   scope.removeAttribute(PINNED_GROUP_ATTRIBUTE);
-  collapseLabelGroups(scope);
+  interaction?.setPinnedKey(null);
+  collapseLabelGroups(scope, interaction);
   setSpacingFocus(scope, null);
 };
 
-const attachPinnedDismiss = (scope: HTMLElement) => {
+const attachPinnedDismiss = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
   if (pinnedDismissers.has(scope)) return;
   const dismiss = (event: PointerEvent) => {
     const target = event.target as Element | null;
     const label = target?.closest("[data-mesurer-distance-label-key]") as HTMLElement | null;
     if (label && spacingScope(label) === scope) return;
-    clearPinnedGroup(scope);
+    clearPinnedGroup(scope, interaction);
   };
   pinnedDismissers.set(scope, dismiss);
   scope.ownerDocument.addEventListener("pointerdown", dismiss, true);
 };
 
-const scheduleCollapse = (scope: HTMLElement) => {
+const scheduleCollapse = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
   clearCollapseTimer(scope);
   if (scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
   const ownerWindow = scope.ownerDocument.defaultView;
@@ -163,7 +158,7 @@ const scheduleCollapse = (scope: HTMLElement) => {
   collapseTimers.set(scope, ownerWindow.setTimeout(() => {
     collapseTimers.delete(scope);
     if (scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
-    collapseLabelGroups(scope);
+    collapseLabelGroups(scope, interaction);
     setSpacingFocus(scope, null);
   }, 250));
 };
@@ -171,21 +166,29 @@ const scheduleCollapse = (scope: HTMLElement) => {
 const Tag = (props: DistanceLabelProps) => {
   const primary = createMemo(() => props.primary !== false);
   const interactive = createMemo(() => Boolean(props.interactive && props.labelKey && props.distanceId));
+  const expanded = createMemo(() => Boolean(
+    props.spacingInteraction
+      && props.labelKey
+      && props.labelCount
+      && props.labelCount > 1
+      && props.spacingInteraction.expandedKey() === props.labelKey,
+  ));
+  const visible = createMemo(() => primary() || expanded());
 
   const handleEnter = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
     if (!interaction) return;
     clearCollapseTimer(interaction.scope);
-    const pinnedKey = interaction.scope.getAttribute(PINNED_GROUP_ATTRIBUTE);
+    const pinnedKey = props.spacingInteraction?.pinnedKey() ?? interaction.scope.getAttribute(PINNED_GROUP_ATTRIBUTE);
     if ((!pinnedKey || pinnedKey === interaction.labelKey) && interaction.labelCount > 1) {
-      expandLabelGroup(interaction.scope, interaction.labelKey);
+      expandLabelGroup(interaction.scope, interaction.labelKey, props.spacingInteraction);
     }
     setSpacingFocus(interaction.scope, interaction.distanceId);
   };
 
   const handleLeave = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
-    if (interaction) scheduleCollapse(interaction.scope);
+    if (interaction) scheduleCollapse(interaction.scope, props.spacingInteraction);
   };
 
   const handlePointer = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
@@ -198,15 +201,16 @@ const Tag = (props: DistanceLabelProps) => {
     event.stopPropagation();
     if (interaction.labelCount <= 1) return;
     clearCollapseTimer(interaction.scope);
-    const pinnedKey = interaction.scope.getAttribute(PINNED_GROUP_ATTRIBUTE);
+    const pinnedKey = props.spacingInteraction?.pinnedKey() ?? interaction.scope.getAttribute(PINNED_GROUP_ATTRIBUTE);
     const primaryLabel = event.currentTarget.getAttribute("data-mesurer-distance-label-state") === "primary";
     if (pinnedKey === interaction.labelKey && primaryLabel) {
-      clearPinnedGroup(interaction.scope);
+      clearPinnedGroup(interaction.scope, props.spacingInteraction);
       return;
     }
     interaction.scope.setAttribute(PINNED_GROUP_ATTRIBUTE, interaction.labelKey);
-    expandLabelGroup(interaction.scope, interaction.labelKey);
-    attachPinnedDismiss(interaction.scope);
+    props.spacingInteraction?.setPinnedKey(interaction.labelKey);
+    expandLabelGroup(interaction.scope, interaction.labelKey, props.spacingInteraction);
+    attachPinnedDismiss(interaction.scope, props.spacingInteraction);
     setSpacingFocus(interaction.scope, interaction.distanceId);
   };
 
@@ -216,7 +220,7 @@ const Tag = (props: DistanceLabelProps) => {
 
   return (
     <div
-      data-mesurer-distance-label={primary() ? "true" : "hidden"}
+      data-mesurer-distance-label={visible() ? "true" : "hidden"}
       data-mesurer-distance-label-state={primary() ? "primary" : "duplicate"}
       data-mesurer-distance-label-key={props.labelKey}
       data-mesurer-distance-label-index={props.labelIndex ?? 0}
@@ -227,8 +231,11 @@ const Tag = (props: DistanceLabelProps) => {
       style={{
         left: `${props.left}px`,
         top: `${props.top}px`,
-        opacity: primary() ? 1 : 0,
-        "pointer-events": interactive() && primary() ? "auto" : "none",
+        opacity: visible() ? 1 : 0,
+        "pointer-events": interactive() && visible() ? "auto" : "none",
+        "margin-left": expanded() && props.axis === "y" ? `${(props.labelIndex ?? 0) * 22}px` : "0px",
+        "margin-top": expanded() && props.axis === "x" ? `${(props.labelIndex ?? 0) * 16}px` : "0px",
+        "z-index": expanded() ? String(10 + (props.labelIndex ?? 0)) : undefined,
       }}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
@@ -368,6 +375,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
             labelCount={line().labelCount}
             primary={line().showLabel !== false}
             interactive={selectionSpacing()}
+            spacingInteraction={selectionSpacing() ? props.spacingInteraction : undefined}
           >{formatValue(line().value)}</Tag>
         </Show>
       </></Show>}</Show>
@@ -393,6 +401,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
             labelCount={line().labelCount}
             primary={line().showLabel !== false}
             interactive={selectionSpacing()}
+            spacingInteraction={selectionSpacing() ? props.spacingInteraction : undefined}
           >{formatValue(line().value)}</Tag>
         </Show>
       </></Show>}</Show>
@@ -412,6 +421,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
                 labelCount={edge.labelCount}
                 primary={edge.showLabel !== false}
                 interactive
+                spacingInteraction={props.spacingInteraction}
               >{formatValue(edge.value)}</Tag>
             </Show>
           </></Show>
@@ -428,6 +438,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
                 labelCount={edge.labelCount}
                 primary={edge.showLabel !== false}
                 interactive
+                spacingInteraction={props.spacingInteraction}
               >{formatValue(edge.value)}</Tag>
             </Show>
           </></Show>}
