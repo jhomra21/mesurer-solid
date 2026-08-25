@@ -155,7 +155,7 @@ try {
   assert.equal(evidence.distances.bToC?.horizontalGap, 24, "B→C horizontal spacing");
   assert.equal(evidence.distances.bToC?.verticalGap, 32, "B→C vertical spacing");
   assert.equal(evidence.spacingOverlayCount, 6, "Every unordered selected pair should render a spacing overlay");
-  assert.deepEqual(evidence.spacingLabels, ["24", "24", "24", "24", "32", "32", "32", "32"], "Rendered spacing labels");
+  assert.deepEqual(evidence.spacingLabels, ["24", "24", "32", "32"], "Identical spacing geometry should render one label");
   assert.equal(evidence.selectionTargets.length, 4, "Every selected card should retain an individual outline");
   assert.equal(evidence.dashedLineCount, 8, "Every automatic pairwise spacing guide should use the dashed measurement treatment");
 
@@ -166,6 +166,7 @@ try {
       vertical: 32,
       overlayCount: 6,
       lineCount: 8,
+      labelCount: 4,
     },
     sparseEvidence,
     evidence,
