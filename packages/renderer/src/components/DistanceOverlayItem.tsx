@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, type Accessor, type Setter } from "solid-js";
+import { For, Show, createMemo, type Accessor, type Setter } from "solid-js";
 import type { DistanceOverlay } from "../core/types";
 import { DEFAULT_SELECTION_SPACING_STYLE, type SelectionSpacingStyle } from "../core/persistence";
 import { formatValue } from "../core/utils";
@@ -65,16 +65,19 @@ const labelInteraction = (label: HTMLElement): LabelInteraction | null => {
 const collapseLabelGroups = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
   scope.removeAttribute("data-mesurer-spacing-label-group");
   interaction?.setExpandedKey(null);
+  scheduleSpacingLabelLayout(scope);
 };
 
 const expandLabelGroup = (scope: HTMLElement, key: string, interaction?: SelectionSpacingInteraction) => {
   if (scope.getAttribute("data-mesurer-spacing-label-group") === key) {
     interaction?.setExpandedKey(key);
+    scheduleSpacingLabelLayout(scope);
     return;
   }
   collapseLabelGroups(scope, interaction);
   scope.setAttribute("data-mesurer-spacing-label-group", key);
   interaction?.setExpandedKey(key);
+  scheduleSpacingLabelLayout(scope);
 };
 
 const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
@@ -165,7 +168,6 @@ const scheduleCollapse = (scope: HTMLElement, interaction?: SelectionSpacingInte
 };
 
 const Tag = (props: DistanceLabelProps) => {
-  let labelElement: HTMLDivElement | undefined;
   const primary = createMemo(() => props.primary !== false);
   const interactive = createMemo(() => Boolean(props.interactive && props.labelKey && props.distanceId));
   const expanded = createMemo(() => Boolean(
@@ -176,16 +178,6 @@ const Tag = (props: DistanceLabelProps) => {
       && props.spacingInteraction.expandedKey() === props.labelKey,
   ));
   const visible = createMemo(() => primary() || expanded());
-
-  createEffect(() => {
-    props.left;
-    props.top;
-    visible();
-    expanded();
-    if (!interactive() || !labelElement) return;
-    const scope = spacingScope(labelElement);
-    if (scope) scheduleSpacingLabelLayout(scope);
-  });
 
   const handleEnter = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
@@ -233,7 +225,6 @@ const Tag = (props: DistanceLabelProps) => {
   return (
     <div
       ref={(element) => {
-        labelElement = element;
         const scope = spacingScope(element);
         if (scope) scheduleSpacingLabelLayout(scope);
       }}
