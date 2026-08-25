@@ -2,6 +2,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { layoutSpacingLabels } from "../src/components/spacing-label-layout";
 
+const COLLISION_X = "--mesurer-spacing-label-collision-x";
+const COLLISION_Y = "--mesurer-spacing-label-collision-y";
 type RectInput = { left: number; top: number; width: number; height: number };
 
 const domRect = ({ left, top, width, height }: RectInput): DOMRect => ({
@@ -16,6 +18,9 @@ const domRect = ({ left, top, width, height }: RectInput): DOMRect => ({
   toJSON: () => ({}),
 });
 
+const offset = (element: HTMLElement, name: string) =>
+  Number.parseFloat(element.style.getPropertyValue(name) || "0");
+
 const setup = () => {
   const scope = document.createElement("div");
   const root = document.createElement("div");
@@ -29,12 +34,14 @@ const label = (root: HTMLElement, axis: "x" | "y", rect: RectInput, visible = tr
   const element = document.createElement("div");
   element.setAttribute("data-mesurer-distance-label", visible ? "true" : "hidden");
   element.setAttribute("data-mesurer-distance-label-axis", axis);
-  vi.spyOn(element, "getBoundingClientRect").mockReturnValue(domRect(rect));
+  vi.spyOn(element, "getBoundingClientRect").mockImplementation(() => domRect({
+    ...rect,
+    left: rect.left + offset(element, COLLISION_X),
+    top: rect.top + offset(element, COLLISION_Y),
+  }));
   root.append(element);
   return element;
 };
-
-const offset = (element: HTMLElement, name: string) => Number.parseFloat(element.style.getPropertyValue(name) || "0");
 
 const shifted = (rect: RectInput, x: number, y: number) => ({
   left: rect.left + x,
@@ -59,10 +66,10 @@ describe("selection spacing label layout", () => {
 
     layoutSpacingLabels(scope);
 
-    const firstX = offset(first, "--mesurer-spacing-label-collision-x");
-    const firstY = offset(first, "--mesurer-spacing-label-collision-y");
-    const secondX = offset(second, "--mesurer-spacing-label-collision-x");
-    const secondY = offset(second, "--mesurer-spacing-label-collision-y");
+    const firstX = offset(first, COLLISION_X);
+    const firstY = offset(first, COLLISION_Y);
+    const secondX = offset(second, COLLISION_X);
+    const secondY = offset(second, COLLISION_Y);
     expect(firstX).toBe(0);
     expect(firstY).toBe(0);
     expect(secondX).toBe(0);
@@ -79,9 +86,9 @@ describe("selection spacing label layout", () => {
 
     layoutSpacingLabels(scope);
 
-    expect(offset(first, "--mesurer-spacing-label-collision-x")).toBe(0);
-    expect(offset(second, "--mesurer-spacing-label-collision-x")).not.toBe(0);
-    expect(offset(second, "--mesurer-spacing-label-collision-y")).toBe(0);
+    expect(offset(first, COLLISION_X)).toBe(0);
+    expect(offset(second, COLLISION_X)).not.toBe(0);
+    expect(offset(second, COLLISION_Y)).toBe(0);
   });
 
   it("ignores hidden duplicate labels until they become visible", () => {
@@ -91,11 +98,23 @@ describe("selection spacing label layout", () => {
     const hidden = label(root, "x", rect, false);
 
     layoutSpacingLabels(scope);
-    expect(offset(first, "--mesurer-spacing-label-collision-y")).toBe(0);
-    expect(offset(hidden, "--mesurer-spacing-label-collision-y")).toBe(0);
+    expect(offset(first, COLLISION_Y)).toBe(0);
+    expect(offset(hidden, COLLISION_Y)).toBe(0);
 
     hidden.setAttribute("data-mesurer-distance-label", "true");
     layoutSpacingLabels(scope);
-    expect(offset(hidden, "--mesurer-spacing-label-collision-y")).not.toBe(0);
+    expect(offset(hidden, COLLISION_Y)).not.toBe(0);
+  });
+
+  it("is stable when the desired lanes have not changed", () => {
+    const { scope, root } = setup();
+    label(root, "x", { left: 100, top: 100, width: 30, height: 16 });
+    const second = label(root, "x", { left: 105, top: 100, width: 30, height: 16 });
+
+    layoutSpacingLabels(scope);
+    const firstStyle = second.getAttribute("style");
+    layoutSpacingLabels(scope);
+
+    expect(second.getAttribute("style")).toBe(firstStyle);
   });
 });
