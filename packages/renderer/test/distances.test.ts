@@ -58,6 +58,11 @@ describe("multi-selection spacing", () => {
     ]);
     const values = axisValues(overlays);
     const lines = overlays.flatMap((item) => [item.horizontal, item.vertical].filter((line) => line !== null));
+    const labelGroups = new Map<string, typeof lines>();
+    for (const line of lines) {
+      const key = line.labelKey ?? "";
+      labelGroups.set(key, [...(labelGroups.get(key) ?? []), line]);
+    }
 
     expect(overlays).toHaveLength(6);
     expect(values.horizontal.sort((a, b) => a - b)).toEqual([24, 24, 24, 24]);
@@ -72,7 +77,15 @@ describe("multi-selection spacing", () => {
     ]);
     expect(overlays.filter((item) => item.horizontal && item.vertical)).toHaveLength(2);
     expect(lines).toHaveLength(8);
+    expect(labelGroups.size).toBe(4);
     expect(lines.filter((line) => line.showLabel !== false).map((line) => line.value).sort((a, b) => a - b)).toEqual([24, 24, 32, 32]);
+    for (const group of labelGroups.values()) {
+      expect(group.filter((line) => line.showLabel !== false)).toHaveLength(1);
+      expect(group.every((line) => line.labelCount === group.length)).toBe(true);
+      expect(group.map((line) => line.labelIndex).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual(
+        Array.from({ length: group.length }, (_, index) => index),
+      );
+    }
   });
 
   it("keeps every diagonal element connected to every other selection", () => {
