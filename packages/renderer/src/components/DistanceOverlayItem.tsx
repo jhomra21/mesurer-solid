@@ -42,9 +42,18 @@ type LabelInteraction = {
   labelCount: number;
 };
 
+type PointerWatcher = {
+  key: string;
+  handler: (event: PointerEvent) => void;
+};
+
 const PINNED_GROUP_ATTRIBUTE = "data-mesurer-spacing-label-pinned";
+const EXPANDED_GROUP_ATTRIBUTE = "data-mesurer-spacing-label-group";
+const HOVER_ENVELOPE_PADDING = 8;
 const collapseTimers = new WeakMap<HTMLElement, number>();
 const pinnedDismissers = new WeakMap<HTMLElement, (event: PointerEvent) => void>();
+const hoverWatchers = new WeakMap<HTMLElement, PointerWatcher>();
+const hoverSuppressions = new WeakMap<HTMLElement, PointerWatcher>();
 
 const spacingScope = (label: HTMLElement) =>
   label.closest<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')?.parentElement ?? null;
@@ -75,20 +84,33 @@ const labelInteraction = (label: HTMLElement): LabelInteraction | null => {
   };
 };
 
+const detachHoverWatcher = (scope: HTMLElement) => {
+  const watcher = hoverWatchers.get(scope);
+  if (!watcher) return;
+  scope.ownerDocument.removeEventListener("pointermove", watcher.handler, true);
+  hoverWatchers.delete(scope);
+};
+
+const detachHoverSuppression = (scope: HTMLElement) => {
+  const watcher = hoverSuppressions.get(scope);
+  if (!watcher) return;
+  scope.ownerDocument.removeEventListener("pointermove", watcher.handler, true);
+  hoverSuppressions.delete(scope);
+};
+
 const collapseLabelGroups = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
-  scope.removeAttribute("data-mesurer-spacing-label-group");
+  if (!scope.hasAttribute(EXPANDED_GROUP_ATTRIBUTE)) {
+    interaction?.setExpandedKey(null);
+    return;
+  }
+  scope.removeAttribute(EXPANDED_GROUP_ATTRIBUTE);
   interaction?.setExpandedKey(null);
   scheduleSpacingLabelLayoutAfterRender(scope);
 };
 
 const expandLabelGroup = (scope: HTMLElement, key: string, interaction?: SelectionSpacingInteraction) => {
-  if (scope.getAttribute("data-mesurer-spacing-label-group") === key) {
-    interaction?.setExpandedKey(key);
-    scheduleSpacingLabelLayoutAfterRender(scope);
-    return;
-  }
-  collapseLabelGroups(scope, interaction);
-  scope.setAttribute("data-mesurer-spacing-label-group", key);
+  if (scope.getAttribute(EXPANDED_GROUP_ATTRIBUTE) === key) return;
+  scope.setAttribute(EXPANDED_GROUP_ATTRIBUTE, key);
   interaction?.setExpandedKey(key);
   scheduleSpacingLabelLayoutAfterRender(scope);
 };
@@ -148,6 +170,7 @@ const detachPinnedDismiss = (scope: HTMLElement) => {
 
 const clearPinnedGroup = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
   clearCollapseTimer(scope);
+  detachHoverWatcher(scope);
   detachPinnedDismiss(scope);
   scope.removeAttribute(PINNED_GROUP_ATTRIBUTE);
   interaction?.setPinnedKey(null);
@@ -168,17 +191,85 @@ const attachPinnedDismiss = (scope: HTMLElement, interaction?: SelectionSpacingI
 };
 
 const scheduleCollapse = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
-  clearCollapseTimer(scope);
-  if (scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
+  if (scope.hasAttribute(PINNED_GROUP_ATTRIBUTE) || collapseTimers.has(scope)) return;
   const ownerWindow = scope.ownerDocument.defaultView;
   if (!ownerWindow) return;
   collapseTimers.set(scope, ownerWindow.setTimeout(() => {
     collapseTimers.delete(scope);
     if (scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
+    detachHoverWatcher(scope);
     collapseLabelGroups(scope, interaction);
     setSpacingFocus(scope, null);
   }, 250));
 };
+
+const pointerInsideVisibleGroup = (
+  scope: HTMLElement,
+  key: string,
+  x: number,
+  y: number,
+  padding = HOVER_ENVELOPE_PADDING,
+) => {
+  let left = Number.POSITIVE_INFINITY;
+  let top = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+  let found = false;
+
+  for (const label of scope.querySelectorAll<HTMLElement>('[data-mesurer-distance-label-key][data-mesurer-distance-label="true"]')) {
+    if (label.getAttribute("data-mesurer-distance-label-key") !== key) continue;
+    const rect = label.getBoundingClientRect();
+    left = Math.min(left, rect.left);
+    top = Math.min(top, rect.top);
+    right = Math.max(right, rect.right);
+    bottom = Math.max(bottom, rect.bottom);
+    found = true;
+  }
+
+  return found
+    && x >= left - padding
+    && x <= right + padding
+    && y >= top - padding
+    && y <= bottom + padding;
+};
+
+const watchHoverGroup = (scope: HTMLElement, key: string, interaction?: SelectionSpacingInteraction) => {
+  if (scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) {
+    detachHoverWatcher(scope);
+    return;
+  }
+  const existing = hoverWatchers.get(scope);
+  if (existing?.key === key) return;
+  detachHoverWatcher(scope);
+
+  const handler = (event: PointerEvent) => {
+    if (!scope.isConnected || scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) {
+      detachHoverWatcher(scope);
+      return;
+    }
+    if (pointerInsideVisibleGroup(scope, key, event.clientX, event.clientY)) {
+      clearCollapseTimer(scope);
+      return;
+    }
+    scheduleCollapse(scope, interaction);
+  };
+
+  hoverWatchers.set(scope, { key, handler });
+  scope.ownerDocument.addEventListener("pointermove", handler, true);
+};
+
+const suppressHoverUntilExit = (scope: HTMLElement, key: string) => {
+  detachHoverSuppression(scope);
+  const handler = (event: PointerEvent) => {
+    if (!scope.isConnected || !pointerInsideVisibleGroup(scope, key, event.clientX, event.clientY, 2)) {
+      detachHoverSuppression(scope);
+    }
+  };
+  hoverSuppressions.set(scope, { key, handler });
+  scope.ownerDocument.addEventListener("pointermove", handler, true);
+};
+
+const hoverSuppressed = (scope: HTMLElement, key: string) => hoverSuppressions.get(scope)?.key === key;
 
 const Tag = (props: DistanceLabelProps) => {
   const primary = createMemo(() => props.primary !== false);
@@ -197,15 +288,27 @@ const Tag = (props: DistanceLabelProps) => {
     if (!interaction) return;
     clearCollapseTimer(interaction.scope);
     const pinnedKey = props.spacingInteraction?.pinnedKey() ?? interaction.scope.getAttribute(PINNED_GROUP_ATTRIBUTE);
-    if ((!pinnedKey || pinnedKey === interaction.labelKey) && interaction.labelCount > 1) {
+    const primaryLabel = event.currentTarget.getAttribute("data-mesurer-distance-label-state") === "primary";
+    if (!pinnedKey && primaryLabel && interaction.labelCount > 1 && !hoverSuppressed(interaction.scope, interaction.labelKey)) {
       expandLabelGroup(interaction.scope, interaction.labelKey, props.spacingInteraction);
+      watchHoverGroup(interaction.scope, interaction.labelKey, props.spacingInteraction);
+    } else if (!pinnedKey && interaction.scope.getAttribute(EXPANDED_GROUP_ATTRIBUTE) === interaction.labelKey) {
+      watchHoverGroup(interaction.scope, interaction.labelKey, props.spacingInteraction);
     }
     setSpacingFocus(interaction.scope, interaction.distanceId);
   };
 
   const handleLeave = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
-    if (interaction) scheduleCollapse(interaction.scope, props.spacingInteraction);
+    if (!interaction || interaction.scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
+    const next = event.relatedTarget as Element | null;
+    const nextLabel = next?.closest("[data-mesurer-distance-label-key]") as HTMLElement | null;
+    const nextInteraction = nextLabel ? labelInteraction(nextLabel) : null;
+    if (nextInteraction?.scope === interaction.scope && nextInteraction.labelKey === interaction.labelKey) {
+      clearCollapseTimer(interaction.scope);
+      return;
+    }
+    scheduleCollapse(interaction.scope, props.spacingInteraction);
   };
 
   const handlePointer = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
@@ -222,8 +325,11 @@ const Tag = (props: DistanceLabelProps) => {
     const primaryLabel = event.currentTarget.getAttribute("data-mesurer-distance-label-state") === "primary";
     if (pinnedKey === interaction.labelKey && primaryLabel) {
       clearPinnedGroup(interaction.scope, props.spacingInteraction);
+      suppressHoverUntilExit(interaction.scope, interaction.labelKey);
       return;
     }
+    detachHoverWatcher(interaction.scope);
+    detachHoverSuppression(interaction.scope);
     interaction.scope.setAttribute(PINNED_GROUP_ATTRIBUTE, interaction.labelKey);
     props.spacingInteraction?.setPinnedKey(interaction.labelKey);
     expandLabelGroup(interaction.scope, interaction.labelKey, props.spacingInteraction);
