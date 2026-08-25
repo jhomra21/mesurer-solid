@@ -168,8 +168,6 @@ const scheduleCollapse = (scope: HTMLElement) => {
   }, 250));
 };
 
-const stopOverlayPointer = (event: PointerEvent) => event.stopPropagation();
-
 const Tag = (props: DistanceLabelProps) => {
   const primary = createMemo(() => props.primary !== false);
   const interactive = createMemo(() => Boolean(props.interactive && props.labelKey && props.distanceId));
@@ -190,10 +188,15 @@ const Tag = (props: DistanceLabelProps) => {
     if (interaction) scheduleCollapse(interaction.scope);
   };
 
+  const handlePointer = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+    if (labelInteraction(event.currentTarget)) event.stopPropagation();
+  };
+
   const handleClick = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
-    event.stopPropagation();
     const interaction = labelInteraction(event.currentTarget);
-    if (!interaction || interaction.labelCount <= 1) return;
+    if (!interaction) return;
+    event.stopPropagation();
+    if (interaction.labelCount <= 1) return;
     clearCollapseTimer(interaction.scope);
     const pinnedKey = interaction.scope.getAttribute(PINNED_GROUP_ATTRIBUTE);
     const primaryLabel = event.currentTarget.getAttribute("data-mesurer-distance-label-state") === "primary";
@@ -225,10 +228,10 @@ const Tag = (props: DistanceLabelProps) => {
       }}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
-      onPointerMove={interactive() ? stopOverlayPointer : undefined}
-      onPointerDown={interactive() ? stopOverlayPointer : undefined}
-      onPointerUp={interactive() ? stopOverlayPointer : undefined}
-      onClick={interactive() ? handleClick : undefined}
+      onPointerMove={handlePointer}
+      onPointerDown={handlePointer}
+      onPointerUp={handlePointer}
+      onClick={handleClick}
     >
       {props.children}
     </div>
