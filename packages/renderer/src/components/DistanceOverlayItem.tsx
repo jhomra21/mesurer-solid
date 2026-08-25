@@ -117,6 +117,8 @@ const scheduleCollapse = (scope: HTMLElement) => {
   }, 250));
 };
 
+const stopOverlayPointer = (event: PointerEvent) => event.stopPropagation();
+
 const Tag = (props: DistanceLabelProps) => {
   const primary = () => props.primary !== false;
   const interactive = () => Boolean(props.interactive && props.labelKey && props.distanceId);
@@ -151,7 +153,9 @@ const Tag = (props: DistanceLabelProps) => {
       }}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
-      onMouseDown={interactive() ? (event) => event.stopPropagation() : undefined}
+      onPointerMove={interactive() ? stopOverlayPointer : undefined}
+      onPointerDown={interactive() ? stopOverlayPointer : undefined}
+      onPointerUp={interactive() ? stopOverlayPointer : undefined}
     >
       {props.children}
     </div>
