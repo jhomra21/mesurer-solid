@@ -3,11 +3,20 @@ import { describe, expect, it } from "vitest";
 import { getSelectionSpacingOverlays } from "../src/core/distances";
 import type { InspectMeasurement } from "../src/core/types";
 
-const measurement = (id: string, left: number, top: number): InspectMeasurement => ({
-  id,
-  rect: { left, top, width: 80, height: 60 },
-  elementRef: document.createElement("div"),
-} as InspectMeasurement);
+const measurement = (id: string, left: number, top: number): InspectMeasurement => {
+  const rect = { left, top, width: 80, height: 60 };
+  const edges = { top: 0, right: 0, bottom: 0, left: 0 };
+  return {
+    id,
+    rect,
+    paddingRect: { ...rect },
+    marginRect: { ...rect },
+    padding: { ...edges },
+    margin: { ...edges },
+    label: id,
+    elementRef: document.createElement("div"),
+  };
+};
 
 describe("selection spacing overlay stability", () => {
   it("preserves overlay identity when a transient snapshot only clones the selection array", () => {
