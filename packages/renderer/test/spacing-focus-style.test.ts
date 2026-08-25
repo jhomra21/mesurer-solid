@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
-const styles = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const styles = readFileSync("src/styles.css", "utf8");
 const focusRuleStart = styles.indexOf("/* A focused spacing pair");
 const focusRuleEnd = styles.indexOf("/* Upstream X-ray", focusRuleStart);
 
