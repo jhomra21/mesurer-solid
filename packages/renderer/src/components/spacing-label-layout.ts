@@ -41,36 +41,44 @@ const lane = (index: number) => {
   return index % 2 === 1 ? amount : -amount;
 };
 
+const currentOffset = (label: HTMLElement, name: string) => {
+  const value = Number.parseFloat(label.style.getPropertyValue(name));
+  return Number.isFinite(value) ? value : 0;
+};
+
+const setOffset = (label: HTMLElement, name: string, current: number, next: number) => {
+  if (Math.abs(current - next) < 0.5) return;
+  if (next === 0) label.style.removeProperty(name);
+  else label.style.setProperty(name, `${next}px`);
+};
+
 export const layoutSpacingLabels = (scope: HTMLElement) => {
   const ownerWindow = scope.ownerDocument.defaultView;
   if (!ownerWindow) return;
 
-  const allLabels = [...scope.querySelectorAll<HTMLElement>(
-    '[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label]',
+  const labels = [...scope.querySelectorAll<HTMLElement>(
+    '[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]',
   )];
-  for (const label of allLabels) {
-    label.style.removeProperty(COLLISION_X);
-    label.style.removeProperty(COLLISION_Y);
-  }
-
-  const labels = allLabels.filter((label) => label.getAttribute("data-mesurer-distance-label") === "true");
   const placed: Box[] = [];
 
   for (const label of labels) {
-    const base = label.getBoundingClientRect();
+    const offsetX = currentOffset(label, COLLISION_X);
+    const offsetY = currentOffset(label, COLLISION_Y);
+    const rendered = label.getBoundingClientRect();
     const baseBox: Box = {
-      left: base.left,
-      top: base.top,
-      right: base.right,
-      bottom: base.bottom,
-      width: base.width,
-      height: base.height,
+      left: rendered.left - offsetX,
+      top: rendered.top - offsetY,
+      right: rendered.right - offsetX,
+      bottom: rendered.bottom - offsetY,
+      width: rendered.width,
+      height: rendered.height,
     };
     const axis = label.getAttribute("data-mesurer-distance-label-axis");
     const step = axis === "x" ? baseBox.height + LABEL_GAP : baseBox.width + LABEL_GAP;
     let chosen = baseBox;
-    let offsetX = 0;
-    let offsetY = 0;
+    let chosenX = 0;
+    let chosenY = 0;
+    let found = false;
 
     for (let index = 0; index < MAX_LANES; index += 1) {
       const amount = lane(index) * step;
@@ -80,13 +88,28 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
       if (!insideViewport(candidate, ownerWindow.innerWidth, ownerWindow.innerHeight)) continue;
       if (placed.some((other) => overlaps(candidate, other))) continue;
       chosen = candidate;
-      offsetX = x;
-      offsetY = y;
+      chosenX = x;
+      chosenY = y;
+      found = true;
       break;
     }
 
-    if (offsetX) label.style.setProperty(COLLISION_X, `${offsetX}px`);
-    if (offsetY) label.style.setProperty(COLLISION_Y, `${offsetY}px`);
+    if (!found) {
+      for (let index = 0; index < MAX_LANES; index += 1) {
+        const amount = lane(index) * step;
+        const x = axis === "y" ? amount : 0;
+        const y = axis === "x" ? amount : 0;
+        const candidate = movedBox(baseBox, x, y);
+        if (placed.some((other) => overlaps(candidate, other))) continue;
+        chosen = candidate;
+        chosenX = x;
+        chosenY = y;
+        break;
+      }
+    }
+
+    setOffset(label, COLLISION_X, offsetX, chosenX);
+    setOffset(label, COLLISION_Y, offsetY, chosenY);
     placed.push(chosen);
   }
 };
