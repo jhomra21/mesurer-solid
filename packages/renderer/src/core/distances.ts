@@ -186,6 +186,40 @@ const groupSelectionSpacingLabels = (overlays: DistanceOverlay[]) => {
   }
 };
 
+type SelectionSpacingCacheEntry = {
+  selected: InspectMeasurement[];
+  geometrySignature: string;
+  ownerWindow: Window;
+  viewportWidth: number;
+  viewportHeight: number;
+  overlays: DistanceOverlay[];
+};
+
+const selectionSpacingCache = new WeakMap<InspectMeasurement, SelectionSpacingCacheEntry>();
+
+const selectionSpacingGeometrySignature = (selected: InspectMeasurement[]) => selected
+  .map((measurement) => {
+    const rect = measurement.rect;
+    return `${measurement.id}:${rect.left}:${rect.top}:${rect.width}:${rect.height}`;
+  })
+  .join("|");
+
+const cachedSelectionSpacingOverlays = (
+  selected: InspectMeasurement[],
+  geometrySignature: string,
+  ownerWindow: Window,
+) => {
+  const anchor = selected[0];
+  if (!anchor) return null;
+  const cached = selectionSpacingCache.get(anchor);
+  if (!cached) return null;
+  if (cached.ownerWindow !== ownerWindow) return null;
+  if (cached.viewportWidth !== ownerWindow.innerWidth || cached.viewportHeight !== ownerWindow.innerHeight) return null;
+  if (cached.geometrySignature !== geometrySignature || cached.selected.length !== selected.length) return null;
+  if (cached.selected.some((measurement, index) => measurement !== selected[index])) return null;
+  return cached.overlays;
+};
+
 /**
  * Build complete spacing evidence for the current multi-selection.
  *
@@ -193,12 +227,21 @@ const groupSelectionSpacingLabels = (overlays: DistanceOverlay[]) => {
  * scales as n * (n - 1) / 2: multi-selection spacing is measurement evidence, so
  * omitting non-neighbor pairs can hide relevant geometry from both people and
  * agent context. Identical geometries still produce no zero-value overlay.
+ *
+ * Core snapshots shallow-clone the selectedMeasurements array for transient state
+ * updates such as hover. Preserve the exact overlay array while the selected item
+ * identities and geometry are unchanged so keyed renderer children are not
+ * remounted and their interactive/collision layout stays stable.
  */
 export const getSelectionSpacingOverlays = (
   selected: InspectMeasurement[],
   ownerWindow: Window = window,
 ): DistanceOverlay[] => {
   if (selected.length < 2) return [];
+
+  const geometrySignature = selectionSpacingGeometrySignature(selected);
+  const cached = cachedSelectionSpacingOverlays(selected, geometrySignature, ownerWindow);
+  if (cached) return cached;
 
   const overlays: DistanceOverlay[] = [];
   for (let firstIndex = 0; firstIndex < selected.length - 1; firstIndex += 1) {
@@ -221,6 +264,17 @@ export const getSelectionSpacingOverlays = (
   }
 
   groupSelectionSpacingLabels(overlays);
+  const anchor = selected[0];
+  if (anchor) {
+    selectionSpacingCache.set(anchor, {
+      selected: [...selected],
+      geometrySignature,
+      ownerWindow,
+      viewportWidth: ownerWindow.innerWidth,
+      viewportHeight: ownerWindow.innerHeight,
+      overlays,
+    });
+  }
   return overlays;
 };
 
