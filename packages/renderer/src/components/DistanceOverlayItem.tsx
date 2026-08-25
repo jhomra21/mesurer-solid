@@ -31,6 +31,7 @@ const spacingScope = (label: HTMLElement) =>
   label.closest<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]')?.parentElement ?? null;
 
 const collapseLabelGroups = (scope: HTMLElement) => {
+  scope.removeAttribute("data-mesurer-spacing-label-group");
   for (const node of scope.querySelectorAll<HTMLElement>("[data-mesurer-distance-label-key]")) {
     const primary = node.getAttribute("data-mesurer-distance-label-state") === "primary";
     node.setAttribute("data-mesurer-distance-label", primary ? "true" : "hidden");
@@ -43,7 +44,9 @@ const collapseLabelGroups = (scope: HTMLElement) => {
 };
 
 const expandLabelGroup = (scope: HTMLElement, key: string) => {
+  if (scope.getAttribute("data-mesurer-spacing-label-group") === key) return;
   collapseLabelGroups(scope);
+  scope.setAttribute("data-mesurer-spacing-label-group", key);
   for (const node of scope.querySelectorAll<HTMLElement>("[data-mesurer-distance-label-key]")) {
     if (node.getAttribute("data-mesurer-distance-label-key") !== key) continue;
     const index = Number(node.getAttribute("data-mesurer-distance-label-index") ?? "0");
@@ -111,7 +114,7 @@ const scheduleCollapse = (scope: HTMLElement) => {
     collapseTimers.delete(scope);
     collapseLabelGroups(scope);
     setSpacingFocus(scope, null);
-  }, 600));
+  }, 250));
 };
 
 const Tag = (props: DistanceLabelProps) => {
