@@ -17,13 +17,12 @@ export type MesurerInjectConfig = Omit<MountMeasurerOptions, "target" | "agent" 
   context?: boolean | MesurerContextPluginOptions;
 };
 
-type InjectionGlobal = typeof globalThis & {
-  __MESURER_CONFIG__?: MesurerInjectConfig;
-  __MESURER_INSTANCE__?: MountedMeasurer;
-};
+declare global {
+  var __MESURER_CONFIG__: MesurerInjectConfig | undefined;
+  var __MESURER_INSTANCE__: MountedMeasurer | undefined;
+}
 
-const globalObject = globalThis as InjectionGlobal;
-const config = globalObject.__MESURER_CONFIG__ ?? {};
+const config = globalThis.__MESURER_CONFIG__ ?? {};
 const {
   target: targetSelector,
   globalName = "__MESURER__",
@@ -39,7 +38,7 @@ const injectedPlugins = context === false
   : [contextPlugin(context === true ? {} : context), ...plugins];
 
 // Reinjection is intentionally deterministic for agent/HMR loops.
-globalObject.__MESURER_INSTANCE__?.dispose();
+globalThis.__MESURER_INSTANCE__?.dispose();
 
 export const mesurer = mountMeasurer({
   ...options,
@@ -48,5 +47,5 @@ export const mesurer = mountMeasurer({
   agent: { globalName, root: document },
 });
 
-globalObject.__MESURER_INSTANCE__ = mesurer;
+globalThis.__MESURER_INSTANCE__ = mesurer;
 await mesurer.ready;
