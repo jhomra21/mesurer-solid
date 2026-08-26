@@ -8,6 +8,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 - Measure every unique pair in multi-selection spacing so additional selected elements no longer lose pairwise or nested edge-distance evidence.
 - Keep all pairwise spacing lines while collapsing identical labels at rest; hovering a shared value fans out its pair labels and emphasizes the hovered pair's line and elements.
+- Keep distinct visible spacing labels clickable by moving colliding value pills along their measurement line first, with perpendicular movement only as a fallback, without changing the measurement lines themselves.
 
 ## 0.1.0-beta.12 - 2026-08-24
 

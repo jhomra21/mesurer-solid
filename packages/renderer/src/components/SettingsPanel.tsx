@@ -259,6 +259,7 @@ export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window
         <div data-mesurer-distance="true" class="msr:col-span-2 msr:mt-1 msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1 msr:border-t msr:border-ink-100 msr:pt-2">
           <div class="msr:col-span-2 msr:text-[10px] msr:font-semibold msr:text-ink-500">Selection spacing</div>
           <SettingsSwitch label="Show" checked={props.selectionSpacingStyle.enabled} onChange={(enabled) => updateSpacing({ enabled })} />
+          <SettingsSwitch label="Diagonals" checked={props.selectionSpacingStyle.diagonals} onChange={(diagonals) => updateSpacing({ diagonals })} />
           <ColorField label="Line color" value={props.selectionSpacingStyle.color} fallback="#2563eb" ownerWindow={props.ownerWindow} onChange={(color) => updateSpacing({ color })} />
           <SliderControl label="Weight" min={1} max={4} step={1} value={props.selectionSpacingStyle.width} formatValue={(value) => `${value}px`} parseInput={(input) => Number.parseFloat(input)} onChange={(width) => updateSpacing({ width })} />
           <div class="msr:col-span-2 msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-3">

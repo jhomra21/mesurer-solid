@@ -48,6 +48,7 @@ export type Guide = {
 };
 
 type DistanceLabelMeta = {
+  showLine?: boolean;
   showLabel?: boolean;
   labelKey?: string;
   labelIndex?: number;
@@ -64,11 +65,13 @@ export type DistanceOverlay = {
   elementRefB?: HTMLElement | null;
   horizontal: ({ x1: number; x2: number; y: number; value: number } & DistanceLabelMeta) | null;
   vertical: ({ y1: number; y2: number; x: number; value: number } & DistanceLabelMeta) | null;
+  diagonal?: ({ axis: "d"; x1: number; y1: number; x2: number; y2: number; value: number } & DistanceLabelMeta) | null;
   edgeDistances?: Array<
     | ({ axis: "x"; side: "left" | "right"; x1: number; x2: number; y: number; value: number } & DistanceLabelMeta)
     | ({ axis: "y"; side: "top" | "bottom"; y1: number; y2: number; x: number; value: number } & DistanceLabelMeta)
   >;
   connectors: Array<{ x1: number; y1: number; x2: number; y2: number }>;
+  showConnectors?: boolean;
 };
 
 export type OptionTarget = {

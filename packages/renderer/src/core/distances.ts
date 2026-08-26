@@ -153,20 +153,29 @@ const stablePairId = (a: InspectMeasurement, b: InspectMeasurement) => {
 
 type DistanceLine = NonNullable<DistanceOverlay["horizontal"]>
   | NonNullable<DistanceOverlay["vertical"]>
+  | NonNullable<DistanceOverlay["diagonal"]>
   | NonNullable<DistanceOverlay["edgeDistances"]>[number];
 
-const labelKey = (line: DistanceLine) => "x1" in line
-  ? `x:${Math.min(line.x1, line.x2)}:${Math.max(line.x1, line.x2)}:${line.y}:${line.value}`
-  : `y:${Math.min(line.y1, line.y2)}:${Math.max(line.y1, line.y2)}:${line.x}:${line.value}`;
+const labelKey = (line: DistanceLine) => {
+  if ("axis" in line && line.axis === "d") {
+    const forward = `${line.x1}:${line.y1}:${line.x2}:${line.y2}`;
+    const reverse = `${line.x2}:${line.y2}:${line.x1}:${line.y1}`;
+    return `d:${forward < reverse ? forward : reverse}:${line.value}`;
+  }
+  return "x1" in line
+    ? `x:${Math.min(line.x1, line.x2)}:${Math.max(line.x1, line.x2)}:${line.y}:${line.value}`
+    : `y:${Math.min(line.y1, line.y2)}:${Math.max(line.y1, line.y2)}:${line.x}:${line.value}`;
+};
 
 const groupSelectionSpacingLabels = (overlays: DistanceOverlay[]) => {
   const groups = new Map<string, DistanceLine[]>();
   for (const overlay of overlays) {
     const lines: DistanceLine[] = overlay.edgeDistances?.length
-      ? overlay.edgeDistances
+      ? overlay.edgeDistances.filter((line) => line.showLine !== false)
       : [
-          ...(overlay.horizontal ? [overlay.horizontal] : []),
-          ...(overlay.vertical ? [overlay.vertical] : []),
+          ...(overlay.horizontal?.showLine !== false && overlay.horizontal ? [overlay.horizontal] : []),
+          ...(overlay.vertical?.showLine !== false && overlay.vertical ? [overlay.vertical] : []),
+          ...(overlay.diagonal?.showLine !== false && overlay.diagonal ? [overlay.diagonal] : []),
         ];
     for (const line of lines) {
       const key = labelKey(line);
@@ -186,19 +195,156 @@ const groupSelectionSpacingLabels = (overlays: DistanceOverlay[]) => {
   }
 };
 
+const right = (rect: Rect) => rect.left + rect.width;
+const bottom = (rect: Rect) => rect.top + rect.height;
+const separatedX = (a: Rect, b: Rect) => right(a) <= b.left || right(b) <= a.left;
+const separatedY = (a: Rect, b: Rect) => bottom(a) <= b.top || bottom(b) <= a.top;
+const overlaps = (startA: number, endA: number, startB: number, endB: number) =>
+  Math.min(endA, endB) - Math.max(startA, startB) > 0.5;
+
+const directHorizontalGap = (
+  first: InspectMeasurement,
+  second: InspectMeasurement,
+  selected: InspectMeasurement[],
+) => {
+  const a = first.rect;
+  const b = second.rect;
+  if (!separatedX(a, b) || separatedY(a, b)) return false;
+  const aLeft = right(a) <= b.left;
+  const gapStart = aLeft ? right(a) : right(b);
+  const gapEnd = aLeft ? b.left : a.left;
+  const corridorTop = Math.max(a.top, b.top);
+  const corridorBottom = Math.min(bottom(a), bottom(b));
+  return !selected.some((other) => {
+    if (other === first || other === second) return false;
+    const rect = other.rect;
+    return rect.left >= gapStart - 0.5
+      && right(rect) <= gapEnd + 0.5
+      && overlaps(rect.top, bottom(rect), corridorTop, corridorBottom);
+  });
+};
+
+const directVerticalGap = (
+  first: InspectMeasurement,
+  second: InspectMeasurement,
+  selected: InspectMeasurement[],
+) => {
+  const a = first.rect;
+  const b = second.rect;
+  if (!separatedY(a, b) || separatedX(a, b)) return false;
+  const aTop = bottom(a) <= b.top;
+  const gapStart = aTop ? bottom(a) : bottom(b);
+  const gapEnd = aTop ? b.top : a.top;
+  const corridorLeft = Math.max(a.left, b.left);
+  const corridorRight = Math.min(right(a), right(b));
+  return !selected.some((other) => {
+    if (other === first || other === second) return false;
+    const rect = other.rect;
+    return rect.top >= gapStart - 0.5
+      && bottom(rect) <= gapEnd + 0.5
+      && overlaps(rect.left, right(rect), corridorLeft, corridorRight);
+  });
+};
+
+const diagonalGap = (a: Rect, b: Rect): NonNullable<DistanceOverlay["diagonal"]> | null => {
+  if (!separatedX(a, b) || !separatedY(a, b)) return null;
+  const aLeft = right(a) <= b.left;
+  const aTop = bottom(a) <= b.top;
+  const x1 = aLeft ? right(a) : a.left;
+  const x2 = aLeft ? b.left : right(b);
+  const y1 = aTop ? bottom(a) : a.top;
+  const y2 = aTop ? b.top : bottom(b);
+  return {
+    axis: "d",
+    x1,
+    y1,
+    x2,
+    y2,
+    value: Math.hypot(x2 - x1, y2 - y1),
+  };
+};
+
+const applySelectionSpacingPresentation = (
+  overlay: DistanceOverlay,
+  first: InspectMeasurement,
+  second: InspectMeasurement,
+  selected: InspectMeasurement[],
+) => {
+  const diagonal = diagonalGap(first.rect, second.rect);
+  if (diagonal) {
+    if (overlay.horizontal) overlay.horizontal.showLine = false;
+    if (overlay.vertical) overlay.vertical.showLine = false;
+    overlay.diagonal = diagonal;
+    overlay.showConnectors = false;
+    return;
+  }
+
+  if (overlay.horizontal && separatedX(first.rect, second.rect)) {
+    overlay.horizontal.showLine = directHorizontalGap(first, second, selected);
+    if (!overlay.horizontal.showLine) overlay.showConnectors = false;
+  }
+  if (overlay.vertical && separatedY(first.rect, second.rect)) {
+    overlay.vertical.showLine = directVerticalGap(first, second, selected);
+    if (!overlay.vertical.showLine) overlay.showConnectors = false;
+  }
+};
+
+type SelectionSpacingCacheEntry = {
+  selected: InspectMeasurement[];
+  geometrySignature: string;
+  ownerWindow: Window;
+  viewportWidth: number;
+  viewportHeight: number;
+  overlays: DistanceOverlay[];
+};
+
+const selectionSpacingCache = new WeakMap<InspectMeasurement, SelectionSpacingCacheEntry>();
+
+const selectionSpacingGeometrySignature = (selected: InspectMeasurement[]) => selected
+  .map((measurement) => {
+    const rect = measurement.rect;
+    return `${measurement.id}:${rect.left}:${rect.top}:${rect.width}:${rect.height}`;
+  })
+  .join("|");
+
+const cachedSelectionSpacingOverlays = (
+  selected: InspectMeasurement[],
+  geometrySignature: string,
+  ownerWindow: Window,
+) => {
+  const anchor = selected[0];
+  if (!anchor) return null;
+  const cached = selectionSpacingCache.get(anchor);
+  if (!cached) return null;
+  if (cached.ownerWindow !== ownerWindow) return null;
+  if (cached.viewportWidth !== ownerWindow.innerWidth || cached.viewportHeight !== ownerWindow.innerHeight) return null;
+  if (cached.geometrySignature !== geometrySignature || cached.selected.length !== selected.length) return null;
+  if (cached.selected.some((measurement, index) => measurement !== selected[index])) return null;
+  return cached.overlays;
+};
+
 /**
  * Build complete spacing evidence for the current multi-selection.
  *
- * Every unique pair of selected elements gets a direct overlay. This intentionally
- * scales as n * (n - 1) / 2: multi-selection spacing is measurement evidence, so
- * omitting non-neighbor pairs can hide relevant geometry from both people and
- * agent context. Identical geometries still produce no zero-value overlay.
+ * Every unique pair of selected elements keeps its pairwise geometry. Presentation
+ * hints keep the default overlay focused on direct unobstructed horizontal/vertical
+ * neighbors, while genuinely diagonal pairs retain one true Euclidean segment for
+ * the optional diagonal view. Hidden visual projections remain in the overlay data.
+ *
+ * Core snapshots shallow-clone the selectedMeasurements array for transient state
+ * updates such as hover. Preserve the exact overlay array while the selected item
+ * identities and geometry are unchanged so keyed renderer children are not
+ * remounted and their interactive/collision layout stays stable.
  */
 export const getSelectionSpacingOverlays = (
   selected: InspectMeasurement[],
   ownerWindow: Window = window,
 ): DistanceOverlay[] => {
   if (selected.length < 2) return [];
+
+  const geometrySignature = selectionSpacingGeometrySignature(selected);
+  const cached = cachedSelectionSpacingOverlays(selected, geometrySignature, ownerWindow);
+  if (cached) return cached;
 
   const overlays: DistanceOverlay[] = [];
   for (let firstIndex = 0; firstIndex < selected.length - 1; firstIndex += 1) {
@@ -213,14 +359,24 @@ export const getSelectionSpacingOverlays = (
         ownerWindow,
       );
       if (!overlay.horizontal && !overlay.vertical) continue;
-      overlays.push({
-        ...overlay,
-        id: stablePairId(first, second),
-      });
+      overlay.id = stablePairId(first, second);
+      applySelectionSpacingPresentation(overlay, first, second, selected);
+      overlays.push(overlay);
     }
   }
 
   groupSelectionSpacingLabels(overlays);
+  const anchor = selected[0];
+  if (anchor) {
+    selectionSpacingCache.set(anchor, {
+      selected: [...selected],
+      geometrySignature,
+      ownerWindow,
+      viewportWidth: ownerWindow.innerWidth,
+      viewportHeight: ownerWindow.innerHeight,
+      overlays,
+    });
+  }
   return overlays;
 };
 
