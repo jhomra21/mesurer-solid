@@ -30,7 +30,10 @@ type ElectronGlobal = {
   };
 };
 
-export function isElectronRenderer(globalValue: ElectronGlobal = globalThis): boolean {
+// SAFETY: Electron augments the runtime global with optional process metadata; browsers simply leave it absent.
+const runtimeElectronGlobal = globalThis as ElectronGlobal;
+
+export function isElectronRenderer(globalValue: ElectronGlobal = runtimeElectronGlobal): boolean {
   return globalValue.process?.type === "renderer" || Boolean(globalValue.process?.versions?.electron);
 }
 
@@ -140,7 +143,8 @@ const parseEdge = (value: string) => Number.parseFloat(value) || 0;
 let inspectionId = 0;
 
 const escapeCss = (value: string, ownerWindow: Window) => {
-  const css = ownerWindow.CSS;
+  // SAFETY: ownerWindow is the browser realm that owns the inspected document and therefore exposes that realm's CSS namespace.
+  const css = (ownerWindow as Window & typeof globalThis).CSS;
   return css?.escape ? css.escape(value) : value.replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`);
 };
 
@@ -227,7 +231,7 @@ export function getElementSelector(element: Element): string {
   while (current && parts.length < 5) {
     let part = current.localName;
     const currentName = current.localName;
-    const parent = current.parentElement;
+    const parent: Element | null = current.parentElement;
     if (parent) {
       const siblings = [...parent.children].filter((candidate) => candidate.localName === currentName);
       if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
