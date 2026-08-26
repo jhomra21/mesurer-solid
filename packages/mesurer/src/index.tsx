@@ -34,7 +34,7 @@ export type LinePattern = "solid" | "dashed" | "dotted";
 export type LineStyle = { opacity: number; width: number; pattern: LinePattern; dashLength: number; gap: number };
 export type GuidePattern = LinePattern;
 export type GuideStyle = LineStyle;
-export type SelectionSpacingStyle = LineStyle & { enabled: boolean; color: string };
+export type SelectionSpacingStyle = LineStyle & { enabled: boolean; color: string; diagonals: boolean };
 export type RulerSettings = { opacity: number; edgeReveal: boolean };
 export type MesurerRect = { left: number; top: number; width: number; height: number };
 export type MesurerMeasurement = { id: string; rect: MesurerRect; normalizedRect: MesurerRect; deltaX: number; deltaY: number; snapped?: boolean };
@@ -218,213 +218,133 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     : agentOption === false
       ? null
       : agentOption;
-  const inspectionRoot = agentConfig?.root ?? (target.nodeType === 11 ? target : ownerDocument);
-  const baseAgent = createMesurerAgentHarness({
-    ownerDocument,
-    root: inspectionRoot,
-    getPluginHost: () => pluginHost,
-    waitForPluginHost,
+  let disposed = false;
+  let contextService: MesurerContextService | null = null;
+  const disposer = render(() => (
+    <RendererMeasurer
+      {...measurerProps as RendererMeasurerProps}
+      portalTarget={portalTarget}
+      pageTarget={target}
+      onBuiltinController={(controller) => {
+        pluginHost?.bindBuiltins(controller);
+      }}
+      pluginTools={pluginHost?.tools() ?? []}
+      onPluginTool={(tool) => {
+        void pluginHost?.runTool(tool.id);
+      }}
+    />
+  ), mount);
+
+  const selectedPlugins = rendererComposeMesurerPlugins({
+    plugins: options.plugins,
+    excludePlugins: options.excludePlugins,
+  });
+  const host = new rendererPluginHostAdapter({
+    plugins: selectedPlugins,
+    onError: options.onPluginError,
+  });
+  pluginHost = host;
+  resolvePluginHost(host);
+  onPluginHost?.(host);
+  void host.initialize().then(() => {
+    if (disposed) return;
+    contextService = host.getService<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID);
+    pluginsReadyResolved = true;
+    resolvePluginsReady(host);
+    onPluginsReady?.(host);
   });
 
-  const getContextService = async () => {
-    await baseAgent.ready();
-    const service = pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID);
-    if (!service) {
-      throw new Error("Mesurer context plugin is not loaded. Add contextPlugin() to the plugins array.");
-    }
-    return service;
-  };
-  const context = async (request?: MesurerContextRequest) => (await getContextService()).context(request);
-  const contextText = async (request?: MesurerContextRequest) => (await getContextService()).contextText(request);
-  const copyContext = async (request?: MesurerContextRequest) => (await getContextService()).copyContext(request);
-  const annotations = async () => (await getContextService()).annotations();
-  const review = async (annotationId?: string) => (await getContextService()).review(annotationId);
-  const capturePlan = async (request?: MesurerContextRequest) => (await getContextService()).capturePlan(request);
-  const prepareCapture = async () => (await getContextService()).prepareCapture();
-  const finishCapture = async () => (await getContextService()).finishCapture();
-  const sendContext = async (request?: MesurerContextRequest) => (await getContextService()).sendContext(request);
-  const capabilities = (): MesurerAgentCapabilities => {
-    const service = pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID);
-    const available = Boolean(service);
-    return {
-      protocol: "mesurer.agent/v1",
-      contextSchema: "mesurer.context/v1",
-      capabilities: {
-        context: available,
-        annotations: available,
-        review: available,
-        capturePlan: available,
-        screenshots: service?.screenshots ?? false,
-        send: service?.send ?? false,
-      },
-    };
-  };
-  const agent = Object.assign(baseAgent, {
-    capabilities,
-    context,
-    contextText,
-    annotations,
-    review,
-    capturePlan,
-    prepareCapture,
-    finishCapture,
-    sendContext,
-  }) as MesurerBrowserAgent;
+  const agent = createMesurerAgentHarness({
+    root,
+    ready: waitForPluginHost,
+    context: () => contextService,
+  });
 
-  const rendererProps = measurerProps as RendererMeasurerProps;
-  const disposeRender = render(
-    () => (
-      <RendererMeasurer
-        {...rendererProps}
-        portalTarget={portalTarget}
-        pageTarget={target}
-        onPluginHost={(host) => {
-          const publicHost = host as unknown as MesurerPluginHost;
-          if (!pluginHost) resolvePluginHost(publicHost);
-          pluginHost = publicHost;
-          onPluginHost?.(publicHost);
-        }}
-        onPluginsReady={(host) => {
-          const publicHost = host as unknown as MesurerPluginHost;
-          pluginHost = publicHost;
-          if (!pluginsReadyResolved) {
-            pluginsReadyResolved = true;
-            resolvePluginsReady(publicHost);
-          }
-          onPluginsReady?.(publicHost);
-        }}
-      />
-    ),
-    mount,
-  );
-
-  const ready = agent.ready();
-  let restoreAgentGlobal: (() => void) | null = null;
-  if (agentConfig) {
-    const globalName = agentConfig.globalName ?? "__MESURER__";
-    const globalRecord = ownerWindow as unknown as Record<string, unknown>;
-    const hadPrevious = Object.prototype.hasOwnProperty.call(globalRecord, globalName);
-    const previous = globalRecord[globalName];
-    globalRecord[globalName] = agent;
-    restoreAgentGlobal = () => {
-      if (globalRecord[globalName] !== agent) return;
-      if (hadPrevious) globalRecord[globalName] = previous;
-      else delete globalRecord[globalName];
-    };
-  }
-
-  let disposed = false;
   return {
     element: container,
     root,
-    hostLayer: hostLayer.mode,
-    get pluginHost() {
-      return pluginHost;
-    },
-    ready,
+    get hostLayer() { return hostLayer.mode; },
+    get pluginHost() { return pluginHost; },
+    ready: pluginsReady,
     agent,
-    context,
-    contextText,
-    copyContext,
-    annotations,
-    review,
-    capturePlan,
-    prepareCapture,
-    finishCapture,
-    sendContext,
-    bringToFront: hostLayer.bringToFront,
+    context: (request) => agent.context(request),
+    contextText: (request) => agent.contextText(request),
+    copyContext: async (request) => {
+      await ownerWindow.navigator.clipboard.writeText(await agent.contextText(request));
+    },
+    annotations: () => agent.annotations(),
+    review: (annotationId) => agent.review(annotationId),
+    capturePlan: (request) => agent.capturePlan(request),
+    prepareCapture: () => agent.prepareCapture(),
+    finishCapture: () => agent.finishCapture(),
+    sendContext: (request) => agent.sendContext(request),
+    bringToFront: () => hostLayer.bringToFront(),
     describe: () => pluginHost?.describe(),
     dispose() {
       if (disposed) return;
       disposed = true;
-      restoreAgentGlobal?.();
-      disposeRender();
+      disposer();
       hostLayer.dispose();
-      container.remove();
+      if (pluginsReadyResolved) host.dispose();
+      else void pluginsReady.then(() => host.dispose());
     },
   };
 }
 
 export { createMesurerAgentHarness } from "./agent";
-export type {
-  AgentDistance,
-  AgentEdges,
-  AgentElementInspection,
-  AgentFeedbackSnapshot,
-  AgentRect,
-  AgentViewportSnapshot,
-  CreateMesurerAgentHarnessOptions,
-  MesurerAgentHarness,
+export {
+  type MesurerAgentHarness,
+  type MesurerAgentSnapshot,
+  type MesurerDistanceEvidence,
+  type MesurerFeedbackRequest,
+  type MesurerFeedbackResult,
+  type MesurerSelectorInput,
 } from "./agent";
 export {
-  captureMesurerContext,
-  copyTextToClipboard,
-  createMesurerCapturePlan,
+  createAnnotationService,
   formatMesurerContext,
-  reviewMesurerAnnotation,
-  toAcpContentBlocks,
-} from "./context";
-export type {
-  AcpImageContentBlock,
-  AcpTextContentBlock,
-  MesurerAcpContentBlock,
-  MesurerAnnotation,
-  MesurerAnnotationBaseline,
-  MesurerAnnotationTarget,
-  MesurerCapturePlanV1,
-  MesurerContextDelivery,
-  MesurerContextDistance,
-  MesurerContextEdges,
-  MesurerContextGuide,
-  MesurerContextMeasurement,
-  MesurerContextRect,
-  MesurerContextRequest,
-  MesurerContextSender,
-  MesurerContextTarget,
-  MesurerContextV1,
-  MesurerElementFingerprint,
-  MesurerElementInspection,
-  MesurerEvidenceImage,
-  MesurerEvidenceProvider,
-  MesurerReviewChange,
-  MesurerReviewMetricChange,
-  MesurerReviewPresenceChange,
-  MesurerReviewV1,
+  resolveCapturePlan,
+  type MesurerAnnotation,
+  type MesurerAnnotationAnchor,
+  type MesurerAnnotationAnchorRegion,
+  type MesurerAnnotationAnchorTarget,
+  type MesurerAnnotationDraft,
+  type MesurerCapturePlanV1,
+  type MesurerContextRequest,
+  type MesurerContextV1,
+  type MesurerReviewItem,
+  type MesurerReviewV1,
+  type MesurerSendHook,
 } from "./context";
 export {
   contextPlugin,
-  MESURER_CONTEXT_PLUGIN_ID,
   MESURER_CONTEXT_SERVICE_ID,
+  type MesurerContextPluginOptions,
+  type MesurerContextService,
 } from "./context-plugin";
-export type {
-  MesurerContextPluginOptions,
-  MesurerContextService,
-} from "./context-plugin";
-export { createMesurerPluginHost, createMesurerRuntime, defineMesurerPlugin } from "./core";
-export type {
-  CommandHandler as MesurerCommandHandler,
-  MesurerPlugin,
-  MesurerPluginContext,
-  MesurerPluginDescription,
-  MesurerPluginHost,
-  OverlayContribution,
-  Registration as MesurerRegistration,
-  SettingsContribution,
-  StateSliceDefinition,
-  ToolContribution,
+export {
+  createMesurerPluginHost,
+  type MesurerBuiltinActionController,
+  type MesurerBuiltinPluginId as CoreMesurerBuiltinPluginId,
+  type MesurerCommand,
+  type MesurerCommandContext,
+  type MesurerPlugin,
+  type MesurerPluginContext,
+  type MesurerPluginDescription,
+  type MesurerPluginHost,
+  type MesurerPluginRegistry,
+  type MesurerPluginService,
+  type MesurerToolbarContribution,
 } from "./core";
-export type { MesurerHostLayerMode } from "./host-layer";
-
-export const selectPlugin = rendererSelectPlugin as unknown as () => MesurerPlugin;
-export const xrayPlugin = rendererXrayPlugin as unknown as () => MesurerPlugin;
-export const colorPickerPlugin = rendererColorPickerPlugin as unknown as () => MesurerPlugin;
-export const rulersPlugin = rendererRulersPlugin as unknown as () => MesurerPlugin;
-export const textInspectorPlugin = rendererTextInspectorPlugin as unknown as () => MesurerPlugin;
-export const guidesPlugin = rendererGuidesPlugin as unknown as () => MesurerPlugin;
-export const distancePlugin = rendererDistancePlugin as unknown as () => MesurerPlugin;
-export const settingsPlugin = rendererSettingsPlugin as unknown as () => MesurerPlugin;
-export const defaultMesurerPlugins = rendererDefaultMesurerPlugins as unknown as () => MesurerPlugin[];
-export const composeMesurerPlugins = rendererComposeMesurerPlugins as unknown as (
-  plugins?: MesurerPlugin[],
-  exclude?: MesurerBuiltinPluginId[],
-) => MesurerPlugin[];
+export {
+  rendererColorPickerPlugin as colorPickerPlugin,
+  rendererComposeMesurerPlugins as composeMesurerPlugins,
+  rendererDefaultMesurerPlugins as defaultMesurerPlugins,
+  rendererDistancePlugin as distancePlugin,
+  rendererGuidesPlugin as guidesPlugin,
+  rendererRulersPlugin as rulersPlugin,
+  rendererSelectPlugin as selectPlugin,
+  rendererSettingsPlugin as settingsPlugin,
+  rendererTextInspectorPlugin as textInspectorPlugin,
+  rendererXrayPlugin as xrayPlugin,
+};
