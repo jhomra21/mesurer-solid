@@ -136,22 +136,6 @@
   border: 0;
 }
 
-/* Focus is opacity-only for selected elements: unrelated selection chrome recedes,
-   while the two owning elements keep the normal 1px selected-border thickness. */
-[data-mesurer-spacing-focus] [data-mesurer-selected-measurement="true"],
-[data-mesurer-spacing-focus] [data-mesurer-selection-spacing-target="true"] {
-  opacity: 0.32;
-}
-
-[data-mesurer-spacing-focus] [data-mesurer-distance-hover-target="true"] {
-  opacity: 0 !important;
-}
-
-[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"] [data-mesurer-distance-hover-target="true"] {
-  border-width: 1px !important;
-  opacity: 1 !important;
-}
-
 /* A spacing pill describes one orthogonal measurement line. Keep the hovered
    axis bright, dim the pair's other axis, and keep projection connectors quiet
    so a diagonal pair never reads as an L-shaped or diagonal distance. */
