@@ -136,21 +136,27 @@
   border: 0;
 }
 
-/* A focused spacing pair already gets its own full-strength 2px endpoint outlines.
-   Quiet the normal selection chrome so those active endpoints read immediately. */
+/* A focused spacing pair gets dedicated full-strength endpoint outlines.
+   Quiet the rest of the selection chrome so the two owning elements read first. */
 [data-mesurer-spacing-focus] [data-mesurer-selected-measurement="true"],
 [data-mesurer-spacing-focus] [data-mesurer-selection-spacing-target="true"] {
   opacity: 0.32;
 }
 
-/* A spacing pill represents one orthogonal component of a pair, not the whole pair.
-   Keep only that component and the connector that projects it to the second element
-   at full strength; dim the pair's other axis so diagonal pairs never read as a
-   diagonal distance. */
+[data-mesurer-spacing-focus] [data-mesurer-distance-hover-target="true"] {
+  opacity: 0 !important;
+}
+
+[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"] [data-mesurer-distance-hover-target="true"] {
+  opacity: 1 !important;
+}
+
+/* A spacing pill describes one orthogonal measurement line. Keep the hovered
+   axis bright, dim the pair's other axis, and keep projection connectors quiet
+   so a diagonal pair never reads as an L-shaped or diagonal distance. */
 [data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="x"]:hover) [data-mesurer-distance-line^="vertical"],
-[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="x"]:hover) [data-mesurer-distance-connector="true"][class~="msr:border-t"],
 [data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="y"]:hover) [data-mesurer-distance-line^="horizontal"],
-[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis="y"]:hover) [data-mesurer-distance-connector="true"][class~="msr:border-l"] {
+[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]:has([data-mesurer-distance-label-axis]:hover) [data-mesurer-distance-connector="true"] {
   opacity: 0.16 !important;
 }
 
