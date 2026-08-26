@@ -78,7 +78,7 @@ async function assertHostIsolation(page, testCase) {
     const topLayer = island.matches(":popover-open");
 
     let laterPopoverStayedAbove = true;
-    if ("popover" in HTMLElement.prototype && typeof HTMLElement.prototype.showPopover === "function") {
+    if ("popover" in HTMLElement.prototype && HTMLElement.prototype.showPopover instanceof Function) {
       const hostPopover = document.createElement("div");
       hostPopover.popover = "manual";
       Object.assign(hostPopover.style, {
@@ -100,7 +100,7 @@ async function assertHostIsolation(page, testCase) {
 
     let modalInteractive = true;
     let restoredAfterModal = true;
-    if (typeof HTMLDialogElement.prototype.showModal === "function") {
+    if (HTMLDialogElement.prototype.showModal instanceof Function) {
       const dialog = document.createElement("dialog");
       dialog.textContent = "Host modal";
       Object.assign(dialog.style, {
@@ -310,7 +310,7 @@ function startTrustedTypesServer() {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
-      if (!address || typeof address === "string") {
+      if (!address || !Number.isInteger(address.port)) {
         reject(new Error("Unable to resolve Trusted Types smoke server address"));
         return;
       }
