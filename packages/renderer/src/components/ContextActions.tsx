@@ -235,7 +235,9 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const startSurfaceDrag = (event: PointerEvent & { currentTarget: HTMLDivElement }, surfaceId: string) => {
-    if (event.button !== 0 || (event.target as Element | null)?.closest("button")) return;
+    const ElementCtor = event.currentTarget.ownerDocument.defaultView?.Element;
+    const target = event.target;
+    if (event.button !== 0 || (ElementCtor && target instanceof ElementCtor && target.closest("button"))) return;
     const panel = event.currentTarget.parentElement;
     if (!panel) return;
     const rect = panel.getBoundingClientRect();
