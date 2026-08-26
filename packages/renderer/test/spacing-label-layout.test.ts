@@ -4,6 +4,8 @@ import { layoutSpacingLabels } from "../src/components/spacing-label-layout";
 
 const COLLISION_X = "--mesurer-spacing-label-collision-x";
 const COLLISION_Y = "--mesurer-spacing-label-collision-y";
+const INLINE_FAN_X_STEP = 22;
+const INLINE_FAN_Y_STEP = 16;
 type RectInput = { left: number; top: number; width: number; height: number };
 
 const domRect = ({ left, top, width, height }: RectInput): DOMRect => ({
@@ -30,14 +32,21 @@ const setup = () => {
   return { scope, root };
 };
 
-const label = (root: HTMLElement, axis: "x" | "y", rect: RectInput, visible = true) => {
+const label = (
+  root: HTMLElement,
+  axis: "x" | "y",
+  rect: RectInput,
+  visible = true,
+  index = 0,
+) => {
   const element = document.createElement("div");
   element.setAttribute("data-mesurer-distance-label", visible ? "true" : "hidden");
   element.setAttribute("data-mesurer-distance-label-axis", axis);
+  element.setAttribute("data-mesurer-distance-label-index", String(index));
   vi.spyOn(element, "getBoundingClientRect").mockImplementation(() => domRect({
     ...rect,
-    left: rect.left + offset(element, COLLISION_X),
-    top: rect.top + offset(element, COLLISION_Y),
+    left: rect.left + (axis === "y" ? index * INLINE_FAN_X_STEP : 0) + offset(element, COLLISION_X),
+    top: rect.top + (axis === "x" ? index * INLINE_FAN_Y_STEP : 0) + offset(element, COLLISION_Y),
   }));
   root.append(element);
   return element;
@@ -110,6 +119,44 @@ describe("selection spacing label layout", () => {
     )).toBe(false);
     expect(verticalX).not.toBe(0);
     expect(verticalY).toBe(0);
+  });
+
+  it("keeps expanded horizontal duplicates beside their shared line", () => {
+    const { scope, root } = setup();
+    const rect = { left: 180, top: 140, width: 30, height: 16 };
+    const primary = label(root, "x", rect, true, 0);
+    const duplicate = label(root, "x", rect, true, 1);
+
+    layoutSpacingLabels(scope);
+
+    const primaryX = offset(primary, COLLISION_X);
+    const primaryY = offset(primary, COLLISION_Y);
+    const duplicateX = offset(duplicate, COLLISION_X);
+    const duplicateY = INLINE_FAN_Y_STEP + offset(duplicate, COLLISION_Y);
+    expect(primaryX).toBe(0);
+    expect(primaryY).toBe(0);
+    expect(duplicateY).toBe(0);
+    expect(duplicateX).not.toBe(0);
+    expect(intersects(shifted(rect, primaryX, primaryY), shifted(rect, duplicateX, duplicateY))).toBe(false);
+  });
+
+  it("keeps expanded vertical duplicates beside their shared line", () => {
+    const { scope, root } = setup();
+    const rect = { left: 240, top: 160, width: 28, height: 16 };
+    const primary = label(root, "y", rect, true, 0);
+    const duplicate = label(root, "y", rect, true, 1);
+
+    layoutSpacingLabels(scope);
+
+    const primaryX = offset(primary, COLLISION_X);
+    const primaryY = offset(primary, COLLISION_Y);
+    const duplicateX = INLINE_FAN_X_STEP + offset(duplicate, COLLISION_X);
+    const duplicateY = offset(duplicate, COLLISION_Y);
+    expect(primaryX).toBe(0);
+    expect(primaryY).toBe(0);
+    expect(duplicateX).toBe(0);
+    expect(duplicateY).not.toBe(0);
+    expect(intersects(shifted(rect, primaryX, primaryY), shifted(rect, duplicateX, duplicateY))).toBe(false);
   });
 
   it("ignores hidden duplicate labels until they become visible", () => {
