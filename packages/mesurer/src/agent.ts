@@ -2,6 +2,7 @@ import { getDeepestElementAtPoint, inspectDomElement, isElementWithinDomTarget, 
 import type {
   MesurerPluginDescription,
   MesurerPluginHost,
+  PluginStateSnapshot,
 } from "./core";
 
 export type AgentRect = {
@@ -99,8 +100,10 @@ export type AgentFeedbackSnapshot = {
   viewport: AgentViewportSnapshot;
   elements: AgentElementInspection[];
   plugins: MesurerPluginDescription | undefined;
-  pluginState: Record<string, unknown>;
+  pluginState: PluginStateSnapshot;
 };
+
+type AgentCommandArgs = Parameters<MesurerPluginHost["command"]["execute"]>[1];
 
 export type MesurerAgentHarness = {
   ready(): Promise<void>;
@@ -111,14 +114,14 @@ export type MesurerAgentHarness = {
   distance(a: string, b: string): AgentDistance | null;
   viewport(): AgentViewportSnapshot;
   feedback(selectors?: string[]): Promise<AgentFeedbackSnapshot>;
-  command(id: string, args?: unknown): Promise<void>;
-  state(): Promise<Record<string, unknown>>;
+  command(id: string, args?: AgentCommandArgs): Promise<void>;
+  state(): Promise<PluginStateSnapshot>;
   stable(frames?: number): Promise<void>;
 };
 
 export type CreateMesurerAgentHarnessOptions = {
   ownerDocument: Document;
-  root?: ParentNode;
+  root?: Document | HTMLElement | ShadowRoot;
   getPluginHost: () => MesurerPluginHost | undefined;
   waitForPluginHost: () => Promise<MesurerPluginHost>;
 };
@@ -137,7 +140,7 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
 
   const containsPointElement = (element: Element) => {
     if (root === options.ownerDocument) return true;
-    return isElementWithinDomTarget(element, root as HTMLElement | ShadowRoot);
+    return isElementWithinDomTarget(element, root);
   };
 
   const viewport = (): AgentViewportSnapshot => {
@@ -182,13 +185,10 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
       return [...root.querySelectorAll(selector)].slice(0, Math.max(0, limit)).map(inspectElement);
     },
     at(x, y) {
-      const target = root === options.ownerDocument
-        ? options.ownerDocument
-        : root as HTMLElement | ShadowRoot;
       const inspectorHost = root.querySelector?.<HTMLElement>("[data-mesurer-island]") ?? null;
       const inspectorLayer = inspectorHost?.shadowRoot?.querySelector<HTMLElement>("[data-mesurer-root='true']") ?? inspectorHost;
       return withPointerEventsDisabled(inspectorLayer, () => {
-        const nativePointElement = getDeepestElementAtPoint({ x, y }, target, options.ownerDocument);
+        const nativePointElement = getDeepestElementAtPoint({ x, y }, root, options.ownerDocument);
         return nativePointElement && containsPointElement(nativePointElement) ? inspectElement(nativePointElement) : null;
       });
     },
