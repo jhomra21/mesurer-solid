@@ -89,23 +89,22 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
       height: rendered.height,
     };
 
-    // Keep duplicate labels beside the line they describe. The primary label stays
-    // at the original anchor while duplicates fan in both directions along the
-    // measurement axis. Perpendicular lanes are only a collision fallback.
-    const fanStep = axis === "x" ? baseBox.width + LABEL_GAP : baseBox.height + LABEL_GAP;
-    const fanAmount = lane(index) * fanStep;
-    const fanX = axis === "x" ? fanAmount : 0;
-    const fanY = axis === "y" ? fanAmount : 0;
-    const collisionStep = axis === "x" ? baseBox.height + LABEL_GAP : baseBox.width + LABEL_GAP;
-    let chosen = movedBox(baseBox, fanX, fanY);
-    let chosenX = fanX;
-    let chosenY = fanY;
+    // Keep duplicate and collision-displaced labels beside the line they describe.
+    // The primary label stays at its original anchor. Duplicates start in alternating
+    // slots along the measurement axis, and collisions consume more along-line slots
+    // before we ever fall back to moving away from the line.
+    const alongStep = axis === "x" ? baseBox.width + LABEL_GAP : baseBox.height + LABEL_GAP;
+    const preferredSlot = lane(index);
+    let chosen = baseBox;
+    let chosenX = 0;
+    let chosenY = 0;
     let found = false;
 
-    for (let collisionIndex = 0; collisionIndex < MAX_LANES; collisionIndex += 1) {
-      const amount = lane(collisionIndex) * collisionStep;
-      const x = fanX + (axis === "y" ? amount : 0);
-      const y = fanY + (axis === "x" ? amount : 0);
+    for (let searchIndex = 0; searchIndex < MAX_LANES; searchIndex += 1) {
+      const slot = preferredSlot + lane(searchIndex);
+      const amount = slot * alongStep;
+      const x = axis === "x" ? amount : 0;
+      const y = axis === "y" ? amount : 0;
       const candidate = movedBox(baseBox, x, y);
       if (!insideViewport(candidate, ownerWindow.innerWidth, ownerWindow.innerHeight)) continue;
       if (placed.some((other) => overlaps(candidate, other))) continue;
@@ -117,7 +116,11 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
     }
 
     if (!found) {
-      for (let collisionIndex = 0; collisionIndex < MAX_LANES; collisionIndex += 1) {
+      const preferredAmount = preferredSlot * alongStep;
+      const fanX = axis === "x" ? preferredAmount : 0;
+      const fanY = axis === "y" ? preferredAmount : 0;
+      const collisionStep = axis === "x" ? baseBox.height + LABEL_GAP : baseBox.width + LABEL_GAP;
+      for (let collisionIndex = 1; collisionIndex < MAX_LANES; collisionIndex += 1) {
         const amount = lane(collisionIndex) * collisionStep;
         const x = fanX + (axis === "y" ? amount : 0);
         const y = fanY + (axis === "x" ? amount : 0);
