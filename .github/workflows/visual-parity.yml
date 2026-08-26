@@ -10,40 +10,81 @@ on:
       - ".github/workflows/visual-parity.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   compare:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Mesurer
+      - name: Checkout Mesurer Solid
         uses: actions/checkout@v4
-
-      - name: Checkout pinned React upstream
-        uses: actions/checkout@v4
-        with:
-          repository: ibelick/mesurer
-          ref: 605d202a4cd0404bb7a4808a11b574174bb14d1a
-          path: upstream
-
-      - name: Assert stylesheet source parity
-        run: python3 visual-parity/check-styles.py
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
 
+      - name: Resolve latest stable Mesurer release
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          release="$({
+            curl --fail --silent --show-error \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              https://api.github.com/repos/ibelick/mesurer/releases/latest
+          })"
+          tag="$(printf '%s' "$release" | bun -e '
+            let source = "";
+            process.stdin.setEncoding("utf8");
+            process.stdin.on("data", (chunk) => { source += chunk; });
+            process.stdin.on("end", () => {
+              const value = JSON.parse(source);
+              if (!value.tag_name || value.draft || value.prerelease) process.exit(1);
+              process.stdout.write(value.tag_name);
+            });
+          ')"
+          if [[ -z "$tag" ]]; then
+            echo "Could not resolve the latest stable ibelick/mesurer release."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Latest stable upstream release: $tag"
+
+      - name: Checkout latest stable React upstream
+        uses: actions/checkout@v4
+        with:
+          repository: ibelick/mesurer
+          ref: ${{ steps.upstream.outputs.tag }}
+          path: upstream
+
+      - name: Record resolved upstream commit
+        id: upstream_commit
+        shell: bash
+        run: |
+          sha="$(git -C upstream rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Using ibelick/mesurer@${{ steps.upstream.outputs.tag }} ($sha)"
+
+      - name: Assert stylesheet source parity
+        run: python3 visual-parity/check-styles.py
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Set up pnpm
+      - name: Set up pnpm for upstream
         run: |
           corepack enable
           corepack prepare pnpm@10.15.0 --activate
 
-      - name: Install Mesurer workspace
-        run: bun install
+      - name: Install Mesurer Solid workspace
+        run: bun install --frozen-lockfile
 
       - name: Install visual comparison dependencies
         run: python3 -m pip install --disable-pip-version-check pillow
@@ -119,14 +160,18 @@ jobs:
           python3 visual-parity/compare.py parity-artifacts | tee parity-artifacts/report.txt
 
       - name: Add visual report summary
+        env:
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+          UPSTREAM_SHA: ${{ steps.upstream_commit.outputs.sha }}
         run: |
           python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
+          import os
           from pathlib import Path
           report = json.loads(Path("parity-artifacts/report.json").read_text())
           print("## React → Solid renderer visual/UI contract parity")
           print("")
-          print("Pinned upstream: `ibelick/mesurer@605d202a4cd0404bb7a4808a11b574174bb14d1a`")
+          print(f"Latest stable upstream: `ibelick/mesurer@{os.environ['UPSTREAM_TAG']}` (`{os.environ['UPSTREAM_SHA']}`)")
           print("")
           print("| State | pixels > threshold | ratio | computed metric diffs | explicit contract diffs | ignored host-default diffs |")
           print("|---|---:|---:|---:|---:|---:|")
@@ -166,6 +211,15 @@ jobs:
           PARITY_OUT: ${{ github.workspace }}/interaction-artifacts
           PARITY_DPR: 1
         run: node e2e/parity-interactions.mjs
+
+      - name: Assert Solid dev runtime diagnostics are clean
+        shell: bash
+        run: |
+          if grep -nE 'STRICT_READ_UNTRACKED|\$\$pointermove' solid-vite.log; then
+            echo "Solid dev parity emitted strict-read or pointer-handler diagnostics."
+            exit 1
+          fi
+          echo "Solid dev parity runtime diagnostics: clean"
 
       - name: Build interaction parity report
         shell: bash
@@ -243,6 +297,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: react-solid-interaction-diagnostics
-          path: interaction-artifacts
+          path: |
+            interaction-artifacts
+            solid-vite.log
           if-no-files-found: warn
           retention-days: 14
