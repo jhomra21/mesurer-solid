@@ -136,8 +136,8 @@
   border: 0;
 }
 
-/* A focused spacing pair gets dedicated full-strength endpoint outlines.
-   Quiet the rest of the selection chrome so the two owning elements read first. */
+/* Focus is opacity-only for selected elements: unrelated selection chrome recedes,
+   while the two owning elements keep the normal 1px selected-border thickness. */
 [data-mesurer-spacing-focus] [data-mesurer-selected-measurement="true"],
 [data-mesurer-spacing-focus] [data-mesurer-selection-spacing-target="true"] {
   opacity: 0.32;
@@ -148,6 +148,7 @@
 }
 
 [data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"] [data-mesurer-distance-hover-target="true"] {
+  border-width: 1px !important;
   opacity: 1 !important;
 }
 
