@@ -283,7 +283,6 @@ export function Toolbar(props: ToolbarProps) {
             role="dialog"
             aria-label="Settings"
             onPointerDown={(event) => event.stopPropagation()}
-            onPointerMove={(event) => event.stopPropagation()}
             onPointerUp={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
