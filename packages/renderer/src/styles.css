@@ -136,6 +136,12 @@
   border: 0;
 }
 
+/* Endpoint markers are geometry/state only. They have no border or background,
+   so raising their opacity for the browser contract cannot change the UI. */
+[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"] [data-mesurer-distance-hover-target="true"] {
+  opacity: 1 !important;
+}
+
 /* A spacing pill describes one orthogonal measurement line. Keep the hovered
    axis bright, dim the pair's other axis, and keep projection connectors quiet
    so a diagonal pair never reads as an L-shaped or diagonal distance. */
