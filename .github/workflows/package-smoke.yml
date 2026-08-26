@@ -33,6 +33,8 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
+      # npm stays pinned here because this job intentionally verifies the exact
+      # npm pack/publish and npm-consumer path. Incidental tooling uses Bun.
       - name: Use the pinned npm CLI
         run: npm install --global npm@11.19.0
 
@@ -47,8 +49,8 @@ jobs:
           cd packages/mesurer
           bun run stage
           npm pack .publish --json > pack.json
-          filename=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].filename)')
-          version=$(node -e 'const p=require("./pack.json"); process.stdout.write(p[0].version)')
+          filename=$(bun -e 'const p=require("./pack.json"); process.stdout.write(p[0].filename)')
+          version=$(bun -e 'const p=require("./pack.json"); process.stdout.write(p[0].version)')
           echo "PACKAGE_TGZ=$(realpath "$filename")" >> "$GITHUB_ENV"
           if [[ "$version" == *-* ]]; then
             npm publish "$(realpath "$filename")" --dry-run --access public --tag beta
@@ -101,7 +103,7 @@ jobs:
             "include": ["index.ts"]
           }
           JSON
-          npx tsc
+          bunx tsc
 
       - name: Create clean React consumer with no Mesurer app import
         run: |
@@ -257,9 +259,9 @@ jobs:
 
       - name: Start packed-package consumers
         run: |
-          (cd /tmp/mesurer-react && npx vite --host 127.0.0.1 --port 4190 --strictPort > /tmp/react-consumer.log 2>&1 &)
-          (cd /tmp/mesurer-solid1 && npx vite --host 127.0.0.1 --port 4191 --strictPort > /tmp/solid1-consumer.log 2>&1 &)
-          (cd /tmp/mesurer-solid2 && npx vite --host 127.0.0.1 --port 4192 --strictPort > /tmp/solid2-consumer.log 2>&1 &)
+          (cd /tmp/mesurer-react && bunx vite --host 127.0.0.1 --port 4190 --strictPort > /tmp/react-consumer.log 2>&1 &)
+          (cd /tmp/mesurer-solid1 && bunx vite --host 127.0.0.1 --port 4191 --strictPort > /tmp/solid1-consumer.log 2>&1 &)
+          (cd /tmp/mesurer-solid2 && bunx vite --host 127.0.0.1 --port 4192 --strictPort > /tmp/solid2-consumer.log 2>&1 &)
           for url in http://127.0.0.1:4190 http://127.0.0.1:4191 http://127.0.0.1:4192; do
             ready=0
             for attempt in $(seq 1 45); do
