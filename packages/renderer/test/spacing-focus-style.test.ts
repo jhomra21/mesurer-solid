@@ -24,9 +24,9 @@ describe("selection spacing focus styles", () => {
     const focus = focusStyles();
 
     expect(marker).toContain("opacity: 1 !important");
-    expect(marker).not.toContain("border");
-    expect(marker).not.toContain("background");
-    expect(focus).not.toContain("border-width");
+    expect(marker).not.toMatch(/\bborder(?:-[a-z]+)?\s*:/);
+    expect(marker).not.toMatch(/\bbackground(?:-[a-z]+)?\s*:/);
+    expect(focus).not.toMatch(/\bborder(?:-[a-z]+)?\s*:/);
     expect(focus).toContain("opacity: 0.16 !important");
   });
 });
