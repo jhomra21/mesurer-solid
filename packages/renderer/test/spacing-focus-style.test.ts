@@ -2,8 +2,15 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 const styles = readFileSync("src/styles.css", "utf8");
+const markerRuleStart = styles.indexOf("/* Endpoint markers are geometry/state only");
 const focusRuleStart = styles.indexOf("/* A spacing pill describes one orthogonal measurement line");
 const focusRuleEnd = styles.indexOf("/* Upstream X-ray", focusRuleStart);
+
+const markerStyles = () => {
+  expect(markerRuleStart).toBeGreaterThanOrEqual(0);
+  expect(focusRuleStart).toBeGreaterThan(markerRuleStart);
+  return styles.slice(markerRuleStart, focusRuleStart);
+};
 
 const focusStyles = () => {
   expect(focusRuleStart).toBeGreaterThanOrEqual(0);
@@ -12,10 +19,13 @@ const focusStyles = () => {
 };
 
 describe("selection spacing focus styles", () => {
-  it("keeps focus styling on measurement components instead of adding endpoint borders", () => {
+  it("keeps endpoint markers nonvisual and focus styling off element borders", () => {
+    const marker = markerStyles();
     const focus = focusStyles();
 
-    expect(styles).not.toContain("data-mesurer-distance-hover-target");
+    expect(marker).toContain("opacity: 1 !important");
+    expect(marker).not.toContain("border");
+    expect(marker).not.toContain("background");
     expect(focus).not.toContain("border-width");
     expect(focus).toContain("opacity: 0.16 !important");
   });
