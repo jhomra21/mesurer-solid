@@ -83,7 +83,11 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
 
   const labels = [...scope.querySelectorAll<HTMLElement>(
     '[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]',
-  )];
+  )].sort((first, second) => {
+    const firstDiagonal = first.getAttribute("data-mesurer-distance-label-axis") === "d" ? 1 : 0;
+    const secondDiagonal = second.getAttribute("data-mesurer-distance-label-axis") === "d" ? 1 : 0;
+    return firstDiagonal - secondDiagonal;
+  });
   const placed: Box[] = [];
 
   for (const label of labels) {
@@ -106,10 +110,14 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
     };
 
     // Keep duplicate and collision-displaced labels beside the line they describe.
-    // The primary label stays at its original anchor. Duplicates start in alternating
-    // slots along the measurement vector, and collisions consume more along-line
-    // slots before we ever fall back to moving perpendicular to the line.
-    const alongStep = Math.max(baseBox.width, baseBox.height) + LABEL_GAP;
+    // Preserve the established horizontal/vertical spacing exactly; diagonal labels
+    // use their own line vector and are laid out after orthogonal labels so enabling
+    // diagonals never pushes the default spacing labels out of place.
+    const alongStep = axis === "x"
+      ? baseBox.width + LABEL_GAP
+      : axis === "y"
+        ? baseBox.height + LABEL_GAP
+        : Math.max(baseBox.width, baseBox.height) + LABEL_GAP;
     const preferredSlot = lane(index);
     let chosen = baseBox;
     let chosenX = 0;
@@ -135,7 +143,11 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
       const preferredAmount = preferredSlot * alongStep;
       const fanX = vector.x * preferredAmount;
       const fanY = vector.y * preferredAmount;
-      const collisionStep = Math.max(baseBox.width, baseBox.height) + LABEL_GAP;
+      const collisionStep = axis === "x"
+        ? baseBox.height + LABEL_GAP
+        : axis === "y"
+          ? baseBox.width + LABEL_GAP
+          : Math.max(baseBox.width, baseBox.height) + LABEL_GAP;
       for (let collisionIndex = 1; collisionIndex < MAX_LANES; collisionIndex += 1) {
         const amount = lane(collisionIndex) * collisionStep;
         const x = fanX + perpendicular.x * amount;
