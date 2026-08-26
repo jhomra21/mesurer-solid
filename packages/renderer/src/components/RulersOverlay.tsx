@@ -32,18 +32,34 @@ export function RulersOverlay(props: RulersOverlayProps) {
   const selectedVerticalGuides = () => props.guides.filter((guide) => guide.orientation === "vertical" && props.selectedGuideIds.includes(guide.id));
   const selectedHorizontalGuides = () => props.guides.filter((guide) => guide.orientation === "horizontal" && props.selectedGuideIds.includes(guide.id));
 
+  const moveGuide = (event: PointerEvent) => {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    const position = drag.orientation === "horizontal" ? event.clientY : event.clientX;
+    setDragPosition(position);
+    props.onMoveGuide(drag.id, position);
+  };
+
   onSettled(() => {
-    const handlePointerMove = (pointer: MouseEvent) => {
+    const handlePointerMove = (pointer: PointerEvent) => {
+      if (props.settings.edgeReveal) {
+        const nearHorizontalEdge = pointer.clientX <= RULER_EDGE_REVEAL_DISTANCE || pointer.clientX >= props.ownerWindow.innerWidth - RULER_EDGE_REVEAL_DISTANCE;
+        const nearVerticalEdge = pointer.clientY <= RULER_EDGE_REVEAL_DISTANCE || pointer.clientY >= props.ownerWindow.innerHeight - RULER_EDGE_REVEAL_DISTANCE;
+        setNearEdge(nearHorizontalEdge || nearVerticalEdge);
+      }
+      moveGuide(pointer);
+    };
+    const handleMouseMove = (pointer: MouseEvent) => {
       if (!props.settings.edgeReveal) return;
       const nearHorizontalEdge = pointer.clientX <= RULER_EDGE_REVEAL_DISTANCE || pointer.clientX >= props.ownerWindow.innerWidth - RULER_EDGE_REVEAL_DISTANCE;
       const nearVerticalEdge = pointer.clientY <= RULER_EDGE_REVEAL_DISTANCE || pointer.clientY >= props.ownerWindow.innerHeight - RULER_EDGE_REVEAL_DISTANCE;
       setNearEdge(nearHorizontalEdge || nearVerticalEdge);
     };
     props.ownerWindow.document.addEventListener("pointermove", handlePointerMove, true);
-    props.ownerWindow.document.addEventListener("mousemove", handlePointerMove, true);
+    props.ownerWindow.document.addEventListener("mousemove", handleMouseMove, true);
     return () => {
       props.ownerWindow.document.removeEventListener("pointermove", handlePointerMove, true);
-      props.ownerWindow.document.removeEventListener("mousemove", handlePointerMove, true);
+      props.ownerWindow.document.removeEventListener("mousemove", handleMouseMove, true);
     };
   });
 
@@ -55,13 +71,6 @@ export function RulersOverlay(props: RulersOverlayProps) {
     setDragOrientation(orientation);
     drag = { orientation, pointerId: event.pointerId, id: props.onStartGuide(orientation, position) };
     trySetPointerCapture(event.currentTarget, event.pointerId);
-  };
-  const moveGuide = (event: PointerEvent) => {
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    event.stopPropagation();
-    const position = drag.orientation === "horizontal" ? event.clientY : event.clientX;
-    setDragPosition(position);
-    props.onMoveGuide(drag.id, position);
   };
   const finishGuideDrag = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
     if (!drag || drag.pointerId !== event.pointerId) return;
@@ -86,7 +95,7 @@ export function RulersOverlay(props: RulersOverlayProps) {
 
   return (
     <div aria-hidden="true" data-mesurer-rulers="true" class="msr:pointer-events-none msr:absolute msr:inset-0 msr:select-none msr:text-[9px] msr:text-[#64748b]" style={{ opacity: showRulers() ? props.settings.opacity : 0, transition: `opacity ${RULER_FADE_MS}ms ease` }}>
-      <div class="msr:absolute msr:left-[18px] msr:right-0 msr:top-0 msr:overflow-hidden msr:bg-white" style={{ "box-shadow": "0 1px 3px rgba(0, 0, 0, 0.12)", height: `${RULER_SIZE}px`, cursor: "ns-resize", "pointer-events": showRulers() && props.interactive ? "auto" : "none" }} onPointerDown={(event) => beginGuideDrag("horizontal", event)} onPointerMove={moveGuide} onPointerUp={finishGuideDrag} onPointerCancel={cancelGuideDrag}>
+      <div class="msr:absolute msr:left-[18px] msr:right-0 msr:top-0 msr:overflow-hidden msr:bg-white" style={{ "box-shadow": "0 1px 3px rgba(0, 0, 0, 0.12)", height: `${RULER_SIZE}px`, cursor: "ns-resize", "pointer-events": showRulers() && props.interactive ? "auto" : "none" }} onPointerDown={(event) => beginGuideDrag("horizontal", event)} onPointerUp={finishGuideDrag} onPointerCancel={cancelGuideDrag}>
         <svg class="msr:block msr:h-6" width={RULER_LENGTH} height={RULER_SIZE} viewBox={`0 0 ${RULER_LENGTH} ${RULER_SIZE}`}>
           <defs><linearGradient id="ruler-label-fade-x" x1="0%" x2="100%"><stop offset="0" stop-color="white" stop-opacity="0" /><stop offset="0.2" stop-color="white" /><stop offset="0.8" stop-color="white" /><stop offset="1" stop-color="white" stop-opacity="0" /></linearGradient></defs>
           <For each={ticks}>{(x) => { const major = x % 100 === 0; const medium = x % 50 === 0; return <g><line x1={x} y1={RULER_SIZE} x2={x} y2={major ? 8 : medium ? 13 : 17} stroke="currentColor" stroke-width="1" /><Show when={major}><text x={x} y="8" text-anchor="middle" fill="currentColor">{x}</text></Show></g>; }}</For>
@@ -95,7 +104,7 @@ export function RulersOverlay(props: RulersOverlayProps) {
         </svg>
       </div>
 
-      <div class="msr:absolute msr:bottom-0 msr:left-0 msr:top-[18px] msr:w-[18px] msr:overflow-hidden msr:bg-white" style={{ "box-shadow": "1px 0 3px rgba(0, 0, 0, 0.12)", width: `${RULER_SIZE}px`, cursor: "ew-resize", "pointer-events": showRulers() && props.interactive ? "auto" : "none" }} onPointerDown={(event) => beginGuideDrag("vertical", event)} onPointerMove={moveGuide} onPointerUp={finishGuideDrag} onPointerCancel={cancelGuideDrag}>
+      <div class="msr:absolute msr:bottom-0 msr:left-0 msr:top-[18px] msr:w-[18px] msr:overflow-hidden msr:bg-white" style={{ "box-shadow": "1px 0 3px rgba(0, 0, 0, 0.12)", width: `${RULER_SIZE}px`, cursor: "ew-resize", "pointer-events": showRulers() && props.interactive ? "auto" : "none" }} onPointerDown={(event) => beginGuideDrag("vertical", event)} onPointerUp={finishGuideDrag} onPointerCancel={cancelGuideDrag}>
         <svg class="msr:block msr:w-6" width={RULER_SIZE} height={RULER_LENGTH} viewBox={`0 0 ${RULER_SIZE} ${RULER_LENGTH}`}>
           <defs><linearGradient id="ruler-label-fade-y" y1="0%" y2="100%"><stop offset="0" stop-color="white" stop-opacity="0" /><stop offset="0.2" stop-color="white" /><stop offset="0.8" stop-color="white" /><stop offset="1" stop-color="white" stop-opacity="0" /></linearGradient></defs>
           <For each={ticks}>{(y) => { const major = y % 100 === 0; const medium = y % 50 === 0; return <g><line x1={RULER_SIZE} y1={y} x2={major ? 8 : medium ? 13 : 17} y2={y} stroke="currentColor" stroke-width="1" /><Show when={major}><text x="8" y={y + 10} fill="currentColor" transform={`rotate(-90 8 ${y + 10})`}>{y}</text></Show></g>; }}</For>
