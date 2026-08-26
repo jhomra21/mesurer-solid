@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createSignal, onSettled } from "solid-js";
 import { colorToHex, parseCssColor, type ColorPickerFormat } from "../core/colors";
 import { trySetPointerCapture } from "../core/events";
 import type { GuideStyle, SelectionSpacingStyle } from "../core/persistence";
@@ -48,16 +48,27 @@ function SliderControl(props: {
   const parseInput = (value: string) => props.parseInput?.(value) ?? Number(value);
   const [editing, setEditing] = createSignal(false);
   const [draft, setDraft] = createSignal("");
+  let sliderElement: HTMLDivElement | undefined;
   const percentage = () => ((props.value - props.min) / (props.max - props.min)) * 100;
   const setClamped = (value: number) => props.onChange(Number(Math.min(props.max, Math.max(props.min, value)).toFixed(4)));
-  const updateFromPointer = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const updateFromPointer = (event: PointerEvent, element: HTMLDivElement) => {
     event.stopPropagation();
-    const rect = event.currentTarget.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
     const usable = Math.max(1, rect.width - 16);
     const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left - 8) / usable));
     const raw = props.min + ratio * (props.max - props.min);
     setClamped(Math.round((raw - props.min) / props.step) * props.step + props.min);
   };
+
+  onSettled(() => {
+    const element = sliderElement;
+    if (!element) return;
+    const handlePointerMove = (event: PointerEvent) => {
+      if (element.hasPointerCapture(event.pointerId)) updateFromPointer(event, element);
+    };
+    element.addEventListener("pointermove", handlePointerMove);
+    return () => element.removeEventListener("pointermove", handlePointerMove);
+  });
 
   return (
     <div class="msr:col-span-2 msr:grid msr:w-full msr:grid-cols-[78px_156px] msr:items-center msr:gap-3">
@@ -65,11 +76,11 @@ function SliderControl(props: {
       <ControlShell
         left={
           <div
+            ref={(element) => { sliderElement = element; }}
             class="msr:relative msr:min-w-0 msr:flex-1 msr:touch-none msr:select-none msr:px-2"
             style={{ height: "20px" }}
             data-slider-container="true"
-            onPointerDown={(event) => { event.stopPropagation(); trySetPointerCapture(event.currentTarget, event.pointerId); updateFromPointer(event); }}
-            onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updateFromPointer(event); }}
+            onPointerDown={(event) => { event.stopPropagation(); trySetPointerCapture(event.currentTarget, event.pointerId); updateFromPointer(event, event.currentTarget); }}
             onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
             onPointerCancel={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
           >
