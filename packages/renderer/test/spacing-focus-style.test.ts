@@ -20,7 +20,7 @@ afterEach(() => {
 describe("selection spacing focus styles", () => {
   it("dims unrelated selection chrome without thickening the active pair border", () => {
     const style = document.createElement("style");
-    style.textContent = focusStyles();
+    style.textContent = `.two-pixel-target { border: 2px solid blue; }\n${focusStyles()}`;
     document.head.append(style);
 
     const scope = document.createElement("div");
@@ -36,9 +36,8 @@ describe("selection spacing focus styles", () => {
     activeRoot.setAttribute("data-mesurer-distance-kind", "selection-spacing");
     activeRoot.setAttribute("data-mesurer-distance-active", "true");
     const activePairTarget = document.createElement("div");
+    activePairTarget.className = "two-pixel-target";
     activePairTarget.setAttribute("data-mesurer-distance-hover-target", "true");
-    activePairTarget.style.borderStyle = "solid";
-    activePairTarget.style.borderWidth = "2px";
     activeRoot.append(activePairTarget);
 
     const inactiveRoot = document.createElement("div");
