@@ -2,7 +2,7 @@ import solid from "@solidjs/vite-plugin";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [solid()],
+  plugins: [solid({ solid: { delegateEvents: false } })],
   resolve: {
     alias: [
       {
