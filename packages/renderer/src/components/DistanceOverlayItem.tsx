@@ -49,6 +49,9 @@ type PointerWatcher = {
 
 const PINNED_GROUP_ATTRIBUTE = "data-mesurer-spacing-label-pinned";
 const EXPANDED_GROUP_ATTRIBUTE = "data-mesurer-spacing-label-group";
+const BASE_OPACITY_ATTRIBUTE = "data-mesurer-spacing-base-opacity";
+const SELECTED_CHROME_SELECTOR = '[data-mesurer-selected-measurement="true"], [data-mesurer-selection-spacing-target="true"]';
+const HOVER_TARGET_SELECTOR = '[data-mesurer-distance-hover-target="true"]';
 const HOVER_ENVELOPE_PADDING = 8;
 const collapseTimers = new WeakMap<HTMLElement, number>();
 const pinnedDismissers = new WeakMap<HTMLElement, (event: PointerEvent) => void>();
@@ -82,6 +85,41 @@ const labelInteraction = (label: HTMLElement): LabelInteraction | null => {
     distanceId,
     labelCount: Number(label.getAttribute("data-mesurer-distance-label-count") ?? "1"),
   };
+};
+
+const geometryKey = (element: HTMLElement) =>
+  `${element.style.left}:${element.style.top}:${element.style.width}:${element.style.height}`;
+
+const selectedChromeGeometry = (element: HTMLElement) => {
+  if (element.matches('[data-mesurer-selection-spacing-target="true"]')) return element;
+  for (const child of element.children) {
+    if (!(child instanceof HTMLElement)) continue;
+    if (child.style.left && child.style.top && child.style.width && child.style.height) return child;
+  }
+  return null;
+};
+
+const setSelectionChromeFocus = (scope: HTMLElement, activeRoot: HTMLElement | null) => {
+  const activeGeometry = activeRoot
+    ? new Set([...activeRoot.querySelectorAll<HTMLElement>(HOVER_TARGET_SELECTOR)].map(geometryKey))
+    : null;
+
+  for (const element of scope.querySelectorAll<HTMLElement>(SELECTED_CHROME_SELECTOR)) {
+    if (!activeGeometry) {
+      const baseOpacity = element.getAttribute(BASE_OPACITY_ATTRIBUTE);
+      if (baseOpacity === null) continue;
+      if (baseOpacity) element.style.opacity = baseOpacity;
+      else element.style.removeProperty("opacity");
+      element.removeAttribute(BASE_OPACITY_ATTRIBUTE);
+      continue;
+    }
+
+    if (!element.hasAttribute(BASE_OPACITY_ATTRIBUTE)) {
+      element.setAttribute(BASE_OPACITY_ATTRIBUTE, element.style.opacity);
+    }
+    const geometry = selectedChromeGeometry(element);
+    element.style.opacity = geometry && activeGeometry.has(geometryKey(geometry)) ? "1" : "0.32";
+  }
 };
 
 const detachHoverWatcher = (scope: HTMLElement) => {
@@ -132,26 +170,27 @@ const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
         line.style.opacity = line.getAttribute("data-mesurer-base-opacity") ?? "";
         line.removeAttribute("data-mesurer-base-opacity");
       }
-      for (const target of root.querySelectorAll<HTMLElement>("[data-mesurer-distance-hover-target]")) {
-        target.style.opacity = "0";
-      }
     }
     scope.removeAttribute("data-mesurer-spacing-focus");
+    setSelectionChromeFocus(scope, null);
     return;
   }
 
   scope.setAttribute("data-mesurer-spacing-focus", distanceId);
+  let activeRoot: HTMLElement | null = null;
   for (const root of roots) {
     const active = root.getAttribute("data-mesurer-distance-id") === distanceId;
-    if (active) root.setAttribute("data-mesurer-distance-active", "true");
-    else root.removeAttribute("data-mesurer-distance-active");
+    if (active) {
+      root.setAttribute("data-mesurer-distance-active", "true");
+      activeRoot = root;
+    } else {
+      root.removeAttribute("data-mesurer-distance-active");
+    }
     for (const line of root.querySelectorAll<HTMLElement>("[data-mesurer-distance-line], [data-mesurer-distance-connector]")) {
       line.style.opacity = active ? "1" : "0.16";
     }
-    for (const target of root.querySelectorAll<HTMLElement>("[data-mesurer-distance-hover-target]")) {
-      target.style.opacity = active ? "1" : "0";
-    }
   }
+  setSelectionChromeFocus(scope, activeRoot);
 };
 
 const clearCollapseTimer = (scope: HTMLElement) => {
@@ -469,13 +508,13 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
       <Show when={selectionSpacing()}>
         <div
           data-mesurer-distance-hover-target="true"
-          class="msr:pointer-events-none msr:absolute msr:rounded msr:border-2"
-          style={{ left: `${props.distance.rectA.left}px`, top: `${props.distance.rectA.top}px`, width: `${props.distance.rectA.width}px`, height: `${props.distance.rectA.height}px`, "border-color": spacingStyle().color, opacity: 0 }}
+          class="msr:pointer-events-none msr:absolute"
+          style={{ left: `${props.distance.rectA.left}px`, top: `${props.distance.rectA.top}px`, width: `${props.distance.rectA.width}px`, height: `${props.distance.rectA.height}px`, opacity: 0 }}
         />
         <div
           data-mesurer-distance-hover-target="true"
-          class="msr:pointer-events-none msr:absolute msr:rounded msr:border-2"
-          style={{ left: `${props.distance.rectB.left}px`, top: `${props.distance.rectB.top}px`, width: `${props.distance.rectB.width}px`, height: `${props.distance.rectB.height}px`, "border-color": spacingStyle().color, opacity: 0 }}
+          class="msr:pointer-events-none msr:absolute"
+          style={{ left: `${props.distance.rectB.left}px`, top: `${props.distance.rectB.top}px`, width: `${props.distance.rectB.width}px`, height: `${props.distance.rectB.height}px`, opacity: 0 }}
         />
       </Show>
       <For each={props.distance.connectors}>{(connector) => Math.abs(connector.x1 - connector.x2) < 1
