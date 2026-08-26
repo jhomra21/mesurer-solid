@@ -88,18 +88,12 @@ export class TypographyInspector {
     return rules;
   }
 
-  private findVarReferences(el: HTMLElement): Record<TypoProp, string | null> {
-    const result: Record<TypoProp, string | null> = {
-      "font-family": null,
-      "font-size": null,
-      "font-weight": null,
-      "line-height": null,
-      "letter-spacing": null,
-    };
+  private findVarReferences(el: HTMLElement) {
+    const result = new Map<TypoProp, string | null>(TYPO_PROPS.map((prop) => [prop, null]));
     const rules = this.getRules();
     for (const prop of TYPO_PROPS) {
       let node: HTMLElement | null = el;
-      while (node && result[prop] === null) {
+      while (node && result.get(prop) === null) {
         let winner: Candidate | undefined;
         const inlineName = extractVarName(node.style.getPropertyValue(prop));
         if (inlineName) {
@@ -129,7 +123,7 @@ export class TypographyInspector {
           };
           if (wins(candidate, winner)) winner = candidate;
         }
-        if (winner) result[prop] = winner.name;
+        if (winner) result.set(prop, winner.name);
         node = node.parentElement;
       }
     }
@@ -164,7 +158,7 @@ export class TypographyInspector {
       ...base,
       rows: base.rows.map((row) => {
         const prop = TYPO_LABELS.get(row.label);
-        return { ...row, varName: prop ? vars[prop] : null };
+        return { ...row, varName: prop ? vars.get(prop) ?? null : null };
       }),
     };
   }
