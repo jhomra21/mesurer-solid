@@ -58,7 +58,7 @@ const isRect = (value: unknown): value is Rect => {
     && isFiniteNumber(value.height)
     && value.height >= 0;
 };
-const isMeasurement = (value: unknown): value is Measurement => {
+const isMeasurement = (value: unknown): value is PersistedRecord & Measurement => {
   if (!isPersistedRecord(value)) return false;
   return isString(value.id)
     && isRect(value.rect)
@@ -70,7 +70,7 @@ const isGuide = (value: unknown): value is Guide => {
   if (!isPersistedRecord(value)) return false;
   return isString(value.id) && isGuideOrientation(value.orientation) && isFiniteNumber(value.position);
 };
-const isDistanceOverlay = (value: unknown): value is DistanceOverlay => {
+const isDistanceOverlay = (value: unknown): value is PersistedRecord & DistanceOverlay => {
   if (!isPersistedRecord(value)) return false;
   return isString(value.id)
     && isRect(value.rectA)
