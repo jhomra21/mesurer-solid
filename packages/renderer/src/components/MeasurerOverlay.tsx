@@ -23,7 +23,7 @@ export type MeasurerOverlayProps = {
   selectionSpacingStyle: SelectionSpacingStyle;
   interactive: boolean;
   onPointerDown: (event: OverlayPointerEvent) => void;
-  onPointerMove: (event: OverlayPointerEvent) => void;
+  onPointerMove: (event: PointerEvent) => void;
   onPointerUp: (event: OverlayPointerEvent) => void;
   onPointerLeave: (event: OverlayPointerEvent) => void;
   onGuidePointerDown: (guide: Guide, event: OverlayPointerEvent) => void;
@@ -145,10 +145,12 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
   };
 
   onSettled(() => {
-    const ownerWindow = overlayElement?.ownerDocument.defaultView;
-    const ownerDocument = overlayElement?.ownerDocument;
-    if (!ownerWindow || !ownerDocument) return;
+    const overlay = overlayElement;
+    const ownerWindow = overlay?.ownerDocument.defaultView;
+    const ownerDocument = overlay?.ownerDocument;
+    if (!overlay || !ownerWindow || !ownerDocument) return;
 
+    const handleOverlayPointerMove = (event: PointerEvent) => props.onPointerMove(event);
     const handlePassiveGuideDown = (event: PointerEvent) => {
       if (!props.model.current.enabled || props.model.current.settingsOpen || props.model.current.toolMode !== "none") return;
       const toolbarTarget = event.composedPath().some((target) =>
@@ -210,11 +212,13 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
       passiveGuideDrag = null;
     };
 
+    overlay.addEventListener("pointermove", handleOverlayPointerMove);
     ownerWindow.addEventListener("pointerdown", handlePassiveGuideDown, true);
     ownerWindow.addEventListener("pointermove", handlePassiveGuideMove, true);
     ownerWindow.addEventListener("pointerup", handlePassiveGuideEnd, true);
     ownerWindow.addEventListener("pointercancel", handlePassiveGuideEnd, true);
     return () => {
+      overlay.removeEventListener("pointermove", handleOverlayPointerMove);
       ownerWindow.removeEventListener("pointerdown", handlePassiveGuideDown, true);
       ownerWindow.removeEventListener("pointermove", handlePassiveGuideMove, true);
       ownerWindow.removeEventListener("pointerup", handlePassiveGuideEnd, true);
@@ -233,7 +237,6 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
       class={`msr:absolute msr:inset-0 msr:select-none ${overlayVisible() ? `msr:pointer-events-auto ${guidesMode() ? props.hoverGuide || props.model.state.draggingGuideId ? "msr:cursor-default" : "msr:cursor-crosshair" : "msr:cursor-default"} msr:opacity-100` : "msr:pointer-events-none msr:opacity-0"}`}
       style={{ "pointer-events": overlayInteractive() ? "auto" : "none" }}
       onPointerDown={(event) => props.onPointerDown(event)}
-      onPointerMove={(event) => props.onPointerMove(event)}
       onPointerUp={(event) => props.onPointerUp(event)}
       onPointerLeave={(event) => props.onPointerLeave(event)}
     >
