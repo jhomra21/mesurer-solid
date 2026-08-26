@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 const styles = readFileSync("src/styles.css", "utf8");
-const focusRuleStart = styles.indexOf("/* A focused spacing pair");
+const focusRuleStart = styles.indexOf("/* Focus is opacity-only");
 const focusRuleEnd = styles.indexOf("/* Upstream X-ray", focusRuleStart);
 
 const focusStyles = () => {
@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe("selection spacing focus styles", () => {
-  it("dims normal selection chrome while leaving active pair emphasis full-strength", () => {
+  it("dims unrelated selection chrome without thickening the active pair border", () => {
     const style = document.createElement("style");
     style.textContent = focusStyles();
     document.head.append(style);
@@ -37,6 +37,8 @@ describe("selection spacing focus styles", () => {
     activeRoot.setAttribute("data-mesurer-distance-active", "true");
     const activePairTarget = document.createElement("div");
     activePairTarget.setAttribute("data-mesurer-distance-hover-target", "true");
+    activePairTarget.style.borderStyle = "solid";
+    activePairTarget.style.borderWidth = "2px";
     activeRoot.append(activePairTarget);
 
     const inactiveRoot = document.createElement("div");
@@ -51,6 +53,7 @@ describe("selection spacing focus styles", () => {
     expect(getComputedStyle(selectedMeasurement).opacity).toBe("0.32");
     expect(getComputedStyle(selectionTarget).opacity).toBe("0.32");
     expect(getComputedStyle(activePairTarget).opacity).toBe("1");
+    expect(getComputedStyle(activePairTarget).borderTopWidth).toBe("1px");
     expect(getComputedStyle(inactivePairTarget).opacity).toBe("0");
 
     scope.removeAttribute("data-mesurer-spacing-focus");
