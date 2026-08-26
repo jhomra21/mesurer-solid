@@ -64,7 +64,7 @@ export const getBodyElementsCached = (ownerDocument: Document = document) => {
 export const getInspectMeasurement = (
   element: HTMLElement,
   ownerWindow: Window = window,
-): InspectMeasurement => getDomInspectMeasurement(element, ownerWindow, createId());
+): InspectMeasurement => getDomInspectMeasurement<HTMLElement>(element, ownerWindow, createId());
 
 export const updateMeasurementForResize = (
   measurement: Measurement,
