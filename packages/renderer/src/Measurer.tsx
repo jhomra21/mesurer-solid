@@ -73,7 +73,7 @@ export type MeasurerProps = {
   selectionSpacingStyle?: Partial<SelectionSpacingStyle>;
   rulerSettings?: Partial<RulerSettings>;
   persistence?: MesurerPersistence;
-  onPersistenceError?: (error: unknown) => void;
+  onPersistenceError?: (cause: unknown) => void;
   /** Internal composable-runtime contributions rendered by the canonical toolbar. */
   pluginTools?: ToolContribution[];
   onPluginTool?: (tool: ToolContribution) => void;
@@ -107,17 +107,18 @@ const getTabId = (ownerWindow: Window) => {
 
 const sanitizeStoredSettings = (ownerWindow: Window, settings: MesurerStoredSettings): MesurerStoredSettings => {
   const supportsColor = (value: string | undefined) =>
-    value !== undefined &&
-    (ownerWindow as Window & { CSS?: { supports: (property: string, value: string) => boolean } }).CSS?.supports("color", value) === true;
-  const selectionSpacingStyle = settings.selectionSpacingStyle
-    ? { ...settings.selectionSpacingStyle, ...(settings.selectionSpacingStyle.color === undefined || supportsColor(settings.selectionSpacingStyle.color) ? {} : { color: undefined }) }
-    : undefined;
-  return {
-    ...settings,
-    ...(supportsColor(settings.highlightColor) ? {} : { highlightColor: undefined }),
-    ...(supportsColor(settings.guideColor) ? {} : { guideColor: undefined }),
-    ...(selectionSpacingStyle ? { selectionSpacingStyle } : {}),
-  };
+    value !== undefined && ownerWindow.document.defaultView?.CSS?.supports("color", value) === true;
+  const sanitized: MesurerStoredSettings = { ...settings };
+  if (!supportsColor(settings.highlightColor)) sanitized.highlightColor = undefined;
+  if (!supportsColor(settings.guideColor)) sanitized.guideColor = undefined;
+  if (settings.selectionSpacingStyle) {
+    const selectionSpacingStyle = { ...settings.selectionSpacingStyle };
+    if (selectionSpacingStyle.color !== undefined && !supportsColor(selectionSpacingStyle.color)) {
+      selectionSpacingStyle.color = undefined;
+    }
+    sanitized.selectionSpacingStyle = selectionSpacingStyle;
+  }
+  return sanitized;
 };
 
 const unionSelection = (items: InspectMeasurement[], origin: Rect | null): InspectMeasurement | null => {
@@ -551,10 +552,10 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
     const applyExternal = (snapshot: MesurerPersistenceSnapshot | null, source?: PersistenceChangeSource) => {
       if (!snapshot) return;
       if (source?.settings !== false) {
-      const storedSettings = sanitizeStoredSettings(ownerWindow, snapshot.settings);
-      model.applyStoredSettings(storedSettings);
-      if (storedSettings.selectionSpacingStyle) onSelectionSpacingStyleChange(storedSettings.selectionSpacingStyle);
-    }
+        const storedSettings = sanitizeStoredSettings(ownerWindow, snapshot.settings);
+        model.applyStoredSettings(storedSettings);
+        if (storedSettings.selectionSpacingStyle) onSelectionSpacingStyleChange(storedSettings.selectionSpacingStyle);
+      }
       if (source?.workspace !== false && snapshot.workspace && model.current.settings.persistOnReload) model.applyStoredWorkspace(snapshot.workspace);
     };
     const unsubscribe = persistence.subscribe?.(applyExternal);
@@ -578,7 +579,8 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
           const handled = event.shiftKey ? textInspector?.redo() : textInspector?.undo();
           if (handled) return;
         }
-        event.shiftKey ? model.redo() : model.undo();
+        if (event.shiftKey) model.redo();
+        else model.undo();
         return;
       }
       if ((key === "delete" || key === "backspace") && model.current.selectedGuideIds.length) {
@@ -745,13 +747,13 @@ export default function Measurer(props: MeasurerProps) {
     const ownerWindow = ownerDocument.defaultView ?? window;
     let portalMount: HTMLElement;
     let ownedPortalMount = false;
-    if (target.nodeType === 11) {
+    if (target instanceof ownerWindow.ShadowRoot) {
       portalMount = ownerDocument.createElement("div");
       portalMount.dataset.mesurerPortal = "true";
       target.append(portalMount);
       ownedPortalMount = true;
     } else {
-      portalMount = target as HTMLElement;
+      portalMount = target;
     }
     setEnvironment({ ownerDocument, ownerWindow, portalTarget: target, portalMount, ownedPortalMount });
     return () => { if (ownedPortalMount) portalMount.remove(); };
