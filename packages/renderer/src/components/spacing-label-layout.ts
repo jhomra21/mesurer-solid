@@ -20,6 +20,8 @@ type Box = {
   height: number;
 };
 
+type Vector = { x: number; y: number };
+
 const movedBox = (box: Box, x: number, y: number): Box => ({
   left: box.left + x,
   top: box.top + y,
@@ -57,6 +59,18 @@ const labelIndex = (label: HTMLElement) => {
   return Number.isFinite(value) ? value : 0;
 };
 
+const labelVector = (label: HTMLElement): Vector => {
+  const axis = label.getAttribute("data-mesurer-distance-label-axis");
+  if (axis === "x") return { x: 1, y: 0 };
+  if (axis === "y") return { x: 0, y: 1 };
+  const x = Number.parseFloat(label.getAttribute("data-mesurer-distance-label-vector-x") ?? "");
+  const y = Number.parseFloat(label.getAttribute("data-mesurer-distance-label-vector-y") ?? "");
+  const length = Math.hypot(x, y);
+  return Number.isFinite(length) && length > 0.5
+    ? { x: x / length, y: y / length }
+    : { x: 1, y: 0 };
+};
+
 const setOffset = (label: HTMLElement, name: string, current: number, next: number) => {
   if (Math.abs(current - next) < 0.5) return;
   if (next === 0) label.style.removeProperty(name);
@@ -76,6 +90,8 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
     const offsetX = currentOffset(label, COLLISION_X);
     const offsetY = currentOffset(label, COLLISION_Y);
     const axis = label.getAttribute("data-mesurer-distance-label-axis");
+    const vector = labelVector(label);
+    const perpendicular = { x: -vector.y, y: vector.x };
     const index = labelIndex(label);
     const inlineFanX = axis === "y" ? index * INLINE_FAN_X_STEP : 0;
     const inlineFanY = axis === "x" ? index * INLINE_FAN_Y_STEP : 0;
@@ -91,9 +107,9 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
 
     // Keep duplicate and collision-displaced labels beside the line they describe.
     // The primary label stays at its original anchor. Duplicates start in alternating
-    // slots along the measurement axis, and collisions consume more along-line slots
-    // before we ever fall back to moving away from the line.
-    const alongStep = axis === "x" ? baseBox.width + LABEL_GAP : baseBox.height + LABEL_GAP;
+    // slots along the measurement vector, and collisions consume more along-line
+    // slots before we ever fall back to moving perpendicular to the line.
+    const alongStep = Math.max(baseBox.width, baseBox.height) + LABEL_GAP;
     const preferredSlot = lane(index);
     let chosen = baseBox;
     let chosenX = 0;
@@ -103,8 +119,8 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
     for (let searchIndex = 0; searchIndex < MAX_LANES; searchIndex += 1) {
       const slot = preferredSlot + lane(searchIndex);
       const amount = slot * alongStep;
-      const x = axis === "x" ? amount : 0;
-      const y = axis === "y" ? amount : 0;
+      const x = vector.x * amount;
+      const y = vector.y * amount;
       const candidate = movedBox(baseBox, x, y);
       if (!insideViewport(candidate, ownerWindow.innerWidth, ownerWindow.innerHeight)) continue;
       if (placed.some((other) => overlaps(candidate, other))) continue;
@@ -117,13 +133,13 @@ export const layoutSpacingLabels = (scope: HTMLElement) => {
 
     if (!found) {
       const preferredAmount = preferredSlot * alongStep;
-      const fanX = axis === "x" ? preferredAmount : 0;
-      const fanY = axis === "y" ? preferredAmount : 0;
-      const collisionStep = axis === "x" ? baseBox.height + LABEL_GAP : baseBox.width + LABEL_GAP;
+      const fanX = vector.x * preferredAmount;
+      const fanY = vector.y * preferredAmount;
+      const collisionStep = Math.max(baseBox.width, baseBox.height) + LABEL_GAP;
       for (let collisionIndex = 1; collisionIndex < MAX_LANES; collisionIndex += 1) {
         const amount = lane(collisionIndex) * collisionStep;
-        const x = fanX + (axis === "y" ? amount : 0);
-        const y = fanY + (axis === "x" ? amount : 0);
+        const x = fanX + perpendicular.x * amount;
+        const y = fanY + perpendicular.y * amount;
         const candidate = movedBox(baseBox, x, y);
         if (placed.some((other) => overlaps(candidate, other))) continue;
         chosen = candidate;
