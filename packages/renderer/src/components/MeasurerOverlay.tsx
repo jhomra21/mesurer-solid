@@ -10,6 +10,8 @@ import type { MeasurerModel } from "../model/create-measurer-model";
 import { DistanceOverlayItem, type SelectionSpacingInteraction } from "./DistanceOverlayItem";
 import { MeasurementBox } from "./MeasurementBox";
 
+type OverlayPointerEvent = PointerEvent & { currentTarget: HTMLDivElement };
+
 export type MeasurerOverlayProps = {
   model: MeasurerModel;
   displayedSelectedMeasurements: InspectMeasurement[];
@@ -20,12 +22,12 @@ export type MeasurerOverlayProps = {
   hoverGuide: Guide | null;
   selectionSpacingStyle: SelectionSpacingStyle;
   interactive: boolean;
-  onPointerDown: (event: any) => void;
-  onPointerMove: (event: any) => void;
-  onPointerUp: (event: any) => void;
-  onPointerLeave: (event: any) => void;
-  onGuidePointerDown: (guide: Guide, event: any) => void;
-  onGuidePointerUp: (guide: Guide, event: any) => void;
+  onPointerDown: (event: OverlayPointerEvent) => void;
+  onPointerMove: (event: OverlayPointerEvent) => void;
+  onPointerUp: (event: OverlayPointerEvent) => void;
+  onPointerLeave: (event: OverlayPointerEvent) => void;
+  onGuidePointerDown: (guide: Guide, event: OverlayPointerEvent) => void;
+  onGuidePointerUp: (guide: Guide, event: OverlayPointerEvent) => void;
 };
 
 const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any }) => (
@@ -106,7 +108,7 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
     guideHoldId = null;
   };
 
-  const interactiveGuideDown = (guide: Guide, event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const interactiveGuideDown = (guide: Guide, event: OverlayPointerEvent) => {
     if (!props.model.current.enabled || props.model.current.settingsOpen || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
@@ -132,7 +134,7 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
     trySetPointerCapture(event.currentTarget, event.pointerId);
   };
 
-  const interactiveGuideUp = (guide: Guide, event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const interactiveGuideUp = (guide: Guide, event: OverlayPointerEvent) => {
     event.stopPropagation();
     clearGuideHold();
     if (props.model.current.draggingGuideId === guide.id) props.model.setTransient({ draggingGuideId: null });
@@ -227,10 +229,10 @@ export function MeasurerOverlay(props: MeasurerOverlayProps) {
       ref={(element) => { overlayElement = element; }}
       class={`msr:absolute msr:inset-0 msr:select-none ${overlayVisible() ? `msr:pointer-events-auto ${guidesMode() ? props.hoverGuide || props.model.state.draggingGuideId ? "msr:cursor-default" : "msr:cursor-crosshair" : "msr:cursor-default"} msr:opacity-100` : "msr:pointer-events-none msr:opacity-0"}`}
       style={{ "pointer-events": overlayInteractive() ? "auto" : "none" }}
-      onPointerDown={props.onPointerDown}
-      onPointerMove={props.onPointerMove}
-      onPointerUp={props.onPointerUp}
-      onPointerLeave={props.onPointerLeave}
+      onPointerDown={(event) => props.onPointerDown(event)}
+      onPointerMove={(event) => props.onPointerMove(event)}
+      onPointerUp={(event) => props.onPointerUp(event)}
+      onPointerLeave={(event) => props.onPointerLeave(event)}
     >
       <Show when={selectionVisible()}>
         <For each={displayedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={measurementEdges()[index()]} outlineColor={outline()} fillColor={fill()} />}</For>
