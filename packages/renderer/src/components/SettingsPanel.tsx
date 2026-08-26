@@ -6,6 +6,8 @@ import type { MeasurerModel, SettingsTab } from "../model/create-measurer-model"
 import { Tooltip, createTooltip } from "./Tooltip";
 
 const COLOR_FORMATS: ColorPickerFormat[] = ["hex", "rgb", "hsl", "oklch"];
+const isColorPickerFormat = (value: string): value is ColorPickerFormat =>
+  COLOR_FORMATS.some((format) => format === value);
 const GUIDE_PATTERNS: Array<{ value: GuideStyle["pattern"]; label: string }> = [
   { value: "solid", label: "Solid" },
   { value: "dashed", label: "Dashed" },
@@ -119,13 +121,20 @@ function ColorField(props: { label: string; value: string; fallback: string; own
     if (parsed) return parsed;
     const canvas = props.ownerWindow.document.createElement("canvas");
     const context = canvas.getContext("2d");
-    if (context) context.fillStyle = props.value;
-    return typeof context?.fillStyle === "string" ? parseCssColor(context.fillStyle) : null;
+    if (!context) return null;
+    context.fillStyle = props.value;
+    return parseCssColor(String(context.fillStyle));
   };
-  const hex = () => sample() ? colorToHex({ ...sample()!, alpha: 1 }).slice(1).toUpperCase() : props.fallback.slice(1).toUpperCase();
-  const alpha = () => sample() ? Math.round(sample()!.alpha * 100) : 100;
+  const hex = () => {
+    const color = sample();
+    return color ? colorToHex({ ...color, alpha: 1 }).slice(1).toUpperCase() : props.fallback.slice(1).toUpperCase();
+  };
+  const alpha = () => {
+    const color = sample();
+    return color ? Math.round(color.alpha * 100) : 100;
+  };
   const inputValue = () => `#${hex().slice(0, 6)}`;
-  const supportsColor = () => (props.ownerWindow as Window & { CSS?: { supports: (property: string, value: string) => boolean } }).CSS?.supports("color", props.value) === true;
+  const supportsColor = () => props.ownerWindow.document.defaultView?.CSS?.supports("color", props.value) === true;
   const swatch = () => supportsColor() ? props.value : props.fallback;
   const [hexDraft, setHexDraft] = createSignal("");
   const [alphaDraft, setAlphaDraft] = createSignal("");
@@ -312,7 +321,10 @@ export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window
           </div>
           <label class="msr:col-span-2 msr:flex msr:items-center msr:justify-between msr:gap-3 msr:text-[12px] msr:text-ink-700">
             Copy
-            <select value={settings().colorPickerClickFormat} class="msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-1.5 msr:py-1 msr:text-[11px] msr:outline-none msr:focus:shadow-[inset_0_0_0_1px_#0d99ff]" onChange={(event) => props.model.updateSettings({ colorPickerClickFormat: event.currentTarget.value as ColorPickerFormat })}>
+            <select value={settings().colorPickerClickFormat} class="msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-1.5 msr:py-1 msr:text-[11px] msr:outline-none msr:focus:shadow-[inset_0_0_0_1px_#0d99ff]" onChange={(event) => {
+              const value = event.currentTarget.value;
+              if (isColorPickerFormat(value)) props.model.updateSettings({ colorPickerClickFormat: value });
+            }}>
               <For each={COLOR_FORMATS}>{(format) => <option value={format}>{format}</option>}</For>
             </select>
           </label>
