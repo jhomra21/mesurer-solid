@@ -2,7 +2,9 @@ import { createEventBus } from "./events";
 
 export type Registration = { readonly dispose: () => void };
 export type PluginId = string;
-export type PluginStateSnapshot = Record<string, unknown>;
+export type PluginScalar = string | number | boolean | null;
+export type PluginValue = PluginScalar | PluginValue[] | { [key: string]: PluginValue };
+export type PluginStateSnapshot = { [id: string]: PluginValue };
 export type PluginStateScope = "all" | "history" | "persist";
 
 export type ToolContribution = {
@@ -19,10 +21,10 @@ export type ToolContribution = {
 
 export type SettingsContribution = { id: string; label: string; order?: number; builtin?: string };
 export type OverlayContribution = { id: string; order?: number; builtin?: string };
-export type CommandHandler = (args: unknown, context: { source?: unknown }) => void | Promise<void>;
-export type HookHandler = (event: unknown) => void | Promise<void>;
+export type CommandHandler = (args: PluginValue | undefined, context: { source?: PluginValue }) => void | Promise<void>;
+export type HookHandler = (event: PluginValue) => void | Promise<void>;
 
-export type StateSliceDefinition<T = unknown> = {
+export type StateSliceDefinition<T extends PluginValue = PluginValue> = {
   id: string;
   initial: T;
   history?: boolean;
@@ -32,25 +34,25 @@ export type StateSliceDefinition<T = unknown> = {
 type Owned<T> = T & { pluginId: PluginId; registrationId: number };
 type PluginEvents = {
   changed: { pluginId?: string; reason: "load" | "remove" | "replace" | "registration" | "state" | "history" };
-  command: { id: string; args: unknown };
+  command: { id: string; args: PluginValue | undefined };
 };
 
 export type MesurerPluginContext = {
   state: {
-    register<T>(definition: StateSliceDefinition<T>): Registration;
-    get<T>(id: string): T | undefined;
-    update<T>(id: string, update: (value: T) => T): void;
+    register<T extends PluginValue>(definition: StateSliceDefinition<T>): Registration;
+    get<T extends PluginValue>(id: string): T | undefined;
+    update<T extends PluginValue>(id: string, update: (value: T) => T): void;
   };
   tool: { register(contribution: ToolContribution): Registration };
   settings: { register(contribution: SettingsContribution): Registration };
   overlay: { register(contribution: OverlayContribution): Registration };
   command: {
     register(id: string, handler: CommandHandler): Registration;
-    execute(id: string, args?: unknown, source?: unknown): Promise<void>;
+    execute(id: string, args?: PluginValue, source?: PluginValue): Promise<void>;
   };
   hook: {
     on(name: string, handler: HookHandler): Registration;
-    emit(name: string, event: unknown): Promise<void>;
+    emit(name: string, event: PluginValue): Promise<void>;
   };
   /** Opaque renderer/browser services. Values never enter persistence or history. */
   service: {
@@ -98,7 +100,7 @@ export function createMesurerPluginHost() {
   const hooks = new Map<number, Owned<{ name: string; handler: HookHandler }>>();
   const services = new Map<number, Owned<{ id: string; value: unknown }>>();
   const stateDefinitions = new Map<number, Owned<StateSliceDefinition>>();
-  const state = new Map<string, unknown>();
+  const state = new Map<string, PluginValue>();
   const history: PluginStateSnapshot[] = [];
   const future: PluginStateSnapshot[] = [];
 
@@ -142,11 +144,12 @@ export function createMesurerPluginHost() {
   const definitionMatches = (definition: StateSliceDefinition, scope: PluginStateScope) =>
     scope === "all" || (scope === "history" ? definition.history === true : definition.persist === true);
 
-  const snapshotState = (scope: PluginStateScope = "all"): PluginStateSnapshot => {
+  const snapshotState = (scope: PluginStateScope = "all") => {
     const snapshot: PluginStateSnapshot = {};
     for (const definition of stateDefinitions.values()) {
-      if (!definitionMatches(definition, scope) || !state.has(definition.id)) continue;
-      snapshot[definition.id] = state.get(definition.id);
+      if (!definitionMatches(definition, scope)) continue;
+      const value = state.get(definition.id);
+      if (value !== undefined) snapshot[definition.id] = value;
     }
     return snapshot;
   };
@@ -176,7 +179,7 @@ export function createMesurerPluginHost() {
     future.length = 0;
   };
 
-  const executeCommand = async (id: string, args?: unknown, source?: unknown) => {
+  const executeCommand = async (id: string, args?: PluginValue, source?: PluginValue) => {
     const match = [...commands.values()].reverse().find((item) => item.id === id);
     if (!match) throw new Error(`Unknown Mesurer command: ${id}`);
 
@@ -220,20 +223,30 @@ export function createMesurerPluginHost() {
     return true;
   };
 
-  const emitHook = async (name: string, event: unknown) => {
+  const emitHook = async (name: string, event: PluginValue) => {
     for (const hook of [...hooks.values()].filter((item) => item.name === name)) {
       await hook.handler(event);
     }
   };
 
-  const getService = <T>(id: string) =>
-    [...services.values()].reverse().find((item) => item.id === id)?.value as T | undefined;
+  const getService = <T>(id: string) => {
+    const value = [...services.values()].reverse().find((item) => item.id === id)?.value;
+    // SAFETY: A service id is registered with one owner-defined T contract; the registry only erases T for storage.
+    return value as T | undefined;
+  };
 
   const publicState = {
-    get: <T>(id: string) => state.get(id) as T | undefined,
-    update<T>(id: string, update: (value: T) => T) {
-      if (!state.has(id)) throw new Error(`Unknown Mesurer state slice: ${id}`);
-      state.set(id, update(state.get(id) as T));
+    get<T extends PluginValue>(id: string) {
+      const value = state.get(id);
+      // SAFETY: A state slice id is registered with one T contract and all updates preserve that registered type.
+      return value as T | undefined;
+    },
+    update<T extends PluginValue>(id: string, update: (value: T) => T) {
+      const value = state.get(id);
+      if (value === undefined) throw new Error(`Unknown Mesurer state slice: ${id}`);
+      // SAFETY: The state slice id fixes T at registration and updates write back the same T.
+      const typedValue = value as T;
+      state.set(id, update(typedValue));
       notify(undefined, "state");
     },
     serialize: snapshotState,
@@ -247,8 +260,8 @@ export function createMesurerPluginHost() {
     };
     return {
       state: {
-        register<T>(definition: StateSliceDefinition<T>) {
-          const registration = capture(register(stateDefinitions, pluginId, definition as StateSliceDefinition));
+        register<T extends PluginValue>(definition: StateSliceDefinition<T>) {
+          const registration = capture(register(stateDefinitions, pluginId, definition));
           if (!state.has(definition.id)) state.set(definition.id, definition.initial);
           return registration;
         },
@@ -278,13 +291,15 @@ export function createMesurerPluginHost() {
 
   const cleanupOrphanState = () => {
     const activeIds = new Set([...stateDefinitions.values()].map((definition) => definition.id));
-    for (const id of [...state.keys()]) if (!activeIds.has(id)) state.delete(id);
+    for (const id of state.keys()) if (!activeIds.has(id)) state.delete(id);
   };
 
   const remove = (id: string) => {
     const loaded = plugins.get(id);
     if (!loaded) return false;
-    for (const registration of [...loaded.registrations].reverse()) registration.dispose();
+    for (let index = loaded.registrations.length - 1; index >= 0; index -= 1) {
+      loaded.registrations[index]?.dispose();
+    }
     plugins.delete(id);
     cleanupOrphanState();
     clearHistory();
