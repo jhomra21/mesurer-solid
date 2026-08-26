@@ -13,8 +13,8 @@ let rectCacheFrame = -1;
 const rectCache = new Map<Element, Rect>();
 
 export const getFrameToken = () => {
-  if (typeof performance === "undefined") return 0;
-  return Math.floor(performance.now() / 16);
+  const now = globalThis.performance?.now();
+  return now === undefined ? 0 : Math.floor(now / 16);
 };
 
 export const getRectFromDomCached = (element: Element) => {
@@ -40,14 +40,18 @@ export const getBodyElementsCached = (ownerDocument: Document = document) => {
   cachedFrame = frame;
   cachedDocument = ownerDocument;
   const elements: HTMLElement[] = [];
-  const HTMLElementConstructor = ownerDocument.defaultView?.HTMLElement ?? HTMLElement;
+  const HTMLElementConstructor = ownerDocument.defaultView?.HTMLElement;
+  if (!HTMLElementConstructor) {
+    cachedElements = elements;
+    return cachedElements;
+  }
   const visit = (root: Document | ShadowRoot | HTMLElement) => {
     const walker = ownerDocument.createTreeWalker(root, 1);
     let node = walker.nextNode();
     while (node) {
       if (node instanceof HTMLElementConstructor) {
-        elements.push(node as HTMLElement);
-        if ((node as HTMLElement).shadowRoot) visit((node as HTMLElement).shadowRoot!);
+        elements.push(node);
+        if (node.shadowRoot) visit(node.shadowRoot);
       }
       node = walker.nextNode();
     }

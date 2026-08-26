@@ -2,8 +2,8 @@
 import type { NormalizedRect, Point, Rect } from "./types";
 
 export const getViewportSize = (ownerWindow?: Window) => ({
-  width: ownerWindow?.innerWidth || (typeof window === "undefined" ? 1 : window.innerWidth) || 1,
-  height: ownerWindow?.innerHeight || (typeof window === "undefined" ? 1 : window.innerHeight) || 1,
+  width: ownerWindow?.innerWidth || globalThis.window?.innerWidth || 1,
+  height: ownerWindow?.innerHeight || globalThis.window?.innerHeight || 1,
 });
 
 export const normalizeRect = (rect: Rect, viewport = getViewportSize()): NormalizedRect => ({
