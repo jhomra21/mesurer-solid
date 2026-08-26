@@ -300,12 +300,12 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
   let restoreAgentGlobal: (() => void) | null = null;
   if (agentConfig) {
     const globalName = agentConfig.globalName ?? "__MESURER__";
-    const hadPrevious = Object.prototype.hasOwnProperty.call(ownerWindow, globalName);
-    const previous = Reflect.get(ownerWindow, globalName);
+    const previousDescriptor = Object.getOwnPropertyDescriptor(ownerWindow, globalName);
     Reflect.set(ownerWindow, globalName, agent);
     restoreAgentGlobal = () => {
-      if (Reflect.get(ownerWindow, globalName) !== agent) return;
-      if (hadPrevious) Reflect.set(ownerWindow, globalName, previous);
+      const currentDescriptor = Object.getOwnPropertyDescriptor(ownerWindow, globalName);
+      if (currentDescriptor?.value !== agent) return;
+      if (previousDescriptor) Object.defineProperty(ownerWindow, globalName, previousDescriptor);
       else Reflect.deleteProperty(ownerWindow, globalName);
     };
   }
