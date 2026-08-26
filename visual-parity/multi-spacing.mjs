@@ -23,11 +23,14 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 const strictReadWarnings = [];
+const consoleErrors = [];
 page.on("console", (message) => {
   if (message.type() === "warning" && message.text().includes("STRICT_READ_UNTRACKED")) {
     strictReadWarnings.push(message.text());
   }
+  if (message.type() === "error") consoleErrors.push(message.text());
 });
+page.on("pageerror", (error) => consoleErrors.push(error.message));
 
 const center = (box) => ({
   x: box.x + box.width / 2,
@@ -59,6 +62,34 @@ const captureGrid = async (name) => {
   });
 };
 
+const openSettings = async () => {
+  await page.evaluate(async () => {
+    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
+  });
+  await page.getByRole("tab", { name: "Select" }).click();
+};
+
+const closeSettings = async () => {
+  await page.evaluate(async () => {
+    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
+  });
+};
+
+const visibleSpacingLabels = () => page.locator(
+  '[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]',
+);
+
+const directLabelRects = async () => page.evaluate(() => [...document.querySelectorAll(
+  '[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]:not([data-mesurer-distance-label-axis="d"])',
+)].map((label) => {
+  const rect = label.getBoundingClientRect();
+  return {
+    text: label.textContent?.trim() ?? "",
+    left: Math.round(rect.left * 10) / 10,
+    top: Math.round(rect.top * 10) / 10,
+  };
+}).sort((a, b) => a.text.localeCompare(b.text) || a.left - b.left || a.top - b.top));
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_MULTI_SPACING_FIXTURE__?.mesurer));
@@ -67,8 +98,7 @@ try {
     await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.select");
   });
 
-  // First prove the UX the feature is meant to unlock: A + C only.
-  // B and D must remain unselected even though they sit inside the overall grid.
+  // First prove sparse direct-neighbor spacing remains unchanged.
   await clickCard("a");
   await page.keyboard.down("Shift");
   try {
@@ -93,20 +123,21 @@ try {
       spacingOverlayCount: spacingRoots.length,
       spacingLabels: spacingRoots.map((root) => root.textContent?.trim() ?? "").filter(Boolean),
       groupChildCount: group?.children.length ?? 0,
-      dashedLines: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length,
+      lineCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length,
     };
   });
 
   assert.equal(sparseEvidence.selectionTargetCount, 2, "A + C should be the only selected elements");
-  assert.equal(sparseEvidence.spacingOverlayCount, 1, "A + C selection should render one spacing overlay");
-  assert.deepEqual(sparseEvidence.spacingLabels, ["32"], "A + C spacing label");
+  assert.equal(sparseEvidence.spacingOverlayCount, 1, "A + C selection should keep one spacing pair root");
+  assert.deepEqual(sparseEvidence.spacingLabels, ["32"], "A + C direct spacing label");
   assert.equal(sparseEvidence.aToC?.verticalGap, 32, "A→C vertical spacing");
-  assert.equal(sparseEvidence.groupChildCount, 1, "Aggregate selection should keep only its size readout, not a filled union box");
-  assert.equal(sparseEvidence.dashedLines, 1, "Selection spacing should use a dashed measurement line");
+  assert.equal(sparseEvidence.groupChildCount, 1, "Aggregate selection should keep only its size readout");
+  assert.equal(sparseEvidence.lineCount, 1, "A + C should render one direct vertical guide");
 
   await captureGrid("multi-selection-sparse");
 
-  // Expand to the complete grid and verify every unordered selected pair is measured.
+  // Expand to the complete grid. All six pair roots/data relationships remain,
+  // but only the four direct-facing orthogonal gaps render by default.
   await page.keyboard.down("Shift");
   try {
     await clickCard("b");
@@ -117,13 +148,13 @@ try {
 
   await page.waitForFunction(() =>
     document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]').length === 4
-    && document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]').length === 6,
+    && document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]').length === 6
+    && document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length === 4,
   );
 
   const evidence = await page.evaluate(async () => {
     const instance = window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer;
     await instance.agent.stable();
-
     const distances = {
       aToB: instance.agent.distance("[data-spacing-card='a']", "[data-spacing-card='b']"),
       aToC: instance.agent.distance("[data-spacing-card='a']", "[data-spacing-card='c']"),
@@ -132,175 +163,192 @@ try {
       cToD: instance.agent.distance("[data-spacing-card='c']", "[data-spacing-card='d']"),
       bToD: instance.agent.distance("[data-spacing-card='b']", "[data-spacing-card='d']"),
     };
-    const feedback = await instance.agent.feedback(["[data-spacing-card]"]);
-    const selectionTargets = instance.agent.inspectAll('[data-mesurer-selection-spacing-target="true"]');
-    const spacingRoots = [...document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]')];
-    const spacingLabels = [...document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]')]
-      .map((label) => label.textContent?.trim() ?? "")
-      .filter(Boolean)
-      .sort((a, b) => Number(a) - Number(b));
-
+    const spacingLabels = [...document.querySelectorAll(
+      '[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]',
+    )].map((label) => label.textContent?.trim() ?? "").filter(Boolean).sort((a, b) => Number(a) - Number(b));
     return {
       distances,
-      feedback,
-      selectionTargets,
       spacingLabels,
-      spacingOverlayCount: spacingRoots.length,
-      dashedLineCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length,
+      selectionTargetCount: document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]').length,
+      spacingOverlayCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]').length,
+      lineCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length,
+      diagonalLineCount: document.querySelectorAll('[data-mesurer-distance-line="diagonal"]').length,
     };
   });
 
   assert.equal(evidence.distances.aToB?.horizontalGap, 24, "A→B horizontal spacing");
-  assert.equal(evidence.distances.aToB?.verticalGap, 0, "A→B vertical overlap");
   assert.equal(evidence.distances.cToD?.horizontalGap, 24, "C→D horizontal spacing");
-  assert.equal(evidence.distances.aToC?.horizontalGap, 0, "A→C horizontal overlap");
   assert.equal(evidence.distances.aToC?.verticalGap, 32, "A→C vertical spacing");
   assert.equal(evidence.distances.bToD?.verticalGap, 32, "B→D vertical spacing");
-  assert.equal(evidence.distances.aToD?.horizontalGap, 24, "A→D horizontal spacing");
-  assert.equal(evidence.distances.aToD?.verticalGap, 32, "A→D vertical spacing");
-  assert.equal(evidence.distances.bToC?.horizontalGap, 24, "B→C horizontal spacing");
-  assert.equal(evidence.distances.bToC?.verticalGap, 32, "B→C vertical spacing");
-  assert.equal(evidence.spacingOverlayCount, 6, "Every unordered selected pair should render a spacing overlay");
-  assert.deepEqual(evidence.spacingLabels, ["24", "24", "32", "32"], "Identical spacing geometry should render one label at rest");
-  assert.equal(evidence.selectionTargets.length, 4, "Every selected card should retain an individual outline");
-  assert.equal(evidence.dashedLineCount, 8, "Every automatic pairwise spacing guide should use the dashed measurement treatment");
+  assert.equal(evidence.distances.aToD?.horizontalGap, 24, "A→D horizontal evidence remains available");
+  assert.equal(evidence.distances.aToD?.verticalGap, 32, "A→D vertical evidence remains available");
+  assert.equal(evidence.distances.bToC?.horizontalGap, 24, "B→C horizontal evidence remains available");
+  assert.equal(evidence.distances.bToC?.verticalGap, 32, "B→C vertical evidence remains available");
+  assert.equal(evidence.spacingOverlayCount, 6, "Every unordered selected pair should retain a pair root");
+  assert.equal(evidence.selectionTargetCount, 4, "Every selected card should retain an individual outline");
+  assert.equal(evidence.lineCount, 4, "Default visual spacing should show only four direct orthogonal guides");
+  assert.equal(evidence.diagonalLineCount, 0, "Diagonal guides must be off by default");
+  assert.deepEqual(evidence.spacingLabels, ["24", "24", "32", "32"], "Default labels should describe only direct gaps");
 
-  const groupedLabel = page.locator('[data-mesurer-distance-label="true"][data-mesurer-distance-label-count]:not([data-mesurer-distance-label-count="1"])').first();
-  const groupKey = await groupedLabel.getAttribute("data-mesurer-distance-label-key");
-  const firstDistanceId = await groupedLabel.getAttribute("data-mesurer-distance-id");
-  const groupCount = Number(await groupedLabel.getAttribute("data-mesurer-distance-label-count"));
-  assert(groupKey, "A grouped spacing label should expose its geometry key");
-  assert(firstDistanceId, "A grouped spacing label should expose its pair distance id");
-  assert(groupCount > 1, "The grid should contain at least one overlapping label group");
+  const initialDirectRects = await directLabelRects();
+  await captureGrid("multi-selection-spacing-direct");
 
-  await groupedLabel.hover();
-  await page.waitForFunction((key) => {
-    const labels = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
-      .filter((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
-    return labels.length > 1 && labels.every((label) => label.getAttribute("data-mesurer-distance-label") === "true");
-  }, groupKey);
-
-  const hoverEvidence = await page.evaluate(({ key, firstId }) => {
-    const grouped = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
-      .filter((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
+  // Hover one direct pill and verify opacity-only ownership isolation.
+  const directLabel = visibleSpacingLabels().filter({ hasText: /^24$/ }).first();
+  await directLabel.hover();
+  await page.waitForFunction(() =>
+    document.querySelectorAll('[data-mesurer-selection-spacing-target="true"][style*="opacity: 0.32"]').length === 2,
+  );
+  const directHoverEvidence = await page.evaluate(() => {
+    const targets = [...document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]')];
     const activeRoot = document.querySelector('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]');
-    const activeTargets = activeRoot
-      ? [...activeRoot.querySelectorAll('[data-mesurer-distance-hover-target]')].filter((target) => Number.parseFloat(getComputedStyle(target).opacity) > 0.9)
-      : [];
-    const activeLines = activeRoot
-      ? [...activeRoot.querySelectorAll('[data-mesurer-distance-line]')].map((line) => getComputedStyle(line).opacity)
-      : [];
-    const dimmedLines = [...document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"]:not([data-mesurer-distance-active="true"]) [data-mesurer-distance-line]')]
-      .map((line) => getComputedStyle(line).opacity);
     return {
-      groupSize: grouped.length,
-      visibleGroupSize: grouped.filter((label) => label.getAttribute("data-mesurer-distance-label") === "true").length,
-      activeDistanceId: activeRoot?.getAttribute("data-mesurer-distance-id") ?? null,
-      expectedFirstId: firstId,
-      activeTargetCount: activeTargets.length,
-      activeLines,
-      dimmedLines,
+      fullTargets: targets.filter((target) => Number.parseFloat(getComputedStyle(target).opacity) > 0.9).length,
+      dimTargets: targets.filter((target) => Number.parseFloat(getComputedStyle(target).opacity) < 0.4).length,
+      activeLines: activeRoot
+        ? [...activeRoot.querySelectorAll('[data-mesurer-distance-line]')].map((line) => getComputedStyle(line).opacity)
+        : [],
     };
-  }, { key: groupKey, firstId: firstDistanceId });
-
-  assert.equal(hoverEvidence.groupSize, groupCount, "Hover should reveal every label sharing the geometry");
-  assert.equal(hoverEvidence.visibleGroupSize, groupCount, "Every grouped label should become hoverable while expanded");
-  assert.equal(hoverEvidence.activeDistanceId, firstDistanceId, "The hovered label should activate its own pair");
-  assert.equal(hoverEvidence.activeTargetCount, 2, "The active pair should outline both source elements");
-  assert(hoverEvidence.activeLines.every((opacity) => opacity === "1"), "The active pair lines should use full opacity");
-  assert(hoverEvidence.dimmedLines.some((opacity) => Number.parseFloat(opacity) < 0.2), "Other pair lines should dim while a label is hovered");
-
-  const duplicateLabel = page.locator('[data-mesurer-distance-label="true"][data-mesurer-distance-label-state="duplicate"]').first();
-  const duplicateDistanceId = await duplicateLabel.getAttribute("data-mesurer-distance-id");
-  assert(duplicateDistanceId && duplicateDistanceId !== firstDistanceId, "Expanded duplicate labels should map to distinct pairs");
-  await duplicateLabel.hover();
-  await page.waitForFunction((distanceId) =>
-    document.querySelector('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]')?.getAttribute("data-mesurer-distance-id") === distanceId,
-  duplicateDistanceId);
-
-  await captureGrid("multi-selection-spacing-hover");
-
+  });
+  assert.equal(directHoverEvidence.fullTargets, 2, "Direct pill hover should leave its two owning elements unchanged");
+  assert.equal(directHoverEvidence.dimTargets, 2, "Direct pill hover should fade the two unrelated elements");
+  assert(directHoverEvidence.activeLines.every((opacity) => opacity === "1"), "Hovered direct line should remain full opacity");
   await page.mouse.move(10, 10);
-  await page.waitForTimeout(700);
-  const collapsedEvidence = await page.evaluate(() => ({
-    visibleLabelCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]').length,
-    activeDistanceCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]').length,
+  await page.waitForTimeout(350);
+
+  // Diagonals are an explicit opt-in setting.
+  await openSettings();
+  const spacingSettings = page.locator('[data-mesurer-distance="true"]').filter({ hasText: "Selection spacing" });
+  const diagonalSwitch = spacingSettings.getByRole("switch", { name: "Diagonals" });
+  assert.equal(await diagonalSwitch.getAttribute("aria-checked"), "false", "Diagonal spacing should default off");
+  await diagonalSwitch.click();
+  assert.equal(await diagonalSwitch.getAttribute("aria-checked"), "true", "Diagonal spacing switch should turn on");
+  await closeSettings();
+
+  await page.waitForFunction(() =>
+    document.querySelectorAll('[data-mesurer-distance-line="diagonal"]').length === 2
+    && document.querySelectorAll('[data-mesurer-distance-label-axis="d"][data-mesurer-distance-label="true"]').length === 2,
+  );
+
+  const diagonalEvidence = await page.evaluate(() => ({
+    lineCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]').length,
+    diagonalLines: [...document.querySelectorAll('[data-mesurer-distance-line="diagonal"]')].map((line) => ({
+      pattern: line.getAttribute("data-mesurer-line-pattern"),
+      width: line.getAttribute("data-mesurer-line-width"),
+      color: line.getAttribute("data-mesurer-line-color"),
+    })),
+    labels: [...document.querySelectorAll('[data-mesurer-distance-label-axis="d"][data-mesurer-distance-label="true"]')]
+      .map((label) => label.textContent?.trim() ?? "")
+      .sort(),
   }));
-  assert.equal(collapsedEvidence.visibleLabelCount, 4, "Leaving hover-only labels should collapse duplicate values again");
-  assert.equal(collapsedEvidence.activeDistanceCount, 0, "Leaving hover-only labels should clear pair emphasis");
+  assert.equal(diagonalEvidence.lineCount, 6, "Enabling diagonals should add two lines without restoring hidden orthogonal projections");
+  assert.deepEqual(diagonalEvidence.labels, ["40", "40"], "24×32 diagonal gaps should render as 40px Euclidean distances");
+  assert(diagonalEvidence.diagonalLines.every((line) => line.pattern === "dotted"), "Diagonal guides should always use the dotted treatment");
 
-  await groupedLabel.click();
-  await page.waitForFunction((key) => {
-    const primary = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
-      .find((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
-    const scope = primary?.closest('[data-mesurer-distance-kind="selection-spacing"]')?.parentElement;
-    const labels = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
-      .filter((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
-    return scope?.getAttribute("data-mesurer-spacing-label-pinned") === key
-      && labels.length > 1
-      && labels.every((label) => label.getAttribute("data-mesurer-distance-label") === "true");
-  }, groupKey);
-
-  await page.mouse.move(10, 10);
-  await page.waitForTimeout(700);
-  const pinnedEvidence = await page.evaluate((key) => {
-    const primary = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
-      .find((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
-    const scope = primary?.closest('[data-mesurer-distance-kind="selection-spacing"]')?.parentElement;
-    const labels = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
-      .filter((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
+  const diagonalLabel = page.locator('[data-mesurer-distance-label-axis="d"][data-mesurer-distance-label="true"]').first();
+  await diagonalLabel.hover();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"] [data-mesurer-distance-line="diagonal"]') !== null,
+  );
+  const diagonalHoverEvidence = await page.evaluate(() => {
+    const targets = [...document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]')];
+    const activeRoot = document.querySelector('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]');
     return {
-      pinnedKey: scope?.getAttribute("data-mesurer-spacing-label-pinned") ?? null,
-      visibleGroupSize: labels.filter((label) => label.getAttribute("data-mesurer-distance-label") === "true").length,
-      selectionTargetCount: document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]').length,
+      fullTargets: targets.filter((target) => Number.parseFloat(getComputedStyle(target).opacity) > 0.9).length,
+      dimTargets: targets.filter((target) => Number.parseFloat(getComputedStyle(target).opacity) < 0.4).length,
+      activeDiagonalOpacity: activeRoot
+        ? getComputedStyle(activeRoot.querySelector('[data-mesurer-distance-line="diagonal"]')).opacity
+        : null,
     };
-  }, groupKey);
-  assert.equal(pinnedEvidence.pinnedKey, groupKey, "Pointer-down should pin the shared spacing group open");
-  assert.equal(pinnedEvidence.visibleGroupSize, groupCount, "Pinned spacing labels should remain expanded after the pointer leaves");
-  assert.equal(pinnedEvidence.selectionTargetCount, 4, "Pinning a spacing label must not change the selection");
+  });
+  assert.equal(diagonalHoverEvidence.fullTargets, 2, "Diagonal hover should leave only its owning pair at normal strength");
+  assert.equal(diagonalHoverEvidence.dimTargets, 2, "Diagonal hover should fade unrelated selected elements");
+  assert.equal(diagonalHoverEvidence.activeDiagonalOpacity, "1", "Hovered diagonal line should remain full opacity");
+  await captureGrid("multi-selection-spacing-diagonal");
+  await page.mouse.move(10, 10);
+  await page.waitForTimeout(350);
 
-  const pinnedDuplicate = page.locator(`[data-mesurer-distance-label-key="${groupKey}"][data-mesurer-distance-label-state="duplicate"]`).first();
-  const pinnedDuplicateDistanceId = await pinnedDuplicate.getAttribute("data-mesurer-distance-id");
-  assert(pinnedDuplicateDistanceId, "Pinned duplicate label should retain its pair id");
-  await pinnedDuplicate.hover();
-  await page.waitForFunction((distanceId) =>
-    document.querySelector('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]')?.getAttribute("data-mesurer-distance-id") === distanceId,
-  pinnedDuplicateDistanceId);
-  await captureGrid("multi-selection-spacing-pinned");
+  // Turning diagonals back off should restore the exact default label positions.
+  await openSettings();
+  await spacingSettings.getByRole("switch", { name: "Diagonals" }).click();
+  await closeSettings();
+  await page.waitForFunction(() => document.querySelectorAll('[data-mesurer-distance-line="diagonal"]').length === 0);
+  const restoredDirectRects = await directLabelRects();
+  assert.deepEqual(restoredDirectRects, initialDirectRects, "Toggling diagonals must not displace direct spacing labels");
 
-  await groupedLabel.click();
-  await page.waitForFunction((key) => {
-    const primary = [...document.querySelectorAll('[data-mesurer-distance-label-key]')]
-      .find((label) => label.getAttribute("data-mesurer-distance-label-key") === key);
-    const scope = primary?.closest('[data-mesurer-distance-kind="selection-spacing"]')?.parentElement;
-    return !scope?.hasAttribute("data-mesurer-spacing-label-pinned");
-  }, groupKey);
-  const unpinnedEvidence = await page.evaluate(() => ({
-    visibleLabelCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-label="true"]').length,
-    activeDistanceCount: document.querySelectorAll('[data-mesurer-distance-kind="selection-spacing"][data-mesurer-distance-active="true"]').length,
-    selectionTargetCount: document.querySelectorAll('[data-mesurer-selection-spacing-target="true"]').length,
-  }));
-  assert.equal(unpinnedEvidence.visibleLabelCount, 4, "Pressing the primary label again should collapse the pinned group");
-  assert.equal(unpinnedEvidence.activeDistanceCount, 0, "Unpinning should clear pair emphasis");
-  assert.equal(unpinnedEvidence.selectionTargetCount, 4, "Unpinning must not change the selection");
-  assert.equal(strictReadWarnings.length, 0, `Spacing label interaction should not emit STRICT_READ_UNTRACKED warnings: ${strictReadWarnings.join("\n")}`);
+  // Custom orthogonal styling remains configurable while diagonal pattern stays dotted by definition.
+  await openSettings();
+  await spacingSettings.getByRole("switch", { name: "Diagonals" }).click();
+  await spacingSettings.getByRole("radio", { name: "Solid spacing pattern" }).click();
+  const weight = spacingSettings.getByRole("slider", { name: "Weight" });
+  await weight.focus();
+  await weight.press("ArrowRight");
+  await weight.press("ArrowRight");
+  const colorInput = spacingSettings.getByLabel("Line color hex value");
+  await colorInput.fill("FF00AA");
+  await page.waitForTimeout(100);
+  await closeSettings();
+
+  await page.waitForFunction(() => {
+    const direct = document.querySelector('[data-mesurer-distance-line="horizontal"], [data-mesurer-distance-line="vertical"]');
+    const diagonal = document.querySelector('[data-mesurer-distance-line="diagonal"]');
+    return direct?.getAttribute("data-mesurer-line-pattern") === "solid"
+      && direct?.getAttribute("data-mesurer-line-width") === "3"
+      && direct?.getAttribute("data-mesurer-line-color")?.toLowerCase() === "#ff00aa"
+      && diagonal?.getAttribute("data-mesurer-line-pattern") === "dotted";
+  });
+
+  const customStyleEvidence = await page.evaluate(() => {
+    const direct = document.querySelector('[data-mesurer-distance-line="horizontal"], [data-mesurer-distance-line="vertical"]');
+    const diagonal = document.querySelector('[data-mesurer-distance-line="diagonal"]');
+    const stored = JSON.parse(localStorage.getItem("mesurer-settings") ?? "null");
+    return {
+      directPattern: direct?.getAttribute("data-mesurer-line-pattern"),
+      diagonalPattern: diagonal?.getAttribute("data-mesurer-line-pattern"),
+      width: direct?.getAttribute("data-mesurer-line-width"),
+      color: direct?.getAttribute("data-mesurer-line-color"),
+      storedStyle: stored?.settings?.selectionSpacingStyle ?? null,
+    };
+  });
+  assert.equal(customStyleEvidence.directPattern, "solid", "Direct spacing pattern should update live");
+  assert.equal(customStyleEvidence.diagonalPattern, "dotted", "Diagonal pattern should remain dotted regardless of direct pattern");
+  assert.equal(customStyleEvidence.width, "3", "Selection spacing weight should update live");
+  assert.equal(customStyleEvidence.color?.toLowerCase(), "#ff00aa", "Selection spacing color should update live");
+  assert.equal(customStyleEvidence.storedStyle?.diagonals, true, "Diagonal preference should persist");
+  assert.equal(customStyleEvidence.storedStyle?.pattern, "solid", "Direct spacing pattern should persist");
+  assert.equal(customStyleEvidence.storedStyle?.width, 3, "Selection spacing weight should persist");
+
+  await openSettings();
+  await page.getByRole("tab", { name: "General" }).click();
+  await page.getByRole("button", { name: "Reset settings to defaults" }).click();
+  await closeSettings();
+  await page.waitForFunction(() =>
+    document.querySelectorAll('[data-mesurer-distance-line="diagonal"]').length === 0
+    && document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]')?.getAttribute("data-mesurer-line-pattern") === "dashed",
+  );
+
+  assert.equal(strictReadWarnings.length, 0, `Spacing interaction should not emit STRICT_READ_UNTRACKED warnings: ${strictReadWarnings.join("\n")}`);
+  assert.equal(consoleErrors.length, 0, `Spacing interaction should not emit console/page errors: ${consoleErrors.join("\n")}`);
 
   const report = {
     deviceScaleFactor,
     expected: {
       horizontal: 24,
       vertical: 32,
-      overlayCount: 6,
-      lineCount: 8,
-      labelCount: 4,
+      diagonal: 40,
+      pairRootCount: 6,
+      defaultLineCount: 4,
+      diagonalLineCount: 2,
+      defaultLabelCount: 4,
     },
     sparseEvidence,
     evidence,
-    hoverEvidence,
-    collapsedEvidence,
-    pinnedEvidence,
-    unpinnedEvidence,
+    directHoverEvidence,
+    diagonalEvidence,
+    diagonalHoverEvidence,
+    customStyleEvidence,
     strictReadWarnings,
+    consoleErrors,
   };
 
   await fs.writeFile(
@@ -315,67 +363,18 @@ try {
 
   await captureGrid("multi-selection-spacing-detail");
 
-  await page.evaluate(async () => {
-    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
-  });
-  const spacingSettings = page.locator('[data-mesurer-distance="true"]').filter({ hasText: "Selection spacing" });
-  await spacingSettings.getByRole("radio", { name: "Dotted spacing pattern" }).click();
-  const weight = spacingSettings.getByRole("slider", { name: "Weight" });
-  await weight.focus();
-  await weight.press("ArrowRight");
-  await weight.press("ArrowRight");
-  const colorInput = spacingSettings.getByLabel("Line color hex value");
-  await colorInput.fill("FF00AA");
-  await page.waitForTimeout(100);
-  await page.evaluate(async () => {
-    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
-  });
-  await page.waitForFunction(() => {
-    const line = document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]');
-    return line?.getAttribute("data-mesurer-line-pattern") === "dotted"
-      && line?.getAttribute("data-mesurer-line-width") === "3"
-      && line?.getAttribute("data-mesurer-line-color")?.toLowerCase() === "#ff00aa";
-  });
-  const customStyleEvidence = await page.evaluate(() => {
-    const line = document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]');
-    const style = line ? getComputedStyle(line) : null;
-    const stored = JSON.parse(localStorage.getItem("mesurer-settings") ?? "null");
-    return {
-      pattern: line?.getAttribute("data-mesurer-line-pattern"),
-      width: line?.getAttribute("data-mesurer-line-width"),
-      color: line?.getAttribute("data-mesurer-line-color"),
-      backgroundImage: style?.backgroundImage ?? "",
-      storedStyle: stored?.settings?.selectionSpacingStyle ?? null,
-    };
-  });
-  assert.equal(customStyleEvidence.pattern, "dotted", "Selection spacing pattern should update live");
-  assert.equal(customStyleEvidence.width, "3", "Selection spacing weight should update live");
-  assert.equal(customStyleEvidence.color?.toLowerCase(), "#ff00aa", "Selection spacing color should update live");
-  assert.match(customStyleEvidence.backgroundImage, /radial-gradient/i, "Dotted spacing should use the dotted renderer");
-  assert.equal(customStyleEvidence.storedStyle?.pattern, "dotted", "Selection spacing pattern should persist");
-  assert.equal(customStyleEvidence.storedStyle?.width, 3, "Selection spacing weight should persist");
-
-  await page.evaluate(async () => {
-    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
-  });
-  await page.getByRole("tab", { name: "General" }).click();
-  await page.getByRole("button", { name: "Reset settings to defaults" }).click();
-  await page.evaluate(async () => {
-    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.settings");
-  });
-  await page.waitForFunction(() => document.querySelector('[data-mesurer-distance-kind="selection-spacing"] [data-mesurer-distance-line]')?.getAttribute("data-mesurer-line-pattern") === "dashed");
-
   console.log(JSON.stringify({
     result: "PASS",
     sparseSelection: "A + C only",
-    sparseSpacing: sparseEvidence.aToC?.verticalGap,
     horizontalSpacing: evidence.distances.aToB?.horizontalGap,
     verticalSpacing: evidence.distances.aToC?.verticalGap,
-    spacingLabels: evidence.spacingLabels,
-    hoverEvidence,
-    pinnedEvidence,
+    defaultLabels: evidence.spacingLabels,
+    diagonalLabels: diagonalEvidence.labels,
+    directHoverEvidence,
+    diagonalHoverEvidence,
     customStyleEvidence,
     strictReadWarnings,
+    consoleErrors,
     outputDir,
   }, null, 2));
 } finally {
