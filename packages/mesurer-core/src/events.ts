@@ -1,26 +1,31 @@
-export type EventMap = Record<string, unknown>;
-export type EventListener<T> = (event: T) => void | Promise<void>;
+export type EventListener<T> = {
+  bivarianceHack(event: T): void | Promise<void>;
+}["bivarianceHack"];
 
-export type EventBus<Events extends EventMap> = {
+export type EventBus<Events extends object> = {
   on<K extends keyof Events & string>(type: K, listener: EventListener<Events[K]>): () => void;
   emit<K extends keyof Events & string>(type: K, event: Events[K]): Promise<void>;
   clear(): void;
 };
 
-export function createEventBus<Events extends EventMap>(): EventBus<Events> {
-  const listeners = new Map<string, Set<EventListener<unknown>>>();
+export function createEventBus<Events extends object>(): EventBus<Events> {
+  type EventName = keyof Events & string;
+  type EventValue = Events[EventName];
+  const listeners = new Map<EventName, Set<EventListener<EventValue>>>();
+
   return {
     on(type, listener) {
-      const bucket = listeners.get(type) ?? new Set<EventListener<unknown>>();
-      bucket.add(listener as EventListener<unknown>);
+      const bucket = listeners.get(type) ?? new Set<EventListener<EventValue>>();
+      bucket.add(listener);
       listeners.set(type, bucket);
       return () => {
-        bucket.delete(listener as EventListener<unknown>);
+        bucket.delete(listener);
         if (bucket.size === 0) listeners.delete(type);
       };
     },
     async emit(type, event) {
-      for (const listener of [...(listeners.get(type) ?? [])]) await listener(event);
+      const queue = Array.from(listeners.get(type) ?? []);
+      for (const listener of queue) await listener(event);
     },
     clear() {
       listeners.clear();
