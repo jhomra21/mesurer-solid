@@ -66,7 +66,7 @@ const intersects = (first: ReturnType<typeof shifted>, second: ReturnType<typeof
   && first.bottom + 2 > second.top;
 
 describe("selection spacing label layout", () => {
-  it("moves overlapping horizontal labels into vertical lanes", () => {
+  it("moves overlapping horizontal labels along their measurement line first", () => {
     const { scope, root } = setup();
     const firstRect = { left: 100, top: 100, width: 30, height: 16 };
     const secondRect = { left: 105, top: 100, width: 30, height: 16 };
@@ -81,12 +81,12 @@ describe("selection spacing label layout", () => {
     const secondY = offset(second, COLLISION_Y);
     expect(firstX).toBe(0);
     expect(firstY).toBe(0);
-    expect(secondX).toBe(0);
-    expect(secondY).not.toBe(0);
+    expect(secondX).not.toBe(0);
+    expect(secondY).toBe(0);
     expect(intersects(shifted(firstRect, firstX, firstY), shifted(secondRect, secondX, secondY))).toBe(false);
   });
 
-  it("moves overlapping vertical labels into horizontal lanes", () => {
+  it("moves overlapping vertical labels along their measurement line first", () => {
     const { scope, root } = setup();
     const firstRect = { left: 200, top: 120, width: 28, height: 16 };
     const secondRect = { left: 200, top: 124, width: 36, height: 16 };
@@ -96,11 +96,12 @@ describe("selection spacing label layout", () => {
     layoutSpacingLabels(scope);
 
     expect(offset(first, COLLISION_X)).toBe(0);
-    expect(offset(second, COLLISION_X)).not.toBe(0);
-    expect(offset(second, COLLISION_Y)).toBe(0);
+    expect(offset(first, COLLISION_Y)).toBe(0);
+    expect(offset(second, COLLISION_X)).toBe(0);
+    expect(offset(second, COLLISION_Y)).not.toBe(0);
   });
 
-  it("moves perpendicular labels into separate lanes", () => {
+  it("keeps perpendicular labels on their own measurement axes when resolving a collision", () => {
     const { scope, root } = setup();
     const horizontalRect = { left: 100, top: 100, width: 30, height: 16 };
     const verticalRect = { left: 105, top: 104, width: 30, height: 16 };
@@ -117,8 +118,8 @@ describe("selection spacing label layout", () => {
       shifted(horizontalRect, horizontalX, horizontalY),
       shifted(verticalRect, verticalX, verticalY),
     )).toBe(false);
-    expect(verticalX).not.toBe(0);
-    expect(verticalY).toBe(0);
+    expect(verticalX).toBe(0);
+    expect(verticalY).not.toBe(0);
   });
 
   it("keeps expanded horizontal duplicates beside their shared line", () => {
@@ -166,12 +167,15 @@ describe("selection spacing label layout", () => {
     const hidden = label(root, "x", rect, false);
 
     layoutSpacingLabels(scope);
+    expect(offset(first, COLLISION_X)).toBe(0);
     expect(offset(first, COLLISION_Y)).toBe(0);
+    expect(offset(hidden, COLLISION_X)).toBe(0);
     expect(offset(hidden, COLLISION_Y)).toBe(0);
 
     hidden.setAttribute("data-mesurer-distance-label", "true");
     layoutSpacingLabels(scope);
-    expect(offset(hidden, COLLISION_Y)).not.toBe(0);
+    expect(offset(hidden, COLLISION_X)).not.toBe(0);
+    expect(offset(hidden, COLLISION_Y)).toBe(0);
   });
 
   it("is stable when the desired lanes have not changed", () => {
