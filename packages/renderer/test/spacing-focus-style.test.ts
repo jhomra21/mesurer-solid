@@ -32,15 +32,26 @@ describe("selection spacing focus styles", () => {
     const selectionTarget = document.createElement("div");
     selectionTarget.setAttribute("data-mesurer-selection-spacing-target", "true");
 
+    const activeRoot = document.createElement("div");
+    activeRoot.setAttribute("data-mesurer-distance-kind", "selection-spacing");
+    activeRoot.setAttribute("data-mesurer-distance-active", "true");
     const activePairTarget = document.createElement("div");
     activePairTarget.setAttribute("data-mesurer-distance-hover-target", "true");
+    activeRoot.append(activePairTarget);
 
-    scope.append(selectedMeasurement, selectionTarget, activePairTarget);
+    const inactiveRoot = document.createElement("div");
+    inactiveRoot.setAttribute("data-mesurer-distance-kind", "selection-spacing");
+    const inactivePairTarget = document.createElement("div");
+    inactivePairTarget.setAttribute("data-mesurer-distance-hover-target", "true");
+    inactiveRoot.append(inactivePairTarget);
+
+    scope.append(selectedMeasurement, selectionTarget, activeRoot, inactiveRoot);
     document.body.append(scope);
 
     expect(getComputedStyle(selectedMeasurement).opacity).toBe("0.32");
     expect(getComputedStyle(selectionTarget).opacity).toBe("0.32");
     expect(getComputedStyle(activePairTarget).opacity).toBe("1");
+    expect(getComputedStyle(inactivePairTarget).opacity).toBe("0");
 
     scope.removeAttribute("data-mesurer-spacing-focus");
     expect(getComputedStyle(selectedMeasurement).opacity).toBe("1");
