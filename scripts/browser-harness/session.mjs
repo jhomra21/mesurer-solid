@@ -110,7 +110,9 @@ export class BrowserHarnessSession {
     if (unsupportedUrl(this.page.url())) throw new Error(`Browser-internal pages cannot be injected: ${this.page.url()}`);
     const source = await this.loadInjectSource();
     await this.page.evaluate(({ globalName, target }) => {
-      globalThis.__MESURER_CONFIG__ = { ...(globalThis.__MESURER_CONFIG__ ?? {}), globalName, ...(target ? { target } : {}) };
+      const config = Object.assign({}, globalThis.__MESURER_CONFIG__ ?? {}, { globalName });
+      if (target) config.target = target;
+      globalThis.__MESURER_CONFIG__ = config;
     }, { globalName: this.options.globalName, target: this.options.target });
     // Deliberately use plain JavaScript evaluation rather than addScriptTag().
     // This mirrors the primitive already exposed by agent browser tools.
@@ -122,7 +124,10 @@ export class BrowserHarnessSession {
   async status() {
     const page = this.page;
     const injected = page && !page.isClosed()
-      ? await page.evaluate((globalName) => typeof globalThis[globalName]?.ready === "function", this.options.globalName).catch(() => false)
+      ? await page.evaluate(
+          (globalName) => globalThis[globalName]?.ready instanceof Function,
+          this.options.globalName,
+        ).catch(() => false)
       : false;
     return {
       connected: Boolean(this.browser?.isConnected()),
@@ -148,7 +153,7 @@ export class BrowserHarnessSession {
       if (this.ownsBrowser) await this.browser.close();
       else {
         const connection = this.browser._connection;
-        if (connection && typeof connection.close === "function") connection.close();
+        if (connection?.close instanceof Function) connection.close();
       }
     }
     this.resolveDisconnected?.();
