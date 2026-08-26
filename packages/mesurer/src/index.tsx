@@ -412,13 +412,16 @@ export type {
 } from "./core";
 export type { MesurerHostLayerMode } from "./host-layer";
 
-export const selectPlugin = rendererSelectPlugin;
-export const xrayPlugin = rendererXrayPlugin;
-export const colorPickerPlugin = rendererColorPickerPlugin;
-export const rulersPlugin = rendererRulersPlugin;
-export const textInspectorPlugin = rendererTextInspectorPlugin;
-export const guidesPlugin = rendererGuidesPlugin;
-export const distancePlugin = rendererDistancePlugin;
-export const settingsPlugin = rendererSettingsPlugin;
-export const defaultMesurerPlugins = rendererDefaultMesurerPlugins;
-export const composeMesurerPlugins = rendererComposeMesurerPlugins;
+export const selectPlugin: () => MesurerPlugin = rendererSelectPlugin;
+export const xrayPlugin: () => MesurerPlugin = rendererXrayPlugin;
+export const colorPickerPlugin: () => MesurerPlugin = rendererColorPickerPlugin;
+export const rulersPlugin: () => MesurerPlugin = rendererRulersPlugin;
+export const textInspectorPlugin: () => MesurerPlugin = rendererTextInspectorPlugin;
+export const guidesPlugin: () => MesurerPlugin = rendererGuidesPlugin;
+export const distancePlugin: () => MesurerPlugin = rendererDistancePlugin;
+export const settingsPlugin: () => MesurerPlugin = rendererSettingsPlugin;
+export const defaultMesurerPlugins: () => MesurerPlugin[] = rendererDefaultMesurerPlugins;
+export const composeMesurerPlugins: (
+  plugins?: MesurerPlugin[],
+  exclude?: MesurerBuiltinPluginId[],
+) => MesurerPlugin[] = rendererComposeMesurerPlugins;
