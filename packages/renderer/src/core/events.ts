@@ -16,8 +16,8 @@ type PointerCaptureTarget = {
 
 const isExpectedPointerCaptureError = (cause: unknown, target: PointerCaptureTarget): boolean => {
   const DOMExceptionConstructor = target.ownerDocument?.defaultView?.DOMException;
-  return Boolean(DOMExceptionConstructor)
-    && cause instanceof DOMExceptionConstructor!
+  if (!DOMExceptionConstructor) return false;
+  return cause instanceof DOMExceptionConstructor
     && (cause.name === "NotFoundError" || cause.name === "InvalidStateError");
 };
 
