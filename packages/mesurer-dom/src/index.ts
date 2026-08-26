@@ -23,9 +23,15 @@ export function createPortalMount(host: DomHost, attribute = "data-mesurer-host"
   return { mount, dispose: () => mount.remove() };
 }
 
-export function isElectronRenderer(globalValue: unknown = globalThis): boolean {
-  const value = globalValue as { process?: { type?: string; versions?: { electron?: string } } };
-  return value.process?.type === "renderer" || typeof value.process?.versions?.electron === "string";
+type ElectronGlobal = {
+  process?: {
+    type?: string;
+    versions?: { electron?: string };
+  };
+};
+
+export function isElectronRenderer(globalValue: ElectronGlobal = globalThis): boolean {
+  return globalValue.process?.type === "renderer" || Boolean(globalValue.process?.versions?.electron);
 }
 
 export type StorageAdapter = {
@@ -108,11 +114,33 @@ export type DomElementInspection = {
   };
 };
 
+export type DomInspectableElement = {
+  getBoundingClientRect(): { left: number; top: number; width: number; height: number };
+  tagName: string;
+  id: string;
+  classList: { item(index: number): string | null };
+};
+
+type BoxComputedStyle = {
+  paddingTop: string;
+  paddingRight: string;
+  paddingBottom: string;
+  paddingLeft: string;
+  marginTop: string;
+  marginRight: string;
+  marginBottom: string;
+  marginLeft: string;
+};
+
+export type DomStyleReader<ElementRef extends DomInspectableElement> = {
+  getComputedStyle(element: ElementRef): BoxComputedStyle;
+};
+
 const parseEdge = (value: string) => Number.parseFloat(value) || 0;
 let inspectionId = 0;
 
 const escapeCss = (value: string, ownerWindow: Window) => {
-  const css = (ownerWindow as Window & typeof globalThis).CSS;
+  const css = ownerWindow.CSS;
   return css?.escape ? css.escape(value) : value.replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`);
 };
 
@@ -120,6 +148,9 @@ const normalizedFingerprintText = (element: Element) => {
   const text = (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
   return text || null;
 };
+
+const isDocument = (value: Node): value is Document => value.nodeType === 9;
+const isShadowRoot = (value: Node): value is ShadowRoot => value.nodeType === 11;
 
 export function getRectFromDom(element: Element): Rect {
   const rect = element.getBoundingClientRect();
@@ -130,28 +161,24 @@ export type DomHitTestTarget = Document | HTMLElement | ShadowRoot;
 
 export function getDomTreeRoot(element: Element): Document | ShadowRoot {
   const root = element.getRootNode();
-  return root.nodeType === 11 ? root as ShadowRoot : element.ownerDocument;
+  return isShadowRoot(root) ? root : element.ownerDocument;
 }
 
 const pointRoot = (target: DomHitTestTarget, ownerDocument: Document): Document | ShadowRoot => {
-  if (target.nodeType === 9 || target.nodeType === 11) return target as Document | ShadowRoot;
-  const root = getDomTreeRoot(target as HTMLElement);
-  return root.nodeType === 11 ? root : ownerDocument;
+  if (isDocument(target) || isShadowRoot(target)) return target;
+  const root = getDomTreeRoot(target);
+  return isShadowRoot(root) ? root : ownerDocument;
 };
 
 /** Resolve the deepest open-ShadowRoot element at a viewport point. */
 export function getDeepestElementAtPoint(
   point: { x: number; y: number },
   target: DomHitTestTarget,
-  ownerDocument: Document = target.nodeType === 9 ? target as Document : target.ownerDocument ?? document,
+  ownerDocument: Document = isDocument(target) ? target : target.ownerDocument ?? document,
 ): Element | null {
-  let current: Element | null = (pointRoot(target, ownerDocument) as Document | ShadowRoot & {
-    elementFromPoint?: (x: number, y: number) => Element | null;
-  }).elementFromPoint?.(point.x, point.y) ?? null;
+  let current = pointRoot(target, ownerDocument).elementFromPoint(point.x, point.y);
   while (current?.shadowRoot) {
-    const nested = (current.shadowRoot as ShadowRoot & {
-      elementFromPoint?: (x: number, y: number) => Element | null;
-    }).elementFromPoint?.(point.x, point.y) ?? null;
+    const nested = current.shadowRoot.elementFromPoint(point.x, point.y);
     if (!nested || nested === current) break;
     current = nested;
   }
@@ -159,13 +186,13 @@ export function getDeepestElementAtPoint(
 }
 
 export function isElementWithinDomTarget(element: Element, target: DomHitTestTarget): boolean {
-  if (target.nodeType === 9) return true;
+  if (isDocument(target)) return true;
   let current: Element | null = element;
   while (current) {
     if (target === current || target.contains(current)) return true;
     const root = current.getRootNode();
-    if (root.nodeType !== 11) return false;
-    current = (root as ShadowRoot).host;
+    if (!isShadowRoot(root)) return false;
+    current = root.host;
   }
   return false;
 }
@@ -199,9 +226,10 @@ export function getElementSelector(element: Element): string {
   let current: Element | null = element;
   while (current && parts.length < 5) {
     let part = current.localName;
-    const parent: Element | null = current.parentElement;
+    const currentName = current.localName;
+    const parent = current.parentElement;
     if (parent) {
-      const siblings = [...parent.children].filter((candidate) => candidate.localName === current!.localName);
+      const siblings = [...parent.children].filter((candidate) => candidate.localName === currentName);
       if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
     }
     parts.unshift(part);
@@ -252,13 +280,13 @@ export function isElementFingerprintCompatible(element: Element, fingerprint: Do
  * Canonical Mesurer box-model inspection for browser hosts and automation.
  * This intentionally matches the visual Select inspector's content/padding/margin geometry.
  */
-export function getInspectMeasurement(
-  element: HTMLElement,
-  ownerWindow: Window = element.ownerDocument.defaultView ?? window,
+export function getInspectMeasurement<ElementRef extends DomInspectableElement>(
+  element: ElementRef,
+  styleReader: DomStyleReader<ElementRef>,
   id = `dom-inspection-${++inspectionId}`,
-): InspectMeasurement<HTMLElement> {
+): InspectMeasurement<ElementRef> {
   const rect = element.getBoundingClientRect();
-  const style = ownerWindow.getComputedStyle(element);
+  const style = styleReader.getComputedStyle(element);
   const padding = {
     top: parseEdge(style.paddingTop),
     right: parseEdge(style.paddingRight),
@@ -302,6 +330,7 @@ export function getInspectMeasurement(
 export function inspectDomElement(element: Element): DomElementInspection {
   const ownerWindow = element.ownerDocument.defaultView ?? window;
   const style = ownerWindow.getComputedStyle(element);
+  // SAFETY: ownerWindow is the realm that owns element and therefore its HTMLElement constructor.
   const HTMLElementCtor = (ownerWindow as Window & typeof globalThis).HTMLElement;
   const html = element instanceof HTMLElementCtor ? element : null;
   const bounding = element.getBoundingClientRect();

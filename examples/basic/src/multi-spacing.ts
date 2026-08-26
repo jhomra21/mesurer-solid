@@ -8,6 +8,12 @@ type MultiSpacingHarness = {
   moveToolbar(left: number, top: number): void;
 };
 
+declare global {
+  interface Window {
+    __MESURER_MULTI_SPACING_FIXTURE__?: MultiSpacingHarness;
+  }
+}
+
 const mesurer = mountMeasurer({
   target: document.body,
   isolate: false,
@@ -32,4 +38,4 @@ const harness: MultiSpacingHarness = {
   moveToolbar,
 };
 
-(window as Window & { __MESURER_MULTI_SPACING_FIXTURE__?: MultiSpacingHarness }).__MESURER_MULTI_SPACING_FIXTURE__ = harness;
+window.__MESURER_MULTI_SPACING_FIXTURE__ = harness;

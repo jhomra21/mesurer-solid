@@ -12,6 +12,12 @@ type SelfHostingHarness = {
   setReport(lines: string[]): void;
 };
 
+declare global {
+  interface Window {
+    __MESURER_SELF_HOSTING__?: SelfHostingHarness;
+  }
+}
+
 const moveToolbar = (instance: MountedMeasurer, left: number, top: number) => {
   const toolbar = instance.element.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
   if (!toolbar) throw new Error("Mesurer toolbar did not mount.");
@@ -80,4 +86,4 @@ const harness: SelfHostingHarness = {
   },
 };
 
-(window as Window & { __MESURER_SELF_HOSTING__?: SelfHostingHarness }).__MESURER_SELF_HOSTING__ = harness;
+window.__MESURER_SELF_HOSTING__ = harness;
