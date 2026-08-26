@@ -1,4 +1,5 @@
 export function isEditableKeyboardEvent(event: KeyboardEvent, ownerWindow: Window): boolean {
+  // SAFETY: ownerWindow is the document realm for this event and therefore owns the DOM constructors used below.
   const realm = ownerWindow as Window & typeof globalThis;
   return event.composedPath().some((target) => target instanceof realm.HTMLElement && (
     target.isContentEditable
@@ -13,11 +14,11 @@ type PointerCaptureTarget = {
   setPointerCapture?: (pointerId: number) => void;
 };
 
-const isExpectedPointerCaptureError = (error: unknown, target: PointerCaptureTarget): boolean => {
+const isExpectedPointerCaptureError = (cause: unknown, target: PointerCaptureTarget): boolean => {
   const DOMExceptionConstructor = target.ownerDocument?.defaultView?.DOMException;
-  return typeof DOMExceptionConstructor === "function"
-    && error instanceof DOMExceptionConstructor
-    && (error.name === "NotFoundError" || error.name === "InvalidStateError");
+  return Boolean(DOMExceptionConstructor)
+    && cause instanceof DOMExceptionConstructor!
+    && (cause.name === "NotFoundError" || cause.name === "InvalidStateError");
 };
 
 export function trySetPointerCapture(target: PointerCaptureTarget, pointerId: number): boolean {
