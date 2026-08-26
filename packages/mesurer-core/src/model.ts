@@ -387,20 +387,22 @@ export function createMeasurerModelCore<ElementRef = unknown>(options: MeasurerM
     });
   };
 
-  const applyStoredSettings = (stored: MesurerStoredSettings) => updateSettings({
-    ...(stored.highlightColor !== undefined ? { highlightColor: stored.highlightColor } : {}),
-    ...(stored.guideColor !== undefined ? { guideColor: stored.guideColor } : {}),
-    ...(stored.hoverHighlightEnabled !== undefined ? { hoverHighlightEnabled: stored.hoverHighlightEnabled } : {}),
-    ...(stored.persistOnReload !== undefined ? { persistOnReload: stored.persistOnReload } : {}),
-    ...(stored.colorPickerFormats !== undefined ? { colorPickerFormats: stored.colorPickerFormats } : {}),
-    ...(stored.colorPickerClickFormat !== undefined ? { colorPickerClickFormat: stored.colorPickerClickFormat } : {}),
-    ...(stored.snapEnabled !== undefined ? { snapEnabled: stored.snapEnabled } : {}),
-    ...(stored.snapGuidesEnabled !== undefined ? { snapGuidesEnabled: stored.snapGuidesEnabled } : {}),
-    ...(stored.selectNewGuideEnabled !== undefined ? { selectNewGuideEnabled: stored.selectNewGuideEnabled } : {}),
-    ...(stored.multiMeasureEnabled !== undefined ? { multiMeasureEnabled: stored.multiMeasureEnabled } : {}),
-    ...(stored.guideStyle !== undefined ? { guideStyle: { ...baseSettings.guideStyle, ...stored.guideStyle } } : {}),
-    ...(stored.rulerSettings !== undefined ? { rulerSettings: { ...baseSettings.rulerSettings, ...stored.rulerSettings } } : {}),
-  });
+  const applyStoredSettings = (stored: MesurerStoredSettings) => {
+    const patch: Partial<MeasurerSettings> = {};
+    if (stored.highlightColor !== undefined) patch.highlightColor = stored.highlightColor;
+    if (stored.guideColor !== undefined) patch.guideColor = stored.guideColor;
+    if (stored.hoverHighlightEnabled !== undefined) patch.hoverHighlightEnabled = stored.hoverHighlightEnabled;
+    if (stored.persistOnReload !== undefined) patch.persistOnReload = stored.persistOnReload;
+    if (stored.colorPickerFormats !== undefined) patch.colorPickerFormats = stored.colorPickerFormats;
+    if (stored.colorPickerClickFormat !== undefined) patch.colorPickerClickFormat = stored.colorPickerClickFormat;
+    if (stored.snapEnabled !== undefined) patch.snapEnabled = stored.snapEnabled;
+    if (stored.snapGuidesEnabled !== undefined) patch.snapGuidesEnabled = stored.snapGuidesEnabled;
+    if (stored.selectNewGuideEnabled !== undefined) patch.selectNewGuideEnabled = stored.selectNewGuideEnabled;
+    if (stored.multiMeasureEnabled !== undefined) patch.multiMeasureEnabled = stored.multiMeasureEnabled;
+    if (stored.guideStyle !== undefined) patch.guideStyle = { ...baseSettings.guideStyle, ...stored.guideStyle };
+    if (stored.rulerSettings !== undefined) patch.rulerSettings = { ...baseSettings.rulerSettings, ...stored.rulerSettings };
+    updateSettings(patch);
+  };
 
   const applyStoredWorkspace = (workspace: MesurerStoredWorkspace<ElementRef>) => mutate((draft) => {
     draft.enabled = workspace.enabled;
