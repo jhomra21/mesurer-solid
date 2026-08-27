@@ -6,7 +6,9 @@ type PopoverHost = HTMLDivElement & {
   hidePopover(): void;
 };
 
-const HOST_STYLES: Record<string, string> = {
+type ToggleStateEvent = Event & { newState?: string };
+
+const HOST_STYLES = {
   display: "block",
   position: "fixed",
   inset: "0",
@@ -47,7 +49,7 @@ const HOST_STYLES: Record<string, string> = {
   "line-height": "1.5",
   "letter-spacing": "normal",
   direction: "ltr",
-};
+} satisfies Record<string, string>;
 
 function hardenHost(container: HTMLDivElement) {
   for (const [property, value] of Object.entries(HOST_STYLES)) {
@@ -57,10 +59,13 @@ function hardenHost(container: HTMLDivElement) {
 
 function supportsPopover(container: HTMLDivElement): container is PopoverHost {
   return "popover" in container
-    && typeof (container as Partial<PopoverHost>).showPopover === "function"
-    && typeof (container as Partial<PopoverHost>).hidePopover === "function";
+    && "showPopover" in container
+    && typeof container.showPopover === "function"
+    && "hidePopover" in container
+    && typeof container.hidePopover === "function";
 }
 
+const hasToggleState = (event: Event): event is ToggleStateEvent => "newState" in event;
 const isDialog = (element: Element): element is HTMLDialogElement => element.localName === "dialog";
 
 function isModalDialog(element: Element): element is HTMLDialogElement {
@@ -189,23 +194,23 @@ export function mountMesurerHost(
 
   const handleToggle = (event: Event) => {
     if (!topLayer || event.target === container) return;
-    const toggle = event as Event & { newState?: string };
+    const newState = hasToggleState(event) ? event.newState : undefined;
     const element = event.target;
     if (!(element instanceof ownerWindow.Element)) return;
 
     if (isDialog(element)) {
-      if (toggle.newState === "open" && isModalDialog(element)) {
+      if (newState === "open" && isModalDialog(element)) {
         activateModal(element);
         scheduleBringToFront();
-      } else if (toggle.newState === "closed") {
+      } else if (newState === "closed") {
         deactivateModal(element);
-      } else if (toggle.newState === "open") {
+      } else if (newState === "open") {
         scheduleBringToFront();
       }
       return;
     }
 
-    if (toggle.newState === "open" && element.hasAttribute("popover")) {
+    if (newState === "open" && element.hasAttribute("popover")) {
       scheduleBringToFront();
     }
   };

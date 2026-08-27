@@ -2,6 +2,4 @@
 export const formatValue = (value: number) => Math.round(value);
 
 export const createId = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random()}`;
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;

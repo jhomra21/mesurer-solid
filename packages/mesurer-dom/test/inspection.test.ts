@@ -8,8 +8,8 @@ describe("DOM inspection", () => {
       tagName: "BUTTON",
       id: "save",
       classList: { item: (index: number) => index === 0 ? "primary" : null },
-    } as unknown as HTMLElement;
-    const ownerWindow = {
+    };
+    const styleReader = {
       getComputedStyle: () => ({
         paddingTop: "4px",
         paddingRight: "6px",
@@ -20,9 +20,9 @@ describe("DOM inspection", () => {
         marginBottom: "5px",
         marginLeft: "7px",
       }),
-    } as unknown as Window;
+    };
 
-    const result = getInspectMeasurement(element, ownerWindow, "test-id");
+    const result = getInspectMeasurement(element, styleReader, "test-id");
 
     expect(result.id).toBe("test-id");
     expect(result.label).toBe("button#save.primary");

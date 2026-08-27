@@ -35,11 +35,6 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      - name: Set up Node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: "24"
-
       - name: Install workspace
         run: bun install --frozen-lockfile
 
@@ -82,51 +77,52 @@ jobs:
           SELF_HOST_URL: http://127.0.0.1:4174/self-hosting.html
           SELF_HOST_OUT: self-hosting-artifacts
           SELF_HOST_DPR: 3
-        run: node visual-parity/self-hosting-context.mjs
+        run: bun visual-parity/self-hosting-context.mjs
 
       - name: Measure multi-selection spacing
         env:
           MULTI_SPACING_URL: http://127.0.0.1:4174/multi-spacing.html
           MULTI_SPACING_OUT: multi-spacing-artifacts
           MULTI_SPACING_DPR: 3
-        run: node visual-parity/multi-spacing.mjs
+        run: bun visual-parity/multi-spacing.mjs
 
       - name: Add rendered contract summary
         if: always()
         shell: bash
         run: |
-          node - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
-          const fs = require("node:fs");
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
 
-          console.log("## Mesurer rendered browser contracts");
-          console.log("");
+          print("## Mesurer rendered browser contracts")
+          print("")
 
-          const selfPath = "self-hosting-artifacts/self-hosting-measurements.json";
-          if (fs.existsSync(selfPath)) {
-            const report = JSON.parse(fs.readFileSync(selfPath, "utf8"));
-            console.log("### Self-hosting / annotation");
-            console.log(`- Native capture: **${report.deviceScaleFactor}x DPR**`);
-            console.log(`- Maximum glyph optical-center offset: **${report.maxOpticalOffset.toFixed(2)} px**`);
-            console.log(`- Annotation trigger: **${report.annotation.trigger.width.toFixed(0)}×${report.annotation.trigger.height.toFixed(0)}px**`);
-            console.log(`- Annotation composer: **${report.annotation.composer.width.toFixed(0)}px** wide`);
-          } else {
-            console.log("### Self-hosting / annotation\n- Measurements were not produced.");
-          }
+          self_path = Path("self-hosting-artifacts/self-hosting-measurements.json")
+          if self_path.exists():
+              report = json.loads(self_path.read_text())
+              print("### Self-hosting / annotation")
+              print(f"- Native capture: **{report['deviceScaleFactor']}x DPR**")
+              print(f"- Maximum glyph optical-center offset: **{report['maxOpticalOffset']:.2f} px**")
+              print(f"- Annotation trigger: **{report['annotation']['trigger']['width']:.0f}×{report['annotation']['trigger']['height']:.0f}px**")
+              print(f"- Annotation composer: **{report['annotation']['composer']['width']:.0f}px** wide")
+          else:
+              print("### Self-hosting / annotation\n- Measurements were not produced.")
 
-          console.log("");
-          const spacingPath = "multi-spacing-artifacts/multi-selection-spacing.json";
-          if (fs.existsSync(spacingPath)) {
-            const report = JSON.parse(fs.readFileSync(spacingPath, "utf8"));
-            console.log("### Sparse multi-selection / spacing");
-            console.log(`- Native capture: **${report.deviceScaleFactor}x DPR**`);
-            console.log(`- Sparse A + C gap: **${report.sparseEvidence.aToC.verticalGap}px**`);
-            console.log(`- Horizontal gaps: **${report.evidence.distances.aToB.horizontalGap}px**, **${report.evidence.distances.cToD.horizontalGap}px**`);
-            console.log(`- Vertical gaps: **${report.evidence.distances.aToC.verticalGap}px**, **${report.evidence.distances.bToD.verticalGap}px**`);
-            console.log(`- Spacing overlays: **${report.evidence.spacingOverlayCount}**, dashed`);
-          } else {
-            console.log("### Sparse multi-selection / spacing\n- Measurements were not produced.");
-          }
-          NODE
+          print("")
+          spacing_path = Path("multi-spacing-artifacts/multi-selection-spacing.json")
+          if spacing_path.exists():
+              report = json.loads(spacing_path.read_text())
+              evidence = report["evidence"]
+              distances = evidence["distances"]
+              print("### Sparse multi-selection / spacing")
+              print(f"- Native capture: **{report['deviceScaleFactor']}x DPR**")
+              print(f"- Sparse A + C gap: **{report['sparseEvidence']['aToC']['verticalGap']}px**")
+              print(f"- Horizontal gaps: **{distances['aToB']['horizontalGap']}px**, **{distances['cToD']['horizontalGap']}px**")
+              print(f"- Vertical gaps: **{distances['aToC']['verticalGap']}px**, **{distances['bToD']['verticalGap']}px**")
+              print(f"- Spacing overlays: **{evidence['spacingOverlayCount']}**")
+          else:
+              print("### Sparse multi-selection / spacing\n- Measurements were not produced.")
+          PY
 
       - name: Upload self-hosting evidence
         if: always()

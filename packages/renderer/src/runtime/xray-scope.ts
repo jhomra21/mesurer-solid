@@ -47,6 +47,7 @@ export function createXrayScope(options: {
 }) {
   const { ownerDocument, target, instanceId } = options;
   const ownerWindow = ownerDocument.defaultView ?? window;
+  // SAFETY: ownerWindow is the realm that owns target and therefore its DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
   const shadowTarget = target instanceof realm.ShadowRoot;
   const documentTarget = !shadowTarget

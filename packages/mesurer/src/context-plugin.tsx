@@ -233,13 +233,13 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
 
         uiMount = solid.createInspectorMount();
         uiMount.element.dataset.mesurerLayer = "evidence";
-        const actionProps = {
+        const actionProps: Parameters<typeof ContextActions>[0] = {
           runtime,
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
-          ...(options.sendContext ? { onSend: service.sendContext } : {}),
-          ...(options.sendLabel ? { sendLabel: options.sendLabel } : {}),
         };
+        if (options.sendContext) actionProps.onSend = service.sendContext;
+        if (options.sendLabel) actionProps.sendLabel = options.sendLabel;
         disposeUi = render(() => <ContextActions {...actionProps} />, uiMount.element);
       }
 

@@ -110,13 +110,13 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const portal = options.portalTarget ?? doc.body;
   const ensureStyles = () => {
     const roots: Array<Document | ShadowRoot> = [doc];
-    if (portal.nodeType === 11) roots.push(portal as ShadowRoot);
+    if (portal instanceof win.ShadowRoot) roots.push(portal);
     for (const root of roots) {
       if (root.querySelector(`#${styleId}`)) continue;
       const style = doc.createElement("style");
       style.id = styleId;
       style.textContent = styles(modeClass, overlayId);
-      if (root.nodeType === 9) (root as Document).head.append(style);
+      if (root === doc) doc.head.append(style);
       else root.append(style);
     }
   };
@@ -223,7 +223,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       pointerId = -1; active = false; recorded = false;
     };
     const down = (event: PointerEvent) => {
-      if (event.button !== 0 || (event.target as HTMLElement | null)?.classList.contains("mesurer-ti-close")) return;
+      if (event.button !== 0 || (event.target instanceof HTMLElementCtor && event.target.classList.contains("mesurer-ti-close"))) return;
       const rect = pin.card.getBoundingClientRect();
       pointerId = event.pointerId; sx = event.clientX; sy = event.clientY;
       ox = rect.left + rect.width / 2; oy = rect.top;
@@ -291,7 +291,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       const rect = target.getBoundingClientRect();
       positionBox(hoverBox, rect); positionCard(win, hoverCard, rect);
     }
-    for (const pin of [...pins]) {
+    for (const pin of pins.slice()) {
       if (!pin.sourceEl.isConnected) { removePin(pin, false, false); continue; }
       const rect = pin.sourceEl.getBoundingClientRect();
       positionBox(pin.box, rect);
@@ -354,7 +354,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const cleanup = () => {
     disable(); overlay?.remove(); overlay = null;
     doc.getElementById(styleId)?.remove();
-    if (portal.nodeType === 11) (portal as ShadowRoot).querySelector(`#${styleId}`)?.remove();
+    if (portal instanceof win.ShadowRoot) portal.querySelector(`#${styleId}`)?.remove();
   };
 
   return {

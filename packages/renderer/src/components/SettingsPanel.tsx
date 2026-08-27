@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createSignal, onSettled } from "solid-js";
 import { colorToHex, parseCssColor, type ColorPickerFormat } from "../core/colors";
 import { trySetPointerCapture } from "../core/events";
 import type { GuideStyle, SelectionSpacingStyle } from "../core/persistence";
@@ -6,6 +6,8 @@ import type { MeasurerModel, SettingsTab } from "../model/create-measurer-model"
 import { Tooltip, createTooltip } from "./Tooltip";
 
 const COLOR_FORMATS: ColorPickerFormat[] = ["hex", "rgb", "hsl", "oklch"];
+const isColorPickerFormat = (value: string): value is ColorPickerFormat =>
+  COLOR_FORMATS.some((format) => format === value);
 const GUIDE_PATTERNS: Array<{ value: GuideStyle["pattern"]; label: string }> = [
   { value: "solid", label: "Solid" },
   { value: "dashed", label: "Dashed" },
@@ -46,16 +48,27 @@ function SliderControl(props: {
   const parseInput = (value: string) => props.parseInput?.(value) ?? Number(value);
   const [editing, setEditing] = createSignal(false);
   const [draft, setDraft] = createSignal("");
+  let sliderElement: HTMLDivElement | undefined;
   const percentage = () => ((props.value - props.min) / (props.max - props.min)) * 100;
   const setClamped = (value: number) => props.onChange(Number(Math.min(props.max, Math.max(props.min, value)).toFixed(4)));
-  const updateFromPointer = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+  const updateFromPointer = (event: PointerEvent, element: HTMLDivElement) => {
     event.stopPropagation();
-    const rect = event.currentTarget.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
     const usable = Math.max(1, rect.width - 16);
     const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left - 8) / usable));
     const raw = props.min + ratio * (props.max - props.min);
     setClamped(Math.round((raw - props.min) / props.step) * props.step + props.min);
   };
+
+  onSettled(() => {
+    const element = sliderElement;
+    if (!element) return;
+    const handlePointerMove = (event: PointerEvent) => {
+      if (element.hasPointerCapture(event.pointerId)) updateFromPointer(event, element);
+    };
+    element.addEventListener("pointermove", handlePointerMove);
+    return () => element.removeEventListener("pointermove", handlePointerMove);
+  });
 
   return (
     <div class="msr:col-span-2 msr:grid msr:w-full msr:grid-cols-[78px_156px] msr:items-center msr:gap-3">
@@ -63,11 +76,11 @@ function SliderControl(props: {
       <ControlShell
         left={
           <div
+            ref={(element) => { sliderElement = element; }}
             class="msr:relative msr:min-w-0 msr:flex-1 msr:touch-none msr:select-none msr:px-2"
             style={{ height: "20px" }}
             data-slider-container="true"
-            onPointerDown={(event) => { event.stopPropagation(); trySetPointerCapture(event.currentTarget, event.pointerId); updateFromPointer(event); }}
-            onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updateFromPointer(event); }}
+            onPointerDown={(event) => { event.stopPropagation(); trySetPointerCapture(event.currentTarget, event.pointerId); updateFromPointer(event, event.currentTarget); }}
             onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
             onPointerCancel={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
           >
@@ -119,13 +132,20 @@ function ColorField(props: { label: string; value: string; fallback: string; own
     if (parsed) return parsed;
     const canvas = props.ownerWindow.document.createElement("canvas");
     const context = canvas.getContext("2d");
-    if (context) context.fillStyle = props.value;
-    return typeof context?.fillStyle === "string" ? parseCssColor(context.fillStyle) : null;
+    if (!context) return null;
+    context.fillStyle = props.value;
+    return parseCssColor(String(context.fillStyle));
   };
-  const hex = () => sample() ? colorToHex({ ...sample()!, alpha: 1 }).slice(1).toUpperCase() : props.fallback.slice(1).toUpperCase();
-  const alpha = () => sample() ? Math.round(sample()!.alpha * 100) : 100;
+  const hex = () => {
+    const color = sample();
+    return color ? colorToHex({ ...color, alpha: 1 }).slice(1).toUpperCase() : props.fallback.slice(1).toUpperCase();
+  };
+  const alpha = () => {
+    const color = sample();
+    return color ? Math.round(color.alpha * 100) : 100;
+  };
   const inputValue = () => `#${hex().slice(0, 6)}`;
-  const supportsColor = () => (props.ownerWindow as Window & { CSS?: { supports: (property: string, value: string) => boolean } }).CSS?.supports("color", props.value) === true;
+  const supportsColor = () => props.ownerWindow.document.defaultView?.CSS?.supports("color", props.value) === true;
   const swatch = () => supportsColor() ? props.value : props.fallback;
   const [hexDraft, setHexDraft] = createSignal("");
   const [alphaDraft, setAlphaDraft] = createSignal("");
@@ -312,7 +332,10 @@ export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window
           </div>
           <label class="msr:col-span-2 msr:flex msr:items-center msr:justify-between msr:gap-3 msr:text-[12px] msr:text-ink-700">
             Copy
-            <select value={settings().colorPickerClickFormat} class="msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-1.5 msr:py-1 msr:text-[11px] msr:outline-none msr:focus:shadow-[inset_0_0_0_1px_#0d99ff]" onChange={(event) => props.model.updateSettings({ colorPickerClickFormat: event.currentTarget.value as ColorPickerFormat })}>
+            <select value={settings().colorPickerClickFormat} class="msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-1.5 msr:py-1 msr:text-[11px] msr:outline-none msr:focus:shadow-[inset_0_0_0_1px_#0d99ff]" onChange={(event) => {
+              const value = event.currentTarget.value;
+              if (isColorPickerFormat(value)) props.model.updateSettings({ colorPickerClickFormat: value });
+            }}>
               <For each={COLOR_FORMATS}>{(format) => <option value={format}>{format}</option>}</For>
             </select>
           </label>

@@ -174,6 +174,7 @@ const cases = [
 const metadata = Object.fromEntries(cases.map((item) => [item.name, { allowVersionDiff: Boolean(item.allowVersionDiff) }]));
 await fs.writeFile(path.join(outputDir, "cases.json"), JSON.stringify(metadata, null, 2));
 
+const runtimeDiagnostics = [];
 const browser = await chromium.launch({ headless: true });
 try {
   for (const [implementation, url] of [["react", reactUrl], ["solid", solidUrl]]) {
@@ -185,6 +186,20 @@ try {
         locale: "en-US",
       });
       const page = await context.newPage();
+      if (implementation === "solid") {
+        page.on("console", (message) => {
+          const text = message.text();
+          if (
+            message.type() === "error"
+            || (message.type() === "warning" && text.includes("STRICT_READ_UNTRACKED"))
+          ) {
+            runtimeDiagnostics.push({ implementation, case: item.name, source: `console.${message.type()}`, text });
+          }
+        });
+        page.on("pageerror", (error) => {
+          runtimeDiagnostics.push({ implementation, case: item.name, source: "pageerror", text: error.message });
+        });
+      }
       await page.addInitScript(() => {
         Object.defineProperty(window, "EyeDropper", {
           configurable: true,
@@ -210,4 +225,16 @@ try {
   }
 } finally {
   await browser.close();
+}
+
+await fs.writeFile(
+  path.join(outputDir, "runtime-diagnostics.json"),
+  JSON.stringify(runtimeDiagnostics, null, 2),
+);
+
+if (runtimeDiagnostics.length > 0) {
+  const summary = runtimeDiagnostics
+    .map((diagnostic) => `${diagnostic.case} [${diagnostic.source}]: ${diagnostic.text}`)
+    .join("\n");
+  throw new Error(`Solid parity emitted runtime diagnostics:\n${summary}`);
 }

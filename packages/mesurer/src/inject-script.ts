@@ -1,29 +1,16 @@
 import {
   contextPlugin,
   mountMeasurer,
-  type MesurerContextPluginOptions,
-  type MountMeasurerOptions,
   type MountedMeasurer,
 } from "./index";
+import type { MesurerInjectConfig } from "./inject";
 
-type MesurerInjectScriptConfig = Omit<MountMeasurerOptions, "target" | "agent" | "plugins"> & {
-  /** Optional application container selector. Defaults to document.body. */
-  target?: string;
-  /** Global agent API name. Defaults to __MESURER__. */
-  globalName?: string;
-  /** Additional plugins loaded after the default injected context plugin. */
-  plugins?: MountMeasurerOptions["plugins"];
-  /** Enable/configure the removable context plugin. Defaults to true for injection. */
-  context?: boolean | MesurerContextPluginOptions;
-};
+declare global {
+  var __MESURER_CONFIG__: MesurerInjectConfig | undefined;
+  var __MESURER_INSTANCE__: MountedMeasurer | undefined;
+}
 
-type InjectionGlobal = typeof globalThis & {
-  __MESURER_CONFIG__?: MesurerInjectScriptConfig;
-  __MESURER_INSTANCE__?: MountedMeasurer;
-};
-
-const globalObject = globalThis as InjectionGlobal;
-const config = globalObject.__MESURER_CONFIG__ ?? {};
+const config = globalThis.__MESURER_CONFIG__ ?? {};
 const {
   target: targetSelector,
   globalName = "__MESURER__",
@@ -39,7 +26,7 @@ const injectedPlugins = context === false
   : [contextPlugin(context === true ? {} : context), ...plugins];
 
 // Reinjection is intentionally deterministic for browser-tool/HMR loops.
-globalObject.__MESURER_INSTANCE__?.dispose();
+globalThis.__MESURER_INSTANCE__?.dispose();
 
 const mesurer = mountMeasurer({
   ...options,
@@ -48,7 +35,7 @@ const mesurer = mountMeasurer({
   agent: { globalName, root: document },
 });
 
-globalObject.__MESURER_INSTANCE__ = mesurer;
+globalThis.__MESURER_INSTANCE__ = mesurer;
 
 // The agent global is installed synchronously by mountMeasurer(). Consumers can
 // immediately call window[globalName].ready() through their existing browser

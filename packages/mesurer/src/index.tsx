@@ -84,10 +84,10 @@ export type MesurerPersistence = {
   clearWorkspace(): void;
   clearSettings(): void;
   subscribe?: (listener: (snapshot: MesurerPersistenceSnapshot | null, source?: { settings?: boolean; workspace?: boolean }) => void) => () => void;
-  setErrorHandler?: (handler: ((error: unknown) => void) | undefined) => void;
+  setErrorHandler?: (handler: ((cause: unknown) => void) | undefined) => void;
 };
 
-export type AgentBridgeOptions = { globalName?: string; root?: ParentNode };
+export type AgentBridgeOptions = { globalName?: string; root?: Document | HTMLElement | ShadowRoot };
 export type MesurerOptions = {
   highlightColor?: string;
   guideColor?: string;
@@ -95,7 +95,7 @@ export type MesurerOptions = {
   persistOnReload?: boolean;
   persistKey?: string;
   persistence?: MesurerPersistence;
-  onPersistenceError?: (error: unknown) => void;
+  onPersistenceError?: (cause: unknown) => void;
   colorPickerFormats?: ColorPickerFormat[];
   colorPickerClickFormat?: ColorPickerFormat;
   snapEnabled?: boolean;
@@ -110,7 +110,7 @@ export type MesurerOptions = {
   pluginHost?: MesurerPluginHost;
   onPluginHost?: (host: MesurerPluginHost) => void;
   onPluginsReady?: (host: MesurerPluginHost) => void;
-  onPluginError?: (error: unknown, pluginId: string) => void;
+  onPluginError?: (cause: unknown, pluginId: string) => void;
 };
 export type MountMeasurerOptions = MesurerOptions & {
   target?: HTMLElement | ShadowRoot;
@@ -166,7 +166,7 @@ export type MountedMeasurer = {
 };
 
 export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasurer {
-  if (typeof document === "undefined") {
+  if (!("document" in globalThis)) {
     throw new Error("mountMeasurer() requires a browser or Electron renderer document.");
   }
 
@@ -259,7 +259,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
       },
     };
   };
-  const agent = Object.assign(baseAgent, {
+  const agent: MesurerBrowserAgent = Object.assign(baseAgent, {
     capabilities,
     context,
     contextText,
@@ -269,9 +269,9 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     prepareCapture,
     finishCapture,
     sendContext,
-  }) as MesurerBrowserAgent;
+  });
 
-  const rendererProps = measurerProps as RendererMeasurerProps;
+  const rendererProps: RendererMeasurerProps = measurerProps;
   const disposeRender = render(
     () => (
       <RendererMeasurer
@@ -279,19 +279,17 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
         portalTarget={portalTarget}
         pageTarget={target}
         onPluginHost={(host) => {
-          const publicHost = host as unknown as MesurerPluginHost;
-          if (!pluginHost) resolvePluginHost(publicHost);
-          pluginHost = publicHost;
-          onPluginHost?.(publicHost);
+          if (!pluginHost) resolvePluginHost(host);
+          pluginHost = host;
+          onPluginHost?.(host);
         }}
         onPluginsReady={(host) => {
-          const publicHost = host as unknown as MesurerPluginHost;
-          pluginHost = publicHost;
+          pluginHost = host;
           if (!pluginsReadyResolved) {
             pluginsReadyResolved = true;
-            resolvePluginsReady(publicHost);
+            resolvePluginsReady(host);
           }
-          onPluginsReady?.(publicHost);
+          onPluginsReady?.(host);
         }}
       />
     ),
@@ -302,14 +300,13 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
   let restoreAgentGlobal: (() => void) | null = null;
   if (agentConfig) {
     const globalName = agentConfig.globalName ?? "__MESURER__";
-    const globalRecord = ownerWindow as unknown as Record<string, unknown>;
-    const hadPrevious = Object.prototype.hasOwnProperty.call(globalRecord, globalName);
-    const previous = globalRecord[globalName];
-    globalRecord[globalName] = agent;
+    const previousDescriptor = Object.getOwnPropertyDescriptor(ownerWindow, globalName);
+    Reflect.set(ownerWindow, globalName, agent);
     restoreAgentGlobal = () => {
-      if (globalRecord[globalName] !== agent) return;
-      if (hadPrevious) globalRecord[globalName] = previous;
-      else delete globalRecord[globalName];
+      const currentDescriptor = Object.getOwnPropertyDescriptor(ownerWindow, globalName);
+      if (currentDescriptor?.value !== agent) return;
+      if (previousDescriptor) Object.defineProperty(ownerWindow, globalName, previousDescriptor);
+      else Reflect.deleteProperty(ownerWindow, globalName);
     };
   }
 
@@ -415,16 +412,16 @@ export type {
 } from "./core";
 export type { MesurerHostLayerMode } from "./host-layer";
 
-export const selectPlugin = rendererSelectPlugin as unknown as () => MesurerPlugin;
-export const xrayPlugin = rendererXrayPlugin as unknown as () => MesurerPlugin;
-export const colorPickerPlugin = rendererColorPickerPlugin as unknown as () => MesurerPlugin;
-export const rulersPlugin = rendererRulersPlugin as unknown as () => MesurerPlugin;
-export const textInspectorPlugin = rendererTextInspectorPlugin as unknown as () => MesurerPlugin;
-export const guidesPlugin = rendererGuidesPlugin as unknown as () => MesurerPlugin;
-export const distancePlugin = rendererDistancePlugin as unknown as () => MesurerPlugin;
-export const settingsPlugin = rendererSettingsPlugin as unknown as () => MesurerPlugin;
-export const defaultMesurerPlugins = rendererDefaultMesurerPlugins as unknown as () => MesurerPlugin[];
-export const composeMesurerPlugins = rendererComposeMesurerPlugins as unknown as (
+export const selectPlugin: () => MesurerPlugin = rendererSelectPlugin;
+export const xrayPlugin: () => MesurerPlugin = rendererXrayPlugin;
+export const colorPickerPlugin: () => MesurerPlugin = rendererColorPickerPlugin;
+export const rulersPlugin: () => MesurerPlugin = rendererRulersPlugin;
+export const textInspectorPlugin: () => MesurerPlugin = rendererTextInspectorPlugin;
+export const guidesPlugin: () => MesurerPlugin = rendererGuidesPlugin;
+export const distancePlugin: () => MesurerPlugin = rendererDistancePlugin;
+export const settingsPlugin: () => MesurerPlugin = rendererSettingsPlugin;
+export const defaultMesurerPlugins: () => MesurerPlugin[] = rendererDefaultMesurerPlugins;
+export const composeMesurerPlugins: (
   plugins?: MesurerPlugin[],
   exclude?: MesurerBuiltinPluginId[],
-) => MesurerPlugin[];
+) => MesurerPlugin[] = rendererComposeMesurerPlugins;

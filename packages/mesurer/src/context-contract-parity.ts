@@ -34,5 +34,3 @@ type _FingerprintParity = Assert<Equal<MesurerElementFingerprint, CoreMesurerEle
 type _TargetParity = Assert<Equal<MesurerAnnotationTarget, CoreMesurerAnnotationTarget>>;
 type _BaselineParity = Assert<Equal<MesurerAnnotationBaseline, CoreMesurerAnnotationBaseline>>;
 type _AnnotationParity = Assert<Equal<MesurerAnnotation, CoreMesurerAnnotation>>;
-
-export {};

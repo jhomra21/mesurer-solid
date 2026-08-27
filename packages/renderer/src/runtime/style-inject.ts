@@ -1,15 +1,18 @@
 const STYLE_ID = "mesurer-solid-styles";
 
+const isShadowRoot = (value: HTMLElement | ShadowRoot | undefined): value is ShadowRoot =>
+  value?.nodeType === 11;
+
+const isDocument = (value: Document | ShadowRoot): value is Document => value.nodeType === 9;
+
 export function ensureMeasurerStyles(css: string, target?: HTMLElement | ShadowRoot) {
-  if (typeof document === "undefined") return;
-  const ownerDocument = target?.ownerDocument ?? document;
-  const root: Document | ShadowRoot = target?.nodeType === 11
-    ? target as ShadowRoot
-    : ownerDocument;
+  const ownerDocument = target?.ownerDocument ?? globalThis.document;
+  if (!ownerDocument) return;
+  const root: Document | ShadowRoot = isShadowRoot(target) ? target : ownerDocument;
   if (root.querySelector(`#${STYLE_ID}`)) return;
   const style = ownerDocument.createElement("style");
   style.id = STYLE_ID;
   style.textContent = css;
-  if (root.nodeType === 9) (root as Document).head.append(style);
+  if (isDocument(root)) root.head.append(style);
   else root.append(style);
 }

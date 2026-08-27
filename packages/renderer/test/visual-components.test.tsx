@@ -13,6 +13,7 @@ afterEach(() => {
 
 describe("upstream Mesurer visual contracts", () => {
   it("applies compiler-hoisted static props when creating universal DOM elements", () => {
+    // SAFETY: the universal DOM adapter delegates HTML tag creation to document.createElement.
     const element = createElement("div", {
       class: "adapter-class",
       "data-adapter": true,

@@ -16,11 +16,10 @@ const setRect = (element: Element, rect: { left: number; top: number; width: num
 
 afterEach(() => {
   document.body.replaceChildren();
-  if (originalDocumentElementFromPoint) {
-    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: originalDocumentElementFromPoint });
-  } else {
-    delete (document as Document & { elementFromPoint?: (x: number, y: number) => Element | null }).elementFromPoint;
-  }
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: originalDocumentElementFromPoint,
+  });
 });
 
 describe("root-aware point selection", () => {

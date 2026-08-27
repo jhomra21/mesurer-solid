@@ -41,8 +41,8 @@ function compareIdentifier(a, b) {
 }
 
 export function compareVersions(aValue, bValue) {
-  const a = typeof aValue === "string" ? parseVersion(aValue) : aValue;
-  const b = typeof bValue === "string" ? parseVersion(bValue) : bValue;
+  const a = parseVersion(aValue);
+  const b = parseVersion(bValue);
   for (const key of ["major", "minor", "patch"]) {
     if (a[key] !== b[key]) return Math.sign(a[key] - b[key]);
   }

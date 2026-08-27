@@ -18,7 +18,8 @@ export function createObservableStore<T>(
 
   const publish = () => {
     const next = snapshot(current);
-    for (const listener of [...listeners]) listener(next);
+    const queue = Array.from(listeners);
+    for (const listener of queue) listener(next);
   };
 
   return {

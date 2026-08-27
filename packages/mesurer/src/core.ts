@@ -2,7 +2,9 @@ import { createMesurerPluginHost as createInternalPluginHost } from "@jhomra21/m
 
 export type Registration = { readonly dispose: () => void };
 export type PluginId = string;
-export type PluginStateSnapshot = Record<string, unknown>;
+type PluginScalar = string | number | boolean | null;
+type PluginValue = PluginScalar | PluginValue[] | { [key: string]: PluginValue };
+export type PluginStateSnapshot = { [id: string]: PluginValue };
 export type PluginStateScope = "all" | "history" | "persist";
 
 export type ToolContribution = {
@@ -19,10 +21,10 @@ export type ToolContribution = {
 
 export type SettingsContribution = { id: string; label: string; order?: number; builtin?: string };
 export type OverlayContribution = { id: string; order?: number; builtin?: string };
-export type CommandHandler = (args: unknown, context: { source?: unknown }) => void | Promise<void>;
-export type HookHandler = (event: unknown) => void | Promise<void>;
+export type CommandHandler = (args: PluginValue | undefined, context: { source?: PluginValue }) => void | Promise<void>;
+export type HookHandler = (event: PluginValue) => void | Promise<void>;
 
-export type StateSliceDefinition<T = unknown> = {
+export type StateSliceDefinition<T extends PluginValue = PluginValue> = {
   id: string;
   initial: T;
   history?: boolean;
@@ -31,20 +33,20 @@ export type StateSliceDefinition<T = unknown> = {
 
 export type MesurerPluginContext = {
   state: {
-    register<T>(definition: StateSliceDefinition<T>): Registration;
-    get<T>(id: string): T | undefined;
-    update<T>(id: string, update: (value: T) => T): void;
+    register<T extends PluginValue>(definition: StateSliceDefinition<T>): Registration;
+    get<T extends PluginValue>(id: string): T | undefined;
+    update<T extends PluginValue>(id: string, update: (value: T) => T): void;
   };
   tool: { register(contribution: ToolContribution): Registration };
   settings: { register(contribution: SettingsContribution): Registration };
   overlay: { register(contribution: OverlayContribution): Registration };
   command: {
     register(id: string, handler: CommandHandler): Registration;
-    execute(id: string, args?: unknown, source?: unknown): Promise<void>;
+    execute(id: string, args?: PluginValue, source?: PluginValue): Promise<void>;
   };
   hook: {
     on(name: string, handler: HookHandler): Registration;
-    emit(name: string, event: unknown): Promise<void>;
+    emit(name: string, event: PluginValue): Promise<void>;
   };
   service: {
     provide<T>(id: string, value: T): Registration;
@@ -90,14 +92,14 @@ export type MesurerPluginHost = {
   settings(): SettingsContribution[];
   overlays(): OverlayContribution[];
   state: {
-    get<T>(id: string): T | undefined;
-    update<T>(id: string, update: (value: T) => T): void;
+    get<T extends PluginValue>(id: string): T | undefined;
+    update<T extends PluginValue>(id: string, update: (value: T) => T): void;
     serialize(scope?: PluginStateScope): PluginStateSnapshot;
     restore(snapshot: PluginStateSnapshot, scope?: PluginStateScope): void;
   };
   service: { get<T>(id: string): T | undefined };
-  command: { execute(id: string, args?: unknown, source?: unknown): Promise<void> };
-  hook: { emit(name: string, event: unknown): Promise<void> };
+  command: { execute(id: string, args?: PluginValue, source?: PluginValue): Promise<void> };
+  hook: { emit(name: string, event: PluginValue): Promise<void> };
   undo(): boolean;
   redo(): boolean;
   canUndo(): boolean;
@@ -109,9 +111,13 @@ export type MesurerPluginHost = {
 
 export const defineMesurerPlugin = <T extends MesurerPlugin>(plugin: T): T => plugin;
 
-export const createMesurerPluginHost = createInternalPluginHost as unknown as () => MesurerPluginHost;
+export function createMesurerPluginHost(): MesurerPluginHost {
+  return createInternalPluginHost();
+}
 
-export async function createMesurerRuntime(options: { plugins?: MesurerPlugin[] } = {}): Promise<MesurerPluginHost> {
+export async function createMesurerRuntime(
+  options: { plugins?: MesurerPlugin[] } = {},
+): Promise<MesurerPluginHost> {
   const host = createMesurerPluginHost();
   for (const plugin of options.plugins ?? []) await host.load(plugin);
   return host;

@@ -28,6 +28,7 @@ const settingsTab = (model: MeasurerModel) =>
 const openColorPicker = async (model: MeasurerModel, ownerWindow: Window) => {
   model.setEnabled(true, !model.current.enabled);
   model.setToolMode("none", model.current.toolMode !== "none");
+  // SAFETY: EyeDropper is an optional browser Window extension and is existence-checked before construction.
   const EyeDropper = (ownerWindow as WindowWithEyeDropper).EyeDropper;
   model.setTransient({ colorPickerActive: true, colorPickerSample: null, colorPickerUnsupported: !EyeDropper });
   if (!EyeDropper) return;
@@ -39,9 +40,10 @@ const openColorPicker = async (model: MeasurerModel, ownerWindow: Window) => {
     void ownerWindow.navigator.clipboard?.writeText(
       formatColor(sample, model.current.settings.colorPickerClickFormat),
     ).catch(() => undefined);
-  } catch (error) {
+  } catch (cause) {
+    // SAFETY: ownerWindow is the realm that owns EyeDropper and therefore its DOMException constructor.
     const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;
-    if (error instanceof DOMExceptionCtor && error.name === "AbortError") {
+    if (cause instanceof DOMExceptionCtor && cause.name === "AbortError") {
       model.setTransient({ colorPickerActive: false });
     }
   }

@@ -3,6 +3,7 @@ import {
   createMesurerPluginHost,
   type MesurerPlugin,
   type MesurerPluginHost,
+  type PluginStateSnapshot,
   type ToolContribution,
 } from "@jhomra21/mesurer-solid-core";
 import LegacyMeasurer, { type MeasurerProps as LegacyMeasurerProps } from "./Measurer";
@@ -41,7 +42,7 @@ export type MeasurerProps = Omit<
   onPluginHost?: (host: MesurerPluginHost) => void;
   /** Called after built-ins, renderer bridge, external plugins and persisted plugin state settle. */
   onPluginsReady?: (host: MesurerPluginHost) => void;
-  onPluginError?: (error: unknown, pluginId: string) => void;
+  onPluginError?: (cause: unknown, pluginId: string) => void;
 };
 
 const BUILTIN_TOOL_IDS = [
@@ -54,7 +55,21 @@ const BUILTIN_TOOL_IDS = [
   "settings",
 ] as const satisfies readonly Exclude<MesurerBuiltinPluginId, "distance">[];
 
+const isBuiltinPluginId = (value: string): value is MesurerBuiltinPluginId =>
+  value === "select"
+  || value === "xray"
+  || value === "color-picker"
+  || value === "rulers"
+  || value === "text-inspector"
+  || value === "guides"
+  || value === "distance"
+  || value === "settings";
+
 const builtinCommand = (id: MesurerBuiltinPluginId) => `builtin.${id}`;
+
+type ToolInvocationSource =
+  | string
+  | { source: string; builtin: MesurerBuiltinPluginId };
 
 const matchesShortcut = (event: KeyboardEvent, shortcut: string) => {
   const parts = shortcut
@@ -108,8 +123,8 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   const customTools = createMemo(() => {
     revision();
     return host.tools().filter((tool) => {
-      if (!tool.builtin) return true;
-      return tool.command !== builtinCommand(tool.builtin as MesurerBuiltinPluginId);
+      if (!tool.builtin || !isBuiltinPluginId(tool.builtin)) return true;
+      return tool.command !== builtinCommand(tool.builtin);
     });
   });
 
@@ -131,7 +146,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     return rules.join("\n");
   };
 
-  const executeTool = async (tool: ToolContribution, source: unknown = "toolbar") => {
+  const executeTool = async (tool: ToolContribution, source: ToolInvocationSource = "toolbar") => {
     if (tool.disabled?.()) return;
     try {
       await host.command.execute(tool.command, undefined, { source, toolId: tool.id });
@@ -141,7 +156,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     }
   };
 
-  const runTool = (tool: ToolContribution, source: unknown = "toolbar") => {
+  const runTool = (tool: ToolContribution, source: ToolInvocationSource = "toolbar") => {
     void executeTool(tool, source).catch(() => undefined);
   };
 
@@ -215,7 +230,8 @@ export default function ComposableMeasurer(props: MeasurerProps) {
         persistPluginState();
       }
       if (event.reason === "remove" && event.pluginId?.startsWith("mesurer.")) {
-        requireBuiltinController().deactivate(event.pluginId.slice("mesurer.".length) as MesurerBuiltinPluginId);
+        const id = event.pluginId.slice("mesurer.".length);
+        if (isBuiltinPluginId(id)) requireBuiltinController().deactivate(id);
       }
     });
 
@@ -269,7 +285,10 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       if (pluginStorageKey) {
         try {
           const stored = ownerWindow.localStorage.getItem(pluginStorageKey);
-          if (stored) runtimeHost.state.restore(JSON.parse(stored) as Record<string, unknown>, "persist");
+          if (stored) {
+            const snapshot: PluginStateSnapshot = JSON.parse(stored);
+            runtimeHost.state.restore(snapshot, "persist");
+          }
         } catch (error) {
           input.onPluginError?.(error, "plugin-persistence");
         }

@@ -39,13 +39,17 @@ function parameterName(parameter: Parameter, sourceText: string): string {
     : sourceText.replace(/\s*:\s*unknown\s*$/u, "");
 }
 
-/** Disallow unknown inputs except explicitly named error-cause enrichment. */
+function isBoundaryPredicate(node: ParameterOwner): boolean {
+  return node.returnType?.typeAnnotation.type === "TSTypePredicate";
+}
+
+/** Disallow unknown inputs except explicit error causes and real boundary predicates. */
 export const noUnknownParametersRule = defineRule({
   meta: {
     type: "problem",
     docs: {
       description:
-        "Disallow explicitly unknown function parameters except `cause`; decode unknown input at its I/O boundary instead.",
+        "Disallow explicitly unknown function parameters except `cause` and explicit type predicates/assertions that decode an I/O boundary.",
     },
     messages: {
       unknownParameter:
@@ -54,6 +58,7 @@ export const noUnknownParametersRule = defineRule({
   },
   createOnce(context) {
     const checkParameters = (node: ParameterOwner) => {
+      if (isBoundaryPredicate(node)) return;
       for (const parameter of node.params) {
         const annotation = parameterAnnotation(parameter);
         if (annotation?.typeAnnotation.type !== "TSUnknownKeyword") continue;

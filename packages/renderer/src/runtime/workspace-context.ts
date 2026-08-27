@@ -5,7 +5,6 @@ import type {
   MesurerAnnotation,
   MesurerAnnotationBaseline,
   MesurerAnnotationTarget,
-  MesurerContextRequest,
   Rect,
 } from "@jhomra21/mesurer-solid-core";
 import {
@@ -130,6 +129,7 @@ export function createMesurerWorkspaceRuntime(options: {
   pageTarget?: HTMLElement | ShadowRoot;
 }): MesurerWorkspaceRuntime {
   const { model, ownerDocument, ownerWindow, uiRoot } = options;
+  // SAFETY: ownerWindow is the browsing-context global for ownerDocument, so it carries that realm's DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
   const pageTarget = options.pageTarget ?? ownerDocument.body ?? ownerDocument.documentElement;
   const targetTreeRoot = pageTarget instanceof realm.ShadowRoot
