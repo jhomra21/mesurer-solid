@@ -8,11 +8,11 @@ The operating principle is:
 
 A stylesheet can say `display: flex`, `gap: 16px`, or `align-items: center` while the actual page still looks wrong because of intrinsic sizing, inherited styles, transforms, fonts, wrapping, scrollbars, responsive rules, unexpected parents, or neighboring components.
 
-Mesurer adds a second principle for human/agent work:
+Mesurer adds a second principle:
 
 > **The human and the agent share the same visual state in the page.**
 
-The human can select elements, drag a region, place guides, create measurements/held distances, enable rulers/X-ray, or save a note. The agent reads that exact state from `window.__MESURER__` through its existing browser harness. No MCP/WebMCP/ACP/chat-delivery layer is required.
+The human can select one or many elements, drag a region, place guides, create measurements/held distances, enable rulers/X-ray, or save a note. The agent reads that exact state from `window.__MESURER__` through its existing browser harness. There is no Send-to-agent/MCP/WebMCP/ACP delivery layer.
 
 ## Default workflow for agent-driven UI work
 
@@ -24,6 +24,8 @@ human selects / measures / guides / annotates
 agent discovers existing window.__MESURER__
         ↓
 agent reads workspace + selection + annotations
+        ↓
+agent reads all selected targets + relevant pair distances
         ↓
 agent edits the implementation
         ↓
@@ -37,8 +39,6 @@ outer harness takes a real screenshot
         ↓
 agent compares exact measurements + pixels to human intent
         ↓
-agent fixes remaining discrepancies
-        ↓
 repeat until rendered evidence supports the claim
 ```
 
@@ -47,8 +47,6 @@ If Mesurer is absent, inject the bundled `inject-script` through the browser eva
 ## Read before touching source
 
 A human does not need to save an annotation to communicate useful visual state.
-
-Start with:
 
 ```js
 await window.__MESURER__.ready()
@@ -69,12 +67,13 @@ for (const annotation of annotations) {
 }
 ```
 
-The agent should retain these initial values in the current task before HMR can replace selected DOM nodes.
+Retain these initial values in the current task before HMR can replace selected DOM nodes.
 
 ### What the human may already be communicating
 
 ```text
 selection                 → “this is what I mean”
+multi-selection           → “compare these things and their relationships”
 selected region           → “this whitespace/area is the problem”
 guide                      → alignment reference
 measurement               → exact box/region geometry evidence
@@ -86,56 +85,71 @@ annotation note            → durable explicit intent + baseline
 
 Rulers/X-ray are context, not automatic design requirements. Annotation notes are intent. Numeric Mesurer data is rendered evidence.
 
+## Multi-selection standard
+
+When a person selects multiple elements, inspect **every selected target** rather than returning only a count or the first target.
+
+For each target, use the full computed inspection: selector/identity, rect, box model, typography, appearance, flex/grid/layout, scroll dimensions, and overflow.
+
+Then inspect relationships among targets. Prefer existing `selection.visualContext.distances`; for a selected pair without relevant distance evidence:
+
+```js
+window.__MESURER__.distance(selectorA, selectorB)
+```
+
+For small selections, surface all useful unique pair relationships. Example:
+
+```text
+Card 01: 972 × 390
+Card 02 paragraph: 415 × 53
+Card 03 heading: 415 × 68
+
+Card 01 → Card 02 paragraph: vertical gap 184.9px
+Card 01 → Card 03 heading: vertical gap 156.4px
+Card 02 paragraph → Card 03 heading: horizontal gap 80px
+```
+
+Also read viewport/DPR/document overflow, guides, held distances, rulers/X-ray, and relevant plugin state. For large selections, focus on adjacent/repeated/user-relevant pairs instead of generating unhelpful O(n²) output.
+
 ## What an agent should validate
 
-Do not stop at “the CSS looks correct.” Use the rendered result to check claims such as:
+Do not stop at “the CSS looks correct.” Use the rendered result.
 
 ### Alignment
 
 - Do intended left/right/top/bottom edges actually line up?
 - Are controls vertically centered relative to labels/icons?
-- Do cards, headers, sidebars, and content columns share intended anchors?
-- Are repeated components using the same dimensions?
-- Does a human-placed guide actually cross the edges that should align?
+- Do repeated components share intended dimensions/anchors?
+- Does a human-placed guide cross the edges that should align?
+- In a multi-selection, which pair or repeated set is actually misaligned?
 
-Use target rects, guides, `inspect()` / `inspectAll()`, and compare exact coordinates.
+Use target rects, guides, `inspect()` / `inspectAll()`, center deltas, and exact coordinates.
 
 ### Spacing
 
-- Is the visible gap actually 8/12/16/24 px as intended?
-- Are padding and margin values producing the expected visual rhythm?
-- Are repeated gaps consistent rather than merely declared consistently?
-- Does a held distance created by the human show the same value after the fix?
+- Is the visible gap actually 8/12/16/24px as intended?
+- Are padding/margin producing the expected rhythm?
+- Are repeated gaps consistent?
+- Does a human-held distance show the same value after the fix?
+- For multi-selection, did all relevant pair gaps move to the intended values?
 
 Use scoped `visualContext.distances`, box-model fields, and `distance(a, b)`.
 
 ### Typography
 
-- Did the expected font actually load?
-- Are size, weight, line-height, letter spacing, alignment, and color correct in computed styles?
-- Did wrapping change component height/alignment?
-
-Use the `typography` section of target inspections, then confirm composition in the screenshot.
+Use the `typography` section to verify loaded font, size, weight, line height, letter spacing, alignment, and color, then confirm composition in the screenshot.
 
 ### Layout and responsiveness
 
-- Is a component using the expected flex/grid behavior at the current viewport?
-- Are grid tracks/flex directions what the design expects?
-- Is content clipping or overflowing?
-- Did a responsive breakpoint produce unintended document width?
-
-Use `layout`, `scroll`, and `viewport()`.
+Use `layout`, `scroll`, and `viewport()` to verify flex/grid behavior, clipping/overflow, breakpoints, and document dimensions.
 
 ### Visual appearance
 
-- Is the actual background/border/radius/shadow/opacity what the agent thinks rendered?
-- Does the composition still look balanced once real content is present?
-
-Use `appearance` for computed values and a real screenshot for pixel/compositional judgment.
+Use `appearance` for computed background/border/radius/shadow/opacity and a real screenshot for composition/visual judgment.
 
 ## Human annotation workflow
 
-When the human saves an annotation, Mesurer records a durable note and immutable baseline for the relevant targets/region/evidence.
+A saved annotation records a durable note and immutable baseline.
 
 Before editing:
 
@@ -150,27 +164,27 @@ await window.__MESURER__.stable()
 const review = await window.__MESURER__.review(annotationId)
 ```
 
-`review()` can give exact evidence such as:
+`review()` can produce exact evidence such as:
 
 ```text
 gap: 37px → 24px
 left-edge mismatch: 4px → 0px
 width: 318px → 320px
-baseline guide/measurement/target disappeared → kind="missing"
+baseline evidence disappeared → kind="missing"
 ```
 
-This turns a human's visual note into deterministic rendered acceptance evidence without transporting a message anywhere outside the page.
+This turns a human visual note into deterministic rendered acceptance evidence without transporting a message outside the page.
 
 ## Unsaved selection/measurement workflow
 
-If the human only selected and measured things, keep the initial context object in the current agent task and compare after the edit:
+If the human only selected/measured things, keep the initial context object in the current agent task and compare after the edit:
 
 ```js
 await window.__MESURER__.stable()
 const current = await window.__MESURER__.context()
 ```
 
-For focused comparison, use selectors from the initial target inspections:
+For focused comparison:
 
 ```js
 window.__MESURER__.inspect(selector)
@@ -178,47 +192,17 @@ window.__MESURER__.distance(selectorA, selectorB)
 window.__MESURER__.viewport()
 ```
 
-Example:
-
-```text
-before: cards 37px apart, left-edge delta 4px
-after:  cards 24px apart, left-edge delta 0px
-```
-
-This is enough to validate many UI fixes without forcing the human to create a formal note.
+For multi-selection, remeasure the same target dimensions and pair relationships captured before editing.
 
 ## Use measurements and screenshots together
 
 Neither signal replaces the other.
 
-**Mesurer answers:**
+**Mesurer answers:** what was selected, exact position/size/gaps, computed box model/font/layout/overflow, pair relationships, and how geometry changed.
 
-```text
-What did the human select?
-Where is it?
-How large is it?
-What is the exact gap?
-What box model did the browser compute?
-What font/layout/overflow values are active?
-Are repeated elements numerically aligned?
-How did the rendered geometry change after the edit?
-```
-
-**Screenshots answer:**
-
-```text
-Does the composition look balanced?
-Is visual hierarchy clear?
-Does the design feel crowded or empty?
-Are colors and shapes working together?
-Does clipping/overlap look visually wrong?
-```
-
-A strong design agent uses both rather than guessing measurements from pixels or judging composition from CSS alone.
+**Screenshots answer:** composition, hierarchy, crowding/emptiness, color/shape relationships, clipping/overlap, and other visual judgment.
 
 ## Clean screenshot evidence
-
-Mesurer controls can be hidden without hiding visual evidence:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
@@ -230,9 +214,7 @@ try {
 }
 ```
 
-Use `{ scope: "selection" }` for unsaved selection evidence.
-
-The outer harness owns the screenshot. Mesurer only defines capture scope and presentation state.
+Use `{ scope: "selection" }` for unsaved selection evidence. Mesurer defines capture scope/presentation; the outer harness owns pixels.
 
 ## Minimal agent iteration
 
@@ -250,7 +232,7 @@ const feedback = await window.__MESURER__.feedback([
 ])
 ```
 
-Then take a screenshot through the existing browser harness.
+Then take a real screenshot.
 
 A completion should be evidence-based, for example:
 
@@ -264,31 +246,15 @@ A completion should be evidence-based, for example:
 - screenshot: no clipping; hierarchy matches requested composition
 ```
 
-That is stronger than “I set the CSS to the requested values.”
-
 ## When to use Mesurer
 
-For an agent with browser access, Mesurer should be the default verification layer for work involving:
+For an agent with browser access, Mesurer should be the default verification layer for layout, spacing, alignment, sizing, typography, responsive behavior, overflow/clipping, visual hierarchy, design-system consistency, reference recreation, visual polish, and issues the human has already selected/measured in the page.
 
-- layout;
-- spacing;
-- alignment;
-- sizing;
-- typography;
-- responsive behavior;
-- overflow/clipping;
-- visual hierarchy;
-- design-system consistency;
-- recreating a reference design;
-- polishing a page that is technically correct but visually weak;
-- diagnosing why a rendered result does not match implementation intent;
-- understanding visual issues the human has already marked/measured in the page.
-
-It is not necessary to call every method after every source edit. Measure the parts whose rendered behavior matters to the request.
+It is not necessary to call every method after every edit. Measure what matters to the request.
 
 ## Do not destroy review state
 
-If the page already contains Mesurer, agents must use the current instance rather than reinjecting it.
+If the page already contains Mesurer, use the current instance rather than reinjecting it.
 
 Injected Mesurer defaults to `reuseExisting: true`; explicit replacement requires:
 
@@ -296,58 +262,41 @@ Injected Mesurer defaults to `reuseExisting: true`; explicit replacement require
 window.__MESURER_CONFIG__ = { reuseExisting: false }
 ```
 
-That is for deliberate HMR/test replacement, not normal human/agent collaboration.
-
 Never change/delete human guides, measurements, held distances, or annotations merely to make validation look successful.
 
 ## Users can extend Mesurer by asking their agent
 
-Because the runtime is plugin-based, users can ask for project-specific inspection behavior:
+Because the runtime is plugin-based, project-specific inspection behavior should normally be a plugin:
 
-> “Add a Mesurer plugin that checks whether the cards in this dashboard align to an 8 px spacing grid.”
+> “Add a Mesurer plugin that checks whether the cards align to our 8px grid.”
 
-> “Add a Mesurer tool that highlights elements overflowing their containers.”
+> “Add a Mesurer tool that highlights overflowing containers.”
 
-> “Replace the X-ray tool with one that shows our design-system component names.”
+> “Replace X-ray with one that shows our design-system component names.”
 
-The agent should normally implement these as plugins using `mesurer-solid/core`, not by forking the renderer.
-
-Plugins can contribute tools, commands, hooks, overlays, settings contributions, state slices, services, and disposal behavior.
-
-## Prefer plugins over permanent forks
-
-When a user asks Mesurer to do something project-specific:
-
-1. first ask whether the capability can live in a plugin;
-2. use plugin-owned state/services/overlays where possible;
-3. modify Mesurer core only when the missing capability is genuinely a platform concern;
-4. if core changes are needed, preserve public plugin and agent contracts.
+Modify core only when the missing capability is genuinely shared platform behavior.
 
 ## Example: validating a card grid
 
-Suppose the user says:
+If the user says:
 
 > “These cards are messed up. Look at the measurements I made and make them line up.”
 
 A Mesurer-driven agent can:
 
 1. reuse the live Mesurer instance;
-2. read workspace + current selection + any annotations;
-3. record the human's exact card rects/gaps/guides;
-4. inspect relevant source/CSS;
+2. read workspace + current multi-selection + annotations;
+3. record every selected card's exact rect/box model;
+4. record relevant pair gaps/center deltas/guides;
 5. edit the implementation;
 6. wait for the real render to settle;
-7. remeasure the same targets/distances;
+7. remeasure the same targets and pair relationships;
 8. use `review()` if the human saved a baseline;
 9. capture a real screenshot;
 10. iterate until exact geometry and visual appearance support the fix.
 
-That turns “make it cleaner” or “look at what is broken” from an ungrounded styling guess into an iterative visual engineering task.
-
 ## Suggested instruction for coding agents
 
-Projects that want Mesurer used consistently can include:
-
-> **For meaningful UI/design work, first reuse and read any existing Mesurer state in the page, including the human's selection, guides, measurements, held distances, and annotations. Treat notes as intent and rendered measurements as evidence. After editing, wait for the real page to settle, remeasure/review the affected state, and pair exact geometry with a real browser screenshot before claiming completion. Do not create a separate Mesurer transport, browser, or server when the current harness can evaluate the page directly.**
+> **For meaningful UI/design work, first reuse and read any existing Mesurer state in the page, including the human's selection, guides, measurements, held distances, and annotations. For multi-selection, inspect every selected target and the relevant pairwise pixel relationships. Treat notes as intent and rendered measurements as evidence. After editing, wait for the real page to settle, remeasure/review the same evidence, and pair exact geometry with a real browser screenshot before claiming completion. Do not create a separate Mesurer transport, Send-to-agent path, browser, or server when the current harness can evaluate the page directly.**
 
 The repository's own [`AGENTS.md`](../AGENTS.md) follows this rule.
