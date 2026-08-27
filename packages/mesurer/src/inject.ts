@@ -16,10 +16,11 @@ export type MesurerInjectConfig = Omit<MountMeasurerOptions, "target" | "agent" 
   /** Enable/configure the removable context plugin. Defaults to true for injection. */
   context?: boolean | MesurerContextPluginOptions;
   /**
-   * Reuse an already-mounted injected Mesurer instance when its agent global matches.
+   * Reuse an already-mounted connected injected Mesurer instance.
    * Defaults to true so an agent cannot accidentally destroy human selections,
    * measurements, guides, annotations, or other live review state by reinjecting.
-   * Set false only when deliberate replacement is required.
+   * New injection configuration is applied only when no live instance exists or
+   * when this is set to false for deliberate replacement.
    */
   reuseExisting?: boolean;
 };
@@ -40,9 +41,7 @@ const {
 } = config;
 
 const existing = globalThis.__MESURER_INSTANCE__;
-const reusableExisting = reuseExisting
-  && existing?.element.isConnected
-  && Reflect.get(globalThis, globalName) === existing.agent
+const reusableExisting = reuseExisting && existing?.element.isConnected
   ? existing
   : undefined;
 
