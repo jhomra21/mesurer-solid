@@ -28,10 +28,12 @@ const target = targetSelector ? document.querySelector<HTMLElement>(targetSelect
 if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
 const hostBridge = getMesurerHostBridge(globalThis.__MESURER_HOST__);
-const contextOptions = context === true ? {} : context;
 const injectedPlugins = context === false
   ? plugins
-  : [contextPlugin(connectContextPluginToHost(contextOptions, hostBridge)), ...plugins];
+  : [
+      contextPlugin(connectContextPluginToHost(context === true ? {} : context, hostBridge)),
+      ...plugins,
+    ];
 
 // Reinjection is intentionally deterministic for browser-tool/HMR loops.
 globalThis.__MESURER_INSTANCE__?.dispose();
