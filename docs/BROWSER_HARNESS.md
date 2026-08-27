@@ -1,8 +1,8 @@
 # Browser and agent integration
 
-Mesurer sits **on top of whatever browser control the agent already has**. It does not need to own Chromium, duplicate navigation/click/screenshot tools, run a Mesurer RPC server, or inject messages into an agent conversation.
+Mesurer sits **on top of whatever browser control the agent already has**. It does not own Chromium, duplicate navigation/click/screenshot tools, run a Mesurer RPC server, or inject messages into an agent conversation.
 
-The direct integration is the page itself:
+The integration is the page itself:
 
 ```text
 human reviewer
@@ -49,7 +49,7 @@ If Mesurer is absent, inject through the JavaScript-evaluation channel the harne
 | Ordinary packaged app can be launched with CDP | **Launch same artifact + attach + inject only if absent** |
 | User explicitly wants Mesurer on every dev launch | Source mounting may be appropriate |
 | No renderer evaluation path exists | Explain the limitation, then consider source integration |
-| Proposed solution adds MCP/server/browser/CDP plumbing just for Mesurer | **Do not do that by default** |
+| Proposed solution adds MCP/server/browser/CDP plumbing just for Mesurer | **Do not do that** |
 
 An app already running without CDP or another renderer-evaluation mechanism may not be attachable after the fact. That is a browser-transport limitation, not a reason to invent a Mesurer transport.
 
@@ -86,16 +86,9 @@ await browser.evaluate(() => window.__MESURER__.ready())
 
 The exact names of `browser.evaluate`, `browser_execute`, `Runtime.evaluate`, etc. belong to the outer harness.
 
-Within this repository:
-
-```bash
-bun run build
-bun run browser:inject-script > /tmp/mesurer-inject.js
-```
-
 ## Injection replacement contract
 
-Injection now defaults to preserving a matching live injected instance:
+Injection defaults to preserving the canonical live injected instance:
 
 ```js
 window.__MESURER_CONFIG__ = {
@@ -103,9 +96,9 @@ window.__MESURER_CONFIG__ = {
 }
 ```
 
-This prevents an agent from accidentally destroying human review state.
+When `globalThis.__MESURER_INSTANCE__?.element.isConnected` is true, evaluating the injector again reuses that instance instead of destroying human review state.
 
-Deliberate deterministic replacement remains available:
+Deliberate replacement remains available:
 
 ```js
 window.__MESURER_CONFIG__ = {
@@ -113,13 +106,32 @@ window.__MESURER_CONFIG__ = {
 }
 ```
 
-Use replacement only for explicit HMR/test/tooling scenarios. It should not be part of the normal human-to-agent workflow.
+Use replacement only for explicit HMR/test/tooling scenarios. It is not part of the normal human-to-agent workflow.
 
-The first-party extension still owns its explicit toggle behavior: clicking the extension action disposes the existing extension instance before toggling off. Agent discovery should not simulate that toggle when it merely wants to read the current state.
+The first-party extension still owns its explicit toggle behavior. Agent discovery should not simulate that toggle when it merely wants to read current state.
+
+## Direct context capability contract
+
+Injected usage installs `mesurer.context` by default.
+
+After `ready()`:
+
+```js
+const capabilities = window.__MESURER__.capabilities()
+```
+
+The context capability surface is:
+
+```text
+context
+annotations
+review
+capturePlan
+```
+
+There is no `send`, `screenshots`, or `sendContext` delivery capability. The visible context UI is exactly Copy Context, Copy Selection, and Add Note. Copy is a human clipboard convenience; agents read the API directly.
 
 ## Shared visual context API
-
-After `ready()`, the context plugin is installed by default for injected usage.
 
 Read the broad workspace:
 
@@ -148,9 +160,23 @@ for (const annotation of annotations) {
 }
 ```
 
-This gives the agent structured data for the state the human can see: exact targets, selection regions, guides, measurements, held distances, rulers/X-ray state, box model, typography, layout, appearance, and overflow.
+This gives structured data for the state the human can see: exact targets, selection regions, guides, measurements, held distances, rulers/X-ray state, box model, typography, layout, appearance, and overflow.
 
-A typical harness should gather that state **before source edits** so unsaved selection identity is not lost across DOM replacement.
+A harness gathers this state **before source edits** so unsaved selection identity is not lost across DOM replacement.
+
+## Multi-selection harness behavior
+
+When `selection.targets` contains multiple elements, return every target's complete inspection rather than only the first target or a count.
+
+Then recover spatial relationships. Use existing `selection.visualContext.distances` first. For a selected pair without relevant distance evidence:
+
+```js
+window.__MESURER__.distance(selectorA, selectorB)
+```
+
+For a small selection, all useful unique pair relationships should be available to the agent. For large sets, focus on adjacent/repeated/user-relevant pairs instead of mechanically producing O(n²) noise.
+
+This is the standard human-to-agent read contract for selections involving several controls/components.
 
 ## Revalidation loop
 
@@ -166,7 +192,7 @@ If the human saved an annotation:
 const review = await window.__MESURER__.review(annotationId)
 ```
 
-If the human only selected/measured the workspace, re-read `context()` and use original selectors with focused primitives when needed:
+If the human only selected/measured the workspace, re-read `context()` and use original selectors with focused primitives:
 
 ```js
 window.__MESURER__.inspect(selector)
@@ -174,7 +200,9 @@ window.__MESURER__.distance(selectorA, selectorB)
 window.__MESURER__.viewport()
 ```
 
-The agent already has the before and after values in its current task. No external delivery protocol is necessary.
+For multi-selection, check the same target dimensions and pair relationships captured before editing.
+
+The agent already has before and after values in its current task. No external delivery protocol is necessary.
 
 ## Screenshot boundary
 
@@ -250,27 +278,23 @@ package normally
 
 ## Optional Playwright reference adapter
 
-The repository retains a Playwright adapter for manual testing and CI:
-
-```bash
-bun run build
-bun run browser:harness -- https://example.com
-```
-
-It can attach to existing Chromium for manual testing. This adapter is **not the agent integration API**. It is a deterministic reference/test driver.
+The repository retains a Playwright adapter for manual testing and CI. It is **not the agent integration API**; it is a deterministic reference/test driver.
 
 ## CI proof
 
-Host compatibility includes a real browser regression that:
+Host compatibility guards both positive and negative parts of the direct contract:
 
-1. injects Mesurer;
-2. stores live plugin/human-like state;
-3. evaluates the injector again;
-4. proves the exact same mounted instance, agent object, and state remain;
-5. proves only one Mesurer island exists;
-6. sets `reuseExisting: false` and proves deliberate replacement still works.
+1. inject Mesurer;
+2. prove context/annotations/review/capture-plan capabilities exist;
+3. prove `sendContext`, send/delivery capability bits, and the old Send tool do not exist;
+4. prove Copy Context, Copy Selection, and Add Note each render once in the isolated toolbar;
+5. store live plugin/human-like state;
+6. evaluate the injector again;
+7. prove the exact same mounted instance, agent object, and state remain;
+8. prove only one Mesurer island exists;
+9. set `reuseExisting: false` and prove deliberate replacement still works.
 
-This guards the most important direct-harness invariant: **agent attachment must not destroy human visual context**.
+Browser contracts separately self-host Mesurer and exercise multi-selection spacing.
 
 ## Browser boundaries
 
