@@ -25,7 +25,7 @@ type FeedbackDelivery = z.infer<typeof feedbackDeliverySchema>;
 
 const waitInputSchema = z.object({
   after: z.number().int().min(0).default(0),
-  timeoutMs: z.number().int().min(1_000).max(120_000).default(60_000),
+  timeoutMs: z.number().int().min(1_000).max(45_000).default(30_000),
 });
 
 const mailbox = new FeedbackMailbox<FeedbackDelivery>();
