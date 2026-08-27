@@ -42,7 +42,7 @@ export class FeedbackMailbox<T> {
     this.#events.push(event);
     if (this.#events.length > this.#limit) this.#events.splice(0, this.#events.length - this.#limit);
 
-    for (const waiter of [...this.#waiters]) {
+    for (const waiter of this.#waiters) {
       if (event.sequence <= waiter.after) continue;
       this.#finish(waiter, { status: "feedback", sequence: event.sequence, event });
     }
