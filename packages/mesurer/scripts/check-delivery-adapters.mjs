@@ -5,7 +5,7 @@ import {
 } from "../src/delivery.ts";
 import {
   connectContextPluginToHost,
-  isMesurerHostBridge,
+  getMesurerHostBridge,
   MESURER_HOST_BRIDGE_PROTOCOL,
 } from "../src/host-bridge.ts";
 
@@ -81,11 +81,11 @@ const bridge = {
   captureEvidence: async () => images,
   sendContext: async (value) => { bridgeDelivery = value; },
 };
-assert(isMesurerHostBridge(bridge), "Host bridge guard must accept the versioned capability object.");
-assert(!isMesurerHostBridge({ protocol: "mesurer.host/v0" }), "Host bridge guard must reject incompatible protocols.");
+assert(getMesurerHostBridge(bridge) === bridge, "Host bridge reader must accept the compatible versioned capability object.");
+assert(getMesurerHostBridge({ protocol: "mesurer.host/v0" }) === undefined, "Host bridge reader must reject an incompatible protocol version.");
 const connected = connectContextPluginToHost({}, bridge);
-assert(typeof connected.evidenceProvider === "function", "Injected context plugin must inherit host screenshot evidence capability.");
-assert(typeof connected.sendContext === "function", "Injected context plugin must inherit host delivery capability.");
+assert(connected.evidenceProvider !== undefined, "Injected context plugin must inherit host screenshot evidence capability.");
+assert(connected.sendContext !== undefined, "Injected context plugin must inherit host delivery capability.");
 assert((await connected.evidenceProvider({ context, plan: { schema: "mesurer.capture/v1", contextId: context.id, chrome: "hide", evidence: "show", captures: [] } }))[0]?.id === "focus", "Host evidence callback must stay callable through the plugin bridge.");
 await connected.sendContext(delivery);
 assert(bridgeDelivery === delivery, "Host delivery callback must receive the original Mesurer delivery object.");
