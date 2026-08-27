@@ -15,7 +15,7 @@ Mesurer page
 
 ## MCP revision and transport
 
-The server uses `@modelcontextprotocol/server` v2 and `serveStdio(...)`, which is the current SDK entry point for the MCP 2026-07-28 protocol revision over local process stdio.
+The server uses `@modelcontextprotocol/server` v2 and `serveStdio(...)`, which is the current SDK entry point for the MCP 2026-07-28 protocol revision over local process stdio. `serveStdio(...)` also keeps the same server compatible with MCP hosts that negotiate an older stdio protocol revision.
 
 Stdio is intentional here: a local coding-agent host launches this process and owns its lifetime. Streamable HTTP is the recommended MCP transport when one network endpoint serves many clients; it would add a server/auth deployment problem that this local feedback loop does not need.
 
@@ -35,12 +35,15 @@ Do not start `src/server.ts` manually when testing with an MCP host. The host sh
 
 ## Codex configuration
 
-Codex reads stdio MCP servers from `~/.codex/config.toml`. Use the absolute path to this checkout:
+Current Codex uses `CODEX_MCP_PROTOCOL_VERSION=2026-07-28` to opt a stdio server into the modern MCP protocol revision. Configure that environment variable on the MCP server entry so the Codex app uses the current protocol when its build supports it.
+
+Use the absolute Bun path returned by `which bun`, especially for the macOS Codex app where the GUI process may not inherit your shell PATH. Codex reads stdio MCP servers from `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.mesurer]
-command = "bun"
+command = "/ABSOLUTE/PATH/TO/bun"
 args = ["run", "/ABSOLUTE/PATH/TO/mesurer-solid/tools/mesurer-mcp/src/server.ts"]
+env = { CODEX_MCP_PROTOCOL_VERSION = "2026-07-28" }
 startup_timeout_ms = 20_000
 ```
 
@@ -49,8 +52,12 @@ Restart the Codex app after changing MCP configuration, then confirm `mesurer_wa
 The equivalent current Codex CLI setup is:
 
 ```bash
-codex mcp add mesurer -- bun run /ABSOLUTE/PATH/TO/mesurer-solid/tools/mesurer-mcp/src/server.ts
+codex mcp add mesurer \
+  --env CODEX_MCP_PROTOCOL_VERSION=2026-07-28 \
+  -- /ABSOLUTE/PATH/TO/bun run /ABSOLUTE/PATH/TO/mesurer-solid/tools/mesurer-mcp/src/server.ts
 ```
+
+The server remains compatible with MCP clients that negotiate an older stdio revision; the Codex-specific environment variable only asks current Codex to use its modern 2026-07-28 path.
 
 ## Enable the page sender
 
@@ -73,9 +80,9 @@ A different loopback port can be configured on both sides:
 
 ```toml
 [mcp_servers.mesurer]
-command = "bun"
+command = "/ABSOLUTE/PATH/TO/bun"
 args = ["run", "/ABSOLUTE/PATH/TO/mesurer-solid/tools/mesurer-mcp/src/server.ts"]
-env = { MESURER_MCP_FEEDBACK_PORT = "43192" }
+env = { CODEX_MCP_PROTOCOL_VERSION = "2026-07-28", MESURER_MCP_FEEDBACK_PORT = "43192" }
 ```
 
 ```js
