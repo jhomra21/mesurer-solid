@@ -21,9 +21,7 @@ const {
 } = config;
 
 const existing = globalThis.__MESURER_INSTANCE__;
-const reusableExisting = reuseExisting
-  && existing?.element.isConnected
-  && Reflect.get(globalThis, globalName) === existing.agent
+const reusableExisting = reuseExisting && existing?.element.isConnected
   ? existing
   : undefined;
 
