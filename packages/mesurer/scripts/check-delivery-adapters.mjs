@@ -3,6 +3,11 @@ import {
   createCodexAppServerContextSender,
   toCodexAppServerInput,
 } from "../src/delivery.ts";
+import {
+  connectContextPluginToHost,
+  isMesurerHostBridge,
+  MESURER_HOST_BRIDGE_PROTOCOL,
+} from "../src/host-bridge.ts";
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -69,5 +74,22 @@ await activeSender(delivery);
 assert(requests[1]?.method === "turn/steer", "Active Codex turn must be steered rather than starting a competing turn.");
 assert(requests[1]?.params.expectedTurnId === "turn-current", "Codex steer must pin the host's active turn id.");
 assert(requests[1]?.params.input.length === 1, "Codex sender must gracefully fall back to text-only without an image materializer.");
+
+let bridgeDelivery;
+const bridge = {
+  protocol: MESURER_HOST_BRIDGE_PROTOCOL,
+  captureEvidence: async () => images,
+  sendContext: async (value) => { bridgeDelivery = value; },
+};
+assert(isMesurerHostBridge(bridge), "Host bridge guard must accept the versioned capability object.");
+assert(!isMesurerHostBridge({ protocol: "mesurer.host/v0" }), "Host bridge guard must reject incompatible protocols.");
+const connected = connectContextPluginToHost({}, bridge);
+assert(typeof connected.evidenceProvider === "function", "Injected context plugin must inherit host screenshot evidence capability.");
+assert(typeof connected.sendContext === "function", "Injected context plugin must inherit host delivery capability.");
+assert((await connected.evidenceProvider({ context, plan: { schema: "mesurer.capture/v1", contextId: context.id, chrome: "hide", evidence: "show", captures: [] } }))[0]?.id === "focus", "Host evidence callback must stay callable through the plugin bridge.");
+await connected.sendContext(delivery);
+assert(bridgeDelivery === delivery, "Host delivery callback must receive the original Mesurer delivery object.");
+const override = async () => {};
+assert(connectContextPluginToHost({ sendContext: override }, bridge).sendContext === override, "Explicit plugin delivery must override the injected host bridge.");
 
 console.log("Mesurer host delivery adapters: PASS");
