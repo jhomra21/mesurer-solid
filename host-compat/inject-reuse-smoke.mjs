@@ -24,7 +24,7 @@ try {
     const capabilities = window.__MESURER__.capabilities().capabilities;
     const island = window.__MESURER_INSTANCE__?.element;
     const inspectorRoot = island?.shadowRoot ?? island;
-    const countTool = (id) => inspectorRoot?.querySelectorAll(`[data-mesurer-tool-id='${id}']`).length ?? 0;
+    const countTool = (id) => inspectorRoot?.querySelectorAll(`[data-mesurer-tool-id='${id}'] button`).length ?? 0;
     return {
       capabilities,
       hasSendContext: "sendContext" in window.__MESURER__,
