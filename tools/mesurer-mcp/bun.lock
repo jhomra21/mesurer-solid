@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@jhomra21/mesurer-mcp",
+      "name": "mesurer-mcp",
       "version": "0.1.0",
       "dependencies": {
         "@modelcontextprotocol/server": "2.0.0",
