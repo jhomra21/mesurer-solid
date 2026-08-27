@@ -44,13 +44,16 @@ try {
   await page.evaluate(injectSource);
   await page.evaluate(() => window.__MESURER__.ready());
 
-  const reused = await page.evaluate(() => ({
-    sameElement: window.__MESURER_INSTANCE__?.element === window.__MESURER_REUSE_BEFORE_ELEMENT__,
-    sameAgent: window.__MESURER__ === window.__MESURER_REUSE_BEFORE_AGENT__,
-    marker: window.__MESURER_INSTANCE__?.element.dataset.reuseProbe ?? null,
-    pluginState: window.__MESURER__.state()["test.human-state.value"] ?? null,
-    islandCount: document.querySelectorAll("[data-mesurer-island='true']").length,
-  }));
+  const reused = await page.evaluate(async () => {
+    const state = await window.__MESURER__.state();
+    return {
+      sameElement: window.__MESURER_INSTANCE__?.element === window.__MESURER_REUSE_BEFORE_ELEMENT__,
+      sameAgent: window.__MESURER__ === window.__MESURER_REUSE_BEFORE_AGENT__,
+      marker: window.__MESURER_INSTANCE__?.element.dataset.reuseProbe ?? null,
+      pluginState: state["test.human-state.value"] ?? null,
+      islandCount: document.querySelectorAll("[data-mesurer-island='true']").length,
+    };
+  });
 
   if (reused.marker !== "human-state" || reused.pluginState?.marker !== 42) {
     throw new Error(`Agent reinjection destroyed human Mesurer state: ${JSON.stringify(reused)}`);
@@ -65,12 +68,15 @@ try {
   await page.evaluate(injectSource);
   await page.evaluate(() => window.__MESURER__.ready());
 
-  const replaced = await page.evaluate(() => ({
-    sameElement: window.__MESURER_INSTANCE__?.element === window.__MESURER_REUSE_BEFORE_ELEMENT__,
-    marker: window.__MESURER_INSTANCE__?.element.dataset.reuseProbe ?? null,
-    pluginState: window.__MESURER__.state()["test.human-state.value"] ?? null,
-    islandCount: document.querySelectorAll("[data-mesurer-island='true']").length,
-  }));
+  const replaced = await page.evaluate(async () => {
+    const state = await window.__MESURER__.state();
+    return {
+      sameElement: window.__MESURER_INSTANCE__?.element === window.__MESURER_REUSE_BEFORE_ELEMENT__,
+      marker: window.__MESURER_INSTANCE__?.element.dataset.reuseProbe ?? null,
+      pluginState: state["test.human-state.value"] ?? null,
+      islandCount: document.querySelectorAll("[data-mesurer-island='true']").length,
+    };
+  });
   if (replaced.sameElement || replaced.marker !== null || replaced.pluginState !== null || replaced.islandCount !== 1) {
     throw new Error(`reuseExisting:false did not deliberately replace the injected instance: ${JSON.stringify(replaced)}`);
   }
