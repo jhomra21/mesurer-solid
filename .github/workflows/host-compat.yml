@@ -54,3 +54,7 @@ jobs:
         env:
           SOLID1_URL: http://127.0.0.1:4180
         run: bun host-compat/solid1-smoke.mjs
+      - name: Preserve human Mesurer state across agent injection
+        env:
+          SOLID1_URL: http://127.0.0.1:4180
+        run: bun host-compat/inject-reuse-smoke.mjs
