@@ -20,6 +20,34 @@ try {
   await page.evaluate(injectSource);
   await page.evaluate(() => window.__MESURER__.ready());
 
+  const directContract = await page.evaluate(() => {
+    const capabilities = window.__MESURER__.capabilities().capabilities;
+    return {
+      capabilities,
+      hasSendContext: "sendContext" in window.__MESURER__,
+      hasSendCapability: "send" in capabilities,
+      hasScreenshotDeliveryCapability: "screenshots" in capabilities,
+      sendToolCount: document.querySelectorAll("[data-mesurer-tool-id='context.send-selection']").length,
+      copyContextToolCount: document.querySelectorAll("[data-mesurer-tool-id='context.copy']").length,
+      copySelectionToolCount: document.querySelectorAll("[data-mesurer-tool-id='context.copy-selection']").length,
+      addNoteToolCount: document.querySelectorAll("[data-mesurer-tool-id='context.add-note']").length,
+    };
+  });
+
+  if (directContract.hasSendContext || directContract.hasSendCapability || directContract.hasScreenshotDeliveryCapability) {
+    throw new Error(`Agent API still exposes removed delivery capabilities: ${JSON.stringify(directContract)}`);
+  }
+  if (directContract.sendToolCount !== 0) {
+    throw new Error(`Removed Send-to-agent tool is still rendered: ${JSON.stringify(directContract)}`);
+  }
+  if (
+    directContract.copyContextToolCount !== 1
+    || directContract.copySelectionToolCount !== 1
+    || directContract.addNoteToolCount !== 1
+  ) {
+    throw new Error(`Expected Copy Context, Copy Selection, and Add Note exactly once: ${JSON.stringify(directContract)}`);
+  }
+
   await page.evaluate(async () => {
     const instance = window.__MESURER_INSTANCE__;
     if (!instance?.pluginHost) throw new Error("Expected injected Mesurer plugin host.");
@@ -83,7 +111,7 @@ try {
 
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join("\n")}`);
   if (consoleErrors.length) throw new Error(`Console errors: ${consoleErrors.join("\n")}`);
-  console.log("Agent injection reuses live human Mesurer state and supports explicit replacement: PASS");
+  console.log("Direct-only context API and human-state-safe injection: PASS");
 } finally {
   await browser.close();
 }
