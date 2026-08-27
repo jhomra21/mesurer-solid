@@ -16,13 +16,10 @@ export type MesurerHostBridge = {
   sendContext?: MesurerContextSender;
 };
 
-export const isMesurerHostBridge = (value: unknown): value is MesurerHostBridge => {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<MesurerHostBridge>;
-  return candidate.protocol === MESURER_HOST_BRIDGE_PROTOCOL
-    && (candidate.captureEvidence === undefined || typeof candidate.captureEvidence === "function")
-    && (candidate.sendContext === undefined || typeof candidate.sendContext === "function");
-};
+export const getMesurerHostBridge = (
+  value: MesurerHostBridge | undefined,
+): MesurerHostBridge | undefined =>
+  value?.protocol === MESURER_HOST_BRIDGE_PROTOCOL ? value : undefined;
 
 export function connectContextPluginToHost(
   options: MesurerContextPluginOptions,
@@ -30,11 +27,13 @@ export function connectContextPluginToHost(
 ): MesurerContextPluginOptions {
   if (!bridge) return options;
   const connected = { ...options };
-  if (!connected.evidenceProvider && bridge.captureEvidence) {
-    connected.evidenceProvider = (input) => bridge.captureEvidence!(input);
+  const captureEvidence = bridge.captureEvidence;
+  const sendContext = bridge.sendContext;
+  if (!connected.evidenceProvider && captureEvidence) {
+    connected.evidenceProvider = captureEvidence;
   }
-  if (!connected.sendContext && bridge.sendContext) {
-    connected.sendContext = (delivery) => bridge.sendContext!(delivery);
+  if (!connected.sendContext && sendContext) {
+    connected.sendContext = sendContext;
   }
   return connected;
 }
