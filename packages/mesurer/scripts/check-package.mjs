@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const privatePackagePattern = /@jhomra21\/mesurer-solid-(?:core|dom|renderer)/;
+const removedDeliveryPattern = /\b(?:sendContext|toAcpContentBlocks|MesurerContextSender|MesurerContextDelivery|MesurerEvidenceProvider|MesurerEvidenceImage|MesurerAcpContentBlock|AcpTextContentBlock|AcpImageContentBlock)\b/;
 const skillBinPath = "scripts/install-skill.mjs";
 
 if (packageJson.name !== "@jhomra21/mesurer-solid") {
@@ -33,6 +34,9 @@ for (const file of distFiles) {
   const source = readFileSync(new URL(file, dist), "utf8");
   if (privatePackagePattern.test(source)) {
     throw new Error(`${file} leaks a private workspace package name into the published artifact.`);
+  }
+  if (removedDeliveryPattern.test(source)) {
+    throw new Error(`${file} exposes a removed Mesurer agent-delivery API. Agents must read window.__MESURER__ directly.`);
   }
 }
 
@@ -68,6 +72,11 @@ try {
   const installedInjector = join(installRoot, ".agents/skills/mesurer-ui/assets/inject-script.js");
   if (!existsSync(installedSkill)) throw new Error("mesurer-skill install did not create SKILL.md.");
   if (!existsSync(installedInjector)) throw new Error("mesurer-skill install did not create assets/inject-script.js.");
+  const sourceSkill = readFileSync(skillSource, "utf8");
+  const copiedSkill = readFileSync(installedSkill, "utf8");
+  if (copiedSkill !== sourceSkill) {
+    throw new Error("Installed Agent Skill does not match the packaged canonical SKILL.md.");
+  }
   const sourceInjector = readFileSync(new URL("../dist/inject-script.js", import.meta.url), "utf8");
   const copiedInjector = readFileSync(installedInjector, "utf8");
   if (!sourceInjector || copiedInjector !== sourceInjector) {
@@ -77,4 +86,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged publish surface and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged direct-agent surface and Agent Skill installer are self-contained.`);

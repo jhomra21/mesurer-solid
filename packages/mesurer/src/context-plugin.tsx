@@ -14,9 +14,7 @@ import {
   type MesurerAnnotation,
   type MesurerCapturePlanV1,
   type MesurerContextRequest,
-  type MesurerContextSender,
   type MesurerContextV1,
-  type MesurerEvidenceProvider,
   type MesurerReviewV1,
 } from "./context";
 
@@ -36,23 +34,12 @@ const NOTE_ICON = {
   viewBox: "0 0 256 256",
   paths: ["M229.66,58.34l-32-32a8,8,0,0,0-11.32,0l-96,96A8,8,0,0,0,88,128v32a8,8,0,0,0,8,8h32a8,8,0,0,0,5.66-2.34l96-96A8,8,0,0,0,229.66,58.34ZM124.69,152H104V131.31l64-64L188.69,88ZM200,76.69,179.31,56,192,43.31,212.69,64ZM224,128v80a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32h80a8,8,0,0,1,0,16H48V208H208V128a8,8,0,0,1,16,0Z"],
 };
-const SEND_ICON = {
-  // The Phosphor paper-plane-right glyph is naturally taller/right-heavy than its peers.
-  // Keep the source glyph intact while normalizing its optical envelope around the 20px toolbar box.
-  viewBox: "-2 -14 284 284",
-  paths: ["M231.87,114l-168-95.89A16,16,0,0,0,40.92,37.34L71.55,128,40.92,218.67A16,16,0,0,0,56,240a16.15,16.15,0,0,0,7.93-2.1l167.92-96.05a16,16,0,0,0,.05-27.89ZM56,224a.56.56,0,0,0,0-.12L85.74,136H144a8,8,0,0,0,0-16H85.74L56.06,32.16A.46.46,0,0,0,56,32l168,95.83Z"],
-};
 
 type ContextUiState = { hasSelection: boolean };
 
 export type MesurerContextPluginOptions = {
-  /** Render Copy Context, Copy Selection, Add Note, annotation markers, and optional Send controls. Defaults to true. */
+  /** Render Copy Context, Copy Selection, Add Note, and annotation UI. Defaults to true. */
   ui?: boolean;
-  /** Optional screenshot provider owned by the browser/harness. */
-  evidenceProvider?: MesurerEvidenceProvider;
-  /** Optional direct handoff callback, normally backed by an ACP client outside Mesurer. */
-  sendContext?: MesurerContextSender;
-  sendLabel?: string;
 };
 
 export type MesurerContextService = {
@@ -64,9 +51,6 @@ export type MesurerContextService = {
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
   prepareCapture(): Promise<void>;
   finishCapture(): Promise<void>;
-  sendContext(request?: MesurerContextRequest): Promise<void>;
-  readonly screenshots: boolean;
-  readonly send: boolean;
 };
 
 type SolidRuntimeService = {
@@ -88,7 +72,6 @@ const createService = (
   runtime: MesurerWorkspaceRuntime,
   ownerDocument: Document,
   ownerWindow: Window,
-  options: MesurerContextPluginOptions,
 ): MesurerContextService => {
   const context = async (request?: MesurerContextRequest) =>
     captureMesurerContext({ runtime, ownerDocument, ownerWindow, request });
@@ -115,24 +98,6 @@ const createService = (
     runtime.finishCapture();
     await stable(ownerDocument, ownerWindow);
   };
-  const sendContext = async (request?: MesurerContextRequest) => {
-    if (!options.sendContext) throw new Error("No Mesurer context sender is configured.");
-    const value = await context(request);
-    const text = formatMesurerContext(value);
-    const plan = createMesurerCapturePlan(value);
-    let images: Awaited<ReturnType<MesurerEvidenceProvider>> = [];
-    if (options.evidenceProvider) {
-      runtime.prepareCapture();
-      try {
-        await stable(ownerDocument, ownerWindow);
-        images = await options.evidenceProvider({ context: value, plan });
-      } finally {
-        runtime.finishCapture();
-        await stable(ownerDocument, ownerWindow);
-      }
-    }
-    await options.sendContext({ context: value, text, images });
-  };
 
   return {
     context,
@@ -143,9 +108,6 @@ const createService = (
     capturePlan,
     prepareCapture,
     finishCapture,
-    sendContext,
-    screenshots: Boolean(options.evidenceProvider),
-    send: Boolean(options.sendContext),
   };
 };
 
@@ -165,14 +127,11 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       if (!solid) throw new Error("Mesurer context plugin requires the renderer runtime service.");
 
       const runtime = solid.createWorkspaceRuntime();
-      const service = createService(runtime, solid.ownerDocument, solid.ownerWindow, options);
+      const service = createService(runtime, solid.ownerDocument, solid.ownerWindow);
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
 
       ctx.command.register("context.copy", () => service.copyContext());
       ctx.command.register("context.copy-selection", () => service.copyContext({ scope: "selection" }));
-      if (options.sendContext) {
-        ctx.command.register("context.send-selection", () => service.sendContext({ scope: "selection" }));
-      }
 
       let uiController: ContextActionsController | null = null;
       let disposeUi: (() => void) | null = null;
@@ -219,17 +178,6 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
           icon: NOTE_ICON,
           disabled: () => !hasSelection(),
         });
-        if (options.sendContext) {
-          ctx.tool.register({
-            id: "context.send-selection",
-            label: options.sendLabel ?? "Send to agent",
-            shortcut: "Mod+Enter",
-            command: "context.send-selection",
-            order: 73,
-            icon: SEND_ICON,
-            disabled: () => !hasSelection(),
-          });
-        }
 
         uiMount = solid.createInspectorMount();
         uiMount.element.dataset.mesurerLayer = "evidence";
@@ -238,8 +186,6 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
         };
-        if (options.sendContext) actionProps.onSend = service.sendContext;
-        if (options.sendLabel) actionProps.sendLabel = options.sendLabel;
         disposeUi = render(() => <ContextActions {...actionProps} />, uiMount.element);
       }
 

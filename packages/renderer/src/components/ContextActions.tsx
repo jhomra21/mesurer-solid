@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
-import { CloseIcon, CopyIcon, NoteIcon, SendIcon, TrashIcon } from "./Icons";
+import { CloseIcon, CopyIcon, NoteIcon, TrashIcon } from "./Icons";
 
 export type ContextActionsController = {
   openNoteComposer(): void;
@@ -9,8 +9,6 @@ export type ContextActionsController = {
 export type ContextActionsProps = {
   runtime: MesurerWorkspaceRuntime;
   onCopy: (request?: MesurerContextRequest) => Promise<void>;
-  onSend?: (request?: MesurerContextRequest) => Promise<void>;
-  sendLabel?: string;
   onController?: (controller: ContextActionsController | null) => void;
 };
 
@@ -480,9 +478,6 @@ export function ContextActions(props: ContextActionsProps) {
               </div>
               <div class="msr:flex msr:items-center msr:gap-0.5">
                 <button type="button" class={annotationButtonClass} aria-label="Copy annotation context" title="Copy context" disabled={busy()} onClick={() => void run(() => props.onCopy({ annotation: annotation().id }), "Copied")}><CopyIcon size={14} /></button>
-                <Show when={props.onSend}>{(send) => (
-                  <button type="button" class={annotationButtonClass} aria-label={props.sendLabel ?? "Send to agent"} title={props.sendLabel ?? "Send to agent"} disabled={busy()} onClick={() => void run(() => send()({ annotation: annotation().id }), "Sent")}><SendIcon size={14} /></button>
-                )}</Show>
                 <button type="button" class={annotationButtonClass} aria-label="Delete annotation" title="Delete" onClick={() => {
                   props.runtime.removeAnnotation(annotation().id);
                   setPanelPositions((positions) => {

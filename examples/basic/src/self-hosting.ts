@@ -30,12 +30,7 @@ const subject = mountMeasurer({
   isolate: false,
   topLayer: false,
   agent: { globalName: "__MESURER_SUBJECT__" },
-  plugins: [
-    contextPlugin({
-      sendLabel: "Send to agent",
-      sendContext: async () => undefined,
-    }),
-  ],
+  plugins: [contextPlugin()],
   persistKey: "mesurer-self-host-subject",
 });
 
