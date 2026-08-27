@@ -7,12 +7,6 @@ import type {
 import { toAcpContentBlocks } from "./context";
 
 type MaybePromise<T> = T | Promise<T>;
-type Resolvable<T> = T | (() => MaybePromise<T>);
-
-const resolve = async <T>(value: Resolvable<T>): Promise<T> =>
-  typeof value === "function"
-    ? await (value as () => MaybePromise<T>)()
-    : value;
 
 export type MesurerAcpTarget = {
   sessionId: string;
@@ -25,16 +19,16 @@ export type MesurerAcpPromptRequest = {
 
 export type MesurerAcpContextSenderOptions = {
   /** Resolve this from the host that owns the live ACP session. Never expose it to the inspected page. */
-  target: Resolvable<MesurerAcpTarget>;
+  target(): MaybePromise<MesurerAcpTarget>;
   /** Send one ACP session/prompt request through the host-owned ACP client. */
-  prompt(request: MesurerAcpPromptRequest): Promise<unknown>;
+  prompt(request: MesurerAcpPromptRequest): Promise<void>;
 };
 
 export function createAcpContextSender(
   options: MesurerAcpContextSenderOptions,
 ): MesurerContextSender {
   return async (delivery) => {
-    const target = await resolve(options.target);
+    const target = await options.target();
     if (!target.sessionId) throw new Error("Mesurer ACP target has no session id.");
     await options.prompt({
       sessionId: target.sessionId,
@@ -84,9 +78,9 @@ export type CodexAppServerSendRequest =
 
 export type MesurerCodexAppServerContextSenderOptions = {
   /** Resolve this from the host that owns the current Codex thread/turn. */
-  target: Resolvable<CodexAppServerTarget>;
+  target(): MaybePromise<CodexAppServerTarget>;
   /** Forward the generated turn/start or turn/steer request through the host-owned app-server client. */
-  request(request: CodexAppServerSendRequest): Promise<unknown>;
+  request(request: CodexAppServerSendRequest): Promise<void>;
   /**
    * Codex app-server accepts image URLs or local image paths rather than ACP base64 blocks.
    * The host owns materialization and lifetime of any temporary image files/URLs.
@@ -119,7 +113,7 @@ export function createCodexAppServerContextSender(
 ): MesurerContextSender {
   return async (delivery) => {
     const [target, input] = await Promise.all([
-      resolve(options.target),
+      options.target(),
       toCodexAppServerInput(delivery, options.imageInput),
     ]);
     if (!target.threadId) throw new Error("Mesurer Codex target has no thread id.");
