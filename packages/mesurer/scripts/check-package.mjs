@@ -18,7 +18,7 @@ if (packageJson.private === true) throw new Error("The public Mesurer package wo
 if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
   throw new Error("The public Mesurer beta must not publish runtime workspace dependencies.");
 }
-for (const requiredExport of [".", "./core", "./inject", "./inject-script"]) {
+for (const requiredExport of [".", "./core", "./delivery", "./inject", "./inject-script"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
 }
 if (packageJson.publishConfig?.access !== "public") throw new Error("publishConfig.access must be public.");
@@ -36,7 +36,17 @@ for (const file of distFiles) {
   }
 }
 
-for (const file of ["index.js", "index.d.ts", "core.js", "core.d.ts", "inject.js", "inject.d.ts", "inject-script.js"]) {
+for (const file of [
+  "index.js",
+  "index.d.ts",
+  "core.js",
+  "core.d.ts",
+  "delivery.js",
+  "delivery.d.ts",
+  "inject.js",
+  "inject.d.ts",
+  "inject-script.js",
+]) {
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
 
