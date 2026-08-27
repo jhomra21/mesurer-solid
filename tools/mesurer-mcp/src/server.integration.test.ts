@@ -37,6 +37,38 @@ const feedbackToolPayloadSchema = z.discriminatedUnion("status", [
   }),
 ]);
 
+type InitializeRequest = {
+  jsonrpc: "2.0";
+  id: number;
+  method: "initialize";
+  params: {
+    protocolVersion: string;
+    capabilities: Record<string, never>;
+    clientInfo: { name: string; version: string };
+  };
+};
+type InitializedNotification = {
+  jsonrpc: "2.0";
+  method: "notifications/initialized";
+  params: Record<string, never>;
+};
+type ToolsListRequest = {
+  jsonrpc: "2.0";
+  id: number;
+  method: "tools/list";
+  params: Record<string, never>;
+};
+type ToolsCallRequest = {
+  jsonrpc: "2.0";
+  id: number;
+  method: "tools/call";
+  params: {
+    name: "mesurer_wait_for_feedback";
+    arguments: { after: number; timeoutMs: number };
+  };
+};
+type TestJsonRpcMessage = InitializeRequest | InitializedNotification | ToolsListRequest | ToolsCallRequest;
+
 const children: Array<ReturnType<typeof Bun.spawn>> = [];
 
 function randomFeedbackPort(): number {
@@ -79,7 +111,7 @@ async function waitForHealth(port: number): Promise<void> {
   throw new Error("Mesurer MCP feedback ingress did not become healthy.");
 }
 
-function sendJsonRpc(stdin: Bun.FileSink, message: object): void {
+function sendJsonRpc(stdin: Bun.FileSink, message: TestJsonRpcMessage): void {
   stdin.write(`${JSON.stringify(message)}\n`);
   stdin.flush();
 }
