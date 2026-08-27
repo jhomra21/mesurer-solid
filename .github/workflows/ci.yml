@@ -17,8 +17,14 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile
+        working-directory: tools/mesurer-mcp
       - run: bun run lint
       - run: bun run typecheck
       - run: bun run test
+      - run: bun test
+        working-directory: tools/mesurer-mcp
+      - run: bun build src/server.ts --target=bun --outfile=/tmp/mesurer-mcp.js
+        working-directory: tools/mesurer-mcp
       - run: bun run build
       - run: bun run --filter 'mesurer-solid-renderer-example' build
