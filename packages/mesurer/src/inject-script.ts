@@ -3,10 +3,16 @@ import {
   mountMeasurer,
   type MountedMeasurer,
 } from "./index";
+import {
+  connectContextPluginToHost,
+  isMesurerHostBridge,
+  type MesurerHostBridge,
+} from "./host-bridge";
 import type { MesurerInjectConfig } from "./inject";
 
 declare global {
   var __MESURER_CONFIG__: MesurerInjectConfig | undefined;
+  var __MESURER_HOST__: MesurerHostBridge | undefined;
   var __MESURER_INSTANCE__: MountedMeasurer | undefined;
 }
 
@@ -21,9 +27,13 @@ const {
 const target = targetSelector ? document.querySelector<HTMLElement>(targetSelector) : document.body;
 if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
+const hostBridge = isMesurerHostBridge(globalThis.__MESURER_HOST__)
+  ? globalThis.__MESURER_HOST__
+  : undefined;
+const contextOptions = context === true ? {} : context;
 const injectedPlugins = context === false
   ? plugins
-  : [contextPlugin(context === true ? {} : context), ...plugins];
+  : [contextPlugin(connectContextPluginToHost(contextOptions, hostBridge)), ...plugins];
 
 // Reinjection is intentionally deterministic for browser-tool/HMR loops.
 globalThis.__MESURER_INSTANCE__?.dispose();
