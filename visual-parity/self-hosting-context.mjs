@@ -116,7 +116,6 @@ try {
     "context.copy",
     "context.copy-selection",
     "context.add-note",
-    "context.send-selection",
   ];
 
   const measurements = await page.evaluate((ids) => {
