@@ -80,8 +80,8 @@ The human/agent context workflow is owned by removable `mesurer.context`:
 pluginHost.load(contextPlugin())
              |
              +-- annotation runtime + conservative HMR rebinding
-             +-- toolbar/popover UI + shortcuts
-             +-- context/review/capture operations
+             +-- Copy Context / Copy Selection / Add Note UI + shortcuts
+             +-- context/review/capture-plan operations
              `-- service: context:v1
 ```
 
@@ -90,6 +90,8 @@ Core `mountMeasurer()` does not create annotation state, render context controls
 Removing `mesurer.context` disposes its UI, listeners, annotation runtime, commands, and service through the same lifecycle used by other plugins.
 
 The injection entry points install `contextPlugin()` by default because human/agent context is the normal injection workflow. Source-mounted applications opt in explicitly through `plugins: [contextPlugin()]`.
+
+The plugin has **no agent-delivery callback**. There is no Send-to-agent toolbar action, no `sendContext()` method, and no send/delivery capability bit.
 
 ## Shared visual state is the agent boundary
 
@@ -110,24 +112,15 @@ selection / measurements / guides    window.__MESURER__
                same live page state
 ```
 
-The human can point at a problem using the visible UI. The agent can read the exact same state through its existing browser harness. After editing source, the agent reads the page again to prove the result.
+The human can point at a problem using the visible UI. The agent reads the exact same state through its existing browser harness. After editing source, the agent reads the page again to prove the result.
 
-Mesurer therefore does not need to know:
-
-- the agent vendor;
-- the current chat/thread/task/session;
-- the model;
-- an MCP/WebMCP/ACP connection;
-- a localhost feedback server;
-- how the harness edits source.
-
-The outer harness already owns those concerns.
+Mesurer therefore does not need to know the agent vendor, current chat/thread/task/session, model, MCP/WebMCP/ACP connection, localhost feedback server, or how the harness edits source.
 
 ## Existing-instance preservation
 
 A live Mesurer instance can contain valuable human review state. Agent attachment must not erase it.
 
-Injected Mesurer now defaults to reusing an already-mounted live injected instance when the configured agent global points to that instance:
+Injected Mesurer defaults to reusing the canonical injected instance whenever `globalThis.__MESURER_INSTANCE__?.element.isConnected` is true:
 
 ```js
 window.__MESURER_CONFIG__ = {
@@ -172,18 +165,28 @@ Workspace context captures the meaningful current visual workspace. Selection co
 
 Selection/annotation relevance uses direct element references and geometry only. Mesurer does not use model inference to guess which evidence matters. Guide relevance uses the renderer's existing snap tolerance.
 
+## Multi-selection is relational state
+
+A multi-selection is not represented to the agent as only a count. Every selected target contributes its complete computed inspection, and the relationships between targets are part of the evidence.
+
+```text
+selected targets
+   ├─ target A full inspection
+   ├─ target B full inspection
+   ├─ target C full inspection
+   └─ relevant visualContext distances
+          + focused distance(A,B), distance(A,C), distance(B,C) as needed
+```
+
+For small selections, the Agent Skill directs the harness to read all useful pairwise pixel gaps/center relationships. For large selections, it focuses on adjacent/repeated/user-relevant pairs to avoid useless O(n²) output.
+
+This makes a human action like selecting three components a precise request to inspect their sizes, box models, typography/layout state, and spatial relationships together.
+
 ## Human state can be unsaved
 
 Annotations are not mandatory for direct agent use.
 
-A person can simply:
-
-- select one or more elements;
-- drag a region;
-- place guides;
-- create measurements/held distances;
-- enable rulers/X-ray;
-- ask the agent to inspect the page.
+A person can simply select one or more elements, drag a region, place guides, create measurements/held distances, enable rulers/X-ray, and ask the agent to inspect the page.
 
 The agent reads:
 
@@ -213,8 +216,6 @@ Annotation baselines capture only evidence relevant to the target/region using t
 Element targets receive immutable annotation target IDs. Fresh DOM inspection may produce a new selector after an edit, but `review()` still matches the target by annotation ID rather than selector text.
 
 `review(annotationId)` compares the immutable scoped baseline with freshly resolved context after an edit/HMR cycle. Relevant target/guide/measurement/distance evidence that disappears is reported explicitly as `kind: "missing"`.
-
-This makes Mesurer a verification instrument rather than only a handoff format:
 
 ```text
 human baseline
@@ -250,13 +251,11 @@ A root-scoped agent keeps all inspection primitives consistent. `at()` may use d
 
 ## Screenshot boundary
 
-The context plugin describes screenshot scope but does not own a browser driver.
+The context plugin describes screenshot scope but does not own a browser driver or image-delivery abstraction.
 
 `capturePlan()` always returns the viewport and may add a close-up clip. Focus planning unions scoped regions with relevant target/measurement/distance evidence.
 
 `prepareCapture()` hides control chrome while retaining visual evidence; `finishCapture()` restores the exact prior presentation. The outer harness uses its real screenshot primitive.
-
-The two evidence channels have different strengths:
 
 ```text
 Mesurer geometry → exact spacing/alignment/box model/computed state
@@ -270,6 +269,7 @@ The Agent Skill teaches behavior rather than transport:
 - discover and reuse existing human Mesurer state;
 - inject only when absent through the browser channel the harness already owns;
 - read workspace, selection, and annotations before editing;
+- read every selected target and relevant pairwise relationships for multi-selection;
 - treat notes as intent and numeric/page data as evidence;
 - preserve initial context across HMR;
 - edit source through the normal project workflow;
@@ -278,9 +278,7 @@ The Agent Skill teaches behavior rather than transport:
 - re-read context/low-level measurements for unsaved human state;
 - use the harness's real screenshot primitive;
 - do not claim visual completion based only on build/typecheck;
-- do not look for or start MCP/WebMCP/ACP/session-routing infrastructure.
-
-This is distributed once through the standard skill directory instead of repeated per harness.
+- do not look for or start MCP/WebMCP/ACP/session-routing/Send-to-agent infrastructure.
 
 ## Browser extension
 
