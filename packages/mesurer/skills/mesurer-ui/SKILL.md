@@ -7,7 +7,7 @@ description: Use Mesurer when implementing, reviewing, debugging, or fixing fron
 
 Mesurer is **shared visual state between the person reviewing a page and the coding agent editing it**.
 
-There is no Mesurer MCP, WebMCP, ACP, chat-delivery daemon, session router, or harness-specific transport in the normal workflow. The agent uses the browser/evaluation channel it already has, reads `window.__MESURER__` directly from the page, edits source normally, and reads Mesurer again to verify the rendered result.
+There is no Mesurer MCP, WebMCP, ACP, chat-delivery daemon, session router, Send-to-agent callback, or harness-specific transport in the normal workflow. The agent uses the browser/evaluation channel it already has, reads `window.__MESURER__` directly from the page, edits source normally, and reads Mesurer again to verify the rendered result.
 
 ```text
 human uses Mesurer in the real page
@@ -43,7 +43,7 @@ If Mesurer is absent, inject it through the browser JavaScript-evaluation primit
 
 The installed skill is self-contained: `assets/inject-script.js` beside this file is the packaged classic injector. Read that file and evaluate its contents in the current page. In the Mesurer repository itself, the equivalent development artifact is `packages/mesurer/dist/inject-script.js`. If `mesurer-solid` is already installed, `mesurer-solid/inject-script` is the same distribution path.
 
-The injector itself also defaults to reusing a matching live instance. `window.__MESURER_CONFIG__ = { reuseExisting: false }` is an explicit destructive replacement option for tests/HMR tooling; **do not use it while consuming human review state**.
+The injector itself also defaults to reusing a live injected instance. `window.__MESURER_CONFIG__ = { reuseExisting: false }` is an explicit destructive replacement option for tests/HMR tooling; **do not use it while consuming human review state**.
 
 After a first injection:
 
@@ -51,6 +51,8 @@ After a first injection:
 await window.__MESURER__.ready()
 window.__MESURER__.capabilities()
 ```
+
+The context capability surface is intentionally read/review oriented: `context`, `annotations`, `review`, and `capturePlan`. There is no `sendContext` capability or Send-to-agent tool.
 
 ## 2. Read the human's visual state before editing
 
@@ -102,9 +104,48 @@ try {
 }
 ```
 
-Selection context is the clearest answer to **what the person is pointing at right now**. It contains only the targets/region and guides, measurements, and distances relevant to that selected area.
+Selection context is the clearest answer to **what the person is pointing at right now**. It contains the selected targets/region and guides, measurements, and held distances relevant to that area.
 
 Do not require the user to create an annotation just to make their current selection useful.
+
+### Multi-selection is a first-class communication contract
+
+When `selection.targets` contains multiple elements, do not collapse them into a count or only describe the first element. The human selected several things because their relationship matters.
+
+For **every selected target**, read and retain:
+
+```text
+ref + selector
+tag / text / role / aria label
+rect: x / y / left / top / right / bottom / width / height
+margin / padding / border
+typography
+appearance
+layout: display / position / flex / grid / gap / transform / overflow
+scroll/client dimensions and overflow flags
+```
+
+Then recover the spatial relationships between the selected targets. First use `selection.visualContext.distances` and visible/held Mesurer distance evidence. When a needed selected pair is not represented there, use the exact selectors returned by the context:
+
+```js
+window.__MESURER__.distance(selectorA, selectorB)
+```
+
+For a small selection, report all unique pair relationships that help explain the visual issue. A three-target selection should be able to produce evidence such as:
+
+```text
+Target 1: 972 × 390
+Target 2: 415 × 53
+Target 3: 415 × 68
+
+Target 1 → Target 2: vertical gap 184.9px
+Target 1 → Target 3: vertical gap 156.4px
+Target 2 → Target 3: horizontal gap 80px
+```
+
+`distance()` also provides center deltas and overlap/gap geometry; use the fields relevant to the user's issue. For a very large selection, avoid useless O(n²) output: compare adjacent/repeated elements and the relationships implicated by the user's measurements, guides, layout, or request.
+
+Also read surrounding state that may explain the selection: viewport/DPR/document overflow, active guides, held distances, rulers/X-ray, and loaded plugin state when relevant.
 
 ### Saved human annotations
 
@@ -130,7 +171,7 @@ Mesurer reports **viewport CSS pixels**. Prefer its exact numbers over estimatin
 Examples:
 
 - two target left edges differ by `4px` → they are not aligned;
-- a held horizontal distance says `37px` → do not claim the gap is `24px` because CSS declares `gap: 24px` somewhere;
+- a held or computed horizontal distance says `37px` → do not claim the gap is `24px` because CSS declares `gap: 24px` somewhere;
 - a guide at `x=320` crossing selected targets shows the intended alignment reference;
 - X-ray/ruler state tells you what the human was using to understand the page, but is not itself a design requirement;
 - a selected region with no DOM target can still encode whitespace/alignment intent through `regions`.
@@ -222,7 +263,9 @@ try {
 }
 ```
 
-Use exact selectors from the original context with the low-level API when you need a focused post-edit check:
+For a multi-selection, re-check the same target dimensions and pair relationships you recorded before the edit. Do not verify one element and forget the rest of the selected set.
+
+Use exact selectors from the original context with the low-level API when you need focused post-edit checks:
 
 ```js
 window.__MESURER__.inspect(selector)
@@ -291,7 +334,8 @@ For the normal Mesurer-agent workflow:
 - **do not look for an MCP or WebMCP tool;**
 - **do not start an MCP/local feedback server;**
 - **do not try to discover a chat/thread/session ID;**
-- **do not route Mesurer through ACP/Codex App Server just to read page state;**
+- **do not route Mesurer through ACP/Codex App Server;**
+- **do not expect or recreate a Send-to-agent button/callback;**
 - **do not create a new browser or duplicate CDP connection when the harness already controls the page;**
 - **do not reinject over a live human Mesurer instance;**
 - **do not delete/change human measurements or guides to make validation pass;**
