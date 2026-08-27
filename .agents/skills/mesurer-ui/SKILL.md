@@ -1,111 +1,311 @@
 ---
 name: mesurer-ui
-description: Use Mesurer when implementing, reviewing, or fixing frontend UI in a browser. Load for visual alignment, spacing, sizing, layout, CSS, responsive work, design/Figma implementation, screenshots, pixel discrepancies, or human Mesurer annotations. Revalidate visual changes with Mesurer before claiming completion when Mesurer is available.
+description: Use Mesurer when implementing, reviewing, debugging, or fixing frontend UI in a browser. Load for visual alignment, spacing, sizing, layout, CSS, responsive work, design/Figma implementation, screenshots, pixel discrepancies, or human Mesurer selections/measurements/guides/annotations. Read the human's live Mesurer state before editing and revalidate the rendered result with Mesurer before claiming completion.
 ---
 
 # Mesurer UI workflow
 
-Mesurer is a shared visual inspection and feedback layer between the person reviewing a UI and the agent editing it.
+Mesurer is **shared visual state between the person reviewing a page and the coding agent editing it**.
 
-## Discover Mesurer
+There is no Mesurer MCP, WebMCP, ACP, chat-delivery daemon, session router, or harness-specific transport in the normal workflow. The agent uses the browser/evaluation channel it already has, reads `window.__MESURER__` directly from the page, edits source normally, and reads Mesurer again to verify the rendered result.
 
-When you have a browser/evaluation channel, wait for an existing Mesurer instance before inspecting its capabilities:
+```text
+human uses Mesurer in the real page
+  → selection / guides / measurements / distances / X-ray / notes
+  → window.__MESURER__ contains structured rendered evidence
+  → agent reads that state through its existing browser harness
+  → agent edits source
+  → HMR/render settles
+  → agent measures/reviews again
+  → agent iterates until the rendered evidence supports the result
+```
+
+## 1. Preserve the human's live Mesurer state
+
+**Never reinject or dispose Mesurer just because this skill loaded.** A person may already have spent time selecting elements, placing guides, measuring gaps, holding distances, enabling rulers/X-ray, or creating annotations. That state is part of the user's message.
+
+Start every visual task by discovering the page state:
 
 ```js
-if (window.__MESURER__) {
+const hasMesurer = Boolean(
+  window.__MESURER__ &&
+  window.__MESURER_INSTANCE__?.element?.isConnected
+)
+
+if (hasMesurer) {
   await window.__MESURER__.ready()
-  window.__MESURER__.capabilities()
 }
 ```
 
-If Mesurer is absent, use the browser JavaScript-evaluation primitive the harness already owns. Do not add Mesurer to application source, create another browser, or change the app build just to inspect the page.
+If Mesurer exists, **use that exact instance**. Do not evaluate the injector again. Do not call `dispose()`. Do not remove or replace plugins unless the user specifically asked to modify Mesurer itself.
 
-The installed skill is self-contained: `assets/inject-script.js` beside this file is the packaged classic injector. Read that file and evaluate its contents in the page. In the Mesurer repository itself, the equivalent development artifact is `packages/mesurer/dist/inject-script.js`. If `mesurer-solid` is already installed in the project, its `/inject-script` export is the same distribution path.
+If Mesurer is absent, inject it through the browser JavaScript-evaluation primitive the harness already owns. Do not add Mesurer to application source, create another browser, create another CDP connection, start a Mesurer server, or change the app build just to inspect the page.
 
-After injection:
+The installed skill is self-contained: `assets/inject-script.js` beside this file is the packaged classic injector. Read that file and evaluate its contents in the current page. In the Mesurer repository itself, the equivalent development artifact is `packages/mesurer/dist/inject-script.js`. If `mesurer-solid` is already installed, `mesurer-solid/inject-script` is the same distribution path.
+
+The injector itself also defaults to reusing a matching live instance. `window.__MESURER_CONFIG__ = { reuseExisting: false }` is an explicit destructive replacement option for tests/HMR tooling; **do not use it while consuming human review state**.
+
+After a first injection:
 
 ```js
 await window.__MESURER__.ready()
 window.__MESURER__.capabilities()
 ```
 
-## Human feedback comes first
+## 2. Read the human's visual state before editing
 
-Before editing UI code, read any Mesurer annotations and the relevant scoped context:
+Do this before changing UI code whenever Mesurer already existed, the user says they selected/measured/marked something, or the task is visual and Mesurer is available.
 
-```js
-await window.__MESURER__.annotations()
-await window.__MESURER__.context({ annotation: annotationId })
-```
-
-Treat the user's annotation note as intent. Treat selectors, geometry, guides, measurements, distances, typography, and screenshots as evidence that helps implement that intent. Do not override a user's stated intent merely because a numeric measurement exists.
-
-For the current unsaved selection, use:
+Read the whole meaningful workspace:
 
 ```js
-await window.__MESURER__.context({ scope: "selection" })
+const workspace = await window.__MESURER__.context()
 ```
 
-A selection may be one or more elements or a dragged visual region. Region annotations are useful for whitespace, alignment, or other feedback where no single DOM element is the right target.
+`workspace` is JSON-safe rendered evidence. Important fields include:
 
-For the whole meaningful workspace, use:
+```text
+page / viewport / devicePixelRatio / scroll
+visualState.rulersVisible
+visualState.xrayVisible
+targets[]
+  selector
+  exact viewport rect
+  margin / padding / border
+  typography
+  appearance
+  flex/grid/layout/computed style
+  scroll/overflow
+visualContext.guides[]
+visualContext.measurements[]
+visualContext.distances[]
+```
+
+Workspace context is the right answer to requests such as:
+
+> "Look at my measurements. This layout is broken."
+
+> "I put guides on the edges that should line up."
+
+> "Look at what I selected and tell me why these cards are off."
+
+### Current selection
+
+If the person currently has selected elements or a dragged region, also read selection-scoped context:
 
 ```js
-await window.__MESURER__.context()
+let selection = null
+try {
+  selection = await window.__MESURER__.context({ scope: "selection" })
+} catch {
+  // No current selection is valid; continue with workspace/annotations.
+}
 ```
 
-## Implement, render, revalidate
+Selection context is the clearest answer to **what the person is pointing at right now**. It contains only the targets/region and guides, measurements, and distances relevant to that selected area.
 
-For a requested visual change:
+Do not require the user to create an annotation just to make their current selection useful.
 
-1. Capture the relevant annotation/selection context before editing.
-2. Make the smallest source change that addresses the visual intent.
-3. Let the normal dev server/HMR update the page.
-4. Wait for the rendered UI to settle with `await window.__MESURER__.stable()`.
-5. Re-read the affected annotation with `await window.__MESURER__.review(annotationId)`.
-6. Inspect measurable before/current changes and any explicit missing evidence. If a gap, alignment, width, height, guide relationship, or expected target is still wrong, iterate.
-7. If the harness supports screenshots, inspect the current visual evidence as well.
-8. For visual tasks, do not declare completion merely because typecheck/tests/build pass when Mesurer is available for browser validation.
+### Saved human annotations
 
-Annotations keep the original live DOM target while it remains connected. After DOM replacement, Mesurer rebinds only when the stored selector and fingerprint resolve conservatively and uniquely. If Mesurer reports a target as stale, do not silently assume another element is the same target; ask for or re-establish the intended target when necessary.
+Always inspect saved annotations when they exist:
 
-## Screenshot evidence
+```js
+const annotations = await window.__MESURER__.annotations()
 
-Mesurer distinguishes controls from visual evidence. Capture with Mesurer controls hidden but guides, rulers, selected outlines, annotations, measurements, distances, and pixel labels visible:
+for (const annotation of annotations) {
+  const context = await window.__MESURER__.context({ annotation: annotation.id })
+  // Read annotation.note as human intent.
+}
+```
+
+An annotation is stronger than an unsaved selection because it stores a durable note and baseline. Treat the note as the user's intent. Treat selectors, geometry, measurements, guides, distances, computed styles, and screenshots as supporting evidence.
+
+If several annotations exist, do not silently inspect only the first one. Read the relevant notes/contexts or explain which one you are addressing.
+
+### Evidence interpretation
+
+Mesurer reports **viewport CSS pixels**. Prefer its exact numbers over estimating gaps or alignment from a screenshot.
+
+Examples:
+
+- two target left edges differ by `4px` → they are not aligned;
+- a held horizontal distance says `37px` → do not claim the gap is `24px` because CSS declares `gap: 24px` somewhere;
+- a guide at `x=320` crossing selected targets shows the intended alignment reference;
+- X-ray/ruler state tells you what the human was using to understand the page, but is not itself a design requirement;
+- a selected region with no DOM target can still encode whitespace/alignment intent through `regions`.
+
+## 3. Capture real visual evidence when useful
+
+Mesurer provides geometry and capture scope. The outer harness owns real browser screenshots.
+
+For an annotation or selection:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
+
 await window.__MESURER__.prepareCapture()
 try {
-  // Use the harness/browser's real screenshot primitive.
-  // Capture the current viewport and, when plan contains `focus`, that clip.
+  // Use the current harness/browser screenshot primitive.
+  // Capture the viewport and, when present, plan.captures focus clip.
 } finally {
   await window.__MESURER__.finishCapture()
 }
 ```
 
-Do not use a DOM-to-canvas approximation when the harness can capture the real rendered browser.
+For selection context, pass `{ scope: "selection" }` instead of an annotation request.
 
-Use screenshots together with structured Mesurer evidence, not instead of it. Numeric geometry is better for exact discrepancies; images are better for visual judgment and surrounding design context.
+`prepareCapture()` hides Mesurer control chrome while preserving evidence such as selection/annotation markers, rulers, guides, measurements, held distances, and pixel labels. Always call `finishCapture()` in `finally`.
 
-## Delivery
+Do not use DOM-to-canvas screenshot approximations when the harness can capture the real rendered browser.
 
-The universal fallback is `await window.__MESURER__.contextText(...)` or the visible **Copy context** action.
+Use the two signals together:
 
-For direct standardized agent delivery, use the ACP session already owned by the client/harness. Mesurer context maps to ACP as one text content block plus optional image content blocks. Do not invent an OpenCode-, Pi-, Cursor-, Codex-, or other harness-specific Mesurer protocol.
+```text
+Mesurer structured data → exact geometry, box model, styles, distances, overflow
+real screenshot          → composition, hierarchy, clipping, color, visual judgment
+```
 
-## Useful low-level inspection
+## 4. Edit the real implementation
 
-The existing browser API remains available when more detail is needed:
+After reading the human context, make the smallest source change that addresses the actual visual issue.
+
+Use the normal project workflow. Mesurer does not edit files, own a dev server, or own browser navigation. Do not create Mesurer-specific build scripts or agent plumbing.
+
+If the page uses HMR, let the normal render update occur. If the app must be relaunched by the harness, use the harness's normal flow.
+
+Do not mutate the human's guides/measurements merely to make the evidence match your implementation. They are review state, not test fixtures to rewrite.
+
+## 5. Revalidate the rendered result
+
+After every meaningful UI edit:
+
+```js
+await window.__MESURER__.stable()
+```
+
+Then verify with the strongest available path.
+
+### If the user made an annotation
+
+Use deterministic before/current review:
+
+```js
+const review = await window.__MESURER__.review(annotationId)
+```
+
+`review()` includes the human note, baseline evidence, current scoped context, target status, exact pixel deltas, and explicit missing evidence.
+
+Examples of useful review conclusions:
+
+```text
+horizontal gap: 37px → 24px, delta -13px
+left edge mismatch: 4px → 0px
+card width: 318px → 320px
+expected guide/target disappeared → kind: "missing"
+```
+
+If the intended result is still numerically wrong, keep editing. A green typecheck/build is not visual completion.
+
+### If the user only selected/measured the workspace
+
+Re-read the live state:
+
+```js
+const afterWorkspace = await window.__MESURER__.context()
+
+let afterSelection = null
+try {
+  afterSelection = await window.__MESURER__.context({ scope: "selection" })
+} catch {
+  // Selection may disappear after DOM replacement; use stored selectors/targets.
+}
+```
+
+Use exact selectors from the original context with the low-level API when you need a focused post-edit check:
+
+```js
+window.__MESURER__.inspect(selector)
+window.__MESURER__.distance(selectorA, selectorB)
+window.__MESURER__.viewport()
+```
+
+Compare the relevant before/after values in your task context. You do not need a network transport to do this—the agent already owns both snapshots inside its current task.
+
+## 6. Handle HMR and stale targets correctly
+
+Annotations retain the original live DOM node while it remains connected. After DOM replacement/HMR, Mesurer only rebinds conservatively when identity/fingerprint evidence resolves uniquely.
+
+If an annotation reports `targetStatus: "stale"` or `"partial"`, do not silently attach the human's intent to a different element. Use the note, saved baseline/selectors, current DOM, and screenshot to determine whether the target was intentionally replaced. If identity is genuinely ambiguous, ask the user to reselect rather than guessing.
+
+An unsaved current selection can also disappear when the selected DOM node is replaced. Preserve the initial context in the agent task before editing so you still have its selector/geometry and can inspect the replacement deliberately.
+
+## 7. Completion standard
+
+For meaningful visual work, do not finish with only:
+
+```text
+lint passed
+typecheck passed
+tests passed
+build passed
+```
+
+Those are implementation checks, not rendered proof.
+
+A good completion statement should be grounded in the actual page, for example:
+
+```text
+- target cards now measure 320px wide
+- horizontal distance is 24px
+- selected left edges differ by 0px
+- document horizontal overflow is false
+- annotation review reports the requested geometry change
+- current browser screenshot shows no clipping/regression
+```
+
+Only claim measurements you actually read.
+
+## 8. Useful low-level inspection
+
+Use these when scoped context/review does not answer a specific question:
 
 ```js
 await window.__MESURER__.ready()
 window.__MESURER__.inspect(".selector")
 window.__MESURER__.inspectAll(".selector")
+window.__MESURER__.at(x, y)
 window.__MESURER__.distance(".a", ".b")
 window.__MESURER__.viewport()
+await window.__MESURER__.feedback([".selector"])
 await window.__MESURER__.state()
 await window.__MESURER__.stable()
 ```
 
-Use these primitives to answer a concrete visual question; prefer scoped `context()`/`review()` for normal human-in-the-loop UI work.
+Prefer `context()` and `review()` for human-in-the-loop work because they preserve the person's visual evidence and intent.
+
+## 9. Things not to do
+
+For the normal Mesurer-agent workflow:
+
+- **do not look for an MCP or WebMCP tool;**
+- **do not start an MCP/local feedback server;**
+- **do not try to discover a chat/thread/session ID;**
+- **do not route Mesurer through ACP/Codex App Server just to read page state;**
+- **do not create a new browser or duplicate CDP connection when the harness already controls the page;**
+- **do not reinject over a live human Mesurer instance;**
+- **do not delete/change human measurements or guides to make validation pass;**
+- **do not infer exact geometry from screenshots when Mesurer has the number;**
+- **do not claim visual completion from source code or build output alone.**
+
+The direct contract is intentionally small:
+
+```text
+existing agent harness
+  ↕ browser evaluate / screenshot
+existing page
+  ↕
+window.__MESURER__
+```
+
+That is the integration.
