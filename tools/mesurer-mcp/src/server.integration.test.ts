@@ -1,4 +1,41 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import * as z from "zod/v4";
+
+const initializeResponseSchema = z.object({
+  result: z.object({ protocolVersion: z.string() }),
+});
+const toolsListResponseSchema = z.object({
+  result: z.object({
+    tools: z.array(z.object({ name: z.string() })),
+  }),
+});
+const toolCallResponseSchema = z.object({
+  result: z.object({
+    content: z.array(z.object({
+      type: z.literal("text"),
+      text: z.string(),
+    })).min(1),
+  }),
+});
+const feedbackAcceptedSchema = z.object({
+  sequence: z.number().int().positive(),
+});
+const feedbackToolPayloadSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("feedback"),
+    sequence: z.number().int().positive(),
+    event: z.object({
+      delivery: z.object({
+        context: z.object({ id: z.string() }),
+        text: z.string(),
+      }),
+    }),
+  }),
+  z.object({
+    status: z.literal("timeout"),
+    sequence: z.number().int().nonnegative(),
+  }),
+]);
 
 const children: Array<ReturnType<typeof Bun.spawn>> = [];
 
@@ -11,13 +48,13 @@ function createJsonLineReader(stream: ReadableStream<Uint8Array>) {
   const decoder = new TextDecoder();
   let buffer = "";
 
-  return async (): Promise<Record<string, unknown>> => {
+  return async (): Promise<string> => {
     while (true) {
       const newline = buffer.indexOf("\n");
       if (newline >= 0) {
         const line = buffer.slice(0, newline).trim();
         buffer = buffer.slice(newline + 1);
-        if (line) return JSON.parse(line);
+        if (line) return line;
         continue;
       }
 
@@ -42,10 +79,7 @@ async function waitForHealth(port: number): Promise<void> {
   throw new Error("Mesurer MCP feedback ingress did not become healthy.");
 }
 
-function sendJsonRpc(
-  stdin: FileSink,
-  message: Record<string, unknown>,
-): void {
+function sendJsonRpc(stdin: Bun.FileSink, message: object): void {
   stdin.write(`${JSON.stringify(message)}\n`);
   stdin.flush();
 }
@@ -65,19 +99,13 @@ async function postFeedback(port: number, id: string, text: string): Promise<num
     }),
   });
   expect(response.status).toBe(202);
-  const body = await response.json() as { sequence: number };
+  const body = feedbackAcceptedSchema.parse(await response.json());
   return body.sequence;
 }
 
-function toolPayload(message: Record<string, unknown>): {
-  status: "feedback" | "timeout";
-  sequence: number;
-  event?: { delivery: { context: { id: string }; text: string } };
-} {
-  const result = message.result as { content?: Array<{ type?: string; text?: string }> } | undefined;
-  const text = result?.content?.[0]?.text;
-  if (!text) throw new Error("MCP tool result did not include text content.");
-  return JSON.parse(text);
+function parseToolPayload(line: string): z.infer<typeof feedbackToolPayloadSchema> {
+  const message = toolCallResponseSchema.parse(JSON.parse(line));
+  return feedbackToolPayloadSchema.parse(JSON.parse(message.result.content[0].text));
 }
 
 afterEach(async () => {
@@ -102,7 +130,7 @@ describe("Mesurer MCP stdio server", () => {
       stderr: "pipe",
     });
     children.push(child);
-    const nextMessage = createJsonLineReader(child.stdout);
+    const nextLine = createJsonLineReader(child.stdout);
 
     await waitForHealth(port);
 
@@ -116,8 +144,8 @@ describe("Mesurer MCP stdio server", () => {
         clientInfo: { name: "mesurer-mcp-test", version: "1.0.0" },
       },
     });
-    const initialized = await nextMessage();
-    expect((initialized.result as { protocolVersion?: string }).protocolVersion).toBe("2025-11-25");
+    const initialized = initializeResponseSchema.parse(JSON.parse(await nextLine()));
+    expect(initialized.result.protocolVersion).toBe("2025-11-25");
 
     sendJsonRpc(child.stdin, {
       jsonrpc: "2.0",
@@ -131,9 +159,8 @@ describe("Mesurer MCP stdio server", () => {
       method: "tools/list",
       params: {},
     });
-    const listed = await nextMessage();
-    const tools = (listed.result as { tools?: Array<{ name?: string }> }).tools ?? [];
-    expect(tools.map((tool) => tool.name)).toContain("mesurer_wait_for_feedback");
+    const listed = toolsListResponseSchema.parse(JSON.parse(await nextLine()));
+    expect(listed.result.tools.map((tool) => tool.name)).toContain("mesurer_wait_for_feedback");
 
     sendJsonRpc(child.stdin, {
       jsonrpc: "2.0",
@@ -147,11 +174,12 @@ describe("Mesurer MCP stdio server", () => {
 
     const firstSequence = await postFeedback(port, "context-pending", "Align these cards.");
     expect(firstSequence).toBe(1);
-    const pendingResult = toolPayload(await nextMessage());
+    const pendingResult = parseToolPayload(await nextLine());
     expect(pendingResult.status).toBe("feedback");
+    if (pendingResult.status !== "feedback") throw new Error("Expected pending feedback result.");
     expect(pendingResult.sequence).toBe(1);
-    expect(pendingResult.event?.delivery.context.id).toBe("context-pending");
-    expect(pendingResult.event?.delivery.text).toBe("Align these cards.");
+    expect(pendingResult.event.delivery.context.id).toBe("context-pending");
+    expect(pendingResult.event.delivery.text).toBe("Align these cards.");
 
     const secondSequence = await postFeedback(port, "context-queued", "Reduce this spacing.");
     expect(secondSequence).toBe(2);
@@ -165,9 +193,10 @@ describe("Mesurer MCP stdio server", () => {
         arguments: { after: 1, timeoutMs: 5_000 },
       },
     });
-    const queuedResult = toolPayload(await nextMessage());
+    const queuedResult = parseToolPayload(await nextLine());
     expect(queuedResult.status).toBe("feedback");
+    if (queuedResult.status !== "feedback") throw new Error("Expected queued feedback result.");
     expect(queuedResult.sequence).toBe(2);
-    expect(queuedResult.event?.delivery.context.id).toBe("context-queued");
+    expect(queuedResult.event.delivery.context.id).toBe("context-queued");
   }, 15_000);
 });
