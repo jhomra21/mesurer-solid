@@ -16,31 +16,44 @@ const {
   globalName = "__MESURER__",
   context = true,
   plugins = [],
+  reuseExisting = true,
   ...options
 } = config;
-const target = targetSelector ? document.querySelector<HTMLElement>(targetSelector) : document.body;
-if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
-const injectedPlugins = context === false
-  ? plugins
-  : [contextPlugin(context === true ? {} : context), ...plugins];
+const existing = globalThis.__MESURER_INSTANCE__;
+const reusableExisting = reuseExisting
+  && existing?.element.isConnected
+  && Reflect.get(globalThis, globalName) === existing.agent
+  ? existing
+  : undefined;
 
-// Reinjection is intentionally deterministic for browser-tool/HMR loops.
-globalThis.__MESURER_INSTANCE__?.dispose();
+if (reusableExisting) {
+  void reusableExisting.ready.catch((error) => {
+    queueMicrotask(() => { throw error; });
+  });
+} else {
+  const target = targetSelector ? document.querySelector<HTMLElement>(targetSelector) : document.body;
+  if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
-const mesurer = mountMeasurer({
-  ...options,
-  plugins: injectedPlugins,
-  target,
-  agent: { globalName, root: document },
-});
+  const injectedPlugins = context === false
+    ? plugins
+    : [contextPlugin(context === true ? {} : context), ...plugins];
 
-globalThis.__MESURER_INSTANCE__ = mesurer;
+  existing?.dispose();
+  const mesurer = mountMeasurer({
+    ...options,
+    plugins: injectedPlugins,
+    target,
+    agent: { globalName, root: document },
+  });
 
-// The agent global is installed synchronously by mountMeasurer(). Consumers can
-// immediately call window[globalName].ready() through their existing browser
-// evaluation primitive. Avoid top-level await so this file can be emitted as a
-// classic self-executing script instead of an ES module.
-void mesurer.ready.catch((error) => {
-  queueMicrotask(() => { throw error; });
-});
+  globalThis.__MESURER_INSTANCE__ = mesurer;
+
+  // The agent global is installed synchronously by mountMeasurer(). Consumers can
+  // immediately call window[globalName].ready() through their existing browser
+  // evaluation primitive. Avoid top-level await so this file can be emitted as a
+  // classic self-executing script instead of an ES module.
+  void mesurer.ready.catch((error) => {
+    queueMicrotask(() => { throw error; });
+  });
+}
