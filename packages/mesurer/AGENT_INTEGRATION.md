@@ -3,15 +3,15 @@
 Mesurer uses standards and a browser contract instead of harness-specific integrations.
 
 ```text
-Agent Skill            window.__MESURER__             ACP
-how/when to use it     visual context + validation    standardized delivery
-       \                       |                       /
-        \______________________|______________________/
-                               |
-                         any capable harness
+Agent Skill          window.__MESURER__        host/browser bridge        ACP / Codex app-server
+how/when to use it   context + validation      capability-only callback   session/thread routing
+       \                    |                          |                         /
+        \___________________|__________________________|________________________/
+                                             |
+                                       capable harness
 ```
 
-There is no required OpenCode, Pi, Cursor, Codex, or other Mesurer adapter package.
+There is no required OpenCode, Pi, Cursor, Codex, or other Mesurer transport package. Mesurer produces structured visual context and evidence; the outer host owns browser automation, transport connections, credentials, and conversation routing.
 
 ## Install the portable Agent Skill
 
@@ -134,13 +134,13 @@ const mesurer = mountMeasurer({
 });
 ```
 
-Browser/harness delivery capabilities are plugin options:
+A source-mounted host that already owns its transport can pass callbacks directly:
 
 ```ts
 contextPlugin({
   evidenceProvider: async ({ context, plan }) => [],
   sendContext: async ({ context, text, images }) => {
-    // Send using the ACP session already owned by the host.
+    // Route through the session/thread already owned by this host.
   },
 })
 ```
@@ -153,9 +153,65 @@ mesurer.pluginHost?.remove("mesurer.context");
 
 The context UI, annotation runtime, shortcuts, service, and listeners are disposed together.
 
-## ACP delivery
+## Injected page → host bridge
 
-Mesurer does not own an ACP process or session. The ACP client/harness that already owns the session sends Mesurer output.
+An injected page does not automatically inherit the coding client's current ACP session or Codex thread. The host must expose a narrow callback capability before evaluating Mesurer.
+
+The classic injector recognizes this versioned capability object:
+
+```ts
+window.__MESURER_HOST__ = {
+  protocol: "mesurer.host/v1",
+  captureEvidence: async ({ context, plan }) => [],
+  sendContext: async ({ context, text, images }) => {},
+};
+```
+
+Only the callbacks cross into the page. Keep session IDs, thread IDs, credentials, auth state, approval handling, and transport clients in the outer host.
+
+For a browser harness with an expose-binding primitive, the pattern is:
+
+```ts
+await page.exposeBinding("__mesurerSendContext", async (_source, delivery) => {
+  await sendContext(delivery);
+});
+
+await page.exposeBinding("__mesurerCaptureEvidence", async (_source, input) => {
+  return captureEvidence(input);
+});
+
+await page.evaluate(() => {
+  window.__MESURER_HOST__ = {
+    protocol: "mesurer.host/v1",
+    sendContext: (delivery) => window.__mesurerSendContext(delivery),
+    captureEvidence: (input) => window.__mesurerCaptureEvidence(input),
+  };
+});
+
+await page.evaluate(injectSource);
+```
+
+A direct `context` plugin option wins over the host bridge when both provide the same callback. This keeps explicit source-mounted configuration deterministic.
+
+Treat direct-send bindings as privileged capabilities. Only expose them to pages/origins you trust, and validate incoming delivery objects in the host before forwarding them into an agent conversation. The page still never needs the underlying ACP/Codex credentials or conversation identifiers.
+
+## ACP delivery adapter
+
+ACP `session/prompt` accepts text and image content blocks directly, including base64 image data. The public host-only `/delivery` entrypoint turns a `MesurerContextDelivery` into that request while resolving the current session at send time:
+
+```ts
+import { createAcpContextSender } from "mesurer-solid/delivery";
+
+const sendContext = createAcpContextSender({
+  target: () => ({ sessionId: currentAcpSession.id }),
+  prompt: ({ sessionId, prompt }) =>
+    acpClient.request("session/prompt", { sessionId, prompt }),
+});
+```
+
+Pass that `sendContext` behind the browser bridge above, or directly to `contextPlugin()` in a source-mounted host. Mesurer does not initialize, authenticate, create, resume, or select the ACP session.
+
+The lower-level formatter remains available when a host wants to manage the request itself:
 
 ```ts
 import { toAcpContentBlocks } from "mesurer-solid";
@@ -163,7 +219,33 @@ import { toAcpContentBlocks } from "mesurer-solid";
 const blocks = toAcpContentBlocks(context, images);
 ```
 
-The result is one context text block plus optional labeled image blocks. The calling ACP client is responsible for session selection, capability negotiation, and `session/prompt`.
+## Codex App Server delivery adapter
+
+Codex App Server owns durable threads and in-flight turns. Its user input wire format is not ACP: screenshots must be supplied as an image URL or a host-local image path.
+
+```ts
+import { createCodexAppServerContextSender } from "mesurer-solid/delivery";
+
+const sendContext = createCodexAppServerContextSender({
+  target: () => ({
+    threadId: currentCodexThread.id,
+    activeTurnId: currentCodexTurn?.status === "inProgress"
+      ? currentCodexTurn.id
+      : null,
+  }),
+  request: ({ method, params }) => appServer.request(method, params),
+  imageInput: async (image) => ({
+    type: "localImage",
+    path: await writeTemporaryEvidenceFile(image),
+  }),
+});
+```
+
+When the target has no active turn, Mesurer produces a `turn/start` request. When the host reports an active turn, it produces `turn/steer` with `expectedTurnId` so context enters that same in-flight task instead of starting a competing turn.
+
+The host owns temporary image-file/URL materialization and cleanup. If `imageInput` is omitted or returns `null`, delivery remains valid and falls back to text-only context.
+
+This adapter does not start `codex app-server`, initialize/authenticate it, discover a Codex thread, or expose the thread id to the page. The Codex client that already owns the conversation supplies those pieces.
 
 ## Existing low-level API
 
@@ -186,4 +268,4 @@ Prefer scoped `context()` and `review()` for normal human-in-the-loop visual dev
 
 ## Ownership boundary
 
-The base Mesurer runtime owns measurement, inspection, plugin composition, and the low-level browser API. `mesurer.context` owns annotations, context formatting/capture/review behavior, and its UI. The outer harness owns navigation, clicks, typing, screenshots, tabs/windows, authentication, browser lifetime, source editing, dev servers, and ACP session/process ownership.
+The base Mesurer runtime owns measurement, inspection, plugin composition, and the low-level browser API. `mesurer.context` owns annotations, context formatting/capture/review behavior, and its UI. The page-to-host bridge owns only callable capabilities. The outer harness owns navigation, clicks, typing, screenshots, tabs/windows, authentication, browser lifetime, source editing, dev servers, ACP/Codex clients, credentials, session/thread selection, approvals, and conversation routing.
