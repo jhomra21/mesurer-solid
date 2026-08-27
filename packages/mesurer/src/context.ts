@@ -143,22 +143,9 @@ export type MesurerCapturePlanV1 = {
     | { id: "focus"; kind: "clip"; rect: MesurerContextRect }
   >;
 };
-export type MesurerEvidenceImage = {
-  id: "viewport" | "focus" | string;
-  kind: "viewport" | "focus" | string;
-  mimeType: "image/png" | "image/jpeg" | string;
-  /** Base64 image bytes without a data URL prefix. */
-  data: string;
-};
-export type MesurerEvidenceProvider = (input: { context: MesurerContextV1; plan: MesurerCapturePlanV1 }) => Promise<MesurerEvidenceImage[]>;
-export type MesurerContextDelivery = { context: MesurerContextV1; text: string; images: MesurerEvidenceImage[] };
-export type MesurerContextSender = (delivery: MesurerContextDelivery) => Promise<void>;
-export type AcpTextContentBlock = { type: "text"; text: string };
-export type AcpImageContentBlock = { type: "image"; mimeType: string; data: string };
-export type MesurerAcpContentBlock = AcpTextContentBlock | AcpImageContentBlock;
 
 /**
- * Explicit renderer-to-protocol adapter source. The renderer owns live DOM references;
+ * Explicit renderer-to-context source. The renderer owns live DOM references;
  * this public boundary deliberately describes only the fields that may enter JSON context.
  */
 export type MesurerWorkspaceContextSource = {
@@ -538,18 +525,6 @@ export function reviewMesurerAnnotation(options: {
     current,
     changes,
   };
-}
-
-export function toAcpContentBlocks(
-  context: MesurerContextV1,
-  images: MesurerEvidenceImage[] = [],
-): MesurerAcpContentBlock[] {
-  const blocks: MesurerAcpContentBlock[] = [{ type: "text", text: formatMesurerContext(context) }];
-  for (const image of images) {
-    blocks.push({ type: "text", text: `Mesurer visual evidence: ${image.kind} (${image.id})` });
-    blocks.push({ type: "image", mimeType: image.mimeType, data: image.data });
-  }
-  return blocks;
 }
 
 export async function copyTextToClipboard(ownerDocument: Document, ownerWindow: Window, text: string) {
