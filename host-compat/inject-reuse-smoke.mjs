@@ -22,15 +22,18 @@ try {
 
   const directContract = await page.evaluate(() => {
     const capabilities = window.__MESURER__.capabilities().capabilities;
+    const island = window.__MESURER_INSTANCE__?.element;
+    const inspectorRoot = island?.shadowRoot ?? island;
+    const countTool = (id) => inspectorRoot?.querySelectorAll(`[data-mesurer-tool-id='${id}']`).length ?? 0;
     return {
       capabilities,
       hasSendContext: "sendContext" in window.__MESURER__,
       hasSendCapability: "send" in capabilities,
       hasScreenshotDeliveryCapability: "screenshots" in capabilities,
-      sendToolCount: document.querySelectorAll("[data-mesurer-tool-id='context.send-selection']").length,
-      copyContextToolCount: document.querySelectorAll("[data-mesurer-tool-id='context.copy']").length,
-      copySelectionToolCount: document.querySelectorAll("[data-mesurer-tool-id='context.copy-selection']").length,
-      addNoteToolCount: document.querySelectorAll("[data-mesurer-tool-id='context.add-note']").length,
+      sendToolCount: countTool("context.send-selection"),
+      copyContextToolCount: countTool("context.copy"),
+      copySelectionToolCount: countTool("context.copy-selection"),
+      addNoteToolCount: countTool("context.add-note"),
     };
   });
 
