@@ -128,8 +128,6 @@ export type MesurerAgentCapabilities = {
     annotations: boolean;
     review: boolean;
     capturePlan: boolean;
-    screenshots: boolean;
-    send: boolean;
   };
 };
 export type MesurerContextHarness = {
@@ -141,7 +139,6 @@ export type MesurerContextHarness = {
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
   prepareCapture(): Promise<void>;
   finishCapture(): Promise<void>;
-  sendContext(request?: MesurerContextRequest): Promise<void>;
 };
 export type MesurerBrowserAgent = MesurerAgentHarness & MesurerContextHarness;
 export type MountedMeasurer = {
@@ -159,7 +156,6 @@ export type MountedMeasurer = {
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
   prepareCapture(): Promise<void>;
   finishCapture(): Promise<void>;
-  sendContext(request?: MesurerContextRequest): Promise<void>;
   bringToFront(): void;
   describe(): MesurerPluginDescription | undefined;
   dispose(): void;
@@ -242,10 +238,8 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
   const capturePlan = async (request?: MesurerContextRequest) => (await getContextService()).capturePlan(request);
   const prepareCapture = async () => (await getContextService()).prepareCapture();
   const finishCapture = async () => (await getContextService()).finishCapture();
-  const sendContext = async (request?: MesurerContextRequest) => (await getContextService()).sendContext(request);
   const capabilities = (): MesurerAgentCapabilities => {
-    const service = pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID);
-    const available = Boolean(service);
+    const available = Boolean(pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID));
     return {
       protocol: "mesurer.agent/v1",
       contextSchema: "mesurer.context/v1",
@@ -254,8 +248,6 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
         annotations: available,
         review: available,
         capturePlan: available,
-        screenshots: service?.screenshots ?? false,
-        send: service?.send ?? false,
       },
     };
   };
@@ -268,7 +260,6 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     capturePlan,
     prepareCapture,
     finishCapture,
-    sendContext,
   });
 
   const rendererProps: RendererMeasurerProps = measurerProps;
@@ -328,7 +319,6 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     capturePlan,
     prepareCapture,
     finishCapture,
-    sendContext,
     bringToFront: hostLayer.bringToFront,
     describe: () => pluginHost?.describe(),
     dispose() {
@@ -359,30 +349,22 @@ export {
   createMesurerCapturePlan,
   formatMesurerContext,
   reviewMesurerAnnotation,
-  toAcpContentBlocks,
 } from "./context";
 export type {
-  AcpImageContentBlock,
-  AcpTextContentBlock,
-  MesurerAcpContentBlock,
   MesurerAnnotation,
   MesurerAnnotationBaseline,
   MesurerAnnotationTarget,
   MesurerCapturePlanV1,
-  MesurerContextDelivery,
   MesurerContextDistance,
   MesurerContextEdges,
   MesurerContextGuide,
   MesurerContextMeasurement,
   MesurerContextRect,
   MesurerContextRequest,
-  MesurerContextSender,
   MesurerContextTarget,
   MesurerContextV1,
   MesurerElementFingerprint,
   MesurerElementInspection,
-  MesurerEvidenceImage,
-  MesurerEvidenceProvider,
   MesurerReviewChange,
   MesurerReviewMetricChange,
   MesurerReviewPresenceChange,
