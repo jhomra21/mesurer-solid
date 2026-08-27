@@ -10,6 +10,10 @@ import {
   getMesurerHostBridge,
   type MesurerHostBridge,
 } from "./host-bridge";
+import {
+  connectContextPluginToMcp,
+  type MesurerMcpFeedbackConfig,
+} from "./mcp-feedback";
 
 export type MesurerInjectConfig = Omit<MountMeasurerOptions, "target" | "agent" | "plugins"> & {
   /** Optional application container selector. Defaults to document.body. */
@@ -20,10 +24,14 @@ export type MesurerInjectConfig = Omit<MountMeasurerOptions, "target" | "agent" 
   plugins?: MountMeasurerOptions["plugins"];
   /** Enable/configure the removable context plugin. Defaults to true for injection. */
   context?: boolean | MesurerContextPluginOptions;
+  /** Publish Send-to-agent context to a local Mesurer MCP process. Defaults to false. */
+  mcp?: boolean | MesurerMcpFeedbackConfig;
 };
 
 export type { MesurerHostBridge } from "./host-bridge";
 export { MESURER_HOST_BRIDGE_PROTOCOL } from "./host-bridge";
+export type { MesurerMcpFeedbackConfig } from "./mcp-feedback";
+export { MESURER_MCP_DEFAULT_FEEDBACK_URL } from "./mcp-feedback";
 
 declare global {
   var __MESURER_CONFIG__: MesurerInjectConfig | undefined;
@@ -36,6 +44,7 @@ const {
   target: targetSelector,
   globalName = "__MESURER__",
   context = true,
+  mcp = false,
   plugins = [],
   ...options
 } = config;
@@ -46,7 +55,12 @@ const hostBridge = getMesurerHostBridge(globalThis.__MESURER_HOST__);
 const injectedPlugins = context === false
   ? plugins
   : [
-      contextPlugin(connectContextPluginToHost(context === true ? {} : context, hostBridge)),
+      contextPlugin(
+        connectContextPluginToMcp(
+          connectContextPluginToHost(context === true ? {} : context, hostBridge),
+          mcp,
+        ),
+      ),
       ...plugins,
     ];
 
