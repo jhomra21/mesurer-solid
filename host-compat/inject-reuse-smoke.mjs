@@ -24,6 +24,8 @@ try {
     const instance = window.__MESURER_INSTANCE__;
     if (!instance?.pluginHost) throw new Error("Expected injected Mesurer plugin host.");
     instance.element.dataset.reuseProbe = "human-state";
+    window.__MESURER_REUSE_BEFORE_ELEMENT__ = instance.element;
+    window.__MESURER_REUSE_BEFORE_AGENT__ = window.__MESURER__;
     await instance.pluginHost.load({
       id: "test.human-state",
       version: "1.0.0",
@@ -36,39 +38,13 @@ try {
     });
   });
 
-  const before = await page.evaluate(() => ({
-    element: window.__MESURER_INSTANCE__?.element,
-    agent: window.__MESURER__,
-  }));
-
   // This models an agent evaluating its bundled injector after a human has
   // already selected/measured/annotated the page. Default injection must reuse
   // the live instance instead of destroying that shared review state.
   await page.evaluate(injectSource);
   await page.evaluate(() => window.__MESURER__.ready());
 
-  const reused = await page.evaluate(() => {
-    const instance = window.__MESURER_INSTANCE__;
-    return {
-      marker: instance?.element.dataset.reuseProbe ?? null,
-      pluginState: window.__MESURER__.state()["test.human-state.value"] ?? null,
-      islandCount: document.querySelectorAll("[data-mesurer-island='true']").length,
-      sameElement: instance?.element === window.__MESURER_REUSE_BEFORE_ELEMENT__,
-      sameAgent: window.__MESURER__ === window.__MESURER_REUSE_BEFORE_AGENT__,
-    };
-  });
-
-  // Object identity cannot cross the Playwright serialization boundary, so keep
-  // the original live references in the page and compare them there as well.
-  await page.evaluate(({ element, agent }) => {
-    window.__MESURER_REUSE_BEFORE_ELEMENT__ = element;
-    window.__MESURER_REUSE_BEFORE_AGENT__ = agent;
-  }, before);
-
-  // Re-run once after storing page-local references so identity itself is proven.
-  await page.evaluate(injectSource);
-  await page.evaluate(() => window.__MESURER__.ready());
-  const identity = await page.evaluate(() => ({
+  const reused = await page.evaluate(() => ({
     sameElement: window.__MESURER_INSTANCE__?.element === window.__MESURER_REUSE_BEFORE_ELEMENT__,
     sameAgent: window.__MESURER__ === window.__MESURER_REUSE_BEFORE_AGENT__,
     marker: window.__MESURER_INSTANCE__?.element.dataset.reuseProbe ?? null,
@@ -76,14 +52,11 @@ try {
     islandCount: document.querySelectorAll("[data-mesurer-island='true']").length,
   }));
 
-  if (reused.marker !== "human-state" || identity.marker !== "human-state") {
-    throw new Error(`Agent reinjection destroyed human instance state: ${JSON.stringify({ reused, identity })}`);
+  if (reused.marker !== "human-state" || reused.pluginState?.marker !== 42) {
+    throw new Error(`Agent reinjection destroyed human Mesurer state: ${JSON.stringify(reused)}`);
   }
-  if (identity.pluginState?.marker !== 42) {
-    throw new Error(`Agent reinjection destroyed plugin state: ${JSON.stringify(identity.pluginState)}`);
-  }
-  if (!identity.sameElement || !identity.sameAgent || identity.islandCount !== 1) {
-    throw new Error(`Agent reinjection did not reuse exactly one live Mesurer instance: ${JSON.stringify(identity)}`);
+  if (!reused.sameElement || !reused.sameAgent || reused.islandCount !== 1) {
+    throw new Error(`Agent reinjection did not reuse exactly one live Mesurer instance: ${JSON.stringify(reused)}`);
   }
 
   await page.evaluate(() => {
