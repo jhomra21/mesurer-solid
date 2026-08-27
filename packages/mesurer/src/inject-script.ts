@@ -8,6 +8,7 @@ import {
   getMesurerHostBridge,
   type MesurerHostBridge,
 } from "./host-bridge";
+import { connectContextPluginToMcp } from "./mcp-feedback";
 import type { MesurerInjectConfig } from "./inject";
 
 declare global {
@@ -21,6 +22,7 @@ const {
   target: targetSelector,
   globalName = "__MESURER__",
   context = true,
+  mcp = false,
   plugins = [],
   ...options
 } = config;
@@ -31,7 +33,12 @@ const hostBridge = getMesurerHostBridge(globalThis.__MESURER_HOST__);
 const injectedPlugins = context === false
   ? plugins
   : [
-      contextPlugin(connectContextPluginToHost(context === true ? {} : context, hostBridge)),
+      contextPlugin(
+        connectContextPluginToMcp(
+          connectContextPluginToHost(context === true ? {} : context, hostBridge),
+          mcp,
+        ),
+      ),
       ...plugins,
     ];
 
