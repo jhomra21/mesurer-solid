@@ -13,6 +13,7 @@
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
     "./core": { "types": "./dist/core.d.ts", "import": "./dist/core.js" },
+    "./delivery": { "types": "./dist/delivery.d.ts", "import": "./dist/delivery.js" },
     "./inject": { "types": "./dist/inject.d.ts", "import": "./dist/inject.js" },
     "./inject-script": "./dist/inject-script.js",
     "./package.json": "./package.json"
@@ -27,7 +28,7 @@
     "THIRD_PARTY_LICENSES.md"
   ],
   "scripts": {
-    "build": "vite build && vite build --config vite.core.config.ts && vite build --config vite.inject.config.ts && vite build --config vite.inject-script.config.ts && bun scripts/check-bundle.mjs && tsc -p tsconfig.build.json && bun scripts/check-context-review.mjs && bun scripts/check-package.mjs",
+    "build": "vite build && vite build --config vite.core.config.ts && vite build --config vite.delivery.config.ts && vite build --config vite.inject.config.ts && vite build --config vite.inject-script.config.ts && bun scripts/check-bundle.mjs && tsc -p tsconfig.build.json && bun scripts/check-context-review.mjs && bun scripts/check-package.mjs",
     "typecheck": "tsc --noEmit",
     "stage": "bun scripts/stage-package.mjs",
     "pack:dry": "bun run stage && npm pack .publish --dry-run",
