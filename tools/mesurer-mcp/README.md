@@ -15,7 +15,7 @@ Mesurer page
 
 ## MCP revision and transport
 
-The server uses `@modelcontextprotocol/server` v2 and `serveStdio(...)`, which is the current SDK entry point for the MCP 2026-07-28 protocol revision over local process stdio. `serveStdio(...)` also keeps the same server compatible with MCP hosts that negotiate an older stdio protocol revision.
+The server uses `@modelcontextprotocol/server` v2 and `serveStdio(...)`, the current SDK serving entry for a local process launched by an MCP host. The v2 SDK is the stable line implementing MCP 2026-07-28, while `serveStdio(...)` deliberately supports both modern 2026-07-28 and older stdio clients from the same server factory.
 
 Stdio is intentional here: a local coding-agent host launches this process and owns its lifetime. Streamable HTTP is the recommended MCP transport when one network endpoint serves many clients; it would add a server/auth deployment problem that this local feedback loop does not need.
 
@@ -35,29 +35,38 @@ Do not start `src/server.ts` manually when testing with an MCP host. The host sh
 
 ## Codex configuration
 
-Current Codex uses `CODEX_MCP_PROTOCOL_VERSION=2026-07-28` to opt a stdio server into the modern MCP protocol revision. Configure that environment variable on the MCP server entry so the Codex app uses the current protocol when its build supports it.
-
 Use the absolute Bun path returned by `which bun`, especially for the macOS Codex app where the GUI process may not inherit your shell PATH. Codex reads stdio MCP servers from `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.mesurer]
 command = "/ABSOLUTE/PATH/TO/bun"
 args = ["run", "/ABSOLUTE/PATH/TO/mesurer-solid/tools/mesurer-mcp/src/server.ts"]
-env = { CODEX_MCP_PROTOCOL_VERSION = "2026-07-28" }
-startup_timeout_ms = 20_000
+startup_timeout_sec = 20
 ```
 
 Restart the Codex app after changing MCP configuration, then confirm `mesurer_wait_for_feedback` is available in a new task.
 
-The equivalent current Codex CLI setup is:
+The equivalent Codex CLI setup is:
 
 ```bash
+codex mcp add mesurer -- /ABSOLUTE/PATH/TO/bun run /ABSOLUTE/PATH/TO/mesurer-solid/tools/mesurer-mcp/src/server.ts
+```
+
+This normal configuration is the recommended compatibility path. Current Codex still marks its 2026-07-28 MCP client mode as under development and disabled by default; the v2 Mesurer server does not require that experimental client mode to work.
+
+### Optional: exercise Codex's 2026-07-28 client mode
+
+If the installed Codex build exposes the current experimental MCP feature and you specifically want to verify modern-protocol negotiation, enable the feature and opt the stdio entry into the modern version:
+
+```bash
+codex features enable mcp_2026_07_28
+codex mcp remove mesurer
 codex mcp add mesurer \
   --env CODEX_MCP_PROTOCOL_VERSION=2026-07-28 \
   -- /ABSOLUTE/PATH/TO/bun run /ABSOLUTE/PATH/TO/mesurer-solid/tools/mesurer-mcp/src/server.ts
 ```
 
-The server remains compatible with MCP clients that negotiate an older stdio revision; the Codex-specific environment variable only asks current Codex to use its modern 2026-07-28 path.
+Do not make this experimental Codex flag a Mesurer requirement. Other MCP hosts can negotiate whichever protocol revision they currently support.
 
 ## Enable the page sender
 
@@ -82,7 +91,8 @@ A different loopback port can be configured on both sides:
 [mcp_servers.mesurer]
 command = "/ABSOLUTE/PATH/TO/bun"
 args = ["run", "/ABSOLUTE/PATH/TO/mesurer-solid/tools/mesurer-mcp/src/server.ts"]
-env = { CODEX_MCP_PROTOCOL_VERSION = "2026-07-28", MESURER_MCP_FEEDBACK_PORT = "43192" }
+env = { MESURER_MCP_FEEDBACK_PORT = "43192" }
+startup_timeout_sec = 20
 ```
 
 ```js
@@ -97,13 +107,15 @@ The agent should preserve the last observed sequence and long-poll while human v
 
 ```text
 1. finish the current visual edit and validate the rendered page
-2. call mesurer_wait_for_feedback({ after: lastSequence, timeoutMs: 60000 })
+2. call mesurer_wait_for_feedback({ after: lastSequence, timeoutMs: 30000 })
 3. if status=timeout and review is still expected, call it again
 4. if status=feedback, use event.delivery.context and event.delivery.text
 5. capture real browser evidence with the browser harness that already owns the page
 6. make/review the requested change
 7. wait again
 ```
+
+The 30-second default intentionally stays below common MCP-host tool-call timeouts. The tool accepts waits up to 45 seconds; repeated calls are the portable way to wait longer.
 
 Feedback is retained in a bounded sequence log. A click that happens before the agent starts waiting is therefore returned immediately on the next call instead of being lost.
 
