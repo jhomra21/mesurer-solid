@@ -5,7 +5,7 @@ import {
 } from "./index";
 import {
   connectContextPluginToHost,
-  isMesurerHostBridge,
+  getMesurerHostBridge,
   type MesurerHostBridge,
 } from "./host-bridge";
 import type { MesurerInjectConfig } from "./inject";
@@ -27,9 +27,7 @@ const {
 const target = targetSelector ? document.querySelector<HTMLElement>(targetSelector) : document.body;
 if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
-const hostBridge = isMesurerHostBridge(globalThis.__MESURER_HOST__)
-  ? globalThis.__MESURER_HOST__
-  : undefined;
+const hostBridge = getMesurerHostBridge(globalThis.__MESURER_HOST__);
 const contextOptions = context === true ? {} : context;
 const injectedPlugins = context === false
   ? plugins
