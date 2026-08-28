@@ -47,11 +47,13 @@ The Release Control path is deliberately narrow: only new comments on issue #32 
 Supported version strategies are:
 
 - `beta-next`: `0.1.0-beta.2` -> `0.1.0-beta.3`; from a stable version such as `0.1.0`, starts `0.1.1-beta.0`.
-- `promote-stable`: `0.1.0-beta.3` -> `0.1.0`.
+- `promote-stable`: `0.1.0-beta.3` -> `0.1.0`. Stable promotion combines current `Unreleased` notes with the non-placeholder user-facing notes from the matching prerelease train (`beta`, `rc`, or another prerelease of the same `X.Y.Z`) so the stable release describes what actually shipped during prerelease validation.
 - `patch`, `minor`, `major`: stable-version SemVer bumps.
 - `explicit`: an exact supported SemVer version for exceptional cases such as an RC.
 
-The workflow updates `packages/mesurer/package.json`, moves `Unreleased` changelog entries into the new version section, creates `release/v<version>`, and opens a `release: v<version>` PR.
+For ordinary release strategies, the workflow moves `Unreleased` changelog entries into the new version section. For `promote-stable`, it additionally carries forward matching prerelease-train notes, skips `No user-facing changes.` placeholders, and avoids duplicating an identical note block already present in `Unreleased`. Existing prerelease sections remain intact as historical records.
+
+The workflow updates `packages/mesurer/package.json`, creates `release/v<version>`, and opens a `release: v<version>` PR.
 
 Only one release PR may be open at a time. The generated release commit contains GitHub's native `[skip ci]` marker because the release PR is metadata-only and runtime/source compatibility was already validated before release preparation. That prevents normal `push` and `pull_request` workflows from being instantiated for the bot-created release PR, avoiding the separate maintainer approval prompt for those checks.
 
