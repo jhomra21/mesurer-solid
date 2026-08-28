@@ -1,0 +1,86 @@
+import {
+  contextPlugin,
+  mountMeasurer,
+  type MountedMeasurer,
+} from "../../../packages/mesurer/src/index";
+import {
+  MESURER_SCREENSHOT_SERVICE_ID,
+  screenshotPlugin,
+  type MesurerScreenshotService,
+  type ScreenshotCaptureProvider,
+} from "../../../packages/renderer/src/plugins/screenshot";
+
+const persistKey = "mesurer-plugin-settings-contract";
+const url = new URL(window.location.href);
+if (url.searchParams.get("reset") === "1") {
+  window.localStorage.removeItem(`${persistKey}:plugins`);
+}
+
+type CapturePresentation = {
+  measurementVisible: boolean;
+  screenshotSelectionVisible: boolean;
+};
+
+const captures: CapturePresentation[] = [];
+let captureRoot: ParentNode = document;
+
+const visibleInLayout = (element: Element | null) =>
+  element !== null && element.getClientRects().length > 0;
+
+const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, ownerWindow }) => {
+  captures.push({
+    measurementVisible: visibleInLayout(captureRoot.querySelector("[data-mesurer-measurement='true']")),
+    screenshotSelectionVisible: visibleInLayout(captureRoot.querySelector("[data-mesurer-screenshot-select='true']")),
+  });
+
+  const canvas = ownerDocument.createElement("canvas");
+  canvas.width = ownerWindow.innerWidth;
+  canvas.height = ownerWindow.innerHeight;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Plugin settings fixture canvas unavailable");
+  context.fillStyle = "#f8fafc";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#0f172a";
+  context.fillRect(96, 96, 280, 160);
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Plugin settings fixture capture failed"));
+    }, "image/png");
+  });
+};
+
+const subject = mountMeasurer({
+  target: document.body,
+  isolate: true,
+  topLayer: false,
+  plugins: [
+    contextPlugin(),
+    screenshotPlugin({
+      copy: false,
+      download: false,
+      includeMeasurements: false,
+      captureVisibleTab: deterministicCapture,
+    }),
+  ],
+  persistKey,
+});
+
+await subject.ready;
+captureRoot = subject.root;
+const screenshot = subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
+if (!screenshot) throw new Error("Screenshot service did not mount in plugin settings fixture");
+
+type PluginSettingsHarness = {
+  subject: MountedMeasurer;
+  screenshot: MesurerScreenshotService;
+  captures: CapturePresentation[];
+};
+
+declare global {
+  interface Window {
+    __MESURER_PLUGIN_SETTINGS_TEST__?: PluginSettingsHarness;
+  }
+}
+
+window.__MESURER_PLUGIN_SETTINGS_TEST__ = { subject, screenshot, captures };
