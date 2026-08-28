@@ -93,7 +93,7 @@ export const downloadPng = (
   ownerDocument: Document,
   ownerWindow: Window,
 ) => {
-  const url = ownerWindow.URL.createObjectURL(png);
+  const url = globalThis.URL.createObjectURL(png);
   const link = ownerDocument.createElement("a");
   link.href = url;
   link.download = filename;
@@ -101,7 +101,7 @@ export const downloadPng = (
   ownerDocument.documentElement.append(link);
   link.click();
   link.remove();
-  ownerWindow.setTimeout(() => ownerWindow.URL.revokeObjectURL(url), 1000);
+  ownerWindow.setTimeout(() => globalThis.URL.revokeObjectURL(url), 1000);
 };
 
 export const waitForNextPaint = (ownerWindow: Window) =>
