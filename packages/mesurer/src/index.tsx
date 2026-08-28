@@ -125,6 +125,7 @@ export type MesurerAgentCapabilities = {
   contextSchema: "mesurer.context/v1";
   capabilities: {
     context: boolean;
+    select: boolean;
     annotations: boolean;
     review: boolean;
     capturePlan: boolean;
@@ -134,6 +135,7 @@ export type MesurerContextHarness = {
   capabilities(): MesurerAgentCapabilities;
   context(request?: MesurerContextRequest): Promise<MesurerContextV1>;
   contextText(request?: MesurerContextRequest): Promise<string>;
+  select(selectors: string | string[]): Promise<MesurerContextV1>;
   annotations(): Promise<MesurerAnnotation[]>;
   review(annotationId?: string): Promise<MesurerReviewV1 | MesurerReviewV1[]>;
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
@@ -151,6 +153,7 @@ export type MountedMeasurer = {
   context(request?: MesurerContextRequest): Promise<MesurerContextV1>;
   contextText(request?: MesurerContextRequest): Promise<string>;
   copyContext(request?: MesurerContextRequest): Promise<void>;
+  select(selectors: string | string[]): Promise<MesurerContextV1>;
   annotations(): Promise<MesurerAnnotation[]>;
   review(annotationId?: string): Promise<MesurerReviewV1 | MesurerReviewV1[]>;
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
@@ -233,6 +236,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
   const context = async (request?: MesurerContextRequest) => (await getContextService()).context(request);
   const contextText = async (request?: MesurerContextRequest) => (await getContextService()).contextText(request);
   const copyContext = async (request?: MesurerContextRequest) => (await getContextService()).copyContext(request);
+  const select = async (selectors: string | string[]) => (await getContextService()).select(selectors);
   const annotations = async () => (await getContextService()).annotations();
   const review = async (annotationId?: string) => (await getContextService()).review(annotationId);
   const capturePlan = async (request?: MesurerContextRequest) => (await getContextService()).capturePlan(request);
@@ -245,6 +249,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
       contextSchema: "mesurer.context/v1",
       capabilities: {
         context: available,
+        select: available,
         annotations: available,
         review: available,
         capturePlan: available,
@@ -255,6 +260,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     capabilities,
     context,
     contextText,
+    select,
     annotations,
     review,
     capturePlan,
@@ -314,6 +320,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     context,
     contextText,
     copyContext,
+    select,
     annotations,
     review,
     capturePlan,

@@ -46,6 +46,7 @@ export type MesurerContextService = {
   context(request?: MesurerContextRequest): Promise<MesurerContextV1>;
   contextText(request?: MesurerContextRequest): Promise<string>;
   copyContext(request?: MesurerContextRequest): Promise<void>;
+  select(selectors: string | string[]): Promise<MesurerContextV1>;
   annotations(): Promise<MesurerAnnotation[]>;
   review(annotationId?: string): Promise<MesurerReviewV1 | MesurerReviewV1[]>;
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
@@ -79,6 +80,11 @@ const createService = (
     formatMesurerContext(await context(request));
   const copyContext = async (request?: MesurerContextRequest) =>
     copyTextToClipboard(ownerDocument, ownerWindow, await contextText(request));
+  const select = async (selectors: string | string[]) => {
+    runtime.select(Array.isArray(selectors) ? selectors : [selectors]);
+    await stable(ownerDocument, ownerWindow);
+    return context({ scope: "selection" });
+  };
   const annotations = async () => runtime.annotations();
   const review = async (annotationId?: string): Promise<MesurerReviewV1 | MesurerReviewV1[]> => {
     await stable(ownerDocument, ownerWindow);
@@ -103,6 +109,7 @@ const createService = (
     context,
     contextText,
     copyContext,
+    select,
     annotations,
     review,
     capturePlan,

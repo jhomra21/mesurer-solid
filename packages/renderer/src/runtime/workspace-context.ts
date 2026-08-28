@@ -15,6 +15,7 @@ import {
 import {
   getElementFingerprint,
   getElementSelector,
+  getInspectMeasurement,
   getRectFromDom,
   isElementFingerprintCompatible,
   isElementFingerprintRebindable,
@@ -50,6 +51,7 @@ export type MesurerWorkspaceSnapshot = {
 export type MesurerWorkspaceRuntime = {
   snapshot(): MesurerWorkspaceSnapshot;
   currentSelection(): { elements: HTMLElement[]; region: Rect | null };
+  select(selectors: string[]): HTMLElement[];
   hoveredElement(): HTMLElement | null;
   annotations(): MesurerAnnotation[];
   annotation(id: string): MesurerResolvedAnnotation | null;
@@ -153,8 +155,8 @@ export function createMesurerWorkspaceRuntime(options: {
   const isInPageTarget = (element: HTMLElement) =>
     pageTarget === element || pageTarget.contains(element);
 
-  const queryCandidates = (selector: string) => {
-    const matches: Element[] = [];
+  const queryCandidates = (selector: string): HTMLElement[] => {
+    const matches: HTMLElement[] = [];
     if (pageTarget instanceof realm.HTMLElement && pageTarget.matches(selector)) {
       matches.push(pageTarget);
     }
@@ -173,7 +175,7 @@ export function createMesurerWorkspaceRuntime(options: {
   const uniqueRebindCandidate = (target: MesurerAnnotationTarget) => {
     if (!isElementFingerprintRebindable(target.fingerprint)) return null;
 
-    let selectorMatches: Element[] = [];
+    let selectorMatches: HTMLElement[] = [];
     try {
       selectorMatches = queryCandidates(target.selector)
         .filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
@@ -183,7 +185,7 @@ export function createMesurerWorkspaceRuntime(options: {
     if (selectorMatches.length !== 1) return null;
 
     if (!target.fingerprint.id && !target.fingerprint.testId) {
-      let fingerprintMatches: Element[] = [];
+      let fingerprintMatches: HTMLElement[] = [];
       try {
         fingerprintMatches = queryCandidates(target.fingerprint.tag)
           .filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
@@ -195,9 +197,7 @@ export function createMesurerWorkspaceRuntime(options: {
       }
     }
 
-    return selectorMatches[0] instanceof realm.HTMLElement
-      ? selectorMatches[0]
-      : null;
+    return selectorMatches[0] ?? null;
   };
 
   const resolveTarget = (annotationId: string, target: MesurerAnnotationTarget) => {
@@ -300,6 +300,35 @@ export function createMesurerWorkspaceRuntime(options: {
     lastRect: getRectFromDom(element),
   });
 
+  const select = (selectors: string[]) => {
+    const normalized = [...new Set(selectors.map((selector) => selector.trim()).filter(Boolean))];
+    if (!normalized.length) throw new Error("Mesurer select() requires at least one selector.");
+
+    const elements = normalized.map((selector) => {
+      let matches: HTMLElement[];
+      try {
+        matches = queryCandidates(selector);
+      } catch {
+        throw new Error(`Invalid Mesurer selection selector: ${selector}`);
+      }
+      if (matches.length === 0) {
+        throw new Error(`Mesurer selection target not found: ${selector}`);
+      }
+      if (matches.length > 1) {
+        throw new Error(`Mesurer selection target is ambiguous (${matches.length} matches): ${selector}`);
+      }
+      return matches[0];
+    });
+
+    model.checkpoint();
+    model.setEnabled(true);
+    model.setToolMode("select");
+    const measurements = elements.map((element) => getInspectMeasurement<HTMLElement>(element, ownerWindow));
+    model.setSelectedMeasurements(measurements, measurements.at(-1) ?? null);
+    model.setTransient({ selectionOriginRect: null });
+    return elements;
+  };
+
   const pushAnnotation = (annotation: MesurerAnnotation, elements: HTMLElement[] = []) => {
     annotations.push(annotation);
     if (annotation.anchor.kind === "elements") {
@@ -386,6 +415,7 @@ export function createMesurerWorkspaceRuntime(options: {
           : null,
       };
     },
+    select,
     hoveredElement() {
       return model.current.hoverElement?.isConnected && isInPageTarget(model.current.hoverElement)
         ? model.current.hoverElement

@@ -35,13 +35,44 @@ try {
     };
   });
 
-  const expectedCapabilityKeys = ["annotations", "capturePlan", "context", "review"];
+  const expectedCapabilityKeys = ["annotations", "capturePlan", "context", "review", "select"];
   if (JSON.stringify(directContract.capabilityKeys) !== JSON.stringify(expectedCapabilityKeys)) {
     throw new Error(`Unexpected direct context capability surface: ${JSON.stringify(directContract)}`);
   }
   const expectedContextToolIds = ["context.add-note", "context.copy", "context.copy-selection"];
   if (JSON.stringify(directContract.contextToolIds) !== JSON.stringify(expectedContextToolIds)) {
     throw new Error(`Unexpected direct context toolbar surface: ${JSON.stringify(directContract)}`);
+  }
+
+  const selectedByAgent = await page.evaluate(async () => {
+    const island = window.__MESURER_INSTANCE__?.element;
+    const hostRoot = [...document.body.children].find((element) => element !== island);
+    const targetA = hostRoot instanceof HTMLElement ? hostRoot : null;
+    const targetB = targetA?.querySelector("button, p, h1, h2, h3, section, article, div") ?? null;
+    if (!(targetA instanceof HTMLElement) || !(targetB instanceof HTMLElement)) {
+      throw new Error("Expected two host elements for agent selection smoke test.");
+    }
+    targetA.setAttribute("data-testid", "mesurer-agent-select-a");
+    targetB.setAttribute("data-testid", "mesurer-agent-select-b");
+    const context = await window.__MESURER__.select([
+      '[data-testid="mesurer-agent-select-a"]',
+      '[data-testid="mesurer-agent-select-b"]',
+    ]);
+    const reread = await window.__MESURER__.context({ scope: "selection" });
+    return {
+      scope: context.scope.kind,
+      targetCount: context.targets.length,
+      selectors: context.targets.map((target) => target.inspection.selector).sort(),
+      rereadTargetCount: reread.targets.length,
+    };
+  });
+
+  if (
+    selectedByAgent.scope !== "selection"
+    || selectedByAgent.targetCount !== 2
+    || selectedByAgent.rereadTargetCount !== 2
+  ) {
+    throw new Error(`Programmatic selection did not return scoped context: ${JSON.stringify(selectedByAgent)}`);
   }
 
   await page.evaluate(async () => {
@@ -70,16 +101,18 @@ try {
 
   const reused = await page.evaluate(async () => {
     const state = await window.__MESURER__.state();
+    const selection = await window.__MESURER__.context({ scope: "selection" });
     return {
       sameElement: window.__MESURER_INSTANCE__?.element === window.__MESURER_REUSE_BEFORE_ELEMENT__,
       sameAgent: window.__MESURER__ === window.__MESURER_REUSE_BEFORE_AGENT__,
       marker: window.__MESURER_INSTANCE__?.element.dataset.reuseProbe ?? null,
       pluginState: state["test.human-state.value"] ?? null,
+      selectionTargets: selection.targets.length,
       islandCount: document.querySelectorAll("[data-mesurer-island='true']").length,
     };
   });
 
-  if (reused.marker !== "human-state" || reused.pluginState?.marker !== 42) {
+  if (reused.marker !== "human-state" || reused.pluginState?.marker !== 42 || reused.selectionTargets !== 2) {
     throw new Error(`Agent reinjection destroyed human Mesurer state: ${JSON.stringify(reused)}`);
   }
   if (!reused.sameElement || !reused.sameAgent || reused.islandCount !== 1) {
@@ -107,7 +140,7 @@ try {
 
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join("\n")}`);
   if (consoleErrors.length) throw new Error(`Console errors: ${consoleErrors.join("\n")}`);
-  console.log("Direct context surface and human-state-safe injection: PASS");
+  console.log("Context-returning selection and human-state-safe injection: PASS");
 } finally {
   await browser.close();
 }

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const privatePackagePattern = /@jhomra21\/mesurer-solid-(?:core|dom|renderer)/;
 const removedDeliveryPattern = /\b(?:sendContext|toAcpContentBlocks|MesurerContextSender|MesurerContextDelivery|MesurerEvidenceProvider|MesurerEvidenceImage|MesurerAcpContentBlock|AcpTextContentBlock|AcpImageContentBlock)\b/;
+const contextReturningSelectPattern = /\bselect\s*\(\s*selectors:\s*string\s*\|\s*string\[\]\s*\)\s*:\s*Promise<MesurerContextV1>/;
 const skillBinPath = "scripts/install-skill.mjs";
 
 if (packageJson.name !== "@jhomra21/mesurer-solid") {
@@ -44,8 +45,21 @@ for (const file of ["index.js", "index.d.ts", "core.js", "core.d.ts", "inject.js
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
 
+const rootDeclarations = readFileSync(new URL("index.d.ts", dist), "utf8");
+if (!contextReturningSelectPattern.test(rootDeclarations)) {
+  throw new Error("Published declarations must expose select(string | string[]) returning Promise<MesurerContextV1>.");
+}
+if (!/\bselect:\s*boolean\b/.test(rootDeclarations)) {
+  throw new Error("Published MesurerAgentCapabilities must advertise the direct select capability.");
+}
+
 const skillSource = new URL("../skills/mesurer-ui/SKILL.md", import.meta.url);
 if (!existsSync(skillSource)) throw new Error("Missing packaged Agent Skill: skills/mesurer-ui/SKILL.md");
+const repositorySkill = new URL("../../../.agents/skills/mesurer-ui/SKILL.md", import.meta.url);
+if (!existsSync(repositorySkill)) throw new Error("Missing repository Agent Skill: .agents/skills/mesurer-ui/SKILL.md");
+if (readFileSync(repositorySkill, "utf8") !== readFileSync(skillSource, "utf8")) {
+  throw new Error("Repository and packaged Mesurer Agent Skills must remain byte-identical.");
+}
 
 const stageScript = fileURLToPath(new URL("./stage-package.mjs", import.meta.url));
 execFileSync(process.execPath, [stageScript], { stdio: "pipe" });
@@ -86,4 +100,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged direct-agent surface and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged context-first agent surface and Agent Skill installer are self-contained.`);
