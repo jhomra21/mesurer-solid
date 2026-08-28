@@ -23,12 +23,30 @@ The unpacked extension is written to `extension/dist/` after the normal Mesurer 
 
 The extension requests only `activeTab` and `scripting`. It does not request persistent access to every website. Browser-protected pages such as `chrome://` pages cannot be injected. File URLs also depend on the browser's extension file-access setting.
 
+## Screenshot capture
+
+The extension enables the optional first-party screenshot plugin automatically. Use the camera tool to drag a viewport region and capture a real PNG of the visible tab.
+
+The extension path captures through `chrome.tabs.captureVisibleTab()` using the existing `activeTab` grant, so it does not need `<all_urls>` and does not open the browser's screen-share chooser. A small isolated-world bridge connects the page-mounted screenshot plugin to the extension background worker without exposing extension APIs to the page's main world.
+
+Captured images keep the screenshot plugin's normal behavior:
+
+- HiDPI-aware cropping from CSS viewport coordinates to the captured bitmap;
+- persisted automatic copy/download preferences;
+- best-effort clipboard and local-download outputs;
+- a persistent draggable thumbnail that starts in the bottom-right with an 8px viewport inset, then preserves the existing drag/clamping behavior;
+- native image right-click behavior and explicit dismissal;
+- click-to-open larger viewer with Copy, Save, and Close controls;
+- short capture/output status feedback.
+
+The screenshot plugin hides Mesurer control chrome while the pixels are captured and restores the previous presentation afterward.
+
+This human screenshot tool is separate from agent/harness screenshot evidence. Coding agents can still use `capturePlan()`, `prepareCapture()`, and `finishCapture()` with the browser harness's own screenshot primitive when they need deterministic task evidence controlled by that harness.
+
 ## Architecture
 
 The extension does not carry a fork of Mesurer. `extension/build.mjs` copies the same published-style `inject-script` artifact used by browser harnesses into the MV3 package.
 
-That injector installs the removable `mesurer.context` plugin by default. The plugin—not the extension shell—owns annotations, Copy Context/Copy Selection/Add Note UI, review/capture behavior, shortcuts, and the `context:v1` service. The extension only grants active-tab execution and toggles the normal Mesurer injection artifact.
+That injector installs the removable `mesurer.context` plugin by default, while the extension explicitly enables the removable `mesurer.screenshot` plugin. The context plugin owns annotations, Copy Context/Copy Selection/Add Note UI, review/capture planning, shortcuts, and the `context:v1` service. The screenshot plugin owns the camera tool, screenshot settings/service, region-selection overlay, capture lifecycle, thumbnail, viewer, and output status. The extension shell owns only active-tab execution, the visible-tab capture bridge, and toggling the normal Mesurer injection artifact.
 
-The injected instance therefore exposes the same toolbar, plugin host, and `window.__MESURER__` APIs as any other harness-injected Mesurer instance.
-
-Screenshots remain owned by the outer browser/harness. The context plugin exposes `capturePlan()`, `prepareCapture()`, and `finishCapture()` so a harness can capture the real rendered page while hiding Mesurer controls and keeping guides, rulers, selections, annotations, measurements, distances, and pixel labels.
+The injected instance therefore exposes the same toolbar, plugin host, and `window.__MESURER__` context APIs as any other harness-injected Mesurer instance. Screenshot capture does not add a chat/session delivery capability and does not change the context-first agent contract.

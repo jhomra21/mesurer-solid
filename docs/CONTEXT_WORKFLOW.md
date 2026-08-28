@@ -24,6 +24,8 @@ human selection / annotation OR agent-known rendered target
                     fresh context/review
 ```
 
+Mesurer also has an optional human screenshot plugin. It captures real pixels for the person, but it does not change the context-first agent contract or create an image-delivery API. See [Screenshot capture](./SCREENSHOTS.md).
+
 ## Enable the feature
 
 The context/annotation workflow is provided by removable `mesurer.context`.
@@ -44,15 +46,34 @@ const mesurer = mountMeasurer({
 
 With default options, Copy Context, Copy Selection, Add Note, annotation UI, and context/select/review/capture APIs are enabled.
 
+The human screenshot camera is a separate optional plugin:
+
+```ts
+import { screenshotPlugin } from "mesurer-solid/screenshot"
+
+const mesurer = mountMeasurer({
+  plugins: [contextPlugin(), screenshotPlugin()],
+  agent: true,
+})
+```
+
 ### Injection and browser extension
 
-`/inject` and `/inject-script` install `contextPlugin()` by default. The browser extension uses the same runtime.
+`/inject` and `/inject-script` install `contextPlugin()` by default. Screenshot capture remains opt-in for normal injection:
+
+```js
+window.__MESURER_CONFIG__ = { screenshot: true }
+```
+
+Set that before the first injection when the human camera is required. The first-party Chrome extension uses the same injected runtime and enables screenshot capture automatically so its camera tool can use the extension visible-tab capture bridge.
 
 A harness that deliberately wants only the low-level inspector can set:
 
 ```js
 window.__MESURER_CONFIG__ = { context: false }
 ```
+
+Do not reinject over a live human instance merely to change plugin configuration. Existing review state should be preserved.
 
 ## Preserve existing human state
 
@@ -65,7 +86,7 @@ const hasMesurer = Boolean(
 )
 ```
 
-If it exists, use it. Do not reinject or dispose it. The human's current selection, guides, measurements, held distances, X-ray/ruler state, and annotations are part of the visual message.
+If it exists, use it. Do not reinject or dispose it. The human's current selection, guides, measurements, held distances, X-ray/ruler state, annotations, and screenshot preview/viewer state are part of the visual message.
 
 Injected Mesurer also preserves a live instance by default. Explicit replacement requires:
 
@@ -92,7 +113,7 @@ review
 capturePlan
 ```
 
-There are no send/delivery capability bits and no `sendContext()`.
+There are no send/delivery capability bits and no `sendContext()`. The screenshot plugin also does not add a `screenshots` delivery capability; its typed service lives on the plugin host rather than the JSON-safe context API.
 
 The human context toolbar remains exactly:
 
@@ -102,7 +123,7 @@ Copy Selection
 Add Note
 ```
 
-`select()` is programmatic agent/harness functionality, not another human toolbar button.
+`select()` is programmatic agent/harness functionality, not another human toolbar button. When `mesurer.screenshot` is enabled, its camera tool is a separate plugin-contributed toolbar control.
 
 ## Target acquisition: read, ask, or self-select
 
@@ -270,7 +291,7 @@ The human context toolbar has exactly three controls:
 | Copy Selection | `Shift+C` | Copies context scoped to current selection. |
 | Add Note | `N` | Creates a durable annotation baseline. |
 
-Agents read `window.__MESURER__` directly and do not need to click these controls.
+Agents read `window.__MESURER__` directly and do not need to click these controls. The screenshot camera, when enabled, belongs to `mesurer.screenshot` and deliberately does not claim `C`.
 
 ## Read before editing
 
@@ -348,7 +369,11 @@ The agent must not silently move human intent to a different element when Mesure
 
 ## Screenshot evidence
 
-Mesurer does not render a fake DOM screenshot. The outer browser harness takes real pixels.
+Mesurer uses two different screenshot paths.
+
+### Agent/harness evidence
+
+The context API does not render a fake DOM screenshot. For coding-agent verification, the outer browser harness takes the real pixels while Mesurer controls clean evidence presentation:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
@@ -360,17 +385,29 @@ try {
 }
 ```
 
-Capture mode hides Mesurer chrome while preserving page content, selections/annotations, rulers, guides, measurements, held distances, and pixel labels.
+Capture mode hides Mesurer control chrome while preserving page content, selections/annotations, rulers, guides, measurements, held distances, and pixel labels.
+
+### Human screenshot plugin
+
+The optional `mesurer-solid/screenshot` plugin captures real visible-tab PNGs for a person. It adds drag-region selection, HiDPI-aware cropping, persisted copy/download outputs, a persistent draggable thumbnail, native image actions, and a larger Copy/Save viewer. Normal browsers use `getDisplayMedia()`; the first-party Chrome extension uses `chrome.tabs.captureVisibleTab()` through its extension bridge.
+
+This plugin does not add screenshots to `MesurerContextV1` or create an image-delivery capability. Preserve an existing human screenshot preview unless the task explicitly asks to manipulate it.
+
+See [`SCREENSHOTS.md`](./SCREENSHOTS.md) for the complete screenshot contract.
 
 Use screenshots for visual composition and Mesurer context for exact numeric claims.
 
 ## Agent Skill
 
+Canonical stable installation:
+
 ```bash
-npx --yes --package=mesurer-solid@beta mesurer-skill install
+npx --yes --package=mesurer-solid mesurer-skill install
 ```
 
-The installed skill teaches this integration:
+Use `--package=mesurer-solid@beta` only when intentionally validating a prerelease.
+
+The installed skill teaches this integration, including the human-screenshot-vs-agent-screenshot distinction:
 
 ```text
 existing harness
@@ -383,8 +420,10 @@ window.__MESURER__
 
 ## Browser extension
 
-The first-party MV3 extension is a zero-source-change human path for arbitrary pages. It packages the same injected runtime and `mesurer.context` plugin.
+The first-party MV3 extension is a zero-source-change human path for arbitrary pages. It packages the same injected runtime, installs `mesurer.context`, and enables `mesurer.screenshot` automatically.
 
-The extension is only a distribution shell. Agents with page JavaScript evaluation continue to use the same direct context API.
+The extension shell owns active-tab execution and the narrow visible-tab capture bridge used by the camera tool; it does not add chat/session delivery. Agents with page JavaScript evaluation continue to use the same direct context API.
+
+See [`../extension/README.md`](../extension/README.md) for extension setup and capture behavior.
 
 **Context is the output.**

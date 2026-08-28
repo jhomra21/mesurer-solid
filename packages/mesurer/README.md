@@ -6,13 +6,23 @@ The renderer is implemented privately in Solid 2, but consumers can use Solid 1/
 
 ## Install
 
+Stable releases use the `latest` dist-tag:
+
 ```bash
 bun add -d mesurer-solid
 # or
 npm install -D mesurer-solid
 ```
 
-`mesurer-solid@0.1.0` is the stable package on the `latest` dist-tag. Prereleases through `0.1.0-beta.11` used the old scoped package name; current releases use `mesurer-solid`.
+Use the `beta` tag only when you intentionally want to test a prerelease:
+
+```bash
+bun add -d mesurer-solid@beta
+# or
+npm install -D mesurer-solid@beta
+```
+
+Prereleases through `0.1.0-beta.11` used the old scoped package name; current releases use `mesurer-solid`.
 
 ## Mount the base inspector
 
@@ -274,17 +284,21 @@ const mesurer = mountMeasurer({
 })
 ```
 
-The camera tool lets the user drag a viewport region. Mesurer captures the visible page, crops against the real captured bitmap scale so HiDPI displays stay accurate, optionally writes PNG data to the clipboard and/or downloads a PNG, then restores the inspector UI and shows a compact preview.
+The camera tool lets the user drag a viewport region. Mesurer captures the real visible page, converts CSS viewport coordinates to the captured bitmap scale so Retina/HiDPI crops remain exact, temporarily hides its control chrome from the pixels, then restores the previous inspector presentation.
 
-Normal browser hosts use `getDisplayMedia()` and reuse a live capture stream to avoid prompting for every region. The first-party Chrome extension uses `chrome.tabs.captureVisibleTab()` through its extension bridge, so its screenshot path does not open the screen-share chooser.
+A successful capture can automatically copy PNG data to the clipboard and/or download a PNG according to persistent plugin settings. Those output operations are best-effort: if clipboard or download access is unavailable, the captured PNG is still kept for preview/viewer use and Mesurer reports the available result instead of discarding it.
 
-Programmatic users can get the typed screenshot service from the plugin host with service id `screenshot`. `start()` opens region selection, `cancel()` closes it, `capture(rect)` captures an exact CSS-pixel viewport rectangle, and `setSettings()` updates the persistent copy/download preferences.
+After capture, Mesurer shows a persistent draggable thumbnail. A new thumbnail starts in the bottom-right with an 8px viewport inset. Dragging preserves the existing viewport-clamping behavior, so the preview stays inside that safe boundary. The thumbnail can be dismissed, dragged around the viewport, right-clicked with the browser's native image context menu, or clicked to open a larger viewer. The viewer preserves native image right-click behavior and adds explicit Copy, Save, and Close controls. Escape or backdrop click closes the viewer without discarding the thumbnail. A short status message confirms whether the screenshot was copied, saved, captured, or could not complete an optional output.
+
+Normal browser hosts use `getDisplayMedia()` and reuse a live capture stream to avoid prompting for every region. The first-party Chrome extension uses `chrome.tabs.captureVisibleTab()` through its isolated-world extension bridge, so its screenshot path does not open the screen-share chooser and does not require a broad `<all_urls>` permission.
+
+Programmatic mounted users can get the typed `MesurerScreenshotService` from the plugin host with service id `screenshot`. `start()` opens region selection, `cancel()` closes it, `capture(rect)` captures an exact CSS-pixel viewport rectangle, `settings()` reads copy/download preferences, and `setSettings()` updates those persistent preferences.
 
 Screenshot does not claim the global `C` shortcut because the context workflow already uses `C` and `Shift+C`.
 
 ## Clean screenshot evidence for agents
 
-The optional screenshot plugin is a human capture tool. Agent verification can continue to let the existing browser harness own screenshots while Mesurer plans a clean evidence frame:
+The optional screenshot plugin is a human capture tool, not an agent-delivery channel. Agent verification can continue to let the existing browser harness own deterministic task screenshots while Mesurer plans a clean evidence frame:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
@@ -296,7 +310,7 @@ try {
 }
 ```
 
-Use screenshots for visual composition and Mesurer context for exact numeric claims.
+Use screenshots for visual composition and Mesurer context for exact numeric claims. A screenshot plugin image does not create a `screenshots` delivery capability on `window.__MESURER__` and does not replace context/select/review evidence.
 
 ## Context UI
 
@@ -325,7 +339,7 @@ The installer leaves:
     └── inject-script.js
 ```
 
-The skill teaches the context-first workflow, including when to consume human selection, when to ask for a selection, when to self-select changed targets, multi-selection reads, and fresh post-edit verification. See [`AGENT_INTEGRATION.md`](./AGENT_INTEGRATION.md).
+The skill teaches the context-first workflow, including when to consume human selection, when to ask for a selection, when to self-select changed targets, multi-selection reads, fresh post-edit verification, and the distinction between the optional human screenshot plugin and harness-owned agent screenshot evidence. See [`AGENT_INTEGRATION.md`](./AGENT_INTEGRATION.md).
 
 ## Low-level agent API
 

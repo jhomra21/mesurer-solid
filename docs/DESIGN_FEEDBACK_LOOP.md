@@ -12,7 +12,7 @@ Mesurer adds a second principle:
 
 > **The human and the agent share the same visual state in the page.**
 
-The human can select one or many elements, drag a region, place guides, create measurements/held distances, enable rulers/X-ray, or save a note. The agent reads that exact state from `window.__MESURER__` through its existing browser harness. There is no Send-to-agent/MCP/WebMCP/ACP delivery layer.
+The human can select one or many elements, drag a region, place guides, create measurements/held distances, enable rulers/X-ray, save a note, or—when the optional screenshot plugin is enabled—capture a real viewport region for manual review. The agent reads structured context from `window.__MESURER__` through its existing browser harness. There is no Send-to-agent/MCP/WebMCP/ACP delivery layer.
 
 ## Default workflow for agent-driven UI work
 
@@ -35,7 +35,7 @@ Mesurer.stable()
         ↓
 annotation review() and/or fresh context/measurements
         ↓
-outer harness takes a real screenshot
+outer harness takes a real task screenshot
         ↓
 agent compares exact measurements + pixels to human intent
         ↓
@@ -43,6 +43,8 @@ repeat until rendered evidence supports the claim
 ```
 
 If Mesurer is absent, inject the bundled `inject-script` through the browser evaluation channel the harness already owns. Do not create a second browser, new CDP stack, or Mesurer-specific server.
+
+The optional human screenshot camera is not required for this agent loop. It is a separate first-party plugin documented in [`SCREENSHOTS.md`](./SCREENSHOTS.md).
 
 ## Read before touching source
 
@@ -81,9 +83,10 @@ held distance             → exact relationship between two regions/targets
 rulers                     → coordinate context
 X-ray                      → structural inspection context
 annotation note            → durable explicit intent + baseline
+screenshot thumbnail       → manual visual evidence/review state; preserve it
 ```
 
-Rulers/X-ray are context, not automatic design requirements. Annotation notes are intent. Numeric Mesurer data is rendered evidence.
+Rulers/X-ray are context, not automatic design requirements. Annotation notes are intent. Numeric Mesurer data is rendered evidence. A screenshot preview may be useful human evidence, but its pixels do not replace exact Mesurer geometry.
 
 ## Multi-selection standard
 
@@ -198,11 +201,15 @@ For multi-selection, remeasure the same target dimensions and pair relationships
 
 Neither signal replaces the other.
 
-**Mesurer answers:** what was selected, exact position/size/gaps, computed box model/font/layout/overflow, pair relationships, and how geometry changed.
+**Mesurer context answers:** what was selected, exact position/size/gaps, computed box model/font/layout/overflow, pair relationships, and how geometry changed.
 
 **Screenshots answer:** composition, hierarchy, crowding/emptiness, color/shape relationships, clipping/overlap, and other visual judgment.
 
-## Clean screenshot evidence
+This is true whether the screenshot came from the outer agent harness or the optional human screenshot plugin. Only the context/measurement path should be used for exact numeric claims.
+
+## Clean screenshot evidence for coding agents
+
+For normal agent verification, the outer harness owns screenshot bytes:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
@@ -214,7 +221,25 @@ try {
 }
 ```
 
-Use `{ scope: "selection" }` for unsaved selection evidence. Mesurer defines capture scope/presentation; the outer harness owns pixels.
+Use `{ scope: "selection" }` for unsaved selection evidence. Mesurer defines capture scope/presentation; the outer harness controls exact viewport, timing, artifact storage, and comparison.
+
+## Human screenshot plugin
+
+When the task needs a person-facing capture workflow, enable `screenshotPlugin()` from `mesurer-solid/screenshot` or set `window.__MESURER_CONFIG__ = { screenshot: true }` before normal injection. The first-party Chrome extension enables it automatically.
+
+The camera tool:
+
+- lets the human drag a viewport region;
+- captures a real visible-page PNG with HiDPI-aware crop scaling;
+- hides Mesurer control chrome during capture;
+- supports persisted best-effort automatic copy/download outputs;
+- leaves a persistent draggable thumbnail with native image right-click behavior;
+- opens a larger Copy/Save/Close viewer on click;
+- reports capture/output status without discarding a valid PNG when an optional output fails.
+
+Normal browser hosts use `getDisplayMedia()`; the Chrome extension captures via `chrome.tabs.captureVisibleTab()` through its isolated-world bridge and therefore avoids the normal screen-share chooser.
+
+This camera path is **not** an agent delivery channel. An agent should preserve a human preview unless the task specifically involves testing or manipulating the screenshot feature. See [`SCREENSHOTS.md`](./SCREENSHOTS.md).
 
 ## Minimal agent iteration
 
@@ -232,7 +257,7 @@ const feedback = await window.__MESURER__.feedback([
 ])
 ```
 
-Then take a real screenshot.
+Then take a real screenshot through the outer harness.
 
 A completion should be evidence-based, for example:
 
@@ -252,6 +277,8 @@ For an agent with browser access, Mesurer should be the default verification lay
 
 It is not necessary to call every method after every edit. Measure what matters to the request.
 
+Use the screenshot plugin itself as the automation target only when the requested work is about screenshot capture/preview/viewer behavior. Otherwise use the harness screenshot path for task evidence.
+
 ## Do not destroy review state
 
 If the page already contains Mesurer, use the current instance rather than reinjecting it.
@@ -262,7 +289,7 @@ Injected Mesurer defaults to `reuseExisting: true`; explicit replacement require
 window.__MESURER_CONFIG__ = { reuseExisting: false }
 ```
 
-Never change/delete human guides, measurements, held distances, or annotations merely to make validation look successful.
+Never change/delete human guides, measurements, held distances, annotations, or screenshot preview/viewer state merely to make validation look successful.
 
 ## Users can extend Mesurer by asking their agent
 
@@ -273,6 +300,8 @@ Because the runtime is plugin-based, project-specific inspection behavior should
 > “Add a Mesurer tool that highlights overflowing containers.”
 
 > “Replace X-ray with one that shows our design-system component names.”
+
+The first-party screenshot implementation is itself an example of this architecture: a substantial UI/capture capability can live behind a removable plugin and public subpath rather than expanding permanent core state.
 
 Modify core only when the missing capability is genuinely shared platform behavior.
 
@@ -292,11 +321,11 @@ A Mesurer-driven agent can:
 6. wait for the real render to settle;
 7. remeasure the same targets and pair relationships;
 8. use `review()` if the human saved a baseline;
-9. capture a real screenshot;
+9. capture a real screenshot through the outer harness;
 10. iterate until exact geometry and visual appearance support the fix.
 
 ## Suggested instruction for coding agents
 
-> **For meaningful UI/design work, first reuse and read any existing Mesurer state in the page, including the human's selection, guides, measurements, held distances, and annotations. For multi-selection, inspect every selected target and the relevant pairwise pixel relationships. Treat notes as intent and rendered measurements as evidence. After editing, wait for the real page to settle, remeasure/review the same evidence, and pair exact geometry with a real browser screenshot before claiming completion. Do not create a separate Mesurer transport, Send-to-agent path, browser, or server when the current harness can evaluate the page directly.**
+> **For meaningful UI/design work, first reuse and read any existing Mesurer state in the page, including the human's selection, guides, measurements, held distances, annotations, and screenshot review state. For multi-selection, inspect every selected target and the relevant pairwise pixel relationships. Treat notes as intent and rendered measurements as evidence. After editing, wait for the real page to settle, remeasure/review the same evidence, and pair exact geometry with a real browser screenshot before claiming completion. Use the optional Mesurer screenshot plugin only when the task needs that human camera workflow; do not treat it as agent delivery or destroy a human preview. Do not create a separate Mesurer transport, Send-to-agent path, browser, or server when the current harness can evaluate the page directly.**
 
 The repository's own [`AGENTS.md`](../AGENTS.md) follows this rule.

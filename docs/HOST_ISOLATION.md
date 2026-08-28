@@ -67,6 +67,18 @@ If the Popover API is unavailable or top-layer promotion fails, Mesurer keeps th
 
 That fallback is intentionally best-effort. A normal document layer cannot provide the same guarantee as the browser top layer against every possible stacking context.
 
+### 6. Keep plugin overlays isolated too
+
+Renderer-aware plugins must not escape the same host/isolation contract merely because their UI is not part of the permanent toolbar.
+
+The optional screenshot plugin is the main example. Its region-selection shade/outline, capture status, persistent draggable thumbnail, and larger image viewer are Mesurer-owned UI. They must remain visible/interactable under hostile host CSS without turning the entire viewport into an invisible pointer blocker.
+
+Screenshot capture adds one additional presentation invariant: Mesurer **control chrome**—including the selection overlay, toolbar, thumbnail/viewer, and status UI—must be hidden from the actual captured PNG and then restored to its exact previous presentation afterward. Visual evidence intentionally retained by the context capture mode follows that mode's own rules; the screenshot camera's own controls are never part of the captured subject.
+
+A plugin that needs a standalone interactive mount must still use Mesurer's renderer/host-layer helpers rather than appending an unprotected arbitrary page `<div>` with unrelated z-index rules.
+
+See [`SCREENSHOTS.md`](./SCREENSHOTS.md) for the screenshot-specific lifecycle.
+
 ## How we test this without testing every website
 
 We test the **browser invariants that websites compose**, using the exact packed npm artifact in clean framework hosts.
@@ -81,6 +93,8 @@ The package-smoke suite creates adversarial host conditions after Mesurer has mo
 6. the test verifies that the toolbar remains the hit-tested surface and that the host is restored after the modal;
 7. normal host controls and dynamically contributed Mesurer plugin controls remain clickable;
 8. the same packed package is exercised in React, Solid 1, and Solid 2 consumers, including external browser-eval injection.
+
+Screenshot-specific browser contracts additionally prove that the camera overlay is interactive during selection, capture presentation removes Mesurer chrome from the pixels, the preview/viewer remains usable afterward, and cancellation/restoration leave the host page interactive.
 
 This is more general than maintaining a list of YouTube/Twitter/Figma/etc. fixtures. Those sites can change their HTML tomorrow; the underlying stacking, clipping, popover, modal, and hit-testing rules are browser primitives.
 
@@ -97,10 +111,10 @@ Out of scope for a hard guarantee:
 - legacy browsers without Popover API support, where Mesurer uses the fixed fallback;
 - injection blocked before Mesurer executes at all by the surrounding automation/security environment.
 
-Within a normal same-document application on a modern browser, the contract is that ordinary CSS, stacking contexts, clipping, overlays, later popovers/fullscreen changes, and observable modal dialogs must not silently occlude Mesurer or make its controls unusable.
+Within a normal same-document application on a modern browser, the contract is that ordinary CSS, stacking contexts, clipping, overlays, later popovers/fullscreen changes, observable modal dialogs, and normal plugin UI must not silently occlude Mesurer or make its controls unusable.
 
 ## Regression rule
 
 Do not fix a host-specific occlusion report with a hostname check or a selector for that website.
 
-Reduce the report to the browser primitive that caused it, add an adversarial regression for that primitive, and fix the public mount boundary so every host benefits.
+Reduce the report to the browser primitive that caused it, add an adversarial regression for that primitive, and fix the public mount/plugin boundary so every host benefits.
