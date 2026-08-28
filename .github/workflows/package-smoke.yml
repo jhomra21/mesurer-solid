@@ -52,7 +52,9 @@ jobs:
           filename=$(bun -e 'const p=require("./pack.json"); process.stdout.write(p[0].filename)')
           version=$(bun -e 'const p=require("./pack.json"); process.stdout.write(p[0].version)')
           echo "PACKAGE_TGZ=$(realpath "$filename")" >> "$GITHUB_ENV"
-          if [[ "$version" == *-* ]]; then
+          if npm view "mesurer-solid@$version" version >/dev/null 2>&1; then
+            echo "mesurer-solid@$version is already published; skipping npm publish --dry-run for this source PR."
+          elif [[ "$version" == *-* ]]; then
             npm publish "$(realpath "$filename")" --dry-run --access public --tag beta
           else
             npm publish "$(realpath "$filename")" --dry-run --access public
@@ -76,6 +78,11 @@ jobs:
             createMesurerPluginHost,
             type MesurerPluginHost,
           } from "mesurer-solid/core";
+          import {
+            screenshotPlugin,
+            type MesurerScreenshotPluginOptions,
+            type MesurerScreenshotService,
+          } from "mesurer-solid/screenshot";
 
           const plugin: MesurerPlugin = defineMesurerPlugin({
             id: "consumer.types",
@@ -84,8 +91,13 @@ jobs:
             },
           });
           const options: MountMeasurerOptions = { agent: true, plugins: [plugin] };
+          const screenshotOptions: MesurerScreenshotPluginOptions = { copy: true, download: false };
+          const screenshotService: MesurerScreenshotService | undefined = undefined;
           const host: MesurerPluginHost = createMesurerPluginHost();
           void options;
+          void screenshotOptions;
+          void screenshotService;
+          void screenshotPlugin;
           void host;
           void mountMeasurer;
           TS

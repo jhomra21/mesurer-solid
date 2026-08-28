@@ -18,9 +18,9 @@ if (packageJson.bin?.["mesurer-skill"] !== skillBinPath) {
 }
 if (packageJson.private === true) throw new Error("The public Mesurer package workspace cannot be private.");
 if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
-  throw new Error("The public Mesurer beta must not publish runtime workspace dependencies.");
+  throw new Error("The public Mesurer package must not publish runtime workspace dependencies.");
 }
-for (const requiredExport of [".", "./core", "./inject", "./inject-script"]) {
+for (const requiredExport of [".", "./core", "./screenshot", "./inject", "./inject-script"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
 }
 if (packageJson.publishConfig?.access !== "public") throw new Error("publishConfig.access must be public.");
@@ -41,7 +41,17 @@ for (const file of distFiles) {
   }
 }
 
-for (const file of ["index.js", "index.d.ts", "core.js", "core.d.ts", "inject.js", "inject.d.ts", "inject-script.js"]) {
+for (const file of [
+  "index.js",
+  "index.d.ts",
+  "core.js",
+  "core.d.ts",
+  "screenshot.js",
+  "screenshot.d.ts",
+  "inject.js",
+  "inject.d.ts",
+  "inject-script.js",
+]) {
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
 
@@ -51,6 +61,13 @@ if (!contextReturningSelectPattern.test(rootDeclarations)) {
 }
 if (!/\bselect:\s*boolean\b/.test(rootDeclarations)) {
   throw new Error("Published MesurerAgentCapabilities must advertise the direct select capability.");
+}
+const screenshotDeclarations = readFileSync(new URL("screenshot.d.ts", dist), "utf8");
+if (!/\bscreenshotPlugin\b/.test(screenshotDeclarations)) {
+  throw new Error("Published screenshot entry must expose screenshotPlugin().");
+}
+if (!/\bMesurerScreenshotService\b/.test(screenshotDeclarations)) {
+  throw new Error("Published screenshot entry must expose the screenshot service contract.");
 }
 
 const skillSource = new URL("../skills/mesurer-ui/SKILL.md", import.meta.url);
@@ -69,6 +86,9 @@ if (stagedPackageJson.name !== "mesurer-solid") {
 }
 if (stagedPackageJson.bin?.["mesurer-skill"] !== skillBinPath) {
   throw new Error(`Expected staged mesurer-skill bin path ${skillBinPath}, got ${stagedPackageJson.bin?.["mesurer-skill"] ?? "<missing>"}.`);
+}
+if (!stagedPackageJson.exports?.["./screenshot"]) {
+  throw new Error("Staged npm package is missing the ./screenshot export.");
 }
 for (const privateName of ["@jhomra21/mesurer-solid-core", "@jhomra21/mesurer-solid-dom", "@jhomra21/mesurer-solid-renderer"]) {
   if (JSON.stringify(stagedPackageJson).includes(privateName)) {
@@ -100,4 +120,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged context-first agent surface and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged context-first agent surface, screenshot plugin, and Agent Skill installer are self-contained.`);

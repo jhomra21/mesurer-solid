@@ -5,16 +5,22 @@ import {
   type MountMeasurerOptions,
   type MountedMeasurer,
 } from "./index";
+import {
+  screenshotPlugin,
+  type MesurerScreenshotPluginOptions,
+} from "./screenshot";
 
 export type MesurerInjectConfig = Omit<MountMeasurerOptions, "target" | "agent" | "plugins"> & {
   /** Optional application container selector. Defaults to document.body. */
   target?: string;
   /** Global agent API name. Defaults to __MESURER__. */
   globalName?: string;
-  /** Additional plugins loaded after the default injected context plugin. */
+  /** Additional plugins loaded after first-party injected plugins. */
   plugins?: MountMeasurerOptions["plugins"];
   /** Enable/configure the removable context plugin. Defaults to true for injection. */
   context?: boolean | MesurerContextPluginOptions;
+  /** Enable/configure the optional screenshot plugin. Defaults to false. */
+  screenshot?: boolean | MesurerScreenshotPluginOptions;
   /**
    * Reuse an already-mounted connected injected Mesurer instance.
    * Defaults to true so an agent cannot accidentally destroy human selections,
@@ -35,6 +41,7 @@ const {
   target: targetSelector,
   globalName = "__MESURER__",
   context = true,
+  screenshot = false,
   plugins = [],
   reuseExisting = true,
   ...options
@@ -49,9 +56,11 @@ function mountInjectedMeasurer(): MountedMeasurer {
   const target = targetSelector ? document.querySelector<HTMLElement>(targetSelector) : document.body;
   if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
-  const injectedPlugins = context === false
-    ? plugins
-    : [contextPlugin(context === true ? {} : context), ...plugins];
+  const injectedPlugins = [
+    ...(context === false ? [] : [contextPlugin(context === true ? {} : context)]),
+    ...(screenshot === false ? [] : [screenshotPlugin(screenshot === true ? {} : screenshot)]),
+    ...plugins,
+  ];
 
   existing?.dispose();
   return mountMeasurer({

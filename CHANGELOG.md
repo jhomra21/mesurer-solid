@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Add the optional `mesurer-solid/screenshot` plugin with drag-to-select visible-tab capture, HiDPI-aware PNG cropping, best-effort automatic clipboard copy and local download outputs, persisted output settings, a persistent draggable preview with native image actions and click-to-open Copy/Save viewer, capture-status feedback, and a no-prompt Chrome extension capture bridge with `getDisplayMedia()` fallback for normal browser hosts.
+
 ## 0.1.0 - 2026-08-28
 
 - Measure every unique pair in multi-selection spacing so additional selected elements no longer lose pairwise or nested edge-distance evidence.
