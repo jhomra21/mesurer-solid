@@ -8,7 +8,12 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 - Measure every unique pair in multi-selection spacing so additional selected elements no longer lose pairwise or nested edge-distance evidence.
 - Keep all pairwise spacing lines while collapsing identical labels at rest; hovering a shared value fans out its pair labels and emphasizes the hovered pair's line and elements.
+- Show direct orthogonal spacing relationships by default, with an opt-in persisted diagonal mode that renders the true nearest-corner Euclidean distance for diagonal pairs.
 - Keep distinct visible spacing labels clickable by moving colliding value pills along their measurement line first, with perpendicular movement only as a fallback, without changing the measurement lines themselves.
+- Make Mesurer shared visual state the default agent workflow: agents read the human's live selection, annotations, measurements, and rendered evidence through the existing browser harness, while safe reinjection preserves the mounted instance and human state.
+- Add strict programmatic `select(selector | selectors)` for exact rendered targets; it visibly updates Mesurer's live selection, returns selection-scoped `MesurerContextV1`, and rejects missing or ambiguous selectors instead of guessing.
+- Remove the Send-to-agent/delivery API and toolbar surface in favor of direct page-state context plus the human-facing Copy Context, Copy Selection, and Add Note controls.
+- Keep the Solid 2 development/browser path free of the previous strict-read and delegated pointer-handler diagnostics while preserving the React-to-Solid interaction contract.
 
 ## 0.1.0-beta.12 - 2026-08-24
 
