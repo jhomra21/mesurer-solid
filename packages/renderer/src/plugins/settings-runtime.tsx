@@ -14,9 +14,9 @@ const PluginSettingsContext = createContext<MesurerPluginSettingsRuntime>();
 export const MesurerPluginSettingsProvider: ParentComponent<{
   runtime: MesurerPluginSettingsRuntime;
 }> = (props) => (
-  <PluginSettingsContext.Provider value={props.runtime}>
+  <PluginSettingsContext value={props.runtime}>
     {props.children}
-  </PluginSettingsContext.Provider>
+  </PluginSettingsContext>
 );
 
 export const useMesurerPluginSettings = () => useContext(PluginSettingsContext);
