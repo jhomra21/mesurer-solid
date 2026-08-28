@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mesurer screenshot synthetic contract</title>
+    <style>
+      html, body { margin: 0; min-height: 100%; font-family: ui-sans-serif, system-ui, sans-serif; background: #f5f5f5; }
+      main { width: 900px; margin: 120px auto; }
+      .note { margin: 0 0 24px; color: #555; font-size: 14px; line-height: 1.5; }
+      .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+      .card { min-height: 180px; border-radius: 16px; padding: 24px; background: white; border: 1px solid #ddd; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Screenshot synthetic contract</h1>
+      <p class="note">Deterministic CI fixture. Its preview intentionally comes from a generated 2× test bitmap, not from the visible page.</p>
+      <div class="cards">
+        <article class="card" data-testid="shot-a">Alpha</article>
+        <article class="card" data-testid="shot-b">Beta</article>
+        <article class="card" data-testid="shot-c">Gamma</article>
+      </div>
+    </main>
+    <script type="module" src="/src/screenshot-contract.ts"></script>
+  </body>
+</html>
