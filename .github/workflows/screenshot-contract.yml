@@ -11,7 +11,9 @@ on:
       - "packages/mesurer/src/inject-script.ts"
       - "extension/**"
       - "examples/basic/screenshot.html"
+      - "examples/basic/screenshot-contract.html"
       - "examples/basic/src/screenshot.ts"
+      - "examples/basic/src/screenshot-contract.ts"
       - "visual-parity/screenshot-contract.mjs"
       - ".github/workflows/screenshot-contract.yml"
   workflow_dispatch:
@@ -40,7 +42,7 @@ jobs:
           cd ../..
           ready=0
           for attempt in $(seq 1 45); do
-            if curl --fail --silent --show-error http://127.0.0.1:4174/screenshot.html >/dev/null; then
+            if curl --fail --silent --show-error http://127.0.0.1:4174/screenshot-contract.html >/dev/null; then
               ready=1
               break
             fi
@@ -52,7 +54,7 @@ jobs:
           fi
       - name: Exercise screenshot plugin in Chromium
         env:
-          SCREENSHOT_URL: http://127.0.0.1:4174/screenshot.html
+          SCREENSHOT_URL: http://127.0.0.1:4174/screenshot-contract.html
         run: bun visual-parity/screenshot-contract.mjs
       - name: Assert Solid runtime diagnostics are clean
         run: |
