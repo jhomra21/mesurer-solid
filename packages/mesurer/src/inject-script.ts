@@ -1,3 +1,4 @@
+import { screenshotPlugin } from "@jhomra21/mesurer-solid-renderer";
 import {
   contextPlugin,
   mountMeasurer,
@@ -15,6 +16,7 @@ const {
   target: targetSelector,
   globalName = "__MESURER__",
   context = true,
+  screenshot = false,
   plugins = [],
   reuseExisting = true,
   ...options
@@ -33,9 +35,11 @@ if (reusableExisting) {
   const target = targetSelector ? document.querySelector<HTMLElement>(targetSelector) : document.body;
   if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
-  const injectedPlugins = context === false
-    ? plugins
-    : [contextPlugin(context === true ? {} : context), ...plugins];
+  const injectedPlugins = [
+    ...(context === false ? [] : [contextPlugin(context === true ? {} : context)]),
+    ...(screenshot === false ? [] : [screenshotPlugin(screenshot === true ? {} : screenshot)]),
+    ...plugins,
+  ];
 
   existing?.dispose();
   const mesurer = mountMeasurer({
