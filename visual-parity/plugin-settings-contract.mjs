@@ -12,7 +12,7 @@ page.on("console", (message) => {
 const island = () => page.locator("[data-mesurer-island='true']");
 const tool = (id) => island().locator(`[data-mesurer-tool-id='${id}'] button`);
 const openSettings = async () => {
-  const settingsButton = tool("settings");
+  const settingsButton = island().locator("[data-mesurer-builtin='settings'] button").first();
   await settingsButton.waitFor({ state: "visible" });
   if (!(await island().getByRole("dialog", { name: "Settings" }).isVisible())) {
     await settingsButton.click();
