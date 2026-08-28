@@ -6,7 +6,7 @@ Mesurer Solid is implemented with Solid 2 internally, but that renderer/runtime 
 
 Mesurer is useful in four related ways:
 
-1. **Interactive devtool** — selection, measurements, guides, rulers, text inspection, X-ray, color picking, distances, settings, history, and persistence.
+1. **Interactive devtool** — selection, measurements, guides, rulers, text inspection, X-ray, color picking, distances, screenshots, settings, history, and persistence.
 2. **Shared human/agent visual state** — the human can point, select, measure, guide, and annotate in the real page while the coding agent reads the same structured state directly from `window.__MESURER__`.
 3. **Rendered verification API** — exact JSON-safe DOM geometry, computed styles, distances, context baselines, context-returning programmatic selection, and deterministic `review()` let agents prove visual changes instead of trusting source CSS.
 4. **Composable runtime** — built-ins and third-party extensions share one plugin host, so tools can be added, removed, replaced, or driven by stable commands at runtime.
@@ -48,17 +48,17 @@ Mesurer runs as an isolated inspection layer over real applications, including c
 
 ## Install
 
-During the prerelease period:
-
 ```bash
-bun add -d mesurer-solid@beta
+bun add -d mesurer-solid
 ```
 
 or:
 
 ```bash
-npm install -D mesurer-solid@beta
+npm install -D mesurer-solid
 ```
+
+`mesurer-solid@0.1.0` is the stable package on the `latest` dist-tag.
 
 > **Package rename:** prereleases through `0.1.0-beta.11` were published under the old scoped package name. Current releases use the canonical unscoped package name `mesurer-solid`.
 
@@ -69,6 +69,7 @@ npm install -D mesurer-solid@beta
 | Framework-independent mounting | `mountMeasurer()` works in browser DOM hosts without sharing the host framework runtime. |
 | Isolated UI | ShadowRoot isolation plus protected top-layer/fallback mounting. |
 | Visual inspection tools | Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, Settings. |
+| Optional screenshot capture | `screenshotPlugin()` adds drag-region PNG capture with HiDPI cropping, clipboard/download outputs, and extension-native visible-tab capture. |
 | Human selections | One/multiple DOM targets or arbitrary dragged regions. |
 | Agent target selection | `select(selector | selectors)` visibly selects exact targets and returns selection-scoped `MesurerContextV1`. |
 | Human annotations | Notes with conservative HMR rebinding and immutable scoped baselines. |
@@ -232,12 +233,36 @@ const review = await mesurer.review(annotationId)
 
 The human does not need to save an annotation just to communicate current visual state. An annotation is useful when a durable note and deterministic baseline/review are needed.
 
+### Add screenshot capture
+
+Screenshot is an opt-in first-party plugin rather than permanent core state:
+
+```ts
+import { mountMeasurer } from "mesurer-solid"
+import { screenshotPlugin } from "mesurer-solid/screenshot"
+
+const mesurer = mountMeasurer({
+  plugins: [
+    screenshotPlugin({
+      copy: true,
+      download: false,
+    }),
+  ],
+})
+```
+
+The camera tool lets the user drag a viewport region, captures the visible page, crops against the actual captured bitmap scale for HiDPI accuracy, optionally copies/downloads the PNG, restores Mesurer UI, and shows a compact preview.
+
+Normal browser hosts use `getDisplayMedia()` with live-stream reuse. The first-party Chrome extension uses `chrome.tabs.captureVisibleTab()` through its isolated-world bridge, avoiding the screen-share chooser for extension captures.
+
+Screenshot intentionally does not claim the global `C` shortcut because the context workflow already owns `C` and `Shift+C`.
+
 ## Agent quick start — discover first, inject only if absent
 
 Install the portable skill:
 
 ```bash
-npx --yes --package=mesurer-solid@beta mesurer-skill install
+npx --yes --package=mesurer-solid mesurer-skill install
 ```
 
 It installs:
@@ -286,6 +311,12 @@ if (!hasMesurer) {
 }
 
 await browser.evaluate(() => window.__MESURER__.ready())
+```
+
+To opt injected Mesurer into the screenshot plugin:
+
+```js
+window.__MESURER_CONFIG__ = { screenshot: true }
 ```
 
 Do not add Mesurer to app source, create a Mesurer-specific build, create another browser/CDP stack, or start an agent server merely to inspect a page the harness already controls.
@@ -342,7 +373,7 @@ For meaningful visual work, fresh Mesurer context/review is part of completion; 
 
 ## Clean screenshot evidence
 
-Mesurer does not render a fake DOM screenshot. The outer browser/harness owns real screenshot capture.
+The optional screenshot plugin is a human capture tool. For agent verification, the outer browser/harness can continue to own real screenshot capture while Mesurer plans the evidence frame:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
@@ -380,9 +411,9 @@ Prefer `context()`, `select()`, and `review()` for normal visual development. Us
 
 ## What Mesurer deliberately does not own
 
-Mesurer is not a browser driver or agent orchestration server. It does not own navigation, host-app clicking/typing, screenshots, tabs/windows, authentication, browser lifetime, source editing, dev servers, chat/thread/task/session routing, or MCP/WebMCP/ACP delivery.
+Mesurer is not a browser driver or agent orchestration server. It does not own navigation, host-app clicking/typing, tabs/windows, authentication, browser lifetime, source editing, dev servers, chat/thread/task/session routing, or MCP/WebMCP/ACP delivery.
 
-Those stay with Playwright, CDP, Cypress, a coding-agent browser tool, Electron, or whatever outer harness already controls the page.
+Those stay with Playwright, CDP, Cypress, a coding-agent browser tool, Electron, or whatever outer harness already controls the page. The optional screenshot plugin only owns its explicit human region-capture flow; it does not turn Mesurer into a browser driver.
 
 ## Browser extension
 
@@ -394,6 +425,8 @@ bun run build
 ```
 
 Load `extension/dist/` as an unpacked extension and click the Mesurer action on an ordinary HTTP(S) page.
+
+The extension enables the screenshot plugin automatically. Its camera tool uses `chrome.tabs.captureVisibleTab()` behind an isolated-world bridge and the existing `activeTab` permission, so region capture does not require `<all_urls>` or the browser screen-share picker.
 
 The extension is only a distribution shell. An agent does not need an extension-specific protocol; it reads `window.__MESURER__` from the page.
 
@@ -418,6 +451,7 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 ```text
 mesurer-solid
 mesurer-solid/core
+mesurer-solid/screenshot
 mesurer-solid/inject
 mesurer-solid/inject-script
 ```
@@ -440,10 +474,10 @@ bun run test
 bun run build
 ```
 
-Browser/package-boundary changes are additionally gated by host compatibility, packed-consumer/package smoke, and visual/interaction checks where applicable.
+Browser/package-boundary changes are additionally gated by host compatibility, packed-consumer/package smoke, the screenshot browser contract, and visual/interaction checks where applicable.
 
 ## Origin and license
 
-Mesurer Solid is adapted from [ibelick/mesurer](https://github.com/ibelick/mesurer), created by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick), and extends that project with the Solid 2 port, framework-agnostic package boundary, plugin/runtime architecture, direct context-first agent workflow, and additional browser integration work.
+Mesurer Solid is adapted from [ibelick/mesurer](https://github.com/ibelick/mesurer), created by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick), and extends that project with the Solid 2 port, framework-agnostic package boundary, plugin/runtime architecture, direct context-first agent workflow, optional screenshot plugin, and additional browser integration work.
 
 MIT. See [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md) for upstream and third-party attribution.
