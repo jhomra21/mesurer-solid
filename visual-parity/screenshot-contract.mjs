@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 
-const url = process.env.SCREENSHOT_URL ?? "http://127.0.0.1:4174/screenshot.html";
+const url = process.env.SCREENSHOT_URL ?? "http://127.0.0.1:4174/screenshot-contract.html";
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
 const errors = [];
