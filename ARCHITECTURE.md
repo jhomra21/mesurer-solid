@@ -18,7 +18,7 @@ Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron
                                               |
                                               v
                                       mesurer.context
-                                  annotation/context/review
+                              annotation/context/select/review
                                               |
                                               v
                                       window.__MESURER__
@@ -52,7 +52,7 @@ It must not import Solid, another renderer, Electron, or browser globals.
 
 The private DOM workspace owns owner-document/window helpers, storage adapters, Electron-renderer detection, canonical box-model inspection, deterministic element selectors, fingerprints, and rich DOM inspection.
 
-The visible Select tool, low-level agent inspection API, annotation rebinding, and context capture share these DOM rules instead of developing independent selector/geometry interpretations.
+The visible Select tool, low-level agent inspection API, annotation rebinding, programmatic context selection, and context capture share these DOM rules instead of developing independent selector/geometry interpretations.
 
 Fingerprints are deliberately conservative. Strong `id`/`data-testid` identity must still match. Weaker rebinding requires compatible tag/classes/accessibility/text identity and a unique candidate; structural position alone is not enough to move human intent to another element.
 
@@ -81,7 +81,7 @@ pluginHost.load(contextPlugin())
              |
              +-- annotation runtime + conservative HMR rebinding
              +-- Copy Context / Copy Selection / Add Note UI + shortcuts
-             +-- context/review/capture-plan operations
+             +-- context/select/review/capture-plan operations
              `-- service: context:v1
 ```
 
@@ -91,11 +91,11 @@ Removing `mesurer.context` disposes its UI, listeners, annotation runtime, comma
 
 The injection entry points install `contextPlugin()` by default because human/agent context is the normal injection workflow. Source-mounted applications opt in explicitly through `plugins: [contextPlugin()]`.
 
-The plugin has **no agent-delivery callback**. There is no Send-to-agent toolbar action, no `sendContext()` method, and no send/delivery capability bit.
+The plugin has **no agent-delivery callback**. There is no Send-to-agent toolbar action, no `sendContext()` method, and no send/delivery capability bit. Programmatic `select()` changes only the shared page selection and returns scoped context; it does not deliver a message to an agent conversation.
 
 ## Shared visual state is the agent boundary
 
-The key architecture decision is that Mesurer does **not** send context to an agent conversation.
+The key architecture decision is that Mesurer does **not** require context delivery to an agent conversation.
 
 The page itself is shared state:
 
@@ -112,9 +112,9 @@ selection / measurements / guides    window.__MESURER__
                same live page state
 ```
 
-The human can point at a problem using the visible UI. The agent reads the exact same state through its existing browser harness. After editing source, the agent reads the page again to prove the result.
+The human can point at a problem using the visible UI. The agent reads the exact same state through its existing browser harness. If there is no relevant human selection and the agent knows the exact affected rendered targets, it can call `select()` to visibly highlight them and receive selection-scoped context. If target identity is ambiguous, the agent asks the human to select instead of guessing. After editing source, the agent reads the page again to prove the result.
 
-Mesurer therefore does not need to know the agent vendor, current chat/thread/task/session, model, MCP/WebMCP/ACP connection, localhost feedback server, or how the harness edits source.
+Mesurer therefore does not need to know the agent vendor, current chat/thread/task/session, model, MCP/WebMCP/ACP connection, localhost feedback server, or how the harness edits source for the normal context-first workflow.
 
 ## Existing-instance preservation
 
@@ -138,7 +138,7 @@ window.__MESURER_CONFIG__ = {
 
 Replacement is for deliberate HMR/tests/tooling. The Agent Skill first discovers `window.__MESURER__` and does not reinject when it is already present.
 
-CI has a real-browser invariant for this behavior: it stores live instance/plugin state, evaluates the injector again, proves the exact same instance/agent/state remain, and separately verifies the explicit replacement path.
+CI has a real-browser invariant for this behavior: it stores live instance/plugin/selection state, evaluates the injector again, proves the exact same instance/agent/state remain, and separately verifies the explicit replacement path.
 
 ## Context data contract
 
@@ -161,7 +161,9 @@ workspace / selection / annotation
 
 Context is JSON-safe. It contains page/viewport state, requested viewport `regions`, inspected targets, relevant visual evidence, and annotation intent when scoped to an annotation.
 
-Workspace context captures the meaningful current visual workspace. Selection context answers what the person is pointing at now. Annotation context adds a durable human note and immutable scoped baseline.
+Workspace context captures the meaningful current visual workspace. Selection context answers what the person or harness is pointing at now. Annotation context adds a durable human note and immutable scoped baseline.
+
+`select(selector | selectors)` is a context-returning operation: every supplied selector must resolve to exactly one rendered target, the targets become Mesurer's visible live selection, and the returned value is selection-scoped `MesurerContextV1`. Missing or ambiguous selectors fail without silently choosing another target.
 
 Selection/annotation relevance uses direct element references and geometry only. Mesurer does not use model inference to guess which evidence matters. Guide relevance uses the renderer's existing snap tolerance.
 
@@ -180,7 +182,7 @@ selected targets
 
 For small selections, the Agent Skill directs the harness to read all useful pairwise pixel gaps/center relationships. For large selections, it focuses on adjacent/repeated/user-relevant pairs to avoid useless O(n²) output.
 
-This makes a human action like selecting three components a precise request to inspect their sizes, box models, typography/layout state, and spatial relationships together.
+This makes a human action like selecting three components a precise request to inspect their sizes, box models, typography/layout state, and spatial relationships together. The same relational contract applies when an agent selects exact changed targets programmatically.
 
 ## Human state can be unsaved
 
@@ -199,7 +201,13 @@ try {
 } catch {}
 ```
 
-The agent stores that initial context inside its current task before editing. After HMR it re-reads current context or uses exact selectors with `inspect()`/`distance()` for focused before/after validation.
+The agent stores that initial context inside its current task before editing. After HMR it re-reads a still-relevant human selection, or when it knows the exact changed targets it calls:
+
+```js
+const current = await window.__MESURER__.select(changedSelectors)
+```
+
+That leaves the affected UI visibly highlighted and returns the fresh scoped context used for completion evidence. `inspect()` / `distance()` remain available for focused before/after validation.
 
 ## Annotation identity and observation
 
@@ -238,7 +246,7 @@ coding agent
 window.__MESURER__
     |- ready()/stable()
     |- capabilities()
-    |- context()/annotations()/review()
+    |- context()/select()/annotations()/review()
     |- capturePlan()/prepareCapture()/finishCapture()
     `- inspect()/distance()/viewport()/feedback()
 ```
@@ -269,16 +277,19 @@ The Agent Skill teaches behavior rather than transport:
 - discover and reuse existing human Mesurer state;
 - inject only when absent through the browser channel the harness already owns;
 - read workspace, selection, and annotations before editing;
+- preserve and consume an existing human selection before changing it;
+- when exact changed targets are known, use context-returning `select()` to visibly highlight and verify them;
+- when target identity is ambiguous, ask the human to select instead of guessing;
 - read every selected target and relevant pairwise relationships for multi-selection;
 - treat notes as intent and numeric/page data as evidence;
 - preserve initial context across HMR;
 - edit source through the normal project workflow;
 - wait for rendered stability;
 - use `review()` for annotation baselines;
-- re-read context/low-level measurements for unsaved human state;
+- obtain fresh Mesurer context for the affected rendered UI before claiming completion;
 - use the harness's real screenshot primitive;
 - do not claim visual completion based only on build/typecheck;
-- do not look for or start MCP/WebMCP/ACP/session-routing/Send-to-agent infrastructure.
+- do not look for or start MCP/WebMCP/ACP/session-routing/Send-to-agent infrastructure for the normal direct-state workflow.
 
 ## Browser extension
 
@@ -312,6 +323,8 @@ Renderer-aware plugins can request the opaque `runtime:solid` service without im
 ## Release invariants
 
 The public workspace stages a sanitized `.publish` directory. Release checks fail if private workspace names leak into public metadata, JS, or declarations. Package-smoke installs the packed artifact into clean consumer apps.
+
+The public package guard also asserts the context-first public declaration surface, including context-returning `select(string | string[])` and the `select` capability bit, and keeps the repository/package Agent Skill copies byte-identical.
 
 The public package build smoke-runs the Agent Skill installer in a fresh temporary directory, verifies `SKILL.md` and `assets/inject-script.js`, and byte-compares the installed injector with the exact built `dist/inject-script.js`.
 
