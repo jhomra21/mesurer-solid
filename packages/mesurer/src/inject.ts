@@ -1,14 +1,14 @@
 import {
-  screenshotPlugin,
-  type MesurerScreenshotPluginOptions,
-} from "@jhomra21/mesurer-solid-renderer";
-import {
   contextPlugin,
   mountMeasurer,
   type MesurerContextPluginOptions,
   type MountMeasurerOptions,
   type MountedMeasurer,
 } from "./index";
+import {
+  screenshotPlugin,
+  type MesurerScreenshotPluginOptions,
+} from "./screenshot";
 
 export type MesurerInjectConfig = Omit<MountMeasurerOptions, "target" | "agent" | "plugins"> & {
   /** Optional application container selector. Defaults to document.body. */
