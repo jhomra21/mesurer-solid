@@ -58,8 +58,8 @@ test("updates only the package version and preserves manifest formatting", () =>
 test("moves Unreleased entries into a versioned section", () => {
   const input = `# Changelog\n\n## Unreleased\n\n<!-- Add user-facing changes here before preparing a release. -->\n\n- Added release automation.\n\n## 0.1.0-beta.2 - 2026-08-20\n\n- Previous.\n`;
   const output = updateChangelog(input, "0.1.0-beta.3", "2026-08-21");
-  assert.match(output, /## Unreleased\n\n<!-- Add user-facing changes here before preparing a release\. -->/);
-  assert.match(output, /## 0\.1\.0-beta\.3 - 2026-08-21\n\n- Added release automation\./);
+  const expected = `# Changelog\n\n## Unreleased\n\n<!-- Add user-facing changes here before preparing a release. -->\n\n## 0.1.0-beta.3 - 2026-08-21\n\n- Added release automation.\n\n## 0.1.0-beta.2 - 2026-08-20\n\n- Previous.\n`;
+  assert.equal(output, expected);
   assert.equal(releaseNotes(output, "0.1.0-beta.3"), "- Added release automation.");
 });
 
