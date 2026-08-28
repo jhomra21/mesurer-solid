@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.1.0 - 2026-08-28
+
 - Measure every unique pair in multi-selection spacing so additional selected elements no longer lose pairwise or nested edge-distance evidence.
 - Keep all pairwise spacing lines while collapsing identical labels at rest; hovering a shared value fans out its pair labels and emphasizes the hovered pair's line and elements.
 - Show direct orthogonal spacing relationships by default, with an opt-in persisted diagonal mode that renders the true nearest-corner Euclidean distance for diagonal pairs.
