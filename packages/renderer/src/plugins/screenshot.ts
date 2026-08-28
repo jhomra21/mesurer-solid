@@ -328,7 +328,6 @@ export const screenshotPlugin = (
       ownerDocument,
       ownerWindow,
       root,
-      anchorRect: toolbarAnchorRect,
       previewDurationMs,
     });
 

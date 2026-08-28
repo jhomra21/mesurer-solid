@@ -21,7 +21,6 @@ type ScreenshotPreviewControllerOptions = {
   ownerDocument: Document;
   ownerWindow: Window;
   root: HTMLElement;
-  anchorRect(): DOMRect | null;
   previewDurationMs: number;
 };
 
@@ -114,7 +113,6 @@ export const createScreenshotPreviewController = ({
   ownerDocument,
   ownerWindow,
   root,
-  anchorRect,
   previewDurationMs,
 }: ScreenshotPreviewControllerOptions): ScreenshotPreviewController => {
   const rendererRoot = root.closest<HTMLElement>("[data-mesurer-root='true']");
@@ -344,14 +342,10 @@ export const createScreenshotPreviewController = ({
   };
 
   const defaultPosition = (): PreviewPosition => {
-    const anchor = anchorRect();
-    if (!anchor) return { left: VIEWPORT_PADDING, top: VIEWPORT_PADDING };
-    const left = anchor.left + anchor.width / 2 - PREVIEW_WIDTH / 2;
-    const below = anchor.bottom + 8;
-    const top = below + PREVIEW_HEIGHT <= ownerWindow.innerHeight - VIEWPORT_PADDING
-      ? below
-      : anchor.top - PREVIEW_HEIGHT - 8;
-    return clampPosition({ left, top }, ownerWindow);
+    return clampPosition({
+      left: ownerWindow.innerWidth - PREVIEW_WIDTH - VIEWPORT_PADDING,
+      top: ownerWindow.innerHeight - PREVIEW_HEIGHT - VIEWPORT_PADDING,
+    }, ownerWindow);
   };
 
   const applyPreviewPosition = (position: PreviewPosition) => {
