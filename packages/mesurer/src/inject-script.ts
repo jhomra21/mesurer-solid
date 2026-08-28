@@ -1,10 +1,10 @@
-import { screenshotPlugin } from "@jhomra21/mesurer-solid-renderer";
 import {
   contextPlugin,
   mountMeasurer,
   type MountedMeasurer,
 } from "./index";
 import type { MesurerInjectConfig } from "./inject";
+import { screenshotPlugin } from "./screenshot";
 
 declare global {
   var __MESURER_CONFIG__: MesurerInjectConfig | undefined;
