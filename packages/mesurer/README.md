@@ -24,7 +24,7 @@ const mesurer = mountMeasurer()
 
 The base inspector contains Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, Settings, the plugin host, and the low-level agent inspection API.
 
-## Add human visual context
+## Add shared visual context
 
 Context and annotations are provided by removable `mesurer.context`:
 
@@ -40,23 +40,23 @@ const mesurer = mountMeasurer({
 })
 ```
 
-The human can use the visible page UI to select one or multiple elements, drag arbitrary regions, place guides, create measurements/held distances, enable rulers/X-ray, and save annotation notes/baselines.
+The human can select one or multiple elements, drag regions, place guides, create measurements/held distances, enable rulers/X-ray, and save annotation notes/baselines.
 
-The coding agent reads that same rendered state directly from the page. **There is no Mesurer MCP, WebMCP, ACP, localhost feedback daemon, Send-to-agent callback, or chat/session routing.**
+The coding agent reads that same rendered state directly from the page. There is no Mesurer MCP, WebMCP, ACP, localhost feedback daemon, Send-to-agent callback, or chat/session routing.
 
-## Direct coding-agent workflow
+The agent contract is **context-first**: Mesurer visual operations should produce structured context the agent actually consumes.
 
 ```text
-human reviewer
-  → selects / measures / guides / annotates in the real page
+human evidence OR agent-known affected target
   → window.__MESURER__
-  → existing coding-agent browser harness reads the page
-  → agent edits source
-  → page/HMR updates
-  → agent remeasures/reviews
+  → context() / select() / review()
+  → structured rendered evidence
+  → source edit
+  → render settles
+  → fresh context/review
 ```
 
-### Preserve a live human instance
+## Preserve a live human instance
 
 Before injecting anything:
 
@@ -71,15 +71,15 @@ if (hasMesurer) {
 }
 ```
 
-If Mesurer already exists, reuse it. Injected Mesurer also preserves a live instance by default. Deliberate replacement requires:
+If Mesurer already exists, reuse it and read existing human state before changing the selection. Injected Mesurer preserves a live instance by default. Deliberate replacement requires:
 
 ```js
 window.__MESURER_CONFIG__ = { reuseExisting: false }
 ```
 
-That option is for explicit test/HMR replacement, not normal agent attachment.
+That option is for explicit test/tooling replacement, not normal agent attachment.
 
-### Inject only when absent
+## Inject only when absent
 
 ```js
 import { readFile } from "node:fs/promises"
@@ -108,17 +108,35 @@ Injection installs `contextPlugin()` by default. To deliberately inject only the
 window.__MESURER_CONFIG__ = { context: false }
 ```
 
-## Read what the human is showing you
+## Direct context API
 
-### Whole workspace
+With the context plugin loaded:
+
+```js
+window.__MESURER__.capabilities().capabilities
+```
+
+exposes:
+
+```text
+context
+select
+annotations
+review
+capturePlan
+```
+
+There is no send/delivery capability or `sendContext()`.
+
+### Read the whole workspace
 
 ```js
 const workspace = await window.__MESURER__.context()
 ```
 
-Workspace context includes page/viewport state, rulers/X-ray visibility, inspected targets, guides, measurements, held distances, exact rects, box model, typography, appearance, layout, scroll size, and overflow.
+Workspace context includes page/viewport state, rulers/X-ray visibility, targets, guides, measurements, held distances, exact rects, box model, typography, appearance, layout, scroll size, and overflow.
 
-### Current selection
+### Read the current human selection
 
 ```js
 let selection = null
@@ -127,15 +145,57 @@ try {
 } catch {}
 ```
 
-Selection context answers what the human is pointing at now. It can represent one/multiple DOM elements or a dragged viewport region.
+Selection context answers what the human is pointing at now. Preserve and consume it before programmatically changing selection.
 
-### Multi-selection
+### Select exact rendered targets and get context back
 
-For every selected target, consume the complete inspection: selector/identity, rect, margin/padding/border, typography, appearance, layout, and scroll/overflow.
+When an agent knows exactly which rendered element it wants to highlight/verify, it can select it itself:
 
-Use existing `visualContext.distances` first, then `distance(selectorA, selectorB)` for selected pairs whose relationship is not already represented. Small multi-selections should return useful pairwise pixel relationships instead of merely saying “3 elements selected.”
+```js
+const context = await window.__MESURER__.select("#pricing-card")
+```
 
-### Saved annotations
+For several exact targets:
+
+```js
+const context = await window.__MESURER__.select([
+  "#pricing-card",
+  "#pricing-cta",
+])
+```
+
+`select()`:
+
+1. enables Mesurer and switches to Select;
+2. visibly highlights those rendered elements;
+3. makes them the live selection;
+4. waits for the selection to settle;
+5. returns selection-scoped `MesurerContextV1`.
+
+The return value is intentional. Agents should consume it rather than treating the highlight as the end of the operation.
+
+Every selector must resolve to exactly one element inside the page target. Invalid, missing, or ambiguous selectors throw. Refine the selector or ask the human to select the intended target rather than guessing.
+
+This gives agents a clean post-edit verification pattern:
+
+```js
+await window.__MESURER__.stable()
+
+const evidence = await window.__MESURER__.select([
+  changedSelectorA,
+  changedSelectorB,
+])
+```
+
+The user sees what the agent changed, and the agent receives the exact rendered evidence in the same operation.
+
+## Multi-selection
+
+For every selected target, context contains selector/identity, rect, margin/padding/border, typography, appearance, layout, and scroll/overflow.
+
+Use existing `visualContext.distances` first, then `distance(selectorA, selectorB)` for selected pairs whose relationship is not already represented. Small multi-selections should expose useful pairwise pixel relationships rather than merely saying “3 elements selected.”
+
+## Saved annotations
 
 ```js
 const annotations = await window.__MESURER__.annotations()
@@ -147,9 +207,19 @@ for (const annotation of annotations) {
 
 An annotation adds a durable note and immutable baseline. The note is human intent; geometry/computed styles/guides/distances/screenshots are supporting evidence.
 
+## Agent target-acquisition rule
+
+When Mesurer is available, agents should follow this order:
+
+1. existing relevant human selection/annotation → read it first;
+2. no relevant selection and intended target is ambiguous → ask the human to select it, then read selection context;
+3. no relevant selection and agent knows exact affected rendered targets → call `select()` and consume the returned context.
+
+Do not ask the user to select something the agent can identify exactly itself. Do not guess when the target truly is ambiguous.
+
 ## Verify the rendered fix
 
-After the agent edits normal project source and the real page updates:
+After source edits and the real page update:
 
 ```js
 await window.__MESURER__.stable()
@@ -161,26 +231,29 @@ For a saved annotation:
 const review = await window.__MESURER__.review(annotationId)
 ```
 
-`review()` reports exact before/current/delta pixels and explicit missing evidence.
-
-For unsaved state, keep the initial context/selection snapshot in the agent task, then re-read current state. Use target selectors for focused checks:
+For a still-relevant human selection:
 
 ```js
-window.__MESURER__.inspect(selector)
-window.__MESURER__.inspectAll(selector)
-window.__MESURER__.distance(selectorA, selectorB)
-window.__MESURER__.viewport()
-await window.__MESURER__.feedback([selectorA, selectorB])
+const after = await window.__MESURER__.context({ scope: "selection" })
 ```
 
-For multi-selection, verify the same target dimensions and pair relationships captured before editing.
+When the agent knows the affected rendered targets:
+
+```js
+const after = await window.__MESURER__.select([
+  changedSelectorA,
+  changedSelectorB,
+])
+```
+
+For meaningful visual work, fresh Mesurer context/review is part of completion. Lint, typecheck, tests, and build are implementation checks, not rendered proof.
 
 ## Clean screenshot evidence
 
 Mesurer plans the evidence frame; the existing browser harness takes the real screenshot:
 
 ```js
-const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
+const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
 await window.__MESURER__.prepareCapture()
 try {
   // Capture the real viewport and optional focus crop through the harness.
@@ -189,21 +262,19 @@ try {
 }
 ```
 
-For current selection use `{ scope: "selection" }`.
+Use screenshots for visual composition and Mesurer context for exact numeric claims.
 
-## Context UI and agent contract
+## Context UI
 
 With default `contextPlugin()` UI:
 
 | Action | Shortcut | What it does |
 | --- | --- | --- |
-| Copy Context | `C` | Copies the current workspace context. |
-| Copy Selection | `Shift+C` | Copies context scoped to selected element(s) or dragged region. |
-| Add Note | `N` | Creates a durable annotation baseline for the current selection/region. |
+| Copy Context | `C` | Copies current workspace context. |
+| Copy Selection | `Shift+C` | Copies context scoped to selected element(s) or region. |
+| Add Note | `N` | Creates a durable annotation baseline. |
 
-Those are the three context controls. There is no Send-to-agent control or callback.
-
-`window.__MESURER__.capabilities().capabilities` exposes context, annotations, review, and capture planning when the context plugin is loaded. It does not expose send/delivery capability bits, and `window.__MESURER__` does not expose `sendContext()`.
+Those remain the three human context controls. `select()` is a programmatic agent/harness API, not another toolbar action.
 
 ## Portable Agent Skill
 
@@ -220,7 +291,7 @@ The installer leaves:
     └── inject-script.js
 ```
 
-The skill teaches the direct workflow in detail, including multi-selection reads and post-edit verification. See [`AGENT_INTEGRATION.md`](./AGENT_INTEGRATION.md).
+The skill teaches the context-first workflow, including when to consume human selection, when to ask for a selection, when to self-select changed targets, multi-selection reads, and fresh post-edit verification. See [`AGENT_INTEGRATION.md`](./AGENT_INTEGRATION.md).
 
 ## Low-level agent API
 
@@ -233,7 +304,7 @@ distance / viewport / feedback
 describe / command / state
 ```
 
-Use low-level APIs for narrow measurement questions. Prefer `context()` and `review()` for normal human-in-the-loop work.
+Use low-level APIs for narrow measurement questions. Prefer `context()`, `select()`, and `review()` for normal visual work.
 
 ## Plugins
 
