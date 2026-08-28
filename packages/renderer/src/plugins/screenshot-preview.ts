@@ -31,7 +31,7 @@ type PreviewPosition = {
 };
 
 type PreviewDrag = {
-  pointerId: number;
+  pointerId: number | null;
   startX: number;
   startY: number;
   left: number;
@@ -347,48 +347,90 @@ export const createScreenshotPreviewController = ({
     }
   };
 
-  const onPreviewPointerDown = (event: PointerEvent) => {
-    if (event.button !== 0 || !currentBlob) return;
+  const beginPreviewDrag = (
+    clientX: number,
+    clientY: number,
+    pointerId: number | null,
+  ) => {
+    if (!currentBlob) return false;
     clearPreviewTimer();
     const rect = preview.getBoundingClientRect();
     previewDrag = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
+      pointerId,
+      startX: clientX,
+      startY: clientY,
       left: rect.left,
       top: rect.top,
       moved: false,
     };
     preview.style.cursor = "grabbing";
-    preview.setPointerCapture?.(event.pointerId);
-    event.preventDefault();
+    return true;
   };
 
-  const onPreviewPointerMove = (event: PointerEvent) => {
+  const movePreviewDrag = (clientX: number, clientY: number) => {
     const drag = previewDrag;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const dx = event.clientX - drag.startX;
-    const dy = event.clientY - drag.startY;
+    if (!drag) return;
+    const dx = clientX - drag.startX;
+    const dy = clientY - drag.startY;
     if (!drag.moved && Math.hypot(dx, dy) >= DRAG_THRESHOLD) drag.moved = true;
     if (!drag.moved) return;
     applyPreviewPosition({ left: drag.left + dx, top: drag.top + dy });
   };
 
-  const endPreviewDrag = (event: PointerEvent) => {
+  const finishPreviewDrag = () => {
     const drag = previewDrag;
-    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag) return;
     previewDrag = null;
     preview.style.cursor = "grab";
-    if (preview.hasPointerCapture?.(event.pointerId)) preview.releasePointerCapture(event.pointerId);
     if (!drag.moved) openViewer();
   };
 
-  const onPreviewPointerCancel = (event: PointerEvent) => {
-    const drag = previewDrag;
-    if (!drag || drag.pointerId !== event.pointerId) return;
+  const cancelPreviewDrag = () => {
+    if (!previewDrag) return;
     previewDrag = null;
     preview.style.cursor = "grab";
+  };
+
+  const onPreviewMouseDown = (event: MouseEvent) => {
+    if (event.button !== 0 || !beginPreviewDrag(event.clientX, event.clientY, null)) return;
+    event.preventDefault();
+  };
+
+  const onWindowMouseMove = (event: MouseEvent) => {
+    if (previewDrag?.pointerId !== null) return;
+    movePreviewDrag(event.clientX, event.clientY);
+  };
+
+  const onWindowMouseUp = (event: MouseEvent) => {
+    if (event.button !== 0 || previewDrag?.pointerId !== null) return;
+    finishPreviewDrag();
+  };
+
+  const onPreviewPointerDown = (event: PointerEvent) => {
+    if (event.pointerType === "mouse" || event.button !== 0) return;
+    if (!beginPreviewDrag(event.clientX, event.clientY, event.pointerId)) return;
+    preview.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  };
+
+  const onWindowPointerMove = (event: PointerEvent) => {
+    const pointerId = previewDrag?.pointerId;
+    if (pointerId === null || pointerId === undefined || pointerId !== event.pointerId) return;
+    movePreviewDrag(event.clientX, event.clientY);
+  };
+
+  const onWindowPointerUp = (event: PointerEvent) => {
+    const pointerId = previewDrag?.pointerId;
+    if (pointerId === null || pointerId === undefined || pointerId !== event.pointerId) return;
     if (preview.hasPointerCapture?.(event.pointerId)) preview.releasePointerCapture(event.pointerId);
+    finishPreviewDrag();
+  };
+
+  const onWindowPointerCancel = (event: PointerEvent) => {
+    const pointerId = previewDrag?.pointerId;
+    if (pointerId === null || pointerId === undefined || pointerId !== event.pointerId) return;
+    if (preview.hasPointerCapture?.(event.pointerId)) preview.releasePointerCapture(event.pointerId);
+    cancelPreviewDrag();
   };
 
   const onPreviewKeyDown = (event: KeyboardEvent) => {
@@ -409,22 +451,23 @@ export const createScreenshotPreviewController = ({
   };
 
   dismissButton.addEventListener("pointerdown", (event) => event.stopPropagation());
+  dismissButton.addEventListener("mousedown", (event) => event.stopPropagation());
   dismissButton.addEventListener("click", (event) => {
     event.stopPropagation();
     dismiss();
   });
+  preview.addEventListener("mousedown", onPreviewMouseDown);
   preview.addEventListener("pointerdown", onPreviewPointerDown);
-  preview.addEventListener("pointermove", onPreviewPointerMove);
-  preview.addEventListener("pointerup", endPreviewDrag);
-  preview.addEventListener("pointercancel", onPreviewPointerCancel);
   preview.addEventListener("keydown", onPreviewKeyDown);
   viewer.addEventListener("click", onViewerClick);
   copyButton.addEventListener("click", () => { void copyCurrent(); });
   saveButton.addEventListener("click", saveCurrent);
   closeViewerButton.addEventListener("click", closeViewer);
-  ownerWindow.addEventListener("pointermove", onPreviewPointerMove, true);
-  ownerWindow.addEventListener("pointerup", endPreviewDrag, true);
-  ownerWindow.addEventListener("pointercancel", onPreviewPointerCancel, true);
+  ownerWindow.addEventListener("mousemove", onWindowMouseMove, true);
+  ownerWindow.addEventListener("mouseup", onWindowMouseUp, true);
+  ownerWindow.addEventListener("pointermove", onWindowPointerMove, true);
+  ownerWindow.addEventListener("pointerup", onWindowPointerUp, true);
+  ownerWindow.addEventListener("pointercancel", onWindowPointerCancel, true);
   ownerWindow.addEventListener("keydown", onWindowKeyDown, true);
 
   return {
@@ -451,14 +494,14 @@ export const createScreenshotPreviewController = ({
       clearPreviewTimer();
       clearToastTimer();
       dismiss();
-      ownerWindow.removeEventListener("pointermove", onPreviewPointerMove, true);
-      ownerWindow.removeEventListener("pointerup", endPreviewDrag, true);
-      ownerWindow.removeEventListener("pointercancel", onPreviewPointerCancel, true);
+      ownerWindow.removeEventListener("mousemove", onWindowMouseMove, true);
+      ownerWindow.removeEventListener("mouseup", onWindowMouseUp, true);
+      ownerWindow.removeEventListener("pointermove", onWindowPointerMove, true);
+      ownerWindow.removeEventListener("pointerup", onWindowPointerUp, true);
+      ownerWindow.removeEventListener("pointercancel", onWindowPointerCancel, true);
       ownerWindow.removeEventListener("keydown", onWindowKeyDown, true);
+      preview.removeEventListener("mousedown", onPreviewMouseDown);
       preview.removeEventListener("pointerdown", onPreviewPointerDown);
-      preview.removeEventListener("pointermove", onPreviewPointerMove);
-      preview.removeEventListener("pointerup", endPreviewDrag);
-      preview.removeEventListener("pointercancel", onPreviewPointerCancel);
       preview.removeEventListener("keydown", onPreviewKeyDown);
       viewer.removeEventListener("click", onViewerClick);
       if (root.contains(preview)) preview.remove();
