@@ -67,6 +67,26 @@ try {
 
   const previewBeforeDrag = await preview.boundingBox();
   if (!previewBeforeDrag) throw new Error("Screenshot preview has no drag geometry");
+  const previewHitTest = await preview.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const root = element.getRootNode();
+    const hit = "elementFromPoint" in root
+      ? root.elementFromPoint(rect.left + 24, rect.top + 40)
+      : null;
+    return {
+      previewContainsHit: hit ? element.contains(hit) : false,
+      hitTag: hit?.tagName ?? null,
+      hitDataset: hit instanceof HTMLElement ? { ...hit.dataset } : null,
+      previewStyle: {
+        left: element.style.left,
+        top: element.style.top,
+        pointerEvents: getComputedStyle(element).pointerEvents,
+      },
+      parentPointerEvents: element.parentElement
+        ? getComputedStyle(element.parentElement).pointerEvents
+        : null,
+    };
+  });
   await page.mouse.move(previewBeforeDrag.x + 24, previewBeforeDrag.y + 40);
   await page.mouse.down();
   await page.mouse.move(previewBeforeDrag.x + 94, previewBeforeDrag.y + 90, { steps: 6 });
@@ -74,7 +94,7 @@ try {
   const previewAfterDrag = await preview.boundingBox();
   if (!previewAfterDrag) throw new Error("Screenshot preview disappeared while dragging");
   if (Math.abs(previewAfterDrag.x - previewBeforeDrag.x) < 40 || Math.abs(previewAfterDrag.y - previewBeforeDrag.y) < 25) {
-    throw new Error("Screenshot preview did not move with the pointer");
+    throw new Error(`Screenshot preview did not move with the pointer: ${JSON.stringify({ previewBeforeDrag, previewAfterDrag, previewHitTest })}`);
   }
 
   await previewImage.click({ position: { x: 28, y: 40 } });
