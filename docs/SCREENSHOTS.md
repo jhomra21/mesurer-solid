@@ -72,7 +72,7 @@ Selection/capture chrome is excluded from the captured pixels. Existing page con
 
 `copy` and `download` are persistent plugin preferences. Automatic output is best-effort: a clipboard or download failure does not invalidate a successful PNG capture.
 
-After capture, the thumbnail remains until the user dismisses it or a later capture replaces it. The thumbnail can be dragged around the viewport and right-clicked with the browser's native image context menu. Clicking it opens the larger viewer.
+After capture, a new thumbnail starts in the **bottom-right corner with an 8px viewport inset**. The thumbnail remains until the user dismisses it or a later capture replaces it. It can be dragged around the viewport and right-clicked with the browser's native image context menu. Dragging keeps the existing viewport-clamping behavior, so the preview remains inside the same 8px-safe boundary. Clicking it opens the larger viewer.
 
 The viewer:
 
@@ -168,7 +168,7 @@ outer harness screenshot → composition and visual judgment
 
 Do not estimate spacing, alignment, dimensions, or box-model facts from screenshot pixels when Mesurer can report them exactly.
 
-When the task is specifically about the screenshot feature itself, test the screenshot plugin as the subject under test: camera activation, region selection, hidden capture chrome, HiDPI crop, output behavior, thumbnail dragging/dismissal, viewer actions, repeated captures, cancellation, and console cleanliness.
+When the task is specifically about the screenshot feature itself, test the screenshot plugin as the subject under test: camera activation, region selection, hidden capture chrome, HiDPI crop, output behavior, bottom-right 8px default preview placement, thumbnail dragging/clamping/dismissal, viewer actions, repeated captures, cancellation, and console cleanliness.
 
 Agents should not close, replace, or otherwise mutate a human's existing screenshot preview merely to tidy their own session.
 
@@ -176,7 +176,7 @@ Agents should not close, replace, or otherwise mutate a human's existing screens
 
 Screenshot behavior has a dedicated browser contract in `visual-parity/screenshot-contract.mjs` and `.github/workflows/screenshot-contract.yml`.
 
-The contract exercises the real plugin lifecycle and deterministic capture fixture, including region selection, crop dimensions, cancellation, preview/viewer behavior, and restoration of Mesurer UI. Package guards also require the public `./screenshot` entry and declarations to be present in the staged npm package.
+The contract exercises the real plugin lifecycle and deterministic capture fixture, including region selection, crop dimensions, cancellation, preview/viewer behavior, and restoration of Mesurer UI. Focused renderer coverage also locks the new-preview default to the bottom-right at an 8px inset while preserving drag clamping. Package guards require the public `./screenshot` entry and declarations to be present in the staged npm package.
 
 Before a stable release that changes screenshot behavior or public screenshot documentation:
 
