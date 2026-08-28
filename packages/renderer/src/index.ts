@@ -26,6 +26,33 @@ export {
 } from "./plugins/builtins";
 export type { MesurerBuiltinPluginId } from "./plugins/builtins";
 export {
+  MESURER_SCREENSHOT_ACTIVE_STATE_ID,
+  MESURER_SCREENSHOT_PLUGIN_ID,
+  MESURER_SCREENSHOT_SERVICE_ID,
+  MESURER_SCREENSHOT_SETTINGS_STATE_ID,
+  screenshotPlugin,
+} from "./plugins/screenshot";
+export type {
+  MesurerScreenshotPluginOptions,
+  MesurerScreenshotResult,
+  MesurerScreenshotService,
+  MesurerScreenshotSettings,
+  ScreenshotCaptureContext,
+  ScreenshotCaptureProvider,
+  ScreenshotRect,
+} from "./plugins/screenshot";
+export {
+  captureVisibleTabPng,
+  copyPngToClipboard,
+  createScreenshotFilename,
+  cropPngToViewportRect,
+  MIN_SCREENSHOT_SELECTION,
+  normalizeScreenshotRect,
+  prepareScreenshotCapture,
+  releaseScreenshotCapture,
+  waitForNextPaint,
+} from "./core/screenshot";
+export {
   createMesurerPluginHost,
   createMesurerRuntime,
   defineMesurerPlugin,
