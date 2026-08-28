@@ -422,6 +422,9 @@ export const createScreenshotPreviewController = ({
   copyButton.addEventListener("click", () => { void copyCurrent(); });
   saveButton.addEventListener("click", saveCurrent);
   closeViewerButton.addEventListener("click", closeViewer);
+  ownerWindow.addEventListener("pointermove", onPreviewPointerMove, true);
+  ownerWindow.addEventListener("pointerup", endPreviewDrag, true);
+  ownerWindow.addEventListener("pointercancel", onPreviewPointerCancel, true);
   ownerWindow.addEventListener("keydown", onWindowKeyDown, true);
 
   return {
@@ -448,6 +451,9 @@ export const createScreenshotPreviewController = ({
       clearPreviewTimer();
       clearToastTimer();
       dismiss();
+      ownerWindow.removeEventListener("pointermove", onPreviewPointerMove, true);
+      ownerWindow.removeEventListener("pointerup", endPreviewDrag, true);
+      ownerWindow.removeEventListener("pointercancel", onPreviewPointerCancel, true);
       ownerWindow.removeEventListener("keydown", onWindowKeyDown, true);
       preview.removeEventListener("pointerdown", onPreviewPointerDown);
       preview.removeEventListener("pointermove", onPreviewPointerMove);
