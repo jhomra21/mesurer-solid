@@ -276,7 +276,7 @@ export const screenshotPlugin = (
 
     const updateSettings = (patch: Partial<MesurerScreenshotSettings>) => {
       ctx.state.update<ScreenshotStateValue>(MESURER_SCREENSHOT_SETTINGS_STATE_ID, (current) => {
-        const next: ScreenshotStateValue = { ...current };
+        const next = { ...current };
         if (patch.copy !== undefined) next.copy = patch.copy;
         if (patch.download !== undefined) next.download = patch.download;
         return next;
