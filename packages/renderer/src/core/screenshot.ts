@@ -70,18 +70,12 @@ export const cropPngToViewportRect = async (
   }
 };
 
-type ClipboardItemConstructor = new (
-  items: Record<string, Blob | PromiseLike<Blob>>,
-) => ClipboardItem;
-
 export const copyPngToClipboard = async (
   png: Blob | Promise<Blob>,
   ownerWindow: Window,
 ) => {
   const clipboard = ownerWindow.navigator.clipboard;
-  const ClipboardItemCtor = (ownerWindow as Window & {
-    ClipboardItem?: ClipboardItemConstructor;
-  }).ClipboardItem;
+  const ClipboardItemCtor = globalThis.ClipboardItem;
   if (!clipboard?.write || !ClipboardItemCtor) {
     throw new Error("PNG clipboard copy is not available");
   }
@@ -121,41 +115,18 @@ const randomRequestId = (ownerWindow: Window) =>
   ownerWindow.crypto?.randomUUID?.()
   ?? `mesurer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-type CaptureResponse =
-  | { ok: true; dataUrl: string }
-  | { ok: false; error?: string };
+const bridgeMessage = (type: string, id: string, payload = "") =>
+  `${type}:${id}:${payload}`;
 
-type ChromeRuntimeLike = {
-  id?: string;
-  lastError?: { message?: string };
-  sendMessage(message: { type: string }, callback: (response: CaptureResponse) => void): void;
+const bridgeReply = (
+  value: unknown,
+  type: string,
+  id: string,
+) => {
+  const message = String(value ?? "");
+  const prefix = `${type}:${id}:`;
+  return message.startsWith(prefix) ? message.slice(prefix.length) : null;
 };
-
-const extensionRuntime = (ownerWindow: Window) =>
-  (ownerWindow as Window & { chrome?: { runtime?: ChromeRuntimeLike } }).chrome?.runtime;
-
-const captureViaExtensionRuntime = (
-  runtime: ChromeRuntimeLike,
-  ownerWindow: Window,
-) => new Promise<Blob>((resolve, reject) => {
-  try {
-    runtime.sendMessage({ type: MESURER_CAPTURE_VISIBLE_MESSAGE }, (response) => {
-      if (runtime.lastError?.message) {
-        reject(new Error(runtime.lastError.message));
-        return;
-      }
-      if (!response?.ok || !response.dataUrl) {
-        reject(new Error(response && !response.ok ? response.error ?? "Capture failed" : "Capture failed"));
-        return;
-      }
-      void ownerWindow.fetch(response.dataUrl)
-        .then((result) => result.blob())
-        .then(resolve, reject);
-    });
-  } catch (cause) {
-    reject(cause instanceof Error ? cause : new Error("Capture failed"));
-  }
-});
 
 const pingCaptureBridge = (ownerWindow: Window) =>
   new Promise<boolean>((resolve) => {
@@ -163,7 +134,7 @@ const pingCaptureBridge = (ownerWindow: Window) =>
     const origin = ownerWindow.location.origin;
     const onMessage = (event: MessageEvent) => {
       if (event.source !== ownerWindow || event.origin !== origin) return;
-      if (event.data?.type !== MESURER_CAPTURE_BRIDGE_PONG || event.data.id !== id) return;
+      if (bridgeReply(event.data, MESURER_CAPTURE_BRIDGE_PONG, id) === null) return;
       ownerWindow.removeEventListener("message", onMessage);
       ownerWindow.clearTimeout(timeoutId);
       resolve(true);
@@ -173,7 +144,7 @@ const pingCaptureBridge = (ownerWindow: Window) =>
       resolve(false);
     }, 80);
     ownerWindow.addEventListener("message", onMessage);
-    ownerWindow.postMessage({ type: MESURER_CAPTURE_BRIDGE_PING, id }, origin);
+    ownerWindow.postMessage(bridgeMessage(MESURER_CAPTURE_BRIDGE_PING, id), origin);
   });
 
 const captureViaBridge = (ownerWindow: Window) =>
@@ -182,14 +153,20 @@ const captureViaBridge = (ownerWindow: Window) =>
     const origin = ownerWindow.location.origin;
     const onMessage = (event: MessageEvent) => {
       if (event.source !== ownerWindow || event.origin !== origin) return;
-      if (event.data?.type !== MESURER_CAPTURE_BRIDGE_RESPONSE || event.data.id !== id) return;
+      const payload = bridgeReply(event.data, MESURER_CAPTURE_BRIDGE_RESPONSE, id);
+      if (payload === null) return;
       ownerWindow.removeEventListener("message", onMessage);
       ownerWindow.clearTimeout(timeoutId);
-      if (!event.data.ok || typeof event.data.dataUrl !== "string") {
+      if (!payload.startsWith("ok:")) {
         resolve(null);
         return;
       }
-      void ownerWindow.fetch(event.data.dataUrl)
+      const dataUrl = payload.slice(3);
+      if (!dataUrl) {
+        resolve(null);
+        return;
+      }
+      void ownerWindow.fetch(dataUrl)
         .then((result) => result.blob())
         .then(resolve, reject);
     };
@@ -198,7 +175,7 @@ const captureViaBridge = (ownerWindow: Window) =>
       resolve(null);
     }, 4000);
     ownerWindow.addEventListener("message", onMessage);
-    ownerWindow.postMessage({ type: MESURER_CAPTURE_BRIDGE_REQUEST, id }, origin);
+    ownerWindow.postMessage(bridgeMessage(MESURER_CAPTURE_BRIDGE_REQUEST, id), origin);
   });
 
 type TabCapture = {
@@ -226,12 +203,13 @@ const startTabCapture = async (
   if (existing) return existing;
   const media = ownerWindow.navigator.mediaDevices;
   if (!media?.getDisplayMedia) throw new Error("Screenshot capture is unavailable");
-  const stream = await media.getDisplayMedia({
+  const constraints = {
     audio: false,
     video: true,
     preferCurrentTab: true,
     selfBrowserSurface: "include",
-  } as DisplayMediaStreamOptions);
+  };
+  const stream = await media.getDisplayMedia(constraints);
   const track = stream.getVideoTracks()[0];
   if (!track) {
     stream.getTracks().forEach((next) => next.stop());
@@ -249,7 +227,7 @@ const startTabCapture = async (
         video.onloadedmetadata = () => resolve();
       });
     }
-    const capture = { stream, video } satisfies TabCapture;
+    const capture: TabCapture = { stream, video };
     tabCaptures.set(ownerWindow, capture);
     track.addEventListener("ended", () => {
       if (tabCaptures.get(ownerWindow) === capture) tabCaptures.delete(ownerWindow);
@@ -293,15 +271,14 @@ export const prepareScreenshotCapture = async (
   ownerDocument: Document,
   ownerWindow: Window,
 ) => {
-  if (extensionRuntime(ownerWindow)?.id) return;
   if (await pingCaptureBridge(ownerWindow)) return;
   await startTabCapture(ownerDocument, ownerWindow);
 };
 
-export const captureVisibleTabPng: ScreenshotCaptureProvider = async (context) => {
-  const { ownerDocument, ownerWindow } = context;
-  const runtime = extensionRuntime(ownerWindow);
-  if (runtime?.id) return captureViaExtensionRuntime(runtime, ownerWindow);
+export const captureVisibleTabPng: ScreenshotCaptureProvider = async ({
+  ownerDocument,
+  ownerWindow,
+}) => {
   if (await pingCaptureBridge(ownerWindow)) {
     const bridged = await captureViaBridge(ownerWindow);
     if (bridged) return bridged;
