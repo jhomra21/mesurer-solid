@@ -2,8 +2,8 @@ import { createMesurerPluginHost as createInternalPluginHost } from "@jhomra21/m
 
 export type Registration = { readonly dispose: () => void };
 export type PluginId = string;
-type PluginScalar = string | number | boolean | null;
-type PluginValue = PluginScalar | PluginValue[] | { [key: string]: PluginValue };
+export type PluginScalar = string | number | boolean | null;
+export type PluginValue = PluginScalar | PluginValue[] | { [key: string]: PluginValue };
 export type PluginStateSnapshot = { [id: string]: PluginValue };
 export type PluginStateScope = "all" | "history" | "persist";
 
@@ -17,9 +17,42 @@ export type ToolContribution = {
   icon?: { viewBox?: string; paths: string[] };
   active?: () => boolean;
   disabled?: () => boolean;
+  hidden?: () => boolean;
 };
 
-export type SettingsContribution = { id: string; label: string; order?: number; builtin?: string };
+export type SettingsToggleContribution = {
+  type: "toggle";
+  id: string;
+  label: string;
+  description?: string;
+  value(): boolean;
+  set(value: boolean): void | Promise<void>;
+  disabled?: () => boolean;
+};
+
+export type SettingsControlContribution = SettingsToggleContribution;
+export type SettingsContribution = {
+  id: string;
+  label: string;
+  order?: number;
+  builtin?: string;
+  controls?: SettingsControlContribution[];
+};
+export type SettingsControlDescription = {
+  type: "toggle";
+  id: string;
+  label: string;
+  description: string | undefined;
+  value: boolean;
+  disabled: boolean;
+};
+export type SettingsDescription = {
+  id: string;
+  label: string;
+  order?: number;
+  builtin?: string;
+  controls: SettingsControlDescription[];
+};
 export type OverlayContribution = { id: string; order?: number; builtin?: string };
 export type CommandHandler = (args: PluginValue | undefined, context: { source?: PluginValue }) => void | Promise<void>;
 export type HookHandler = (event: PluginValue) => void | Promise<void>;
@@ -36,6 +69,7 @@ export type MesurerPluginContext = {
     register<T extends PluginValue>(definition: StateSliceDefinition<T>): Registration;
     get<T extends PluginValue>(id: string): T | undefined;
     update<T extends PluginValue>(id: string, update: (value: T) => T): void;
+    subscribe(listener: () => void): Registration;
   };
   tool: { register(contribution: ToolContribution): Registration };
   settings: { register(contribution: SettingsContribution): Registration };
@@ -68,7 +102,7 @@ export type MesurerPlugin = {
 export type MesurerPluginDescription = {
   plugins: Array<{ id: string; version?: string; requires: string[]; provides: string[] }>;
   tools: Array<{ id: string; label: string; shortcut?: string; command: string; order?: number; builtin?: string }>;
-  settings: SettingsContribution[];
+  settings: SettingsDescription[];
   overlays: OverlayContribution[];
   state: Array<{ id: string; history: boolean; persist: boolean }>;
   commands: string[];
