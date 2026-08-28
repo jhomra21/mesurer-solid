@@ -30,10 +30,18 @@ const RUNTIME_SERVICE_ID = "runtime:solid";
 const SCREENSHOT_COMMAND = "screenshot.toggle";
 const ERROR_DURATION_MS = 2500;
 const DEFAULT_PREVIEW_DURATION_MS = 0;
+const MEASUREMENT_MARKER_SELECTOR = [
+  "[data-mesurer-selected-measurement='true']",
+  "[data-mesurer-selection-spacing-target='true']",
+  "[data-mesurer-guide='true']",
+  "[data-mesurer-distance='true']",
+].join(",");
 
 export type MesurerScreenshotSettings = {
+  toolEnabled: boolean;
   copy: boolean;
   download: boolean;
+  includeMeasurements: boolean;
 };
 
 export type MesurerScreenshotResult = {
@@ -59,8 +67,10 @@ export type MesurerScreenshotService = {
 
 type ScreenshotStateValue = {
   [key: string]: PluginValue;
+  toolEnabled: boolean;
   copy: boolean;
   download: boolean;
+  includeMeasurements: boolean;
 };
 
 type InlineStyleSnapshot = {
@@ -71,6 +81,11 @@ type InlineStyleSnapshot = {
 type ToolbarVisibility = {
   element: HTMLElement;
   visibility: InlineStyleSnapshot;
+};
+
+type HiddenCaptureElement = {
+  element: HTMLElement;
+  display: InlineStyleSnapshot;
 };
 
 const cameraIcon = {
@@ -105,8 +120,58 @@ const readSettings = (
 ): MesurerScreenshotSettings => {
   const stored = get<ScreenshotStateValue>(MESURER_SCREENSHOT_SETTINGS_STATE_ID);
   return {
+    toolEnabled: stored?.toolEnabled ?? true,
     copy: stored?.copy ?? true,
     download: stored?.download ?? false,
+    includeMeasurements: stored?.includeMeasurements ?? false,
+  };
+};
+
+const captureDisplay = (element: HTMLElement): InlineStyleSnapshot => ({
+  value: element.style.getPropertyValue("display"),
+  priority: element.style.getPropertyPriority("display"),
+});
+
+const restoreDisplay = (element: HTMLElement, display: InlineStyleSnapshot) => {
+  if (display.value || display.priority) {
+    element.style.setProperty("display", display.value, display.priority);
+  } else {
+    element.style.removeProperty("display");
+  }
+};
+
+const directRendererChild = (element: HTMLElement, rendererRoot: HTMLElement) => {
+  let current = element;
+  while (current.parentElement && current.parentElement !== rendererRoot) {
+    current = current.parentElement;
+  }
+  return current.parentElement === rendererRoot ? current : null;
+};
+
+const hideMeasurementPresentation = (
+  portalTarget: HTMLElement | ShadowRoot,
+): (() => void) => {
+  const rendererRoot = portalTarget.querySelector<HTMLElement>("[data-mesurer-root='true']");
+  if (!rendererRoot) return () => undefined;
+
+  const targets = new Set<HTMLElement>();
+  for (const ruler of rendererRoot.querySelectorAll<HTMLElement>("[data-mesurer-rulers='true']")) {
+    const root = directRendererChild(ruler, rendererRoot);
+    if (root) targets.add(root);
+  }
+  for (const marker of rendererRoot.querySelectorAll<HTMLElement>(MEASUREMENT_MARKER_SELECTOR)) {
+    const root = directRendererChild(marker, rendererRoot);
+    if (root) targets.add(root);
+  }
+
+  const hidden: HiddenCaptureElement[] = [];
+  for (const element of targets) {
+    if (element.dataset.mesurerInspectorUi === "true") continue;
+    hidden.push({ element, display: captureDisplay(element) });
+    element.style.setProperty("display", "none", "important");
+  }
+  return () => {
+    for (const item of hidden) restoreDisplay(item.element, item.display);
   };
 };
 
@@ -130,8 +195,10 @@ export const screenshotPlugin = (
     ctx.state.register<ScreenshotStateValue>({
       id: MESURER_SCREENSHOT_SETTINGS_STATE_ID,
       initial: {
+        toolEnabled: options.toolEnabled ?? true,
         copy: options.copy ?? true,
         download: options.download ?? false,
+        includeMeasurements: options.includeMeasurements ?? false,
       },
       persist: true,
     });
@@ -250,8 +317,10 @@ export const screenshotPlugin = (
     const updateSettings = (patch: Partial<MesurerScreenshotSettings>) => {
       ctx.state.update<ScreenshotStateValue>(MESURER_SCREENSHOT_SETTINGS_STATE_ID, (current) => {
         const next = { ...current };
+        if (patch.toolEnabled !== undefined) next.toolEnabled = patch.toolEnabled;
         if (patch.copy !== undefined) next.copy = patch.copy;
         if (patch.download !== undefined) next.download = patch.download;
+        if (patch.includeMeasurements !== undefined) next.includeMeasurements = patch.includeMeasurements;
         return next;
       });
     };
@@ -380,6 +449,10 @@ export const screenshotPlugin = (
       }
       capturing = true;
       const operationId = ++operation;
+      const captureSettings = settings();
+      const restoreMeasurements = captureSettings.includeMeasurements
+        ? () => undefined
+        : hideMeasurementPresentation(runtime.portalTarget);
       workspace.prepareCapture();
       try {
         // The selection chrome is part of the inspector UI, not the captured page.
@@ -396,21 +469,20 @@ export const screenshotPlugin = (
         );
         if (operation !== operationId) throw new Error("Screenshot capture was cancelled.");
 
-        const currentSettings = settings();
         let copied = false;
         let downloaded = false;
-        const copyResult = currentSettings.copy
+        const copyResult = captureSettings.copy
           ? copyPngToClipboard(Promise.resolve(cropped), ownerWindow).then(() => { copied = true; })
           : Promise.resolve();
-        const downloadResult = currentSettings.download
+        const downloadResult = captureSettings.download
           ? Promise.resolve().then(() => {
               downloadPng(cropped, createScreenshotFilename(), ownerDocument, ownerWindow);
               downloaded = true;
             })
           : Promise.resolve();
         const results = await Promise.allSettled([copyResult, downloadResult]);
-        const copyFailed = currentSettings.copy && results[0]?.status === "rejected";
-        const downloadFailed = currentSettings.download && results[1]?.status === "rejected";
+        const copyFailed = captureSettings.copy && results[0]?.status === "rejected";
+        const downloadFailed = captureSettings.download && results[1]?.status === "rejected";
         if (operation !== operationId) throw new Error("Screenshot capture was cancelled.");
 
         previewController.show(cropped, {
@@ -430,12 +502,14 @@ export const screenshotPlugin = (
         throw cause;
       } finally {
         overlay.style.visibility = "";
+        restoreMeasurements();
         workspace.finishCapture();
         capturing = false;
       }
     };
 
     const start = async () => {
+      if (!settings().toolEnabled) return;
       if (active()) {
         cancel();
         return;
@@ -542,11 +616,49 @@ export const screenshotPlugin = (
       command: SCREENSHOT_COMMAND,
       icon: cameraIcon,
       active,
+      hidden: () => !settings().toolEnabled,
     });
     ctx.settings.register({
       id: "screenshot",
       label: "Screenshot",
       order: 40,
+      controls: [
+        {
+          type: "toggle",
+          id: "tool-enabled",
+          label: "Screenshot tool",
+          description: "Show the camera capture tool in the toolbar.",
+          value: () => settings().toolEnabled,
+          set(value) {
+            updateSettings({ toolEnabled: value });
+            if (!value && active()) cancel();
+          },
+        },
+        {
+          type: "toggle",
+          id: "auto-copy",
+          label: "Auto-copy",
+          description: "Copy each completed screenshot to the clipboard when supported.",
+          value: () => settings().copy,
+          set: (copy) => updateSettings({ copy }),
+        },
+        {
+          type: "toggle",
+          id: "auto-download",
+          label: "Auto-download",
+          description: "Download each completed screenshot as a PNG.",
+          value: () => settings().download,
+          set: (download) => updateSettings({ download }),
+        },
+        {
+          type: "toggle",
+          id: "include-measurements",
+          label: "Include measurements",
+          description: "Keep selections, guides, rulers, and measurement overlays in the PNG.",
+          value: () => settings().includeMeasurements,
+          set: (includeMeasurements) => updateSettings({ includeMeasurements }),
+        },
+      ],
     });
     ctx.command.register(SCREENSHOT_COMMAND, start);
     ctx.service.provide(MESURER_SCREENSHOT_SERVICE_ID, service);
