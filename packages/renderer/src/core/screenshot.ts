@@ -119,11 +119,10 @@ const bridgeMessage = (type: string, id: string, payload = "") =>
   `${type}:${id}:${payload}`;
 
 const bridgeReply = (
-  value: unknown,
+  message: string,
   type: string,
   id: string,
 ) => {
-  const message = String(value ?? "");
   const prefix = `${type}:${id}:`;
   return message.startsWith(prefix) ? message.slice(prefix.length) : null;
 };
@@ -134,7 +133,8 @@ const pingCaptureBridge = (ownerWindow: Window) =>
     const origin = ownerWindow.location.origin;
     const onMessage = (event: MessageEvent) => {
       if (event.source !== ownerWindow || event.origin !== origin) return;
-      if (bridgeReply(event.data, MESURER_CAPTURE_BRIDGE_PONG, id) === null) return;
+      const message = String(event.data ?? "");
+      if (bridgeReply(message, MESURER_CAPTURE_BRIDGE_PONG, id) === null) return;
       ownerWindow.removeEventListener("message", onMessage);
       ownerWindow.clearTimeout(timeoutId);
       resolve(true);
@@ -153,7 +153,8 @@ const captureViaBridge = (ownerWindow: Window) =>
     const origin = ownerWindow.location.origin;
     const onMessage = (event: MessageEvent) => {
       if (event.source !== ownerWindow || event.origin !== origin) return;
-      const payload = bridgeReply(event.data, MESURER_CAPTURE_BRIDGE_RESPONSE, id);
+      const message = String(event.data ?? "");
+      const payload = bridgeReply(message, MESURER_CAPTURE_BRIDGE_RESPONSE, id);
       if (payload === null) return;
       ownerWindow.removeEventListener("message", onMessage);
       ownerWindow.clearTimeout(timeoutId);
