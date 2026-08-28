@@ -311,7 +311,7 @@ export const createScreenshotPreviewController = ({
   };
 
   const revokeCurrent = () => {
-    if (currentUrl) ownerWindow.URL.revokeObjectURL(currentUrl);
+    if (currentUrl) globalThis.URL.revokeObjectURL(currentUrl);
     currentUrl = null;
     currentBlob = null;
     previewImage.removeAttribute("src");
@@ -502,9 +502,10 @@ export const createScreenshotPreviewController = ({
       closeViewer();
       revokeCurrent();
       currentBlob = blob;
-      currentUrl = ownerWindow.URL.createObjectURL(blob);
-      previewImage.src = currentUrl;
-      viewerImage.src = currentUrl;
+      const url = globalThis.URL.createObjectURL(blob);
+      currentUrl = url;
+      previewImage.src = url;
+      viewerImage.src = url;
       preview.style.display = "block";
       applyPreviewPosition(previewPosition ?? defaultPosition());
       showToast(captureStatusText(status));
