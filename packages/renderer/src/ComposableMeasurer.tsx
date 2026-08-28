@@ -14,6 +14,7 @@ import {
   type MeasurerModel,
 } from "./model/create-measurer-model";
 import { composeMesurerPlugins, type MesurerBuiltinPluginId } from "./plugins/builtins";
+import { MesurerPluginSettingsProvider } from "./plugins/settings-runtime";
 import type { MeasurerBuiltinController } from "./runtime/builtin-actions";
 import {
   createMesurerWorkspaceRuntime,
@@ -31,7 +32,7 @@ export type MesurerSolidRuntimeService = {
 
 export type MeasurerProps = Omit<
   LegacyMeasurerProps,
-  "pluginTools" | "pluginSettings" | "onPluginTool" | "onPluginSettingChange" | "onBuiltinController"
+  "pluginTools" | "onPluginTool" | "onBuiltinController"
 > & {
   /** Additional plugins loaded after built-ins and the renderer bridge are available. */
   plugins?: MesurerPlugin[];
@@ -400,15 +401,15 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   });
 
   return (
-    <MeasurerModelRegistrationContext value={(model: MeasurerModel) => { rendererModel = model; }}>
-      <LegacyMeasurer
-        {...props}
-        pluginTools={customTools()}
-        pluginSettings={customSettings()}
-        onPluginTool={(tool) => runTool(tool)}
-        onPluginSettingChange={updatePluginSetting}
-        onBuiltinController={(controller) => { builtinController = controller; }}
-      />
-    </MeasurerModelRegistrationContext>
+    <MesurerPluginSettingsProvider runtime={{ sections: customSettings, update: updatePluginSetting }}>
+      <MeasurerModelRegistrationContext value={(model: MeasurerModel) => { rendererModel = model; }}>
+        <LegacyMeasurer
+          {...props}
+          pluginTools={customTools()}
+          onPluginTool={(tool) => runTool(tool)}
+          onBuiltinController={(controller) => { builtinController = controller; }}
+        />
+      </MeasurerModelRegistrationContext>
+    </MesurerPluginSettingsProvider>
   );
 }
