@@ -34,7 +34,8 @@ Captured images keep the screenshot plugin's normal behavior:
 - HiDPI-aware cropping from CSS viewport coordinates to the captured bitmap;
 - persisted automatic copy/download preferences;
 - best-effort clipboard and local-download outputs;
-- a persistent draggable thumbnail that can be dismissed or right-clicked with the native image menu;
+- a persistent draggable thumbnail that starts in the bottom-right with an 8px viewport inset, then preserves the existing drag/clamping behavior;
+- native image right-click behavior and explicit dismissal;
 - click-to-open larger viewer with Copy, Save, and Close controls;
 - short capture/output status feedback.
 
