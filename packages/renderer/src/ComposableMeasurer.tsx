@@ -4,6 +4,7 @@ import {
   type MesurerPlugin,
   type MesurerPluginHost,
   type PluginStateSnapshot,
+  type SettingsToggleContribution,
   type ToolContribution,
 } from "@jhomra21/mesurer-solid-core";
 import LegacyMeasurer, { type MeasurerProps as LegacyMeasurerProps } from "./Measurer";
@@ -30,7 +31,7 @@ export type MesurerSolidRuntimeService = {
 
 export type MeasurerProps = Omit<
   LegacyMeasurerProps,
-  "pluginTools" | "onPluginTool" | "onBuiltinController"
+  "pluginTools" | "pluginSettings" | "onPluginTool" | "onPluginSettingChange" | "onBuiltinController"
 > & {
   /** Additional plugins loaded after built-ins and the renderer bridge are available. */
   plugins?: MesurerPlugin[];
@@ -123,9 +124,15 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   const customTools = createMemo(() => {
     revision();
     return host.tools().filter((tool) => {
+      if (tool.hidden?.()) return false;
       if (!tool.builtin || !isBuiltinPluginId(tool.builtin)) return true;
       return tool.command !== builtinCommand(tool.builtin);
     });
+  });
+
+  const customSettings = createMemo(() => {
+    revision();
+    return host.settings().filter((section) => (section.controls?.length ?? 0) > 0);
   });
 
   const visibilityCss = () => {
@@ -158,6 +165,16 @@ export default function ComposableMeasurer(props: MeasurerProps) {
 
   const runTool = (tool: ToolContribution, source: ToolInvocationSource = "toolbar") => {
     void executeTool(tool, source).catch(() => undefined);
+  };
+
+  const updatePluginSetting = (
+    sectionId: string,
+    control: SettingsToggleContribution,
+    value: boolean,
+  ) => {
+    void Promise.resolve(control.set(value)).catch((error) => {
+      props.onPluginError?.(error, `${sectionId}.${control.id}`);
+    });
   };
 
   onSettled(() => {
@@ -387,7 +404,9 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       <LegacyMeasurer
         {...props}
         pluginTools={customTools()}
+        pluginSettings={customSettings()}
         onPluginTool={(tool) => runTool(tool)}
+        onPluginSettingChange={updatePluginSetting}
         onBuiltinController={(controller) => { builtinController = controller; }}
       />
     </MeasurerModelRegistrationContext>
