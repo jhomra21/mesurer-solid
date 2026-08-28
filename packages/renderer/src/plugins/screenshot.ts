@@ -293,7 +293,7 @@ export const screenshotPlugin = (
       previewTimer = 0;
       preview.style.display = "none";
       previewImage.removeAttribute("src");
-      if (previewUrl) ownerWindow.URL.revokeObjectURL(previewUrl);
+      if (previewUrl) globalThis.URL.revokeObjectURL(previewUrl);
       previewUrl = null;
     };
 
@@ -378,8 +378,9 @@ export const screenshotPlugin = (
 
     const showPreview = (blob: Blob) => {
       dismissPreview();
-      previewUrl = ownerWindow.URL.createObjectURL(blob);
-      previewImage.src = previewUrl;
+      const url = globalThis.URL.createObjectURL(blob);
+      previewUrl = url;
+      previewImage.src = url;
       preview.setAttribute("aria-label", settings().copy ? "Screenshot copied" : "Screenshot captured");
       preview.style.display = "block";
       placeFloatingStatus(preview);
