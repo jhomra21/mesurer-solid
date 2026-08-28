@@ -46,7 +46,7 @@ describe("screenshotPlugin", () => {
     rendererRoot.dataset.mesurerRoot = "true";
     const measurementLayer = document.createElement("div");
     const measurementMarker = document.createElement("div");
-    measurementMarker.dataset.mesurerSelectedMeasurement = "true";
+    measurementMarker.dataset.mesurerMeasurement = "true";
     measurementLayer.append(measurementMarker);
     const rulers = document.createElement("div");
     rulers.dataset.mesurerRulers = "true";
@@ -144,10 +144,10 @@ describe("screenshotPlugin", () => {
     expect(host.tools().map((tool) => tool.id)).toEqual(["screenshot"]);
     expect(host.tools()[0]?.hidden?.()).toBe(false);
     expect(host.describe().settings[0]?.controls.map((control) => ({ id: control.id, value: control.value }))).toEqual([
-      { id: "tool-enabled", value: true },
-      { id: "auto-copy", value: true },
-      { id: "auto-download", value: false },
-      { id: "include-measurements", value: false },
+      { id: "tool", value: true },
+      { id: "copy", value: true },
+      { id: "download", value: false },
+      { id: "measurements", value: false },
     ]);
     expect(host.describe().commands).toContain("screenshot.toggle");
 
@@ -175,7 +175,7 @@ describe("screenshotPlugin", () => {
       },
     });
 
-    const toolControl = host.settings()[0]?.controls?.find((control) => control.id === "tool-enabled");
+    const toolControl = host.settings()[0]?.controls?.find((control) => control.id === "tool");
     await toolControl?.set(false);
     expect(host.tools()[0]?.hidden?.()).toBe(true);
     expect(service?.settings().toolEnabled).toBe(false);
