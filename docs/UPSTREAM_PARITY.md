@@ -17,7 +17,7 @@ Mesurer Solid tracks the product behavior of [`ibelick/mesurer`](https://github.
 | Local PNG download | Implemented | Screenshot plugin setting/service plus explicit Save from the viewer |
 | Chrome visible-tab capture | Implemented | Extension-only capture bridge; no new broad host permission |
 | Screenshot copy/download settings | Implemented as persistent plugin state and service options | Keep feature-local instead of adding fields to the core measurement model |
-| Screenshot preview | Implemented and extended beyond upstream | Persistent draggable thumbnail, native image context menu, dismiss control, click-to-open viewer, Copy/Save/Close controls, and capture-status toast |
+| Screenshot preview | Implemented and extended beyond upstream | Persistent draggable thumbnail, bottom-right 8px default placement, viewport clamping, native image context menu, dismiss control, click-to-open viewer, Copy/Save/Close controls, and capture-status toast |
 | Public React `Measurer` -> `Mesurer` rename | Not applicable | Solid public package is already `mesurer-solid` and its stable mount/plugin contract is framework-agnostic |
 | Settings/guides/rulers/isolation refinements | Already covered or independently exceeded by current Solid implementation | Validate behavior rather than porting React hook/refactor structure |
 | Arrow/text annotation experiment | Not current upstream behavior | Do not port; upstream added and then reverted it |
@@ -32,7 +32,7 @@ The upstream screenshot behavior is preserved while fitting Mesurer Solid's comp
 - `mesurer-solid/screenshot` is an optional public package entry.
 - `screenshotPlugin()` registers the camera tool, persistent copy/download state, commands, capture service, selection overlay, preview/viewer UI, and cleanup lifecycle.
 - Automatic clipboard copy remains the default, but output copy/download failures are best-effort: a successful capture still produces a usable PNG preview and viewer.
-- The preview persists by default until the user dismisses it or starts another capture. It can be dragged around the viewport, right-clicked with the browser's native image context menu, or clicked to open the larger viewer.
+- The preview persists by default until the user dismisses it or starts another capture. A new preview starts in the bottom-right with an 8px viewport inset; after that, the existing drag positioning and viewport-clamping behavior remains unchanged. It can be right-clicked with the browser's native image context menu or clicked to open the larger viewer.
 - The viewer keeps native right-click behavior on the image and adds explicit Copy, Save, and Close controls. Escape and backdrop click close the viewer without discarding the thumbnail.
 - A short bottom status message confirms `Copied screenshot`, `Saved screenshot`, `Screenshot captured`, or an output-unavailable fallback.
 - Normal browser hosts use `getDisplayMedia()` and reuse a live capture stream to avoid repeated permission prompts.
