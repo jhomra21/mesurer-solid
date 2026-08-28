@@ -9,7 +9,7 @@ export type MesurerPluginSettingsRuntime = {
   update(sectionId: string, control: SettingsToggleContribution, value: boolean): void;
 };
 
-const PluginSettingsContext = createContext<MesurerPluginSettingsRuntime>();
+const PluginSettingsContext = createContext<MesurerPluginSettingsRuntime | null>(null);
 
 export const MesurerPluginSettingsProvider: ParentComponent<{
   runtime: MesurerPluginSettingsRuntime;
