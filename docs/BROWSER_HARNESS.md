@@ -124,12 +124,13 @@ The context capability surface is:
 
 ```text
 context
+select
 annotations
 review
 capturePlan
 ```
 
-There is no `send`, `screenshots`, or `sendContext` delivery capability. The visible context UI is exactly Copy Context, Copy Selection, and Add Note. Copy is a human clipboard convenience; agents read the API directly.
+`select` is a programmatic agent/harness operation, not another human toolbar action. There is no `send`, `screenshots`, or `sendContext` delivery capability. The visible context UI remains exactly Copy Context, Copy Selection, and Add Note. Copy is a human clipboard convenience; agents read the API directly.
 
 ## Shared visual context API
 
@@ -139,7 +140,7 @@ Read the broad workspace:
 const workspace = await window.__MESURER__.context()
 ```
 
-Try the human's current selection:
+Try the human's current selection before changing it:
 
 ```js
 let selection = null
@@ -163,6 +164,17 @@ for (const annotation of annotations) {
 This gives structured data for the state the human can see: exact targets, selection regions, guides, measurements, held distances, rulers/X-ray state, box model, typography, layout, appearance, and overflow.
 
 A harness gathers this state **before source edits** so unsaved selection identity is not lost across DOM replacement.
+
+When there is no relevant human selection and the harness knows the exact rendered targets it changed, select them directly:
+
+```js
+const changedContext = await window.__MESURER__.select([
+  selectorA,
+  selectorB,
+])
+```
+
+`select()` requires each selector to resolve to exactly one target, visibly highlights those targets using Mesurer's normal Select state, and returns selection-scoped `MesurerContextV1`. If target identity is genuinely ambiguous, ask the user to select the intended element(s) or region instead of guessing.
 
 ## Multi-selection harness behavior
 
@@ -192,7 +204,13 @@ If the human saved an annotation:
 const review = await window.__MESURER__.review(annotationId)
 ```
 
-If the human only selected/measured the workspace, re-read `context()` and use original selectors with focused primitives:
+If a still-relevant human selection exists, re-read it. If the agent knows the exact affected targets, leave them visibly selected and get fresh scoped context in one operation:
+
+```js
+const current = await window.__MESURER__.select(changedSelectors)
+```
+
+For focused primitives:
 
 ```js
 window.__MESURER__.inspect(selector)
@@ -239,6 +257,7 @@ ready()
 stable(frames?)
 capabilities()
 context(request?)
+select(selectorOrSelectors)
 annotations()
 review(annotationId?)
 capturePlan(request?)
@@ -255,7 +274,7 @@ command(id, args?)
 state()
 ```
 
-Use `context()`/`review()` for human-in-the-loop work. Use low-level methods for focused measurement questions.
+Use `context()` / `select()` / `review()` for human-in-the-loop work. Use low-level methods for focused measurement questions.
 
 ## Existing browser/CDP sessions
 
@@ -285,14 +304,16 @@ The repository retains a Playwright adapter for manual testing and CI. It is **n
 Host compatibility guards both positive and negative parts of the direct contract:
 
 1. inject Mesurer;
-2. prove context/annotations/review/capture-plan capabilities exist;
-3. prove `sendContext`, send/delivery capability bits, and the old Send tool do not exist;
-4. prove Copy Context, Copy Selection, and Add Note each render once in the isolated toolbar;
-5. store live plugin/human-like state;
-6. evaluate the injector again;
-7. prove the exact same mounted instance, agent object, and state remain;
-8. prove only one Mesurer island exists;
-9. set `reuseExisting: false` and prove deliberate replacement still works.
+2. prove context/select/annotations/review/capture-plan capabilities exist;
+3. use `select()` against real page targets and prove it returns selection-scoped context while creating the same live Select state the user sees;
+4. prove missing and ambiguous selectors fail instead of guessing;
+5. prove `sendContext`, send/delivery capability bits, and the old Send tool do not exist;
+6. prove Copy Context, Copy Selection, and Add Note each render once in the isolated toolbar;
+7. store live plugin/selection state;
+8. evaluate the injector again;
+9. prove the exact same mounted instance, agent object, selection, and state remain;
+10. prove only one Mesurer island exists;
+11. set `reuseExisting: false` and prove deliberate replacement still works.
 
 Browser contracts separately self-host Mesurer and exercise multi-selection spacing.
 
