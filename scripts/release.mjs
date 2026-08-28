@@ -121,7 +121,7 @@ export function updateChangelog(content, version, date) {
   const unreleasedBody = content.slice(bodyStart, bodyEnd);
   const notes = stripComments(unreleasedBody) || "- No user-facing changes.";
   const before = content.slice(0, start);
-  const after = nextHeading < 0 ? "" : content.slice(nextHeading + 1).trimStart();
+  const after = nextHeading < 0 ? "" : content.slice(nextHeading + 1).trim();
   const unreleased = `${heading}\n\n<!-- Add user-facing changes here before preparing a release. -->`;
   const released = `## ${version} - ${date}\n\n${notes}`;
   return `${before}${unreleased}\n\n${released}${after ? `\n\n${after}` : ""}\n`;
