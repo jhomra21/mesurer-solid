@@ -114,6 +114,28 @@ export const createScreenshotPreviewController = ({
   anchorRect,
   previewDurationMs,
 }: ScreenshotPreviewControllerOptions): ScreenshotPreviewController => {
+  const rendererRoot = root.closest<HTMLElement>("[data-mesurer-root='true']");
+  const interactionParent = rendererRoot?.parentNode;
+  const validParent = interactionParent instanceof ownerWindow.HTMLElement
+    || interactionParent instanceof ownerWindow.ShadowRoot;
+  if (!validParent) throw new Error("Screenshot preview requires a Mesurer renderer host.");
+
+  const interactionRoot = ownerDocument.createElement("div");
+  interactionRoot.dataset.mesurerInspectorUi = "true";
+  interactionRoot.dataset.mesurerScreenshotInteractive = "true";
+  setStyle(interactionRoot, {
+    position: "fixed",
+    left: "0",
+    top: "0",
+    width: "0",
+    height: "0",
+    overflow: "visible",
+    "z-index": "96",
+    "pointer-events": "auto",
+    "font-family": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+  });
+  interactionParent.append(interactionRoot);
+
   const preview = ownerDocument.createElement("div");
   preview.dataset.mesurerScreenshotPreview = "true";
   preview.setAttribute("role", "button");
@@ -173,7 +195,7 @@ export const createScreenshotPreviewController = ({
     cursor: "pointer",
   });
   preview.append(dismissButton);
-  root.append(preview);
+  interactionRoot.append(preview);
 
   const viewer = ownerDocument.createElement("div");
   viewer.dataset.mesurerScreenshotViewer = "true";
@@ -230,7 +252,7 @@ export const createScreenshotPreviewController = ({
   closeViewerButton.setAttribute("aria-label", "Close screenshot viewer");
   viewerControls.append(copyButton, saveButton, closeViewerButton);
   viewer.append(viewerControls);
-  root.append(viewer);
+  interactionRoot.append(viewer);
 
   const toast = ownerDocument.createElement("div");
   toast.dataset.mesurerScreenshotToast = "true";
@@ -250,7 +272,7 @@ export const createScreenshotPreviewController = ({
     "font-weight": "500",
     "pointer-events": "none",
   });
-  root.append(toast);
+  interactionRoot.append(toast);
 
   let currentBlob: Blob | null = null;
   let currentUrl: string | null = null;
@@ -504,9 +526,7 @@ export const createScreenshotPreviewController = ({
       preview.removeEventListener("pointerdown", onPreviewPointerDown);
       preview.removeEventListener("keydown", onPreviewKeyDown);
       viewer.removeEventListener("click", onViewerClick);
-      if (root.contains(preview)) preview.remove();
-      if (root.contains(viewer)) viewer.remove();
-      if (root.contains(toast)) toast.remove();
+      interactionRoot.remove();
     },
   };
 };
