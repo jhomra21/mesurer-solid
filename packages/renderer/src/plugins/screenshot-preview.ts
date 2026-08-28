@@ -118,9 +118,9 @@ export const createScreenshotPreviewController = ({
   previewDurationMs,
 }: ScreenshotPreviewControllerOptions): ScreenshotPreviewController => {
   const rendererRoot = root.closest<HTMLElement>("[data-mesurer-root='true']");
-  const interactionParent = rendererRoot?.parentNode ?? null;
+  const interactionParent = rendererRoot?.parentNode ?? root.parentNode;
   if (!isInteractionParent(interactionParent)) {
-    throw new Error("Screenshot preview requires a Mesurer renderer host.");
+    throw new Error("Screenshot preview requires a mounted Mesurer host.");
   }
 
   const interactionRoot = ownerDocument.createElement("div");
