@@ -19,6 +19,8 @@ const openSettings = async () => {
   }
   const dialog = island().getByRole("dialog", { name: "Settings" });
   await dialog.waitFor({ state: "visible" });
+  const generalTab = dialog.getByRole("tab", { name: "General" });
+  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
   return dialog;
 };
 const switchByName = (dialog, name) => dialog.getByRole("switch", { name: new RegExp(`^${name}(?:\\s|$)`) });
