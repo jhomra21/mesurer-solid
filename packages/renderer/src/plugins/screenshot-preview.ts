@@ -107,6 +107,9 @@ const captureStatusText = ({
   return "Screenshot captured";
 };
 
+const isInteractionParent = (node: Node | null): node is HTMLElement | ShadowRoot =>
+  node !== null && (node.nodeType === 1 || node.nodeType === 11);
+
 export const createScreenshotPreviewController = ({
   ownerDocument,
   ownerWindow,
@@ -115,10 +118,10 @@ export const createScreenshotPreviewController = ({
   previewDurationMs,
 }: ScreenshotPreviewControllerOptions): ScreenshotPreviewController => {
   const rendererRoot = root.closest<HTMLElement>("[data-mesurer-root='true']");
-  const interactionParent = rendererRoot?.parentNode;
-  const validParent = interactionParent instanceof ownerWindow.HTMLElement
-    || interactionParent instanceof ownerWindow.ShadowRoot;
-  if (!validParent) throw new Error("Screenshot preview requires a Mesurer renderer host.");
+  const interactionParent = rendererRoot?.parentNode ?? null;
+  if (!isInteractionParent(interactionParent)) {
+    throw new Error("Screenshot preview requires a Mesurer renderer host.");
+  }
 
   const interactionRoot = ownerDocument.createElement("div");
   interactionRoot.dataset.mesurerInspectorUi = "true";
@@ -308,7 +311,7 @@ export const createScreenshotPreviewController = ({
   };
 
   const revokeCurrent = () => {
-    if (currentUrl) globalThis.URL.revokeObjectURL(currentUrl);
+    if (currentUrl) ownerWindow.URL.revokeObjectURL(currentUrl);
     currentUrl = null;
     currentBlob = null;
     previewImage.removeAttribute("src");
@@ -499,7 +502,7 @@ export const createScreenshotPreviewController = ({
       closeViewer();
       revokeCurrent();
       currentBlob = blob;
-      currentUrl = globalThis.URL.createObjectURL(blob);
+      currentUrl = ownerWindow.URL.createObjectURL(blob);
       previewImage.src = currentUrl;
       viewerImage.src = currentUrl;
       preview.style.display = "block";
