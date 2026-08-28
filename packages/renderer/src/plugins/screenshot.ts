@@ -361,6 +361,7 @@ export const screenshotPlugin = (
     const finishSelection = () => {
       origin = null;
       renderSelection(null);
+      overlay.style.visibility = "";
       overlay.style.display = "none";
       root.style.pointerEvents = "none";
       setActive(false);
@@ -382,6 +383,10 @@ export const screenshotPlugin = (
       const operationId = ++operation;
       workspace.prepareCapture();
       try {
+        // The selection chrome is part of the inspector UI, not the captured page.
+        // Hide it before waiting for the browser capture frame so the blue outline,
+        // shade, and size tag cannot leak into the screenshot itself.
+        overlay.style.visibility = "hidden";
         await waitForNextPaint(ownerWindow);
         const full = await captureVisibleTab({ ownerDocument, ownerWindow } satisfies ScreenshotCaptureContext);
         const cropped = await cropPngToViewportRect(
@@ -425,6 +430,7 @@ export const screenshotPlugin = (
         if (operation === operationId) flashError();
         throw cause;
       } finally {
+        overlay.style.visibility = "";
         workspace.finishCapture();
         capturing = false;
       }
@@ -445,6 +451,7 @@ export const screenshotPlugin = (
         if (disposed) return;
         hideToolbar();
         renderSelection(null);
+        overlay.style.visibility = "visible";
         root.style.pointerEvents = "auto";
         overlay.style.display = "block";
         setActive(true);

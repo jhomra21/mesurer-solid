@@ -150,6 +150,7 @@ export const createScreenshotPreviewController = ({
     "z-index": "96",
     width: `${PREVIEW_WIDTH}px`,
     height: `${PREVIEW_HEIGHT}px`,
+    "box-sizing": "border-box",
     overflow: "hidden",
     "border-radius": "10px",
     border: "1px solid rgb(0 0 0 / 14%)",
@@ -178,25 +179,42 @@ export const createScreenshotPreviewController = ({
   const dismissButton = ownerDocument.createElement("button");
   dismissButton.dataset.mesurerScreenshotPreviewDismiss = "true";
   dismissButton.type = "button";
-  dismissButton.textContent = "×";
   dismissButton.setAttribute("aria-label", "Dismiss screenshot preview");
   dismissButton.title = "Dismiss";
   setStyle(dismissButton, {
     position: "absolute",
-    top: "6px",
-    right: "6px",
-    width: "22px",
-    height: "22px",
+    top: "8px",
+    right: "8px",
+    width: "20px",
+    height: "20px",
+    display: "flex",
+    "align-items": "center",
+    "justify-content": "center",
+    "box-sizing": "border-box",
     padding: "0",
-    border: "1px solid rgb(255 255 255 / 22%)",
+    border: "0",
     "border-radius": "999px",
-    "background-color": "rgb(0 0 0 / 62%)",
+    "background-color": "rgb(48 51 64)",
     color: "white",
     "font-family": "inherit",
-    "font-size": "16px",
-    "line-height": "18px",
+    "font-size": "14px",
+    "line-height": "1",
+    "z-index": "1",
     cursor: "pointer",
   });
+  const dismissIcon = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
+  dismissIcon.setAttribute("viewBox", "0 0 16 16");
+  dismissIcon.setAttribute("width", "12");
+  dismissIcon.setAttribute("height", "12");
+  dismissIcon.setAttribute("fill", "none");
+  dismissIcon.setAttribute("aria-hidden", "true");
+  const dismissPath = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
+  dismissPath.setAttribute("d", "m4 4 8 8M12 4l-8 8");
+  dismissPath.setAttribute("stroke", "currentColor");
+  dismissPath.setAttribute("stroke-width", "1.75");
+  dismissPath.setAttribute("stroke-linecap", "round");
+  dismissIcon.append(dismissPath);
+  dismissButton.append(dismissIcon);
   preview.append(dismissButton);
   interactionRoot.append(preview);
 

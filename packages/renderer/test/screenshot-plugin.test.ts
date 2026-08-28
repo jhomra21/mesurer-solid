@@ -36,6 +36,41 @@ describe("screenshot geometry", () => {
 });
 
 describe("screenshotPlugin", () => {
+  const createTestRuntime = () => {
+    const host = createMesurerPluginHost();
+    const toolbar = document.createElement("div");
+    toolbar.dataset.mesurerToolbar = "true";
+    document.body.append(toolbar);
+
+    const model = createMeasurerModel({ initialEnabled: true });
+    const workspace = createMesurerWorkspaceRuntime({
+      model,
+      ownerDocument: document,
+      ownerWindow: window,
+      uiRoot: document.body,
+      pageTarget: document.body,
+    });
+    const runtime: MesurerSolidRuntimeService = {
+      ownerDocument: document,
+      ownerWindow: window,
+      portalTarget: document.body,
+      createWorkspaceRuntime: () => workspace,
+      createInspectorMount() {
+        const element = document.createElement("div");
+        element.dataset.mesurerInspectorUi = "true";
+        document.body.append(element);
+        return {
+          element,
+          dispose() {
+            element.remove();
+          },
+        };
+      },
+    };
+
+    return { host, toolbar, runtime, workspace };
+  };
+
   it("registers an opt-in tool, persists output settings, and cleans up owned UI", async () => {
     const host = createMesurerPluginHost();
     const toolbar = document.createElement("div");
@@ -110,6 +145,64 @@ describe("screenshotPlugin", () => {
     expect(workspaceDispose).toHaveBeenCalledOnce();
     expect(mountDisposed).toBe(true);
     expect(document.querySelector("[data-mesurer-screenshot='true']")).toBeNull();
+
+    host.dispose();
+  });
+
+  it("hides selection chrome before the browser capture frame", async () => {
+    const { host, runtime } = createTestRuntime();
+    let capturedVisibility = "";
+    let capturedChildStyles: string[] = [];
+
+    await host.load(defineMesurerPlugin({
+      id: "test.runtime",
+      provides: ["runtime:solid"],
+      setup(ctx) {
+        ctx.service.provide("runtime:solid", runtime);
+      },
+    }));
+    await host.load(screenshotPlugin({
+      copy: false,
+      captureVisibleTab: async () => {
+        const overlay = document.querySelector<HTMLElement>("[data-mesurer-screenshot-select='true']");
+        capturedVisibility = overlay?.style.visibility ?? "";
+        capturedChildStyles = Array.from(overlay?.querySelectorAll<HTMLElement>("div") ?? [])
+          .map((element) => element.getAttribute("style") ?? "");
+        return new Blob(["png"], { type: "image/png" });
+      },
+    }));
+
+    const service = host.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
+    expect(service).toBeDefined();
+    await service?.start();
+    const overlay = document.querySelector<HTMLElement>("[data-mesurer-screenshot-select='true']");
+    expect(overlay?.style.visibility).toBe("visible");
+
+    overlay?.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+      pointerId: 1,
+    }));
+    overlay?.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      button: 0,
+      clientX: 180,
+      clientY: 140,
+      pointerId: 1,
+    }));
+    overlay?.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true,
+      button: 0,
+      clientX: 180,
+      clientY: 140,
+      pointerId: 1,
+    }));
+
+    await vi.waitFor(() => expect(capturedVisibility).toBe("hidden"));
+    expect(capturedChildStyles.some((style) => style.includes("border"))).toBe(true);
+    expect(overlay?.style.visibility).toBe("");
 
     host.dispose();
   });
