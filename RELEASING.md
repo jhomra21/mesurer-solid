@@ -8,6 +8,27 @@ Add user-facing release notes under `## Unreleased` in `CHANGELOG.md` as changes
 
 Do not manually edit the public package version, create release tags, or run `npm publish` for normal releases.
 
+When a user-facing feature changes the public package, keep its documentation current as part of the source PR. At minimum audit the root/package READMEs, feature-specific docs, `packages/mesurer/AGENT_INTEGRATION.md`, the repository and packaged `mesurer-ui` Agent Skill copies, and distribution-specific docs such as `extension/README.md` when the feature changes those surfaces.
+
+## Stable documentation gate
+
+Before preparing a stable release, perform a final documentation sweep against the actual public artifact and feature set.
+
+For a stable release:
+
+- canonical install examples must use `mesurer-solid` / the `latest` dist-tag, not `mesurer-solid@beta`;
+- `@beta` may appear only where the text explicitly describes intentional prerelease testing;
+- every public package subpath introduced since the prior stable release must be documented and package-guarded;
+- the npm-facing `packages/mesurer/README.md` must describe only behavior actually present in the stable candidate;
+- `packages/mesurer/AGENT_INTEGRATION.md` and the Agent Skill must reflect the current agent contract;
+- `.agents/skills/mesurer-ui/SKILL.md` and `packages/mesurer/skills/mesurer-ui/SKILL.md` must remain byte-identical;
+- extension-specific behavior must be reflected in `extension/README.md`;
+- feature-specific guides and architecture docs must not contradict the public README.
+
+For screenshot releases specifically, keep [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md), the public README, Agent Integration guide, Agent Skill, extension guide, architecture docs, and the screenshot browser contract aligned.
+
+This check is intentionally done before version-only release preparation. The generated release PR is metadata-only and is not the place to fix stale feature documentation.
+
 ## Prepare a release
 
 There are two supported entry points into the same **prepare-release** workflow:
@@ -26,11 +47,13 @@ The Release Control path is deliberately narrow: only new comments on issue #32 
 Supported version strategies are:
 
 - `beta-next`: `0.1.0-beta.2` -> `0.1.0-beta.3`; from a stable version such as `0.1.0`, starts `0.1.1-beta.0`.
-- `promote-stable`: `0.1.0-beta.3` -> `0.1.0`.
+- `promote-stable`: `0.1.0-beta.3` -> `0.1.0`. Stable promotion combines current `Unreleased` notes with the non-placeholder user-facing notes from the matching prerelease train (`beta`, `rc`, or another prerelease of the same `X.Y.Z`) so the stable release describes what actually shipped during prerelease validation.
 - `patch`, `minor`, `major`: stable-version SemVer bumps.
 - `explicit`: an exact supported SemVer version for exceptional cases such as an RC.
 
-The workflow updates `packages/mesurer/package.json`, moves `Unreleased` changelog entries into the new version section, creates `release/v<version>`, and opens a `release: v<version>` PR.
+For ordinary release strategies, the workflow moves `Unreleased` changelog entries into the new version section. For `promote-stable`, it additionally carries forward matching prerelease-train notes, skips `No user-facing changes.` placeholders, and avoids duplicating an identical note block already present in `Unreleased`. Existing prerelease sections remain intact as historical records.
+
+The workflow updates `packages/mesurer/package.json`, creates `release/v<version>`, and opens a `release: v<version>` PR.
 
 Only one release PR may be open at a time. The generated release commit contains GitHub's native `[skip ci]` marker because the release PR is metadata-only and runtime/source compatibility was already validated before release preparation. That prevents normal `push` and `pull_request` workflows from being instantiated for the bot-created release PR, avoiding the separate maintainer approval prompt for those checks.
 
@@ -41,6 +64,8 @@ If GitHub Actions is not allowed to create pull requests in the repository setti
 ## Review the release PR
 
 Review the version and changelog like any other code change. Merge only after **release-check** is green.
+
+Use a normal **merge commit** for the generated release PR. Do **not** squash the generated release commit into `main`: the release commit deliberately contains `[skip ci]`, and a squash merge can preserve that marker in the new `main` commit, suppressing the push-trigger that normally dispatches publication. A normal merge commit keeps the metadata commit intact while producing a new `main` merge commit without the skip marker.
 
 `release-check` is intentionally lightweight because the generated release PR may change only `packages/mesurer/package.json` and `CHANGELOG.md`. It verifies the `release/v<version>` branch matches the package version, the version increases correctly, the matching changelog section exists, exactly those two files changed, `package.json` changed only its version field, and the release identity/tooling tests pass. Runtime, framework-host, browser, and package compatibility belong to the already-reviewed source changes and are not repeated on the metadata-only release PR.
 
@@ -85,6 +110,8 @@ If npm publication succeeds but a later tag/GitHub Release step fails, first rer
 `publish.yml` also supports direct `workflow_dispatch` for recovery of the version currently on `main`. Manual recovery is rejected from any other ref. It verifies the package source has not changed since the release commit and verifies any already-published npm integrity before doing post-publish work.
 
 Never reuse or overwrite an npm version. If the existing registry integrity differs from the candidate, the workflow fails closed.
+
+If a release PR was accidentally squash-merged with `[skip ci]` and the normal `main` push workflows were therefore suppressed, do not republish manually and do not create/reuse a tag. Use the supported `publish.yml` recovery path from current `main` only after confirming the package source still matches the release commit. The publisher will verify artifact integrity and any existing registry state before continuing.
 
 ## Repository protection
 

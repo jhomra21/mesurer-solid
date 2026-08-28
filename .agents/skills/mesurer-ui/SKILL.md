@@ -27,7 +27,7 @@ human visual intent or agent UI change
 
 ## 1. Preserve existing human state
 
-Never reinject, dispose, or replace Mesurer just because this skill loaded. The person may already have selected elements, placed guides, measured gaps, held distances, enabled rulers/X-ray, or created annotations. That state is part of the user's message.
+Never reinject, dispose, or replace Mesurer just because this skill loaded. The person may already have selected elements, placed guides, measured gaps, held distances, enabled rulers/X-ray, created annotations, or kept a screenshot thumbnail/viewer open. That state is part of the user's message.
 
 Start by discovering the current page:
 
@@ -50,6 +50,14 @@ Do not add Mesurer to application source, create another browser, create a secon
 
 The injector defaults to reusing a live injected instance. `window.__MESURER_CONFIG__ = { reuseExisting: false }` is an explicit destructive replacement option for tests/tooling. Do not use it while consuming human review state.
 
+Normal injection keeps the optional human screenshot plugin disabled. If the task explicitly needs that camera tool, configure it before the first injection:
+
+```js
+window.__MESURER_CONFIG__ = { screenshot: true }
+```
+
+The first-party Chrome extension enables screenshot capture automatically. Do not replace/reinject a live instance merely to enable screenshots unless the user specifically asks for that change; preserve current review state first.
+
 After a first injection:
 
 ```js
@@ -67,7 +75,7 @@ review
 capturePlan
 ```
 
-`select` is an agent/harness primitive, not a human toolbar action. The visible context controls remain Copy Context, Copy Selection, and Add Note.
+`select` is an agent/harness primitive, not a human toolbar action. The visible context controls remain Copy Context, Copy Selection, and Add Note. The optional screenshot plugin is a separate camera tool/service; it does not create a screenshot-delivery capability on `window.__MESURER__`.
 
 ## 2. Context acquisition is mandatory for visual work
 
@@ -235,7 +243,7 @@ const before = await window.__MESURER__.context({ scope: "selection" })
 
 Store the needed selectors, dimensions, relationships, and intent inside the current agent task.
 
-Do not mutate human guides, measurements, held distances, or annotations merely to make your implementation appear correct.
+Do not mutate human guides, measurements, held distances, annotations, or screenshot preview/viewer state merely to make your implementation appear correct.
 
 ## 6. Edit the real implementation
 
@@ -293,9 +301,29 @@ Ask the user to select the intended result, then read the resulting selection co
 
 A visual task is not complete merely because `select()` drew an outline. **Consume the returned context and reason from it.**
 
-## 8. Real screenshots complement context
+## 8. Human screenshots and agent screenshot evidence are different paths
 
-Mesurer supplies geometry and capture scope; the outer harness owns real screenshots.
+Mesurer now has an optional first-party screenshot plugin for human capture, while coding-agent verification can continue to use the outer harness's screenshot primitive. Do not conflate the two.
+
+### Human screenshot plugin
+
+When enabled, `mesurer.screenshot` adds a camera tool. The person drags a viewport region and Mesurer captures a real PNG with CSS-to-bitmap scaling so Retina/HiDPI crops remain accurate. It temporarily hides control chrome from the captured pixels and then restores the previous presentation.
+
+The plugin supports persisted automatic copy/download preferences, best-effort clipboard/download outputs, a persistent draggable thumbnail with native image right-click behavior, click-to-open larger viewer with Copy/Save/Close controls, and short capture-status feedback.
+
+Normal browser injection opts in before injection:
+
+```js
+window.__MESURER_CONFIG__ = { screenshot: true }
+```
+
+Source-mounted applications import `screenshotPlugin` from `mesurer-solid/screenshot`. Normal browsers use `getDisplayMedia()` and reuse a live capture stream; the first-party Chrome extension enables the plugin automatically and uses `chrome.tabs.captureVisibleTab()` through its isolated-world bridge, so its camera path does not open the screen-share chooser.
+
+The screenshot plugin is a human tool/service, not a chat or agent-delivery channel. Do not infer a `screenshots` capability on `window.__MESURER__`, and do not close or replace an existing human preview unless the task explicitly requires it.
+
+### Agent verification screenshots
+
+For ordinary coding-agent verification, use the current harness/browser's real screenshot primitive so the harness controls the exact viewport, timing, and artifact. Mesurer supplies geometry and clean capture scope/presentation:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
@@ -307,14 +335,14 @@ try {
 }
 ```
 
-Use both:
+Use both signals:
 
 ```text
 Mesurer context  → exact geometry, styles, distances, overflow
 real screenshot  → composition, hierarchy, clipping, color, visual judgment
 ```
 
-Screenshots do not replace exact Mesurer measurements; Mesurer numbers do not replace visual judgment.
+Screenshots from either path do not replace exact Mesurer measurements; Mesurer numbers do not replace visual judgment. Only use the screenshot plugin itself as the automation target when the task is specifically to test or modify that feature.
 
 ## 9. HMR and stale-target rules
 
@@ -373,9 +401,11 @@ Prefer `context()`, `select()`, and `review()` for human-in-the-loop work becaus
 - do not discover chat/thread/session IDs;
 - do not route Mesurer through ACP or another delivery protocol;
 - do not recreate Send-to-agent;
+- do not treat the screenshot plugin as an agent-delivery transport;
 - do not create another browser/CDP connection when the harness already controls the page;
 - do not reinject over live human Mesurer state;
 - do not overwrite human selection before reading it;
+- do not close/destroy a human screenshot preview merely to clean up agent state;
 - do not use `select()` with a knowingly ambiguous selector;
 - do not ask the user to select something the agent can identify exactly itself;
 - do not guess when the intended target really is ambiguous—ask the user to select it;

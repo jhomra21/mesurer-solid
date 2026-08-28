@@ -28,9 +28,13 @@ The page is the shared state boundary. Mesurer never needs to know which chat, t
 
 ## Install the portable Agent Skill
 
+Use the stable package by default:
+
 ```bash
-npx --yes --package=mesurer-solid@beta mesurer-skill install
+npx --yes --package=mesurer-solid mesurer-skill install
 ```
+
+Use `mesurer-solid@beta` only when intentionally validating a prerelease.
 
 The installed skill is self-contained:
 
@@ -41,7 +45,7 @@ The installed skill is self-contained:
     └── inject-script.js
 ```
 
-The skill defines the same context-first workflow described here.
+The skill defines the same context-first workflow described here, including the distinction between Mesurer's optional human screenshot plugin and screenshots owned by the agent's outer browser harness.
 
 ## Reuse a live human instance first
 
@@ -58,7 +62,7 @@ if (hasMesurer) {
 }
 ```
 
-If Mesurer exists, use that exact instance. The person may already have selected elements, placed guides, measured gaps, held distances, enabled rulers/X-ray, or saved annotations. Read that state before changing it.
+If Mesurer exists, use that exact instance. The person may already have selected elements, placed guides, measured gaps, held distances, enabled rulers/X-ray, saved annotations, or kept a screenshot preview open. Read and preserve that state before changing it.
 
 The injector also reuses a live injected instance by default. Deliberate destructive replacement requires:
 
@@ -97,6 +101,14 @@ await browser.evaluate(() => window.__MESURER__.ready())
 
 Do not create a second browser/CDP connection, Mesurer server, special app build, or source mutation merely to inspect a page the harness already controls.
 
+Normal injection keeps screenshot capture disabled unless requested:
+
+```js
+window.__MESURER_CONFIG__ = { screenshot: true }
+```
+
+The first-party Chrome extension enables the screenshot plugin automatically because its human-facing camera tool can use the extension's visible-tab capture bridge.
+
 ## Capability contract
 
 After `ready()`:
@@ -123,7 +135,7 @@ Copy Selection
 Add Note
 ```
 
-There is no `send`, `screenshots`, or `sendContext` delivery capability.
+There is no `send`, `screenshots`, or `sendContext` **delivery capability**. The optional `mesurer.screenshot` plugin is a separate human capture tool/service and does not add image delivery to the context API.
 
 ## Context acquisition precedence
 
@@ -326,9 +338,32 @@ expected target/guide/measurement missing
 
 If the requested result remains numerically wrong, continue editing.
 
-## Screenshots complement context
+## Human screenshot plugin vs agent screenshot evidence
 
-Mesurer supplies capture scope; the outer harness supplies real pixels:
+Mesurer has two intentionally different screenshot paths.
+
+### Human capture tool
+
+The optional `mesurer.screenshot` plugin gives the person a camera tool inside Mesurer:
+
+```ts
+import { mountMeasurer } from "mesurer-solid"
+import { screenshotPlugin } from "mesurer-solid/screenshot"
+
+const mesurer = mountMeasurer({
+  plugins: [screenshotPlugin()],
+})
+```
+
+The user can drag a viewport region, capture a real HiDPI-aware PNG, optionally copy/download it, keep a persistent draggable thumbnail, and open a larger Copy/Save viewer. Normal browser hosts use `getDisplayMedia()`; the first-party Chrome extension uses `chrome.tabs.captureVisibleTab()` through its isolated-world bridge and therefore avoids the screen-share chooser.
+
+For advanced mounted integrations, the typed `MesurerScreenshotService` is available from the plugin host under service id `screenshot`. It is not part of `window.__MESURER__`'s context/delivery capability surface.
+
+Agents should preserve an existing human screenshot preview unless the task explicitly asks them to test, close, replace, or otherwise manipulate the screenshot feature.
+
+### Agent verification screenshot
+
+For coding-agent verification, the outer harness should normally continue to own screenshot bytes so the task can control the exact browser, viewport, timing, and artifact destination. Mesurer supplies clean capture scope/presentation:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
@@ -347,6 +382,8 @@ Use the signals together:
 Mesurer context → exact geometry, box model, styles, distances, overflow
 real screenshot → composition, hierarchy, clipping, color, visual judgment
 ```
+
+Do not replace exact Mesurer measurements with pixel estimates from either screenshot path.
 
 ## Source-mounted usage
 
@@ -367,7 +404,7 @@ The same API is available on `mesurer.agent` and, when configured, `window.__MES
 const context = await mesurer.agent.select("#target")
 ```
 
-No transport callback is involved.
+Screenshot capture can be composed independently with `screenshotPlugin()` when the host wants the human camera tool. No transport callback is involved.
 
 ## Low-level inspection
 
@@ -391,7 +428,7 @@ Prefer `context()`, `select()`, and `review()` for visual development because th
 A good harness-level visual completion loop is:
 
 ```text
-1. discover/reuse Mesurer
+1. discover/reuse Mesurer and preserve human state
 2. consume existing human context
 3. if target ambiguous, ask user to select
 4. otherwise select known affected rendered target(s) when needed
@@ -399,8 +436,10 @@ A good harness-level visual completion loop is:
 6. edit normal source
 7. wait for stable render
 8. get fresh review/context; use select() for known changed targets
-9. optionally capture real screenshot
+9. optionally capture a real screenshot through the outer harness
 10. iterate until rendered evidence supports the claim
 ```
+
+When the task is specifically testing Mesurer's screenshot plugin, exercise its camera/preview/viewer path as the feature under test; otherwise do not substitute it for the harness's normal screenshot primitive.
 
 **Context is the output of the Mesurer step, not an optional side effect.**

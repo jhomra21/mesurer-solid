@@ -1,6 +1,6 @@
 # Browser and agent integration
 
-Mesurer sits **on top of whatever browser control the agent already has**. It does not own Chromium, duplicate navigation/click/screenshot tools, run a Mesurer RPC server, or inject messages into an agent conversation.
+Mesurer sits **on top of whatever browser control the agent already has**. It does not own Chromium, duplicate the harness's navigation/click/task-screenshot tools, run a Mesurer RPC server, or inject messages into an agent conversation.
 
 The integration is the page itself:
 
@@ -16,9 +16,11 @@ Codex / Claude / Cursor / Droid / Pi / OpenCode / other harness
 
 The outer harness already knows which task/conversation it belongs to. Mesurer does not need that identity.
 
+Mesurer also has an optional first-party **human screenshot plugin**. That camera tool is distinct from the outer harness's task screenshot primitive; see [Screenshot capture](./SCREENSHOTS.md).
+
 ## Primary rule: discover before injecting
 
-A person may already have a live Mesurer instance with selections, guides, measurements, held distances, rulers/X-ray state, or annotations. That state must survive agent attachment.
+A person may already have a live Mesurer instance with selections, guides, measurements, held distances, rulers/X-ray state, annotations, or a screenshot thumbnail/viewer. That state must survive agent attachment.
 
 Before evaluating an injector:
 
@@ -86,6 +88,14 @@ await browser.evaluate(() => window.__MESURER__.ready())
 
 The exact names of `browser.evaluate`, `browser_execute`, `Runtime.evaluate`, etc. belong to the outer harness.
 
+Normal injection keeps the optional screenshot camera disabled. When a task explicitly needs it, configure the first injection:
+
+```js
+window.__MESURER_CONFIG__ = { screenshot: true }
+```
+
+The first-party Chrome extension sets the equivalent option automatically. Do not reinject over a live instance merely to change this option; preserve the person's current state and use the plugin host deliberately if the feature must be added to an already-mounted instance.
+
 ## Injection replacement contract
 
 Injection defaults to preserving the canonical live injected instance:
@@ -130,7 +140,9 @@ review
 capturePlan
 ```
 
-`select` is a programmatic agent/harness operation, not another human toolbar action. There is no `send`, `screenshots`, or `sendContext` delivery capability. The visible context UI remains exactly Copy Context, Copy Selection, and Add Note. Copy is a human clipboard convenience; agents read the API directly.
+`select` is a programmatic agent/harness operation, not another human toolbar action. There is no `send`, `screenshots`, or `sendContext` **delivery capability**. The visible context UI remains exactly Copy Context, Copy Selection, and Add Note. Copy is a human clipboard convenience; agents read the API directly.
+
+The optional `mesurer.screenshot` plugin does not change this contract. It contributes a camera tool and typed plugin service rather than a JSON-safe agent delivery capability.
 
 ## Shared visual context API
 
@@ -222,9 +234,13 @@ For multi-selection, check the same target dimensions and pair relationships cap
 
 The agent already has before and after values in its current task. No external delivery protocol is necessary.
 
-## Screenshot boundary
+## Screenshot boundaries
 
-Mesurer plans evidence; the outer harness owns screenshots:
+There are two screenshot paths and they must remain distinct.
+
+### Agent/harness evidence
+
+For ordinary coding-agent verification, Mesurer plans clean evidence while the outer harness owns the actual screenshot bytes:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
@@ -238,9 +254,19 @@ try {
 
 Use `{ scope: "selection" }` when validating an unsaved selection.
 
-Capture preparation hides control chrome while preserving rulers, guides, selected outlines, annotations, measurements, held distances, and pixel labels.
+Capture preparation hides control chrome while preserving rulers, guides, selected outlines, annotations, measurements, held distances, and pixel labels. This lets the existing harness control browser viewport, timing, artifact storage, and comparison while Mesurer supplies exact scope and presentation.
 
-Use Mesurer geometry for exact numeric claims and screenshots for composition/appearance.
+### Human screenshot plugin
+
+The optional `mesurer-solid/screenshot` entry provides `screenshotPlugin()`. It adds an in-page camera tool for a person to drag a viewport region, capture a real HiDPI-aware PNG, optionally copy/download it, keep a draggable thumbnail, and open a Copy/Save viewer.
+
+Normal browser hosts use `getDisplayMedia()` for that plugin. The first-party Chrome extension enables the plugin automatically and routes capture through `chrome.tabs.captureVisibleTab()` via an isolated-world bridge, avoiding the screen-share chooser for the extension path.
+
+Advanced mounted integrations can resolve the typed screenshot service under plugin service id `screenshot`; that service is not part of `window.__MESURER__`'s context capability list.
+
+See [`SCREENSHOTS.md`](./SCREENSHOTS.md) for the complete capture/output/preview contract.
+
+Use Mesurer geometry for exact numeric claims and screenshots from either path for composition/appearance. Do not estimate geometry from pixels when Mesurer reports the exact value.
 
 ## Low-level in-page API
 
@@ -315,7 +341,7 @@ Host compatibility guards both positive and negative parts of the direct contrac
 10. prove only one Mesurer island exists;
 11. set `reuseExisting: false` and prove deliberate replacement still works.
 
-Browser contracts separately self-host Mesurer and exercise multi-selection spacing.
+Browser contracts separately self-host Mesurer and exercise multi-selection spacing. The dedicated screenshot contract exercises screenshot-plugin activation, region selection/cropping, capture-chrome hiding/restoration, cancellation, persistent preview/viewer behavior, and the deterministic capture-provider path. Package guards require the public `./screenshot` export and declarations in the exact staged npm package.
 
 ## Browser boundaries
 
