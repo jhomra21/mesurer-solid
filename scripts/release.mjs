@@ -5,6 +5,7 @@ export const PACKAGE_JSON_PATH = "packages/mesurer/package.json";
 export const CHANGELOG_PATH = "CHANGELOG.md";
 
 const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+const NO_USER_FACING_CHANGES = "- No user-facing changes.";
 
 export function parseVersion(value) {
   const match = SEMVER_RE.exec(value);
@@ -111,22 +112,6 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function updateChangelog(content, version, date) {
-  const heading = "## Unreleased";
-  const start = content.indexOf(heading);
-  if (start < 0) throw new Error("CHANGELOG.md must contain a '## Unreleased' heading");
-  const bodyStart = start + heading.length;
-  const nextHeading = content.indexOf("\n## ", bodyStart);
-  const bodyEnd = nextHeading < 0 ? content.length : nextHeading;
-  const unreleasedBody = content.slice(bodyStart, bodyEnd);
-  const notes = stripComments(unreleasedBody) || "- No user-facing changes.";
-  const before = content.slice(0, start);
-  const after = nextHeading < 0 ? "" : content.slice(nextHeading + 1).trim();
-  const unreleased = `${heading}\n\n<!-- Add user-facing changes here before preparing a release. -->`;
-  const released = `## ${version} - ${date}\n\n${notes}`;
-  return `${before}${unreleased}\n\n${released}${after ? `\n\n${after}` : ""}\n`;
-}
-
 export function releaseNotes(content, version) {
   const heading = new RegExp(`^## ${escapeRegExp(version)}(?: - [^\\n]+)?$`, "m").exec(content);
   if (!heading) throw new Error(`CHANGELOG.md does not contain a section for ${version}`);
@@ -136,6 +121,59 @@ export function releaseNotes(content, version) {
   const notes = stripComments(content.slice(bodyStart, bodyEnd));
   if (!notes) throw new Error(`CHANGELOG.md section for ${version} is empty`);
   return notes;
+}
+
+function stableBase(version) {
+  const parsed = parseVersion(version);
+  return `${parsed.major}.${parsed.minor}.${parsed.patch}`;
+}
+
+function prereleaseNotesForStable(content, stableVersion) {
+  const target = parseVersion(stableVersion);
+  if (target.prerelease.length > 0) {
+    throw new Error(`Prerelease note aggregation requires a stable target; got ${stableVersion}`);
+  }
+
+  const notes = [];
+  const headings = content.matchAll(/^## ([^\s]+)(?: - [^\n]+)?$/gm);
+  for (const heading of headings) {
+    const candidate = heading[1];
+    let parsed;
+    try {
+      parsed = parseVersion(candidate);
+    } catch {
+      continue;
+    }
+    if (parsed.prerelease.length === 0 || stableBase(candidate) !== stableVersion) continue;
+    const candidateNotes = releaseNotes(content, candidate);
+    if (candidateNotes !== NO_USER_FACING_CHANGES && !notes.includes(candidateNotes)) {
+      notes.push(candidateNotes);
+    }
+  }
+  return notes;
+}
+
+export function updateChangelog(content, version, date, { includePrereleaseNotes = false } = {}) {
+  const heading = "## Unreleased";
+  const start = content.indexOf(heading);
+  if (start < 0) throw new Error("CHANGELOG.md must contain a '## Unreleased' heading");
+  const bodyStart = start + heading.length;
+  const nextHeading = content.indexOf("\n## ", bodyStart);
+  const bodyEnd = nextHeading < 0 ? content.length : nextHeading;
+  const unreleasedBody = content.slice(bodyStart, bodyEnd);
+  const unreleasedNotes = stripComments(unreleasedBody);
+  const noteBlocks = unreleasedNotes ? [unreleasedNotes] : [];
+  if (includePrereleaseNotes) {
+    for (const prereleaseNotes of prereleaseNotesForStable(content, version)) {
+      if (!noteBlocks.includes(prereleaseNotes)) noteBlocks.push(prereleaseNotes);
+    }
+  }
+  const notes = noteBlocks.join("\n") || NO_USER_FACING_CHANGES;
+  const before = content.slice(0, start);
+  const after = nextHeading < 0 ? "" : content.slice(nextHeading + 1).trim();
+  const unreleased = `${heading}\n\n<!-- Add user-facing changes here before preparing a release. -->`;
+  const released = `## ${version} - ${date}\n\n${notes}`;
+  return `${before}${unreleased}\n\n${released}${after ? `\n\n${after}` : ""}\n`;
 }
 
 function option(args, name) {
@@ -159,7 +197,12 @@ function prepare(args) {
   writeFileSync(PACKAGE_JSON_PATH, updatePackageVersion(packageJsonContent, packageJson.version, version));
   const date = new Date().toISOString().slice(0, 10);
   const changelog = readFileSync(CHANGELOG_PATH, "utf8");
-  writeFileSync(CHANGELOG_PATH, updateChangelog(changelog, version, date));
+  writeFileSync(
+    CHANGELOG_PATH,
+    updateChangelog(changelog, version, date, {
+      includePrereleaseNotes: type === "promote-stable",
+    }),
+  );
   writeOutput("version", version);
   process.stdout.write(`${version}\n`);
 }
