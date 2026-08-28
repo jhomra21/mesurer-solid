@@ -67,6 +67,13 @@ try {
 
   const previewBeforeDrag = await preview.boundingBox();
   if (!previewBeforeDrag) throw new Error("Screenshot preview has no drag geometry");
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Screenshot contract requires a fixed viewport");
+  const expectedPreviewLeft = viewport.width - previewBeforeDrag.width - 8;
+  const expectedPreviewTop = viewport.height - previewBeforeDrag.height - 8;
+  if (Math.abs(previewBeforeDrag.x - expectedPreviewLeft) > 0.5 || Math.abs(previewBeforeDrag.y - expectedPreviewTop) > 0.5) {
+    throw new Error(`Screenshot preview did not default to the bottom-right 8px inset: ${JSON.stringify({ previewBeforeDrag, viewport, expectedPreviewLeft, expectedPreviewTop })}`);
+  }
   const previewHitTest = await preview.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const root = element.getRootNode();
@@ -89,12 +96,15 @@ try {
   });
   await page.mouse.move(previewBeforeDrag.x + 24, previewBeforeDrag.y + 40);
   await page.mouse.down();
-  await page.mouse.move(previewBeforeDrag.x + 94, previewBeforeDrag.y + 90, { steps: 6 });
+  await page.mouse.move(previewBeforeDrag.x - 70, previewBeforeDrag.y - 50, { steps: 6 });
   await page.mouse.up();
   const previewAfterDrag = await preview.boundingBox();
   if (!previewAfterDrag) throw new Error("Screenshot preview disappeared while dragging");
   if (Math.abs(previewAfterDrag.x - previewBeforeDrag.x) < 40 || Math.abs(previewAfterDrag.y - previewBeforeDrag.y) < 25) {
     throw new Error(`Screenshot preview did not move with the pointer: ${JSON.stringify({ previewBeforeDrag, previewAfterDrag, previewHitTest })}`);
+  }
+  if (previewAfterDrag.x < 8 || previewAfterDrag.y < 8 || previewAfterDrag.x + previewAfterDrag.width > viewport.width - 8 || previewAfterDrag.y + previewAfterDrag.height > viewport.height - 8) {
+    throw new Error(`Dragged screenshot preview escaped the 8px viewport clamp: ${JSON.stringify({ previewAfterDrag, viewport })}`);
   }
 
   await previewImage.click({ position: { x: 28, y: 40 } });
