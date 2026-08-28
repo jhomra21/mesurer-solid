@@ -12,16 +12,18 @@ Mesurer Solid tracks the product behavior of [`ibelick/mesurer`](https://github.
 
 | Upstream 0.1.0 area | Mesurer Solid status | Decision |
 | --- | --- | --- |
-| Screenshot region selection | Added in this parity branch | First-party optional `screenshotPlugin()` |
-| Clipboard PNG output | Added in this parity branch | Screenshot plugin setting/service; automatic copy is best-effort so a clipboard failure never discards a successful capture |
-| Local PNG download | Added in this parity branch | Screenshot plugin setting/service plus explicit Save from the viewer |
-| Chrome visible-tab capture | Added in this parity branch | Extension-only capture bridge; no new broad host permission |
-| Screenshot copy/download settings | Added as persistent plugin state and service options | Keep feature-local instead of adding fields to the core measurement model |
-| Screenshot preview | Added and extended beyond upstream | Persistent draggable thumbnail, native image context menu, dismiss control, click-to-open viewer, Copy/Save/Close controls, and capture-status toast |
+| Screenshot region selection | Implemented | First-party optional `screenshotPlugin()` |
+| Clipboard PNG output | Implemented | Screenshot plugin setting/service; automatic copy is best-effort so a clipboard failure never discards a successful capture |
+| Local PNG download | Implemented | Screenshot plugin setting/service plus explicit Save from the viewer |
+| Chrome visible-tab capture | Implemented | Extension-only capture bridge; no new broad host permission |
+| Screenshot copy/download settings | Implemented as persistent plugin state and service options | Keep feature-local instead of adding fields to the core measurement model |
+| Screenshot preview | Implemented and extended beyond upstream | Persistent draggable thumbnail, native image context menu, dismiss control, click-to-open viewer, Copy/Save/Close controls, and capture-status toast |
 | Public React `Measurer` -> `Mesurer` rename | Not applicable | Solid public package is already `mesurer-solid` and its stable mount/plugin contract is framework-agnostic |
 | Settings/guides/rulers/isolation refinements | Already covered or independently exceeded by current Solid implementation | Validate behavior rather than porting React hook/refactor structure |
 | Arrow/text annotation experiment | Not current upstream behavior | Do not port; upstream added and then reverted it |
 | Site/analytics/footer/build changes | Not library parity | Do not port |
+
+The screenshot parity implementation first shipped publicly for prerelease validation in `mesurer-solid@0.1.1-beta.0`. Stable release status is tracked by the normal release workflow rather than being assumed in this audit document.
 
 ## Screenshot architecture
 
@@ -38,5 +40,7 @@ The upstream screenshot behavior is preserved while fitting Mesurer Solid's comp
 - Injection can opt in with `__MESURER_CONFIG__.screenshot`; it is not forced into every injected/browser-agent session.
 - Screenshot capture uses the renderer's existing `prepareCapture()` / `finishCapture()` presentation boundary, so Mesurer chrome is excluded from the captured pixels without duplicating context-plugin hiding logic.
 - The human-facing `screenshot.html` fixture uses the real browser capture provider. A separate `screenshot-contract.html` keeps the deterministic synthetic 2x bitmap used only by CI.
+
+For the current user-facing API, capture lifecycle, preview/viewer behavior, extension path, typed service, and agent/harness boundary, see [`SCREENSHOTS.md`](./SCREENSHOTS.md).
 
 The upstream commit remains pinned in this document so a later audit can compare from this exact point instead of rediscovering the delta.
