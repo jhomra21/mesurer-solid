@@ -323,7 +323,7 @@ export function createMesurerWorkspaceRuntime(options: {
     model.checkpoint();
     model.setEnabled(true);
     model.setToolMode("select");
-    const measurements = elements.map((element) => getInspectMeasurement(element, ownerWindow));
+    const measurements = elements.map((element) => getInspectMeasurement<HTMLElement>(element, ownerWindow));
     model.setSelectedMeasurements(measurements, measurements.at(-1) ?? null);
     model.setTransient({ selectionOriginRect: null });
     return elements;
