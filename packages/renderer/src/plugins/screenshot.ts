@@ -31,6 +31,7 @@ const SCREENSHOT_COMMAND = "screenshot.toggle";
 const ERROR_DURATION_MS = 2500;
 const DEFAULT_PREVIEW_DURATION_MS = 0;
 const MEASUREMENT_MARKER_SELECTOR = [
+  "[data-mesurer-measurement='true']",
   "[data-mesurer-selected-measurement='true']",
   "[data-mesurer-selection-spacing-target='true']",
   "[data-mesurer-guide='true']",
@@ -91,7 +92,7 @@ type HiddenCaptureElement = {
 const cameraIcon = {
   viewBox: "0 0 256 256",
   paths: [
-    "M208,56H180.28L166.66,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.66,3.56L75.72,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.44l13.62,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z",
+    "M208,56H180.28L166.66,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.66,3.56L75.72,56H48A24,24,0,0,0,24,24V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.44l13.62,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z",
   ],
 };
 
@@ -625,36 +626,36 @@ export const screenshotPlugin = (
       controls: [
         {
           type: "toggle",
-          id: "tool-enabled",
+          id: "tool",
           label: "Screenshot tool",
-          description: "Show the camera capture tool in the toolbar.",
+          description: "Show the camera tool in the toolbar.",
           value: () => settings().toolEnabled,
-          set(value) {
-            updateSettings({ toolEnabled: value });
-            if (!value && active()) cancel();
+          set: (toolEnabled) => {
+            updateSettings({ toolEnabled });
+            if (!toolEnabled && active()) cancel();
           },
         },
         {
           type: "toggle",
-          id: "auto-copy",
+          id: "copy",
           label: "Auto-copy",
-          description: "Copy each completed screenshot to the clipboard when supported.",
+          description: "Copy each successful capture when the browser allows it.",
           value: () => settings().copy,
           set: (copy) => updateSettings({ copy }),
         },
         {
           type: "toggle",
-          id: "auto-download",
+          id: "download",
           label: "Auto-download",
-          description: "Download each completed screenshot as a PNG.",
+          description: "Download each successful capture as a PNG.",
           value: () => settings().download,
           set: (download) => updateSettings({ download }),
         },
         {
           type: "toggle",
-          id: "include-measurements",
+          id: "measurements",
           label: "Include measurements",
-          description: "Keep selections, guides, rulers, and measurement overlays in the PNG.",
+          description: "Keep selections, measurements, guides, distances, and rulers in the PNG.",
           value: () => settings().includeMeasurements,
           set: (includeMeasurements) => updateSettings({ includeMeasurements }),
         },
