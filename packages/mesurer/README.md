@@ -7,12 +7,12 @@ The renderer is implemented privately in Solid 2, but consumers can use Solid 1/
 ## Install
 
 ```bash
-bun add -d mesurer-solid@beta
+bun add -d mesurer-solid
 # or
-npm install -D mesurer-solid@beta
+npm install -D mesurer-solid
 ```
 
-> Prereleases through `0.1.0-beta.11` used the old scoped package name. New releases use `mesurer-solid`.
+`mesurer-solid@0.1.0` is the stable package on the `latest` dist-tag. Prereleases through `0.1.0-beta.11` used the old scoped package name; current releases use `mesurer-solid`.
 
 ## Mount the base inspector
 
@@ -107,6 +107,14 @@ Injection installs `contextPlugin()` by default. To deliberately inject only the
 ```js
 window.__MESURER_CONFIG__ = { context: false }
 ```
+
+Screenshot capture remains opt-in for normal injection:
+
+```js
+window.__MESURER_CONFIG__ = { screenshot: true }
+```
+
+The first-party Chrome extension enables screenshot capture automatically.
 
 ## Direct context API
 
@@ -248,9 +256,35 @@ const after = await window.__MESURER__.select([
 
 For meaningful visual work, fresh Mesurer context/review is part of completion. Lint, typecheck, tests, and build are implementation checks, not rendered proof.
 
-## Clean screenshot evidence
+## Optional screenshot plugin
 
-Mesurer plans the evidence frame; the existing browser harness takes the real screenshot:
+Screenshot capture is a removable first-party plugin instead of permanent core state:
+
+```ts
+import { mountMeasurer } from "mesurer-solid"
+import { screenshotPlugin } from "mesurer-solid/screenshot"
+
+const mesurer = mountMeasurer({
+  plugins: [
+    screenshotPlugin({
+      copy: true,
+      download: false,
+    }),
+  ],
+})
+```
+
+The camera tool lets the user drag a viewport region. Mesurer captures the visible page, crops against the real captured bitmap scale so HiDPI displays stay accurate, optionally writes PNG data to the clipboard and/or downloads a PNG, then restores the inspector UI and shows a compact preview.
+
+Normal browser hosts use `getDisplayMedia()` and reuse a live capture stream to avoid prompting for every region. The first-party Chrome extension uses `chrome.tabs.captureVisibleTab()` through its extension bridge, so its screenshot path does not open the screen-share chooser.
+
+Programmatic users can get the typed screenshot service from the plugin host with service id `screenshot`. `start()` opens region selection, `cancel()` closes it, `capture(rect)` captures an exact CSS-pixel viewport rectangle, and `setSettings()` updates the persistent copy/download preferences.
+
+Screenshot does not claim the global `C` shortcut because the context workflow already uses `C` and `Shift+C`.
+
+## Clean screenshot evidence for agents
+
+The optional screenshot plugin is a human capture tool. Agent verification can continue to let the existing browser harness own screenshots while Mesurer plans a clean evidence frame:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
@@ -279,7 +313,7 @@ Those remain the three human context controls. `select()` is a programmatic agen
 ## Portable Agent Skill
 
 ```bash
-npx --yes --package=mesurer-solid@beta mesurer-skill install
+npx --yes --package=mesurer-solid mesurer-skill install
 ```
 
 The installer leaves:
@@ -323,6 +357,7 @@ Plugins can contribute tools, commands, hooks, overlays, settings, state, servic
 ```text
 mesurer-solid
 mesurer-solid/core
+mesurer-solid/screenshot
 mesurer-solid/inject
 mesurer-solid/inject-script
 ```
