@@ -8,7 +8,7 @@ Mesurer is useful in four related ways:
 
 1. **Interactive devtool** — selection, measurements, guides, rulers, text inspection, X-ray, color picking, distances, settings, history, and persistence.
 2. **Shared human/agent visual state** — the human can point, select, measure, guide, and annotate in the real page while the coding agent reads the same structured state directly from `window.__MESURER__`.
-3. **Rendered verification API** — exact JSON-safe DOM geometry, computed styles, distances, context baselines, and deterministic `review()` let agents prove visual changes instead of trusting source CSS.
+3. **Rendered verification API** — exact JSON-safe DOM geometry, computed styles, distances, context baselines, context-returning programmatic selection, and deterministic `review()` let agents prove visual changes instead of trusting source CSS.
 4. **Composable runtime** — built-ins and third-party extensions share one plugin host, so tools can be added, removed, replaced, or driven by stable commands at runtime.
 
 ## Mesurer in action
@@ -70,66 +70,107 @@ npm install -D mesurer-solid@beta
 | Isolated UI | ShadowRoot isolation plus protected top-layer/fallback mounting. |
 | Visual inspection tools | Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, Settings. |
 | Human selections | One/multiple DOM targets or arbitrary dragged regions. |
+| Agent target selection | `select(selector | selectors)` visibly selects exact targets and returns selection-scoped `MesurerContextV1`. |
 | Human annotations | Notes with conservative HMR rebinding and immutable scoped baselines. |
 | Shared visual context | `MesurerContextV1` combines rendered targets, regions, guides, measurements, distances, visual state, and computed DOM inspection. |
 | Deterministic revalidation | `review()` compares fresh rendered evidence with annotation baselines and reports exact changes/missing evidence. |
-| Clean screenshot planning | Mesurer can hide control chrome while preserving visual measurement evidence for the outer harness screenshot. |
+| Clean screenshot planning | Mesurer hides control chrome while preserving visual measurement evidence for the outer harness screenshot. |
 | Exact element inspection | Rect, margin, padding, border, typography, appearance, flex/grid/layout, scroll size, and overflow. |
 | Geometry comparison | Horizontal/vertical gaps and center deltas. |
 | Stable command surface | Agents/extensions execute built-in/plugin commands without simulating toolbar clicks or keyboard events. |
 | Runtime extensions | Plugins register tools, commands, hooks, overlays, settings, state, services, and lifecycle cleanup. |
 | Human-state-safe injection | Agent injection reuses a matching live Mesurer instance by default instead of destroying human review state. |
-| Portable Agent Skill | One self-contained skill teaches any capable harness the direct page workflow and includes the exact classic injector. |
+| Portable Agent Skill | One self-contained skill teaches any capable harness the direct context-first page workflow and includes the classic injector. |
 
 ## The direct human ↔ agent model
 
-Mesurer does **not** need to send a message into the current agent chat.
+Mesurer does **not** need to send a message into an agent chat. The rendered page is already the shared boundary.
 
-The rendered page is already the shared boundary:
+The important contract is that **context comes back to the agent**:
 
 ```text
-human reviewer
-    |
-    | selects / measures / guides / annotates
-    v
+human selection/annotation OR agent-known changed target
+    ↓
 real browser page
-    |
-    | window.__MESURER__
-    v
+    ↓ window.__MESURER__
+context() / select() / review()
+    ↓ structured rendered evidence
 existing coding-agent browser harness
-    |
-    | edits normal project source
-    v
+    ↓ source edit
 real browser page
-    |
-    | context() / review() / inspect() / distance() + screenshot
-    v
+    ↓ fresh context/review
 validated result
 ```
 
-There is no required Mesurer MCP, WebMCP, ACP, localhost feedback daemon, chat/thread/session discovery, or harness-specific transport in the normal workflow.
+There is no required Mesurer MCP, WebMCP, ACP, localhost feedback daemon, chat/thread/session discovery, or harness-specific transport.
 
 If an agent can execute JavaScript in the page it is already working on, it can use Mesurer directly.
 
+## Context is the output
+
+An agent using Mesurer should not merely activate a tool or draw a highlight and continue. A meaningful visual step should produce structured rendered evidence that the agent actually consumes.
+
+The target-acquisition order is:
+
+1. **Human already selected/annotated something** → read that state first.
+2. **No relevant selection and the intended target is visually ambiguous** → ask the user to select the intended element(s) or region, then read selection context.
+3. **No relevant selection and the agent knows the exact rendered targets** → call `select()` itself; the elements are visibly highlighted and selection-scoped context is returned in the same operation.
+
+Do not overwrite meaningful human selection before reading it. Do not ask the user to select something the agent can identify exactly itself. Do not guess when the intended target truly is ambiguous.
+
+### Programmatically select and receive context
+
+```js
+const context = await window.__MESURER__.select("#pricing-card")
+```
+
+or:
+
+```js
+const context = await window.__MESURER__.select([
+  "#pricing-card",
+  "#pricing-cta",
+])
+```
+
+`select()` enables/selects the exact targets, visibly highlights them, waits for the visual state to settle, and returns `MesurerContextV1` with `scope.kind === "selection"`.
+
+Every selector must resolve to exactly one target. Invalid, missing, or ambiguous selectors throw instead of guessing.
+
+This is especially useful after an agent changes UI:
+
+```js
+await window.__MESURER__.stable()
+
+const evidence = await window.__MESURER__.select([
+  changedSelectorA,
+  changedSelectorB,
+])
+```
+
+The user can see the affected elements, and the agent gets their exact rendered geometry/styles/relationships back.
+
 ## The rendered page is the source of truth
 
-A source file saying `gap: 16px`, `align-items: center`, or `width: 100%` does **not** prove that the browser rendered the intended spacing, alignment, dimensions, or overflow.
+A source file saying `gap: 16px`, `align-items: center`, or `width: 100%` does not prove that the browser rendered the intended result.
 
-Fonts, intrinsic sizing, parent layout, transforms, breakpoints, wrapping, scrollbars, and neighboring components can change the actual result.
+Fonts, intrinsic sizing, parent layout, transforms, breakpoints, wrapping, scrollbars, and neighboring components can change actual geometry.
 
 The default design loop is:
 
 ```text
-human marks/measures issue in Mesurer
-  → agent reads existing workspace/selection/annotations
-  → agent edits implementation
+consume existing human Mesurer evidence
+  → if needed, ask user to select OR self-select exact target(s)
+  → context comes back
+  → edit implementation
   → real app renders / HMR settles
   → __MESURER__.stable()
-  → __MESURER__.review(annotationId) and/or fresh context/measurements
-  → outer harness takes a real screenshot when useful
-  → agent compares exact rendered measurements + pixels to human intent
-  → agent fixes discrepancies
-  → repeat until rendered evidence supports the claim
+  → review(annotationId), fresh selection context, or select(changedTargets)
+  → fresh context comes back
+  → outer harness captures real screenshot when useful
+  → compare rendered measurements + pixels to intent
+  → fix discrepancies
+  → repeat until evidence supports completion
 ```
 
 Use Mesurer to validate statements such as “these edges align,” “the gap is 16px,” “all cards are the same width,” “there is no horizontal overflow,” or “this heading is actually using the intended font.”
@@ -159,7 +200,7 @@ if (import.meta.env.DEV) {
 
 The host application does not need Solid 2. Mesurer carries its own isolated renderer/runtime.
 
-### Add human context and annotations
+### Add context and annotations
 
 ```ts
 import {
@@ -173,34 +214,33 @@ const mesurer = mountMeasurer({
 })
 ```
 
-`mesurer.context` owns annotation state, Copy Context/Copy Selection/Add Note UI, shortcuts, context/review/capture behavior, and cleanup.
+`mesurer.context` owns annotation state, Copy Context/Copy Selection/Add Note UI, shortcuts, context/select/review/capture behavior, and cleanup.
 
 ```ts
 const workspace = await mesurer.context()
 const selected = await mesurer.context({ scope: "selection" })
+const agentSelected = await mesurer.select("#target")
 const annotation = await mesurer.context({ annotation: annotationId })
 ```
 
-After a source edit/HMR cycle:
+After source edits/HMR:
 
 ```ts
 await mesurer.agent.stable()
 const review = await mesurer.review(annotationId)
 ```
 
-The human does **not** need to save an annotation just to communicate current visual state. Workspace and selection context already include current measurements/guides/distances.
-
-An annotation is useful when the person wants a durable note and deterministic baseline/review.
+The human does not need to save an annotation just to communicate current visual state. An annotation is useful when a durable note and deterministic baseline/review are needed.
 
 ## Agent quick start — discover first, inject only if absent
 
-Install the portable skill into the current repository:
+Install the portable skill:
 
 ```bash
 npx --yes --package=mesurer-solid@beta mesurer-skill install
 ```
 
-The installer leaves:
+It installs:
 
 ```text
 .agents/skills/mesurer-ui/
@@ -209,38 +249,28 @@ The installer leaves:
     └── inject-script.js
 ```
 
-The skill is intentionally descriptive because there is no transport protocol to configure: it teaches the agent how to discover/reuse the live page state, what Mesurer data means, what to read before editing, how to validate after HMR, and how to combine structured measurements with the harness's real screenshot.
+The skill teaches agents to preserve human state, expect context back, ask for selection only when target identity is ambiguous, self-select exact changed targets when possible, and require fresh post-edit Mesurer evidence before completion.
 
-### 1. Preserve existing human state
-
-Before injecting anything:
+### Preserve existing human state
 
 ```js
 const hasMesurer = await browser.evaluate(() => Boolean(
   window.__MESURER__ &&
   window.__MESURER_INSTANCE__?.element?.isConnected
 ))
+
+if (hasMesurer) {
+  await browser.evaluate(() => window.__MESURER__.ready())
+}
 ```
 
-If true, use that exact instance:
-
-```js
-await browser.evaluate(() => window.__MESURER__.ready())
-```
-
-Do **not** reinject or dispose it. The human may already have selections, guides, measurements, held distances, rulers/X-ray state, or annotation baselines.
-
-Injected Mesurer itself defaults to reusing a matching live instance. Destructive replacement requires the explicit opt-out:
+Do not reinject/dispose a live instance. Destructive replacement is explicit:
 
 ```js
 window.__MESURER_CONFIG__ = { reuseExisting: false }
 ```
 
-Use that only for deliberate HMR/testing—not for normal agent attachment.
-
-### 2. Inject only when absent
-
-If the harness can evaluate JavaScript in the current page, Electron renderer, WebView, or other DOM host, reuse that path:
+### Inject only when absent
 
 ```js
 import { readFile } from "node:fs/promises"
@@ -258,9 +288,9 @@ if (!hasMesurer) {
 await browser.evaluate(() => window.__MESURER__.ready())
 ```
 
-Do not add Mesurer to application source, create a Mesurer-specific build, add another browser/CDP stack, or start an agent/MCP server merely to inspect a page the harness already controls.
+Do not add Mesurer to app source, create a Mesurer-specific build, create another browser/CDP stack, or start an agent server merely to inspect a page the harness already controls.
 
-### 3. Read what the human is showing you
+### Consume what the human is showing
 
 ```js
 const workspace = await window.__MESURER__.context()
@@ -271,77 +301,64 @@ try {
 } catch {}
 
 const annotations = await window.__MESURER__.annotations()
-const annotationContexts = []
-for (const annotation of annotations) {
-  annotationContexts.push(
-    await window.__MESURER__.context({ annotation: annotation.id })
-  )
-}
 ```
 
-`MesurerContextV1` includes:
+For each relevant annotation, read its context before editing.
 
-```text
-page + viewport + DPR + scroll
-rulers/X-ray state
-selected/referenced targets
-exact target rects
-margin/padding/border
-typography
-appearance
-flex/grid/layout
-scroll/overflow
-guides
-measurements
-held distances
-selected/annotated viewport regions
-```
+`MesurerContextV1` includes page/viewport/DPR, exact target rects, margin/padding/border, typography, appearance, flex/grid/layout, scroll/overflow, guides, measurements, held distances, and selected/annotated regions.
 
-The agent should gather initial state **before editing**, especially for unsaved selections that may disappear when HMR replaces DOM nodes.
+For multi-selection, consume every target and the relevant pair relationships; use `distance(selectorA, selectorB)` for relationships not already represented by selected/held distance evidence.
 
-### 4. Revalidate after editing
+### Revalidate after editing
 
 ```js
 await window.__MESURER__.stable()
 ```
 
-For an annotation:
+Use annotation review when available:
 
 ```js
 const review = await window.__MESURER__.review(annotationId)
 ```
 
-For unsaved state, re-read `context()` and use original selectors with focused checks:
+Use still-relevant live selection context when applicable:
 
 ```js
-window.__MESURER__.inspect(selector)
-window.__MESURER__.distance(selectorA, selectorB)
-window.__MESURER__.viewport()
+const after = await window.__MESURER__.context({ scope: "selection" })
 ```
 
-The before/after values already live in the current agent task. No separate message delivery layer is needed.
+When the agent knows the exact affected targets, proactively select them and consume the returned context:
+
+```js
+const after = await window.__MESURER__.select([
+  changedSelectorA,
+  changedSelectorB,
+])
+```
+
+If target identity is ambiguous, ask the human to select it and then read selection context.
+
+For meaningful visual work, fresh Mesurer context/review is part of completion; lint/typecheck/tests/build are not rendered proof.
 
 ## Clean screenshot evidence
 
-Mesurer does not render a fake DOM screenshot. The outer browser/harness owns the real screenshot primitive.
+Mesurer does not render a fake DOM screenshot. The outer browser/harness owns real screenshot capture.
 
 ```js
-const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
+const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
 await window.__MESURER__.prepareCapture()
 try {
-  // capture the real viewport and optional focus crop
+  // capture real viewport and optional focus crop
 } finally {
   await window.__MESURER__.finishCapture()
 }
 ```
 
-For current selection use `{ scope: "selection" }`.
-
-Capture mode hides toolbar/settings/comment/action chrome while preserving rulers, guides, selected outlines, annotations, measurements, distances, and pixel labels.
+Capture mode hides control chrome while preserving rulers, guides, selected outlines, annotations, measurements, distances, and pixel labels.
 
 ## Low-level agent API
 
-The default global is:
+Default global:
 
 ```text
 window.__MESURER__
@@ -352,33 +369,20 @@ Useful primitives:
 ```text
 ready / stable
 capabilities
-context / annotations / review
+context / select / annotations / review
 capturePlan / prepareCapture / finishCapture
 inspect / inspectAll / at
 distance / viewport / feedback
 describe / command / state
 ```
 
-Prefer `context()` and `review()` for normal human-in-the-loop work. Use low-level primitives for focused measurement questions.
+Prefer `context()`, `select()`, and `review()` for normal visual development. Use low-level primitives for focused measurement questions.
 
 ## What Mesurer deliberately does not own
 
-Mesurer is **not** a browser driver or agent orchestration server. It does not own:
+Mesurer is not a browser driver or agent orchestration server. It does not own navigation, host-app clicking/typing, screenshots, tabs/windows, authentication, browser lifetime, source editing, dev servers, chat/thread/task/session routing, or MCP/WebMCP/ACP delivery.
 
-- navigation;
-- clicking/typing;
-- screenshots;
-- tabs/windows;
-- authentication;
-- browser lifetime;
-- source editing;
-- dev servers;
-- chat/thread/task/session routing;
-- MCP/WebMCP/ACP delivery.
-
-Those responsibilities stay with Playwright, CDP, Cypress, a coding-agent browser tool, Electron, or whatever outer harness already controls the page.
-
-That separation is intentional: **Mesurer measures, annotates, and exposes the rendered state; the outer harness uses it.**
+Those stay with Playwright, CDP, Cypress, a coding-agent browser tool, Electron, or whatever outer harness already controls the page.
 
 ## Browser extension
 
@@ -389,9 +393,9 @@ bun install
 bun run build
 ```
 
-Then load `extension/dist/` as an unpacked extension and click the Mesurer action on an ordinary HTTP(S) page.
+Load `extension/dist/` as an unpacked extension and click the Mesurer action on an ordinary HTTP(S) page.
 
-The extension is only a distribution shell: it injects the same runtime and `mesurer.context` plugin. An agent does not need an extension-specific protocol; it reads `window.__MESURER__` from the page.
+The extension is only a distribution shell. An agent does not need an extension-specific protocol; it reads `window.__MESURER__` from the page.
 
 ## Plugins
 
@@ -407,7 +411,7 @@ import {
 
 Plugins can contribute tools, commands, hooks, overlays, settings, scoped state, services, history/persistence, renderer-owned UI, and disposal behavior. Built-ins can be excluded/replaced while preserving stable `builtin.*` command routes.
 
-See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the ownership model.
+See [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 
 ## Public package surface
 
@@ -440,6 +444,6 @@ Browser/package-boundary changes are additionally gated by host compatibility, p
 
 ## Origin and license
 
-Mesurer Solid is adapted from [ibelick/mesurer](https://github.com/ibelick/mesurer), created by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick), and extends that project with the Solid 2 port, framework-agnostic package boundary, plugin/runtime architecture, agent context workflow, and additional browser integration work.
+Mesurer Solid is adapted from [ibelick/mesurer](https://github.com/ibelick/mesurer), created by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick), and extends that project with the Solid 2 port, framework-agnostic package boundary, plugin/runtime architecture, direct context-first agent workflow, and additional browser integration work.
 
 MIT. See [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md) for upstream and third-party attribution.
