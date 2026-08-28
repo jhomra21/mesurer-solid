@@ -5,6 +5,7 @@ on:
     paths:
       - "packages/renderer/src/core/screenshot.ts"
       - "packages/renderer/src/plugins/screenshot.ts"
+      - "packages/renderer/src/plugins/screenshot-preview.ts"
       - "packages/renderer/test/screenshot-plugin.test.ts"
       - "packages/mesurer/src/screenshot.ts"
       - "packages/mesurer/src/inject.ts"

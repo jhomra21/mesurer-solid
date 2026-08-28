@@ -35,7 +35,6 @@ const subject = mountMeasurer({
     copy: false,
     download: false,
     captureVisibleTab: deterministicCapture,
-    previewDurationMs: 5000,
   })],
   persistKey: "mesurer-screenshot-contract",
 });

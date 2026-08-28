@@ -12,7 +12,6 @@ const subject = mountMeasurer({
   plugins: [screenshotPlugin({
     copy: false,
     download: false,
-    previewDurationMs: 5000,
   })],
   persistKey: "mesurer-screenshot-manual",
 });

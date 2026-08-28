@@ -19,6 +19,7 @@ import {
   type ScreenshotCaptureProvider,
   type ScreenshotRect,
 } from "../core/screenshot";
+import { createScreenshotPreviewController } from "./screenshot-preview";
 
 export const MESURER_SCREENSHOT_PLUGIN_ID = "mesurer.screenshot";
 export const MESURER_SCREENSHOT_SERVICE_ID = "screenshot";
@@ -28,7 +29,7 @@ export const MESURER_SCREENSHOT_ACTIVE_STATE_ID = "mesurer.screenshot.active";
 const RUNTIME_SERVICE_ID = "runtime:solid";
 const SCREENSHOT_COMMAND = "screenshot.toggle";
 const ERROR_DURATION_MS = 2500;
-const DEFAULT_PREVIEW_DURATION_MS = 1800;
+const DEFAULT_PREVIEW_DURATION_MS = 0;
 
 export type MesurerScreenshotSettings = {
   copy: boolean;
@@ -218,32 +219,6 @@ export const screenshotPlugin = (
     });
     overlay.append(hint);
 
-    const preview = ownerDocument.createElement("div");
-    preview.dataset.mesurerScreenshotPreview = "true";
-    preview.setAttribute("role", "status");
-    setStyle(preview, {
-      position: "fixed",
-      display: "none",
-      "z-index": "96",
-      width: "120px",
-      height: "80px",
-      overflow: "hidden",
-      "border-radius": "10px",
-      border: "1px solid rgb(0 0 0 / 12%)",
-      "background-color": "white",
-      "pointer-events": "none",
-    });
-    const previewImage = ownerDocument.createElement("img");
-    previewImage.alt = "";
-    setStyle(previewImage, {
-      display: "block",
-      width: "100%",
-      height: "100%",
-      "object-fit": "cover",
-    });
-    preview.append(previewImage);
-    root.append(preview);
-
     const errorToast = ownerDocument.createElement("div");
     errorToast.dataset.mesurerScreenshotError = "true";
     errorToast.setAttribute("role", "status");
@@ -263,8 +238,6 @@ export const screenshotPlugin = (
 
     let origin: { x: number; y: number } | null = null;
     let toolbarVisibility: ToolbarVisibility | null = null;
-    let previewUrl: string | null = null;
-    let previewTimer = 0;
     let errorTimer = 0;
     let operation = 0;
     let capturing = false;
@@ -286,15 +259,6 @@ export const screenshotPlugin = (
     const setActive = (value: boolean) => {
       if (active() === value) return;
       ctx.state.update<boolean>(MESURER_SCREENSHOT_ACTIVE_STATE_ID, () => value);
-    };
-
-    const dismissPreview = () => {
-      if (previewTimer) ownerWindow.clearTimeout(previewTimer);
-      previewTimer = 0;
-      preview.style.display = "none";
-      previewImage.removeAttribute("src");
-      if (previewUrl) globalThis.URL.revokeObjectURL(previewUrl);
-      previewUrl = null;
     };
 
     const hideToolbar = () => {
@@ -360,10 +324,18 @@ export const screenshotPlugin = (
       runtime.portalTarget.querySelector<HTMLElement>("[data-mesurer-tool-id='screenshot']")
         ?.getBoundingClientRect() ?? null;
 
+    const previewController = createScreenshotPreviewController({
+      ownerDocument,
+      ownerWindow,
+      root,
+      anchorRect: toolbarAnchorRect,
+      previewDurationMs,
+    });
+
     const placeFloatingStatus = (element: HTMLElement) => {
       const anchor = toolbarAnchorRect();
-      const width = element === preview ? 120 : Math.max(140, element.offsetWidth || 140);
-      const height = element === preview ? 80 : Math.max(26, element.offsetHeight || 26);
+      const width = Math.max(140, element.offsetWidth || 140);
+      const height = Math.max(26, element.offsetHeight || 26);
       const padding = 8;
       const left = anchor
         ? Math.min(ownerWindow.innerWidth - width - padding, Math.max(padding, anchor.left + anchor.width / 2 - width / 2))
@@ -374,17 +346,6 @@ export const screenshotPlugin = (
         : Math.max(padding, (anchor?.top ?? ownerWindow.innerHeight) - height - 8);
       element.style.left = `${left}px`;
       element.style.top = `${top}px`;
-    };
-
-    const showPreview = (blob: Blob) => {
-      dismissPreview();
-      const url = globalThis.URL.createObjectURL(blob);
-      previewUrl = url;
-      previewImage.src = url;
-      preview.setAttribute("aria-label", settings().copy ? "Screenshot copied" : "Screenshot captured");
-      preview.style.display = "block";
-      placeFloatingStatus(preview);
-      previewTimer = ownerWindow.setTimeout(dismissPreview, previewDurationMs);
     };
 
     const flashError = () => {
@@ -446,13 +407,14 @@ export const screenshotPlugin = (
         const results = await Promise.allSettled([copyResult, downloadResult]);
         const copyFailed = currentSettings.copy && results[0]?.status === "rejected";
         const downloadFailed = currentSettings.download && results[1]?.status === "rejected";
-        const noSuccessfulFallback = (copyFailed && !currentSettings.download)
-          || (downloadFailed && !currentSettings.copy)
-          || (copyFailed && downloadFailed);
-        if (noSuccessfulFallback) throw new Error("Could not save screenshot");
         if (operation !== operationId) throw new Error("Screenshot capture was cancelled.");
 
-        showPreview(cropped);
+        previewController.show(cropped, {
+          copied,
+          downloaded,
+          copyFailed,
+          downloadFailed,
+        });
         await ctx.hook.emit("screenshot:capture", {
           rect: { ...rect },
           copied,
@@ -475,7 +437,7 @@ export const screenshotPlugin = (
       }
       if (preparing) return;
       preparing = true;
-      dismissPreview();
+      previewController.dismiss();
       try {
         if (options.captureVisibleTab === undefined) {
           await prepareScreenshotCapture(ownerDocument, ownerWindow);
@@ -590,9 +552,8 @@ export const screenshotPlugin = (
       overlay.removeEventListener("pointerup", onPointerUp);
       overlay.removeEventListener("pointercancel", onPointerCancel);
       ownerWindow.removeEventListener("keydown", onKeyDown, true);
-      if (previewTimer) ownerWindow.clearTimeout(previewTimer);
       if (errorTimer) ownerWindow.clearTimeout(errorTimer);
-      dismissPreview();
+      previewController.dispose();
       restoreToolbar();
       releaseScreenshotCapture(ownerWindow);
       workspace.finishCapture();
