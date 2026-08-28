@@ -4,15 +4,17 @@ Mesurer Solid is designed to be used by coding agents through the **same browser
 
 The core rules are:
 
-> The outer harness owns the browser and coding task. Mesurer owns measurement, inspection, annotations, visual context, commands, and its extension runtime.
+> The outer harness owns the browser and coding task. Mesurer owns measurement, inspection, annotations, visual context, commands, its extension runtime, and optional first-party human screenshot UI.
 
-> Mesurer is shared visual state between the human and the agent. A human can select, measure, place guides, hold distances, enable X-ray/rulers, or add notes in the real page; the agent reads that same state from `window.__MESURER__`.
+> Mesurer is shared visual state between the human and the agent. A human can select, measure, place guides, hold distances, enable X-ray/rulers, add notes, or keep a screenshot preview open in the real page; the agent reads the relevant structured state from `window.__MESURER__` and preserves human review state.
 
 > **Context is the expected output of Mesurer agent work.** For meaningful visual work, consume existing human context before editing and obtain fresh Mesurer context/review for the affected rendered UI before claiming completion.
 
 > The rendered browser result is the source of truth. Source CSS and a successful build do not prove rendered spacing, alignment, typography, dimensions, or overflow.
 
 There is no required Mesurer MCP, WebMCP, ACP, localhost feedback daemon, chat/session bridge, or harness-specific transport in the normal workflow.
+
+The optional `mesurer.screenshot` camera is a human capture tool/service, not an agent-delivery channel. Ordinary coding-agent screenshot evidence continues to use the existing outer harness. See [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md).
 
 ## Zero-mutation default for host projects
 
@@ -40,10 +42,11 @@ When editing this repository:
 - never imply the original Mesurer measurement tool or baseline UI originated in this repository;
 - do not remove or obscure the upstream repository link, copyright notice, MIT attribution, or pinned upstream parity references;
 - distinguish upstream-derived behavior from Mesurer Solid extensions such as the Solid 2 port, framework-independent public package, agent/context workflow, plugin runtime, host-page isolation, and Trusted Types renderer;
+- for screenshot work, preserve the upstream-parity record: region capture/copy/download/extension capture came from the newer upstream product delta, while Mesurer Solid adapted it to the plugin architecture and extended the persistent preview/viewer behavior;
 - if documentation is reorganized, move attribution rather than deleting it;
 - treat weakened upstream attribution as a documentation regression.
 
-The authoritative third-party notice is [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).
+The authoritative third-party notice is [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md). Screenshot parity decisions are pinned in [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md).
 
 ## 1. Discover and preserve the current Mesurer instance
 
@@ -73,9 +76,10 @@ guides
 rulers
 X-ray state
 saved annotations and baselines
+screenshot thumbnail/viewer state
 ```
 
-That state is part of the user's visual message. Read it before changing selection yourself.
+That state is part of the user's visual message. Read structured context before changing selection yourself, and do not dismiss/replace a human screenshot preview unless the task explicitly involves it.
 
 Injected Mesurer defaults to preserving a live injected instance. Deliberate replacement is explicit:
 
@@ -118,6 +122,14 @@ await browser.evaluate(() => window.__MESURER__.ready())
 
 Harnesses that specifically support module injection may use `mesurer-solid/inject`, but `/inject-script` is the portable default for generic page-evaluation APIs.
 
+Normal injection keeps the optional screenshot camera disabled. When the task explicitly requires that human tool, set this before first injection:
+
+```js
+window.__MESURER_CONFIG__ = { screenshot: true }
+```
+
+The first-party Chrome extension enables `mesurer.screenshot` automatically. Do not reinject over a live instance merely to change screenshot configuration; preserve human state and use the plugin host deliberately if the feature must be added to an already-mounted instance.
+
 Within this repository:
 
 ```bash
@@ -150,7 +162,7 @@ capturePlan
 
 `select` is programmatic agent/harness functionality. It does not add a human context toolbar button. Human context controls remain Copy Context, Copy Selection, and Add Note.
 
-There is no `sendContext()` or send/delivery capability.
+There is no `sendContext()` or send/delivery capability. There is also no `screenshots` delivery capability: the screenshot plugin contributes a separate human camera tool and typed plugin service rather than adding image transport to `window.__MESURER__`.
 
 ### Context acquisition precedence
 
@@ -256,7 +268,7 @@ Examples:
 - width is `318px` → do not report `320px` until the browser actually measures it;
 - overflow flags are true → the rendered result is overflowing even if source math looked correct.
 
-Annotation notes are human intent. Geometry, styles, guides, measurements, distances, and screenshots are supporting evidence.
+Annotation notes are human intent. Geometry, styles, guides, measurements, distances, and screenshots are supporting evidence. Screenshot blobs are not part of `MesurerContextV1`.
 
 ## 5. Multi-selection is relational
 
@@ -282,9 +294,13 @@ window.__MESURER__.distance(selectorA, selectorB)
 
 For small selections, return useful unique pair relationships. For large repeated selections, focus on adjacent/repeated/user-relevant pairs instead of dumping O(n²) output.
 
-## 6. Capture real screenshots through the outer harness
+## 6. Understand both screenshot paths
 
-Mesurer plans evidence but does not own screenshot capture.
+Mesurer has two intentionally different screenshot workflows.
+
+### Coding-agent screenshot evidence
+
+For ordinary agent verification, the outer harness owns screenshot bytes while Mesurer plans clean evidence:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
@@ -305,11 +321,25 @@ Mesurer structured context → exact geometry, styles, distances, overflow
 outer-harness screenshot    → pixels, composition, hierarchy, clipping, appearance
 ```
 
+### Human screenshot plugin
+
+`mesurer.screenshot` is an optional first-party plugin exposed from `mesurer-solid/screenshot`. Its camera tool lets the human drag a viewport region and captures a real PNG with HiDPI-aware CSS-to-bitmap cropping. It temporarily hides its own control chrome, restores the previous presentation, and then applies persistent best-effort copy/download preferences.
+
+A successful capture leaves a persistent draggable thumbnail with native image right-click behavior and a dismiss control. Clicking it opens a larger viewer with Copy, Save, and Close actions; Escape/backdrop closes the viewer without discarding the thumbnail. Capture/output status is shown separately so an unavailable clipboard/download does not discard a valid image.
+
+Normal browsers use `getDisplayMedia()` with stream reuse. The first-party Chrome extension enables the plugin automatically and captures through `chrome.tabs.captureVisibleTab()` via its isolated-world bridge, avoiding the screen-share chooser and a broad `<all_urls>` permission.
+
+The typed screenshot service is available through the mounted plugin host under service id `screenshot`. It is not a context/delivery capability.
+
+Only automate the screenshot plugin itself when the task is specifically about that feature. Otherwise use the outer harness for task screenshots, and preserve an existing human screenshot preview.
+
+See [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md).
+
 ## 7. Edit through the normal project workflow
 
 After reading initial visual state, edit the real implementation using the project's normal tools.
 
-Do not mutate human guides, measurements, distances, annotations, or selection just to make evidence match the implementation.
+Do not mutate human guides, measurements, distances, annotations, selection, or screenshot preview/viewer state just to make evidence match the implementation.
 
 Let the normal dev server/HMR update the page. If the application must be relaunched, use the harness's ordinary flow.
 
@@ -394,15 +424,15 @@ A strong completion cites measurements actually observed, for example:
 
 If Mesurer is available and the affected rendered UI can be identified, finishing without fresh Mesurer context/review is a workflow failure.
 
-See [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md) and [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md).
+See [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md), [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md), and [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md).
 
 ## 11. Browser ownership boundary
 
-Mesurer does not provide or own:
+Mesurer does not provide or own the outer harness's general-purpose:
 
 - navigation;
 - clicking or typing in the host app;
-- screenshots;
+- task screenshots/artifact storage;
 - tabs/windows;
 - authentication/session management;
 - browser process lifetime;
@@ -413,13 +443,15 @@ Mesurer does not provide or own:
 
 Use the outer harness for those operations.
 
-Mesurer provides exact page inspection, programmatic selection, annotations/context/review, commands, plugin state/runtime management, and the interactive UI.
+Mesurer provides exact page inspection, programmatic selection, annotations/context/review, commands, plugin state/runtime management, the interactive UI, and—when explicitly enabled—the `mesurer.screenshot` human region-capture plugin. That plugin does not turn Mesurer into a browser driver or agent screenshot transport.
 
 ## 12. Host-page isolation rule
 
 Do not fix website-specific occlusion bugs with hostname checks or selectors for that website.
 
 The public mount boundary must defend against browser primitives. Current invariants include protected outer-host styles, ShadowRoot isolation, browser top-layer promotion, reassertion above later popovers/fullscreen changes, temporary reparenting into active modal dialogs, and a hardened fixed/max-z-index fallback.
+
+Plugin overlays/previews must obey the same isolation rules. Screenshot selection, status, thumbnail, and viewer UI must remain interactive without becoming host-page blockers, and screenshot capture must exclude Mesurer control chrome from pixels before restoring prior presentation.
 
 When a host-page bug appears, reduce it to the browser primitive, add a regression, and fix the shared mount boundary. See [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md).
 
@@ -452,6 +484,8 @@ builtin.settings
 
 Distance is currently an overlay capability and does not expose `builtin.distance`.
 
+Screenshot is intentionally **not** another permanent built-in. `screenshotPlugin()` contributes the camera tool through the normal plugin host.
+
 `window.__MESURER__.select(...)` is different from the `builtin.select` tool command: it is a context-layer agent helper that selects exact rendered targets and returns scoped context.
 
 ## 14. Advanced mounted instance
@@ -476,6 +510,8 @@ pluginHost.describe()
 pluginHost.undo()/redo()
 ```
 
+The optional screenshot service is resolved through the plugin host under service id `screenshot`; it is not added to the context global.
+
 Do not remove/replace plugins on a human's live review instance unless the task explicitly involves modifying Mesurer itself.
 
 ## 15. Plugin runtime
@@ -483,6 +519,8 @@ Do not remove/replace plugins on a human's live review instance unless the task 
 Plugins may register tools, commands, hooks, overlays, settings contributions, scoped state, services, and lifecycle cleanup. State slices may opt into history/persistence. Every registration belongs to its plugin and must disappear when that plugin is removed/replaced.
 
 Prefer plugins for project-specific Mesurer extensions. Modify core only when behavior is genuinely a shared platform capability.
+
+`mesurer.screenshot` is a first-party example of the same architecture: camera tool, settings, service, capture resource, preview/viewer UI, and cleanup all belong to the plugin rather than permanent core state.
 
 ## 16. Replacing a built-in
 
@@ -502,6 +540,8 @@ The public package does not expose private renderer workspace types. Request the
 
 Plugin service object values never enter history/persistence; `describe()` exposes service IDs only.
 
+Screenshot's region overlay, thumbnail, viewer, and status UI use renderer-owned mounts behind this opaque boundary. Public consumers import only `mesurer-solid/screenshot`.
+
 ## 18. Framework rules
 
 - Solid 1, Solid 2, React, Vue, Svelte, vanilla browser apps, and Electron renderer pages use the same public boundary.
@@ -518,11 +558,12 @@ One npm package is intended for users:
 ```text
 mesurer-solid
 mesurer-solid/core
+mesurer-solid/screenshot
 mesurer-solid/inject
 mesurer-solid/inject-script
 ```
 
-The root export contains the mount API, agent/context types, plugin helpers, and built-in plugin factories. `/core` is framework-neutral. `/inject` is the ES-module injector. `/inject-script` is the classic self-executing browser-evaluation payload.
+The root export contains the mount API, agent/context types, plugin helpers, and built-in plugin factories. `/core` is framework-neutral. `/screenshot` is the optional first-party screenshot plugin/service entry. `/inject` is the ES-module injector. `/inject-script` is the classic self-executing browser-evaluation payload.
 
 The published artifact includes `AGENT_INTEGRATION.md`, the portable Agent Skill, and its injector asset.
 
@@ -532,16 +573,19 @@ Internal workspaces are private implementation details:
 
 - framework-neutral core must not depend on Solid, React, another renderer, Electron, or browser globals;
 - DOM helpers own canonical browser measurements;
-- `packages/renderer` owns the private Solid 2 UI/reactive adapter;
+- `packages/renderer` owns the private Solid 2 UI/reactive adapter and renderer-aware screenshot UI implementation;
 - `packages/mesurer` owns the public package and injection artifacts;
 - built-in and external features use the same plugin host;
+- screenshot remains optional plugin state rather than permanent measurement-core state;
 - staged npm artifacts must not expose private workspace names or host runtime dependencies;
+- the staged package must expose a public-safe `./screenshot` JS/declaration entry;
 - default rendering must retain pinned upstream visual/behavioral parity gates;
 - agent integrations must not require Playwright or another transport when the outer harness already has page execution;
-- agent integrations must preserve a live human Mesurer instance by default;
+- agent integrations must preserve a live human Mesurer instance by default, including screenshot review state;
 - programmatic agent selection must use canonical renderer selection/measurement semantics and return structured context;
-- agent docs must teach context acquisition/consumption, not mere UI activation;
-- host-page occlusion fixes target browser primitives, not specific websites.
+- agent docs must teach context acquisition/consumption and the screenshot boundary, not mere UI activation;
+- host-page occlusion fixes target browser primitives, not specific websites;
+- screenshot capture/preview/viewer behavior remains covered by the dedicated browser contract.
 
 ## 21. Repository contribution instructions
 
@@ -561,21 +605,23 @@ bun run test
 bun run build
 ```
 
-For browser/package-boundary changes, inspect package-smoke, host-compatibility, browser-contract, and visual-parity workflows.
+For browser/package-boundary changes, inspect package-smoke, host-compatibility, browser-contract, screenshot-contract, and visual-parity workflows.
 
 When changing public behavior:
 
 1. update root/package README documentation when public capability/API changes;
 2. update this file, `packages/mesurer/AGENT_INTEGRATION.md`, and the canonical `mesurer-ui` skill when the agent contract changes;
-3. keep repository/package skill copies identical;
-4. preserve the one-package public contract unless intentionally redesigning it;
-5. keep built-in command names stable when replacing implementation details;
-6. add regression coverage for silent failure modes;
-7. reduce host compatibility bugs to browser primitives rather than site-specific patches;
-8. do not bypass pinned visual/interaction parity gates for default-renderer changes;
-9. preserve upstream Mesurer/Julien Thibeaut attribution and `THIRD_PARTY_LICENSES.md`;
-10. keep direct existing-harness integration ahead of source integration in agent-facing docs;
-11. when Mesurer agent selection/context semantics change, test both the returned context and visible/live selection state.
+3. keep repository/package skill copies byte-identical;
+4. for screenshot changes, update `docs/SCREENSHOTS.md`, `extension/README.md`, architecture/browser/context docs, and screenshot-contract expectations where relevant;
+5. preserve the one-package public contract unless intentionally redesigning it;
+6. keep built-in command names stable when replacing implementation details;
+7. add regression coverage for silent failure modes;
+8. reduce host compatibility bugs to browser primitives rather than site-specific patches;
+9. do not bypass pinned visual/interaction parity gates for default-renderer changes;
+10. preserve upstream Mesurer/Julien Thibeaut attribution and `THIRD_PARTY_LICENSES.md`;
+11. keep direct existing-harness integration ahead of source integration in agent-facing docs;
+12. when Mesurer agent selection/context semantics change, test both the returned context and visible/live selection state;
+13. before stable releases, ensure canonical docs use stable install commands and no longer present `@beta` as the default path.
 
 For releases, follow [`RELEASING.md`](./RELEASING.md). Do not manually edit public package versions, create release tags, or manually `npm publish` as a substitute for the release workflow.
 
@@ -593,5 +639,7 @@ existing rendered page
 window.__MESURER__
   ↳ context() / select() / review()
 ```
+
+The optional screenshot plugin adds a human camera tool on that same page; it does not change the direct agent transport model.
 
 **Context is the output.**
