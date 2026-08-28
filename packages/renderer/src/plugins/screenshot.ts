@@ -27,8 +27,6 @@ export const MESURER_SCREENSHOT_ACTIVE_STATE_ID = "mesurer.screenshot.active";
 
 const RUNTIME_SERVICE_ID = "runtime:solid";
 const SCREENSHOT_COMMAND = "screenshot.toggle";
-const SCREENSHOT_CAPTURE_COMMAND = "screenshot.capture";
-const SCREENSHOT_SETTINGS_COMMAND = "screenshot.settings";
 const ERROR_DURATION_MS = 2500;
 const DEFAULT_PREVIEW_DURATION_MS = 1800;
 
@@ -59,9 +57,10 @@ export type MesurerScreenshotService = {
 };
 
 type ScreenshotStateValue = {
+  [key: string]: PluginValue;
   copy: boolean;
   download: boolean;
-} & PluginValue;
+};
 
 type InlineStyleSnapshot = {
   value: string;
@@ -110,28 +109,6 @@ const readSettings = (
   };
 };
 
-const screenshotRectFromValue = (value: PluginValue | undefined): ScreenshotRect | null => {
-  if (!value || Array.isArray(value) || typeof value !== "object") return null;
-  const candidate = value as Record<string, PluginValue>;
-  const entries = [candidate.left, candidate.top, candidate.width, candidate.height];
-  if (!entries.every((entry) => typeof entry === "number" && Number.isFinite(entry))) return null;
-  return {
-    left: candidate.left as number,
-    top: candidate.top as number,
-    width: candidate.width as number,
-    height: candidate.height as number,
-  };
-};
-
-const settingsPatchFromValue = (value: PluginValue | undefined) => {
-  if (!value || Array.isArray(value) || typeof value !== "object") return {};
-  const candidate = value as Record<string, PluginValue>;
-  const patch: Partial<MesurerScreenshotSettings> = {};
-  if (typeof candidate.copy === "boolean") patch.copy = candidate.copy;
-  if (typeof candidate.download === "boolean") patch.download = candidate.download;
-  return patch;
-};
-
 export const screenshotPlugin = (
   options: MesurerScreenshotPluginOptions = {},
 ): MesurerPlugin => defineMesurerPlugin({
@@ -149,7 +126,7 @@ export const screenshotPlugin = (
     const captureVisibleTab = options.captureVisibleTab ?? captureVisibleTabPng;
     const previewDurationMs = options.previewDurationMs ?? DEFAULT_PREVIEW_DURATION_MS;
 
-    ctx.state.register({
+    ctx.state.register<ScreenshotStateValue>({
       id: MESURER_SCREENSHOT_SETTINGS_STATE_ID,
       initial: {
         copy: options.copy ?? true,
@@ -285,7 +262,6 @@ export const screenshotPlugin = (
     root.append(errorToast);
 
     let origin: { x: number; y: number } | null = null;
-    let selectionRect: ScreenshotRect | null = null;
     let toolbarVisibility: ToolbarVisibility | null = null;
     let previewUrl: string | null = null;
     let previewTimer = 0;
@@ -299,11 +275,12 @@ export const screenshotPlugin = (
     const settings = () => readSettings(ctx.state.get);
 
     const updateSettings = (patch: Partial<MesurerScreenshotSettings>) => {
-      ctx.state.update<ScreenshotStateValue>(MESURER_SCREENSHOT_SETTINGS_STATE_ID, (current) => ({
-        ...current,
-        ...(patch.copy === undefined ? {} : { copy: patch.copy }),
-        ...(patch.download === undefined ? {} : { download: patch.download }),
-      }));
+      ctx.state.update<ScreenshotStateValue>(MESURER_SCREENSHOT_SETTINGS_STATE_ID, (current) => {
+        const next: ScreenshotStateValue = { ...current };
+        if (patch.copy !== undefined) next.copy = patch.copy;
+        if (patch.download !== undefined) next.download = patch.download;
+        return next;
+      });
     };
 
     const setActive = (value: boolean) => {
@@ -346,7 +323,6 @@ export const screenshotPlugin = (
     };
 
     const renderSelection = (rect: ScreenshotRect | null) => {
-      selectionRect = rect;
       const viewportWidth = ownerWindow.innerWidth;
       const viewportHeight = ownerWindow.innerHeight;
       if (!rect || rect.width <= 0 || rect.height <= 0) {
@@ -458,8 +434,7 @@ export const screenshotPlugin = (
         let copied = false;
         let downloaded = false;
         const copyResult = currentSettings.copy
-          ? copyPngToClipboard(Promise.resolve(cropped), ownerWindow)
-              .then(() => { copied = true; })
+          ? copyPngToClipboard(Promise.resolve(cropped), ownerWindow).then(() => { copied = true; })
           : Promise.resolve();
         const downloadResult = currentSettings.download
           ? Promise.resolve().then(() => {
@@ -470,14 +445,12 @@ export const screenshotPlugin = (
         const results = await Promise.allSettled([copyResult, downloadResult]);
         const copyFailed = currentSettings.copy && results[0]?.status === "rejected";
         const downloadFailed = currentSettings.download && results[1]?.status === "rejected";
-        if (
-          (copyFailed && !currentSettings.download)
+        const noSuccessfulFallback = (copyFailed && !currentSettings.download)
           || (downloadFailed && !currentSettings.copy)
-          || (copyFailed && downloadFailed)
-        ) {
-          throw new Error("Could not save screenshot");
-        }
+          || (copyFailed && downloadFailed);
+        if (noSuccessfulFallback) throw new Error("Could not save screenshot");
         if (operation !== operationId) throw new Error("Screenshot capture was cancelled.");
+
         showPreview(cropped);
         await ctx.hook.emit("screenshot:capture", {
           rect: { ...rect },
@@ -513,8 +486,8 @@ export const screenshotPlugin = (
         overlay.style.display = "block";
         setActive(true);
       } catch (cause) {
-        const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;
-        if (!(cause instanceof DOMExceptionCtor && cause.name === "AbortError")) flashError();
+        const aborted = cause instanceof Error && cause.name === "AbortError";
+        if (!aborted) flashError();
         throw cause;
       } finally {
         preparing = false;
@@ -607,14 +580,6 @@ export const screenshotPlugin = (
       order: 40,
     });
     ctx.command.register(SCREENSHOT_COMMAND, start);
-    ctx.command.register(SCREENSHOT_CAPTURE_COMMAND, async (value) => {
-      const rect = screenshotRectFromValue(value);
-      if (!rect) throw new Error("screenshot.capture requires left, top, width, and height numbers.");
-      await capture(rect);
-    });
-    ctx.command.register(SCREENSHOT_SETTINGS_COMMAND, (value) => {
-      updateSettings(settingsPatchFromValue(value));
-    });
     ctx.service.provide(MESURER_SCREENSHOT_SERVICE_ID, service);
     ctx.lifecycle.onDispose(() => {
       disposed = true;
