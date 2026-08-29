@@ -1,5 +1,5 @@
 import { render } from "@solidjs/web";
-import { Measurer } from "../src/index";
+import { Mesurer } from "../src/index";
 
 const existing = document.querySelector<HTMLElement>("[data-mesurer-hope-ui-showcase]");
 if (!existing) {
@@ -9,7 +9,7 @@ if (!existing) {
 
   render(
     () => (
-      <Measurer
+      <Mesurer
         persistOnReload={false}
         persistKey="mesurer-hope-ui-showcase"
       />
