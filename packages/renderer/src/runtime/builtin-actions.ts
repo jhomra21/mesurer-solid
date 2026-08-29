@@ -1,31 +1,31 @@
 import type { ToolMode } from "@jhomra21/mesurer-solid-core";
 import { formatColor, parseCssColor } from "../core/colors";
-import type { MeasurerModel } from "../model/create-measurer-model";
+import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
 
 type EyeDropperResult = { sRGBHex: string };
 type EyeDropperLike = { open: () => Promise<EyeDropperResult> };
 type WindowWithEyeDropper = Window & { EyeDropper?: new () => EyeDropperLike };
 
-export type MeasurerBuiltinController = {
+export type MesurerBuiltinController = {
   run(id: Exclude<MesurerBuiltinPluginId, "distance">): Promise<void>;
   deactivate(id: MesurerBuiltinPluginId): void;
 };
 
-const activateMode = (model: MeasurerModel, mode: ToolMode) => {
+const activateMode = (model: MesurerModel, mode: ToolMode) => {
   model.setEnabled(true, !model.current.enabled);
   model.setTransient({ colorPickerActive: false, toolbarActive: true });
   model.toggleToolMode(mode);
 };
 
-const settingsTab = (model: MeasurerModel) =>
+const settingsTab = (model: MesurerModel) =>
   model.current.colorPickerActive ? "color-picker" as const
     : model.current.rulersVisible ? "rulers" as const
       : model.current.toolMode === "guides" ? "guides" as const
         : model.current.toolMode === "select" || model.current.toolMode === "text-inspector" ? "select" as const
           : "general" as const;
 
-const openColorPicker = async (model: MeasurerModel, ownerWindow: Window) => {
+const openColorPicker = async (model: MesurerModel, ownerWindow: Window) => {
   model.setEnabled(true, !model.current.enabled);
   model.setToolMode("none", model.current.toolMode !== "none");
   // SAFETY: EyeDropper is an optional browser Window extension and is existence-checked before construction.
@@ -49,10 +49,10 @@ const openColorPicker = async (model: MeasurerModel, ownerWindow: Window) => {
   }
 };
 
-export function createMeasurerBuiltinController(options: {
-  model: MeasurerModel;
+export function createMesurerBuiltinController(options: {
+  model: MesurerModel;
   ownerWindow: Window;
-}): MeasurerBuiltinController {
+}): MesurerBuiltinController {
   const { model, ownerWindow } = options;
 
   return {
