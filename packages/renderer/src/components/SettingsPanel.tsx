@@ -26,7 +26,7 @@ function ControlShell(props: { left: any; right: any }) {
 
 function SettingsSwitch(props: { label: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <button type="button" role="switch" aria-checked={props.checked ? "true" : "false"} disabled={props.disabled} class="msr:col-span-2 msr:flex msr:h-6 msr:w-full msr:appearance-none msr:items-center msr:justify-between msr:gap-3 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45" onClick={() => props.onChange(!props.checked)}>
+    <button type="button" role="switch" aria-checked={props.checked ? "true" : "false"} disabled={props.disabled} class="msr:col-span-2 msr:grid msr:h-6 msr:w-full msr:appearance-none msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45" onClick={() => props.onChange(!props.checked)}>
       <span>{props.label}</span>
       <span aria-hidden="true" style={{ "justify-self": "end" }} data-checked={props.checked ? "true" : undefined} class={`mesurer-switch-track msr:flex msr:h-[14px] msr:w-[26px] msr:shrink-0 msr:items-center msr:rounded-full msr:border msr:p-px msr:transition-colors ${props.checked ? "msr:border-[#0d99ff] msr:bg-[#0d99ff]" : "msr:border-ink-200 msr:bg-ink-50"}`}>
         <span class="msr:block msr:size-[10px] msr:shrink-0 msr:rounded-full msr:bg-white msr:shadow-sm msr:transition-transform" style={{ transform: `translateX(${props.checked ? 12 : 0}px)` }} />
@@ -85,8 +85,8 @@ function SliderControl(props: {
             onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
             onPointerCancel={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
           >
-            <div class="msr:absolute msr:left-[8px] msr:right-[8px] msr:rounded-full" style={{ top: "9px", height: "2px", "background-color": "rgba(15, 23, 42, 0.16)" }} />
-            <div class="msr:absolute msr:left-[8px] msr:rounded-full" style={{ top: "9px", width: `calc(${percentage()}% - ${percentage() * 0.16}px)`, height: "2px", "background-color": "#0d99ff" }} />
+            <div class="msr:absolute msr:left-[8px] msr:right-[8px] msr:rounded-full" style={{ top: "8px", height: "4px", "background-color": "rgba(15, 23, 42, 0.16)" }} />
+            <div class="msr:absolute msr:left-[8px] msr:rounded-full" style={{ top: "8px", width: `calc(${percentage()}% - ${percentage() * 0.16}px)`, height: "4px", "background-color": "#0d99ff" }} />
             <div
               class="msr:absolute msr:rounded-[5px] msr:bg-white msr:shadow-sm msr:outline-none msr:focus-visible:ring-1 msr:focus-visible:ring-[#0d99ff]/25"
               style={{ left: `calc(8px + (100% - 16px) * ${percentage() / 100})`, top: "4px", width: "12px", height: "12px", transform: "translateX(-50%)" }}
