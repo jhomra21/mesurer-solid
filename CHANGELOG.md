@@ -6,6 +6,13 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.1.1 - 2026-08-29
+
+- Keep plugin-contributed Settings toggle labels on one line in compact rows, and make the Screenshot toolbar camera icon match the original Mesurer visual.
+- Fix plugin-contributed Settings persistence when no explicit `persistKey` is provided, make **Use defaults** reset and persist plugin controls to their mount-time defaults, and report the public package version consistently in Settings, `MESURER_VERSION`, and official Mesurer plugin metadata.
+- Add generic plugin-contributed toggle controls under Settings → General → Plugins, including persisted Context and Screenshot controls for tool visibility, screenshot auto-copy/auto-download, and whether captures include measurement presentation.
+- Add the optional `mesurer-solid/screenshot` plugin with drag-to-select visible-tab capture, HiDPI-aware PNG cropping, best-effort automatic clipboard copy and local download outputs, persisted output settings, a persistent draggable preview with native image actions and click-to-open Copy/Save viewer, capture-status feedback, and a no-prompt Chrome extension capture bridge with `getDisplayMedia()` fallback for normal browser hosts.
+
 ## 0.1.1-beta.3 - 2026-08-29
 
 - Keep plugin-contributed Settings toggle labels on one line in compact rows, and make the Screenshot toolbar camera icon match the original Mesurer visual.
