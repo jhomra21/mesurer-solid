@@ -5,9 +5,9 @@ import {
   type Guide,
   type InspectMeasurement,
   type Measurement,
-  type MeasurerModelOptions,
-  type MeasurerModelState,
-  type MeasurerSettings,
+  type MesurerModelOptions,
+  type MesurerModelState,
+  type MesurerSettings,
   type MesurerStoredSettings,
   type MesurerStoredWorkspace,
   type Rect,
@@ -16,7 +16,7 @@ import {
 import { createObservableStore } from "./store";
 
 type HistorySnapshot<ElementRef> = Pick<
-  MeasurerModelState<ElementRef>,
+  MesurerModelState<ElementRef>,
   | "enabled"
   | "toolMode"
   | "guideOrientation"
@@ -32,7 +32,7 @@ type HistorySnapshot<ElementRef> = Pick<
 
 const HISTORY_LIMIT = 50;
 
-export const DEFAULT_MEASURER_SETTINGS: MeasurerSettings = {
+export const DEFAULT_MESURER_SETTINGS: MesurerSettings = {
   highlightColor: "oklch(0.62 0.18 255)",
   guideColor: "oklch(0.63 0.26 29.23)",
   hoverHighlightEnabled: true,
@@ -47,14 +47,14 @@ export const DEFAULT_MEASURER_SETTINGS: MeasurerSettings = {
   rulerSettings: { ...DEFAULT_RULER_SETTINGS },
 };
 
-const cloneSettings = (settings: MeasurerSettings): MeasurerSettings => ({
+const cloneSettings = (settings: MesurerSettings): MesurerSettings => ({
   ...settings,
   colorPickerFormats: [...settings.colorPickerFormats],
   guideStyle: { ...settings.guideStyle },
   rulerSettings: { ...settings.rulerSettings },
 });
 
-const cloneState = <ElementRef>(current: MeasurerModelState<ElementRef>): MeasurerModelState<ElementRef> => ({
+const cloneState = <ElementRef>(current: MesurerModelState<ElementRef>): MesurerModelState<ElementRef> => ({
   ...current,
   start: current.start ? { ...current.start } : null,
   end: current.end ? { ...current.end } : null,
@@ -78,8 +78,8 @@ const stripDistance = <ElementRef>(distance: DistanceOverlay<ElementRef>): Dista
   elementRefB: undefined,
 });
 
-export function createMeasurerModelCore<ElementRef = unknown>(options: MeasurerModelOptions = {}) {
-  const defaults = DEFAULT_MEASURER_SETTINGS;
+export function createMesurerModelCore<ElementRef = unknown>(options: MesurerModelOptions = {}) {
+  const defaults = DEFAULT_MESURER_SETTINGS;
   const baseSettings = cloneSettings({
     ...defaults,
     ...options.settings,
@@ -90,7 +90,7 @@ export function createMeasurerModelCore<ElementRef = unknown>(options: MeasurerM
     rulerSettings: { ...defaults.rulerSettings, ...options.settings?.rulerSettings },
   });
 
-  const initial: MeasurerModelState<ElementRef> = {
+  const initial: MesurerModelState<ElementRef> = {
     enabled: options.initialEnabled ?? true,
     toolMode: options.initialToolMode ?? "none",
     rulersVisible: false,
@@ -271,7 +271,7 @@ export function createMeasurerModelCore<ElementRef = unknown>(options: MeasurerM
     mutate((draft) => { draft.guideOrientation = orientation; });
   };
 
-  const initialSettingsTab = (value: MeasurerModelState<ElementRef>) =>
+  const initialSettingsTab = (value: MesurerModelState<ElementRef>) =>
     value.colorPickerActive
       ? "color-picker" as const
       : value.rulersVisible
@@ -282,7 +282,7 @@ export function createMeasurerModelCore<ElementRef = unknown>(options: MeasurerM
             ? "select" as const
             : "general" as const;
 
-  type TransientState = Pick<MeasurerModelState<ElementRef>,
+  type TransientState = Pick<MesurerModelState<ElementRef>,
     "altPressed" | "start" | "end" | "isDragging" | "selectionOriginRect" |
     "hoverRect" | "hoverElement" | "hoverPointer" | "draggingGuideId" | "guidePreview" |
     "toolbarActive" | "settingsOpen" | "settingsTab" | "colorPickerActive" |
@@ -327,7 +327,7 @@ export function createMeasurerModelCore<ElementRef = unknown>(options: MeasurerM
     mutate((draft) => { draft.heldDistances = draft.heldDistances.filter((distance) => distance.id !== id); });
   };
 
-  const updateSettings = (patch: Partial<MeasurerSettings>) => mutate((draft) => {
+  const updateSettings = (patch: Partial<MesurerSettings>) => mutate((draft) => {
     draft.settings = cloneSettings({
       ...draft.settings,
       ...patch,
@@ -388,7 +388,7 @@ export function createMeasurerModelCore<ElementRef = unknown>(options: MeasurerM
   };
 
   const applyStoredSettings = (stored: MesurerStoredSettings) => {
-    const patch: Partial<MeasurerSettings> = {};
+    const patch: Partial<MesurerSettings> = {};
     if (stored.highlightColor !== undefined) patch.highlightColor = stored.highlightColor;
     if (stored.guideColor !== undefined) patch.guideColor = stored.guideColor;
     if (stored.hoverHighlightEnabled !== undefined) patch.hoverHighlightEnabled = stored.hoverHighlightEnabled;
@@ -491,4 +491,4 @@ export function createMeasurerModelCore<ElementRef = unknown>(options: MeasurerM
   };
 }
 
-export type MeasurerCoreModel<ElementRef = unknown> = ReturnType<typeof createMeasurerModelCore<ElementRef>>;
+export type MesurerCoreModel<ElementRef = unknown> = ReturnType<typeof createMesurerModelCore<ElementRef>>;
