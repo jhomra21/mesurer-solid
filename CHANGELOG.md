@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Fix plugin-contributed Settings persistence when no explicit `persistKey` is provided, make **Use defaults** reset and persist plugin controls to their mount-time defaults, and report the public package version consistently in Settings, `MESURER_VERSION`, and official Mesurer plugin metadata.
 
 ## 0.1.1-beta.1 - 2026-08-29
 
