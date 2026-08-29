@@ -1,14 +1,14 @@
 import {
   contextPlugin,
-  mountMeasurer,
-  type MountedMeasurer,
+  mountMesurer,
+  type MountedMesurer,
 } from "../../../packages/mesurer/src/index";
 
 type SelfHostingHarness = {
-  subject: MountedMeasurer;
-  observer: MountedMeasurer | null;
-  mountObserver(): Promise<MountedMeasurer>;
-  moveToolbar(instance: MountedMeasurer, left: number, top: number): void;
+  subject: MountedMesurer;
+  observer: MountedMesurer | null;
+  mountObserver(): Promise<MountedMesurer>;
+  moveToolbar(instance: MountedMesurer, left: number, top: number): void;
   setReport(lines: string[]): void;
 };
 
@@ -18,14 +18,14 @@ declare global {
   }
 }
 
-const moveToolbar = (instance: MountedMeasurer, left: number, top: number) => {
+const moveToolbar = (instance: MountedMesurer, left: number, top: number) => {
   const toolbar = instance.element.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
   if (!toolbar) throw new Error("Mesurer toolbar did not mount.");
   toolbar.style.left = `${left}px`;
   toolbar.style.top = `${top}px`;
 };
 
-const subject = mountMeasurer({
+const subject = mountMesurer({
   target: document.body,
   isolate: false,
   topLayer: false,
@@ -37,7 +37,7 @@ const subject = mountMeasurer({
 await subject.ready;
 moveToolbar(subject, 72, 240);
 
-let observer: MountedMeasurer | null = null;
+let observer: MountedMesurer | null = null;
 
 const setReport = (lines: string[]) => {
   document.querySelector("[data-self-host-report]")?.remove();
@@ -64,7 +64,7 @@ const harness: SelfHostingHarness = {
   setReport,
   async mountObserver() {
     if (observer) return observer;
-    observer = mountMeasurer({
+    observer = mountMesurer({
       target: document.body,
       isolate: false,
       topLayer: false,
