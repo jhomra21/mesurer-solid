@@ -1,5 +1,5 @@
 export {
-  DEFAULT_MEASURER_SETTINGS as DEFAULT_MESURER_SETTINGS,
-  createMeasurerModelCore as createMesurerModelCore,
+  DEFAULT_MESURER_SETTINGS,
+  createMesurerModelCore,
 } from "./model";
-export type { MeasurerCoreModel as MesurerCoreModel } from "./model";
+export type { MesurerCoreModel } from "./model";
