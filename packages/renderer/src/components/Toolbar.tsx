@@ -1,7 +1,7 @@
 import { For, Show, createSignal, onSettled } from "solid-js";
 import type { ToolContribution } from "@jhomra21/mesurer-solid-core";
 import type { SelectionSpacingStyle } from "../core/persistence";
-import type { MeasurerModel } from "../model/create-measurer-model";
+import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
 import { SettingsPanel } from "./SettingsPanel";
 import { Tooltip, createTooltip } from "./Tooltip";
@@ -19,7 +19,7 @@ import {
 } from "./Icons";
 
 export type ToolbarProps = {
-  model: MeasurerModel;
+  model: MesurerModel;
   ownerWindow: Window;
   onBuiltinAction: (id: Exclude<MesurerBuiltinPluginId, "distance">) => void;
   pluginTools?: ToolContribution[];
