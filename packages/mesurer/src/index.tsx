@@ -1,6 +1,6 @@
 import { render } from "@solidjs/web";
 import {
-  Measurer as RendererMeasurer,
+  Mesurer as RendererMesurer,
   colorPickerPlugin as rendererColorPickerPlugin,
   composeMesurerPlugins as rendererComposeMesurerPlugins,
   defaultMesurerPlugins as rendererDefaultMesurerPlugins,
@@ -11,7 +11,7 @@ import {
   settingsPlugin as rendererSettingsPlugin,
   textInspectorPlugin as rendererTextInspectorPlugin,
   xrayPlugin as rendererXrayPlugin,
-  type MeasurerProps as RendererMeasurerProps,
+  type MesurerProps as RendererMesurerProps,
 } from "@jhomra21/mesurer-solid-renderer";
 import { createMesurerAgentHarness, type MesurerAgentHarness } from "./agent";
 import type {
@@ -113,7 +113,7 @@ export type MesurerOptions = {
   onPluginsReady?: (host: MesurerPluginHost) => void;
   onPluginError?: (cause: unknown, pluginId: string) => void;
 };
-export type MountMeasurerOptions = MesurerOptions & {
+export type MountMesurerOptions = MesurerOptions & {
   target?: HTMLElement | ShadowRoot;
   isolate?: boolean;
   shadowMode?: ShadowRootMode;
@@ -144,7 +144,7 @@ export type MesurerContextHarness = {
   finishCapture(): Promise<void>;
 };
 export type MesurerBrowserAgent = MesurerAgentHarness & MesurerContextHarness;
-export type MountedMeasurer = {
+export type MountedMesurer = {
   element: HTMLDivElement;
   root: HTMLDivElement | ShadowRoot;
   readonly hostLayer: MesurerHostLayerMode;
@@ -165,9 +165,9 @@ export type MountedMeasurer = {
   dispose(): void;
 };
 
-export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasurer {
+export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer {
   if (!("document" in globalThis)) {
-    throw new Error("mountMeasurer() requires a browser or Electron renderer document.");
+    throw new Error("mountMesurer() requires a browser or Electron renderer document.");
   }
 
   const {
@@ -178,7 +178,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     agent: agentOption = false,
     onPluginHost,
     onPluginsReady,
-    ...measurerProps
+    ...mesurerProps
   } = options;
   const ownerDocument = target.ownerDocument ?? document;
   const ownerWindow = ownerDocument.defaultView ?? window;
@@ -269,10 +269,10 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     finishCapture,
   });
 
-  const rendererProps: RendererMeasurerProps = { ...measurerProps, version: MESURER_VERSION };
+  const rendererProps: RendererMesurerProps = { ...mesurerProps, version: MESURER_VERSION };
   const disposeRender = render(
     () => (
-      <RendererMeasurer
+      <RendererMesurer
         {...rendererProps}
         portalTarget={portalTarget}
         pageTarget={target}
@@ -339,6 +339,13 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     },
   };
 }
+
+/** @deprecated Use `MountMesurerOptions`. */
+export type MountMeasurerOptions = MountMesurerOptions;
+/** @deprecated Use `MountedMesurer`. */
+export type MountedMeasurer = MountedMesurer;
+/** @deprecated Use `mountMesurer()`. */
+export const mountMeasurer = mountMesurer;
 
 export { createMesurerAgentHarness } from "./agent";
 export { MESURER_VERSION } from "./version";
