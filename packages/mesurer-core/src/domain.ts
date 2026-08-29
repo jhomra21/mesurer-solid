@@ -131,10 +131,3 @@ export type MesurerModelState<ElementRef = unknown> = {
   guidePreview: GuidePreview | null;
   settings: MesurerSettings;
 };
-
-/** @deprecated Use `MesurerSettings`. */
-export type MeasurerSettings = MesurerSettings;
-/** @deprecated Use `MesurerModelOptions`. */
-export type MeasurerModelOptions = MesurerModelOptions;
-/** @deprecated Use `MesurerModelState`. */
-export type MeasurerModelState<ElementRef = unknown> = MesurerModelState<ElementRef>;
