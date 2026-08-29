@@ -26,6 +26,24 @@ export {
 } from "./plugins/builtins";
 export type { MesurerBuiltinPluginId } from "./plugins/builtins";
 export {
+  MESURER_ARRANGE_ACTIVE_STATE_ID,
+  MESURER_ARRANGE_PLUGIN_ID,
+  MESURER_ARRANGE_SERVICE_ID,
+  MESURER_ARRANGE_STATE_ID,
+  arrangePlugin,
+} from "./plugins/arrange";
+export type {
+  ArrangeCapturePlan,
+  ArrangeIntent,
+  ArrangeOffset,
+  ArrangePresentation,
+  ArrangeRect,
+  ArrangeReview,
+  ArrangeReviewTarget,
+  ArrangeTarget,
+  MesurerArrangeService,
+} from "./plugins/arrange";
+export {
   MESURER_SCREENSHOT_ACTIVE_STATE_ID,
   MESURER_SCREENSHOT_PLUGIN_ID,
   MESURER_SCREENSHOT_SERVICE_ID,
