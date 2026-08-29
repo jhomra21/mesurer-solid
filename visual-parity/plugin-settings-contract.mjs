@@ -38,6 +38,25 @@ const waitForTool = async (id, visible) => {
     return isVisible === visible;
   }, { id, visible });
 };
+const assertReleaseMetadata = async (dialog) => {
+  const metadata = await page.evaluate(() => {
+    const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
+    if (!harness) return null;
+    return {
+      expected: harness.version,
+      officialPlugins: harness.subject.describe()?.plugins
+        .filter((plugin) => plugin.id.startsWith("mesurer."))
+        .map((plugin) => ({ id: plugin.id, version: plugin.version })) ?? [],
+    };
+  });
+  if (!metadata) throw new Error("Plugin settings release metadata unavailable");
+  await dialog.getByText(metadata.expected, { exact: true }).waitFor({ state: "visible" });
+  const mismatches = metadata.officialPlugins.filter((plugin) => plugin.version !== metadata.expected);
+  if (mismatches.length) {
+    throw new Error(`Official plugin versions did not match ${metadata.expected}: ${JSON.stringify(mismatches)}`);
+  }
+  return metadata;
+};
 
 try {
   await page.goto(`${baseUrl}?reset=1`, { waitUntil: "domcontentloaded" });
@@ -60,6 +79,7 @@ try {
   });
 
   let dialog = await openSettings();
+  const releaseMetadata = await assertReleaseMetadata(dialog);
   const contextSection = dialog.locator("[data-mesurer-plugin-settings-section='context']");
   const screenshotSection = dialog.locator("[data-mesurer-plugin-settings-section='screenshot']");
   await contextSection.waitFor({ state: "visible" });
@@ -134,7 +154,7 @@ try {
     throw new Error(`Screenshot selection chrome leaked into programmatic capture: ${JSON.stringify(evidenceCapture)}`);
   }
 
-  // Persist a non-default combination and prove runtime behavior is re-applied after reload.
+  // Persist a non-default combination with no explicit persistKey and prove runtime behavior is re-applied after reload.
   await autoCopy.click();
   await autoDownload.click();
   await page.waitForTimeout(100);
@@ -142,6 +162,7 @@ try {
   await page.waitForFunction(() => Boolean(window.__MESURER_PLUGIN_SETTINGS_TEST__));
 
   dialog = await openSettings();
+  await assertReleaseMetadata(dialog);
   const persistedContextTools = switchByName(dialog, "Context tools");
   const persistedScreenshotTool = switchByName(dialog, "Screenshot tool");
   const persistedAutoCopy = switchByName(dialog, "Auto-copy");
@@ -168,14 +189,31 @@ try {
     throw new Error(`Plugin services did not survive persisted UI disable: ${JSON.stringify(servicesAfterReload)}`);
   }
 
-  await persistedContextTools.click();
-  await persistedScreenshotTool.click();
+  // Reset both renderer and plugin-contributed settings, then prove the plugin defaults survive another reload.
+  await dialog.getByRole("button", { name: "Reset settings to defaults" }).click();
+  await expectChecked(persistedContextTools, true, "Default Context tools");
+  await expectChecked(persistedScreenshotTool, true, "Default Screenshot tool");
+  await expectChecked(persistedAutoCopy, false, "Default Auto-copy");
+  await expectChecked(persistedAutoDownload, false, "Default Auto-download");
+  await expectChecked(persistedMeasurements, false, "Default Include measurements");
+  await waitForTool("context.copy", true);
+  await waitForTool("screenshot", true);
+  await page.waitForTimeout(100);
+
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => Boolean(window.__MESURER_PLUGIN_SETTINGS_TEST__));
+  dialog = await openSettings();
+  await expectChecked(switchByName(dialog, "Context tools"), true, "Reset Context tools after reload");
+  await expectChecked(switchByName(dialog, "Screenshot tool"), true, "Reset Screenshot tool after reload");
+  await expectChecked(switchByName(dialog, "Auto-copy"), false, "Reset Auto-copy after reload");
+  await expectChecked(switchByName(dialog, "Auto-download"), false, "Reset Auto-download after reload");
+  await expectChecked(switchByName(dialog, "Include measurements"), false, "Reset Include measurements after reload");
   await waitForTool("context.copy", true);
   await waitForTool("screenshot", true);
 
   if (errors.length) throw new Error(`Plugin settings browser errors:\n${errors.join("\n")}`);
   console.log("Plugin settings browser contract: PASS");
-  console.log(JSON.stringify({ cleanCapture, evidenceCapture, servicesAfterReload }, null, 2));
+  console.log(JSON.stringify({ cleanCapture, evidenceCapture, servicesAfterReload, releaseMetadata }, null, 2));
 } finally {
   await page.close();
   await browser.close();
