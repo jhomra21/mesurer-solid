@@ -18,7 +18,7 @@ Mesurer Solid tracks the product behavior of [`ibelick/mesurer`](https://github.
 | Chrome visible-tab capture | Implemented | Extension-only capture bridge; no new broad host permission |
 | Screenshot copy/download settings | Implemented as persistent plugin state and service options | Keep feature-local instead of adding fields to the core measurement model |
 | Screenshot preview | Implemented and extended beyond upstream | Persistent draggable thumbnail, bottom-right 8px default placement, viewport clamping, native image context menu, dismiss control, click-to-open viewer, Copy/Save/Close controls, and capture-status toast |
-| Public React `Measurer` -> `Mesurer` rename | Not applicable | Solid public package is already `mesurer-solid` and its stable mount/plugin contract is framework-agnostic |
+| Canonical `Mesurer` product naming | Implemented | Public APIs and examples use `Mesurer` / `mountMesurer()`; the 0.1.1 `Measurer` spellings remain only as deprecated compatibility aliases |
 | Settings/guides/rulers/isolation refinements | Already covered or independently exceeded by current Solid implementation | Validate behavior rather than porting React hook/refactor structure |
 | Arrow/text annotation experiment | Not current upstream behavior | Do not port; upstream added and then reverted it |
 | Site/analytics/footer/build changes | Not library parity | Do not port |
