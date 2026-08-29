@@ -6,7 +6,9 @@ import type {
 
 export type MesurerPluginSettingsRuntime = {
   sections: Accessor<SettingsContribution[]>;
+  version: Accessor<string>;
   update(sectionId: string, control: SettingsToggleContribution, value: boolean): void;
+  reset(): void;
 };
 
 const PluginSettingsContext = createContext<MesurerPluginSettingsRuntime | null>(null);

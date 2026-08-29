@@ -15,6 +15,7 @@ import {
   waitForNextPaint as rendererWaitForNextPaint,
 } from "@jhomra21/mesurer-solid-renderer";
 import type { MesurerPlugin } from "./core";
+import { MESURER_VERSION } from "./version";
 
 export type ScreenshotRect = {
   left: number;
@@ -99,7 +100,7 @@ export const releaseScreenshotCapture = (ownerWindow: Window): void =>
 
 export const screenshotPlugin = (
   options: MesurerScreenshotPluginOptions = {},
-): MesurerPlugin => rendererScreenshotPlugin(options);
+): MesurerPlugin => ({ ...rendererScreenshotPlugin(options), version: MESURER_VERSION });
 
 export const waitForNextPaint = (ownerWindow: Window): Promise<void> =>
   rendererWaitForNextPaint(ownerWindow);

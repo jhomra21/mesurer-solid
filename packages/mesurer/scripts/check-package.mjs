@@ -55,6 +55,11 @@ for (const file of [
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
 
+const publishedRoot = await import(new URL("../dist/index.js", import.meta.url));
+if (publishedRoot.MESURER_VERSION !== packageJson.version) {
+  throw new Error(`Published MESURER_VERSION ${publishedRoot.MESURER_VERSION ?? "<missing>"} does not match package version ${packageJson.version}.`);
+}
+
 const rootDeclarations = readFileSync(new URL("index.d.ts", dist), "utf8");
 if (!contextReturningSelectPattern.test(rootDeclarations)) {
   throw new Error("Published declarations must expose select(string | string[]) returning Promise<MesurerContextV1>.");

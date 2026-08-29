@@ -27,6 +27,7 @@ import {
 } from "./context-plugin";
 import type { MesurerPlugin, MesurerPluginDescription, MesurerPluginHost } from "./core";
 import { mountMesurerHost, type MesurerHostLayerMode } from "./host-layer";
+import { MESURER_VERSION } from "./version";
 
 export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 export type MesurerBuiltinPluginId = "select" | "xray" | "color-picker" | "rulers" | "text-inspector" | "guides" | "distance" | "settings";
@@ -268,7 +269,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
     finishCapture,
   });
 
-  const rendererProps: RendererMeasurerProps = measurerProps;
+  const rendererProps: RendererMeasurerProps = { ...measurerProps, version: MESURER_VERSION };
   const disposeRender = render(
     () => (
       <RendererMeasurer
@@ -340,6 +341,7 @@ export function mountMeasurer(options: MountMeasurerOptions = {}): MountedMeasur
 }
 
 export { createMesurerAgentHarness } from "./agent";
+export { MESURER_VERSION } from "./version";
 export type {
   AgentDistance,
   AgentEdges,
@@ -401,16 +403,19 @@ export type {
 } from "./core";
 export type { MesurerHostLayerMode } from "./host-layer";
 
-export const selectPlugin: () => MesurerPlugin = rendererSelectPlugin;
-export const xrayPlugin: () => MesurerPlugin = rendererXrayPlugin;
-export const colorPickerPlugin: () => MesurerPlugin = rendererColorPickerPlugin;
-export const rulersPlugin: () => MesurerPlugin = rendererRulersPlugin;
-export const textInspectorPlugin: () => MesurerPlugin = rendererTextInspectorPlugin;
-export const guidesPlugin: () => MesurerPlugin = rendererGuidesPlugin;
-export const distancePlugin: () => MesurerPlugin = rendererDistancePlugin;
-export const settingsPlugin: () => MesurerPlugin = rendererSettingsPlugin;
-export const defaultMesurerPlugins: () => MesurerPlugin[] = rendererDefaultMesurerPlugins;
-export const composeMesurerPlugins: (
-  plugins?: MesurerPlugin[],
-  exclude?: MesurerBuiltinPluginId[],
-) => MesurerPlugin[] = rendererComposeMesurerPlugins;
+const withPackageVersion = (plugin: MesurerPlugin): MesurerPlugin => ({ ...plugin, version: MESURER_VERSION });
+export const selectPlugin = (): MesurerPlugin => withPackageVersion(rendererSelectPlugin());
+export const xrayPlugin = (): MesurerPlugin => withPackageVersion(rendererXrayPlugin());
+export const colorPickerPlugin = (): MesurerPlugin => withPackageVersion(rendererColorPickerPlugin());
+export const rulersPlugin = (): MesurerPlugin => withPackageVersion(rendererRulersPlugin());
+export const textInspectorPlugin = (): MesurerPlugin => withPackageVersion(rendererTextInspectorPlugin());
+export const guidesPlugin = (): MesurerPlugin => withPackageVersion(rendererGuidesPlugin());
+export const distancePlugin = (): MesurerPlugin => withPackageVersion(rendererDistancePlugin());
+export const settingsPlugin = (): MesurerPlugin => withPackageVersion(rendererSettingsPlugin());
+export const defaultMesurerPlugins = (): MesurerPlugin[] => rendererDefaultMesurerPlugins().map(withPackageVersion);
+export const composeMesurerPlugins = (
+  plugins: MesurerPlugin[] = [],
+  exclude: MesurerBuiltinPluginId[] = [],
+): MesurerPlugin[] => rendererComposeMesurerPlugins(plugins, exclude).map((plugin) =>
+  plugin.id.startsWith("mesurer.") ? withPackageVersion(plugin) : plugin,
+);

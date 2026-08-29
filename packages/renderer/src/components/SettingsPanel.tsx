@@ -204,6 +204,11 @@ export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window
   const patternTooltip = createTooltip(props.ownerWindow);
   const pluginSettings = useMesurerPluginSettings();
   const pluginSections = () => pluginSettings?.sections() ?? [];
+  const version = () => pluginSettings?.version() ?? "0.1.0";
+  const resetSettings = () => {
+    props.onResetSettings();
+    pluginSettings?.reset();
+  };
   const setTab = (tab: SettingsTab) => props.model.setTransient({ settingsTab: tab });
   const settings = () => props.model.state.settings;
   const updateGuide = (patch: Partial<GuideStyle>) => props.model.updateSettings({ guideStyle: { ...props.model.current.settings.guideStyle, ...patch } });
@@ -375,10 +380,10 @@ export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window
           </Show>
           <div class="msr:col-span-2 msr:grid msr:h-6 msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-[12px] msr:text-ink-700">
             <span>Version</span>
-            <span class="msr:justify-self-end msr:font-mono msr:text-[11px] msr:tabular-nums msr:text-ink-700">0.1.0</span>
+            <span class="msr:justify-self-end msr:font-mono msr:text-[11px] msr:tabular-nums msr:text-ink-700">{version()}</span>
           </div>
           <div class="msr:col-span-2 msr:flex msr:justify-end msr:gap-1">
-            <button type="button" aria-label="Reset settings to defaults" class="msr:rounded-[5px] msr:border msr:border-ink-200 msr:px-2 msr:py-1 msr:text-[11px] msr:text-ink-700 msr:hover:bg-ink-50 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#0d99ff]" onClick={() => props.onResetSettings()}>Use defaults</button>
+            <button type="button" aria-label="Reset settings to defaults" class="msr:rounded-[5px] msr:border msr:border-ink-200 msr:px-2 msr:py-1 msr:text-[11px] msr:text-ink-700 msr:hover:bg-ink-50 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#0d99ff]" onClick={resetSettings}>Use defaults</button>
             <button type="button" aria-label="Clear workspace" class="msr:rounded-[5px] msr:border msr:border-red-200 msr:px-2 msr:py-1 msr:text-[11px] msr:text-red-600 msr:hover:bg-red-50 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#ef4444]" onClick={() => props.onClearWorkspace()}>Clear workspace</button>
           </div>
         </section>
