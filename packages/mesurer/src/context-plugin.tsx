@@ -4,7 +4,7 @@ import {
   type ContextActionsController,
   type MesurerWorkspaceRuntime,
 } from "@jhomra21/mesurer-solid-renderer";
-import type { MesurerPlugin } from "./core";
+import type { MesurerPlugin, PluginValue } from "./core";
 import {
   captureMesurerContext,
   copyTextToClipboard,
@@ -20,6 +20,7 @@ import {
 
 export const MESURER_CONTEXT_PLUGIN_ID = "mesurer.context";
 export const MESURER_CONTEXT_SERVICE_ID = "context:v1";
+export const MESURER_CONTEXT_SETTINGS_STATE_ID = "mesurer.context.settings";
 
 const CONTEXT_UI_STATE_ID = "context.ui";
 const COPY_ICON = {
@@ -36,9 +37,13 @@ const NOTE_ICON = {
 };
 
 type ContextUiState = { hasSelection: boolean };
+type ContextSettingsState = {
+  [key: string]: PluginValue;
+  ui: boolean;
+};
 
 export type MesurerContextPluginOptions = {
-  /** Render Copy Context, Copy Selection, Add Note, and annotation UI. Defaults to true. */
+  /** Initial human-facing Context UI state. The Settings toggle can change it at runtime. Defaults to true. */
   ui?: boolean;
 };
 
@@ -137,55 +142,45 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       const service = createService(runtime, solid.ownerDocument, solid.ownerWindow);
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
 
+      ctx.state.register<ContextSettingsState>({
+        id: MESURER_CONTEXT_SETTINGS_STATE_ID,
+        initial: { ui: options.ui ?? true },
+        persist: true,
+      });
+      ctx.state.register<ContextUiState>({
+        id: CONTEXT_UI_STATE_ID,
+        initial: { hasSelection: hasContextSelection(runtime) },
+      });
+
+      const uiEnabled = () => ctx.state.get<ContextSettingsState>(MESURER_CONTEXT_SETTINGS_STATE_ID)?.ui ?? true;
+      const hasSelection = () => ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection === true;
+      const setUiEnabled = (ui: boolean) => {
+        ctx.state.update<ContextSettingsState>(MESURER_CONTEXT_SETTINGS_STATE_ID, (current) => ({ ...current, ui }));
+      };
+      const syncSelection = () => {
+        const next = hasContextSelection(runtime);
+        const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
+        if (next !== current) ctx.state.update<ContextUiState>(CONTEXT_UI_STATE_ID, () => ({ hasSelection: next }));
+      };
+      const unsubscribeRuntime = runtime.subscribe(syncSelection);
+
       ctx.command.register("context.copy", () => service.copyContext());
       ctx.command.register("context.copy-selection", () => service.copyContext({ scope: "selection" }));
 
       let uiController: ContextActionsController | null = null;
       let disposeUi: (() => void) | null = null;
       let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
-      let unsubscribeRuntime: (() => void) | null = null;
 
-      if (options.ui !== false) {
-        ctx.state.register<ContextUiState>({
-          id: CONTEXT_UI_STATE_ID,
-          initial: { hasSelection: hasContextSelection(runtime) },
-        });
-        const hasSelection = () => ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection === true;
-        const syncSelection = () => {
-          const next = hasContextSelection(runtime);
-          const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
-          if (next !== current) ctx.state.update<ContextUiState>(CONTEXT_UI_STATE_ID, () => ({ hasSelection: next }));
-        };
-        unsubscribeRuntime = runtime.subscribe(syncSelection);
+      const destroyUi = () => {
+        uiController = null;
+        disposeUi?.();
+        disposeUi = null;
+        uiMount?.dispose();
+        uiMount = null;
+      };
 
-        ctx.command.register("context.add-note", () => uiController?.openNoteComposer());
-        ctx.tool.register({
-          id: "context.copy",
-          label: "Copy context",
-          shortcut: "C",
-          command: "context.copy",
-          order: 70,
-          icon: COPY_ICON,
-        });
-        ctx.tool.register({
-          id: "context.copy-selection",
-          label: "Copy selection",
-          shortcut: "Shift+C",
-          command: "context.copy-selection",
-          order: 71,
-          icon: COPY_SELECTION_ICON,
-          disabled: () => !hasSelection(),
-        });
-        ctx.tool.register({
-          id: "context.add-note",
-          label: "Add note",
-          shortcut: "N",
-          command: "context.add-note",
-          order: 72,
-          icon: NOTE_ICON,
-          disabled: () => !hasSelection(),
-        });
-
+      const createUi = () => {
+        if (uiMount) return;
         uiMount = solid.createInspectorMount();
         uiMount.element.dataset.mesurerLayer = "evidence";
         const actionProps: Parameters<typeof ContextActions>[0] = {
@@ -194,13 +189,62 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
         };
         disposeUi = render(() => <ContextActions {...actionProps} />, uiMount.element);
-      }
+      };
+
+      const syncUi = () => {
+        if (uiEnabled()) createUi();
+        else destroyUi();
+      };
+      syncUi();
+      ctx.state.subscribe(syncUi);
+
+      ctx.command.register("context.add-note", () => uiController?.openNoteComposer());
+      ctx.tool.register({
+        id: "context.copy",
+        label: "Copy context",
+        shortcut: "C",
+        command: "context.copy",
+        order: 70,
+        icon: COPY_ICON,
+        hidden: () => !uiEnabled(),
+      });
+      ctx.tool.register({
+        id: "context.copy-selection",
+        label: "Copy selection",
+        shortcut: "Shift+C",
+        command: "context.copy-selection",
+        order: 71,
+        icon: COPY_SELECTION_ICON,
+        hidden: () => !uiEnabled(),
+        disabled: () => !hasSelection(),
+      });
+      ctx.tool.register({
+        id: "context.add-note",
+        label: "Add note",
+        shortcut: "N",
+        command: "context.add-note",
+        order: 72,
+        icon: NOTE_ICON,
+        hidden: () => !uiEnabled(),
+        disabled: () => !hasSelection(),
+      });
+      ctx.settings.register({
+        id: "context",
+        label: "Context",
+        order: 30,
+        controls: [{
+          type: "toggle",
+          id: "ui",
+          label: "Context tools",
+          description: "Show Copy Context, Copy Selection, Add Note, and annotation controls.",
+          value: uiEnabled,
+          set: setUiEnabled,
+        }],
+      });
 
       ctx.lifecycle.onDispose(() => {
-        unsubscribeRuntime?.();
-        uiController = null;
-        disposeUi?.();
-        uiMount?.dispose();
+        unsubscribeRuntime();
+        destroyUi();
         runtime.dispose();
       });
     },

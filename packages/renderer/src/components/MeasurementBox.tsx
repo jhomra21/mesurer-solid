@@ -18,7 +18,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   const isSelectionGroup = () => Boolean(props.measurement?.id.startsWith("group-"));
   return (
     <Show when={props.measurement}>
-      {(measurement) => <div class="msr:pointer-events-none" data-mesurer-selected-measurement={"paddingRect" in measurement() ? "true" : undefined} data-mesurer-selection-group={isSelectionGroup() ? "true" : undefined}>
+      {(measurement) => <div class="msr:pointer-events-none" data-mesurer-measurement="true" data-mesurer-selected-measurement={"paddingRect" in measurement() ? "true" : undefined} data-mesurer-selection-group={isSelectionGroup() ? "true" : undefined}>
         <Show when={!isSelectionGroup()}>
           <div class="msr:absolute" style={{
             left: `${measurement().rect.left}px`, top: `${measurement().rect.top}px`, width: `${measurement().rect.width}px`, height: `${measurement().rect.height}px`,

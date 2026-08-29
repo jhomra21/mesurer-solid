@@ -17,9 +17,42 @@ export type ToolContribution = {
   icon?: { viewBox?: string; paths: string[] };
   active?: () => boolean;
   disabled?: () => boolean;
+  hidden?: () => boolean;
 };
 
-export type SettingsContribution = { id: string; label: string; order?: number; builtin?: string };
+export type SettingsToggleContribution = {
+  type: "toggle";
+  id: string;
+  label: string;
+  description?: string;
+  value(): boolean;
+  set(value: boolean): void | Promise<void>;
+  disabled?: () => boolean;
+};
+
+export type SettingsControlContribution = SettingsToggleContribution;
+export type SettingsContribution = {
+  id: string;
+  label: string;
+  order?: number;
+  builtin?: string;
+  controls?: SettingsControlContribution[];
+};
+export type SettingsControlDescription = {
+  type: "toggle";
+  id: string;
+  label: string;
+  description: string | undefined;
+  value: boolean;
+  disabled: boolean;
+};
+export type SettingsDescription = {
+  id: string;
+  label: string;
+  order?: number;
+  builtin?: string;
+  controls: SettingsControlDescription[];
+};
 export type OverlayContribution = { id: string; order?: number; builtin?: string };
 export type CommandHandler = (args: PluginValue | undefined, context: { source?: PluginValue }) => void | Promise<void>;
 export type HookHandler = (event: PluginValue) => void | Promise<void>;
@@ -42,6 +75,7 @@ export type MesurerPluginContext = {
     register<T extends PluginValue>(definition: StateSliceDefinition<T>): Registration;
     get<T extends PluginValue>(id: string): T | undefined;
     update<T extends PluginValue>(id: string, update: (value: T) => T): void;
+    subscribe(listener: () => void): Registration;
   };
   tool: { register(contribution: ToolContribution): Registration };
   settings: { register(contribution: SettingsContribution): Registration };
@@ -78,7 +112,7 @@ export const defineMesurerPlugin = <T extends MesurerPlugin>(plugin: T) => plugi
 export type MesurerPluginDescription = {
   plugins: Array<{ id: string; version?: string; requires: string[]; provides: string[] }>;
   tools: Array<{ id: string; label: string; shortcut?: string; command: string; order?: number; builtin?: string }>;
-  settings: SettingsContribution[];
+  settings: SettingsDescription[];
   overlays: OverlayContribution[];
   state: Array<{ id: string; history: boolean; persist: boolean }>;
   commands: string[];
@@ -267,6 +301,12 @@ export function createMesurerPluginHost() {
         },
         get: publicState.get,
         update: publicState.update,
+        subscribe(listener) {
+          const dispose = events.on("changed", (event) => {
+            if (event.reason === "state" || event.reason === "history") listener();
+          });
+          return capture({ dispose });
+        },
       },
       tool: { register: (value) => capture(register(tools, pluginId, value)) },
       settings: { register: (value) => capture(register(settings, pluginId, value)) },
@@ -361,8 +401,18 @@ export function createMesurerPluginHost() {
           requires: plugin.requires ?? [],
           provides: plugin.provides ?? [],
         })),
-        tools: host.tools().map(({ active: _active, disabled: _disabled, icon: _icon, ...tool }) => tool),
-        settings: host.settings(),
+        tools: host.tools().map(({ active: _active, disabled: _disabled, hidden: _hidden, icon: _icon, ...tool }) => tool),
+        settings: host.settings().map(({ controls = [], ...section }) => ({
+          ...section,
+          controls: controls.map((control) => ({
+            type: control.type,
+            id: control.id,
+            label: control.label,
+            description: control.description,
+            value: control.value(),
+            disabled: control.disabled?.() ?? false,
+          })),
+        })),
         overlays: host.overlays(),
         state: [...stateDefinitions.values()].map(({ id, history: recordsHistory, persist }) => ({
           id,

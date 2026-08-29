@@ -3,6 +3,7 @@ import { colorToHex, parseCssColor, type ColorPickerFormat } from "../core/color
 import { trySetPointerCapture } from "../core/events";
 import type { GuideStyle, SelectionSpacingStyle } from "../core/persistence";
 import type { MeasurerModel, SettingsTab } from "../model/create-measurer-model";
+import { useMesurerPluginSettings } from "../plugins/settings-runtime";
 import { Tooltip, createTooltip } from "./Tooltip";
 
 const COLOR_FORMATS: ColorPickerFormat[] = ["hex", "rgb", "hsl", "oklch"];
@@ -23,9 +24,9 @@ function ControlShell(props: { left: any; right: any }) {
   );
 }
 
-function SettingsSwitch(props: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+function SettingsSwitch(props: { label: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <button type="button" role="switch" aria-checked={props.checked ? "true" : "false"} class="msr:col-span-2 msr:grid msr:h-6 msr:w-full msr:appearance-none msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700" onClick={() => props.onChange(!props.checked)}>
+    <button type="button" role="switch" aria-checked={props.checked ? "true" : "false"} disabled={props.disabled} class="msr:col-span-2 msr:grid msr:h-6 msr:w-full msr:appearance-none msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45" onClick={() => props.onChange(!props.checked)}>
       <span>{props.label}</span>
       <span aria-hidden="true" style={{ "justify-self": "end" }} data-checked={props.checked ? "true" : undefined} class={`mesurer-switch-track msr:flex msr:h-[14px] msr:w-[26px] msr:shrink-0 msr:items-center msr:rounded-full msr:border msr:p-px msr:transition-colors ${props.checked ? "msr:border-[#0d99ff] msr:bg-[#0d99ff]" : "msr:border-ink-200 msr:bg-ink-50"}`}>
         <span class="msr:block msr:size-[10px] msr:shrink-0 msr:rounded-full msr:bg-white msr:shadow-sm msr:transition-transform" style={{ transform: `translateX(${props.checked ? 12 : 0}px)` }} />
@@ -201,6 +202,8 @@ function ColorField(props: { label: string; value: string; fallback: string; own
 
 export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window; onResetSettings: () => void; onClearWorkspace: () => void; selectionSpacingStyle: SelectionSpacingStyle; onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void }) {
   const patternTooltip = createTooltip(props.ownerWindow);
+  const pluginSettings = useMesurerPluginSettings();
+  const pluginSections = () => pluginSettings?.sections() ?? [];
   const setTab = (tab: SettingsTab) => props.model.setTransient({ settingsTab: tab });
   const settings = () => props.model.state.settings;
   const updateGuide = (patch: Partial<GuideStyle>) => props.model.updateSettings({ guideStyle: { ...props.model.current.settings.guideStyle, ...patch } });
@@ -352,6 +355,24 @@ export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window
       <Show when={props.model.state.settingsTab === "general"}>
         <section class="msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1" aria-label="General settings">
           <SettingsSwitch label="Persist" checked={settings().persistOnReload} onChange={(persistOnReload) => props.model.updateSettings({ persistOnReload })} />
+          <Show when={pluginSections().length > 0}>
+            <div class="msr:col-span-2 msr:mt-1 msr:flex msr:flex-col msr:gap-1 msr:border-t msr:border-ink-100 msr:pt-2" data-mesurer-plugin-settings="true">
+              <div class="msr:text-[10px] msr:font-semibold msr:text-ink-500">Plugins</div>
+              <For each={pluginSections()}>{(section) => (
+                <div class="msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-0.5" data-mesurer-plugin-settings-section={section.id}>
+                  <div class="msr:col-span-2 msr:mt-1 msr:text-[10px] msr:font-medium msr:text-ink-600">{section.label}</div>
+                  <For each={section.controls ?? []}>{(control) => (
+                    <SettingsSwitch
+                      label={control.label}
+                      checked={control.value()}
+                      disabled={control.disabled?.() ?? false}
+                      onChange={(value) => pluginSettings?.update(section.id, control, value)}
+                    />
+                  )}</For>
+                </div>
+              )}</For>
+            </div>
+          </Show>
           <div class="msr:col-span-2 msr:grid msr:h-6 msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-[12px] msr:text-ink-700">
             <span>Version</span>
             <span class="msr:justify-self-end msr:font-mono msr:text-[11px] msr:tabular-nums msr:text-ink-700">0.1.0</span>

@@ -33,8 +33,10 @@ export type ScreenshotCaptureProvider = (
 ) => Promise<Blob>;
 
 export type MesurerScreenshotSettings = {
+  toolEnabled: boolean;
   copy: boolean;
   download: boolean;
+  includeMeasurements: boolean;
 };
 
 export type MesurerScreenshotResult = {

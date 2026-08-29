@@ -4,6 +4,7 @@ import {
   type MesurerPlugin,
   type MesurerPluginHost,
   type PluginStateSnapshot,
+  type SettingsToggleContribution,
   type ToolContribution,
 } from "@jhomra21/mesurer-solid-core";
 import LegacyMeasurer, { type MeasurerProps as LegacyMeasurerProps } from "./Measurer";
@@ -13,6 +14,7 @@ import {
   type MeasurerModel,
 } from "./model/create-measurer-model";
 import { composeMesurerPlugins, type MesurerBuiltinPluginId } from "./plugins/builtins";
+import { MesurerPluginSettingsProvider } from "./plugins/settings-runtime";
 import type { MeasurerBuiltinController } from "./runtime/builtin-actions";
 import {
   createMesurerWorkspaceRuntime,
@@ -123,9 +125,15 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   const customTools = createMemo(() => {
     revision();
     return host.tools().filter((tool) => {
+      if (tool.hidden?.()) return false;
       if (!tool.builtin || !isBuiltinPluginId(tool.builtin)) return true;
       return tool.command !== builtinCommand(tool.builtin);
     });
+  });
+
+  const customSettings = createMemo(() => {
+    revision();
+    return host.settings().filter((section) => (section.controls?.length ?? 0) > 0);
   });
 
   const visibilityCss = () => {
@@ -158,6 +166,16 @@ export default function ComposableMeasurer(props: MeasurerProps) {
 
   const runTool = (tool: ToolContribution, source: ToolInvocationSource = "toolbar") => {
     void executeTool(tool, source).catch(() => undefined);
+  };
+
+  const updatePluginSetting = (
+    sectionId: string,
+    control: SettingsToggleContribution,
+    value: boolean,
+  ) => {
+    void Promise.resolve(control.set(value)).catch((error) => {
+      props.onPluginError?.(error, `${sectionId}.${control.id}`);
+    });
   };
 
   onSettled(() => {
@@ -383,13 +401,15 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   });
 
   return (
-    <MeasurerModelRegistrationContext value={(model: MeasurerModel) => { rendererModel = model; }}>
-      <LegacyMeasurer
-        {...props}
-        pluginTools={customTools()}
-        onPluginTool={(tool) => runTool(tool)}
-        onBuiltinController={(controller) => { builtinController = controller; }}
-      />
-    </MeasurerModelRegistrationContext>
+    <MesurerPluginSettingsProvider runtime={{ sections: customSettings, update: updatePluginSetting }}>
+      <MeasurerModelRegistrationContext value={(model: MeasurerModel) => { rendererModel = model; }}>
+        <LegacyMeasurer
+          {...props}
+          pluginTools={customTools()}
+          onPluginTool={(tool) => runTool(tool)}
+          onBuiltinController={(controller) => { builtinController = controller; }}
+        />
+      </MeasurerModelRegistrationContext>
+    </MesurerPluginSettingsProvider>
   );
 }

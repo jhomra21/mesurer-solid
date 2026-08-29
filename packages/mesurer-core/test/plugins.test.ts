@@ -41,6 +41,68 @@ describe("Mesurer plugin host", () => {
     expect(host.state.get("example")).toEqual({ enabled: false, count: 9 });
   });
 
+  it("describes interactive settings without leaking setters and notifies plugin state subscribers", async () => {
+    const host = createMesurerPluginHost();
+    let stateNotifications = 0;
+
+    await host.load(defineMesurerPlugin({
+      id: "settings.example",
+      setup(ctx) {
+        ctx.state.register({ id: "settings.example", initial: { enabled: true }, persist: true });
+        ctx.state.subscribe(() => {
+          stateNotifications += 1;
+        });
+        const enabled = () => ctx.state.get<{ enabled: boolean }>("settings.example")?.enabled ?? false;
+        const setEnabled = (value: boolean) => {
+          ctx.state.update<{ enabled: boolean }>("settings.example", (current) => ({ ...current, enabled: value }));
+        };
+        ctx.tool.register({
+          id: "settings.example",
+          label: "Example",
+          command: "settings.example.toggle",
+          hidden: () => !enabled(),
+        });
+        ctx.command.register("settings.example.toggle", () => setEnabled(!enabled()));
+        ctx.settings.register({
+          id: "example",
+          label: "Example",
+          controls: [{
+            type: "toggle",
+            id: "enabled",
+            label: "Enabled",
+            description: "Show the example tool.",
+            value: enabled,
+            set: setEnabled,
+          }],
+        });
+      },
+    }));
+
+    expect(host.tools()[0]?.hidden?.()).toBe(false);
+    expect(host.describe().settings).toEqual([{
+      id: "example",
+      label: "Example",
+      controls: [{
+        type: "toggle",
+        id: "enabled",
+        label: "Enabled",
+        description: "Show the example tool.",
+        value: true,
+        disabled: false,
+      }],
+    }]);
+
+    const control = host.settings()[0]?.controls?.[0];
+    await control?.set(false);
+    expect(host.tools()[0]?.hidden?.()).toBe(true);
+    expect(stateNotifications).toBe(1);
+    expect(host.describe().settings[0]?.controls[0]?.value).toBe(false);
+
+    host.state.restore({ "settings.example": { enabled: true } }, "persist");
+    expect(host.tools()[0]?.hidden?.()).toBe(false);
+    expect(stateNotifications).toBe(2);
+  });
+
   it("treats nested command dispatch as one history action", async () => {
     const host = createMesurerPluginHost();
     await host.load(defineMesurerPlugin({

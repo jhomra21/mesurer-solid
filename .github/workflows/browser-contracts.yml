@@ -3,20 +3,27 @@ name: browser-contracts
 on:
   pull_request:
     paths:
+      - "packages/renderer/src/ComposableMeasurer.tsx"
       - "packages/renderer/src/components/Icons.tsx"
       - "packages/renderer/src/components/ContextActions.tsx"
       - "packages/renderer/src/components/DistanceOverlayItem.tsx"
       - "packages/renderer/src/components/MeasurementBox.tsx"
       - "packages/renderer/src/components/MeasurerOverlay.tsx"
+      - "packages/renderer/src/components/SettingsPanel.tsx"
       - "packages/renderer/src/core/distances.ts"
+      - "packages/renderer/src/plugins/settings-runtime.tsx"
+      - "packages/renderer/src/plugins/screenshot.ts"
       - "packages/renderer/test/distances.test.ts"
       - "packages/mesurer/src/context-plugin.tsx"
       - "examples/basic/self-hosting.html"
       - "examples/basic/src/self-hosting.ts"
       - "examples/basic/multi-spacing.html"
       - "examples/basic/src/multi-spacing.ts"
+      - "examples/basic/plugin-settings.html"
+      - "examples/basic/src/plugin-settings.ts"
       - "visual-parity/self-hosting-context.mjs"
       - "visual-parity/multi-spacing.mjs"
+      - "visual-parity/plugin-settings-contract.mjs"
       - ".github/workflows/browser-contracts.yml"
   workflow_dispatch:
 
@@ -56,7 +63,7 @@ jobs:
             echo $! > ../../browser-contracts-vite.pid
           )
 
-          for path in self-hosting.html multi-spacing.html; do
+          for path in self-hosting.html multi-spacing.html plugin-settings.html; do
             ready=0
             for attempt in $(seq 1 45); do
               if curl --fail --silent --show-error "http://127.0.0.1:4174/${path}" >/dev/null; then
@@ -85,6 +92,11 @@ jobs:
           MULTI_SPACING_OUT: multi-spacing-artifacts
           MULTI_SPACING_DPR: 3
         run: bun visual-parity/multi-spacing.mjs
+
+      - name: Exercise plugin-contributed Settings controls
+        env:
+          PLUGIN_SETTINGS_URL: http://127.0.0.1:4174/plugin-settings.html
+        run: bun visual-parity/plugin-settings-contract.mjs
 
       - name: Add rendered contract summary
         if: always()
@@ -122,6 +134,12 @@ jobs:
               print(f"- Spacing overlays: **{evidence['spacingOverlayCount']}**")
           else:
               print("### Sparse multi-selection / spacing\n- Measurements were not produced.")
+
+          print("")
+          print("### Plugin settings")
+          print("- Context and Screenshot Settings controls exercised in Chromium")
+          print("- Context service survives human UI disable")
+          print("- Screenshot tool visibility, outputs, measurement inclusion, and persistence exercised")
           PY
 
       - name: Upload self-hosting evidence
