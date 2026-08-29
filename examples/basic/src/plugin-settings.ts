@@ -1,5 +1,6 @@
 import {
   contextPlugin,
+  MESURER_VERSION,
   mountMeasurer,
   type MountedMeasurer,
 } from "../../../packages/mesurer/src/index";
@@ -10,10 +11,10 @@ import {
   type ScreenshotCaptureProvider,
 } from "../../../packages/renderer/src/plugins/screenshot";
 
-const persistKey = "mesurer-plugin-settings-contract";
+const pluginStorageKey = "mesurer-plugin-settings";
 const url = new URL(window.location.href);
 if (url.searchParams.get("reset") === "1") {
-  window.localStorage.removeItem(`${persistKey}:plugins`);
+  window.localStorage.removeItem(pluginStorageKey);
 }
 
 type CapturePresentation = {
@@ -63,7 +64,6 @@ const subject = mountMeasurer({
       captureVisibleTab: deterministicCapture,
     }),
   ],
-  persistKey,
 });
 
 await subject.ready;
@@ -75,6 +75,7 @@ type PluginSettingsHarness = {
   subject: MountedMeasurer;
   screenshot: MesurerScreenshotService;
   captures: CapturePresentation[];
+  version: string;
 };
 
 declare global {
@@ -83,4 +84,4 @@ declare global {
   }
 }
 
-window.__MESURER_PLUGIN_SETTINGS_TEST__ = { subject, screenshot, captures };
+window.__MESURER_PLUGIN_SETTINGS_TEST__ = { subject, screenshot, captures, version: MESURER_VERSION };
