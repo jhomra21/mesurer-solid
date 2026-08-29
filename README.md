@@ -31,17 +31,17 @@ Use `mesurer-solid@beta` only when intentionally testing a prerelease.
 ## Quick start
 
 ```ts
-import { mountMeasurer } from "mesurer-solid"
+import { mountMesurer } from "mesurer-solid"
 
-const mesurer = mountMeasurer()
+const mesurer = mountMesurer()
 ```
 
 For local development only:
 
 ```ts
 if (import.meta.env.DEV) {
-  import("mesurer-solid").then(({ mountMeasurer }) => {
-    const mesurer = mountMeasurer()
+  import("mesurer-solid").then(({ mountMesurer }) => {
+    const mesurer = mountMesurer()
     import.meta.hot?.dispose(() => mesurer.dispose())
   })
 }
@@ -69,10 +69,10 @@ Mesurer carries its own isolated Solid 2 renderer, so the host app does not need
 Screenshot capture is an optional first-party plugin:
 
 ```ts
-import { mountMeasurer } from "mesurer-solid"
+import { mountMesurer } from "mesurer-solid"
 import { screenshotPlugin } from "mesurer-solid/screenshot"
 
-const mesurer = mountMeasurer({
+const mesurer = mountMesurer({
   plugins: [
     screenshotPlugin({
       copy: true,
@@ -93,10 +93,10 @@ Add the context plugin when you want rendered UI state available through the API
 ```ts
 import {
   contextPlugin,
-  mountMeasurer,
+  mountMesurer,
 } from "mesurer-solid"
 
-const mesurer = mountMeasurer({
+const mesurer = mountMesurer({
   agent: true,
   plugins: [contextPlugin()],
 })
@@ -192,7 +192,7 @@ The renderer is bundled and isolated from the host framework. Mesurer Solid can 
 import {
   contextPlugin,
   defineMesurerPlugin,
-  mountMeasurer,
+  mountMesurer,
 } from "mesurer-solid"
 
 import { createMesurerPluginHost } from "mesurer-solid/core"
@@ -218,7 +218,3 @@ mesurer-solid/inject-script
 Mesurer Solid started as a Solid port of [ibelick/mesurer](https://github.com/ibelick/mesurer) and preserves the original tool's visual language and interaction model where practical.
 
 Original Mesurer copyright and attribution are documented in [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).
-
-## License
-
-MIT
