@@ -4,15 +4,15 @@
 [![CI](https://github.com/jhomra21/mesurer-solid/actions/workflows/ci.yml/badge.svg)](https://github.com/jhomra21/mesurer-solid/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-black.svg)](./LICENSE)
 
-A Solid 2 port and extension of [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick), turned into a framework-independent UI inspection layer for browser apps and coding agents.
+A Solid 2 port and extension of [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick).
 
-Mesurer Solid keeps the original inspection experience, but adds a bundled Solid 2 renderer, runtime plugins, shared human/agent visual context, exact programmatic selection, annotation/review workflows, optional screenshot capture, and a portable agent skill.
+Mesurer Solid is a visual inspection and measurement tool for browser apps. Use it to select elements, inspect spacing and layout, measure distances, add guides, inspect text and colors, capture screenshots, and expose rendered UI state to browser-capable coding agents.
 
 <p align="center">
-  <img src="docs/assets/showcase/mesurer-solid-0.1.1.webp" alt="Mesurer Solid 0.1.1 showing multi-selection, exact spacing, agent context, context tools, and the screenshot plugin" width="100%">
+  <img src="docs/assets/showcase/mesurer-solid-0.1.1.webp" alt="Mesurer Solid 0.1.1 showing multi-selection, exact spacing, live context, context tools, and the screenshot plugin" width="100%">
 </p>
 
-<sub>Captured from the published `mesurer-solid@0.1.1` package: two selected targets, an exact 32px gap, live selection context, context tools, and the screenshot camera in the same runtime.</sub>
+<sub>Captured from the published `mesurer-solid@0.1.1` package.</sub>
 
 ## Install
 
@@ -26,38 +26,7 @@ or:
 npm install -D mesurer-solid
 ```
 
-`mesurer-solid` is the canonical package name. Use `mesurer-solid@beta` only when intentionally testing a prerelease.
-
-## Why this port exists
-
-The renderer is implemented privately with Solid 2 and ships inside Mesurer itself. Your app does **not** need Solid 2.
-
-Mesurer Solid can mount over:
-
-- Solid 1
-- Solid 2
-- React
-- Vue
-- Svelte
-- vanilla DOM apps
-- Electron renderer pages
-
-The result is one isolated inspection/runtime layer that can be used interactively by a person or programmatically by a coding agent.
-
-## What it adds
-
-| Capability | Mesurer Solid |
-| --- | --- |
-| Original inspection tools | Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, Settings |
-| Framework-independent mount | Bundled Solid 2 renderer with no host-framework runtime requirement |
-| Multi-selection | Sparse multi-select plus exact pairwise spacing evidence |
-| Shared human/agent state | Human selection, measurements, guides, annotations, and visual state are readable from the page |
-| Exact agent selection | `select(selector | selectors)` visibly selects exact rendered targets and returns structured context |
-| Rendered verification | Geometry, computed styles, distances, overflow, layout, and deterministic annotation review |
-| Runtime plugins | Add/remove tools, commands, overlays, settings, state, services, and lifecycle hooks |
-| Screenshot plugin | Drag-region visible-tab PNG capture, HiDPI cropping, copy/download settings, thumbnail, viewer, and extension capture bridge |
-| Agent skill | Portable `mesurer-ui` skill plus classic injector for browser-capable coding agents |
-| Host isolation | ShadowRoot + protected top-layer/fallback mounting, including hostile CSS and Trusted Types pages |
+Use `mesurer-solid@beta` only when intentionally testing a prerelease.
 
 ## Quick start
 
@@ -78,63 +47,26 @@ if (import.meta.env.DEV) {
 }
 ```
 
-## Add shared visual context
+Mesurer carries its own isolated Solid 2 renderer, so the host app does not need Solid.
 
-```ts
-import {
-  contextPlugin,
-  mountMeasurer,
-} from "mesurer-solid"
+## What you can do
 
-const mesurer = mountMeasurer({
-  agent: true,
-  plugins: [contextPlugin()],
-})
-```
+| Feature | What it does |
+| --- | --- |
+| Select | Inspect one or multiple rendered elements |
+| Distance | Measure exact spacing and geometry between elements |
+| Guides & rulers | Add visual alignment and position references |
+| X-ray | Inspect page structure visually |
+| Color Picker | Read colors directly from the rendered page |
+| Text Inspector | Inspect rendered typography |
+| Settings | Configure tools and persisted behavior |
+| Screenshots | Capture a dragged viewport region with the optional screenshot plugin |
+| Context & annotations | Read selections, measurements, guides, notes, geometry, styles, and relationships programmatically |
+| Plugins | Add or replace tools, commands, overlays, settings, state, and services at runtime |
 
-Now the same rendered state can be consumed by the human and the agent:
+## Screenshot capture
 
-```js
-const workspace = await window.__MESURER__.context()
-const selected = await window.__MESURER__.context({ scope: "selection" })
-```
-
-When the agent knows the exact target, it can select it itself instead of asking the user to point at it:
-
-```js
-const evidence = await window.__MESURER__.select([
-  "#pricing-card",
-  "#pricing-cta",
-])
-```
-
-Every selector must resolve to exactly one rendered element. Missing or ambiguous selectors reject instead of guessing.
-
-### The rendered page is the source of truth
-
-Mesurer is designed around a simple loop:
-
-```text
-human selection/annotation OR agent-known target
-    ↓
-real browser page
-    ↓
-context() / select() / review()
-    ↓
-structured rendered evidence
-    ↓
-source edit
-    ↓
-real browser page
-    ↓
-fresh context/review + screenshot when useful
-```
-
-A source file saying `gap: 16px` does not prove the browser rendered a 16px gap. Mesurer gives the agent evidence from the actual page.
-
-## Add screenshot capture
-
-Screenshot is an optional first-party plugin:
+Screenshot capture is an optional first-party plugin:
 
 ```ts
 import { mountMeasurer } from "mesurer-solid"
@@ -150,41 +82,87 @@ const mesurer = mountMeasurer({
 })
 ```
 
-The camera tool supports drag-region visible-tab capture, HiDPI/Retina-aware PNG cropping, persisted copy/download settings, a draggable thumbnail, a larger Copy/Save viewer, and an extension-native capture bridge.
+The camera tool supports drag-region visible-tab capture, HiDPI/Retina-aware PNG cropping, copy/download settings, a draggable thumbnail, and a larger Copy/Save viewer.
 
-Normal browser hosts use `getDisplayMedia()` with stream reuse. The first-party Chrome extension can use `chrome.tabs.captureVisibleTab()` without a screen-share chooser.
+See [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) for screenshot options and browser/extension behavior.
 
-See [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md).
+## Programmatic selection and context
 
-## Agent skill
+Add the context plugin when you want rendered UI state available through the API:
 
-Install the portable skill into a project:
+```ts
+import {
+  contextPlugin,
+  mountMeasurer,
+} from "mesurer-solid"
+
+const mesurer = mountMeasurer({
+  agent: true,
+  plugins: [contextPlugin()],
+})
+```
+
+Read the current workspace or selection:
+
+```ts
+const workspace = await mesurer.context()
+const selected = await mesurer.context({ scope: "selection" })
+```
+
+Select exact rendered targets from code and get their context back:
+
+```ts
+const selected = await mesurer.select([
+  "#pricing-card",
+  "#pricing-cta",
+])
+```
+
+Every selector must resolve to exactly one rendered element. Missing or ambiguous selectors reject instead of guessing.
+
+After the page changes, wait for the UI to settle and inspect it again:
+
+```ts
+await mesurer.agent.stable()
+const selected = await mesurer.context({ scope: "selection" })
+```
+
+`MesurerContextV1` includes rendered geometry, computed styles, typography, layout, overflow, guides, measurements, distances, selected targets, and annotated regions.
+
+## Annotations and review
+
+Annotations let you attach a note to rendered UI and keep a baseline that can be reviewed again after changes:
+
+```ts
+const annotation = await mesurer.context({ annotation: annotationId })
+const review = await mesurer.review(annotationId)
+```
+
+This is useful when a visual change needs to be checked against the same target or region after an edit.
+
+## Agent integration
+
+Mesurer can also be used by browser-capable coding agents. The portable skill contains the full agent workflow and injection guidance:
 
 ```bash
 npx --yes --package=mesurer-solid mesurer-skill install
 ```
 
-It installs:
+See [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md) and the installed `mesurer-ui` skill for agent-specific setup and behavior.
 
-```text
-.agents/skills/mesurer-ui/
-├── SKILL.md
-└── assets/
-    └── inject-script.js
-```
+## Supported hosts
 
-The skill teaches a browser-capable coding agent to:
+The renderer is bundled and isolated from the host framework. Mesurer Solid can run over:
 
-- reuse an existing human Mesurer instance instead of destroying its state
-- read human selection/annotations first
-- self-select exact targets when it already knows them
-- consume `MesurerContextV1` after visual operations
-- revalidate after edits with fresh rendered evidence
-- keep human screenshot capture separate from the agent harness's own screenshot proof
+- Solid 1
+- Solid 2
+- React
+- Vue
+- Svelte
+- vanilla DOM apps
+- Electron renderer pages
 
 ## Runs over real applications
-
-Mesurer Solid is validated as an isolated overlay over normal websites, hostile stacking/CSS cases, strict Trusted Types pages, and Electron renderers.
 
 <table>
   <tr>
@@ -205,9 +183,7 @@ Mesurer Solid is validated as an isolated overlay over normal websites, hostile 
   </tr>
 </table>
 
-## Public API
-
-Main entry:
+## Public entry points
 
 ```ts
 import {
@@ -215,16 +191,12 @@ import {
   defineMesurerPlugin,
   mountMeasurer,
 } from "mesurer-solid"
-```
 
-Additional entry points:
-
-```ts
 import { createMesurerPluginHost } from "mesurer-solid/core"
 import { screenshotPlugin } from "mesurer-solid/screenshot"
 ```
 
-The classic injectable bundle is available at:
+The classic injectable browser bundle is available at:
 
 ```text
 mesurer-solid/inject-script
@@ -232,22 +204,17 @@ mesurer-solid/inject-script
 
 ## Docs
 
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — package/runtime architecture
-- [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md) — public agent-facing API
-- [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — human/agent shared-context workflow
-- [`docs/DESIGN_FEEDBACK_LOOP.md`](./docs/DESIGN_FEEDBACK_LOOP.md) — rendered verification loop
-- [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) — screenshot plugin and evidence boundary
-- [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) — upstream React parity baseline and validation
-- [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) — hostile CSS/top-layer guarantees
-- [`RELEASING.md`](./RELEASING.md) — release process
+- [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) — screenshot plugin
+- [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md) — agent-facing API and setup
+- [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — context, selection, annotations, and review
+- [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) — host isolation and browser compatibility
+- [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) — upstream Mesurer parity
 
 ## Origin and attribution
 
-Mesurer Solid started as a Solid port of [ibelick/mesurer](https://github.com/ibelick/mesurer) and intentionally preserves the original tool's visual language and interaction model where practical.
+Mesurer Solid started as a Solid port of [ibelick/mesurer](https://github.com/ibelick/mesurer) and preserves the original tool's visual language and interaction model where practical.
 
-The project has since grown beyond a renderer port with framework-independent mounting, agent context/review APIs, plugins, screenshot capture, host isolation work, and the portable agent skill.
-
-Original Mesurer copyright and attribution remain documented in [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).
+Original Mesurer copyright and attribution are documented in [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).
 
 ## License
 
