@@ -23,12 +23,15 @@ const canonicalMountPaths = new Set([
   "docs/SCREENSHOTS.md",
   "docs/CONTEXT_WORKFLOW.md",
   "docs/HOST_ISOLATION.md",
+  "examples/basic/src/main.tsx",
+  "examples/basic/src/multi-spacing.ts",
   "examples/basic/src/plugin-settings.ts",
   "examples/basic/src/screenshot-contract.ts",
   "examples/basic/src/screenshot.ts",
   "examples/basic/src/self-hosting.ts",
+  "visual-parity/solid-fixture.tsx",
 ]);
-const legacyPublicMountPattern = /\b(?:mountMeasurer|MountMeasurerOptions|MountedMeasurer)\b/g;
+const legacyPublicMountPattern = /\b(?:mountMeasurer|MountMeasurerOptions|MountedMeasurer|\bMeasurer\b)/g;
 const failures = [];
 for (const path of files) {
   if (path !== "bun.lock" && !textExtensions.has(extname(path))) continue;
