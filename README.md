@@ -9,7 +9,7 @@ A Solid 2 port and extension of [Mesurer](https://github.com/ibelick/mesurer) by
 Mesurer Solid keeps the original inspection experience, but adds a bundled Solid 2 renderer, runtime plugins, shared human/agent visual context, exact programmatic selection, annotation/review workflows, optional screenshot capture, and a portable agent skill.
 
 <p align="center">
-  <img src="docs/assets/showcase/mesurer-solid-0.1.1.png" alt="Mesurer Solid 0.1.1 showing multi-selection, exact spacing, agent context, context tools, and the screenshot plugin" width="100%">
+  <img src="docs/assets/showcase/mesurer-solid-0.1.1.webp" alt="Mesurer Solid 0.1.1 showing multi-selection, exact spacing, agent context, context tools, and the screenshot plugin" width="100%">
 </p>
 
 <sub>Captured from the published `mesurer-solid@0.1.1` package: two selected targets, an exact 32px gap, live selection context, context tools, and the screenshot camera in the same runtime.</sub>
