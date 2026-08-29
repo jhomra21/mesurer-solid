@@ -30,22 +30,52 @@ Use `mesurer-solid@beta` only when intentionally testing a prerelease.
 
 ## Quick start
 
+Mesurer runs in the browser. Mount it once from the client/browser entry for the page you want to inspect, not from server code or build configuration.
+
+For local development in a Vite app, the recommended setup is a small development-only module:
+
+```text
+src/
+├── main.tsx          # your existing browser entry; the filename may differ
+└── dev/
+    └── mesurer.ts    # Mesurer setup lives here
+```
+
+Create `src/dev/mesurer.ts`:
+
+```ts
+import { mountMesurer } from "mesurer-solid"
+
+const mesurer = mountMesurer()
+
+import.meta.hot?.dispose(() => {
+  mesurer.dispose()
+})
+```
+
+Then load it from your existing browser entry, such as `src/main.tsx`, `src/main.ts`, or `src/index.tsx`:
+
+```ts
+if (import.meta.env.DEV) {
+  void import("./dev/mesurer")
+}
+```
+
+Keep your normal app startup code in that entry file as usual. `import.meta.env.DEV` is Vite-specific; with another bundler, use its build-time development flag instead.
+
+If you intentionally want Mesurer in every build of a browser bundle, the direct form can live in that same browser entry:
+
 ```ts
 import { mountMesurer } from "mesurer-solid"
 
 const mesurer = mountMesurer()
 ```
 
-For local development only:
+Common locations are `src/main.tsx` for React/Vite, `src/index.tsx` or `src/main.tsx` for Solid, `src/main.ts` for Vue/Svelte/vanilla Vite apps, and the renderer entry for Electron. In SSR/metaframework apps, mount Mesurer only from a client-only module or lifecycle that never runs during server rendering.
 
-```ts
-if (import.meta.env.DEV) {
-  import("mesurer-solid").then(({ mountMesurer }) => {
-    const mesurer = mountMesurer()
-    import.meta.hot?.dispose(() => mesurer.dispose())
-  })
-}
-```
+Do not put `mountMesurer()` in `vite.config.ts`, API/server routes, Node-only scripts, an Electron main process, or a shared SSR module that also executes on the server.
+
+Add plugins in the same Mesurer setup module. See [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md) for detailed file placement, Vite/HMR setup, client-only/SSR guidance, Electron placement, and plugin examples.
 
 Mesurer carries its own isolated Solid 2 renderer, so the host app does not need Solid.
 
@@ -66,7 +96,7 @@ Mesurer carries its own isolated Solid 2 renderer, so the host app does not need
 
 ## Screenshot capture
 
-Screenshot capture is an optional first-party plugin:
+Add screenshot capture in the same Mesurer mounting module used in the quick start:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -88,7 +118,7 @@ See [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) for screenshot options and br
 
 ## Programmatic selection and context
 
-Add the context plugin when you want rendered UI state available through the API:
+Add the context plugin in that same Mesurer mounting module when you want rendered UI state available through the API:
 
 ```ts
 import {
@@ -207,6 +237,7 @@ mesurer-solid/inject-script
 
 ## Docs
 
+- [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md) — where to mount Mesurer and development/client setup
 - [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) — screenshot plugin
 - [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — context, selection, annotations, and review
 - [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) — host isolation and browser compatibility
