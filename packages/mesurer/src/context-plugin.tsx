@@ -17,6 +17,7 @@ import {
   type MesurerContextV1,
   type MesurerReviewV1,
 } from "./context";
+import { MESURER_VERSION } from "./version";
 
 export const MESURER_CONTEXT_PLUGIN_ID = "mesurer.context";
 export const MESURER_CONTEXT_SERVICE_ID = "context:v1";
@@ -131,7 +132,7 @@ const hasContextSelection = (runtime: MesurerWorkspaceRuntime) => {
 export function contextPlugin(options: MesurerContextPluginOptions = {}): MesurerPlugin {
   return {
     id: MESURER_CONTEXT_PLUGIN_ID,
-    version: "0.1.0",
+    version: MESURER_VERSION,
     requires: ["runtime:solid"],
     provides: [MESURER_CONTEXT_SERVICE_ID],
     setup(ctx) {
