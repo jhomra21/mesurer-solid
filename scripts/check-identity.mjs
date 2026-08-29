@@ -31,7 +31,14 @@ const canonicalMountPaths = new Set([
   "examples/basic/src/self-hosting.ts",
   "visual-parity/solid-fixture.tsx",
 ]);
-const legacyPublicMountPattern = /\b(?:mountMeasurer|MountMeasurerOptions|MountedMeasurer|\bMeasurer\b)/g;
+const rendererCompatibilityPaths = new Set([
+  "packages/renderer/src/Measurer.tsx",
+  "packages/renderer/src/ComposableMeasurer.tsx",
+  "packages/renderer/src/components/MeasurerOverlay.tsx",
+  "packages/renderer/src/model/create-measurer-model.ts",
+]);
+const legacyPublicMountPattern = /\b(?:mountMeasurer|MountMeasurerOptions|MountedMeasurer|Measurer)\b/g;
+const legacyRendererSymbolPattern = /\b[A-Za-z0-9_]*Measurer[A-Za-z0-9_]*\b/g;
 const failures = [];
 for (const path of files) {
   if (path !== "bun.lock" && !textExtensions.has(extname(path))) continue;
@@ -50,9 +57,16 @@ for (const path of files) {
       failures.push(`${path}:${line}: legacy public Mesurer API spelling: ${match[0]}`);
     }
   }
+  if (path.startsWith("packages/renderer/src/") && !rendererCompatibilityPaths.has(path)) {
+    legacyRendererSymbolPattern.lastIndex = 0;
+    for (const match of source.matchAll(legacyRendererSymbolPattern)) {
+      const line = source.slice(0, match.index).split("\n").length;
+      failures.push(`${path}:${line}: legacy internal Mesurer symbol spelling: ${match[0]}`);
+    }
+  }
 }
 if (failures.length) {
   console.error("Mesurer Solid identity check failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Mesurer Solid package/repository identity and canonical public API spelling are consistent.");
+console.log("Mesurer Solid package/repository identity and canonical public/internal API spelling are consistent.");
