@@ -14,6 +14,18 @@ const checks = [
   { label: "legacy renderer example name", pattern: new RegExp("\\b" + legacyRendererExample + "\\b", "g") },
   { label: "legacy package artifact name", pattern: new RegExp("\\bjhomra21-" + "mesurer-(?!solid-)", "g") },
 ];
+const canonicalMountPaths = new Set([
+  "README.md",
+  "packages/mesurer/README.md",
+  "docs/SCREENSHOTS.md",
+  "docs/CONTEXT_WORKFLOW.md",
+  "docs/HOST_ISOLATION.md",
+  "examples/basic/src/plugin-settings.ts",
+  "examples/basic/src/screenshot-contract.ts",
+  "examples/basic/src/screenshot.ts",
+  "examples/basic/src/self-hosting.ts",
+]);
+const legacyPublicMountPattern = /\b(?:mountMeasurer|MountMeasurerOptions|MountedMeasurer)\b/g;
 const failures = [];
 for (const path of files) {
   if (path !== "bun.lock" && !textExtensions.has(extname(path))) continue;
@@ -25,9 +37,16 @@ for (const path of files) {
       failures.push(`${path}:${line}: ${check.label}: ${match[0]}`);
     }
   }
+  if (canonicalMountPaths.has(path)) {
+    legacyPublicMountPattern.lastIndex = 0;
+    for (const match of source.matchAll(legacyPublicMountPattern)) {
+      const line = source.slice(0, match.index).split("\n").length;
+      failures.push(`${path}:${line}: legacy public Mesurer API spelling: ${match[0]}`);
+    }
+  }
 }
 if (failures.length) {
   console.error("Mesurer Solid identity check failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Mesurer Solid package/repository identity is consistent.");
+console.log("Mesurer Solid package/repository identity and canonical public API spelling are consistent.");
