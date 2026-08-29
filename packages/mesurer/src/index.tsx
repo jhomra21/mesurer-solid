@@ -15,6 +15,13 @@ import {
 } from "@jhomra21/mesurer-solid-renderer";
 import { createMesurerAgentHarness, type MesurerAgentHarness } from "./agent";
 import type {
+  ArrangeCapturePlan,
+  ArrangeIntent,
+  ArrangePresentation,
+  ArrangeReview,
+  MesurerArrangeService,
+} from "./arrange";
+import type {
   MesurerAnnotation,
   MesurerCapturePlanV1,
   MesurerContextRequest,
@@ -28,6 +35,8 @@ import {
 import type { MesurerPlugin, MesurerPluginDescription, MesurerPluginHost } from "./core";
 import { mountMesurerHost, type MesurerHostLayerMode } from "./host-layer";
 import { MESURER_VERSION } from "./version";
+
+const ARRANGE_SERVICE_ID = "arrange";
 
 export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 export type MesurerBuiltinPluginId = "select" | "xray" | "color-picker" | "rulers" | "text-inspector" | "guides" | "distance" | "settings";
@@ -130,6 +139,7 @@ export type MesurerAgentCapabilities = {
     annotations: boolean;
     review: boolean;
     capturePlan: boolean;
+    arrange: boolean;
   };
 };
 export type MesurerContextHarness = {
@@ -143,7 +153,14 @@ export type MesurerContextHarness = {
   prepareCapture(): Promise<void>;
   finishCapture(): Promise<void>;
 };
-export type MesurerBrowserAgent = MesurerAgentHarness & MesurerContextHarness;
+export type MesurerArrangeHarness = {
+  arrangements(): Promise<ArrangeIntent[]>;
+  arrange(id: string): Promise<ArrangeIntent>;
+  showArrange(id: string, state: ArrangePresentation): Promise<void>;
+  arrangeCapturePlan(id: string, state: ArrangePresentation): Promise<ArrangeCapturePlan>;
+  reviewArrange(id: string, tolerance?: number): Promise<ArrangeReview>;
+};
+export type MesurerBrowserAgent = MesurerAgentHarness & MesurerContextHarness & MesurerArrangeHarness;
 export type MountedMesurer = {
   element: HTMLDivElement;
   root: HTMLDivElement | ShadowRoot;
@@ -160,6 +177,11 @@ export type MountedMesurer = {
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
   prepareCapture(): Promise<void>;
   finishCapture(): Promise<void>;
+  arrangements(): Promise<ArrangeIntent[]>;
+  arrange(id: string): Promise<ArrangeIntent>;
+  showArrange(id: string, state: ArrangePresentation): Promise<void>;
+  arrangeCapturePlan(id: string, state: ArrangePresentation): Promise<ArrangeCapturePlan>;
+  reviewArrange(id: string, tolerance?: number): Promise<ArrangeReview>;
   bringToFront(): void;
   describe(): MesurerPluginDescription | undefined;
   dispose(): void;
@@ -234,6 +256,14 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     }
     return service;
   };
+  const getArrangeService = async () => {
+    await baseAgent.ready();
+    const service = pluginHost?.service.get<MesurerArrangeService>(ARRANGE_SERVICE_ID);
+    if (!service) {
+      throw new Error("Mesurer Arrange plugin is not loaded. Add arrangePlugin() from mesurer-solid/arrange.");
+    }
+    return service;
+  };
   const context = async (request?: MesurerContextRequest) => (await getContextService()).context(request);
   const contextText = async (request?: MesurerContextRequest) => (await getContextService()).contextText(request);
   const copyContext = async (request?: MesurerContextRequest) => (await getContextService()).copyContext(request);
@@ -243,17 +273,32 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
   const capturePlan = async (request?: MesurerContextRequest) => (await getContextService()).capturePlan(request);
   const prepareCapture = async () => (await getContextService()).prepareCapture();
   const finishCapture = async () => (await getContextService()).finishCapture();
+  const arrangements = async () => (await getArrangeService()).intents();
+  const arrange = async (id: string) => {
+    const intent = (await getArrangeService()).intent(id);
+    if (!intent) throw new Error(`Arrange intent not found: ${id}`);
+    return intent;
+  };
+  const showArrange = async (id: string, state: ArrangePresentation) => {
+    (await getArrangeService()).show(id, state);
+  };
+  const arrangeCapturePlan = async (id: string, state: ArrangePresentation) =>
+    (await getArrangeService()).capturePlan(id, state);
+  const reviewArrange = async (id: string, tolerance?: number) =>
+    (await getArrangeService()).review(id, tolerance);
   const capabilities = (): MesurerAgentCapabilities => {
-    const available = Boolean(pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID));
+    const contextAvailable = Boolean(pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID));
+    const arrangeAvailable = Boolean(pluginHost?.service.get<MesurerArrangeService>(ARRANGE_SERVICE_ID));
     return {
       protocol: "mesurer.agent/v1",
       contextSchema: "mesurer.context/v1",
       capabilities: {
-        context: available,
-        select: available,
-        annotations: available,
-        review: available,
-        capturePlan: available,
+        context: contextAvailable,
+        select: contextAvailable,
+        annotations: contextAvailable,
+        review: contextAvailable,
+        capturePlan: contextAvailable,
+        arrange: arrangeAvailable,
       },
     };
   };
@@ -267,6 +312,11 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     capturePlan,
     prepareCapture,
     finishCapture,
+    arrangements,
+    arrange,
+    showArrange,
+    arrangeCapturePlan,
+    reviewArrange,
   });
 
   const rendererProps: RendererMesurerProps = { ...mesurerProps, version: MESURER_VERSION };
@@ -327,6 +377,11 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     capturePlan,
     prepareCapture,
     finishCapture,
+    arrangements,
+    arrange,
+    showArrange,
+    arrangeCapturePlan,
+    reviewArrange,
     bringToFront: hostLayer.bringToFront,
     describe: () => pluginHost?.describe(),
     dispose() {
@@ -359,6 +414,17 @@ export type {
   CreateMesurerAgentHarnessOptions,
   MesurerAgentHarness,
 } from "./agent";
+export type {
+  ArrangeCapturePlan,
+  ArrangeIntent,
+  ArrangeOffset,
+  ArrangePresentation,
+  ArrangeRect,
+  ArrangeReview,
+  ArrangeReviewTarget,
+  ArrangeTarget,
+  MesurerArrangeService,
+} from "./arrange";
 export {
   captureMesurerContext,
   copyTextToClipboard,
