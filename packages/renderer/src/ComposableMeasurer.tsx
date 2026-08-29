@@ -34,6 +34,8 @@ export type MeasurerProps = Omit<
   LegacyMeasurerProps,
   "pluginTools" | "onPluginTool" | "onBuiltinController"
 > & {
+  /** Public package/release version shown by Settings and official Mesurer plugin metadata. */
+  version?: string;
   /** Additional plugins loaded after built-ins and the renderer bridge are available. */
   plugins?: MesurerPlugin[];
   /** Remove built-in features without forking the renderer. */
@@ -56,6 +58,7 @@ const BUILTIN_TOOL_IDS = [
   "guides",
   "settings",
 ] as const satisfies readonly Exclude<MesurerBuiltinPluginId, "distance">[];
+const DEFAULT_PLUGIN_STORAGE_KEY = "mesurer-plugin-settings";
 
 const isBuiltinPluginId = (value: string): value is MesurerBuiltinPluginId =>
   value === "select"
@@ -98,9 +101,13 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   const providedHost = untrack(() => props.pluginHost);
   const host: MesurerPluginHost = providedHost ?? createMesurerPluginHost();
   const ownsHost = !providedHost;
+  const version = untrack(() => props.version ?? "0.1.0");
+  const versionPlugin = (plugin: MesurerPlugin): MesurerPlugin =>
+    props.version && plugin.id.startsWith("mesurer.") ? { ...plugin, version } : plugin;
   const initialExclusions = new Set(untrack(() => props.excludePlugins ?? []));
-  const initialBuiltinPlugins = untrack(() => composeMesurerPlugins([], props.excludePlugins ?? []));
-  const initialExternalPlugins = untrack(() => [...(props.plugins ?? [])]);
+  const initialBuiltinPlugins = untrack(() => composeMesurerPlugins([], props.excludePlugins ?? []).map(versionPlugin));
+  const initialExternalPlugins = untrack(() => [...(props.plugins ?? [])].map(versionPlugin));
+  const pluginDefaults = new Map<string, Map<string, boolean>>();
   let rendererModel: MeasurerModel | null = null;
   let builtinController: MeasurerBuiltinController | null = null;
   const [revision, setRevision] = createSignal(0);
@@ -178,6 +185,17 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     });
   };
 
+  const resetPluginSettings = () => {
+    for (const section of host.settings()) {
+      const defaults = pluginDefaults.get(section.id);
+      if (!defaults) continue;
+      for (const control of section.controls ?? []) {
+        const value = defaults.get(control.id);
+        if (value !== undefined) updatePluginSetting(section.id, control, value);
+      }
+    }
+  };
+
   onSettled(() => {
     let active = true;
     let persistTimer = 0;
@@ -228,17 +246,18 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     visibilityStyle.textContent = visibilityCss();
     target.append(visibilityStyle);
 
-    const pluginStorageKey = input.persistKey ? `${input.persistKey}:plugins` : null;
+    const pluginStorageKey = input.persistKey ? `${input.persistKey}:plugins` : DEFAULT_PLUGIN_STORAGE_KEY;
+    const writePluginState = () => {
+      persistTimer = 0;
+      try {
+        ownerWindow.localStorage.setItem(pluginStorageKey, JSON.stringify(runtimeHost.state.serialize("persist")));
+      } catch (error) {
+        input.onPluginError?.(error, "plugin-persistence");
+      }
+    };
     const persistPluginState = () => {
-      if (!pluginStorageKey) return;
       ownerWindow.clearTimeout(persistTimer);
-      persistTimer = ownerWindow.setTimeout(() => {
-        try {
-          ownerWindow.localStorage.setItem(pluginStorageKey, JSON.stringify(runtimeHost.state.serialize("persist")));
-        } catch (error) {
-          input.onPluginError?.(error, "plugin-persistence");
-        }
-      }, 50);
+      persistTimer = ownerWindow.setTimeout(writePluginState, 50);
     };
 
     const unsubscribe = runtimeHost.subscribe((event) => {
@@ -280,7 +299,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
 
       await loadPlugin({
         id: "mesurer.runtime-bridge",
-        version: "0.1.0",
+        version,
         provides: ["runtime:solid"],
         setup(ctx) {
           ctx.service.provide<MesurerSolidRuntimeService>("runtime:solid", {
@@ -300,16 +319,21 @@ export default function ComposableMeasurer(props: MeasurerProps) {
       for (const plugin of initialExternalPlugins) await loadPlugin(plugin);
       if (!active) return;
 
-      if (pluginStorageKey) {
-        try {
-          const stored = ownerWindow.localStorage.getItem(pluginStorageKey);
-          if (stored) {
-            const snapshot: PluginStateSnapshot = JSON.parse(stored);
-            runtimeHost.state.restore(snapshot, "persist");
-          }
-        } catch (error) {
-          input.onPluginError?.(error, "plugin-persistence");
+      pluginDefaults.clear();
+      for (const section of runtimeHost.settings()) {
+        pluginDefaults.set(section.id, new Map(
+          (section.controls ?? []).map((control) => [control.id, control.value()] as const),
+        ));
+      }
+
+      try {
+        const stored = ownerWindow.localStorage.getItem(pluginStorageKey);
+        if (stored) {
+          const snapshot: PluginStateSnapshot = JSON.parse(stored);
+          runtimeHost.state.restore(snapshot, "persist");
         }
+      } catch (error) {
+        input.onPluginError?.(error, "plugin-persistence");
       }
 
       if (active) {
@@ -390,7 +414,10 @@ export default function ComposableMeasurer(props: MeasurerProps) {
 
     return () => {
       active = false;
-      ownerWindow.clearTimeout(persistTimer);
+      if (persistTimer) {
+        ownerWindow.clearTimeout(persistTimer);
+        writePluginState();
+      }
       ownerWindow.removeEventListener("keydown", captureShortcut, true);
       unsubscribe();
       visibilityStyle.remove();
@@ -401,7 +428,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   });
 
   return (
-    <MesurerPluginSettingsProvider runtime={{ sections: customSettings, update: updatePluginSetting }}>
+    <MesurerPluginSettingsProvider runtime={{ sections: customSettings, version: () => version, update: updatePluginSetting, reset: resetPluginSettings }}>
       <MeasurerModelRegistrationContext value={(model: MeasurerModel) => { rendererModel = model; }}>
         <LegacyMeasurer
           {...props}
