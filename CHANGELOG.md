@@ -4,9 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Add generic plugin-contributed toggle controls under Settings → General → Plugins, including persisted Context and Screenshot controls for tool visibility, screenshot auto-copy/auto-download, and whether captures include measurement presentation.
-
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.1-beta.1 - 2026-08-29
+
+- Add generic plugin-contributed toggle controls under Settings → General → Plugins, including persisted Context and Screenshot controls for tool visibility, screenshot auto-copy/auto-download, and whether captures include measurement presentation.
 
 ## 0.1.1-beta.0 - 2026-08-28
 
