@@ -1,9 +1,5 @@
 export { default as Mesurer } from "./ComposableMesurer";
 export type { MesurerProps, MesurerSolidRuntimeService } from "./ComposableMesurer";
-/** @deprecated Internal compatibility alias. Use `Mesurer`. */
-export { default as Measurer } from "./ComposableMeasurer";
-/** @deprecated Internal compatibility alias. Use `MesurerProps`. */
-export type { MeasurerProps } from "./ComposableMeasurer";
 export { ContextActions } from "./components/ContextActions";
 export type { ContextActionsController, ContextActionsProps } from "./components/ContextActions";
 export { createMesurerWorkspaceRuntime } from "./runtime/workspace-context";
