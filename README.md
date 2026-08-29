@@ -142,13 +142,16 @@ This is useful when a visual change needs to be checked against the same target 
 
 ## Agent integration
 
-Browser-capable coding agents can use the same programmatic context API. Install the portable skill for the full agent workflow and injection guidance:
+For coding-agent setup, injection, state-preservation rules, and the full visual verification workflow, use the dedicated agent docs instead of the README:
+
+- [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md)
+- [`.agents/skills/mesurer-ui/SKILL.md`](./.agents/skills/mesurer-ui/SKILL.md)
+
+Install the portable skill with:
 
 ```bash
 npx --yes --package=mesurer-solid mesurer-skill install
 ```
-
-See [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md) and the installed `mesurer-ui` skill for agent-specific setup and behavior.
 
 ## Supported hosts
 
@@ -205,10 +208,10 @@ mesurer-solid/inject-script
 ## Docs
 
 - [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) — screenshot plugin
-- [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md) — agent-facing API and setup
 - [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — context, selection, annotations, and review
 - [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) — host isolation and browser compatibility
 - [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) — upstream Mesurer parity
+- [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md) — agent-specific setup and API usage
 
 ## Origin and attribution
 
