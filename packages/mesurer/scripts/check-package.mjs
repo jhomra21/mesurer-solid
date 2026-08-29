@@ -75,6 +75,14 @@ if (!contextReturningSelectPattern.test(rootDeclarations)) {
 if (!/\bselect:\s*boolean\b/.test(rootDeclarations)) {
   throw new Error("Published MesurerAgentCapabilities must advertise the direct select capability.");
 }
+if (!/\barrange:\s*boolean\b/.test(rootDeclarations)) {
+  throw new Error("Published MesurerAgentCapabilities must advertise Arrange availability.");
+}
+for (const methodName of ["arrangements", "arrange", "showArrange", "arrangeCapturePlan", "reviewArrange"]) {
+  if (!new RegExp(`\\b${methodName}\\s*\\(`).test(rootDeclarations)) {
+    throw new Error(`Published Mesurer agent declarations are missing ${methodName}().`);
+  }
+}
 for (const canonicalName of ["mountMesurer", "MountMesurerOptions", "MountedMesurer"]) {
   if (!new RegExp(`\\b${canonicalName}\\b`).test(rootDeclarations)) {
     throw new Error(`Published declarations are missing canonical Mesurer API name: ${canonicalName}.`);
@@ -95,7 +103,13 @@ const arrangeDeclarations = readFileSync(new URL("arrange.d.ts", dist), "utf8");
 if (!/\barrangePlugin\b/.test(arrangeDeclarations)) {
   throw new Error("Published Arrange entry must expose arrangePlugin().");
 }
-for (const contractName of ["ArrangeIntent", "ArrangeReview", "ArrangeCapturePlan", "MesurerArrangeService"]) {
+for (const contractName of [
+  "ArrangeElementFingerprint",
+  "ArrangeIntent",
+  "ArrangeReview",
+  "ArrangeCapturePlan",
+  "MesurerArrangeService",
+]) {
   if (!new RegExp(`\\b${contractName}\\b`).test(arrangeDeclarations)) {
     throw new Error(`Published Arrange entry is missing ${contractName}.`);
   }
