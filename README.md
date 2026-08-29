@@ -9,7 +9,7 @@ A Solid 2 port and extension of [Mesurer](https://github.com/ibelick/mesurer) by
 Mesurer Solid is a visual inspection and measurement tool for browser apps. Use it to select elements, inspect spacing and layout, measure distances, add guides, inspect text and colors, capture screenshots, and expose rendered UI state through a programmatic API.
 
 <p align="center">
-  <img src="docs/assets/showcase/mesurer-solid-0.1.1.webp" alt="Mesurer Solid 0.1.1 showing multi-selection, exact spacing, live context, context tools, and the screenshot plugin" width="100%">
+  <img src="docs/assets/showcase/mesurer-solid-0.1.1.svg" alt="Mesurer Solid 0.1.1 showing multi-selection, exact spacing, live context, context tools, and the screenshot plugin" width="100%">
 </p>
 
 <sub>Captured from the published `mesurer-solid@0.1.1` package.</sub>
