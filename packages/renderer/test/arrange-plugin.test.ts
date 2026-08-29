@@ -183,6 +183,7 @@ describe("arrangePlugin", () => {
     expect(reviewBeforeSourceEdit?.matched).toBe(false);
     expect(reviewBeforeSourceEdit?.targets[0]?.delta).toMatchObject({ left: -40, top: -20 });
 
+    await vi.waitFor(() => expect(host.canUndo()).toBe(true));
     expect(host.undo()).toBe(true);
     expect(service?.intents()).toHaveLength(0);
     expect(target.style.getPropertyValue("transform")).toBe("scale(1)");
