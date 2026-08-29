@@ -60,7 +60,7 @@ jobs:
             npm publish "$(realpath "$filename")" --dry-run --access public
           fi
 
-      - name: Typecheck a clean consumer against published declarations
+      - name: Typecheck canonical and legacy names from a clean consumer
         run: |
           rm -rf /tmp/mesurer-types
           mkdir -p /tmp/mesurer-types
@@ -70,8 +70,12 @@ jobs:
           cat > index.ts <<'TS'
           import {
             defineMesurerPlugin,
+            mountMesurer,
             mountMeasurer,
+            type MountMesurerOptions,
             type MountMeasurerOptions,
+            type MountedMesurer,
+            type MountedMeasurer,
             type MesurerPlugin,
           } from "mesurer-solid";
           import {
@@ -90,15 +94,22 @@ jobs:
               ctx.state.register({ id: "consumer", initial: 0, history: true });
             },
           });
-          const options: MountMeasurerOptions = { agent: true, plugins: [plugin] };
+          const options: MountMesurerOptions = { agent: true, plugins: [plugin] };
+          const legacyOptions: MountMeasurerOptions = options;
           const screenshotOptions: MesurerScreenshotPluginOptions = { copy: true, download: false };
           const screenshotService: MesurerScreenshotService | undefined = undefined;
+          const canonicalMounted: MountedMesurer | undefined = undefined;
+          const legacyMounted: MountedMeasurer | undefined = canonicalMounted;
           const host: MesurerPluginHost = createMesurerPluginHost();
           void options;
+          void legacyOptions;
           void screenshotOptions;
           void screenshotService;
+          void canonicalMounted;
+          void legacyMounted;
           void screenshotPlugin;
           void host;
+          void mountMesurer;
           void mountMeasurer;
           TS
           cat > tsconfig.json <<'JSON'
@@ -158,7 +169,7 @@ jobs:
           window.__HOST_READY__ = true;
           JS
 
-      - name: Create clean Solid 1 consumer using mountMeasurer
+      - name: Create clean Solid 1 consumer using mountMesurer
         run: |
           rm -rf /tmp/mesurer-solid1
           mkdir -p /tmp/mesurer-solid1
@@ -171,7 +182,7 @@ jobs:
           cat > main.js <<'JS'
           import { createEffect, createSignal } from "solid-js";
           import { render } from "solid-js/web";
-          import { defineMesurerPlugin, mountMeasurer } from "mesurer-solid";
+          import { defineMesurerPlugin, mountMesurer } from "mesurer-solid";
 
           const root = document.getElementById("root");
           render(() => {
@@ -204,7 +215,7 @@ jobs:
               });
             },
           });
-          const mesurer = mountMeasurer({ agent: true, plugins: [plugin] });
+          const mesurer = mountMesurer({ agent: true, plugins: [plugin] });
           await mesurer.ready;
           window.__HOST_READY__ = true;
           JS
@@ -228,7 +239,7 @@ jobs:
           cat > src/main.tsx <<'TSX'
           import { createSignal } from "solid-js";
           import { render } from "@solidjs/web";
-          import { defineMesurerPlugin, mountMeasurer } from "mesurer-solid";
+          import { defineMesurerPlugin, mountMesurer } from "mesurer-solid";
 
           function App() {
             const [count, setCount] = createSignal(0);
@@ -261,7 +272,7 @@ jobs:
               });
             },
           });
-          const mesurer = mountMeasurer({ agent: true, plugins: [plugin] });
+          const mesurer = mountMesurer({ agent: true, plugins: [plugin] });
           await mesurer.ready;
           (window as Window & { __HOST_READY__?: boolean }).__HOST_READY__ = true;
           TSX
