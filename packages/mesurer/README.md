@@ -288,6 +288,8 @@ The camera tool lets the user drag a viewport region. Mesurer captures the real 
 
 A successful capture can automatically copy PNG data to the clipboard and/or download a PNG according to persistent plugin settings. Those output operations are best-effort: if clipboard or download access is unavailable, the captured PNG is still kept for preview/viewer use and Mesurer reports the available result instead of discarding it.
 
+When `contextPlugin()` and/or `screenshotPlugin()` are mounted, Settings → General → Plugins exposes compact persisted controls for the human-facing plugin surface. Context can hide or restore its toolbar/annotation controls without removing the typed context service. Screenshot can hide or restore the camera tool and control automatic copy, automatic download, and whether measurement presentation is included in captured pixels.
+
 After capture, Mesurer shows a persistent draggable thumbnail. A new thumbnail starts in the bottom-right with an 8px viewport inset. Dragging preserves the existing viewport-clamping behavior, so the preview stays inside that safe boundary. The thumbnail can be dismissed, dragged around the viewport, right-clicked with the browser's native image context menu, or clicked to open a larger viewer. The viewer preserves native image right-click behavior and adds explicit Copy, Save, and Close controls. Escape or backdrop click closes the viewer without discarding the thumbnail. A short status message confirms whether the screenshot was copied, saved, captured, or could not complete an optional output.
 
 Normal browser hosts use `getDisplayMedia()` and reuse a live capture stream to avoid prompting for every region. The first-party Chrome extension uses `chrome.tabs.captureVisibleTab()` through its isolated-world extension bridge, so its screenshot path does not open the screen-share chooser and does not require a broad `<all_urls>` permission.
@@ -364,7 +366,7 @@ import {
 } from "mesurer-solid/core"
 ```
 
-Plugins can contribute tools, commands, hooks, overlays, settings, state, services, history/persistence, renderer-owned UI, and lifecycle cleanup.
+Plugins can contribute tools, commands, hooks, overlays, settings, state, services, history/persistence, renderer-owned UI, and lifecycle cleanup. Plugin-defined toggle settings can register through the plugin host and appear in the canonical General → Plugins Settings section without hard-coding the plugin into Mesurer's renderer.
 
 ## Public surface
 
