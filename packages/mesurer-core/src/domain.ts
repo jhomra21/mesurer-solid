@@ -78,7 +78,7 @@ export type MesurerStoredWorkspace<ElementRef = unknown> = {
   heldDistances: DistanceOverlay<ElementRef>[];
 };
 
-export type MeasurerSettings = {
+export type MesurerSettings = {
   highlightColor: string;
   guideColor: string;
   hoverHighlightEnabled: boolean;
@@ -94,13 +94,13 @@ export type MeasurerSettings = {
 };
 
 export type GuidePreview = { orientation: Guide["orientation"]; position: number };
-export type MeasurerModelOptions = {
+export type MesurerModelOptions = {
   initialEnabled?: boolean;
   initialToolMode?: ToolMode;
-  settings?: Partial<MeasurerSettings>;
+  settings?: Partial<MesurerSettings>;
 };
 
-export type MeasurerModelState<ElementRef = unknown> = {
+export type MesurerModelState<ElementRef = unknown> = {
   enabled: boolean;
   toolMode: ToolMode;
   rulersVisible: boolean;
@@ -129,5 +129,12 @@ export type MeasurerModelState<ElementRef = unknown> = {
   selectedGuideIds: string[];
   draggingGuideId: string | null;
   guidePreview: GuidePreview | null;
-  settings: MeasurerSettings;
+  settings: MesurerSettings;
 };
+
+/** @deprecated Use `MesurerSettings`. */
+export type MeasurerSettings = MesurerSettings;
+/** @deprecated Use `MesurerModelOptions`. */
+export type MeasurerModelOptions = MesurerModelOptions;
+/** @deprecated Use `MesurerModelState`. */
+export type MeasurerModelState<ElementRef = unknown> = MesurerModelState<ElementRef>;
