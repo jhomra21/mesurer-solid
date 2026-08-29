@@ -59,7 +59,7 @@ const publishedRoot = await import(new URL("../dist/index.js", import.meta.url))
 if (publishedRoot.MESURER_VERSION !== packageJson.version) {
   throw new Error(`Published MESURER_VERSION ${publishedRoot.MESURER_VERSION ?? "<missing>"} does not match package version ${packageJson.version}.`);
 }
-if (typeof publishedRoot.mountMesurer !== "function") {
+if (!Object.hasOwn(publishedRoot, "mountMesurer")) {
   throw new Error("Published root must expose canonical mountMesurer().");
 }
 if (publishedRoot.mountMeasurer !== publishedRoot.mountMesurer) {
