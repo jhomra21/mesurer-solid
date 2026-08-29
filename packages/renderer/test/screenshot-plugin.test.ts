@@ -3,12 +3,12 @@ import {
   createMesurerPluginHost,
   defineMesurerPlugin,
 } from "@jhomra21/mesurer-solid-core";
-import type { MesurerSolidRuntimeService } from "../src/ComposableMeasurer";
+import type { MesurerSolidRuntimeService } from "../src/ComposableMesurer";
 import {
   createScreenshotFilename,
   normalizeScreenshotRect,
 } from "../src/core/screenshot";
-import { createMeasurerModel } from "../src/model/create-measurer-model";
+import { createMesurerModel } from "../src/model/create-mesurer-model";
 import {
   MESURER_SCREENSHOT_SERVICE_ID,
   screenshotPlugin,
@@ -53,7 +53,7 @@ describe("screenshotPlugin", () => {
     rendererRoot.append(measurementLayer, rulers);
     document.body.append(rendererRoot);
 
-    const model = createMeasurerModel({ initialEnabled: true });
+    const model = createMesurerModel({ initialEnabled: true });
     const workspace = createMesurerWorkspaceRuntime({
       model,
       ownerDocument: document,
