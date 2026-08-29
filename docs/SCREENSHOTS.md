@@ -18,10 +18,10 @@ mesurer-solid/screenshot
 Source-mounted applications opt in explicitly:
 
 ```ts
-import { mountMeasurer } from "mesurer-solid"
+import { mountMesurer } from "mesurer-solid"
 import { screenshotPlugin } from "mesurer-solid/screenshot"
 
-const mesurer = mountMeasurer({
+const mesurer = mountMesurer({
   plugins: [
     screenshotPlugin({
       copy: true,
