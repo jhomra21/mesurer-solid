@@ -7,7 +7,7 @@ import {
   type SettingsToggleContribution,
   type ToolContribution,
 } from "@jhomra21/mesurer-solid-core";
-import LegacyMesurer, { type MeasurerProps as LegacyMesurerProps } from "./Measurer";
+import Mesurer, { type MesurerProps as BaseMesurerProps } from "./Mesurer";
 import { isEditableKeyboardEvent } from "./core/events";
 import {
   MesurerModelRegistrationContext,
@@ -31,7 +31,7 @@ export type MesurerSolidRuntimeService = {
 };
 
 export type MesurerProps = Omit<
-  LegacyMesurerProps,
+  BaseMesurerProps,
   "pluginTools" | "onPluginTool" | "onBuiltinController"
 > & {
   /** Public package/release version shown by Settings and official Mesurer plugin metadata. */
@@ -430,7 +430,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   return (
     <MesurerPluginSettingsProvider runtime={{ sections: customSettings, version: () => version, update: updatePluginSetting, reset: resetPluginSettings }}>
       <MesurerModelRegistrationContext value={(model: MesurerModel) => { rendererModel = model; }}>
-        <LegacyMesurer
+        <Mesurer
           {...props}
           pluginTools={customTools()}
           onPluginTool={(tool) => runTool(tool)}
