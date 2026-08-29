@@ -16,6 +16,3 @@ export function ensureMesurerStyles(css: string, target?: HTMLElement | ShadowRo
   if (isDocument(root)) root.head.append(style);
   else root.append(style);
 }
-
-/** @deprecated Internal compatibility alias while renderer modules migrate to Mesurer naming. */
-export const ensureMeasurerStyles = ensureMesurerStyles;
