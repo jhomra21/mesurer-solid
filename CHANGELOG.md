@@ -94,13 +94,3 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## 0.1.0-beta.3 - 2026-08-20
 
 - No user-facing changes.
-
-## 0.1.0-beta.2 - 2026-08-20
-
-- Port Mesurer's React UI to Solid 2 and preserve the original visual and interaction model.
-- Add a framework-independent public mount API for browser and Electron hosts.
-- Add the plugin runtime, public agent harness, context APIs, and browser integration infrastructure.
-
-## 0.1.0-beta.1 - 2026-08-20
-
-- Initial public beta of Mesurer Solid.
