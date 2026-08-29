@@ -1,14 +1,14 @@
 import {
   contextPlugin,
-  mountMeasurer,
-  type MountedMeasurer,
+  mountMesurer,
+  type MountedMesurer,
 } from "./index";
 import type { MesurerInjectConfig } from "./inject";
 import { screenshotPlugin } from "./screenshot";
 
 declare global {
   var __MESURER_CONFIG__: MesurerInjectConfig | undefined;
-  var __MESURER_INSTANCE__: MountedMeasurer | undefined;
+  var __MESURER_INSTANCE__: MountedMesurer | undefined;
 }
 
 const config = globalThis.__MESURER_CONFIG__ ?? {};
@@ -42,7 +42,7 @@ if (reusableExisting) {
   ];
 
   existing?.dispose();
-  const mesurer = mountMeasurer({
+  const mesurer = mountMesurer({
     ...options,
     plugins: injectedPlugins,
     target,
@@ -51,7 +51,7 @@ if (reusableExisting) {
 
   globalThis.__MESURER_INSTANCE__ = mesurer;
 
-  // The agent global is installed synchronously by mountMeasurer(). Consumers can
+  // The agent global is installed synchronously by mountMesurer(). Consumers can
   // immediately call window[globalName].ready() through their existing browser
   // evaluation primitive. Avoid top-level await so this file can be emitted as a
   // classic self-executing script instead of an ES module.
