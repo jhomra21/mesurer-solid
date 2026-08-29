@@ -5,6 +5,11 @@ coverage/
 .DS_Store
 *.tsbuildinfo
 
+# Renderer style compilation is disposable build output. The source of truth is
+# packages/renderer/src/styles.css; dev/test/build regenerate these as needed.
+packages/renderer/src/styles.generated.css
+packages/renderer/src/styles.generated.ts
+
 # npm publish staging/output
 packages/mesurer/.publish/
 packages/mesurer/*.tgz

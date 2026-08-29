@@ -29,6 +29,21 @@ const expectChecked = async (control, expected, label) => {
   const actual = await checked(control);
   if (actual !== expected) throw new Error(`${label} expected ${expected ? "on" : "off"}, got ${actual ? "on" : "off"}`);
 };
+const expectSingleLine = async (control, label) => {
+  const metrics = await control.evaluate((element) => {
+    const labelElement = element.querySelector(":scope > span:first-child");
+    if (!(labelElement instanceof HTMLElement)) return null;
+    return {
+      whiteSpace: getComputedStyle(labelElement).whiteSpace,
+      labelHeight: labelElement.getBoundingClientRect().height,
+      rowHeight: element.getBoundingClientRect().height,
+    };
+  });
+  if (!metrics) throw new Error(`${label} label element was unavailable`);
+  if (metrics.whiteSpace !== "nowrap" || metrics.labelHeight > 16 || Math.abs(metrics.rowHeight - 24) > 0.5) {
+    throw new Error(`${label} did not stay on one compact line: ${JSON.stringify(metrics)}`);
+  }
+};
 const waitForTool = async (id, visible) => {
   await page.waitForFunction(({ id, visible }) => {
     const islandElement = document.querySelector("[data-mesurer-island='true']");
@@ -95,6 +110,11 @@ try {
   await expectChecked(autoCopy, false, "Auto-copy");
   await expectChecked(autoDownload, false, "Auto-download");
   await expectChecked(includeMeasurements, false, "Include measurements");
+  await expectSingleLine(contextTools, "Context tools");
+  await expectSingleLine(screenshotTool, "Screenshot tool");
+  await expectSingleLine(autoCopy, "Auto-copy");
+  await expectSingleLine(autoDownload, "Auto-download");
+  await expectSingleLine(includeMeasurements, "Include measurements");
 
   await contextTools.click();
   await expectChecked(contextTools, false, "Context tools after disable");

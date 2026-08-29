@@ -3,7 +3,11 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "scripts": { "dev": "vite", "build": "vite build", "typecheck": "tsc --noEmit" },
+  "scripts": {
+    "dev": "bun run --filter '@jhomra21/mesurer-solid-renderer' styles && vite",
+    "build": "bun run --filter '@jhomra21/mesurer-solid-renderer' styles && vite build",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@jhomra21/mesurer-solid-renderer": "workspace:*",
     "@solidjs/web": "^2.0.0-rc.0",
