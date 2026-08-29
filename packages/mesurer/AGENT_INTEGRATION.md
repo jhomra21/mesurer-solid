@@ -347,10 +347,10 @@ Mesurer has two intentionally different screenshot paths.
 The optional `mesurer.screenshot` plugin gives the person a camera tool inside Mesurer:
 
 ```ts
-import { mountMeasurer } from "mesurer-solid"
+import { mountMesurer } from "mesurer-solid"
 import { screenshotPlugin } from "mesurer-solid/screenshot"
 
-const mesurer = mountMeasurer({
+const mesurer = mountMesurer({
   plugins: [screenshotPlugin()],
 })
 ```
@@ -390,9 +390,9 @@ Do not replace exact Mesurer measurements with pixel estimates from either scree
 When Mesurer is intentionally mounted from application code:
 
 ```ts
-import { contextPlugin, mountMeasurer } from "mesurer-solid"
+import { contextPlugin, mountMesurer } from "mesurer-solid"
 
-const mesurer = mountMeasurer({
+const mesurer = mountMesurer({
   agent: true,
   plugins: [contextPlugin()],
 })
