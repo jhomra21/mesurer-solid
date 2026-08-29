@@ -16,8 +16,8 @@
   "scripts": {
     "styles": "bunx tailwindcss -i src/styles.css -o src/styles.generated.css && bun scripts/generate-styles.mjs",
     "build": "bun run styles && vite build && tsc -p tsconfig.build.json && bunx tailwindcss -i src/styles.css -o dist/styles.css",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "typecheck": "bun run styles && tsc --noEmit",
+    "test": "bun run styles && vitest run"
   },
   "dependencies": {
     "@jhomra21/mesurer-solid-core": "workspace:*",
