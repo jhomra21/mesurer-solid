@@ -95,7 +95,7 @@ pluginHost.load(contextPlugin())
              `-- service: context:v1
 ```
 
-Core `mountMeasurer()` does not create annotation state, render context controls, or capture context itself. Convenience methods resolve `context:v1` from the live plugin host.
+Core `mountMesurer()` does not create annotation state, render context controls, or capture context itself. Convenience methods resolve `context:v1` from the live plugin host.
 
 Removing `mesurer.context` disposes its UI, listeners, annotation runtime, commands, and service through the same lifecycle used by other plugins.
 
