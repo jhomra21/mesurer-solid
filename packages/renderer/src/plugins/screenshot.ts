@@ -3,7 +3,7 @@ import {
   type MesurerPlugin,
   type PluginValue,
 } from "@jhomra21/mesurer-solid-core";
-import type { MesurerSolidRuntimeService } from "../ComposableMeasurer";
+import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import {
   MIN_SCREENSHOT_SELECTION,
   captureVisibleTabPng,
