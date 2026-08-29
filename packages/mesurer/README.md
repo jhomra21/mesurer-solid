@@ -123,8 +123,4 @@ mesurer-solid/inject
 mesurer-solid/inject-script
 ```
 
-## Compatibility
-
-`mountMesurer()` and the `Mesurer`-spelled types are the canonical API. The older `mountMeasurer()` / `Measurer` aliases remain temporarily for backwards compatibility and are deprecated.
-
 MIT. Adapted from `ibelick/mesurer`; see `THIRD_PARTY_LICENSES.md`.
