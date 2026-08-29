@@ -2,7 +2,7 @@ import { For, Show, createSignal, onSettled } from "solid-js";
 import { colorToHex, parseCssColor, type ColorPickerFormat } from "../core/colors";
 import { trySetPointerCapture } from "../core/events";
 import type { GuideStyle, SelectionSpacingStyle } from "../core/persistence";
-import type { MeasurerModel, SettingsTab } from "../model/create-measurer-model";
+import type { MesurerModel, SettingsTab } from "../model/create-mesurer-model";
 import { useMesurerPluginSettings } from "../plugins/settings-runtime";
 import { Tooltip, createTooltip } from "./Tooltip";
 
@@ -200,7 +200,7 @@ function ColorField(props: { label: string; value: string; fallback: string; own
   );
 }
 
-export function SettingsPanel(props: { model: MeasurerModel; ownerWindow: Window; onResetSettings: () => void; onClearWorkspace: () => void; selectionSpacingStyle: SelectionSpacingStyle; onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void }) {
+export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window; onResetSettings: () => void; onClearWorkspace: () => void; selectionSpacingStyle: SelectionSpacingStyle; onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void }) {
   const patternTooltip = createTooltip(props.ownerWindow);
   const pluginSettings = useMesurerPluginSettings();
   const pluginSections = () => pluginSettings?.sections() ?? [];
