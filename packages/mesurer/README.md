@@ -24,7 +24,60 @@ npm install -D mesurer-solid@beta
 
 Prereleases through `0.1.0-beta.11` used the old scoped package name; current releases use `mesurer-solid`.
 
+## Where Mesurer code goes
+
+Mesurer runs in the browser. Mount it once from the client/browser entry for the page you want to inspect.
+
+For local development in a Vite app, a clear setup is:
+
+```text
+src/
+├── main.tsx          # existing browser entry; the filename may differ
+└── dev/
+    └── mesurer.ts    # Mesurer setup
+```
+
+Create `src/dev/mesurer.ts`:
+
+```ts
+import { mountMesurer } from "mesurer-solid"
+
+const mesurer = mountMesurer()
+
+import.meta.hot?.dispose(() => {
+  mesurer.dispose()
+})
+```
+
+Then load that module from the existing browser entry, such as `src/main.tsx`, `src/main.ts`, or `src/index.tsx`:
+
+```ts
+if (import.meta.env.DEV) {
+  void import("./dev/mesurer")
+}
+```
+
+`import.meta.env.DEV` is Vite-specific. With another bundler, use its build-time development flag instead.
+
+Typical browser entry locations include:
+
+| Application | Typical place to load Mesurer |
+| --- | --- |
+| React + Vite | `src/main.tsx` |
+| Solid + Vite | `src/index.tsx`, `src/main.tsx`, or the project's browser entry |
+| Vue + Vite | `src/main.ts` |
+| Svelte + Vite | `src/main.ts` |
+| Vanilla Vite | `src/main.ts` or `src/main.js` |
+| Electron | the renderer entry, such as `src/renderer.ts` or `src/renderer/main.tsx` |
+| SSR / metaframework | a client-only module or lifecycle that never executes during server rendering |
+
+Do not put `mountMesurer()` in build configuration, API/server routes, Node-only scripts, an Electron main process, or a shared SSR module that also executes on the server.
+
+Put plugin setup in the same Mesurer module. The repository's [getting-started guide](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md) has more detailed Vite/HMR, SSR/client-only, Electron, and plugin examples.
+
 ## Mount the base inspector
+
+If you intentionally want Mesurer enabled whenever the browser bundle runs, you can mount it directly from that browser entry instead of using the development-only dynamic import above:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -36,7 +89,7 @@ The base inspector contains Select, X-ray, Color Picker, Rulers, Text Inspector,
 
 ## Add shared visual context
 
-Context and annotations are provided by removable `mesurer.context`:
+Context and annotations are provided by removable `mesurer.context`. Add the plugin in the same Mesurer mounting module described above:
 
 ```ts
 import {
@@ -268,7 +321,7 @@ For meaningful visual work, fresh Mesurer context/review is part of completion. 
 
 ## Optional screenshot plugin
 
-Screenshot capture is a removable first-party plugin instead of permanent core state:
+Screenshot capture is a removable first-party plugin. Configure it in the same Mesurer mounting module:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
