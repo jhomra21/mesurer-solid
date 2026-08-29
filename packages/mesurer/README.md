@@ -27,9 +27,9 @@ Prereleases through `0.1.0-beta.11` used the old scoped package name; current re
 ## Mount the base inspector
 
 ```ts
-import { mountMeasurer } from "mesurer-solid"
+import { mountMesurer } from "mesurer-solid"
 
-const mesurer = mountMeasurer()
+const mesurer = mountMesurer()
 ```
 
 The base inspector contains Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, Settings, the plugin host, and the low-level agent inspection API.
@@ -41,10 +41,10 @@ Context and annotations are provided by removable `mesurer.context`:
 ```ts
 import {
   contextPlugin,
-  mountMeasurer,
+  mountMesurer,
 } from "mesurer-solid"
 
-const mesurer = mountMeasurer({
+const mesurer = mountMesurer({
   agent: true,
   plugins: [contextPlugin()],
 })
@@ -271,10 +271,10 @@ For meaningful visual work, fresh Mesurer context/review is part of completion. 
 Screenshot capture is a removable first-party plugin instead of permanent core state:
 
 ```ts
-import { mountMeasurer } from "mesurer-solid"
+import { mountMesurer } from "mesurer-solid"
 import { screenshotPlugin } from "mesurer-solid/screenshot"
 
-const mesurer = mountMeasurer({
+const mesurer = mountMesurer({
   plugins: [
     screenshotPlugin({
       copy: true,

@@ -1,12 +1,12 @@
 import { flush } from "solid-js";
 import { describe, expect, it } from "vitest";
-import { createMeasurerModel } from "../src/model/create-measurer-model";
+import { createMesurerModel } from "../src/model/create-mesurer-model";
 
 const guide = { id: "g1", orientation: "vertical" as const, position: 100 };
 
-describe("createMeasurerModel", () => {
+describe("createMesurerModel", () => {
   it("keeps synchronous command state and the Solid projection in sync", () => {
-    const model = createMeasurerModel({ initialEnabled: true });
+    const model = createMesurerModel({ initialEnabled: true });
     const next = model.toggleEnabled();
     expect(next).toBe(false);
     // Imperative behavior reads the framework-neutral command state immediately.
@@ -18,7 +18,7 @@ describe("createMeasurerModel", () => {
   });
 
   it("undoes and redoes guide actions", () => {
-    const model = createMeasurerModel();
+    const model = createMesurerModel();
     model.checkpoint();
     model.addGuide(guide);
     flush();
@@ -33,7 +33,7 @@ describe("createMeasurerModel", () => {
   });
 
   it("chooses the upstream settings tab when settings open without an explicit tab", () => {
-    const model = createMeasurerModel();
+    const model = createMesurerModel();
 
     model.setToolMode("select");
     model.setTransient({ settingsOpen: true });
@@ -62,7 +62,7 @@ describe("createMeasurerModel", () => {
   });
 
   it("preserves an explicit settings tab when opening settings", () => {
-    const model = createMeasurerModel();
+    const model = createMesurerModel();
     model.setToolMode("guides");
     model.setTransient({ settingsOpen: true, settingsTab: "general" });
     expect(model.current.settingsTab).toBe("general");
@@ -70,7 +70,7 @@ describe("createMeasurerModel", () => {
   });
 
   it("serializes settings and strips runtime element references from workspace data", () => {
-    const model = createMeasurerModel({ settings: { persistOnReload: true } });
+    const model = createMesurerModel({ settings: { persistOnReload: true } });
     model.updateSettings({ guideColor: "#ff0000", snapGuidesEnabled: false });
     model.setMeasurements([{
       id: "m1",

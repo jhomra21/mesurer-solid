@@ -1,10 +1,10 @@
 import {
-  mountMeasurer,
-  type MountedMeasurer,
+  mountMesurer,
+  type MountedMesurer,
 } from "../../../packages/mesurer/src/index";
 
 type MultiSpacingHarness = {
-  mesurer: MountedMeasurer;
+  mesurer: MountedMesurer;
   moveToolbar(left: number, top: number): void;
 };
 
@@ -14,7 +14,7 @@ declare global {
   }
 }
 
-const mesurer = mountMeasurer({
+const mesurer = mountMesurer({
   target: document.body,
   isolate: false,
   topLayer: false,

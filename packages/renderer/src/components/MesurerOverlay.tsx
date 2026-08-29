@@ -6,14 +6,14 @@ import { trySetPointerCapture } from "../core/events";
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { Guide, InspectMeasurement, Rect } from "../core/types";
 import { formatValue } from "../core/utils";
-import type { MeasurerModel } from "../model/create-measurer-model";
+import type { MesurerModel } from "../model/create-mesurer-model";
 import { DistanceOverlayItem, type SelectionSpacingInteraction } from "./DistanceOverlayItem";
 import { MeasurementBox } from "./MeasurementBox";
 
 type OverlayPointerEvent = PointerEvent & { currentTarget: HTMLDivElement };
 
-export type MeasurerOverlayProps = {
-  model: MeasurerModel;
+export type MesurerOverlayProps = {
+  model: MesurerModel;
   displayedSelectedMeasurements: InspectMeasurement[];
   activeRect: Rect | null;
   optionPairOverlay: import("../core/types").DistanceOverlay | null;
@@ -34,7 +34,7 @@ const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any 
   <div class={`msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:bg-ink-900/90 ${props.axis === "x" ? "msr:-translate-x-1/2" : "msr:-translate-y-1/2"}`} style={{ left: `${props.left}px`, top: `${props.top}px` }}>{props.children}</div>
 );
 
-export function MeasurerOverlay(props: MeasurerOverlayProps) {
+export function MesurerOverlay(props: MesurerOverlayProps) {
   let overlayElement: HTMLDivElement | undefined;
   let passiveGuideDrag: {
     id: string;

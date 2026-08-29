@@ -2,7 +2,7 @@ import { Show, createEffect, createMemo, createSignal, onSettled, untrack } from
 import { Portal } from "@solidjs/web";
 import type { ToolContribution } from "@jhomra21/mesurer-solid-core";
 import { ColorPicker } from "./components/ColorPicker";
-import { MeasurerOverlay } from "./components/MeasurerOverlay";
+import { MesurerOverlay } from "./components/MesurerOverlay";
 import { RulersOverlay } from "./components/RulersOverlay";
 import { Toolbar } from "./components/Toolbar";
 import type { ColorPickerFormat } from "./core/colors";
@@ -41,20 +41,20 @@ import { getSelectedMeasurementHit } from "./core/selection-helpers";
 import type { Guide, InspectMeasurement, Point, Rect } from "./core/types";
 import { createId } from "./core/utils";
 import {
-  createMeasurerModel,
-  type MeasurerModel,
-  type MeasurerSettings,
-} from "./model/create-measurer-model";
+  createMesurerModel,
+  type MesurerModel,
+  type MesurerSettings,
+} from "./model/create-mesurer-model";
 import {
-  createMeasurerBuiltinController,
-  type MeasurerBuiltinController,
+  createMesurerBuiltinController,
+  type MesurerBuiltinController,
 } from "./runtime/builtin-actions";
-import { ensureMeasurerStyles } from "./runtime/style-inject";
+import { ensureMesurerStyles } from "./runtime/style-inject";
 import { createTextInspector, type TextInspectorAPI } from "./runtime/text-inspector";
 import { createXrayScope } from "./runtime/xray-scope";
 import { MESURER_STYLES } from "./styles.generated";
 
-export type MeasurerProps = {
+export type MesurerProps = {
   highlightColor?: string;
   guideColor?: string;
   hoverHighlightEnabled?: boolean;
@@ -77,7 +77,7 @@ export type MeasurerProps = {
   /** Internal composable-runtime contributions rendered by the canonical toolbar. */
   pluginTools?: ToolContribution[];
   onPluginTool?: (tool: ToolContribution) => void;
-  onBuiltinController?: (controller: MeasurerBuiltinController | null) => void;
+  onBuiltinController?: (controller: MesurerBuiltinController | null) => void;
 };
 
 type Environment = {
@@ -146,7 +146,7 @@ const unionSelection = (items: InspectMeasurement[], origin: Rect | null): Inspe
   };
 };
 
-function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: MeasurerProps; selectionSpacingStyle: SelectionSpacingStyle; onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void; onResetSelectionSpacingStyle: () => void }) {
+function MesurerClient(props: { model: MesurerModel; env: Environment; input: MesurerProps; selectionSpacingStyle: SelectionSpacingStyle; onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void; onResetSelectionSpacingStyle: () => void }) {
   const model = untrack(() => props.model);
   const env = untrack(() => props.env);
   const input = untrack(() => props.input);
@@ -169,7 +169,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   let guideDragHoldTimer = 0;
   let guideDragHoldId: string | null = null;
   let scrollPosition = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
-  const builtinController = createMeasurerBuiltinController({ model, ownerWindow });
+  const builtinController = createMesurerBuiltinController({ model, ownerWindow });
   const xrayScope = createXrayScope({
     ownerDocument,
     target: input.pageTarget ?? ownerDocument.body,
@@ -532,7 +532,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   );
 
   onSettled(() => {
-    ensureMeasurerStyles(MESURER_STYLES, env.portalTarget);
+    ensureMesurerStyles(MESURER_STYLES, env.portalTarget);
     textInspector = createTextInspector({ portalTarget: env.portalTarget });
     const persistence = input.persistence ?? createLocalStoragePersistence(
       ownerWindow, storageKey, SETTINGS_STORAGE_KEY, input.persistKey ? undefined : LEGACY_STORAGE_KEY,
@@ -685,7 +685,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
             onCancelGuide={cancelGuideFromRuler}
           />
         </Show>
-        <MeasurerOverlay
+        <MesurerOverlay
           model={model}
           displayedSelectedMeasurements={displayedSelectedMeasurements()}
           activeRect={activeRect()}
@@ -719,7 +719,7 @@ function MeasurerClient(props: { model: MeasurerModel; env: Environment; input: 
   );
 }
 
-export default function Measurer(props: MeasurerProps) {
+export default function Mesurer(props: MesurerProps) {
   const initialSelectionSpacingStyle = untrack(() => ({ ...DEFAULT_SELECTION_SPACING_STYLE, ...props.selectionSpacingStyle }));
   const [selectionSpacingStyle, setSelectionSpacingStyle] = createSignal<SelectionSpacingStyle>({ ...initialSelectionSpacingStyle });
   const updateSelectionSpacingStyle = (patch: Partial<SelectionSpacingStyle>) => setSelectionSpacingStyle((current) => ({ ...current, ...patch }));
@@ -737,8 +737,8 @@ export default function Measurer(props: MeasurerProps) {
     multiMeasureEnabled: props.multiMeasureEnabled ?? false,
     guideStyle: { ...DEFAULT_GUIDE_STYLE, ...props.guideStyle },
     rulerSettings: { ...DEFAULT_RULER_SETTINGS, ...props.rulerSettings },
-  } satisfies MeasurerSettings));
-  const model = createMeasurerModel({ initialEnabled: true, initialToolMode: "none", settings: initial });
+  } satisfies MesurerSettings));
+  const model = createMesurerModel({ initialEnabled: true, initialToolMode: "none", settings: initial });
   const [environment, setEnvironment] = createSignal<Environment | null>(null);
 
   onSettled(() => {
@@ -761,7 +761,7 @@ export default function Measurer(props: MeasurerProps) {
 
   return (
     <Show when={environment()}>
-      {(env) => <MeasurerClient model={model} env={env()} input={props} selectionSpacingStyle={selectionSpacingStyle()} onSelectionSpacingStyleChange={updateSelectionSpacingStyle} onResetSelectionSpacingStyle={resetSelectionSpacingStyle} />}
+      {(env) => <MesurerClient model={model} env={env()} input={props} selectionSpacingStyle={selectionSpacingStyle()} onSelectionSpacingStyleChange={updateSelectionSpacingStyle} onResetSelectionSpacingStyle={resetSelectionSpacingStyle} />}
     </Show>
   );
 }

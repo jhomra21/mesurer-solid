@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Make `mountMesurer`, `MountMesurerOptions`, and `MountedMesurer` the canonical public mount API spellings, keep the earlier `Measurer` forms as deprecated compatibility aliases for existing `0.1.1` consumers, and use the canonical Mesurer spelling throughout internal renderer/model code and examples.
 
 ## 0.1.1 - 2026-08-29
 

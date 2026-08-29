@@ -26,7 +26,7 @@ Use this decision order:
 2. existing browser JavaScript execution → inject `/inject-script` only when Mesurer is absent;
 3. existing browser/Electron CDP session → attach through the existing harness, then inject only when absent;
 4. ordinary packaged app with a renderer-evaluation/debug channel → use the same artifact and inject only when absent;
-5. only when the user explicitly wants persistent embedded tooling, or no external renderer-evaluation path exists → consider `mountMeasurer()` from application source.
+5. only when the user explicitly wants persistent embedded tooling, or no external renderer-evaluation path exists → consider `mountMesurer()` from application source.
 
 Do not add `start:mesurer`, `package:mesurer`, special Vite/environment flags, custom browser stacks, new CDP clients, alternate application builds, Electron main/preload wiring, MCP servers, or other project-specific scaffolding merely to make Mesurer available to an agent.
 

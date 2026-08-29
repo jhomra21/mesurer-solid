@@ -1,6 +1,6 @@
 import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import Measurer from "../src/Measurer";
+import Mesurer from "../src/Mesurer";
 import { render } from "../src/solid-dom";
 
 const settle = async () => {
@@ -20,12 +20,12 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-describe("Measurer host integration", () => {
+describe("Mesurer host integration", () => {
   it("uses the upstream Mesurer toolbar/settings visual contract and public shortcuts", async () => {
     const host = document.createElement("div");
     document.body.append(host);
 
-    const dispose = render(() => <Measurer persistKey="integration-main" />, host);
+    const dispose = render(() => <Mesurer persistKey="integration-main" />, host);
     mounted.push(dispose);
     await settle();
 
@@ -93,7 +93,7 @@ describe("Measurer host integration", () => {
     const host = document.createElement("div");
     document.body.append(host);
 
-    const dispose = render(() => <Measurer persistKey="integration-strict-reads" />, host);
+    const dispose = render(() => <Mesurer persistKey="integration-strict-reads" />, host);
     mounted.push(dispose);
     await settle();
 
@@ -121,7 +121,7 @@ describe("Measurer host integration", () => {
     document.body.append(appHost, shadowHost);
 
     const dispose = render(
-      () => <Measurer persistKey="integration-shadow" portalTarget={shadow} />,
+      () => <Mesurer persistKey="integration-shadow" portalTarget={shadow} />,
       appHost,
     );
     mounted.push(dispose);

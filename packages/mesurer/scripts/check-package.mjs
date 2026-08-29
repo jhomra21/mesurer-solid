@@ -59,6 +59,12 @@ const publishedRoot = await import(new URL("../dist/index.js", import.meta.url))
 if (publishedRoot.MESURER_VERSION !== packageJson.version) {
   throw new Error(`Published MESURER_VERSION ${publishedRoot.MESURER_VERSION ?? "<missing>"} does not match package version ${packageJson.version}.`);
 }
+if (!Object.hasOwn(publishedRoot, "mountMesurer")) {
+  throw new Error("Published root must expose canonical mountMesurer().");
+}
+if (publishedRoot.mountMeasurer !== publishedRoot.mountMesurer) {
+  throw new Error("Deprecated mountMeasurer() must remain an alias of mountMesurer() for 0.1.1 compatibility.");
+}
 
 const rootDeclarations = readFileSync(new URL("index.d.ts", dist), "utf8");
 if (!contextReturningSelectPattern.test(rootDeclarations)) {
@@ -67,6 +73,22 @@ if (!contextReturningSelectPattern.test(rootDeclarations)) {
 if (!/\bselect:\s*boolean\b/.test(rootDeclarations)) {
   throw new Error("Published MesurerAgentCapabilities must advertise the direct select capability.");
 }
+for (const canonicalName of ["mountMesurer", "MountMesurerOptions", "MountedMesurer"]) {
+  if (!new RegExp(`\\b${canonicalName}\\b`).test(rootDeclarations)) {
+    throw new Error(`Published declarations are missing canonical Mesurer API name: ${canonicalName}.`);
+  }
+}
+for (const legacyName of ["mountMeasurer", "MountMeasurerOptions", "MountedMeasurer"]) {
+  if (!new RegExp(`\\b${legacyName}\\b`).test(rootDeclarations)) {
+    throw new Error(`Published declarations must retain deprecated compatibility alias: ${legacyName}.`);
+  }
+}
+
+const packageReadme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+if (/\bmountMeasurer\b/.test(packageReadme)) {
+  throw new Error("The npm README must document canonical mountMesurer(), not the deprecated mountMeasurer() spelling.");
+}
+
 const screenshotDeclarations = readFileSync(new URL("screenshot.d.ts", dist), "utf8");
 if (!/\bscreenshotPlugin\b/.test(screenshotDeclarations)) {
   throw new Error("Published screenshot entry must expose screenshotPlugin().");
@@ -125,4 +147,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged context-first agent surface, screenshot plugin, and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, compatibility aliases, context-first agent surface, screenshot plugin, and Agent Skill installer are self-contained.`);

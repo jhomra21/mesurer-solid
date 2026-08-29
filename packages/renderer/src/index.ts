@@ -1,5 +1,5 @@
-export { default as Measurer } from "./ComposableMeasurer";
-export type { MeasurerProps, MesurerSolidRuntimeService } from "./ComposableMeasurer";
+export { default as Mesurer } from "./ComposableMesurer";
+export type { MesurerProps, MesurerSolidRuntimeService } from "./ComposableMesurer";
 export { ContextActions } from "./components/ContextActions";
 export type { ContextActionsController, ContextActionsProps } from "./components/ContextActions";
 export { createMesurerWorkspaceRuntime } from "./runtime/workspace-context";

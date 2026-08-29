@@ -35,10 +35,10 @@ The context/annotation workflow is provided by removable `mesurer.context`.
 ```ts
 import {
   contextPlugin,
-  mountMeasurer,
+  mountMesurer,
 } from "mesurer-solid"
 
-const mesurer = mountMeasurer({
+const mesurer = mountMesurer({
   plugins: [contextPlugin()],
   agent: true,
 })
@@ -51,7 +51,7 @@ The human screenshot camera is a separate optional plugin:
 ```ts
 import { screenshotPlugin } from "mesurer-solid/screenshot"
 
-const mesurer = mountMeasurer({
+const mesurer = mountMesurer({
   plugins: [contextPlugin(), screenshotPlugin()],
   agent: true,
 })

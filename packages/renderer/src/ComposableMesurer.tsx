@@ -7,15 +7,15 @@ import {
   type SettingsToggleContribution,
   type ToolContribution,
 } from "@jhomra21/mesurer-solid-core";
-import LegacyMeasurer, { type MeasurerProps as LegacyMeasurerProps } from "./Measurer";
+import Mesurer, { type MesurerProps as BaseMesurerProps } from "./Mesurer";
 import { isEditableKeyboardEvent } from "./core/events";
 import {
-  MeasurerModelRegistrationContext,
-  type MeasurerModel,
-} from "./model/create-measurer-model";
+  MesurerModelRegistrationContext,
+  type MesurerModel,
+} from "./model/create-mesurer-model";
 import { composeMesurerPlugins, type MesurerBuiltinPluginId } from "./plugins/builtins";
 import { MesurerPluginSettingsProvider } from "./plugins/settings-runtime";
-import type { MeasurerBuiltinController } from "./runtime/builtin-actions";
+import type { MesurerBuiltinController } from "./runtime/builtin-actions";
 import {
   createMesurerWorkspaceRuntime,
   type MesurerWorkspaceRuntime,
@@ -30,8 +30,8 @@ export type MesurerSolidRuntimeService = {
   createInspectorMount(): { element: HTMLDivElement; dispose(): void };
 };
 
-export type MeasurerProps = Omit<
-  LegacyMeasurerProps,
+export type MesurerProps = Omit<
+  BaseMesurerProps,
   "pluginTools" | "onPluginTool" | "onBuiltinController"
 > & {
   /** Public package/release version shown by Settings and official Mesurer plugin metadata. */
@@ -97,7 +97,7 @@ const matchesShortcut = (event: KeyboardEvent, shortcut: string) => {
   return event.key.toLowerCase() === key;
 };
 
-export default function ComposableMeasurer(props: MeasurerProps) {
+export default function ComposableMesurer(props: MesurerProps) {
   const providedHost = untrack(() => props.pluginHost);
   const host: MesurerPluginHost = providedHost ?? createMesurerPluginHost();
   const ownsHost = !providedHost;
@@ -108,8 +108,8 @@ export default function ComposableMeasurer(props: MeasurerProps) {
   const initialBuiltinPlugins = untrack(() => composeMesurerPlugins([], props.excludePlugins ?? []).map(versionPlugin));
   const initialExternalPlugins = untrack(() => [...(props.plugins ?? [])].map(versionPlugin));
   const pluginDefaults = new Map<string, Map<string, boolean>>();
-  let rendererModel: MeasurerModel | null = null;
-  let builtinController: MeasurerBuiltinController | null = null;
+  let rendererModel: MesurerModel | null = null;
+  let builtinController: MesurerBuiltinController | null = null;
   const [revision, setRevision] = createSignal(0);
   const [ready, setReady] = createSignal(false);
 
@@ -200,7 +200,7 @@ export default function ComposableMeasurer(props: MeasurerProps) {
     let active = true;
     let persistTimer = 0;
     const runtimeHost: MesurerPluginHost = host;
-    const input: MeasurerProps = props;
+    const input: MesurerProps = props;
     const target = input.portalTarget ?? document.body;
     const ownerDocument = target.ownerDocument ?? document;
     const ownerWindow = ownerDocument.defaultView ?? window;
@@ -429,14 +429,14 @@ export default function ComposableMeasurer(props: MeasurerProps) {
 
   return (
     <MesurerPluginSettingsProvider runtime={{ sections: customSettings, version: () => version, update: updatePluginSetting, reset: resetPluginSettings }}>
-      <MeasurerModelRegistrationContext value={(model: MeasurerModel) => { rendererModel = model; }}>
-        <LegacyMeasurer
+      <MesurerModelRegistrationContext value={(model: MesurerModel) => { rendererModel = model; }}>
+        <Mesurer
           {...props}
           pluginTools={customTools()}
           onPluginTool={(tool) => runTool(tool)}
           onBuiltinController={(controller) => { builtinController = controller; }}
         />
-      </MeasurerModelRegistrationContext>
+      </MesurerModelRegistrationContext>
     </MesurerPluginSettingsProvider>
   );
 }

@@ -8,6 +8,6 @@ export type MesurerConfig = {
 
 /**
  * Agent- and user-friendly configuration surface. The object can be spread into
- * `<Measurer />` or passed directly to the universal `mountMeasurer()` API.
+ * `<Mesurer />` or passed directly to the universal `mountMesurer()` API.
  */
 export const defineMesurerConfig = <T extends MesurerConfig>(config: T): T => config;

@@ -21,7 +21,7 @@ A shadow tree solves style encapsulation. It does not solve document layering by
 
 ## Mesurer's host invariants
 
-The public `mountMeasurer()` boundary owns these invariants.
+The public `mountMesurer()` boundary owns these invariants.
 
 ### 1. Harden the outer host
 

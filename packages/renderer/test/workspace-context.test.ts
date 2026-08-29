@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { InspectMeasurement } from "../src/core/types";
-import { createMeasurerModel } from "../src/model/create-measurer-model";
+import { createMesurerModel } from "../src/model/create-mesurer-model";
 import { createMesurerWorkspaceRuntime } from "../src/runtime/workspace-context";
 
 const zeroEdges = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -24,8 +24,8 @@ const selectionFor = (element: HTMLElement): InspectMeasurement => {
 
 describe("createMesurerWorkspaceRuntime", () => {
   it("stays bound to the renderer model supplied by its owning instance", () => {
-    const firstModel = createMeasurerModel({ initialEnabled: true });
-    const secondModel = createMeasurerModel({ initialEnabled: true });
+    const firstModel = createMesurerModel({ initialEnabled: true });
+    const secondModel = createMesurerModel({ initialEnabled: true });
 
     firstModel.addGuide({ id: "first-guide", orientation: "vertical", position: 120 });
     secondModel.addGuide({ id: "second-guide", orientation: "horizontal", position: 240 });
@@ -70,7 +70,7 @@ describe("createMesurerWorkspaceRuntime", () => {
     original.textContent = "Target";
     pageTarget.append(original);
 
-    const model = createMeasurerModel({ initialEnabled: true });
+    const model = createMesurerModel({ initialEnabled: true });
     model.setSelectedMeasurements([selectionFor(original)]);
     const runtime = createMesurerWorkspaceRuntime({
       model,
@@ -109,7 +109,7 @@ describe("createMesurerWorkspaceRuntime", () => {
     chrome.style.setProperty("display", "flex", "important");
     uiRoot.append(chrome);
 
-    const model = createMeasurerModel({ initialEnabled: true });
+    const model = createMesurerModel({ initialEnabled: true });
     const runtime = createMesurerWorkspaceRuntime({
       model,
       ownerDocument: document,

@@ -1,11 +1,11 @@
 import {
-  mountMeasurer,
+  mountMesurer,
 } from "../../../packages/mesurer/src/index";
 import {
   screenshotPlugin,
 } from "../../../packages/renderer/src/plugins/screenshot";
 
-const subject = mountMeasurer({
+const subject = mountMesurer({
   target: document.body,
   isolate: true,
   topLayer: false,

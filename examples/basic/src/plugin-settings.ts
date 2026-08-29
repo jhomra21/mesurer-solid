@@ -1,8 +1,8 @@
 import {
   contextPlugin,
   MESURER_VERSION,
-  mountMeasurer,
-  type MountedMeasurer,
+  mountMesurer,
+  type MountedMesurer,
 } from "../../../packages/mesurer/src/index";
 import {
   MESURER_SCREENSHOT_SERVICE_ID,
@@ -51,7 +51,7 @@ const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, 
   });
 };
 
-const subject = mountMeasurer({
+const subject = mountMesurer({
   target: document.body,
   isolate: true,
   topLayer: false,
@@ -72,7 +72,7 @@ const screenshot = subject.pluginHost?.service.get<MesurerScreenshotService>(MES
 if (!screenshot) throw new Error("Screenshot service did not mount in plugin settings fixture");
 
 type PluginSettingsHarness = {
-  subject: MountedMeasurer;
+  subject: MountedMesurer;
   screenshot: MesurerScreenshotService;
   captures: CapturePresentation[];
   version: string;

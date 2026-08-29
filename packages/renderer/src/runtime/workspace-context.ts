@@ -21,7 +21,7 @@ import {
   isElementFingerprintRebindable,
 } from "@jhomra21/mesurer-solid-dom";
 import { GUIDE_SNAP_DISTANCE } from "../core/constants";
-import type { MeasurerModel } from "../model/create-measurer-model";
+import type { MesurerModel } from "../model/create-mesurer-model";
 
 export type {
   MesurerAnnotation,
@@ -39,7 +39,7 @@ export type MesurerWorkspaceSnapshot = {
   rulersVisible: boolean;
   xrayVisible: boolean;
   guideRelevanceTolerance: number;
-  selectedMeasurements: MeasurerModel["current"]["selectedMeasurements"];
+  selectedMeasurements: MesurerModel["current"]["selectedMeasurements"];
   selectionOriginRect: Rect | null;
   measurements: Measurement<HTMLElement>[];
   activeMeasurement: Measurement<HTMLElement> | null;
@@ -109,7 +109,7 @@ const randomId = (ownerWindow: Window, prefix: string) => {
   return `${prefix}-${value}`;
 };
 
-const selectedElements = (model: MeasurerModel) => {
+const selectedElements = (model: MesurerModel) => {
   const seen = new Set<HTMLElement>();
   const elements: HTMLElement[] = [];
   for (const measurement of model.current.selectedMeasurements) {
@@ -124,7 +124,7 @@ const selectedElements = (model: MeasurerModel) => {
 };
 
 export function createMesurerWorkspaceRuntime(options: {
-  model: MeasurerModel;
+  model: MesurerModel;
   ownerDocument: Document;
   ownerWindow: Window;
   uiRoot?: ParentNode;

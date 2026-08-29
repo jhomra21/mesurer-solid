@@ -1,6 +1,6 @@
 import {
-  mountMeasurer,
-  type MountedMeasurer,
+  mountMesurer,
+  type MountedMesurer,
 } from "../../../packages/mesurer/src/index";
 import {
   MESURER_SCREENSHOT_SERVICE_ID,
@@ -27,7 +27,7 @@ const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, 
   });
 };
 
-const subject = mountMeasurer({
+const subject = mountMesurer({
   target: document.body,
   isolate: true,
   topLayer: false,
@@ -44,7 +44,7 @@ const service = subject.pluginHost?.service.get<MesurerScreenshotService>(MESURE
 if (!service) throw new Error("Screenshot service did not mount");
 
 type ScreenshotHarness = {
-  subject: MountedMeasurer;
+  subject: MountedMesurer;
   service: MesurerScreenshotService;
 };
 
