@@ -1,5 +1,5 @@
 import { render } from "@solidjs/web";
-import { Measurer } from "@jhomra21/mesurer-solid-renderer";
+import { Mesurer } from "@jhomra21/mesurer-solid-renderer";
 import "./playground.css";
 
 function App() {
@@ -64,7 +64,7 @@ function App() {
         <p>Delete removes selected guides. Escape clears measurements/guides. Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z undo/redo. Cmd/Ctrl+, opens settings.</p>
       </footer>
 
-      <Measurer persistKey="mesurer-parity-playground" />
+      <Mesurer persistKey="mesurer-parity-playground" />
     </main>
   );
 }
