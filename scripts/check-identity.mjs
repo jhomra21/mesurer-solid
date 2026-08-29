@@ -16,6 +16,8 @@ const checks = [
 ];
 const canonicalMountPaths = new Set([
   "README.md",
+  "AGENTS.md",
+  "ARCHITECTURE.md",
   "packages/mesurer/README.md",
   "packages/mesurer/AGENT_INTEGRATION.md",
   "docs/SCREENSHOTS.md",
