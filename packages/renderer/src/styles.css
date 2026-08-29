@@ -103,6 +103,19 @@
   border-color: #0d99ff;
 }
 
+/* Plugin-contributed toggles share the compact 24px switch row, but unlike
+   upstream's fixed settings columns their labels may be longer. Give only
+   plugin rows the remaining width and never let a label increase row height. */
+[data-mesurer-plugin-settings] [role="switch"] {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+[data-mesurer-plugin-settings] [role="switch"] > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mesurer-control-shell {
   border: 1px solid transparent;
 }
