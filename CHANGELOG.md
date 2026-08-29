@@ -8,7 +8,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## 0.1.1-beta.3 - 2026-08-29
 
-- No user-facing changes.
+- Keep plugin-contributed Settings toggle labels on one line in compact rows, and make the Screenshot toolbar camera icon match the original Mesurer visual.
 
 ## 0.1.1-beta.2 - 2026-08-29
 
