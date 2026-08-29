@@ -6,7 +6,7 @@
 
 A Solid 2 port and extension of [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick).
 
-Mesurer Solid is a visual inspection and measurement tool for browser apps. Use it to select elements, inspect spacing and layout, measure distances, add guides, inspect text and colors, capture screenshots, and expose rendered UI state to browser-capable coding agents.
+Mesurer Solid is a visual inspection and measurement tool for browser apps. Use it to select elements, inspect spacing and layout, measure distances, add guides, inspect text and colors, capture screenshots, and expose rendered UI state through a programmatic API.
 
 <p align="center">
   <img src="docs/assets/showcase/mesurer-solid-0.1.1.webp" alt="Mesurer Solid 0.1.1 showing multi-selection, exact spacing, live context, context tools, and the screenshot plugin" width="100%">
@@ -142,7 +142,7 @@ This is useful when a visual change needs to be checked against the same target 
 
 ## Agent integration
 
-Mesurer can also be used by browser-capable coding agents. The portable skill contains the full agent workflow and injection guidance:
+Browser-capable coding agents can use the same programmatic context API. Install the portable skill for the full agent workflow and injection guidance:
 
 ```bash
 npx --yes --package=mesurer-solid mesurer-skill install
