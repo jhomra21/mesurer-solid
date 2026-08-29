@@ -119,3 +119,8 @@ export function createMesurerBuiltinController(options: {
     },
   };
 }
+
+/** @deprecated Internal compatibility alias while renderer modules migrate to Mesurer naming. */
+export type MeasurerBuiltinController = MesurerBuiltinController;
+/** @deprecated Internal compatibility alias while renderer modules migrate to Mesurer naming. */
+export const createMeasurerBuiltinController = createMesurerBuiltinController;
