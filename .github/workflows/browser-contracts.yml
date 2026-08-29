@@ -3,12 +3,12 @@ name: browser-contracts
 on:
   pull_request:
     paths:
-      - "packages/renderer/src/ComposableMeasurer.tsx"
+      - "packages/renderer/src/ComposableMesurer.tsx"
       - "packages/renderer/src/components/Icons.tsx"
       - "packages/renderer/src/components/ContextActions.tsx"
       - "packages/renderer/src/components/DistanceOverlayItem.tsx"
       - "packages/renderer/src/components/MeasurementBox.tsx"
-      - "packages/renderer/src/components/MeasurerOverlay.tsx"
+      - "packages/renderer/src/components/MesurerOverlay.tsx"
       - "packages/renderer/src/components/SettingsPanel.tsx"
       - "packages/renderer/src/core/distances.ts"
       - "packages/renderer/src/plugins/settings-runtime.tsx"
