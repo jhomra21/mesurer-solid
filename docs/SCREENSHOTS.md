@@ -47,6 +47,19 @@ The plugin is removable first-party functionality rather than permanent measurem
 
 Screenshot does not claim the global `C` shortcut because the context workflow already uses `C` and `Shift+C`.
 
+## Human Settings controls
+
+When the plugin is mounted, **Settings → General → Plugins → Screenshot** exposes the same persisted controls that back the screenshot service:
+
+- **Screenshot tool** — hides or restores the camera toolbar tool without unloading the plugin service;
+- **Auto-copy** — automatically copies successful captures when clipboard access is available;
+- **Auto-download** — automatically saves successful captures locally;
+- **Include measurements** — controls whether visible selection/measurement/guide/ruler presentation remains in the capture frame.
+
+Screenshot-selection chrome and Mesurer control chrome are always excluded from the PNG. Turning **Include measurements** off only hides measurement presentation for the capture frame and restores it immediately afterward.
+
+The controls use the same compact Settings switch geometry as Mesurer's existing Persist and Edge Reveal controls. Their values are persistent plugin settings, so the UI and `MesurerScreenshotService.settings()` / `setSettings()` stay in sync.
+
 ## Capture flow
 
 A normal human capture is:
