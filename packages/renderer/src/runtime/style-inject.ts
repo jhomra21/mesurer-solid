@@ -5,7 +5,7 @@ const isShadowRoot = (value: HTMLElement | ShadowRoot | undefined): value is Sha
 
 const isDocument = (value: Document | ShadowRoot): value is Document => value.nodeType === 9;
 
-export function ensureMeasurerStyles(css: string, target?: HTMLElement | ShadowRoot) {
+export function ensureMesurerStyles(css: string, target?: HTMLElement | ShadowRoot) {
   const ownerDocument = target?.ownerDocument ?? globalThis.document;
   if (!ownerDocument) return;
   const root: Document | ShadowRoot = isShadowRoot(target) ? target : ownerDocument;
@@ -16,3 +16,6 @@ export function ensureMeasurerStyles(css: string, target?: HTMLElement | ShadowR
   if (isDocument(root)) root.head.append(style);
   else root.append(style);
 }
+
+/** @deprecated Internal compatibility alias while renderer modules migrate to Mesurer naming. */
+export const ensureMeasurerStyles = ensureMesurerStyles;
