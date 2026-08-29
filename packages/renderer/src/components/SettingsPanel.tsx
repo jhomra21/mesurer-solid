@@ -26,16 +26,8 @@ function ControlShell(props: { left: any; right: any }) {
 
 function SettingsSwitch(props: { label: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={props.checked ? "true" : "false"}
-      disabled={props.disabled}
-      class="msr:col-span-2 msr:grid msr:h-6 msr:w-full msr:appearance-none msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45"
-      style={{ "grid-template-columns": "minmax(0, 1fr) auto" }}
-      onClick={() => props.onChange(!props.checked)}
-    >
-      <span style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>{props.label}</span>
+    <button type="button" role="switch" aria-checked={props.checked ? "true" : "false"} disabled={props.disabled} class="msr:col-span-2 msr:grid msr:h-6 msr:w-full msr:appearance-none msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45" onClick={() => props.onChange(!props.checked)}>
+      <span>{props.label}</span>
       <span aria-hidden="true" style={{ "justify-self": "end" }} data-checked={props.checked ? "true" : undefined} class={`mesurer-switch-track msr:flex msr:h-[14px] msr:w-[26px] msr:shrink-0 msr:items-center msr:rounded-full msr:border msr:p-px msr:transition-colors ${props.checked ? "msr:border-[#0d99ff] msr:bg-[#0d99ff]" : "msr:border-ink-200 msr:bg-ink-50"}`}>
         <span class="msr:block msr:size-[10px] msr:shrink-0 msr:rounded-full msr:bg-white msr:shadow-sm msr:transition-transform" style={{ transform: `translateX(${props.checked ? 12 : 0}px)` }} />
       </span>
