@@ -1,30 +1,28 @@
 # Mesurer agent integration
 
-Mesurer's agent integration is deliberately direct: **the agent reads and manipulates Mesurer through the same rendered page it is already controlling**.
+Mesurer's agent integration is direct: **the agent reads Mesurer through the same rendered page it is already controlling**.
 
 There is no Mesurer MCP, WebMCP, ACP, localhost feedback daemon, Send-to-agent callback, chat/session bridge, or harness-specific Mesurer adapter.
 
-The central contract is stronger than “Mesurer is available”:
-
-> **A Mesurer visual operation should return structured context to the harness.** The agent should consume existing human context before editing and obtain fresh Mesurer context/review for the affected rendered UI before claiming completion.
+The page is the shared state boundary. A meaningful Mesurer operation should return evidence that the coding agent actually consumes before it edits source or claims completion.
 
 ```text
-human selection / annotation OR agent-known changed target
-        ↓
-real page + window.__MESURER__
-        ↓
-context() / select() / review()
-        ↓ structured rendered evidence
-agent reasoning + source edit
-        ↓
-normal render/HMR
-        ↓
-fresh context() / select() / review()
-        ↓
+human visual intent
+  ↓
+Arrange / annotation / selection
+  ↓
+window.__MESURER__
+  ↓
+structured rendered evidence + optional harness screenshot
+  ↓
+agent edits normal source
+  ↓
+real render / HMR
+  ↓
+fresh Live review/context
+  ↓
 validated result
 ```
-
-The page is the shared state boundary. Mesurer never needs to know which chat, thread, model, or agent is using it.
 
 ## Install the portable Agent Skill
 
@@ -45,9 +43,9 @@ The installed skill is self-contained:
     └── inject-script.js
 ```
 
-The skill defines the same context-first workflow described here, including the distinction between Mesurer's optional human screenshot plugin and screenshots owned by the agent's outer browser harness.
+The skill defines the same state-preservation, Arrange, context, screenshot, HMR, and completion rules described here.
 
-## Reuse a live human instance first
+## Reuse a live human instance
 
 Before injecting anything:
 
@@ -62,9 +60,9 @@ if (hasMesurer) {
 }
 ```
 
-If Mesurer exists, use that exact instance. The person may already have selected elements, placed guides, measured gaps, held distances, enabled rulers/X-ray, saved annotations, or kept a screenshot preview open. Read and preserve that state before changing it.
+If Mesurer exists, use that exact instance. The person may already have arranged elements, selected targets, placed guides, measured gaps, held distances, enabled rulers/X-ray, saved annotations, or kept a screenshot preview open. That state is part of the user's visual message.
 
-The injector also reuses a live injected instance by default. Deliberate destructive replacement requires:
+The injector reuses a live injected instance by default. Deliberate destructive replacement requires:
 
 ```js
 window.__MESURER_CONFIG__ = { reuseExisting: false }
@@ -101,15 +99,13 @@ await browser.evaluate(() => window.__MESURER__.ready())
 
 Do not create a second browser/CDP connection, Mesurer server, special app build, or source mutation merely to inspect a page the harness already controls.
 
-Normal injection keeps screenshot capture disabled unless requested:
+Normal injection keeps the optional human screenshot plugin disabled unless requested:
 
 ```js
 window.__MESURER_CONFIG__ = { screenshot: true }
 ```
 
-The first-party Chrome extension enables the screenshot plugin automatically because its human-facing camera tool can use the extension's visible-tab capture bridge.
-
-## Capability contract
+## Capabilities
 
 After `ready()`:
 
@@ -117,7 +113,7 @@ After `ready()`:
 window.__MESURER__.capabilities()
 ```
 
-The context-oriented capability surface is:
+The context-oriented surface is:
 
 ```text
 context
@@ -127,21 +123,98 @@ review
 capturePlan
 ```
 
-`select` is an agent/harness operation; it does not add a human context-toolbar button. Human context controls remain:
+When `arrangePlugin()` is mounted, it also reports:
 
 ```text
-Copy Context
-Copy Selection
-Add Note
+arrange
 ```
 
-There is no `send`, `screenshots`, or `sendContext` **delivery capability**. The optional `mesurer.screenshot` plugin is a separate human capture tool/service and does not add image delivery to the context API.
+and exposes:
 
-## Context acquisition precedence
+```text
+arrangements()
+arrange(id)
+showArrange(id, state)
+arrangeCapturePlan(id, state)
+reviewArrange(id, tolerance?)
+```
 
-Harnesses should follow this order.
+There is no `send`, `screenshots`, or `sendContext` delivery capability. Screenshot bytes stay with the outer browser harness.
 
-### 1. Existing human evidence exists → read it first
+## Arrange has highest human-intent precedence
+
+Arrange lets a person reposition selected rendered elements into the layout they want without editing application source. If Arrange is available, consume relevant saved intents before changing human selection or editing source:
+
+```js
+const arrangements = await window.__MESURER__.arrangements()
+const intent = await window.__MESURER__.arrange(arrangeId)
+```
+
+Each intent contains exact target identity plus Before and Desired geometry.
+
+Desired is a **visual specification**, not an implementation prescription. If a target moved `96px` right, do not blindly write `transform: translateX(96px)` into production CSS. Inspect the rendered layout and implement the appropriate flex/grid alignment, gap, margin, sizing, ordering, component structure, or other semantic source change.
+
+### Capture Before and Desired before source edits
+
+When screenshot comparison will help, reconstruct and capture both states before HMR can change the baseline:
+
+```js
+await window.__MESURER__.showArrange(arrangeId, "before")
+const beforePlan = await window.__MESURER__.arrangeCapturePlan(arrangeId, "before")
+
+await window.__MESURER__.prepareCapture()
+try {
+  // outer harness captures Before with beforePlan
+} finally {
+  await window.__MESURER__.finishCapture()
+}
+
+await window.__MESURER__.showArrange(arrangeId, "desired")
+const desiredPlan = await window.__MESURER__.arrangeCapturePlan(arrangeId, "desired")
+
+await window.__MESURER__.prepareCapture()
+try {
+  // outer harness captures Desired with desiredPlan
+} finally {
+  await window.__MESURER__.finishCapture()
+}
+```
+
+The user should not need to export, attach, or send these screenshots manually. The harness already owns its screenshot primitive; Mesurer supplies the reproducible state and exact capture geometry.
+
+For source-mounted integrations that use this capture workflow, mount `contextPlugin()` together with `arrangePlugin()` so the generic capture preparation methods are available.
+
+### Verify the source-produced result
+
+After editing source:
+
+```js
+await window.__MESURER__.stable()
+await window.__MESURER__.showArrange(arrangeId, "live")
+const review = await window.__MESURER__.reviewArrange(arrangeId)
+```
+
+Live removes Arrange's temporary preview. `reviewArrange()` compares the real application layout with Desired and returns exact rectangle deltas plus `connected`, `partial`, or `stale` target status.
+
+```text
+Before       Desired      Live
+x 120   →    x 284        x 276
+                         remaining +8px
+
+edit source
+  ↓
+Live x 284
+  ↓
+matched ✓
+```
+
+If review is still numerically wrong, continue editing. If it is `stale` or `partial`, do not silently bind the intent to a different element.
+
+## Context acquisition after Arrange preservation
+
+Once any relevant Arrange intent is retained, use this order for ordinary context.
+
+### Existing human selection or annotation
 
 ```js
 const workspace = await window.__MESURER__.context()
@@ -153,7 +226,7 @@ try {
 } catch {}
 ```
 
-For relevant annotations:
+For a relevant annotation:
 
 ```js
 const context = await window.__MESURER__.context({
@@ -161,13 +234,11 @@ const context = await window.__MESURER__.context({
 })
 ```
 
-Do not overwrite a meaningful live human selection until its context has been consumed and retained by the current agent task.
+Do not overwrite a meaningful human selection until its context has been retained by the current task.
 
-### 2. No relevant selection and intended target is ambiguous → ask the user
+### Ambiguous target
 
-When the user's visual reference cannot be mapped confidently to exact rendered elements or a region, ask the person to select the intended element(s) or drag the intended region in Mesurer.
-
-Then read:
+If the user's visual reference cannot be mapped confidently to exact rendered elements or a region, ask the person to select the intended element(s) or region in Mesurer, then read:
 
 ```js
 const context = await window.__MESURER__.context({ scope: "selection" })
@@ -175,15 +246,9 @@ const context = await window.__MESURER__.context({ scope: "selection" })
 
 Do not guess merely to avoid asking for a selection.
 
-### 3. No relevant selection and agent knows exact target(s) → use `select()`
+### Agent knows the exact target
 
-If the harness knows exactly which rendered elements correspond to the change, it should select them itself:
-
-```js
-const context = await window.__MESURER__.select("#pricing-card")
-```
-
-or:
+Use `select()` and consume its return value:
 
 ```js
 const context = await window.__MESURER__.select([
@@ -192,30 +257,9 @@ const context = await window.__MESURER__.select([
 ])
 ```
 
-`select()` is deliberately context-returning. In one operation it:
+`select()` switches Mesurer to Select, visibly highlights the exact rendered targets, makes them the live selection, waits for the selection to settle, and returns selection-scoped `MesurerContextV1`.
 
-1. switches Mesurer to Select;
-2. visibly highlights the exact rendered targets;
-3. makes them the live selection;
-4. waits for the selection to settle;
-5. returns selection-scoped `MesurerContextV1`.
-
-The return value is the point. A harness should not call `select()` only for visual highlighting and then ignore the context.
-
-Every supplied selector must resolve to exactly one target inside Mesurer's page target. Invalid, missing, or ambiguous selectors throw. Refine the selector or ask the user to select the intended target rather than guessing.
-
-This makes a useful post-edit pattern trivial:
-
-```js
-await window.__MESURER__.stable()
-
-const evidence = await window.__MESURER__.select([
-  changedSelectorA,
-  changedSelectorB,
-])
-
-// `evidence` is the exact rendered result the agent should reason from.
-```
+Every selector must resolve to exactly one page target. Invalid, missing, or ambiguous selectors throw.
 
 ## What context contains
 
@@ -246,19 +290,17 @@ visualContext
   distances[]
 ```
 
-Prefer these rendered numbers over screenshot estimates or source-level assumptions.
+Prefer rendered numbers over screenshot estimates or source assumptions.
 
 ## Multi-selection is relational
 
-When several targets are selected, consume every target's complete inspection and the relevant relationships between them.
-
-Use existing `visualContext.distances` first. For a needed pair not represented there:
+When several targets are selected, consume each target plus the useful relationships between them. Start with `visualContext.distances`; for a pair not represented there:
 
 ```js
 const pair = window.__MESURER__.distance(selectorA, selectorB)
 ```
 
-A small selection can produce evidence such as:
+A useful result can be:
 
 ```text
 Card A width: 320px
@@ -267,35 +309,26 @@ A → B horizontal gap: 24px
 A/B top-edge delta: 0px
 ```
 
-For large repeated sets, focus on adjacent/repeated/user-relevant relationships instead of dumping all O(n²) pairs.
+For large repeated sets, focus on adjacent or user-relevant relationships rather than dumping all O(n²) pairs.
 
-## Context is required before and after meaningful visual edits
+## Fresh evidence is required after visual edits
 
-### Before editing
-
-If the user supplied visual evidence, retain it before HMR can replace nodes:
-
-```js
-const before = await window.__MESURER__.context({ scope: "selection" })
-```
-
-or:
-
-```js
-const before = await window.__MESURER__.context({ annotation: annotationId })
-```
-
-### After editing
-
-First wait for the actual rendered page:
+Wait for the actual rendered page:
 
 ```js
 await window.__MESURER__.stable()
 ```
 
-Then obtain fresh evidence using the strongest path.
+Then use the strongest applicable path.
 
-Human annotation:
+Arrange:
+
+```js
+await window.__MESURER__.showArrange(arrangeId, "live")
+const review = await window.__MESURER__.reviewArrange(arrangeId)
+```
+
+Annotation:
 
 ```js
 const review = await window.__MESURER__.review(annotationId)
@@ -307,7 +340,7 @@ Still-relevant human selection:
 const after = await window.__MESURER__.context({ scope: "selection" })
 ```
 
-Agent knows exact changed rendered targets:
+Agent-known changed targets:
 
 ```js
 const after = await window.__MESURER__.select([
@@ -316,35 +349,15 @@ const after = await window.__MESURER__.select([
 ])
 ```
 
-Target identity is ambiguous after the change: ask the user to select the intended result and then read selection context.
+For meaningful visual work, lint/typecheck/tests/build are not enough. They validate implementation mechanics, not the rendered result.
 
-For meaningful visual work, lint/typecheck/tests/build are not enough. If Mesurer is available and the changed UI can be identified, a harness should not report completion without fresh Mesurer evidence for that UI.
+## Screenshot ownership
 
-## Annotation review
+Mesurer has two different screenshot roles.
 
-```js
-await window.__MESURER__.stable()
-const review = await window.__MESURER__.review(annotationId)
-```
+### Human camera tool
 
-`review()` compares the human baseline against fresh context and reports exact pixel changes/missing evidence:
-
-```text
-gap: 37px → 24px
-left-edge mismatch: 4px → 0px
-width: 318px → 320px
-expected target/guide/measurement missing
-```
-
-If the requested result remains numerically wrong, continue editing.
-
-## Human screenshot plugin vs agent screenshot evidence
-
-Mesurer has two intentionally different screenshot paths.
-
-### Human capture tool
-
-The optional `mesurer.screenshot` plugin gives the person a camera tool inside Mesurer:
+The optional `mesurer.screenshot` plugin gives the person a camera tool:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -355,15 +368,11 @@ const mesurer = mountMesurer({
 })
 ```
 
-The user can drag a viewport region, capture a real HiDPI-aware PNG, optionally copy/download it, keep a persistent draggable thumbnail, and open a larger Copy/Save viewer. Normal browser hosts use `getDisplayMedia()`; the first-party Chrome extension uses `chrome.tabs.captureVisibleTab()` through its isolated-world bridge and therefore avoids the screen-share chooser.
+It captures HiDPI-aware PNGs and can copy/download them or keep a draggable preview/viewer. Preserve an existing human screenshot preview unless the task explicitly requires manipulating it.
 
-For advanced mounted integrations, the typed `MesurerScreenshotService` is available from the plugin host under service id `screenshot`. It is not part of `window.__MESURER__`'s context/delivery capability surface.
+### Agent screenshot evidence
 
-Agents should preserve an existing human screenshot preview unless the task explicitly asks them to test, close, replace, or otherwise manipulate the screenshot feature.
-
-### Agent verification screenshot
-
-For coding-agent verification, the outer harness should normally continue to own screenshot bytes so the task can control the exact browser, viewport, timing, and artifact destination. Mesurer supplies clean capture scope/presentation:
+The outer coding harness owns screenshot bytes so it controls the exact browser, viewport, timing, and artifact destination. Mesurer supplies exact geometry and clean capture presentation:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
@@ -376,35 +385,38 @@ try {
 }
 ```
 
-Use the signals together:
+Arrange uses the same ownership model through `arrangeCapturePlan()` while adding explicit Before/Desired/Live presentation.
+
+Use both signals:
 
 ```text
-Mesurer context → exact geometry, box model, styles, distances, overflow
-real screenshot → composition, hierarchy, clipping, color, visual judgment
+Mesurer context/review → geometry, box model, styles, distances, overflow
+real screenshot          → composition, hierarchy, clipping, color, visual judgment
 ```
-
-Do not replace exact Mesurer measurements with pixel estimates from either screenshot path.
 
 ## Source-mounted usage
 
-When Mesurer is intentionally mounted from application code:
+For context plus Arrange:
 
 ```ts
-import { contextPlugin, mountMesurer } from "mesurer-solid"
+import {
+  contextPlugin,
+  mountMesurer,
+} from "mesurer-solid"
+import { arrangePlugin } from "mesurer-solid/arrange"
 
 const mesurer = mountMesurer({
   agent: true,
-  plugins: [contextPlugin()],
+  plugins: [
+    contextPlugin(),
+    arrangePlugin(),
+  ],
 })
 ```
 
-The same API is available on `mesurer.agent` and, when configured, `window.__MESURER__`:
+The same API is available on `mesurer.agent` and, when configured, `window.__MESURER__`.
 
-```js
-const context = await mesurer.agent.select("#target")
-```
-
-Screenshot capture can be composed independently with `screenshotPlugin()` when the host wants the human camera tool. No transport callback is involved.
+Arrange remains optional. Applications that only want the base inspector or context workflow do not pay for the Arrange entry-point bundle.
 
 ## Low-level inspection
 
@@ -421,25 +433,25 @@ await window.__MESURER__.state()
 await window.__MESURER__.stable()
 ```
 
-Prefer `context()`, `select()`, and `review()` for visual development because they provide context that directly carries human intent or agent-selected affected UI into reasoning.
+Prefer `arrangements()`, `context()`, `select()`, `reviewArrange()`, and `review()` for visual development because those paths preserve human meaning and return evidence the agent can reason from directly.
 
-## Harness completion rule
+## Completion rule
 
-A good harness-level visual completion loop is:
+A good harness-level loop is:
 
 ```text
 1. discover/reuse Mesurer and preserve human state
-2. consume existing human context
-3. if target ambiguous, ask user to select
-4. otherwise select known affected rendered target(s) when needed
-5. consume returned context
+2. consume relevant Arrange intent first
+3. capture Before/Desired when useful, before source edits
+4. consume existing annotation/selection context
+5. resolve exact targets; ask only when genuinely ambiguous
 6. edit normal source
 7. wait for stable render
-8. get fresh review/context; use select() for known changed targets
-9. optionally capture a real screenshot through the outer harness
-10. iterate until rendered evidence supports the claim
+8. switch Arrange to Live when applicable
+9. get fresh Arrange review/context and optional screenshot
+10. iterate until rendered evidence supports completion
 ```
 
-When the task is specifically testing Mesurer's screenshot plugin, exercise its camera/preview/viewer path as the feature under test; otherwise do not substitute it for the harness's normal screenshot primitive.
+Do not clear Arrange history, alter human measurements/guides, replace live Mesurer state, or use a temporary preview to make unfinished source work appear correct.
 
-**Context is the output of the Mesurer step, not an optional side effect.**
+**Rendered evidence is the output of the Mesurer step, not an optional side effect.**
