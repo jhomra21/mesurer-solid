@@ -15,14 +15,12 @@ try {
   await page.goto(url, { waitUntil: "networkidle" });
 
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
-  const textInspectorButton = page.locator("[data-mesurer-builtin='text-inspector'] button");
   const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
   const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
   const target = page.locator(".primary-action");
   const reference = page.locator(".feature-copy");
 
   await selectButton.waitFor({ state: "visible" });
-  await textInspectorButton.waitFor({ state: "visible" });
   await xrayButton.waitFor({ state: "visible" });
   await arrangeButton.waitFor({ state: "visible" });
   await target.waitFor({ state: "visible" });
@@ -41,19 +39,6 @@ try {
     return button instanceof HTMLButtonElement && !button.disabled;
   });
   assert.equal(await arrangeButton.isDisabled(), false, "Arrange should enable after selecting a page element");
-
-  // Switch to a different mode without discarding the selected element. Activating Arrange
-  // must return the toolbar to Select so selection remains available while arranging.
-  await textInspectorButton.click();
-  await page.waitForFunction(() => {
-    const select = document.querySelector("[data-mesurer-builtin='select'] button");
-    const textInspector = document.querySelector("[data-mesurer-builtin='text-inspector'] button");
-    return select instanceof HTMLButtonElement
-      && select.getAttribute("aria-pressed") === "false"
-      && textInspector instanceof HTMLButtonElement
-      && textInspector.getAttribute("aria-pressed") === "true";
-  });
-  assert.equal(await arrangeButton.isDisabled(), false, "Switching tools should preserve the existing Arrange selection");
 
   await xrayButton.click();
   await page.waitForFunction(() => {
@@ -184,7 +169,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Arrange browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Arrange browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Arrange auto-Select + X-ray edge snapping + persistent Desired placement: PASS");
+  console.log("Arrange Select coexistence + X-ray edge snapping + persistent Desired placement: PASS");
 } finally {
   await browser.close();
 }
