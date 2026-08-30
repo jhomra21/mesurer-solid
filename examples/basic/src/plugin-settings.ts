@@ -12,9 +12,11 @@ import {
 } from "../../../packages/renderer/src/plugins/screenshot";
 
 const pluginStorageKey = "mesurer-plugin-settings";
+const pluginAvailabilityStorageKey = `${pluginStorageKey}:availability`;
 const url = new URL(window.location.href);
 if (url.searchParams.get("reset") === "1") {
   window.localStorage.removeItem(pluginStorageKey);
+  window.localStorage.removeItem(pluginAvailabilityStorageKey);
 }
 
 type CapturePresentation = {
@@ -68,12 +70,12 @@ const subject = mountMesurer({
 
 await subject.ready;
 captureRoot = subject.root;
-const screenshot = subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
-if (!screenshot) throw new Error("Screenshot service did not mount in plugin settings fixture");
+const screenshot = () => subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
+if (!screenshot()) throw new Error("Screenshot service did not mount in plugin settings fixture");
 
 type PluginSettingsHarness = {
   subject: MountedMesurer;
-  screenshot: MesurerScreenshotService;
+  screenshot(): MesurerScreenshotService | undefined;
   captures: CapturePresentation[];
   version: string;
 };

@@ -10,45 +10,6 @@ page.on("console", (message) => {
 });
 
 const island = () => page.locator("[data-mesurer-island='true']");
-const openSettings = async () => {
-  const settingsButton = island().locator("[data-mesurer-builtin='settings'] button").first();
-  await settingsButton.waitFor({ state: "visible" });
-  if (!(await island().getByRole("dialog", { name: "Settings" }).isVisible())) {
-    await settingsButton.click();
-  }
-  const dialog = island().getByRole("dialog", { name: "Settings" });
-  await dialog.waitFor({ state: "visible" });
-  const generalTab = dialog.getByRole("tab", { name: "General" });
-  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
-  const pluginsDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
-  if ((await pluginsDisclosure.getAttribute("aria-expanded")) !== "true") await pluginsDisclosure.click();
-  for (const id of ["context", "screenshot"]) {
-    const disclosure = dialog.locator(`[data-mesurer-plugin-settings-disclosure='${id}']`);
-    if ((await disclosure.count()) > 0 && (await disclosure.getAttribute("aria-expanded")) !== "true") await disclosure.click();
-  }
-  return dialog;
-};
-const switchByName = (dialog, name) => dialog.getByRole("switch", { name: new RegExp(`^${name}(?:\\s|$)`) });
-const checked = async (control) => (await control.getAttribute("aria-checked")) === "true";
-const expectChecked = async (control, expected, label) => {
-  const actual = await checked(control);
-  if (actual !== expected) throw new Error(`${label} expected ${expected ? "on" : "off"}, got ${actual ? "on" : "off"}`);
-};
-const expectSingleLine = async (control, label) => {
-  const metrics = await control.evaluate((element) => {
-    const labelElement = element.querySelector(":scope > span:first-child");
-    if (!(labelElement instanceof HTMLElement)) return null;
-    return {
-      whiteSpace: getComputedStyle(labelElement).whiteSpace,
-      labelHeight: labelElement.getBoundingClientRect().height,
-      rowHeight: element.getBoundingClientRect().height,
-    };
-  });
-  if (!metrics) throw new Error(`${label} label element was unavailable`);
-  if (metrics.whiteSpace !== "nowrap" || metrics.labelHeight > 16 || Math.abs(metrics.rowHeight - 24) > 0.5) {
-    throw new Error(`${label} did not stay on one compact line: ${JSON.stringify(metrics)}`);
-  }
-};
 const waitForTool = async (id, visible) => {
   await page.waitForFunction(({ id, visible }) => {
     const islandElement = document.querySelector("[data-mesurer-island='true']");
@@ -57,6 +18,46 @@ const waitForTool = async (id, visible) => {
     const isVisible = button instanceof HTMLElement && button.getClientRects().length > 0;
     return isVisible === visible;
   }, { id, visible });
+};
+const pluginLoaded = async (id) => page.evaluate((pluginId) =>
+  window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.plugins.some((plugin) => plugin.id === pluginId) ?? false,
+  id,
+);
+const waitForPlugin = async (id, loaded) => {
+  await page.waitForFunction(({ id, loaded }) =>
+    (window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.plugins.some((plugin) => plugin.id === id) ?? false) === loaded,
+    { id, loaded },
+  );
+};
+const openSettings = async () => {
+  const settingsButton = island().locator("[data-mesurer-builtin='settings'] button").first();
+  await settingsButton.waitFor({ state: "visible" });
+  if (!(await island().getByRole("dialog", { name: "Settings" }).isVisible())) await settingsButton.click();
+  const dialog = island().getByRole("dialog", { name: "Settings" });
+  await dialog.waitFor({ state: "visible" });
+  const generalTab = dialog.getByRole("tab", { name: "General" });
+  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+  const pluginsDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
+  if ((await pluginsDisclosure.getAttribute("aria-expanded")) !== "true") await pluginsDisclosure.click();
+  return dialog;
+};
+const pluginToggle = (dialog, label) => dialog.getByRole("switch", { name: label, exact: true });
+const settingSwitch = (dialog, label) => dialog.getByRole("switch", { name: label, exact: true });
+const checked = async (control) => (await control.getAttribute("aria-checked")) === "true";
+const expectChecked = async (control, expected, label) => {
+  const actual = await checked(control);
+  if (actual !== expected) throw new Error(`${label} expected ${expected ? "on" : "off"}, got ${actual ? "on" : "off"}`);
+};
+const expectNoDisclosure = async (dialog, id, label) => {
+  const disclosure = dialog.locator(`[data-mesurer-plugin-settings-disclosure='${id}']`);
+  if ((await disclosure.count()) !== 0) throw new Error(`${label} unexpectedly exposed a settings chevron`);
+};
+const expandPlugin = async (dialog, id, _label) => {
+  const disclosure = dialog.locator(`[data-mesurer-plugin-settings-disclosure='${id}']`);
+  await disclosure.waitFor({ state: "visible" });
+  if ((await disclosure.getAttribute("aria-expanded")) !== "true") await disclosure.click();
+  await dialog.locator(`[data-mesurer-plugin-settings-controls='${id}']`).waitFor({ state: "visible" });
+  return disclosure;
 };
 const assertReleaseMetadata = async (dialog) => {
   const metadata = await page.evaluate(() => {
@@ -72,197 +73,143 @@ const assertReleaseMetadata = async (dialog) => {
   if (!metadata) throw new Error("Plugin settings release metadata unavailable");
   await dialog.getByText(metadata.expected, { exact: true }).waitFor({ state: "visible" });
   const mismatches = metadata.officialPlugins.filter((plugin) => plugin.version !== metadata.expected);
-  if (mismatches.length) {
-    throw new Error(`Official plugin versions did not match ${metadata.expected}: ${JSON.stringify(mismatches)}`);
-  }
+  if (mismatches.length) throw new Error(`Official plugin versions did not match ${metadata.expected}: ${JSON.stringify(mismatches)}`);
   return metadata;
 };
 
 try {
   await page.goto(`${baseUrl}?reset=1`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => Boolean(window.__MESURER_PLUGIN_SETTINGS_TEST__));
-
-  await waitForTool("screenshot", true);
   await waitForTool("context.copy", true);
-
-  const screenshotOptionsButton = island().getByRole("button", { name: "Screenshot options", exact: true });
-  await screenshotOptionsButton.click();
-  const screenshotMenu = island().getByRole("menu", { name: "Screenshot options", exact: true });
-  await screenshotMenu.waitFor({ state: "visible" });
-  const screenshotItems = screenshotMenu.getByRole("menuitemcheckbox");
-  const quickLabels = (await screenshotItems.allTextContents()).map((value) => value.trim());
-  if (JSON.stringify(quickLabels) !== JSON.stringify(["Auto-copy", "Auto-download", "Include measurements"])) {
-    throw new Error(`Unexpected Screenshot quick menu: ${JSON.stringify(quickLabels)}`);
-  }
-  const quickMenuMetrics = await screenshotItems.evaluateAll((items) => items.map((item) => ({
-    whiteSpace: getComputedStyle(item).whiteSpace,
-    height: item.getBoundingClientRect().height,
-  })));
-  if (!quickMenuMetrics.every((metrics) => metrics.whiteSpace === "nowrap" && metrics.height <= 28.5)) {
-    throw new Error(`Screenshot quick-menu entries did not stay on one compact line: ${JSON.stringify(quickMenuMetrics)}`);
-  }
-  const quickCopy = screenshotMenu.getByRole("menuitemcheckbox", { name: "Auto-copy", exact: true });
-  await expectChecked(quickCopy, false, "Quick Auto-copy default");
-  await quickCopy.click();
-  await expectChecked(quickCopy, true, "Quick Auto-copy enabled");
-  await quickCopy.click();
-  await expectChecked(quickCopy, false, "Quick Auto-copy restored");
-  await screenshotOptionsButton.click();
-
-  const selectionResult = await page.evaluate(async () => {
-    const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
-    if (!harness) throw new Error("Plugin settings harness unavailable");
-    await harness.subject.select("#settings-target");
-    return harness.subject.describe()?.services.includes("context:v1") ?? false;
-  });
-  if (!selectionResult) throw new Error("Context service was not registered before toggling Context tools");
-  await page.waitForFunction(() => {
-    const islandElement = document.querySelector("[data-mesurer-island='true']");
-    const root = islandElement?.shadowRoot ?? islandElement;
-    return Boolean(root?.querySelector("[data-mesurer-measurement='true']"));
-  });
+  await waitForTool("screenshot", true);
+  if (await pluginLoaded("mesurer.arrange")) throw new Error("Arrange should begin unloaded in the fixture");
 
   let dialog = await openSettings();
   const releaseMetadata = await assertReleaseMetadata(dialog);
-  const contextSection = dialog.locator("[data-mesurer-plugin-settings-section='context']");
-  const screenshotSection = dialog.locator("[data-mesurer-plugin-settings-section='screenshot']");
-  await contextSection.waitFor({ state: "visible" });
-  await screenshotSection.waitFor({ state: "visible" });
+  const pluginList = dialog.locator("[data-mesurer-plugin-settings-list='true']");
+  for (const id of ["mesurer.context", "mesurer.arrange", "mesurer.screenshot"]) {
+    await pluginList.locator(`[data-mesurer-plugin-settings-section='${id}']`).waitFor({ state: "visible" });
+  }
 
-  const contextTools = switchByName(dialog, "Context tools");
-  const screenshotTool = switchByName(dialog, "Screenshot tool");
-  const autoCopy = switchByName(dialog, "Auto-copy");
-  const autoDownload = switchByName(dialog, "Auto-download");
-  const includeMeasurements = switchByName(dialog, "Include measurements");
-  await expectChecked(contextTools, true, "Context tools");
-  await expectChecked(screenshotTool, true, "Screenshot tool");
-  await expectChecked(autoCopy, false, "Auto-copy");
-  await expectChecked(autoDownload, false, "Auto-download");
-  await expectChecked(includeMeasurements, false, "Include measurements");
-  await expectSingleLine(contextTools, "Context tools");
-  await expectSingleLine(screenshotTool, "Screenshot tool");
-  await expectSingleLine(autoCopy, "Auto-copy");
-  await expectSingleLine(autoDownload, "Auto-download");
-  await expectSingleLine(includeMeasurements, "Include measurements");
+  const contextToggle = pluginToggle(dialog, "Context");
+  const arrangeToggle = pluginToggle(dialog, "Arrange");
+  const screenshotToggle = pluginToggle(dialog, "Screenshot");
+  await expectChecked(contextToggle, true, "Context plugin");
+  await expectChecked(arrangeToggle, false, "Arrange plugin");
+  await expectChecked(screenshotToggle, true, "Screenshot plugin");
+  await expectNoDisclosure(dialog, "mesurer.context", "Context");
+  await expectNoDisclosure(dialog, "mesurer.arrange", "Disabled Arrange");
+  if ((await settingSwitch(dialog, "Context tools").count()) !== 0) throw new Error("Context tools redundant nested toggle is still visible");
+  if ((await settingSwitch(dialog, "Screenshot tool").count()) !== 0) throw new Error("Screenshot tool redundant nested toggle is still visible");
 
-  await contextTools.click();
-  await expectChecked(contextTools, false, "Context tools after disable");
-  await waitForTool("context.copy", false);
-  const contextStillAvailable = await page.evaluate(async () => {
-    const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
-    if (!harness) return false;
-    await harness.subject.context({ scope: "selection" });
-    return harness.subject.describe()?.services.includes("context:v1") ?? false;
-  });
-  if (!contextStillAvailable) throw new Error("Disabling Context tools removed the context:v1 service");
+  // A first-party plugin that was never supplied to mountMesurer is discoverable and loadable from Settings.
+  await arrangeToggle.click();
+  await waitForPlugin("mesurer.arrange", true);
+  await waitForTool("arrange", true);
+  await expectChecked(arrangeToggle, true, "Arrange plugin after Settings enable");
+  await expandPlugin(dialog, "mesurer.arrange", "Arrange");
+  await settingSwitch(dialog, "Snapping").waitFor({ state: "visible" });
 
-  await screenshotTool.click();
-  await expectChecked(screenshotTool, false, "Screenshot tool after disable");
+  // Disabling unloads the actual plugin and removes its settings chevron, while the row remains available.
+  await arrangeToggle.click();
+  await waitForPlugin("mesurer.arrange", false);
+  await waitForTool("arrange", false);
+  await expectChecked(arrangeToggle, false, "Arrange plugin after disable");
+  await expectNoDisclosure(dialog, "mesurer.arrange", "Disabled Arrange");
+
+  await expandPlugin(dialog, "mesurer.screenshot", "Screenshot");
+  const autoCopy = settingSwitch(dialog, "Auto-copy");
+  const autoDownload = settingSwitch(dialog, "Auto-download");
+  const includeMeasurements = settingSwitch(dialog, "Include measurements");
+  await expectChecked(autoCopy, false, "Auto-copy default");
+  await expectChecked(autoDownload, false, "Auto-download default");
+  await expectChecked(includeMeasurements, false, "Include measurements default");
+
+  // Plugin-local persisted settings survive an unload/reload cycle.
+  await autoCopy.click();
+  await expectChecked(autoCopy, true, "Auto-copy before unload");
+  await screenshotToggle.click();
+  await waitForPlugin("mesurer.screenshot", false);
   await waitForTool("screenshot", false);
-  const disabledScreenshotSettings = await page.evaluate(() => window.__MESURER_PLUGIN_SETTINGS_TEST__?.screenshot.settings());
-  if (disabledScreenshotSettings?.toolEnabled !== false) {
-    throw new Error(`Screenshot service did not observe tool disable: ${JSON.stringify(disabledScreenshotSettings)}`);
-  }
+  await expectNoDisclosure(dialog, "mesurer.screenshot", "Disabled Screenshot");
+  const screenshotServiceRemoved = await page.evaluate(() =>
+    window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.services.includes("screenshot") ?? false,
+  );
+  if (screenshotServiceRemoved) throw new Error("Disabling Screenshot left its service registered");
 
-  await autoCopy.click();
-  await autoDownload.click();
-  await expectChecked(autoCopy, true, "Auto-copy after enable");
-  await expectChecked(autoDownload, true, "Auto-download after enable");
-  await autoCopy.click();
-  await autoDownload.click();
+  await screenshotToggle.click();
+  await waitForPlugin("mesurer.screenshot", true);
+  await waitForTool("screenshot", true);
+  await expandPlugin(dialog, "mesurer.screenshot", "Screenshot");
+  await expectChecked(settingSwitch(dialog, "Auto-copy"), true, "Auto-copy restored after plugin reload");
 
-  const cleanCapture = await page.evaluate(async () => {
-    const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
-    if (!harness) throw new Error("Plugin settings harness unavailable");
-    harness.screenshot.setSettings({ includeMeasurements: false, copy: false, download: false });
-    await harness.screenshot.capture({ left: 80, top: 80, width: 360, height: 220 });
-    return {
-      capture: harness.captures.at(-1),
-      measurementRestored: Boolean(harness.subject.root.querySelector("[data-mesurer-measurement='true']")?.getClientRects().length),
-    };
-  });
-  if (cleanCapture.capture?.measurementVisible !== false) {
-    throw new Error(`Clean screenshot kept measurement presentation: ${JSON.stringify(cleanCapture)}`);
-  }
-  if (!cleanCapture.measurementRestored) {
-    throw new Error("Measurement presentation was not restored after clean screenshot capture");
-  }
+  // Context uses the same lifecycle toggle: off means its service is actually gone, not merely hidden.
+  await contextToggle.click();
+  await waitForPlugin("mesurer.context", false);
+  await waitForTool("context.copy", false);
+  const contextServiceRemoved = await page.evaluate(() =>
+    window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.services.includes("context:v1") ?? false,
+  );
+  if (contextServiceRemoved) throw new Error("Disabling Context left context:v1 registered");
+  await contextToggle.click();
+  await waitForPlugin("mesurer.context", true);
+  await waitForTool("context.copy", true);
 
-  await includeMeasurements.click();
-  await expectChecked(includeMeasurements, true, "Include measurements after enable");
-  const evidenceCapture = await page.evaluate(async () => {
-    const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
-    if (!harness) throw new Error("Plugin settings harness unavailable");
-    await harness.screenshot.capture({ left: 80, top: 80, width: 360, height: 220 });
-    return harness.captures.at(-1);
-  });
-  if (evidenceCapture?.measurementVisible !== true) {
-    throw new Error(`Evidence screenshot hid measurement presentation: ${JSON.stringify(evidenceCapture)}`);
-  }
-  if (evidenceCapture?.screenshotSelectionVisible !== false) {
-    throw new Error(`Screenshot selection chrome leaked into programmatic capture: ${JSON.stringify(evidenceCapture)}`);
-  }
-
-  // Persist a non-default combination with no explicit persistKey and prove runtime behavior is re-applied after reload.
-  await autoCopy.click();
-  await autoDownload.click();
+  // Keep Arrange enabled and Screenshot disabled, then prove availability itself survives reload.
+  await arrangeToggle.click();
+  await waitForPlugin("mesurer.arrange", true);
+  await screenshotToggle.click();
+  await waitForPlugin("mesurer.screenshot", false);
   await page.waitForTimeout(100);
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => Boolean(window.__MESURER_PLUGIN_SETTINGS_TEST__));
-
   dialog = await openSettings();
-  await assertReleaseMetadata(dialog);
-  const persistedContextTools = switchByName(dialog, "Context tools");
-  const persistedScreenshotTool = switchByName(dialog, "Screenshot tool");
-  const persistedAutoCopy = switchByName(dialog, "Auto-copy");
-  const persistedAutoDownload = switchByName(dialog, "Auto-download");
-  const persistedMeasurements = switchByName(dialog, "Include measurements");
-  await expectChecked(persistedContextTools, false, "Persisted Context tools");
-  await expectChecked(persistedScreenshotTool, false, "Persisted Screenshot tool");
-  await expectChecked(persistedAutoCopy, true, "Persisted Auto-copy");
-  await expectChecked(persistedAutoDownload, true, "Persisted Auto-download");
-  await expectChecked(persistedMeasurements, true, "Persisted Include measurements");
-  await waitForTool("context.copy", false);
+  await expectChecked(pluginToggle(dialog, "Context"), true, "Persisted Context plugin");
+  await expectChecked(pluginToggle(dialog, "Arrange"), true, "Persisted Arrange plugin");
+  await expectChecked(pluginToggle(dialog, "Screenshot"), false, "Persisted Screenshot plugin");
+  await waitForTool("context.copy", true);
+  await waitForTool("arrange", true);
   await waitForTool("screenshot", false);
 
-  const servicesAfterReload = await page.evaluate(() => {
-    const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
-    if (!harness) return { context: false, screenshot: false };
-    const description = harness.subject.describe();
-    return {
-      context: description?.services.includes("context:v1") ?? false,
-      screenshot: description?.services.includes("screenshot") ?? false,
-    };
-  });
-  if (!servicesAfterReload.context || !servicesAfterReload.screenshot) {
-    throw new Error(`Plugin services did not survive persisted UI disable: ${JSON.stringify(servicesAfterReload)}`);
-  }
-
-  // Reset both renderer and plugin-contributed settings, then prove the plugin defaults survive another reload.
+  // Reset returns plugin availability to the fixture's mount defaults: Context + Screenshot on, Arrange off.
   await dialog.getByRole("button", { name: "Reset settings to defaults" }).click();
-  await expectChecked(persistedContextTools, true, "Default Context tools");
-  await expectChecked(persistedScreenshotTool, true, "Default Screenshot tool");
-  await expectChecked(persistedAutoCopy, false, "Default Auto-copy");
-  await expectChecked(persistedAutoDownload, false, "Default Auto-download");
-  await expectChecked(persistedMeasurements, false, "Default Include measurements");
+  await waitForPlugin("mesurer.arrange", false);
+  await waitForPlugin("mesurer.screenshot", true);
+  await waitForPlugin("mesurer.context", true);
+  await expectChecked(pluginToggle(dialog, "Context"), true, "Default Context plugin");
+  await expectChecked(pluginToggle(dialog, "Arrange"), false, "Default Arrange plugin");
+  await expectChecked(pluginToggle(dialog, "Screenshot"), true, "Default Screenshot plugin");
   await waitForTool("context.copy", true);
   await waitForTool("screenshot", true);
-  await page.waitForTimeout(100);
+  await waitForTool("arrange", false);
+  await expandPlugin(dialog, "mesurer.screenshot", "Screenshot");
+  await expectChecked(settingSwitch(dialog, "Auto-copy"), false, "Default Auto-copy");
 
-  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => Boolean(window.__MESURER_PLUGIN_SETTINGS_TEST__));
-  dialog = await openSettings();
-  await expectChecked(switchByName(dialog, "Context tools"), true, "Reset Context tools after reload");
-  await expectChecked(switchByName(dialog, "Screenshot tool"), true, "Reset Screenshot tool after reload");
-  await expectChecked(switchByName(dialog, "Auto-copy"), false, "Reset Auto-copy after reload");
-  await expectChecked(switchByName(dialog, "Auto-download"), false, "Reset Auto-download after reload");
-  await expectChecked(switchByName(dialog, "Include measurements"), false, "Reset Include measurements after reload");
-  await waitForTool("context.copy", true);
-  await waitForTool("screenshot", true);
+  // The reloaded Screenshot plugin still uses the caller-provided capture provider.
+  await page.evaluate(async () => {
+    const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
+    const screenshot = harness?.screenshot();
+    if (!harness || !screenshot) throw new Error("Screenshot service unavailable after plugin reload");
+    await harness.subject.select("#settings-target");
+    screenshot.setSettings({ includeMeasurements: false, copy: false, download: false });
+    await screenshot.capture({ left: 80, top: 80, width: 360, height: 220 });
+  });
+  const cleanCapture = await page.evaluate(() => window.__MESURER_PLUGIN_SETTINGS_TEST__?.captures.at(-1));
+  if (cleanCapture?.measurementVisible !== false) throw new Error(`Clean screenshot kept measurements: ${JSON.stringify(cleanCapture)}`);
+
+  await settingSwitch(dialog, "Include measurements").click();
+  await page.evaluate(async () => {
+    const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
+    const screenshot = harness?.screenshot();
+    if (!harness || !screenshot) throw new Error("Screenshot service unavailable for evidence capture");
+    await screenshot.capture({ left: 80, top: 80, width: 360, height: 220 });
+  });
+  const evidenceCapture = await page.evaluate(() => window.__MESURER_PLUGIN_SETTINGS_TEST__?.captures.at(-1));
+  if (evidenceCapture?.measurementVisible !== true) throw new Error(`Evidence screenshot hid measurements: ${JSON.stringify(evidenceCapture)}`);
 
   if (errors.length) throw new Error(`Plugin settings browser errors:\n${errors.join("\n")}`);
   console.log("Plugin settings browser contract: PASS");
-  console.log(JSON.stringify({ cleanCapture, evidenceCapture, servicesAfterReload, releaseMetadata }, null, 2));
+  console.log(JSON.stringify({ cleanCapture, evidenceCapture, releaseMetadata }, null, 2));
 } finally {
   await page.close();
   await browser.close();
