@@ -120,7 +120,7 @@ jobs:
           print("")
           print("### Arrange")
           print("- Toolbar enablement after selection exercised in Chromium")
-          print("- Nearby-element alignment snapping and ruler feedback exercised in Chromium")
+          print("- Nearby-element, X-ray-outline, and guide alignment snapping exercised in Chromium")
           print("- Ghost suppression, persistent Desired placement, and Live restoration on deactivation exercised in Chromium")
 
           print("")
