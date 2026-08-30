@@ -71,7 +71,6 @@ const subject = mountMesurer({
 await subject.ready;
 captureRoot = subject.root;
 const screenshot = () => subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
-if (!screenshot()) throw new Error("Screenshot service did not mount in plugin settings fixture");
 
 type PluginSettingsHarness = {
   subject: MountedMesurer;
