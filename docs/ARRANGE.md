@@ -19,9 +19,9 @@ Use the same browser-only Mesurer setup module described in [`GETTING_STARTED.md
 ## Human workflow
 
 1. Select one or more page elements with Mesurer.
-2. Click **Arrange** in the toolbar.
+2. Click **Arrange** in the toolbar. Arrange activates **Select** automatically so selection remains available while arranging.
 3. Drag the selection to the desired position.
-4. Move near another visible element edge or center, an X-ray outline, or an existing Mesurer guide to snap into alignment.
+4. Move near another visible element edge, center, X-ray box edge, or existing Mesurer guide to snap into alignment.
 5. Hold **Shift** while dragging to lock movement to the dominant axis.
 6. Release the pointer. The snapped **Desired** placement remains visible so you can inspect it or continue arranging.
 
@@ -30,6 +30,19 @@ Arrange records one history entry when the drag finishes. Pointer movement itsel
 `Cmd/Ctrl+Z` and redo use the normal Mesurer plugin history. Undo removes the latest saved placement from the visible Desired presentation; redo restores it.
 
 Repeated drags start from the current Desired placement rather than the source-rendered position, so you can refine a layout in several small moves.
+
+## Arrange settings
+
+Arrange contributes its own section to Mesurer Settings. These preferences persist with the normal Mesurer plugin state:
+
+- **Snapping** — master switch for magnetic alignment. Enabled by default.
+- **Element edges** — snap left/right and top/bottom edges to nearby elements. Enabled by default.
+- **Element centers** — allow center-to-center alignment when X-ray edge preference is not active. Enabled by default.
+- **Guides** — snap to existing Mesurer guides. Enabled by default.
+- **Prefer X-ray edges** — while X-ray is on, use the visible blue box edges as element snap targets instead of invisible element centers. Enabled by default.
+- **Alignment rulers** — show the red ruler while a snap is active. Enabled by default.
+
+Turning **Snapping** off leaves Arrange as a free-drag visual intent tool. The other snap-target controls are disabled until snapping is enabled again.
 
 ## What Arrange changes
 
@@ -57,16 +70,19 @@ If a target becomes ambiguous or cannot be rebound conservatively, Arrange does 
 
 Arrange uses Mesurer's existing guide snap distance of `10px`.
 
-For a dragged element or multi-selection group, Arrange compares these alignment anchors:
+Element snapping is semantic rather than all-anchor-to-all-anchor:
 
-- horizontal position: **left, center, right**;
-- vertical position: **top, center, bottom**.
+- element **edges align to edges**;
+- element **centers align center-to-center**;
+- Mesurer guides can align any compatible moving edge or center.
 
-Nearby visible page elements contribute the same edge and center anchors. Existing Mesurer guides are also valid snap targets.
+This avoids a visible box edge unexpectedly pulling toward another element's invisible center.
 
-When **X-ray** is on, its visible element outlines use those same page-element rectangles, so the X-ray lines you can see are valid Arrange alignment targets too. Arrange can stick to the left, center, right, top, center, or bottom geometry exposed by those outlined elements; X-ray does not create a separate or approximate coordinate system.
+When X-ray is visible and **Prefer X-ray edges** is enabled, Arrange restricts element snap targets to elements that are actually outlined by X-ray and uses their visible box edges. That makes the blue X-ray geometry and the magnetic Arrange geometry agree on screen.
 
-When an anchor comes within the snap distance, Arrange adjusts that drag axis to the exact alignment and shows a red alignment ruler between the moving selection and the matched element. Guide targets use the same ruler treatment across the viewport.
+Without that preference, nearby visible page elements can contribute both edge and center anchors according to the enabled Arrange settings. Existing Mesurer guides are also valid snap targets when **Guides** is enabled.
+
+When an anchor comes within the snap distance, Arrange adjusts that drag axis to exact alignment. With **Alignment rulers** enabled, a red ruler shows the active snap between the moving selection and the matched element; guide targets use the same ruler treatment across the viewport.
 
 Snapping is evaluated independently on X and Y. With Shift axis locking, only the active movement axis is eligible to snap, so snapping does not break the axis lock.
 
@@ -192,7 +208,7 @@ This is useful for communicating changes such as moving an entire action group, 
 
 ## Persistence and rebinding
 
-Arrange state uses the normal plugin persistence channel. With `persistKey`, it is stored under that Mesurer instance's plugin key; otherwise it uses the default plugin storage key.
+Arrange intent state and Arrange preferences use the normal plugin persistence channel. With `persistKey`, they are stored under that Mesurer instance's plugin key; otherwise they use the default plugin storage key.
 
 Persistence keeps both the intent evidence and the current Desired preview. After reload, safely rebound targets return to their saved Desired positions. Deactivating Arrange or explicitly switching to Live removes the preview without deleting the intent.
 
@@ -210,4 +226,4 @@ Arrange-owned UI is marked as Mesurer inspector chrome and cannot become a page 
 
 Arrange is deliberately a **visual layout-intent tool**, not a general DOM/CSS editor.
 
-It focuses on repositioning with edge/center alignment snapping. The temporary preview does not reflow siblings, and Arrange does not write application source. Future extensions can build on the same Before/Desired/Live contract without changing that separation.
+It focuses on repositioning with configurable edge/center/guide alignment snapping. The temporary preview does not reflow siblings, and Arrange does not write application source. Future extensions can build on the same Before/Desired/Live contract without changing that separation.
