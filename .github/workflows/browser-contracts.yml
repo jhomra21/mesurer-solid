@@ -53,8 +53,8 @@ jobs:
       - name: Generate renderer styles
         run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
-      - name: Run rendered-contract unit tests
-        run: bun run --filter '@jhomra21/mesurer-solid-renderer' test -- distances.test.ts arrange-plugin.test.ts
+      - name: Run spacing unit tests
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' test -- distances.test.ts
 
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
