@@ -109,6 +109,32 @@ const drag = (
 };
 
 describe("arrangePlugin", () => {
+  it("notifies the toolbar when selection availability changes after plugin load", async () => {
+    const { host, model, pageTarget } = await setup();
+    const tool = host.tools().find((item) => item.id === "arrange");
+    expect(tool?.disabled?.()).toBe(true);
+
+    let stateEvents = 0;
+    const unsubscribe = host.subscribe((event) => {
+      if (event.reason === "state") stateEvents += 1;
+    });
+
+    const target = document.createElement("button");
+    target.id = "late-selection";
+    pageTarget.append(target);
+    setRect(target, { left: 20, top: 30, width: 80, height: 32 });
+    select(model, [target]);
+
+    await vi.waitFor(() => expect(tool?.disabled?.()).toBe(false));
+    expect(stateEvents).toBeGreaterThan(0);
+
+    model.setSelectedMeasurements([], null);
+    await vi.waitFor(() => expect(tool?.disabled?.()).toBe(true));
+
+    unsubscribe();
+    host.dispose();
+  });
+
   it("records one persisted drag and reconstructs Before, Desired, Live, undo, and redo", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");
