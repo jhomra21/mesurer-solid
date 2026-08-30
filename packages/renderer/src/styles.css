@@ -133,6 +133,12 @@
   white-space: nowrap;
 }
 
+/* Plugins is a top-level General setting. Keep its label aligned with Persist
+   and Version; plugin rows provide their own hierarchy indentation. */
+[data-mesurer-plugin-settings-disclosure="plugins"] {
+  padding-left: 0;
+}
+
 /* Solid host compatibility: visually equivalent to upstream's root utility classes. */
 .mesurer-solid-root {
   position: fixed;
