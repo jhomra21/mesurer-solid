@@ -27,6 +27,27 @@ replace_exact(
     "[data-mesurer-plugin-settings-controls='arrange']",
     "[data-mesurer-plugin-settings-controls='mesurer.arrange']",
 )
+replace_exact(
+    arrange,
+    '''  const settingLabels = (await arrangeSettings.getByRole("switch").allTextContents())
+    .map((label) => label.trim());''',
+    '''  const arrangeControls = arrangeSettings.locator("[data-mesurer-plugin-settings-controls='mesurer.arrange']");
+  const settingLabels = (await arrangeControls.getByRole("switch").allTextContents())
+    .map((label) => label.trim());''',
+)
+replace_exact(
+    arrange,
+    '''  const snappingSwitch = arrangeSettings.getByRole("switch", { name: "Snapping", exact: true });''',
+    '''  const snappingSwitch = arrangeControls.getByRole("switch", { name: "Snapping", exact: true });''',
+)
+replace_exact(
+    arrange,
+    '''    const section = document.querySelector("[data-mesurer-plugin-settings-section='mesurer.arrange']");
+    const control = section?.querySelector("button[role='switch']");''',
+    '''    const controls = document.querySelector("[data-mesurer-plugin-settings-controls='mesurer.arrange']");
+    const control = controls?.querySelector("button[role='switch']");''',
+    expected=2,
+)
 
 capture = "visual-parity/capture.mjs"
 replace_exact(
