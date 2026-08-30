@@ -11,16 +11,21 @@ on:
       - "packages/renderer/src/components/MesurerOverlay.tsx"
       - "packages/renderer/src/components/SettingsPanel.tsx"
       - "packages/renderer/src/core/distances.ts"
+      - "packages/renderer/src/plugins/arrange.ts"
       - "packages/renderer/src/plugins/settings-runtime.tsx"
       - "packages/renderer/src/plugins/screenshot.ts"
+      - "packages/renderer/test/arrange-plugin.test.ts"
       - "packages/renderer/test/distances.test.ts"
       - "packages/mesurer/src/context-plugin.tsx"
+      - "examples/basic/index.html"
+      - "examples/basic/src/main.tsx"
       - "examples/basic/self-hosting.html"
       - "examples/basic/src/self-hosting.ts"
       - "examples/basic/multi-spacing.html"
       - "examples/basic/src/multi-spacing.ts"
       - "examples/basic/plugin-settings.html"
       - "examples/basic/src/plugin-settings.ts"
+      - "visual-parity/arrange-contract.mjs"
       - "visual-parity/self-hosting-context.mjs"
       - "visual-parity/multi-spacing.mjs"
       - "visual-parity/plugin-settings-contract.mjs"
@@ -63,7 +68,7 @@ jobs:
             echo $! > ../../browser-contracts-vite.pid
           )
 
-          for path in self-hosting.html multi-spacing.html plugin-settings.html; do
+          for path in index.html self-hosting.html multi-spacing.html plugin-settings.html; do
             ready=0
             for attempt in $(seq 1 45); do
               if curl --fail --silent --show-error "http://127.0.0.1:4174/${path}" >/dev/null; then
@@ -78,6 +83,11 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Exercise Arrange toolbar and drag
+        env:
+          ARRANGE_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/arrange-contract.mjs
 
       - name: Measure Mesurer with Mesurer
         env:
@@ -108,7 +118,11 @@ jobs:
 
           print("## Mesurer rendered browser contracts")
           print("")
+          print("### Arrange")
+          print("- Toolbar enablement after selection exercised in Chromium")
+          print("- Drag presentation and plugin-history undo exercised in Chromium")
 
+          print("")
           self_path = Path("self-hosting-artifacts/self-hosting-measurements.json")
           if self_path.exists():
               report = json.loads(self_path.read_text())

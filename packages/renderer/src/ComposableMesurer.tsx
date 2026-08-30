@@ -25,6 +25,7 @@ export type MesurerSolidRuntimeService = {
   ownerDocument: Document;
   ownerWindow: Window;
   portalTarget: HTMLElement | ShadowRoot;
+  pageTarget: HTMLElement | ShadowRoot;
   createWorkspaceRuntime(): MesurerWorkspaceRuntime;
   /** Create Mesurer-owned DOM that is automatically excluded from inspection/X-ray. */
   createInspectorMount(): { element: HTMLDivElement; dispose(): void };
@@ -306,6 +307,7 @@ export default function ComposableMesurer(props: MesurerProps) {
             ownerDocument,
             ownerWindow,
             portalTarget: target,
+            pageTarget,
             createWorkspaceRuntime,
             createInspectorMount,
           });

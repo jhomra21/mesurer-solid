@@ -6,7 +6,7 @@
 
 A Solid 2 port and extension of [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick).
 
-Mesurer Solid is a visual inspection and measurement tool for browser apps. Use it to select elements, inspect spacing and layout, measure distances, add guides, inspect text and colors, capture screenshots, and expose rendered UI state through a programmatic API.
+Mesurer Solid is a visual inspection and measurement tool for browser apps. Use it to select elements, inspect spacing and layout, measure distances, add guides, inspect text and colors, arrange a desired layout, capture screenshots, and expose rendered UI state through a programmatic API.
 
 <p align="center">
   <img src="docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between four selected elements" width="100%">
@@ -90,9 +90,32 @@ Mesurer carries its own isolated Solid 2 renderer, so the host app does not need
 | Color Picker | Read colors directly from the rendered page |
 | Text Inspector | Inspect rendered typography |
 | Settings | Configure tools and persisted behavior |
+| Arrange | Move selected elements into a desired visual layout without editing application source |
 | Screenshots | Capture a dragged viewport region with the optional screenshot plugin |
 | Context & annotations | Read selections, measurements, guides, notes, geometry, styles, and relationships programmatically |
 | Plugins | Add or replace tools, commands, overlays, settings, state, and services at runtime |
+
+## Arrange a desired layout
+
+Arrange is an optional first-party plugin for showing how selected UI should be positioned without pretending to edit the application source:
+
+```ts
+import { mountMesurer } from "mesurer-solid"
+import { arrangePlugin } from "mesurer-solid/arrange"
+
+const mesurer = mountMesurer({
+  agent: true,
+  plugins: [arrangePlugin()],
+})
+```
+
+Select one or more elements, click **Arrange**, and drag the selection. Hold **Shift** to lock movement to the dominant axis.
+
+Each completed drag records Before and Desired geometry, persists through the plugin state channel, and participates in Mesurer undo/redo. Coding agents can reconstruct Before/Desired, capture both through their existing browser harness, switch to Live after editing source, and use exact geometry to verify whether the real implementation matches the human-arranged result.
+
+Arrange is a visual specification: an agent should implement the appropriate flex/grid/spacing/component change rather than blindly copying the preview offset into a production transform.
+
+See [`docs/ARRANGE.md`](./docs/ARRANGE.md) for the human workflow, agent API, Before/Desired/Live states, persistence, screenshots, and review loop.
 
 ## Screenshot capture
 
@@ -172,7 +195,7 @@ This is useful when a visual change needs to be checked against the same target 
 
 ## Agent integration
 
-For coding-agent setup, injection, state-preservation rules, and the full visual verification workflow, use the dedicated agent docs instead of the README:
+For coding-agent setup, injection, state-preservation rules, Arrange handling, and the full visual verification workflow, use the dedicated agent docs instead of the README:
 
 - [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md)
 - [`.agents/skills/mesurer-ui/SKILL.md`](./.agents/skills/mesurer-ui/SKILL.md)
@@ -225,6 +248,7 @@ import {
   mountMesurer,
 } from "mesurer-solid"
 
+import { arrangePlugin } from "mesurer-solid/arrange"
 import { createMesurerPluginHost } from "mesurer-solid/core"
 import { screenshotPlugin } from "mesurer-solid/screenshot"
 ```
@@ -238,6 +262,7 @@ mesurer-solid/inject-script
 ## Docs
 
 - [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md) — where to mount Mesurer and development/client setup
+- [`docs/ARRANGE.md`](./docs/ARRANGE.md) — Arrange visual layout intent and agent review
 - [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) — screenshot plugin
 - [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — context, selection, annotations, and review
 - [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) — host isolation and browser compatibility

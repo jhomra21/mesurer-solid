@@ -1,8 +1,8 @@
 # mesurer-solid
 
-Framework-agnostic UI measurement, annotation, inspection, and agent-ready visual context for browser applications.
+Framework-agnostic UI measurement, visual inspection, layout intent, and agent-ready rendered context for browser applications.
 
-The renderer is implemented privately in Solid 2, but consumers can use Solid 1/2, React, Vue, Svelte, vanilla DOM, or Electron renderer pages without providing Solid.
+Mesurer's private renderer uses Solid 2. Consumer applications can use Solid 1/2, React, Vue, Svelte, vanilla DOM, or Electron renderer pages without providing Solid.
 
 ## Install
 
@@ -14,27 +14,21 @@ bun add -d mesurer-solid
 npm install -D mesurer-solid
 ```
 
-Use the `beta` tag only when you intentionally want to test a prerelease:
+Use `mesurer-solid@beta` only when intentionally testing a prerelease.
 
-```bash
-bun add -d mesurer-solid@beta
-# or
-npm install -D mesurer-solid@beta
-```
-
-Prereleases through `0.1.0-beta.11` used the old scoped package name; current releases use `mesurer-solid`.
+Prereleases through `0.1.0-beta.11` used the old scoped package name. Current releases use `mesurer-solid`.
 
 ## Where Mesurer code goes
 
-Mesurer runs in the browser. Mount it once from the client/browser entry for the page you want to inspect.
+Mesurer runs in the browser. Mount it once from a client/browser entry for the page you want to inspect.
 
 For local development in a Vite app, a clear setup is:
 
 ```text
 src/
-├── main.tsx          # existing browser entry; the filename may differ
+├── main.tsx
 └── dev/
-    └── mesurer.ts    # Mesurer setup
+    └── mesurer.ts
 ```
 
 Create `src/dev/mesurer.ts`:
@@ -49,7 +43,7 @@ import.meta.hot?.dispose(() => {
 })
 ```
 
-Then load that module from the existing browser entry, such as `src/main.tsx`, `src/main.ts`, or `src/index.tsx`:
+Load it from the existing browser entry:
 
 ```ts
 if (import.meta.env.DEV) {
@@ -57,27 +51,25 @@ if (import.meta.env.DEV) {
 }
 ```
 
-`import.meta.env.DEV` is Vite-specific. With another bundler, use its build-time development flag instead.
+`import.meta.env.DEV` and `import.meta.hot` are Vite-specific. With another bundler, use its development flag and HMR lifecycle.
 
-Typical browser entry locations include:
+Do not put `mountMesurer()` in build configuration, API/server routes, Node-only scripts, an Electron main process, or a shared SSR module that also runs on the server.
 
-| Application | Typical place to load Mesurer |
+Typical browser entry locations:
+
+| Application | Typical location |
 | --- | --- |
 | React + Vite | `src/main.tsx` |
-| Solid + Vite | `src/index.tsx`, `src/main.tsx`, or the project's browser entry |
+| Solid + Vite | `src/index.tsx`, `src/main.tsx`, or the project browser entry |
 | Vue + Vite | `src/main.ts` |
 | Svelte + Vite | `src/main.ts` |
 | Vanilla Vite | `src/main.ts` or `src/main.js` |
-| Electron | the renderer entry, such as `src/renderer.ts` or `src/renderer/main.tsx` |
-| SSR / metaframework | a client-only module or lifecycle that never executes during server rendering |
+| Electron | renderer entry such as `src/renderer.ts` or `src/renderer/main.tsx` |
+| SSR / metaframework | client-only module or lifecycle that never executes during SSR |
 
-Do not put `mountMesurer()` in build configuration, API/server routes, Node-only scripts, an Electron main process, or a shared SSR module that also executes on the server.
+Put plugin setup in that same Mesurer module.
 
-Put plugin setup in the same Mesurer module. The repository's [getting-started guide](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md) has more detailed Vite/HMR, SSR/client-only, Electron, and plugin examples.
-
-## Mount the base inspector
-
-If you intentionally want Mesurer enabled whenever the browser bundle runs, you can mount it directly from that browser entry instead of using the development-only dynamic import above:
+## Base inspector
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -85,11 +77,98 @@ import { mountMesurer } from "mesurer-solid"
 const mesurer = mountMesurer()
 ```
 
-The base inspector contains Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, Settings, the plugin host, and the low-level agent inspection API.
+The base inspector includes Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, Settings, the plugin host, and the low-level inspection API.
 
-## Add shared visual context
+## Arrange
 
-Context and annotations are provided by removable `mesurer.context`. Add the plugin in the same Mesurer mounting module described above:
+Arrange is an optional first-party plugin for showing how selected rendered elements should be positioned without pretending to edit application source.
+
+```ts
+import { mountMesurer } from "mesurer-solid"
+import { arrangePlugin } from "mesurer-solid/arrange"
+
+const mesurer = mountMesurer({
+  plugins: [arrangePlugin()],
+})
+```
+
+Select one or more page elements, click **Arrange**, and drag the selection. Hold **Shift** while dragging to lock movement to the dominant axis.
+
+Each completed drag records one persisted, undoable intent containing:
+
+- target selector and fingerprint;
+- Before geometry;
+- Desired geometry;
+- previous and Desired visual offsets;
+- page scope;
+- creation time.
+
+Arrange only changes the temporary browser presentation. It does not write CSS, component source, templates, or application state.
+
+### Arrange with a coding agent
+
+For the full agent workflow, mount context and Arrange together:
+
+```ts
+import {
+  contextPlugin,
+  mountMesurer,
+} from "mesurer-solid"
+import { arrangePlugin } from "mesurer-solid/arrange"
+
+const mesurer = mountMesurer({
+  agent: true,
+  plugins: [
+    contextPlugin(),
+    arrangePlugin(),
+  ],
+})
+```
+
+The agent capability surface then includes `arrange: true` and can read saved intents:
+
+```js
+const intents = await window.__MESURER__.arrangements()
+const intent = await window.__MESURER__.arrange(intents.at(-1).id)
+```
+
+Arrange distinguishes three states:
+
+```text
+Before  → original presentation before the Arrange action
+Desired → human-arranged visual result
+Live    → real application result with Arrange preview removed
+```
+
+The agent can reconstruct Before and Desired before editing source:
+
+```js
+await window.__MESURER__.showArrange(intent.id, "before")
+const beforePlan = await window.__MESURER__.arrangeCapturePlan(intent.id, "before")
+
+await window.__MESURER__.showArrange(intent.id, "desired")
+const desiredPlan = await window.__MESURER__.arrangeCapturePlan(intent.id, "desired")
+```
+
+The outer browser harness owns screenshot bytes. Mesurer supplies the exact state and capture geometry, so the person does not need to export or attach Before/Desired screenshots manually.
+
+After source edits:
+
+```js
+await window.__MESURER__.stable()
+await window.__MESURER__.showArrange(intent.id, "live")
+const review = await window.__MESURER__.reviewArrange(intent.id)
+```
+
+`reviewArrange()` reports exact Live-vs-Desired rectangle deltas and conservative target status.
+
+A drag is a visual specification, not a CSS prescription. If a person moves something `96px` right, the coding agent should determine the appropriate flex/grid/gap/margin/component change rather than blindly writing a `translateX(96px)` production transform.
+
+See the repository's [`docs/ARRANGE.md`](https://github.com/jhomra21/mesurer-solid/blob/main/docs/ARRANGE.md) for the full workflow.
+
+## Shared visual context
+
+Context and annotations are provided by the optional `mesurer.context` plugin:
 
 ```ts
 import {
@@ -103,25 +182,62 @@ const mesurer = mountMesurer({
 })
 ```
 
-The human can select one or multiple elements, drag regions, place guides, create measurements/held distances, enable rulers/X-ray, and save annotation notes/baselines.
+Read the workspace or current human selection:
 
-The coding agent reads that same rendered state directly from the page. There is no Mesurer MCP, WebMCP, ACP, localhost feedback daemon, Send-to-agent callback, or chat/session routing.
-
-The agent contract is **context-first**: Mesurer visual operations should produce structured context the agent actually consumes.
-
-```text
-human evidence OR agent-known affected target
-  → window.__MESURER__
-  → context() / select() / review()
-  → structured rendered evidence
-  → source edit
-  → render settles
-  → fresh context/review
+```js
+const workspace = await window.__MESURER__.context()
+const selection = await window.__MESURER__.context({ scope: "selection" })
 ```
 
-## Preserve a live human instance
+Select exact rendered targets and get their context back:
 
-Before injecting anything:
+```js
+const context = await window.__MESURER__.select([
+  "#pricing-card",
+  "#pricing-cta",
+])
+```
+
+Every selector must resolve to exactly one page target. Invalid, missing, or ambiguous selectors throw instead of guessing.
+
+`MesurerContextV1` includes rendered geometry, box model, typography, appearance, flex/grid layout, transforms, scroll/overflow, guides, measurements, distances, selected targets, and annotated regions.
+
+## Annotations and review
+
+A human annotation stores a note plus an immutable rendered baseline:
+
+```js
+const annotations = await window.__MESURER__.annotations()
+const context = await window.__MESURER__.context({
+  annotation: annotations[0].id,
+})
+```
+
+After a source change:
+
+```js
+await window.__MESURER__.stable()
+const review = await window.__MESURER__.review(annotationId)
+```
+
+Review reports concrete pixel changes and missing evidence rather than relying on source assumptions.
+
+## Agent integration
+
+The coding-agent contract is context-first and preserves existing human state:
+
+```text
+human Arrange / annotation / selection
+  → window.__MESURER__
+  → structured rendered evidence
+  → source edit
+  → real render / HMR
+  → fresh Live review/context
+```
+
+There is no Mesurer MCP, WebMCP, ACP, localhost feedback daemon, Send-to-agent callback, or chat/session routing.
+
+Before injecting anything, reuse a live Mesurer instance if one is already present:
 
 ```js
 const hasMesurer = Boolean(
@@ -134,194 +250,17 @@ if (hasMesurer) {
 }
 ```
 
-If Mesurer already exists, reuse it and read existing human state before changing the selection. Injected Mesurer preserves a live instance by default. Deliberate replacement requires:
+A live human instance may already contain the information the agent needs. Do not overwrite selection, Arrange history, guides, measurements, annotations, or screenshot preview state before reading it.
 
-```js
-window.__MESURER_CONFIG__ = { reuseExisting: false }
+Install the portable Agent Skill with:
+
+```bash
+npx --yes --package=mesurer-solid mesurer-skill install
 ```
 
-That option is for explicit test/tooling replacement, not normal agent attachment.
-
-## Inject only when absent
-
-```js
-import { readFile } from "node:fs/promises"
-import { fileURLToPath } from "node:url"
-
-const source = await readFile(
-  fileURLToPath(import.meta.resolve("mesurer-solid/inject-script")),
-  "utf8",
-)
-
-const hasMesurer = await browser.evaluate(() => Boolean(
-  window.__MESURER__ &&
-  window.__MESURER_INSTANCE__?.element?.isConnected
-))
-
-if (!hasMesurer) {
-  await browser.evaluate(source)
-}
-
-await browser.evaluate(() => window.__MESURER__.ready())
-```
-
-Injection installs `contextPlugin()` by default. To deliberately inject only the low-level inspector:
-
-```js
-window.__MESURER_CONFIG__ = { context: false }
-```
-
-Screenshot capture remains opt-in for normal injection:
-
-```js
-window.__MESURER_CONFIG__ = { screenshot: true }
-```
-
-The first-party Chrome extension enables screenshot capture automatically.
-
-## Direct context API
-
-With the context plugin loaded:
-
-```js
-window.__MESURER__.capabilities().capabilities
-```
-
-exposes:
-
-```text
-context
-select
-annotations
-review
-capturePlan
-```
-
-There is no send/delivery capability or `sendContext()`.
-
-### Read the whole workspace
-
-```js
-const workspace = await window.__MESURER__.context()
-```
-
-Workspace context includes page/viewport state, rulers/X-ray visibility, targets, guides, measurements, held distances, exact rects, box model, typography, appearance, layout, scroll size, and overflow.
-
-### Read the current human selection
-
-```js
-let selection = null
-try {
-  selection = await window.__MESURER__.context({ scope: "selection" })
-} catch {}
-```
-
-Selection context answers what the human is pointing at now. Preserve and consume it before programmatically changing selection.
-
-### Select exact rendered targets and get context back
-
-When an agent knows exactly which rendered element it wants to highlight/verify, it can select it itself:
-
-```js
-const context = await window.__MESURER__.select("#pricing-card")
-```
-
-For several exact targets:
-
-```js
-const context = await window.__MESURER__.select([
-  "#pricing-card",
-  "#pricing-cta",
-])
-```
-
-`select()`:
-
-1. enables Mesurer and switches to Select;
-2. visibly highlights those rendered elements;
-3. makes them the live selection;
-4. waits for the selection to settle;
-5. returns selection-scoped `MesurerContextV1`.
-
-The return value is intentional. Agents should consume it rather than treating the highlight as the end of the operation.
-
-Every selector must resolve to exactly one element inside the page target. Invalid, missing, or ambiguous selectors throw. Refine the selector or ask the human to select the intended target rather than guessing.
-
-This gives agents a clean post-edit verification pattern:
-
-```js
-await window.__MESURER__.stable()
-
-const evidence = await window.__MESURER__.select([
-  changedSelectorA,
-  changedSelectorB,
-])
-```
-
-The user sees what the agent changed, and the agent receives the exact rendered evidence in the same operation.
-
-## Multi-selection
-
-For every selected target, context contains selector/identity, rect, margin/padding/border, typography, appearance, layout, and scroll/overflow.
-
-Use existing `visualContext.distances` first, then `distance(selectorA, selectorB)` for selected pairs whose relationship is not already represented. Small multi-selections should expose useful pairwise pixel relationships rather than merely saying “3 elements selected.”
-
-## Saved annotations
-
-```js
-const annotations = await window.__MESURER__.annotations()
-
-for (const annotation of annotations) {
-  const context = await window.__MESURER__.context({ annotation: annotation.id })
-}
-```
-
-An annotation adds a durable note and immutable baseline. The note is human intent; geometry/computed styles/guides/distances/screenshots are supporting evidence.
-
-## Agent target-acquisition rule
-
-When Mesurer is available, agents should follow this order:
-
-1. existing relevant human selection/annotation → read it first;
-2. no relevant selection and intended target is ambiguous → ask the human to select it, then read selection context;
-3. no relevant selection and agent knows exact affected rendered targets → call `select()` and consume the returned context.
-
-Do not ask the user to select something the agent can identify exactly itself. Do not guess when the target truly is ambiguous.
-
-## Verify the rendered fix
-
-After source edits and the real page update:
-
-```js
-await window.__MESURER__.stable()
-```
-
-For a saved annotation:
-
-```js
-const review = await window.__MESURER__.review(annotationId)
-```
-
-For a still-relevant human selection:
-
-```js
-const after = await window.__MESURER__.context({ scope: "selection" })
-```
-
-When the agent knows the affected rendered targets:
-
-```js
-const after = await window.__MESURER__.select([
-  changedSelectorA,
-  changedSelectorB,
-])
-```
-
-For meaningful visual work, fresh Mesurer context/review is part of completion. Lint, typecheck, tests, and build are implementation checks, not rendered proof.
+For detailed agent rules, use [`AGENT_INTEGRATION.md`](./AGENT_INTEGRATION.md).
 
 ## Optional screenshot plugin
-
-Screenshot capture is a removable first-party plugin. Configure it in the same Mesurer mounting module:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -337,98 +276,62 @@ const mesurer = mountMesurer({
 })
 ```
 
-The camera tool lets the user drag a viewport region. Mesurer captures the real visible page, converts CSS viewport coordinates to the captured bitmap scale so Retina/HiDPI crops remain exact, temporarily hides its control chrome from the pixels, then restores the previous inspector presentation.
+The human camera tool supports drag-region visible-tab capture, HiDPI/Retina-aware PNG cropping, copy/download settings, a draggable thumbnail, and a larger Copy/Save viewer.
 
-A successful capture can automatically copy PNG data to the clipboard and/or download a PNG according to persistent plugin settings. Those output operations are best-effort: if clipboard or download access is unavailable, the captured PNG is still kept for preview/viewer use and Mesurer reports the available result instead of discarding it.
-
-When `contextPlugin()` and/or `screenshotPlugin()` are mounted, Settings → General → Plugins exposes compact persisted controls for the human-facing plugin surface. Context can hide or restore its toolbar/annotation controls without removing the typed context service. Screenshot can hide or restore the camera tool and control automatic copy, automatic download, and whether measurement presentation is included in captured pixels.
-
-After capture, Mesurer shows a persistent draggable thumbnail. A new thumbnail starts in the bottom-right with an 8px viewport inset. Dragging preserves the existing viewport-clamping behavior, so the preview stays inside that safe boundary. The thumbnail can be dismissed, dragged around the viewport, right-clicked with the browser's native image context menu, or clicked to open a larger viewer. The viewer preserves native image right-click behavior and adds explicit Copy, Save, and Close controls. Escape or backdrop click closes the viewer without discarding the thumbnail. A short status message confirms whether the screenshot was copied, saved, captured, or could not complete an optional output.
-
-Normal browser hosts use `getDisplayMedia()` and reuse a live capture stream to avoid prompting for every region. The first-party Chrome extension uses `chrome.tabs.captureVisibleTab()` through its isolated-world extension bridge, so its screenshot path does not open the screen-share chooser and does not require a broad `<all_urls>` permission.
-
-Programmatic mounted users can get the typed `MesurerScreenshotService` from the plugin host with service id `screenshot`. `start()` opens region selection, `cancel()` closes it, `capture(rect)` captures an exact CSS-pixel viewport rectangle, `settings()` reads copy/download preferences, and `setSettings()` updates those persistent preferences.
-
-Screenshot does not claim the global `C` shortcut because the context workflow already uses `C` and `Shift+C`.
-
-## Clean screenshot evidence for agents
-
-The optional screenshot plugin is a human capture tool, not an agent-delivery channel. Agent verification can continue to let the existing browser harness own deterministic task screenshots while Mesurer plans a clean evidence frame:
+For coding-agent verification, the outer browser harness should normally own screenshot bytes. Mesurer supplies exact capture scope and can temporarily remove inspector presentation:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
+
 await window.__MESURER__.prepareCapture()
 try {
-  // Capture the real viewport and optional focus crop through the harness.
+  // use the harness screenshot primitive
 } finally {
   await window.__MESURER__.finishCapture()
 }
 ```
 
-Use screenshots for visual composition and Mesurer context for exact numeric claims. A screenshot plugin image does not create a `screenshots` delivery capability on `window.__MESURER__` and does not replace context/select/review evidence.
-
-## Context UI
-
-With default `contextPlugin()` UI:
-
-| Action | Shortcut | What it does |
-| --- | --- | --- |
-| Copy Context | `C` | Copies current workspace context. |
-| Copy Selection | `Shift+C` | Copies context scoped to selected element(s) or region. |
-| Add Note | `N` | Creates a durable annotation baseline. |
-
-Those remain the three human context controls. `select()` is a programmatic agent/harness API, not another toolbar action.
-
-## Portable Agent Skill
-
-```bash
-npx --yes --package=mesurer-solid mesurer-skill install
-```
-
-The installer leaves:
-
-```text
-.agents/skills/mesurer-ui/
-├── SKILL.md
-└── assets/
-    └── inject-script.js
-```
-
-The skill teaches the context-first workflow, including when to consume human selection, when to ask for a selection, when to self-select changed targets, multi-selection reads, fresh post-edit verification, and the distinction between the optional human screenshot plugin and harness-owned agent screenshot evidence. See [`AGENT_INTEGRATION.md`](./AGENT_INTEGRATION.md).
-
-## Low-level agent API
-
-Regardless of the context plugin:
-
-```text
-ready / stable
-inspect / inspectAll / at
-distance / viewport / feedback
-describe / command / state
-```
-
-Use low-level APIs for narrow measurement questions. Prefer `context()`, `select()`, and `review()` for normal visual work.
-
-## Plugins
+## Public entry points
 
 ```ts
 import {
-  createMesurerPluginHost,
-  createMesurerRuntime,
+  contextPlugin,
   defineMesurerPlugin,
-} from "mesurer-solid/core"
+  mountMesurer,
+} from "mesurer-solid"
+
+import { arrangePlugin } from "mesurer-solid/arrange"
+import { createMesurerPluginHost } from "mesurer-solid/core"
+import { screenshotPlugin } from "mesurer-solid/screenshot"
 ```
 
-Plugins can contribute tools, commands, hooks, overlays, settings, state, services, history/persistence, renderer-owned UI, and lifecycle cleanup. Plugin-defined toggle settings can register through the plugin host and appear in the canonical General → Plugins Settings section without hard-coding the plugin into Mesurer's renderer.
-
-## Public surface
+The transport-neutral classic browser payload is:
 
 ```text
-mesurer-solid
-mesurer-solid/core
-mesurer-solid/screenshot
-mesurer-solid/inject
 mesurer-solid/inject-script
 ```
 
-MIT. Adapted from `ibelick/mesurer`; see `THIRD_PARTY_LICENSES.md`.
+## Supported hosts
+
+Mesurer's renderer is bundled and isolated from the host framework. Supported host classes include:
+
+- Solid 1
+- Solid 2
+- React
+- Vue
+- Svelte
+- vanilla DOM applications
+- Electron renderer pages
+
+## More documentation
+
+- [Getting started](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md)
+- [Arrange](https://github.com/jhomra21/mesurer-solid/blob/main/docs/ARRANGE.md)
+- [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
+- [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
+- [Host isolation](https://github.com/jhomra21/mesurer-solid/blob/main/docs/HOST_ISOLATION.md)
+- [Agent integration](./AGENT_INTEGRATION.md)
+
+## License
+
+MIT

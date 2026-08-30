@@ -35,9 +35,12 @@ try {
     };
   });
 
-  const expectedCapabilityKeys = ["annotations", "capturePlan", "context", "review", "select"];
+  const expectedCapabilityKeys = ["annotations", "arrange", "capturePlan", "context", "review", "select"];
   if (JSON.stringify(directContract.capabilityKeys) !== JSON.stringify(expectedCapabilityKeys)) {
     throw new Error(`Unexpected direct context capability surface: ${JSON.stringify(directContract)}`);
+  }
+  if (directContract.capabilities.arrange !== false) {
+    throw new Error(`Base injector must advertise Arrange as unavailable until the optional plugin is mounted: ${JSON.stringify(directContract)}`);
   }
   const expectedContextToolIds = ["context.add-note", "context.copy", "context.copy-selection"];
   if (JSON.stringify(directContract.contextToolIds) !== JSON.stringify(expectedContextToolIds)) {

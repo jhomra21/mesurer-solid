@@ -20,7 +20,7 @@ if (packageJson.private === true) throw new Error("The public Mesurer package wo
 if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
   throw new Error("The public Mesurer package must not publish runtime workspace dependencies.");
 }
-for (const requiredExport of [".", "./core", "./screenshot", "./inject", "./inject-script"]) {
+for (const requiredExport of [".", "./arrange", "./core", "./screenshot", "./inject", "./inject-script"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
 }
 if (packageJson.publishConfig?.access !== "public") throw new Error("publishConfig.access must be public.");
@@ -44,6 +44,8 @@ for (const file of distFiles) {
 for (const file of [
   "index.js",
   "index.d.ts",
+  "arrange.js",
+  "arrange.d.ts",
   "core.js",
   "core.d.ts",
   "screenshot.js",
@@ -73,6 +75,14 @@ if (!contextReturningSelectPattern.test(rootDeclarations)) {
 if (!/\bselect:\s*boolean\b/.test(rootDeclarations)) {
   throw new Error("Published MesurerAgentCapabilities must advertise the direct select capability.");
 }
+if (!/\barrange:\s*boolean\b/.test(rootDeclarations)) {
+  throw new Error("Published MesurerAgentCapabilities must advertise Arrange availability.");
+}
+for (const methodName of ["arrangements", "arrange", "showArrange", "arrangeCapturePlan", "reviewArrange"]) {
+  if (!new RegExp(`\\b${methodName}\\s*\\(`).test(rootDeclarations)) {
+    throw new Error(`Published Mesurer agent declarations are missing ${methodName}().`);
+  }
+}
 for (const canonicalName of ["mountMesurer", "MountMesurerOptions", "MountedMesurer"]) {
   if (!new RegExp(`\\b${canonicalName}\\b`).test(rootDeclarations)) {
     throw new Error(`Published declarations are missing canonical Mesurer API name: ${canonicalName}.`);
@@ -87,6 +97,22 @@ for (const legacyName of ["mountMeasurer", "MountMeasurerOptions", "MountedMeasu
 const packageReadme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
 if (/\bmountMeasurer\b/.test(packageReadme)) {
   throw new Error("The npm README must document canonical mountMesurer(), not the deprecated mountMeasurer() spelling.");
+}
+
+const arrangeDeclarations = readFileSync(new URL("arrange.d.ts", dist), "utf8");
+if (!/\barrangePlugin\b/.test(arrangeDeclarations)) {
+  throw new Error("Published Arrange entry must expose arrangePlugin().");
+}
+for (const contractName of [
+  "ArrangeElementFingerprint",
+  "ArrangeIntent",
+  "ArrangeReview",
+  "ArrangeCapturePlan",
+  "MesurerArrangeService",
+]) {
+  if (!new RegExp(`\\b${contractName}\\b`).test(arrangeDeclarations)) {
+    throw new Error(`Published Arrange entry is missing ${contractName}.`);
+  }
 }
 
 const screenshotDeclarations = readFileSync(new URL("screenshot.d.ts", dist), "utf8");
@@ -113,6 +139,9 @@ if (stagedPackageJson.name !== "mesurer-solid") {
 }
 if (stagedPackageJson.bin?.["mesurer-skill"] !== skillBinPath) {
   throw new Error(`Expected staged mesurer-skill bin path ${skillBinPath}, got ${stagedPackageJson.bin?.["mesurer-skill"] ?? "<missing>"}.`);
+}
+if (!stagedPackageJson.exports?.["./arrange"]) {
+  throw new Error("Staged npm package is missing the ./arrange export.");
 }
 if (!stagedPackageJson.exports?.["./screenshot"]) {
   throw new Error("Staged npm package is missing the ./screenshot export.");
@@ -147,4 +176,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, compatibility aliases, context-first agent surface, screenshot plugin, and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, compatibility aliases, context-first agent surface, Arrange, screenshot plugin, and Agent Skill installer are self-contained.`);

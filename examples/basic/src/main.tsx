@@ -1,5 +1,5 @@
 import { render } from "@solidjs/web";
-import { Mesurer } from "@jhomra21/mesurer-solid-renderer";
+import { Mesurer, arrangePlugin } from "@jhomra21/mesurer-solid-renderer";
 import "./playground.css";
 
 function App() {
@@ -25,7 +25,7 @@ function App() {
           <div class="feature-copy">
             <p class="kicker">Selection target</p>
             <h2>Drag across several cards, or Shift-click individual elements.</h2>
-            <p>Selected elements expose their bounds, padding, margin and aggregate group bounds.</p>
+            <p>Select one or more elements, then use Arrange to drag them into the layout you want.</p>
           </div>
           <button class="primary-action" type="button">A real button target</button>
         </article>
@@ -64,7 +64,7 @@ function App() {
         <p>Delete removes selected guides. Escape clears measurements/guides. Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z undo/redo. Cmd/Ctrl+, opens settings.</p>
       </footer>
 
-      <Mesurer persistKey="mesurer-parity-playground" />
+      <Mesurer persistKey="mesurer-parity-playground" plugins={[arrangePlugin()]} />
     </main>
   );
 }
