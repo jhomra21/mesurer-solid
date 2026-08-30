@@ -1,0 +1,36 @@
+name: pr91-clear-workspace-parity-fix
+
+on:
+  push:
+    branches:
+      - feat/compact-plugin-settings
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Mesurer Solid
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+      - name: Apply parity capture fix
+        run: python3 scripts/pr91-clear-workspace-parity-fix.py
+      - name: Syntax check
+        run: node --check visual-parity/interactions.mjs
+      - name: Diff check
+        run: git diff --check
+      - name: Commit contract fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add visual-parity/interactions.mjs
+          if git diff --cached --quiet; then
+            echo "No contract changes to commit."
+            exit 0
+          fi
+          git commit -m "test: compare settled clear-workspace state"
+          git push origin HEAD:feat/compact-plugin-settings
