@@ -15,11 +15,13 @@ try {
   await page.goto(url, { waitUntil: "networkidle" });
 
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
+  const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
   const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
   const target = page.locator(".primary-action");
   const reference = page.locator(".feature-copy");
 
   await selectButton.waitFor({ state: "visible" });
+  await xrayButton.waitFor({ state: "visible" });
   await arrangeButton.waitFor({ state: "visible" });
   await target.waitFor({ state: "visible" });
   await reference.waitFor({ state: "visible" });
@@ -38,6 +40,18 @@ try {
   });
   assert.equal(await arrangeButton.isDisabled(), false, "Arrange should enable after selecting a page element");
 
+  await xrayButton.click();
+  await page.waitForFunction(() => {
+    const button = document.querySelector("button[data-mesurer-builtin='xray']");
+    return button instanceof HTMLButtonElement && button.getAttribute("aria-pressed") === "true";
+  });
+  const referenceOutline = await reference.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { style: style.outlineStyle, width: Number.parseFloat(style.outlineWidth) || 0 };
+  });
+  assert.equal(referenceOutline.style, "solid", "X-ray should render a solid outline on page elements");
+  assert(referenceOutline.width > 0, "X-ray outline should have visible width");
+
   await arrangeButton.click();
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
   const verticalSnapLine = page.locator("[data-mesurer-arrange-snap-line='vertical']");
@@ -47,7 +61,8 @@ try {
 
   // Aim near a known page-element alignment cluster. The production snapper deliberately
   // chooses whichever valid nearby anchor requires the smallest correction, so the browser
-  // contract validates the winning anchor rather than assuming one named element must win.
+  // contract validates the winning X-ray-visible anchor rather than assuming one named
+  // element must win.
   const rawDesiredLeft = referenceBox.x + 7;
   const dx = rawDesiredLeft - before.x;
   const startX = dragBox.x + dragBox.width / 2;
@@ -76,7 +91,7 @@ try {
     `Arrange target edge/center should land on the active alignment ruler at ${snapLineBox.x}px; anchors were ${movingAnchors.join(", ")}`,
   );
 
-  const snapMatchesNearbyPageElement = await page.evaluate(({ snapX, movingTop, movingBottom }) => {
+  const snapMatchesXrayLine = await page.evaluate(({ snapX, movingTop, movingBottom }) => {
     const moving = document.querySelector(".primary-action");
     if (!(moving instanceof HTMLElement)) return false;
     const rangeGap = (aStart, aEnd, bStart, bEnd) =>
@@ -88,6 +103,7 @@ try {
       if (candidate.closest("[data-mesurer-island='true'], [data-mesurer-inspector-ui='true'], [data-mesurer-root='true']")) continue;
       const style = getComputedStyle(candidate);
       if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") continue;
+      if (style.outlineStyle !== "solid" || (Number.parseFloat(style.outlineWidth) || 0) <= 0) continue;
       const rect = candidate.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) continue;
       if (rangeGap(movingTop, movingBottom, rect.top, rect.bottom) > 160) continue;
@@ -101,9 +117,9 @@ try {
     movingBottom: duringDrag.y + duringDrag.height,
   });
   assert.equal(
-    snapMatchesNearbyPageElement,
+    snapMatchesXrayLine,
     true,
-    `Arrange ruler at ${snapLineBox.x}px should correspond to a nearby visible page-element edge or center`,
+    `Arrange ruler at ${snapLineBox.x}px should correspond to a visible X-ray element edge or center`,
   );
 
   const visibleMeasurementGhosts = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>
@@ -151,7 +167,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Arrange browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Arrange browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Arrange toolbar enablement + alignment snapping + persistent Desired placement: PASS");
+  console.log("Arrange toolbar + X-ray snapping + persistent Desired placement: PASS");
 } finally {
   await browser.close();
 }
