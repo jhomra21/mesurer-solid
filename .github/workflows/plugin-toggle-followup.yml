@@ -19,6 +19,18 @@ jobs:
           fetch-depth: 0
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+      - name: Align follow-up runner with current changelog
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/plugin-toggle-followup.py')
+          source = path.read_text()
+          old = '- Plugin quick menus now stay single-line, compact plugin Settings are borderless, and Escape closes an open plugin quick menu before Arrange handles its own cancel shortcut.'
+          current = '- Keep plugin-heavy Settings compact with collapsed, borderless plugin disclosures, and add Guides-style chevron quick menus with single-line entries for Arrange and Screenshot preferences so common modes can be changed without opening the full Settings panel.'
+          if old not in source:
+              raise SystemExit('Expected changelog needle not found in follow-up runner')
+          path.write_text(source.replace(old, current))
+          PY
       - name: Apply plugin lifecycle follow-up
         run: python3 scripts/plugin-toggle-followup.py
       - name: Install workspace
@@ -35,7 +47,7 @@ jobs:
         run: git diff --check
       - name: Commit validated product changes
         run: |
-          git config user.name "github-actions[bot]"
+          git config user.name "github-actions[bot]]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add CHANGELOG.md packages/renderer/src/ComposableMesurer.tsx packages/renderer/src/components/SettingsPanel.tsx packages/renderer/src/index.ts packages/renderer/src/plugins/settings-runtime.tsx packages/mesurer/src/index.tsx examples/basic/src/plugin-settings.ts visual-parity/plugin-settings-contract.mjs
           git commit -m "feat: let Settings manage plugin availability"
