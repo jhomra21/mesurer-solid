@@ -18,12 +18,14 @@ Use the same browser-only Mesurer setup module described in [`GETTING_STARTED.md
 
 ## Human workflow
 
-1. Select one or more page elements with Mesurer.
-2. Click **Arrange** in the toolbar. Arrange activates **Select** automatically so selection remains available while arranging.
+1. Click **Arrange** in the toolbar. Arrange activates **Select** automatically.
+2. Select one or more page elements. If a selection already exists, Arrange preserves it.
 3. Drag the selection to the desired position.
 4. Move near another visible element edge, center, X-ray box edge, or existing Mesurer guide to snap into alignment.
 5. Hold **Shift** while dragging to lock movement to the dominant axis.
 6. Release the pointer. The snapped **Desired** placement remains visible so you can inspect it or continue arranging.
+
+Arrange does not require a page selection before it can be activated. This keeps the interaction one-step: choose Arrange, then choose what to move.
 
 Arrange records one history entry when the drag finishes. Pointer movement itself is transient, so a single drag does not create dozens of undo steps.
 
