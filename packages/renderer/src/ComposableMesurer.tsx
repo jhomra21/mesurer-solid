@@ -192,7 +192,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   let rendererModel: MesurerModel | null = null;
   let builtinController: MesurerBuiltinController | null = null;
   let setManagedPluginEnabled: (pluginId: string, enabled: boolean) => void = () => undefined;
-  let resetManagedPluginAvailability = () => undefined;
+  let resetManagedPluginAvailability: () => Promise<void> = async () => undefined;
   const [revision, setRevision] = createSignal(0);
   const [ready, setReady] = createSignal(false);
 
@@ -285,31 +285,47 @@ export default function ComposableMesurer(props: MesurerProps) {
     });
   };
 
+  const setPluginSetting = async (
+    sectionId: string,
+    control: SettingsToggleContribution,
+    value: boolean,
+  ) => {
+    try {
+      await control.set(value);
+    } catch (error) {
+      props.onPluginError?.(error, `${sectionId}.${control.id}`);
+    }
+  };
+
   const updatePluginSetting = (
     sectionId: string,
     control: SettingsToggleContribution,
     value: boolean,
   ) => {
-    void Promise.resolve(control.set(value)).catch((error) => {
-      props.onPluginError?.(error, `${sectionId}.${control.id}`);
-    });
+    void setPluginSetting(sectionId, control, value);
   };
 
-  const resetPluginSettings = () => {
+  const resetPluginSectionDefaults = async (sectionIds?: Set<string>) => {
     for (const section of host.settings()) {
+      if (sectionIds && !sectionIds.has(section.id)) continue;
       const defaults = pluginDefaults.get(section.id);
       if (!defaults) continue;
       for (const control of section.controls ?? []) {
         const value = defaults.get(control.id);
-        if (value !== undefined) updatePluginSetting(section.id, control, value);
+        if (value !== undefined) await setPluginSetting(section.id, control, value);
       }
     }
-    resetManagedPluginAvailability();
+  };
+
+  const resetPluginSettings = async () => {
+    await resetManagedPluginAvailability();
   };
 
   onSettled(() => {
     let active = true;
     let persistTimer = 0;
+    let availabilityWriteSuspended = false;
+    let lifecycleQueue: Promise<void> = Promise.resolve();
     const runtimeHost: MesurerPluginHost = host;
     const input: MesurerProps = props;
     const target = input.portalTarget ?? document.body;
@@ -409,7 +425,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (event.reason === "state" || event.reason === "history" || event.reason === "remove" || event.reason === "replace") {
         persistPluginState();
       }
-      if (ready() && (event.reason === "load" || event.reason === "remove" || event.reason === "replace")) {
+      if (ready() && !availabilityWriteSuspended && (event.reason === "load" || event.reason === "remove" || event.reason === "replace")) {
         writeAvailablePluginState();
       }
       if (event.reason === "remove" && event.pluginId?.startsWith("mesurer.")) {
@@ -460,7 +476,10 @@ export default function ComposableMesurer(props: MesurerProps) {
         managedStateIds.set(entry.id, stateIds);
         rememberPluginDefaults(settingsIds);
         const retained = retainedPluginState.get(entry.id);
-        if (retained) runtimeHost.state.restore(retained, "persist");
+        if (retained) {
+          runtimeHost.state.restore(retained, "persist");
+          retainedPluginState.delete(entry.id);
+        }
         return true;
       } catch (error) {
         input.onPluginError?.(error, entry.id);
@@ -496,27 +515,47 @@ export default function ComposableMesurer(props: MesurerProps) {
           else retainedPluginState.delete(pluginId);
           runtimeHost.remove(pluginId);
         }
-        writeAvailablePluginState();
+        if (!availabilityWriteSuspended) writeAvailablePluginState();
       } finally {
         busyPluginIds.delete(pluginId);
         setRevision((value) => value + 1);
       }
     };
 
+    const enqueueLifecycle = (operation: () => Promise<void>) => {
+      const next = lifecycleQueue.then(operation, operation);
+      lifecycleQueue = next.catch(() => undefined);
+      return next;
+    };
+
     setManagedPluginEnabled = (pluginId, enabled) => {
-      void changeManagedPlugin(pluginId, enabled);
+      void enqueueLifecycle(async () => {
+        await changeManagedPlugin(pluginId, enabled);
+      });
     };
-    resetManagedPluginAvailability = () => {
-      retainedPluginState.clear();
+    resetManagedPluginAvailability = () => enqueueLifecycle(async () => {
+      availabilityWriteSuspended = true;
       try {
-        ownerWindow.localStorage.removeItem(availablePluginStorageKey);
-      } catch (error) {
-        input.onPluginError?.(error, "plugin-availability-persistence");
+        await resetPluginSectionDefaults();
+        const entries = [...availablePlugins.values()]
+          .sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
+        for (const entry of entries) {
+          if (!runtimeHost.has(entry.id) && !await loadManagedPlugin(entry)) continue;
+          await resetPluginSectionDefaults(managedSettingsIds.get(entry.id));
+          if (initialEnabledPluginIds.has(entry.id)) {
+            retainedPluginState.delete(entry.id);
+          } else {
+            captureManagedPluginState(entry.id);
+            runtimeHost.remove(entry.id);
+          }
+        }
+      } finally {
+        availabilityWriteSuspended = false;
       }
-      for (const entry of availablePlugins.values()) {
-        void changeManagedPlugin(entry.id, initialEnabledPluginIds.has(entry.id), false);
-      }
-    };
+      if (persistTimer) ownerWindow.clearTimeout(persistTimer);
+      writePluginState();
+      writeAvailablePluginState();
+    });
 
     const runBuiltinSlot = async (id: Exclude<MesurerBuiltinPluginId, "distance">) => {
       const replacement = replacementBuiltinTool(id);
@@ -669,13 +708,13 @@ export default function ComposableMesurer(props: MesurerProps) {
       rendererModel = null;
       builtinController = null;
       setManagedPluginEnabled = () => undefined;
-      resetManagedPluginAvailability = () => undefined;
+      resetManagedPluginAvailability = async () => undefined;
       if (ownsHost) runtimeHost.dispose();
     };
   });
 
   return (
-    <MesurerPluginSettingsProvider runtime={{ plugins: managedPluginSettings, version: () => version, setEnabled: setManagedPluginEnabled, update: updatePluginSetting, reset: resetPluginSettings }}>
+    <MesurerPluginSettingsProvider runtime={{ plugins: managedPluginSettings, version: () => version, setEnabled: (pluginId, enabled) => setManagedPluginEnabled(pluginId, enabled), update: updatePluginSetting, reset: resetPluginSettings }}>
       <MesurerModelRegistrationContext value={(model: MesurerModel) => { rendererModel = model; }}>
         <Mesurer
           {...props}

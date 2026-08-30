@@ -17,7 +17,7 @@ export type MesurerPluginSettingsRuntime = {
   version: Accessor<string>;
   setEnabled(pluginId: string, enabled: boolean): void;
   update(sectionId: string, control: SettingsToggleContribution, value: boolean): void;
-  reset(): void;
+  reset(): Promise<void>;
 };
 
 const PluginSettingsContext = createContext<MesurerPluginSettingsRuntime | null>(null);

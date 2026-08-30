@@ -228,7 +228,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
   const version = () => pluginSettings?.version() ?? "0.1.0";
   const resetSettings = () => {
     props.onResetSettings();
-    pluginSettings?.reset();
+    void pluginSettings?.reset();
   };
   const setTab = (tab: SettingsTab) => props.model.setTransient({ settingsTab: tab });
   const settings = () => props.model.state.settings;

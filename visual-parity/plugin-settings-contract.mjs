@@ -10,24 +10,56 @@ page.on("console", (message) => {
 });
 
 const island = () => page.locator("[data-mesurer-island='true']");
+const browserSnapshot = async () => page.evaluate(() => {
+  const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
+  const islandElement = document.querySelector("[data-mesurer-island='true']");
+  const root = islandElement?.shadowRoot ?? islandElement;
+  return {
+    href: window.location.href,
+    harness: Boolean(harness),
+    plugins: harness?.subject.describe()?.plugins.map((plugin) => plugin.id) ?? [],
+    services: harness?.subject.describe()?.services ?? [],
+    visibleTools: [...(root?.querySelectorAll("[data-mesurer-tool-id]") ?? [])]
+      .filter((element) => element instanceof HTMLElement && element.getClientRects().length > 0)
+      .map((element) => element.getAttribute("data-mesurer-tool-id")),
+    availability: window.localStorage.getItem("mesurer-plugin-settings:availability"),
+    pluginState: window.localStorage.getItem("mesurer-plugin-settings"),
+  };
+});
+const waitForHarness = async (label) => {
+  try {
+    await page.waitForFunction(() => Boolean(window.__MESURER_PLUGIN_SETTINGS_TEST__), undefined, { timeout: 8_000 });
+  } catch (cause) {
+    throw new Error(`Timed out waiting for plugin settings harness (${label}): ${JSON.stringify(await browserSnapshot())}`, { cause });
+  }
+};
 const waitForTool = async (id, visible) => {
-  await page.waitForFunction(({ id, visible }) => {
-    const islandElement = document.querySelector("[data-mesurer-island='true']");
-    const root = islandElement?.shadowRoot ?? islandElement;
-    const button = root?.querySelector(`[data-mesurer-tool-id='${id}'] button`);
-    const isVisible = button instanceof HTMLElement && button.getClientRects().length > 0;
-    return isVisible === visible;
-  }, { id, visible });
+  try {
+    await page.waitForFunction(({ id, visible }) => {
+      const islandElement = document.querySelector("[data-mesurer-island='true']");
+      const root = islandElement?.shadowRoot ?? islandElement;
+      const button = root?.querySelector(`[data-mesurer-tool-id='${id}'] button`);
+      const isVisible = button instanceof HTMLElement && button.getClientRects().length > 0;
+      return isVisible === visible;
+    }, { id, visible }, { timeout: 8_000 });
+  } catch (cause) {
+    throw new Error(`Timed out waiting for tool ${id} to become ${visible ? "visible" : "hidden"}: ${JSON.stringify(await browserSnapshot())}`, { cause });
+  }
 };
 const pluginLoaded = async (id) => page.evaluate((pluginId) =>
   window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.plugins.some((plugin) => plugin.id === pluginId) ?? false,
   id,
 );
 const waitForPlugin = async (id, loaded) => {
-  await page.waitForFunction(({ id, loaded }) =>
-    (window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.plugins.some((plugin) => plugin.id === id) ?? false) === loaded,
-    { id, loaded },
-  );
+  try {
+    await page.waitForFunction(({ id, loaded }) =>
+      (window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.plugins.some((plugin) => plugin.id === id) ?? false) === loaded,
+      { id, loaded },
+      { timeout: 8_000 },
+    );
+  } catch (cause) {
+    throw new Error(`Timed out waiting for ${id} to become ${loaded ? "loaded" : "unloaded"}: ${JSON.stringify(await browserSnapshot())}`, { cause });
+  }
 };
 const openSettings = async () => {
   const settingsButton = island().locator("[data-mesurer-builtin='settings'] button").first();
@@ -52,7 +84,7 @@ const expectNoDisclosure = async (dialog, id, label) => {
   const disclosure = dialog.locator(`[data-mesurer-plugin-settings-disclosure='${id}']`);
   if ((await disclosure.count()) !== 0) throw new Error(`${label} unexpectedly exposed a settings chevron`);
 };
-const expandPlugin = async (dialog, id, _label) => {
+const expandPlugin = async (dialog, id) => {
   const disclosure = dialog.locator(`[data-mesurer-plugin-settings-disclosure='${id}']`);
   await disclosure.waitFor({ state: "visible" });
   if ((await disclosure.getAttribute("aria-expanded")) !== "true") await disclosure.click();
@@ -79,7 +111,7 @@ const assertReleaseMetadata = async (dialog) => {
 
 try {
   await page.goto(`${baseUrl}?reset=1`, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => Boolean(window.__MESURER_PLUGIN_SETTINGS_TEST__));
+  await waitForHarness("initial mount");
   await waitForTool("context.copy", true);
   await waitForTool("screenshot", true);
   if (await pluginLoaded("mesurer.arrange")) throw new Error("Arrange should begin unloaded in the fixture");
@@ -108,7 +140,11 @@ try {
   await waitForTool("arrange", true);
   await expectChecked(arrangeToggle, true, "Arrange plugin after Settings enable");
   await expandPlugin(dialog, "mesurer.arrange", "Arrange");
-  await settingSwitch(dialog, "Snapping").waitFor({ state: "visible" });
+  const arrangeSnapping = settingSwitch(dialog, "Snapping");
+  await arrangeSnapping.waitFor({ state: "visible" });
+  await expectChecked(arrangeSnapping, true, "Arrange snapping default");
+  await arrangeSnapping.click();
+  await expectChecked(arrangeSnapping, false, "Arrange snapping before unload");
 
   // Disabling unloads the actual plugin and removes its settings chevron, while the row remains available.
   await arrangeToggle.click();
@@ -162,7 +198,7 @@ try {
   await waitForPlugin("mesurer.screenshot", false);
   await page.waitForTimeout(100);
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => Boolean(window.__MESURER_PLUGIN_SETTINGS_TEST__));
+  await waitForHarness("availability reload");
   dialog = await openSettings();
   await expectChecked(pluginToggle(dialog, "Context"), true, "Persisted Context plugin");
   await expectChecked(pluginToggle(dialog, "Arrange"), true, "Persisted Arrange plugin");
@@ -184,6 +220,44 @@ try {
   await waitForTool("arrange", false);
   await expandPlugin(dialog, "mesurer.screenshot", "Screenshot");
   await expectChecked(settingSwitch(dialog, "Auto-copy"), false, "Default Auto-copy");
+
+  const resetAvailability = await page.evaluate(() => {
+    const stored = window.localStorage.getItem("mesurer-plugin-settings:availability");
+    return stored ? JSON.parse(stored) : null;
+  });
+  const expectedAvailability = {
+    "mesurer.context": true,
+    "mesurer.arrange": false,
+    "mesurer.screenshot": true,
+  };
+  const actualAvailability = resetAvailability?.enabled ?? {};
+  const expectedEntries = Object.entries(expectedAvailability).sort(([left], [right]) => left.localeCompare(right));
+  const actualEntries = Object.entries(actualAvailability).sort(([left], [right]) => left.localeCompare(right));
+  if (JSON.stringify(actualEntries) !== JSON.stringify(expectedEntries)) {
+    throw new Error(`Use defaults persisted the wrong plugin availability: ${JSON.stringify(resetAvailability)}`);
+  }
+  if (resetAvailability?.state?.["mesurer.screenshot"]) {
+    throw new Error("Enabled Screenshot kept a stale retained-state snapshot after defaults reset");
+  }
+
+  // Reload immediately after the reset and prove the final availability/settings snapshot is durable.
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await waitForHarness("defaults reload");
+  dialog = await openSettings();
+  await expectChecked(pluginToggle(dialog, "Context"), true, "Reloaded default Context plugin");
+  await expectChecked(pluginToggle(dialog, "Arrange"), false, "Reloaded default Arrange plugin");
+  await expectChecked(pluginToggle(dialog, "Screenshot"), true, "Reloaded default Screenshot plugin");
+  await expandPlugin(dialog, "mesurer.screenshot");
+  await expectChecked(settingSwitch(dialog, "Auto-copy"), false, "Reloaded default Auto-copy");
+
+  // A plugin that defaults off also gets its settings reset while preserving the off state.
+  const reloadedArrangeToggle = pluginToggle(dialog, "Arrange");
+  await reloadedArrangeToggle.click();
+  await waitForPlugin("mesurer.arrange", true);
+  await expandPlugin(dialog, "mesurer.arrange");
+  await expectChecked(settingSwitch(dialog, "Snapping"), true, "Arrange snapping after defaults reset");
+  await reloadedArrangeToggle.click();
+  await waitForPlugin("mesurer.arrange", false);
 
   // The reloaded Screenshot plugin still uses the caller-provided capture provider.
   await page.evaluate(async () => {
