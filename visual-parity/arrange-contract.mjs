@@ -27,20 +27,29 @@ try {
   await arrangeButton.waitFor({ state: "visible" });
   await target.waitFor({ state: "visible" });
   await reference.waitFor({ state: "visible" });
-  assert.equal(await arrangeButton.isDisabled(), true, "Arrange should start disabled without a page selection");
+  assert.equal(await arrangeButton.isDisabled(), false, "Arrange should be available before a page selection exists");
 
-  await selectButton.click();
+  // Arrange is allowed to be the first tool the user chooses. Activating it must turn Select on
+  // automatically; the user can then choose what to arrange without an extra toolbar step.
+  await arrangeButton.click();
+  await page.waitForFunction(() => {
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
+    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
+    return select instanceof HTMLButtonElement
+      && select.getAttribute("aria-pressed") === "true"
+      && arrange instanceof HTMLButtonElement
+      && arrange.getAttribute("aria-pressed") === "true";
+  });
+
   const before = await target.boundingBox();
   const referenceBox = await reference.boundingBox();
   assert(before, "Arrange contract target must have a bounding box");
   assert(referenceBox, "Arrange reference element must have a bounding box");
   await page.mouse.click(before.x + before.width / 2, before.y + before.height / 2);
 
-  await page.waitForFunction(() => {
-    const button = document.querySelector("button[data-mesurer-tool-id='arrange']");
-    return button instanceof HTMLButtonElement && !button.disabled;
-  });
-  assert.equal(await arrangeButton.isDisabled(), false, "Arrange should enable after selecting a page element");
+  const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
+  await arrangeBox.waitFor({ state: "visible" });
+  assert.equal(await arrangeButton.isDisabled(), false, "Arrange should remain available after selecting a page element");
 
   await xrayButton.click();
   await page.waitForFunction(() => {
@@ -85,7 +94,6 @@ try {
   });
   await settingsButton.click();
 
-  await arrangeButton.click();
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
     const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
@@ -95,9 +103,7 @@ try {
       && arrange.getAttribute("aria-pressed") === "true";
   });
 
-  const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
   const verticalSnapLine = page.locator("[data-mesurer-arrange-snap-line='vertical']");
-  await arrangeBox.waitFor({ state: "visible" });
   const dragBox = await arrangeBox.boundingBox();
   assert(dragBox, "Arrange drag surface must follow the current selection");
 
@@ -202,7 +208,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Arrange browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Arrange browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Arrange settings + Select coexistence + X-ray edge snapping + persistent Desired placement: PASS");
+  console.log("Arrange-first activation + settings + X-ray edge snapping + persistent Desired placement: PASS");
 } finally {
   await browser.close();
 }
