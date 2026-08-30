@@ -23,6 +23,8 @@ jobs:
           bun-version: 1.3.14
       - name: Apply deterministic plugin reset follow-up
         run: python3 scripts/plugin-toggle-normalize.py
+      - name: Add lifecycle diagnostics
+        run: python3 scripts/plugin-toggle-diagnose.py
       - name: Install workspace
         run: bun install --frozen-lockfile
       - name: Lint
