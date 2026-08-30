@@ -83,10 +83,19 @@ const pluginTrackX = async (dialog, id) => {
   if (!box) throw new Error(`Plugin toggle track ${id} has no bounding box`);
   return box.x;
 };
+const persistTrackX = async (dialog) => {
+  const track = dialog.getByRole("switch", { name: "Persist", exact: true }).locator(".mesurer-switch-track");
+  await track.waitFor({ state: "visible" });
+  const box = await track.boundingBox();
+  if (!box) throw new Error("Persist toggle track has no bounding box");
+  return box.x;
+};
 const expectToggleAlignment = async (dialog, ids, label) => {
-  const positions = await Promise.all(ids.map((id) => pluginTrackX(dialog, id)));
+  const persist = await persistTrackX(dialog);
+  const plugins = await Promise.all(ids.map((id) => pluginTrackX(dialog, id)));
+  const positions = [persist, ...plugins];
   const spread = Math.max(...positions) - Math.min(...positions);
-  if (spread > 0.5) throw new Error(`${label} plugin toggles are misaligned: ${JSON.stringify(positions)}`);
+  if (spread > 0.5) throw new Error(`${label} Persist/plugin toggles are misaligned: ${JSON.stringify(positions)}`);
 };
 const expectChecked = async (control, expected, label) => {
   const actual = await checked(control);

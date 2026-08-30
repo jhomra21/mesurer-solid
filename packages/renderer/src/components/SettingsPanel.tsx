@@ -414,26 +414,8 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                     };
                     return (
                       <div data-mesurer-plugin-settings-section={plugin.id} class="msr:relative">
-                        <div class="msr:grid msr:h-7 msr:w-full msr:grid-cols-[minmax(0,1fr)_28px] msr:items-center msr:hover:bg-ink-50">
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-label={plugin.label}
-                            aria-checked={plugin.enabled ? "true" : "false"}
-                            disabled={plugin.busy}
-                            data-mesurer-plugin-toggle={plugin.id}
-                            class="msr:col-start-1 msr:flex msr:h-full msr:min-w-0 msr:items-center msr:gap-2 msr:px-2 msr:text-left msr:text-[11px] msr:text-ink-600 msr:disabled:opacity-45"
-                            onClick={() => setEnabled(!plugin.enabled)}
-                          >
-                            <span class="msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap">{plugin.label}</span>
-                            <span
-                              aria-hidden="true"
-                              data-checked={plugin.enabled ? "true" : undefined}
-                              class={`mesurer-switch-track msr:flex msr:h-[14px] msr:w-[26px] msr:shrink-0 msr:items-center msr:rounded-full msr:border msr:p-px msr:transition-colors ${plugin.enabled ? "msr:border-[#0d99ff] msr:bg-[#0d99ff]" : "msr:border-ink-200 msr:bg-ink-50"}`}
-                            >
-                              <span class="msr:block msr:size-[10px] msr:shrink-0 msr:rounded-full msr:bg-white msr:shadow-sm msr:transition-transform" style={{ transform: `translateX(${plugin.enabled ? 12 : 0}px)` }} />
-                            </span>
-                          </button>
+                        <div class="msr:grid msr:h-7 msr:w-full msr:grid-cols-[minmax(0,1fr)_28px_34px] msr:items-center msr:hover:bg-ink-50">
+                          <span class="msr:col-start-1 msr:min-w-0 msr:truncate msr:whitespace-nowrap msr:px-2 msr:text-[11px] msr:text-ink-600">{plugin.label}</span>
                           <Show when={canExpand()}>
                             <button
                               type="button"
@@ -446,6 +428,24 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                               <CaretDownIcon size={9} class={expanded() ? "msr:rotate-180" : ""} />
                             </button>
                           </Show>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-label={plugin.label}
+                            aria-checked={plugin.enabled ? "true" : "false"}
+                            disabled={plugin.busy}
+                            data-mesurer-plugin-toggle={plugin.id}
+                            class="msr:col-start-3 msr:flex msr:h-full msr:w-full msr:items-center msr:justify-end msr:disabled:opacity-45 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#0d99ff]"
+                            onClick={() => setEnabled(!plugin.enabled)}
+                          >
+                            <span
+                              aria-hidden="true"
+                              data-checked={plugin.enabled ? "true" : undefined}
+                              class={`mesurer-switch-track msr:flex msr:h-[14px] msr:w-[26px] msr:shrink-0 msr:items-center msr:rounded-full msr:border msr:p-px msr:transition-colors ${plugin.enabled ? "msr:border-[#0d99ff] msr:bg-[#0d99ff]" : "msr:border-ink-200 msr:bg-ink-50"}`}
+                            >
+                              <span class="msr:block msr:size-[10px] msr:shrink-0 msr:rounded-full msr:bg-white msr:shadow-sm msr:transition-transform" style={{ transform: `translateX(${plugin.enabled ? 12 : 0}px)` }} />
+                            </span>
+                          </button>
                         </div>
                         <Show when={canExpand() && expanded()}>
                           <div class="msr:flex msr:flex-col msr:gap-0.5 msr:bg-white/60 msr:px-2 msr:py-1" data-mesurer-plugin-settings-controls={plugin.id}>
