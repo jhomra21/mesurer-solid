@@ -106,29 +106,29 @@ const drag = (
 };
 
 describe("arrangePlugin", () => {
-  it("notifies the toolbar when selection availability changes after plugin load", async () => {
+  it("can activate before selection and automatically activates Select", async () => {
     const { host, model, pageTarget } = await setup();
     const tool = host.tools().find((item) => item.id === "arrange");
-    expect(tool?.disabled?.()).toBe(true);
+    const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+    const box = document.querySelector<HTMLElement>("[data-mesurer-arrange-box='true']");
 
-    let stateEvents = 0;
-    const unsubscribe = host.subscribe((event) => {
-      if (event.reason === "state") stateEvents += 1;
-    });
+    expect(tool?.disabled).toBeUndefined();
+    expect(model.current.toolMode).toBe("none");
+    expect(model.current.selectedMeasurements).toHaveLength(0);
+
+    await host.command.execute("arrange.toggle");
+
+    expect(service?.active()).toBe(true);
+    expect(model.current.toolMode).toBe("select");
+    expect(box?.style.display).toBe("none");
 
     const target = document.createElement("button");
-    target.id = "late-selection";
+    target.id = "selected-after-arrange";
     pageTarget.append(target);
     setRect(target, { left: 20, top: 30, width: 80, height: 32 });
     select(model, [target]);
 
-    await vi.waitFor(() => expect(tool?.disabled?.()).toBe(false));
-    expect(stateEvents).toBeGreaterThan(0);
-
-    model.setSelectedMeasurements([], null);
-    await vi.waitFor(() => expect(tool?.disabled?.()).toBe(true));
-
-    unsubscribe();
+    await vi.waitFor(() => expect(box?.style.display).toBe("block"));
     host.dispose();
   });
 
@@ -205,7 +205,7 @@ describe("arrangePlugin", () => {
 
     const tool = host.tools().find((item) => item.id === "arrange");
     expect(tool).toMatchObject({ label: "Arrange" });
-    expect(tool?.disabled?.()).toBe(false);
+    expect(tool?.disabled).toBeUndefined();
     expect(tool?.shortcut).toBeUndefined();
 
     const box = await arrangeBox(host);
