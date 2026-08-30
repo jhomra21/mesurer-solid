@@ -2,6 +2,7 @@ import {
   MESURER_ARRANGE_ACTIVE_STATE_ID as rendererActiveStateId,
   MESURER_ARRANGE_PLUGIN_ID as rendererPluginId,
   MESURER_ARRANGE_SERVICE_ID as rendererServiceId,
+  MESURER_ARRANGE_SETTINGS_STATE_ID as rendererSettingsStateId,
   MESURER_ARRANGE_STATE_ID as rendererStateId,
   arrangePlugin as rendererArrangePlugin,
 } from "@jhomra21/mesurer-solid-renderer";
@@ -11,6 +12,7 @@ import { MESURER_VERSION } from "./version";
 export const MESURER_ARRANGE_ACTIVE_STATE_ID: string = rendererActiveStateId;
 export const MESURER_ARRANGE_PLUGIN_ID: string = rendererPluginId;
 export const MESURER_ARRANGE_SERVICE_ID: string = rendererServiceId;
+export const MESURER_ARRANGE_SETTINGS_STATE_ID: string = rendererSettingsStateId;
 export const MESURER_ARRANGE_STATE_ID: string = rendererStateId;
 
 export type ArrangeRect = {
@@ -81,6 +83,15 @@ export type ArrangeCapturePlan = {
     | { id: "viewport"; kind: "viewport" }
     | { id: "focus"; kind: "clip"; rect: ArrangeRect }
   >;
+};
+
+export type MesurerArrangeSettings = {
+  snapping: boolean;
+  elementEdges: boolean;
+  elementCenters: boolean;
+  guides: boolean;
+  preferXrayEdges: boolean;
+  snapLines: boolean;
 };
 
 export type MesurerArrangeService = {
