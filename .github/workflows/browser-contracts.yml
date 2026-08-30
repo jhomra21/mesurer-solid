@@ -152,9 +152,9 @@ jobs:
 
           print("")
           print("### Plugin settings")
-          print("- Context and Screenshot Settings controls exercised in Chromium")
-          print("- Context service survives human UI disable")
-          print("- Screenshot tool visibility, outputs, measurement inclusion, and persistence exercised")
+          print("- Available-but-unloaded first-party plugins are discoverable and loadable from Settings")
+          print("- Context, Arrange, and Screenshot lifecycle toggles remove and restore real tools/services")
+          print("- Plugin availability, per-plugin settings persistence, and deterministic defaults reset are exercised")
           PY
 
       - name: Upload self-hosting evidence
