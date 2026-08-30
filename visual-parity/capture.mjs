@@ -257,10 +257,12 @@ const openSettings = async (page) => {
 // the extension itself in a real browser.
 const normalizeSharedParitySurface = async (page, implementation) => {
   if (implementation !== "solid") return;
-  const extension = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"]');
-  if ((await extension.count()) === 0) return;
-  await extension.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
-  await page.waitForTimeout(20);
+  const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"]');
+  if ((await extensions.count()) === 0) return;
+  await extensions.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
+  // Removing Solid-only extensions changes panel layout. Give the shared surface
+  // the same settle window used by interaction parity before a zero-tolerance capture.
+  await page.waitForTimeout(240);
 };
 
 const states = [

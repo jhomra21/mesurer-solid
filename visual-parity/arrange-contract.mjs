@@ -93,10 +93,10 @@ try {
   await generalTab.click();
   const pluginsDisclosure = page.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
   await pluginsDisclosure.click();
-  const arrangeSettings = page.locator("[data-mesurer-plugin-settings-section='arrange']");
+  const arrangeSettings = page.locator("[data-mesurer-plugin-settings-section='mesurer.arrange']");
   await arrangeSettings.waitFor({ state: "visible" });
-  await arrangeSettings.locator("[data-mesurer-plugin-settings-disclosure='arrange']").click();
-  const compactSettingsSurfaces = page.locator("[data-mesurer-plugin-settings='true'], [data-mesurer-plugin-settings-list='true'], [data-mesurer-plugin-settings-section='arrange'], [data-mesurer-plugin-settings-controls='arrange']");
+  await arrangeSettings.locator("[data-mesurer-plugin-settings-disclosure='mesurer.arrange']").click();
+  const compactSettingsSurfaces = page.locator("[data-mesurer-plugin-settings='true'], [data-mesurer-plugin-settings-list='true'], [data-mesurer-plugin-settings-section='mesurer.arrange'], [data-mesurer-plugin-settings-controls='mesurer.arrange']");
   const compactSettingsBorders = await compactSettingsSurfaces.evaluateAll((elements) => elements.map((element) => {
     const style = getComputedStyle(element);
     return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth];
@@ -105,7 +105,8 @@ try {
     compactSettingsBorders.every((edges) => edges.every((width) => width === "0px")),
     `Compact plugin Settings should not render boxed borders: ${JSON.stringify(compactSettingsBorders)}`,
   );
-  const settingLabels = (await arrangeSettings.getByRole("switch").allTextContents())
+  const arrangeControls = arrangeSettings.locator("[data-mesurer-plugin-settings-controls='mesurer.arrange']");
+  const settingLabels = (await arrangeControls.getByRole("switch").allTextContents())
     .map((label) => label.trim());
   assert.deepEqual(settingLabels, [
     "Snapping",
@@ -115,18 +116,18 @@ try {
     "Prefer X-ray edges",
     "Alignment rulers",
   ]);
-  const snappingSwitch = arrangeSettings.getByRole("switch", { name: "Snapping", exact: true });
+  const snappingSwitch = arrangeControls.getByRole("switch", { name: "Snapping", exact: true });
   assert.equal(await snappingSwitch.getAttribute("aria-checked"), "true", "Arrange snapping should default on");
   await snappingSwitch.click();
   await page.waitForFunction(() => {
-    const section = document.querySelector("[data-mesurer-plugin-settings-section='arrange']");
-    const control = section?.querySelector("button[role='switch']");
+    const controls = document.querySelector("[data-mesurer-plugin-settings-controls='mesurer.arrange']");
+    const control = controls?.querySelector("button[role='switch']");
     return control instanceof HTMLButtonElement && control.getAttribute("aria-checked") === "false";
   });
   await snappingSwitch.click();
   await page.waitForFunction(() => {
-    const section = document.querySelector("[data-mesurer-plugin-settings-section='arrange']");
-    const control = section?.querySelector("button[role='switch']");
+    const controls = document.querySelector("[data-mesurer-plugin-settings-controls='mesurer.arrange']");
+    const control = controls?.querySelector("button[role='switch']");
     return control instanceof HTMLButtonElement && control.getAttribute("aria-checked") === "true";
   });
   await settingsButton.click();
