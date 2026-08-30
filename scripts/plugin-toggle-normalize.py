@@ -37,7 +37,24 @@ new = '''import {
 } from "./context-plugin";'''
 if old not in source:
     raise RuntimeError("Expected context-plugin import block not found")
-index.write_text(source.replace(old, new, 1))
+source = source.replace(old, new, 1)
+source = source.replace(
+    '  type MesurerAvailablePlugin as RendererMesurerAvailablePlugin,\n',
+    '',
+    1,
+)
+old_type = 'export type MesurerAvailablePlugin = RendererMesurerAvailablePlugin;'
+new_type = '''export type MesurerAvailablePlugin = {
+  id: string;
+  label: string;
+  order?: number;
+  create(): MesurerPlugin | Promise<MesurerPlugin>;
+  settingsIds?: string[];
+  hiddenSettingsControlIds?: string[];
+};'''
+if old_type not in source:
+    raise RuntimeError("Expected renderer available-plugin type alias not found")
+index.write_text(source.replace(old_type, new_type, 1))
 
 contract = Path("visual-parity/plugin-settings-contract.mjs")
 source = contract.read_text()
@@ -49,6 +66,13 @@ end = source.find('  console.log("Plugin settings browser contract: PASS");', st
 if end < 0:
     raise RuntimeError("Expected browser error block end not found")
 replacement = '  if (errors.length) throw new Error(`Plugin settings browser errors:\\n${errors.join("\\n")}`);\n'
-contract.write_text(source[:start] + replacement + source[end:])
+source = source[:start] + replacement + source[end:]
+lines = source.splitlines()
+for index_value, line in enumerate(lines):
+    if line.startswith('const settingSwitch = (dialog, label) =>'):
+        lines[index_value] = 'const settingSwitch = (dialog, label) => dialog.getByRole("switch", { name: label, exact: true });'
+    if line.startswith('const expandPlugin = async (dialog, id, label) =>'):
+        lines[index_value] = 'const expandPlugin = async (dialog, id, _label) => {'
+contract.write_text("\n".join(lines) + "\n")
 
 print("Normalized plugin lifecycle follow-up output.")
