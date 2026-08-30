@@ -46,7 +46,7 @@ function PluginSettingsSwitch(props: { label: string; checked: boolean; disabled
       class="msr:flex msr:h-6 msr:w-full msr:items-center msr:justify-between msr:gap-2 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45"
       onClick={() => props.onChange(!props.checked)}
     >
-      <span class="msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap">{props.label}</span>
+      <span class="mesurer-plugin-setting-label msr:ml-6 msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap">{props.label}</span>
       <span aria-hidden="true" data-checked={props.checked ? "true" : undefined} class={`mesurer-switch-track msr:flex msr:h-[14px] msr:w-[26px] msr:shrink-0 msr:items-center msr:rounded-full msr:border msr:p-px msr:transition-colors ${props.checked ? "msr:border-[#0d99ff] msr:bg-[#0d99ff]" : "msr:border-ink-200 msr:bg-ink-50"}`}>
         <span class="msr:block msr:size-[10px] msr:shrink-0 msr:rounded-full msr:bg-white msr:shadow-sm msr:transition-transform" style={{ transform: `translateX(${props.checked ? 12 : 0}px)` }} />
       </span>
@@ -415,7 +415,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                     return (
                       <div data-mesurer-plugin-settings-section={plugin.id} class="msr:relative">
                         <div class="msr:grid msr:h-7 msr:w-full msr:grid-cols-[minmax(0,1fr)_28px_34px] msr:items-center msr:hover:bg-ink-50">
-                          <span class="msr:col-start-1 msr:min-w-0 msr:truncate msr:whitespace-nowrap msr:px-2 msr:text-[11px] msr:text-ink-600">{plugin.label}</span>
+                          <span data-mesurer-plugin-label={plugin.id} class="msr:col-start-1 msr:ml-2 msr:min-w-0 msr:truncate msr:whitespace-nowrap msr:pr-2 msr:text-[11px] msr:text-ink-600">{plugin.label}</span>
                           <Show when={canExpand()}>
                             <button
                               type="button"
@@ -448,7 +448,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                           </button>
                         </div>
                         <Show when={canExpand() && expanded()}>
-                          <div class="msr:flex msr:flex-col msr:gap-0.5 msr:bg-white/60 msr:py-1 msr:pl-2" data-mesurer-plugin-settings-controls={plugin.id}>
+                          <div class="msr:flex msr:flex-col msr:gap-0.5 msr:bg-white/60 msr:py-1" data-mesurer-plugin-settings-controls={plugin.id}>
                             <For each={plugin.sections}>{(section) => (
                               <For each={section.controls ?? []}>{(control) => (
                                 <PluginSettingsSwitch

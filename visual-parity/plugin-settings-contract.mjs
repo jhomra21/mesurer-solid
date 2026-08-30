@@ -94,6 +94,21 @@ const persistTrackX = async (dialog) => switchTrackX(
   dialog.getByRole("switch", { name: "Persist", exact: true }),
   "Persist",
 );
+const leftX = async (locator, label) => {
+  await locator.waitFor({ state: "visible" });
+  const box = await locator.boundingBox();
+  if (!box) throw new Error(`${label} has no bounding box`);
+  return box.x;
+};
+const expectNestedLabelHierarchy = async (dialog, pluginId, controlLabels, label) => {
+  const pluginX = await leftX(dialog.locator(`[data-mesurer-plugin-label='${pluginId}']`), `${label} plugin label`);
+  const controls = controlLabels.map((controlLabel) => dialog.getByRole("switch", { name: controlLabel, exact: true }).locator(".mesurer-plugin-setting-label"));
+  const positions = await Promise.all(controls.map((control, index) => leftX(control, `${label} setting ${controlLabels[index]}`)));
+  const spread = Math.max(...positions) - Math.min(...positions);
+  if (spread > 0.5) throw new Error(`${label} nested labels are not aligned: ${JSON.stringify(positions)}`);
+  const indent = positions[0] - pluginX;
+  if (Math.abs(indent - 16) > 0.5) throw new Error(`${label} nested labels should be indented 16px from the plugin label: ${JSON.stringify({ pluginX, nestedX: positions[0], indent })}`);
+};
 const expectToggleAlignment = async (dialog, ids, label) => {
   const persist = await persistTrackX(dialog);
   const plugins = await Promise.all(ids.map((id) => pluginTrackX(dialog, id)));
@@ -169,6 +184,12 @@ try {
   await expandPlugin(dialog, "mesurer.arrange", "Arrange");
   const arrangeSnapping = settingSwitch(dialog, "Snapping");
   await arrangeSnapping.waitFor({ state: "visible" });
+  await expectNestedLabelHierarchy(
+    dialog,
+    "mesurer.arrange",
+    ["Snapping", "Element edges", "Element centers", "Guides", "Prefer X-ray edges", "Alignment rulers"],
+    "Arrange",
+  );
   const persistX = await persistTrackX(dialog);
   const snappingX = await switchTrackX(arrangeSnapping, "Arrange snapping");
   if (Math.abs(persistX - snappingX) > 0.5) {
@@ -189,6 +210,12 @@ try {
   const autoCopy = settingSwitch(dialog, "Auto-copy");
   const autoDownload = settingSwitch(dialog, "Auto-download");
   const includeMeasurements = settingSwitch(dialog, "Include measurements");
+  await expectNestedLabelHierarchy(
+    dialog,
+    "mesurer.screenshot",
+    ["Auto-copy", "Auto-download", "Include measurements"],
+    "Screenshot",
+  );
   const autoCopyX = await switchTrackX(autoCopy, "Screenshot Auto-copy");
   const screenshotPersistX = await persistTrackX(dialog);
   if (Math.abs(screenshotPersistX - autoCopyX) > 0.5) {
