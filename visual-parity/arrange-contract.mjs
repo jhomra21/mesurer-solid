@@ -109,7 +109,7 @@ try {
   const visibleMeasurementGhosts = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>
     elements.filter((element) => getComputedStyle(element).visibility !== "hidden").length,
   );
-  assert.equal(visibleMeasurementGhosts, 0, "Mesurer measurement ghosts should be hidden while Arrange is dragging");
+  assert.equal(visibleMeasurementGhosts, 0, "Mesurer measurement ghosts should be hidden while Arrange is active");
 
   await page.mouse.up();
 
@@ -118,22 +118,40 @@ try {
     if (!(element instanceof HTMLElement)) return false;
     const rect = element.getBoundingClientRect();
     return Math.abs(rect.left - left) <= 1 && Math.abs(rect.top - top) <= 1;
-  }, { left: before.x, top: before.y });
+  }, { left: duringDrag.x, top: duringDrag.y });
 
   const afterRelease = await target.boundingBox();
   assert(afterRelease, "Arrange target must keep a bounding box after release");
-  assert(Math.abs(afterRelease.x - before.x) <= 1, "Arrange should snap the real page element back to its source X position on release");
-  assert(Math.abs(afterRelease.y - before.y) <= 1, "Arrange should snap the real page element back to its source Y position on release");
+  assert(Math.abs(afterRelease.x - duringDrag.x) <= 1, "Arrange should keep the snapped Desired X position after release");
+  assert(Math.abs(afterRelease.y - duringDrag.y) <= 1, "Arrange should keep the snapped Desired Y position after release");
   assert.equal(await verticalSnapLine.isVisible(), false, "Arrange alignment ruler should hide after release");
+
+  const hiddenAfterRelease = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>
+    elements.every((element) => getComputedStyle(element).visibility === "hidden"),
+  );
+  assert.equal(hiddenAfterRelease, true, "Stale Mesurer measurement overlays should stay hidden while Arrange remains active");
+
+  await arrangeButton.click();
+  await page.waitForFunction(({ left, top }) => {
+    const element = document.querySelector(".primary-action");
+    if (!(element instanceof HTMLElement)) return false;
+    const rect = element.getBoundingClientRect();
+    return Math.abs(rect.left - left) <= 1 && Math.abs(rect.top - top) <= 1;
+  }, { left: before.x, top: before.y });
+
+  const afterDeactivate = await target.boundingBox();
+  assert(afterDeactivate, "Arrange target must keep a bounding box after deactivation");
+  assert(Math.abs(afterDeactivate.x - before.x) <= 1, "Deactivating Arrange should return the page to its Live X position");
+  assert(Math.abs(afterDeactivate.y - before.y) <= 1, "Deactivating Arrange should return the page to its Live Y position");
 
   const restoredMeasurements = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>
     elements.some((element) => getComputedStyle(element).visibility !== "hidden"),
   );
-  assert.equal(restoredMeasurements, true, "Mesurer measurement overlays should be restored after Arrange releases");
+  assert.equal(restoredMeasurements, true, "Mesurer measurement overlays should be restored after Arrange deactivates");
 
   assert.equal(pageErrors.length, 0, `Arrange browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Arrange browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Arrange toolbar enablement + alignment snapping + snapback: PASS");
+  console.log("Arrange toolbar enablement + alignment snapping + persistent Desired placement: PASS");
 } finally {
   await browser.close();
 }
