@@ -76,36 +76,28 @@ const arrangeBox = async (host: ReturnType<typeof createMesurerPluginHost>) => {
   return box;
 };
 
+const pointer = (
+  type: "pointerdown" | "pointermove" | "pointerup",
+  value: { x: number; y: number; shiftKey?: boolean },
+) => new PointerEvent(type, {
+  bubbles: true,
+  button: 0,
+  buttons: type === "pointermove" ? 1 : undefined,
+  clientX: value.x,
+  clientY: value.y,
+  pointerId: 1,
+  shiftKey: value.shiftKey ?? false,
+});
+
 const drag = (
   box: HTMLElement,
   from: { x: number; y: number },
   to: { x: number; y: number },
   shiftKey = false,
 ) => {
-  box.dispatchEvent(new PointerEvent("pointerdown", {
-    bubbles: true,
-    button: 0,
-    clientX: from.x,
-    clientY: from.y,
-    pointerId: 1,
-  }));
-  box.dispatchEvent(new PointerEvent("pointermove", {
-    bubbles: true,
-    button: 0,
-    buttons: 1,
-    clientX: to.x,
-    clientY: to.y,
-    pointerId: 1,
-    shiftKey,
-  }));
-  box.dispatchEvent(new PointerEvent("pointerup", {
-    bubbles: true,
-    button: 0,
-    clientX: to.x,
-    clientY: to.y,
-    pointerId: 1,
-    shiftKey,
-  }));
+  box.dispatchEvent(pointer("pointerdown", from));
+  box.dispatchEvent(pointer("pointermove", { ...to, shiftKey }));
+  box.dispatchEvent(pointer("pointerup", { ...to, shiftKey }));
 };
 
 describe("arrangePlugin", () => {
@@ -135,7 +127,7 @@ describe("arrangePlugin", () => {
     host.dispose();
   });
 
-  it("records one persisted drag and reconstructs Before, Desired, Live, undo, and redo", async () => {
+  it("records one persisted drag, snaps back to Live, and reconstructs Before and Desired on demand", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");
     target.dataset.testid = "checkout";
@@ -164,7 +156,8 @@ describe("arrangePlugin", () => {
       beforeOffset: { x: 0, y: 0 },
       desiredOffset: { x: 40, y: 20 },
     });
-    expect(target.style.transform).toContain("translate3d(40px, 20px, 0)");
+    expect(target.style.getPropertyValue("transform")).toBe("scale(1)");
+    expect(target.style.getPropertyPriority("transform")).toBe("important");
     expect(host.state.serialize("persist")["mesurer.arrange.intents"]).toBeDefined();
 
     service?.show(intent.id, "before");
@@ -175,6 +168,7 @@ describe("arrangePlugin", () => {
     service?.show(intent.id, "live");
     expect(target.style.getPropertyValue("transform")).toBe("scale(1)");
     service?.showCurrent();
+    expect(target.style.transform).toContain("translate3d(40px, 20px, 0)");
 
     expect(service?.capturePlan(intent.id, "desired")).toMatchObject({
       schema: "mesurer.arrange-capture/v1",
@@ -197,9 +191,50 @@ describe("arrangePlugin", () => {
     expect(service?.intents()).toHaveLength(1);
     await vi.waitFor(() => expect(target.style.transform).toContain("translate3d(40px, 20px, 0)"));
 
+    service?.show(intent.id, "live");
     host.dispose();
     expect(target.style.getPropertyValue("transform")).toBe("scale(1)");
     expect(target.style.getPropertyPriority("transform")).toBe("important");
+  });
+
+  it("snaps to nearby element alignment while dragging, hides stale measurement ghosts, and returns to Live on release", async () => {
+    const { host, model, pageTarget } = await setup();
+    const target = document.createElement("button");
+    target.id = "moving";
+    const reference = document.createElement("div");
+    reference.id = "reference";
+    pageTarget.append(target, reference);
+    setRect(target, { left: 100, top: 80, width: 60, height: 30 });
+    setRect(reference, { left: 200, top: 80, width: 80, height: 40 });
+    select(model, [target]);
+
+    const measurementGhost = document.createElement("div");
+    measurementGhost.dataset.mesurerMeasurement = "true";
+    document.body.append(measurementGhost);
+
+    const box = await arrangeBox(host);
+    box.dispatchEvent(pointer("pointerdown", { x: 100, y: 80 }));
+    expect(measurementGhost.style.getPropertyValue("visibility")).toBe("hidden");
+
+    box.dispatchEvent(pointer("pointermove", { x: 193, y: 80 }));
+    expect(target.style.transform).toContain("translate3d(100px, 0px, 0)");
+    const verticalLine = document.querySelector<HTMLElement>("[data-mesurer-arrange-snap-line='vertical']");
+    expect(verticalLine?.style.display).toBe("block");
+    expect(verticalLine?.style.left).toBe("200px");
+
+    box.dispatchEvent(pointer("pointerup", { x: 193, y: 80 }));
+    const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+    await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
+    expect(service?.intents()[0]?.targets[0]).toMatchObject({
+      before: { left: 100, top: 80 },
+      desired: { left: 200, top: 80 },
+      desiredOffset: { x: 100, y: 0 },
+    });
+    expect(target.style.transform).toBe("");
+    expect(measurementGhost.style.getPropertyValue("visibility")).toBe("");
+    expect(verticalLine?.style.display).toBe("none");
+
+    host.dispose();
   });
 
   it("moves a multi-selection together and Shift locks to the dominant axis", async () => {
@@ -221,8 +256,8 @@ describe("arrangePlugin", () => {
       { x: 36, y: 0 },
       { x: 36, y: 0 },
     ]);
-    expect(first.style.transform).toContain("translate3d(36px, 0px, 0)");
-    expect(second.style.transform).toContain("translate3d(36px, 0px, 0)");
+    expect(first.style.transform).toBe("");
+    expect(second.style.transform).toBe("");
     host.dispose();
   });
 
