@@ -67,7 +67,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages/renderer/src/ComposableMesurer.tsx packages/renderer/src/components/SettingsPanel.tsx packages/renderer/src/plugins/settings-runtime.tsx visual-parity/plugin-settings-contract.mjs .github/workflows/browser-contracts.yml CHANGELOG.md
+          git add packages/renderer/src/ComposableMesurer.tsx packages/renderer/src/components/SettingsPanel.tsx packages/renderer/src/plugins/settings-runtime.tsx visual-parity/plugin-settings-contract.mjs CHANGELOG.md
           if git diff --cached --quiet; then
             echo "No product changes to commit."
             exit 0
