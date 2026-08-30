@@ -7,6 +7,20 @@ export type PluginValue = PluginScalar | PluginValue[] | { [key: string]: Plugin
 export type PluginStateSnapshot = { [id: string]: PluginValue };
 export type PluginStateScope = "all" | "history" | "persist";
 
+export type ToolMenuItemContribution = {
+  id: string;
+  label: string;
+  shortcut?: string;
+  checked?: () => boolean;
+  disabled?: () => boolean;
+  run(): void | Promise<void>;
+};
+
+export type ToolMenuContribution = {
+  label?: string;
+  items: ToolMenuItemContribution[];
+};
+
 export type ToolContribution = {
   id: string;
   label: string;
@@ -18,6 +32,7 @@ export type ToolContribution = {
   active?: () => boolean;
   disabled?: () => boolean;
   hidden?: () => boolean;
+  menu?: ToolMenuContribution;
 };
 
 export type SettingsToggleContribution = {
@@ -401,7 +416,7 @@ export function createMesurerPluginHost() {
           requires: plugin.requires ?? [],
           provides: plugin.provides ?? [],
         })),
-        tools: host.tools().map(({ active: _active, disabled: _disabled, hidden: _hidden, icon: _icon, ...tool }) => tool),
+        tools: host.tools().map(({ active: _active, disabled: _disabled, hidden: _hidden, icon: _icon, menu: _menu, ...tool }) => tool),
         settings: host.settings().map(({ controls = [], ...section }) => ({
           ...section,
           controls: controls.map((control) => ({

@@ -4,6 +4,7 @@ import { trySetPointerCapture } from "../core/events";
 import type { GuideStyle, SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel, SettingsTab } from "../model/create-mesurer-model";
 import { useMesurerPluginSettings } from "../plugins/settings-runtime";
+import { CaretDownIcon } from "./Icons";
 import { Tooltip, createTooltip } from "./Tooltip";
 
 const COLOR_FORMATS: ColorPickerFormat[] = ["hex", "rgb", "hsl", "oklch"];
@@ -29,6 +30,24 @@ function SettingsSwitch(props: { label: string; checked: boolean; disabled?: boo
     <button type="button" role="switch" aria-checked={props.checked ? "true" : "false"} disabled={props.disabled} class="msr:col-span-2 msr:grid msr:h-6 msr:w-full msr:appearance-none msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45" onClick={() => props.onChange(!props.checked)}>
       <span>{props.label}</span>
       <span aria-hidden="true" style={{ "justify-self": "end" }} data-checked={props.checked ? "true" : undefined} class={`mesurer-switch-track msr:flex msr:h-[14px] msr:w-[26px] msr:shrink-0 msr:items-center msr:rounded-full msr:border msr:p-px msr:transition-colors ${props.checked ? "msr:border-[#0d99ff] msr:bg-[#0d99ff]" : "msr:border-ink-200 msr:bg-ink-50"}`}>
+        <span class="msr:block msr:size-[10px] msr:shrink-0 msr:rounded-full msr:bg-white msr:shadow-sm msr:transition-transform" style={{ transform: `translateX(${props.checked ? 12 : 0}px)` }} />
+      </span>
+    </button>
+  );
+}
+
+function PluginSettingsSwitch(props: { label: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={props.checked ? "true" : "false"}
+      disabled={props.disabled}
+      class="msr:flex msr:h-6 msr:w-full msr:items-center msr:justify-between msr:gap-2 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45"
+      onClick={() => props.onChange(!props.checked)}
+    >
+      <span class="msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap">{props.label}</span>
+      <span aria-hidden="true" data-checked={props.checked ? "true" : undefined} class={`mesurer-switch-track msr:flex msr:h-[14px] msr:w-[26px] msr:shrink-0 msr:items-center msr:rounded-full msr:border msr:p-px msr:transition-colors ${props.checked ? "msr:border-[#0d99ff] msr:bg-[#0d99ff]" : "msr:border-ink-200 msr:bg-ink-50"}`}>
         <span class="msr:block msr:size-[10px] msr:shrink-0 msr:rounded-full msr:bg-white msr:shadow-sm msr:transition-transform" style={{ transform: `translateX(${props.checked ? 12 : 0}px)` }} />
       </span>
     </button>
@@ -202,6 +221,8 @@ function ColorField(props: { label: string; value: string; fallback: string; own
 
 export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window; onResetSettings: () => void; onClearWorkspace: () => void; selectionSpacingStyle: SelectionSpacingStyle; onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void }) {
   const patternTooltip = createTooltip(props.ownerWindow);
+  const [pluginsExpanded, setPluginsExpanded] = createSignal(false);
+  const [expandedPluginSections, setExpandedPluginSections] = createSignal<string[]>([]);
   const pluginSettings = useMesurerPluginSettings();
   const pluginSections = () => pluginSettings?.sections() ?? [];
   const version = () => pluginSettings?.version() ?? "0.1.0";
@@ -361,21 +382,58 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
         <section class="msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1" aria-label="General settings">
           <SettingsSwitch label="Persist" checked={settings().persistOnReload} onChange={(persistOnReload) => props.model.updateSettings({ persistOnReload })} />
           <Show when={pluginSections().length > 0}>
-            <div class="msr:col-span-2 msr:mt-1 msr:flex msr:flex-col msr:gap-1 msr:border-t msr:border-ink-100 msr:pt-2" data-mesurer-plugin-settings="true">
-              <div class="msr:text-[10px] msr:font-semibold msr:text-ink-500">Plugins</div>
-              <For each={pluginSections()}>{(section) => (
-                <div class="msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-0.5" data-mesurer-plugin-settings-section={section.id}>
-                  <div class="msr:col-span-2 msr:mt-1 msr:text-[10px] msr:font-medium msr:text-ink-600">{section.label}</div>
-                  <For each={section.controls ?? []}>{(control) => (
-                    <SettingsSwitch
-                      label={control.label}
-                      checked={control.value()}
-                      disabled={control.disabled?.() ?? false}
-                      onChange={(value) => pluginSettings?.update(section.id, control, value)}
-                    />
-                  )}</For>
+            <div
+              class="msr:col-span-2 msr:mt-1 msr:overflow-hidden msr:rounded-[6px] msr:bg-ink-50/40"
+              data-mesurer-plugin-settings="true"
+            >
+              <button
+                type="button"
+                data-mesurer-plugin-settings-disclosure="plugins"
+                aria-expanded={pluginsExpanded() ? "true" : "false"}
+                class="msr:flex msr:h-7 msr:w-full msr:items-center msr:gap-2 msr:px-2 msr:text-left msr:text-[11px] msr:font-medium msr:text-ink-700 msr:hover:bg-ink-50"
+                onClick={() => setPluginsExpanded((value) => !value)}
+              >
+                <span class="msr:flex-1">Plugins</span>
+                <span class="msr:text-[10px] msr:font-normal msr:text-ink-400">{pluginSections().length}</span>
+                <CaretDownIcon size={10} class={pluginsExpanded() ? "msr:rotate-180" : ""} />
+              </button>
+              <Show when={pluginsExpanded()}>
+                <div class="msr:flex msr:flex-col" data-mesurer-plugin-settings-list="true">
+                  <For each={pluginSections()}>{(section) => {
+                    const expanded = () => expandedPluginSections().includes(section.id);
+                    const toggleExpanded = () => setExpandedPluginSections((current) =>
+                      current.includes(section.id)
+                        ? current.filter((id) => id !== section.id)
+                        : [...current, section.id]);
+                    return (
+                      <div data-mesurer-plugin-settings-section={section.id} class="msr:relative">
+                        <button
+                          type="button"
+                          data-mesurer-plugin-settings-disclosure={section.id}
+                          aria-expanded={expanded() ? "true" : "false"}
+                          class="msr:flex msr:h-7 msr:w-full msr:items-center msr:gap-2 msr:px-2 msr:text-left msr:text-[11px] msr:text-ink-600 msr:hover:bg-ink-50"
+                          onClick={toggleExpanded}
+                        >
+                          <span class="msr:min-w-0 msr:flex-1 msr:truncate">{section.label}</span>
+                          <CaretDownIcon size={9} class={expanded() ? "msr:rotate-180" : ""} />
+                        </button>
+                        <Show when={expanded()}>
+                          <div class="msr:flex msr:flex-col msr:gap-0.5 msr:bg-white/60 msr:px-2 msr:py-1" data-mesurer-plugin-settings-controls={section.id}>
+                            <For each={section.controls ?? []}>{(control) => (
+                              <PluginSettingsSwitch
+                                label={control.label}
+                                checked={control.value()}
+                                disabled={control.disabled?.() ?? false}
+                                onChange={(value) => pluginSettings?.update(section.id, control, value)}
+                              />
+                            )}</For>
+                          </div>
+                        </Show>
+                      </div>
+                    );
+                  }}</For>
                 </div>
-              )}</For>
+              </Show>
             </div>
           </Show>
           <div class="msr:col-span-2 msr:grid msr:h-6 msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-[12px] msr:text-ink-700">

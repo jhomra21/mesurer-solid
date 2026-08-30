@@ -6,6 +6,7 @@ import {
   type PluginStateSnapshot,
   type SettingsToggleContribution,
   type ToolContribution,
+  type ToolMenuItemContribution,
 } from "@jhomra21/mesurer-solid-core";
 import Mesurer, { type MesurerProps as BaseMesurerProps } from "./Mesurer";
 import { isEditableKeyboardEvent } from "./core/events";
@@ -33,7 +34,7 @@ export type MesurerSolidRuntimeService = {
 
 export type MesurerProps = Omit<
   BaseMesurerProps,
-  "pluginTools" | "onPluginTool" | "onBuiltinController"
+  "pluginTools" | "onPluginTool" | "onPluginToolMenuItem" | "onBuiltinController"
 > & {
   /** Public package/release version shown by Settings and official Mesurer plugin metadata. */
   version?: string;
@@ -174,6 +175,13 @@ export default function ComposableMesurer(props: MesurerProps) {
 
   const runTool = (tool: ToolContribution, source: ToolInvocationSource = "toolbar") => {
     void executeTool(tool, source).catch(() => undefined);
+  };
+
+  const runToolMenuItem = (tool: ToolContribution, item: ToolMenuItemContribution) => {
+    if (item.disabled?.()) return;
+    void Promise.resolve(item.run()).catch((error) => {
+      props.onPluginError?.(error, `${tool.id}.${item.id}`);
+    });
   };
 
   const updatePluginSetting = (
@@ -436,6 +444,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           {...props}
           pluginTools={customTools()}
           onPluginTool={(tool) => runTool(tool)}
+          onPluginToolMenuItem={runToolMenuItem}
           onBuiltinController={(controller) => { builtinController = controller; }}
         />
       </MesurerModelRegistrationContext>

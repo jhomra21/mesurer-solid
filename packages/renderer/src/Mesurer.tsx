@@ -1,6 +1,6 @@
 import { Show, createEffect, createMemo, createSignal, onSettled, untrack } from "solid-js";
 import { Portal } from "@solidjs/web";
-import type { ToolContribution } from "@jhomra21/mesurer-solid-core";
+import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
 import { ColorPicker } from "./components/ColorPicker";
 import { MesurerOverlay } from "./components/MesurerOverlay";
 import { RulersOverlay } from "./components/RulersOverlay";
@@ -77,6 +77,7 @@ export type MesurerProps = {
   /** Internal composable-runtime contributions rendered by the canonical toolbar. */
   pluginTools?: ToolContribution[];
   onPluginTool?: (tool: ToolContribution) => void;
+  onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
   onBuiltinController?: (controller: MesurerBuiltinController | null) => void;
 };
 
@@ -709,6 +710,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           onBuiltinAction={(id) => { void builtinController.run(id); }}
           pluginTools={input.pluginTools}
           onPluginTool={input.onPluginTool}
+          onPluginToolMenuItem={input.onPluginToolMenuItem}
           onClearWorkspace={clearWorkspace}
           selectionSpacingStyle={props.selectionSpacingStyle}
           onSelectionSpacingStyleChange={onSelectionSpacingStyleChange}

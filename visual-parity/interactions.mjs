@@ -60,12 +60,12 @@ async function openColorPicker(page) {
 // explicitly plugin-owned settings are exercised by browser-contracts instead.
 async function normalizeSharedParitySurface(page, implementation) {
   if (implementation !== "solid") return;
-  const extension = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"]');
-  if ((await extension.count()) === 0) return;
-  await extension.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
-  // Removing the extension changes the Select panel's layout. Give the shared
-  // surface the same >150ms settle window used for settings/control transitions
-  // before taking a zero-tolerance pixel snapshot.
+  const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"]');
+  if ((await extensions.count()) === 0) return;
+  await extensions.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
+  // Removing Solid-only extensions changes panel layout. Give the shared surface
+  // the same >150ms settle window used for settings/control transitions before
+  // taking a zero-tolerance pixel snapshot.
   await sleep(page, 240);
 }
 

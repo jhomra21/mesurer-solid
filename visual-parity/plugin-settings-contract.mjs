@@ -10,7 +10,6 @@ page.on("console", (message) => {
 });
 
 const island = () => page.locator("[data-mesurer-island='true']");
-const tool = (id) => island().locator(`[data-mesurer-tool-id='${id}'] button`);
 const openSettings = async () => {
   const settingsButton = island().locator("[data-mesurer-builtin='settings'] button").first();
   await settingsButton.waitFor({ state: "visible" });
@@ -21,6 +20,12 @@ const openSettings = async () => {
   await dialog.waitFor({ state: "visible" });
   const generalTab = dialog.getByRole("tab", { name: "General" });
   if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+  const pluginsDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
+  if ((await pluginsDisclosure.getAttribute("aria-expanded")) !== "true") await pluginsDisclosure.click();
+  for (const id of ["context", "screenshot"]) {
+    const disclosure = dialog.locator(`[data-mesurer-plugin-settings-disclosure='${id}']`);
+    if ((await disclosure.count()) > 0 && (await disclosure.getAttribute("aria-expanded")) !== "true") await disclosure.click();
+  }
   return dialog;
 };
 const switchByName = (dialog, name) => dialog.getByRole("switch", { name: new RegExp(`^${name}(?:\\s|$)`) });
@@ -79,6 +84,30 @@ try {
 
   await waitForTool("screenshot", true);
   await waitForTool("context.copy", true);
+
+  const screenshotOptionsButton = island().getByRole("button", { name: "Screenshot options", exact: true });
+  await screenshotOptionsButton.click();
+  const screenshotMenu = island().getByRole("menu", { name: "Screenshot options", exact: true });
+  await screenshotMenu.waitFor({ state: "visible" });
+  const screenshotItems = screenshotMenu.getByRole("menuitemcheckbox");
+  const quickLabels = (await screenshotItems.allTextContents()).map((value) => value.trim());
+  if (JSON.stringify(quickLabels) !== JSON.stringify(["Auto-copy", "Auto-download", "Include measurements"])) {
+    throw new Error(`Unexpected Screenshot quick menu: ${JSON.stringify(quickLabels)}`);
+  }
+  const quickMenuMetrics = await screenshotItems.evaluateAll((items) => items.map((item) => ({
+    whiteSpace: getComputedStyle(item).whiteSpace,
+    height: item.getBoundingClientRect().height,
+  })));
+  if (!quickMenuMetrics.every((metrics) => metrics.whiteSpace === "nowrap" && metrics.height <= 28.5)) {
+    throw new Error(`Screenshot quick-menu entries did not stay on one compact line: ${JSON.stringify(quickMenuMetrics)}`);
+  }
+  const quickCopy = screenshotMenu.getByRole("menuitemcheckbox", { name: "Auto-copy", exact: true });
+  await expectChecked(quickCopy, false, "Quick Auto-copy default");
+  await quickCopy.click();
+  await expectChecked(quickCopy, true, "Quick Auto-copy enabled");
+  await quickCopy.click();
+  await expectChecked(quickCopy, false, "Quick Auto-copy restored");
+  await screenshotOptionsButton.click();
 
   const selectionResult = await page.evaluate(async () => {
     const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;

@@ -35,7 +35,7 @@ Repeated drags start from the current Desired placement rather than the source-r
 
 ## Arrange settings
 
-Arrange contributes its own section to Mesurer Settings. These preferences persist with the normal Mesurer plugin state:
+Arrange exposes these frequently changed preferences from the small chevron beside the Arrange toolbar button and from its full, collapsed plugin section in Mesurer Settings. Both surfaces read and write the same persisted plugin state:
 
 - **Snapping** — master switch for magnetic alignment. Enabled by default.
 - **Element edges** — snap left/right and top/bottom edges to nearby elements. Enabled by default.

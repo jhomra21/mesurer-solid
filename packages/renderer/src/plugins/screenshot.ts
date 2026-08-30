@@ -619,6 +619,29 @@ export const screenshotPlugin = (
       icon: cameraIcon,
       active,
       hidden: () => !settings().toolEnabled,
+      menu: {
+        label: "Screenshot options",
+        items: [
+          {
+            id: "copy",
+            label: "Auto-copy",
+            checked: () => settings().copy,
+            run: () => updateSettings({ copy: !settings().copy }),
+          },
+          {
+            id: "download",
+            label: "Auto-download",
+            checked: () => settings().download,
+            run: () => updateSettings({ download: !settings().download }),
+          },
+          {
+            id: "measurements",
+            label: "Include measurements",
+            checked: () => settings().includeMeasurements,
+            run: () => updateSettings({ includeMeasurements: !settings().includeMeasurements }),
+          },
+        ],
+      },
     });
     ctx.settings.register({
       id: "screenshot",
