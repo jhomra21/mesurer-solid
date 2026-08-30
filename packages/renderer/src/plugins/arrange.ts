@@ -394,7 +394,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const previews = new Map<HTMLElement, AppliedPreview>();
     const hiddenMeasurements = new Map<HTMLElement, InlineVisibility>();
-    let presentation: PresentationState = { intentId: null, state: "live" };
+    let presentation: PresentationState = { intentId: null, state: "desired" };
     let drag: DragState | null = null;
     let pendingIntent: ArrangeIntentValue | null = null;
     let disposed = false;
@@ -654,6 +654,14 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       box.style.height = `${value.height}px`;
     };
 
+    const showCurrentDesired = () => {
+      presentation = { intentId: null, state: "desired" };
+      applyPresentation();
+      hideSnapLines();
+      if (active()) hideMeasurementOverlays();
+      else restoreMeasurementOverlays();
+    };
+
     const returnToLive = () => {
       presentation = { intentId: null, state: "live" };
       clearPreviewStyles();
@@ -664,6 +672,9 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     const refresh = () => {
       if (disposed || drag) return;
       applyPresentation();
+      hideSnapLines();
+      if (active()) hideMeasurementOverlays();
+      else restoreMeasurementOverlays();
       renderBox();
     };
 
@@ -682,9 +693,14 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       event.preventDefault();
       event.stopPropagation();
 
-      returnToLive();
+      presentation = { intentId: null, state: "desired" };
+      applyPresentation();
+      const previousOffsets = effectiveOffsets(currentIntents());
+      clearPreviewStyles();
       const targets = elements.map((element, index): DragTarget => {
-        const before = getRectFromDom(element);
+        const natural = getRectFromDom(element);
+        const beforeOffset = previousOffsets.get(element) ?? { x: 0, y: 0 };
+        const before = addOffset(natural, beforeOffset);
         const fingerprint = getElementFingerprint(element);
         return {
           element,
@@ -706,10 +722,10 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
             desiredTop: before.top,
             desiredWidth: before.width,
             desiredHeight: before.height,
-            beforeOffsetX: 0,
-            beforeOffsetY: 0,
-            desiredOffsetX: 0,
-            desiredOffsetY: 0,
+            beforeOffsetX: beforeOffset.x,
+            beforeOffsetY: beforeOffset.y,
+            desiredOffsetX: beforeOffset.x,
+            desiredOffsetY: beforeOffset.y,
           },
         };
       });
@@ -719,9 +735,14 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         width: target.beforeWidth,
         height: target.beforeHeight,
       })));
-      if (!groupBefore) return;
+      if (!groupBefore) {
+        applyPresentation();
+        return;
+      }
 
+      applyPresentation();
       hideMeasurementOverlays();
+      hideSnapLines();
       drag = {
         pointerId: event.pointerId,
         originX: event.clientX,
@@ -760,9 +781,12 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       drag.dx = dx;
       drag.dy = dy;
 
-      const offsets = new Map<HTMLElement, ArrangeOffset>();
+      const offsets = effectiveOffsets(currentIntents());
       for (const item of drag.targets) {
-        offsets.set(item.element, { x: dx, y: dy });
+        offsets.set(item.element, {
+          x: item.target.beforeOffsetX + dx,
+          y: item.target.beforeOffsetY + dy,
+        });
       }
       applyOffsets(offsets);
       const moved = addOffset(drag.groupBefore, { x: dx, y: dy });
@@ -776,7 +800,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       drag = null;
       if (box.hasPointerCapture?.(pointerId)) box.releasePointerCapture(pointerId);
       box.style.cursor = "grab";
-      returnToLive();
+      showCurrentDesired();
       renderBox();
     };
 
@@ -788,10 +812,13 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       drag = null;
       if (box.hasPointerCapture?.(event.pointerId)) box.releasePointerCapture(event.pointerId);
       box.style.cursor = "grab";
-      returnToLive();
-      renderBox();
+      hideSnapLines();
 
-      if (completed.dx === 0 && completed.dy === 0) return;
+      if (completed.dx === 0 && completed.dy === 0) {
+        showCurrentDesired();
+        renderBox();
+        return;
+      }
 
       pendingIntent = {
         id: randomId(ownerWindow, "arrange"),
@@ -801,13 +828,13 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           ...target,
           desiredLeft: target.beforeLeft + completed.dx,
           desiredTop: target.beforeTop + completed.dy,
-          desiredOffsetX: completed.dx,
-          desiredOffsetY: completed.dy,
+          desiredOffsetX: target.beforeOffsetX + completed.dx,
+          desiredOffsetY: target.beforeOffsetY + completed.dy,
         })),
       };
       void ctx.command.execute(COMMIT_COMMAND).catch(() => {
         pendingIntent = null;
-        returnToLive();
+        showCurrentDesired();
         renderBox();
       });
     };
@@ -978,11 +1005,13 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     ctx.command.register(TOGGLE_COMMAND, () => {
       const next = !active();
       ctx.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => next);
-      if (!next && drag) {
-        cancelDrag();
+      if (!next) {
+        if (drag) cancelDrag();
+        returnToLive();
+        renderBox();
         return;
       }
-      returnToLive();
+      showCurrentDesired();
       renderBox();
     });
     ctx.command.register(COMMIT_COMMAND, () => {
@@ -992,12 +1021,17 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       ctx.state.update<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID, (current) => ({
         intents: [...current.intents, intent].slice(-MAX_INTENTS),
       }));
-      presentation = { intentId: null, state: "live" };
+      showCurrentDesired();
+      renderBox();
     });
     ctx.command.register(CLEAR_COMMAND, () => {
       ctx.state.update<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID, () => ({ intents: [] }));
-      presentation = { intentId: null, state: "live" };
+      presentation = { intentId: null, state: "desired" };
       clearPreviewStyles();
+      hideSnapLines();
+      if (active()) hideMeasurementOverlays();
+      else restoreMeasurementOverlays();
+      renderBox();
     });
     ctx.service.provide(MESURER_ARRANGE_SERVICE_ID, service);
 
