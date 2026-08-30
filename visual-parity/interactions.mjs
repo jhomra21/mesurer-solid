@@ -164,7 +164,7 @@ const cases = [
   { name: "settings-rulers-edge-reveal-toggle", run: async (p) => { await openSettingsTab(p, "Rulers"); await realClick(sw(p, "Edge reveal")); } },
   { name: "settings-general-persist-toggle", allowVersionDiff: true, run: async (p) => { await openSettingsTab(p, "General"); await realClick(sw(p, "Persist")); } },
   { name: "settings-general-use-defaults", allowVersionDiff: true, run: async (p) => { await openSettingsTab(p, "Select"); await realClick(sw(p, "Hover")); await realClick(tab(p, "General")); await realClick(button(p, "Reset settings to defaults")); } },
-  { name: "settings-general-clear-workspace", allowVersionDiff: true, run: async (p) => { await realClick(button(p, /^Guides/)); await sleep(p, 50); await p.mouse.click(620, 400); await sleep(p, 80); await openSettingsTab(p, "General"); await realClick(button(p, "Clear workspace")); } },
+  { name: "settings-general-clear-workspace", allowVersionDiff: true, run: async (p) => { await realClick(button(p, /^Guides/)); await sleep(p, 50); await p.mouse.click(620, 400); await sleep(p, 80); await openSettingsTab(p, "General"); await realClick(button(p, "Clear workspace")); await p.evaluate(() => { const active = document.activeElement; if (active instanceof HTMLElement) active.blur(); }); await p.mouse.move(900, 700); } },
 
   { name: "color-copy-first", run: async (p) => { await openColorPicker(p); await realClick(p.locator(".mesurer-color-picker button").nth(0)); await sleep(p, 80); } },
   { name: "color-copy-second", run: async (p) => { await openColorPicker(p); await realClick(p.locator(".mesurer-color-picker button").nth(1)); await sleep(p, 80); } },
