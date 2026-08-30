@@ -5,6 +5,7 @@ import type { MesurerSolidRuntimeService } from "../src/ComposableMesurer";
 import { createMesurerModel } from "../src/model/create-mesurer-model";
 import {
   MESURER_ARRANGE_SERVICE_ID,
+  MESURER_ARRANGE_SETTINGS_STATE_ID,
   arrangePlugin,
   type MesurerArrangeService,
 } from "../src/plugins/arrange";
@@ -54,9 +55,13 @@ const setup = async () => {
   };
   await host.load(defineMesurerPlugin({
     id: "test.runtime",
-    provides: ["runtime:solid"],
+    provides: ["runtime:solid", "tool:select"],
     setup(ctx) {
       ctx.service.provide("runtime:solid", runtime);
+      ctx.command.register("builtin.select", () => {
+        model.setEnabled(true);
+        model.setToolMode("select");
+      });
     },
   }));
   await host.load(arrangePlugin());
@@ -124,6 +129,68 @@ describe("arrangePlugin", () => {
     await vi.waitFor(() => expect(tool?.disabled?.()).toBe(true));
 
     unsubscribe();
+    host.dispose();
+  });
+
+  it("activates Select when Arrange is activated and preserves the existing selection", async () => {
+    const { host, model, pageTarget } = await setup();
+    const target = document.createElement("button");
+    target.id = "selected-before-arrange";
+    pageTarget.append(target);
+    setRect(target, { left: 20, top: 30, width: 80, height: 32 });
+    select(model, [target]);
+
+    expect(model.current.toolMode).toBe("none");
+    expect(model.current.selectedMeasurements.map((measurement) => measurement.elementRef)).toEqual([target]);
+
+    await arrangeBox(host);
+
+    expect(model.current.toolMode).toBe("select");
+    expect(model.current.selectedMeasurements.map((measurement) => measurement.elementRef)).toEqual([target]);
+    host.dispose();
+  });
+
+  it("registers persisted Arrange preferences and can disable snapping", async () => {
+    const { host, model, pageTarget } = await setup();
+    const target = document.createElement("button");
+    target.id = "free-move";
+    const reference = document.createElement("div");
+    reference.id = "reference";
+    pageTarget.append(target, reference);
+    setRect(target, { left: 100, top: 80, width: 60, height: 30 });
+    setRect(reference, { left: 200, top: 80, width: 80, height: 40 });
+    select(model, [target]);
+
+    const section = host.settings().find((item) => item.id === "arrange");
+    expect(section?.label).toBe("Arrange");
+    expect(section?.controls?.map((control) => control.id)).toEqual([
+      "snapping",
+      "element-edges",
+      "element-centers",
+      "guides",
+      "prefer-xray-edges",
+      "alignment-rulers",
+    ]);
+
+    const snapping = section?.controls?.find((control) => control.id === "snapping");
+    expect(snapping?.value()).toBe(true);
+    await Promise.resolve(snapping?.set(false));
+    expect(snapping?.value()).toBe(false);
+    expect(host.state.serialize("persist")[MESURER_ARRANGE_SETTINGS_STATE_ID]).toBeDefined();
+
+    const box = await arrangeBox(host);
+    drag(box, { x: 100, y: 80 }, { x: 193, y: 80 });
+
+    const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+    await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
+    expect(service?.intents()[0]?.targets[0]).toMatchObject({
+      before: { left: 100, top: 80 },
+      desired: { left: 193, top: 80 },
+      desiredOffset: { x: 93, y: 0 },
+    });
+    expect(target.style.transform).toContain("translate3d(93px, 0px, 0)");
+    expect(document.querySelector<HTMLElement>("[data-mesurer-arrange-snap-line='vertical']")?.style.display).toBe("none");
+
     host.dispose();
   });
 
@@ -224,7 +291,7 @@ describe("arrangePlugin", () => {
     host.dispose();
   });
 
-  it("snaps to nearby alignment, keeps Desired on release, and suppresses stale measurement ghosts while Arrange is active", async () => {
+  it("snaps element edges to element edges, keeps Desired on release, and suppresses stale measurement ghosts", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");
     target.id = "moving";
