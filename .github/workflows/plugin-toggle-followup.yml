@@ -23,6 +23,8 @@ jobs:
           bun-version: 1.3.14
       - name: Apply deterministic plugin reset follow-up
         run: python3 scripts/plugin-toggle-normalize.py
+      - name: Fix lifecycle callback binding
+        run: python3 scripts/plugin-toggle-provider-fix.py
       - name: Add lifecycle diagnostics
         run: python3 scripts/plugin-toggle-diagnose.py
       - name: Install workspace
@@ -68,5 +70,5 @@ jobs:
             echo "No product changes to commit."
             exit 0
           fi
-          git commit -m "fix: make plugin defaults reset deterministic"
+          git commit -m "fix: make plugin lifecycle toggles deterministic"
           git push origin HEAD:feat/compact-plugin-settings
