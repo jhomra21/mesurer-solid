@@ -361,7 +361,7 @@ const isEditable = (target: EventTarget | null) => {
 export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
   id: MESURER_ARRANGE_PLUGIN_ID,
   version: "0.1.0",
-  requires: [RUNTIME_SERVICE_ID],
+  requires: [RUNTIME_SERVICE_ID, "tool:select"],
   provides: ["tool:arrange", "intent:arrange", "agent:arrange", "settings:arrange"],
   setup(ctx) {
     const runtime = ctx.service.get<MesurerSolidRuntimeService>(RUNTIME_SERVICE_ID);
@@ -647,7 +647,9 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       const candidates: SnapCandidate[] = [];
       const selected = new Set(elements);
       const snapshot = workspace.snapshot();
-      const xrayEdgesOnly = snapshot.xrayVisible && snapSettings.preferXrayEdges;
+      const xrayEdgesOnly = snapshot.xrayVisible
+        && snapSettings.preferXrayEdges
+        && snapSettings.elementEdges;
       let acceptedElements = 0;
 
       const addElement = (element: HTMLElement) => {
