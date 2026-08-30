@@ -23,6 +23,7 @@ const RUNTIME_SERVICE_ID = "runtime:solid";
 const TOGGLE_COMMAND = "arrange.toggle";
 const COMMIT_COMMAND = "arrange.commit";
 const CLEAR_COMMAND = "arrange.clear";
+const SELECTION_AVAILABLE_STATE_ID = "mesurer.arrange.selection-available";
 const MAX_INTENTS = 100;
 const DEFAULT_REVIEW_TOLERANCE = 1;
 const CAPTURE_PADDING = 24;
@@ -171,13 +172,6 @@ const moveIcon = {
     "M12 2.75 8.75 6h2.5v5.25H6V8.75L2.75 12 6 15.25v-2.5h5.25V18h-2.5L12 21.25 15.25 18h-2.5v-5.25H18v2.5L21.25 12 18 8.75v2.5h-5.25V6h2.5L12 2.75Z",
   ],
 };
-
-const rect = (value: ArrangeRect): ArrangeRect => ({
-  left: value.left,
-  top: value.top,
-  width: value.width,
-  height: value.height,
-});
 
 const addOffset = (value: ArrangeRect, offset: ArrangeOffset): ArrangeRect => ({
   left: value.left + offset.x,
@@ -427,6 +421,18 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     const selectedElements = () => workspace.currentSelection().elements
       .filter((element) => element.isConnected && isPageElement(element));
 
+    ctx.state.register<boolean>({
+      id: SELECTION_AVAILABLE_STATE_ID,
+      initial: selectedElements().length > 0,
+    });
+    const selectionAvailable = () =>
+      ctx.state.get<boolean>(SELECTION_AVAILABLE_STATE_ID) ?? false;
+    const syncSelectionAvailable = () => {
+      const next = selectedElements().length > 0;
+      if (next === selectionAvailable()) return;
+      ctx.state.update<boolean>(SELECTION_AVAILABLE_STATE_ID, () => next);
+    };
+
     const selectionRect = () => unionRects(selectedElements().map((element) => getRectFromDom(element)));
 
     const renderBox = (override?: ArrangeRect | null) => {
@@ -609,7 +615,10 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     ownerWindow.addEventListener("scroll", scheduleRefresh, true);
     pageTarget.addEventListener("scroll", scheduleRefresh, true);
 
-    observer = new realm.MutationObserver(scheduleRefresh);
+    observer = new realm.MutationObserver(() => {
+      syncSelectionAvailable();
+      scheduleRefresh();
+    });
     observer.observe(pageTarget, {
       childList: true,
       subtree: true,
@@ -617,7 +626,10 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       attributeFilter: ["id", "class", "data-testid", "role", "aria-label"],
     });
 
-    const workspaceUnsubscribe = workspace.subscribe(scheduleRefresh);
+    const workspaceUnsubscribe = workspace.subscribe(() => {
+      syncSelectionAvailable();
+      scheduleRefresh();
+    });
     const stateSubscription = ctx.state.subscribe(scheduleRefresh);
 
     const findIntent = (id: string) => state().intents.find((intent) => intent.id === id) ?? null;
@@ -736,7 +748,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       command: TOGGLE_COMMAND,
       icon: moveIcon,
       active,
-      disabled: () => selectedElements().length === 0,
+      disabled: () => !selectionAvailable(),
     });
     ctx.command.register(TOGGLE_COMMAND, () => {
       const next = !active();
