@@ -127,7 +127,7 @@ describe("arrangePlugin", () => {
     host.dispose();
   });
 
-  it("records one persisted drag, snaps back to Live, and reconstructs Before and Desired on demand", async () => {
+  it("records one persisted drag, keeps Desired visible, and reconstructs Before and Live on demand", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");
     target.dataset.testid = "checkout";
@@ -156,8 +156,7 @@ describe("arrangePlugin", () => {
       beforeOffset: { x: 0, y: 0 },
       desiredOffset: { x: 40, y: 20 },
     });
-    expect(target.style.getPropertyValue("transform")).toBe("scale(1)");
-    expect(target.style.getPropertyPriority("transform")).toBe("important");
+    expect(target.style.transform).toContain("translate3d(40px, 20px, 0)");
     expect(host.state.serialize("persist")["mesurer.arrange.intents"]).toBeDefined();
 
     service?.show(intent.id, "before");
@@ -197,7 +196,35 @@ describe("arrangePlugin", () => {
     expect(target.style.getPropertyPriority("transform")).toBe("important");
   });
 
-  it("snaps to nearby element alignment while dragging, hides stale measurement ghosts, and returns to Live on release", async () => {
+  it("starts repeated drags from the current Desired position and accumulates the offset", async () => {
+    const { host, model, pageTarget } = await setup();
+    const target = document.createElement("button");
+    target.id = "repeat";
+    pageTarget.append(target);
+    setRect(target, { left: 100, top: 80, width: 60, height: 30 });
+    select(model, [target]);
+
+    const box = await arrangeBox(host);
+    drag(box, { x: 100, y: 80 }, { x: 140, y: 100 });
+    const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+    await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
+    expect(target.style.transform).toContain("translate3d(40px, 20px, 0)");
+
+    drag(box, { x: 140, y: 100 }, { x: 150, y: 105 });
+    await vi.waitFor(() => expect(service?.intents()).toHaveLength(2));
+    const second = service?.intents()[1];
+    expect(second?.targets[0]).toMatchObject({
+      before: { left: 140, top: 100 },
+      desired: { left: 150, top: 105 },
+      beforeOffset: { x: 40, y: 20 },
+      desiredOffset: { x: 50, y: 25 },
+    });
+    expect(target.style.transform).toContain("translate3d(50px, 25px, 0)");
+
+    host.dispose();
+  });
+
+  it("snaps to nearby alignment, keeps Desired on release, and suppresses stale measurement ghosts while Arrange is active", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");
     target.id = "moving";
@@ -230,9 +257,13 @@ describe("arrangePlugin", () => {
       desired: { left: 200, top: 80 },
       desiredOffset: { x: 100, y: 0 },
     });
+    expect(target.style.transform).toContain("translate3d(100px, 0px, 0)");
+    expect(measurementGhost.style.getPropertyValue("visibility")).toBe("hidden");
+    expect(verticalLine?.style.display).toBe("none");
+
+    await host.command.execute("arrange.toggle");
     expect(target.style.transform).toBe("");
     expect(measurementGhost.style.getPropertyValue("visibility")).toBe("");
-    expect(verticalLine?.style.display).toBe("none");
 
     host.dispose();
   });
@@ -256,8 +287,8 @@ describe("arrangePlugin", () => {
       { x: 36, y: 0 },
       { x: 36, y: 0 },
     ]);
-    expect(first.style.transform).toBe("");
-    expect(second.style.transform).toBe("");
+    expect(first.style.transform).toContain("translate3d(36px, 0px, 0)");
+    expect(second.style.transform).toContain("translate3d(36px, 0px, 0)");
     host.dispose();
   });
 
