@@ -15,12 +15,14 @@ try {
   await page.goto(url, { waitUntil: "networkidle" });
 
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
+  const textInspectorButton = page.locator("[data-mesurer-builtin='text-inspector'] button");
   const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
   const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
   const target = page.locator(".primary-action");
   const reference = page.locator(".feature-copy");
 
   await selectButton.waitFor({ state: "visible" });
+  await textInspectorButton.waitFor({ state: "visible" });
   await xrayButton.waitFor({ state: "visible" });
   await arrangeButton.waitFor({ state: "visible" });
   await target.waitFor({ state: "visible" });
@@ -40,14 +42,18 @@ try {
   });
   assert.equal(await arrangeButton.isDisabled(), false, "Arrange should enable after selecting a page element");
 
-  // Leave the selection in place but deliberately turn Select off. Activating Arrange must
-  // turn Select back on so the user can keep selecting page elements while Arrange is active.
-  await selectButton.click();
+  // Switch to a different mode without discarding the selected element. Activating Arrange
+  // must return the toolbar to Select so selection remains available while arranging.
+  await textInspectorButton.click();
   await page.waitForFunction(() => {
-    const button = document.querySelector("[data-mesurer-builtin='select'] button");
-    return button instanceof HTMLButtonElement && button.getAttribute("aria-pressed") === "false";
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
+    const textInspector = document.querySelector("[data-mesurer-builtin='text-inspector'] button");
+    return select instanceof HTMLButtonElement
+      && select.getAttribute("aria-pressed") === "false"
+      && textInspector instanceof HTMLButtonElement
+      && textInspector.getAttribute("aria-pressed") === "true";
   });
-  assert.equal(await arrangeButton.isDisabled(), false, "Turning Select off should not discard the existing Arrange selection");
+  assert.equal(await arrangeButton.isDisabled(), false, "Switching tools should preserve the existing Arrange selection");
 
   await xrayButton.click();
   await page.waitForFunction(() => {
