@@ -23,6 +23,22 @@ if old not in source:
     raise RuntimeError("Expected availability parser block not found")
 composable.write_text(source.replace(old, new, 1))
 
+index = Path("packages/mesurer/src/index.tsx")
+source = index.read_text()
+old = '''import {
+  MESURER_CONTEXT_SERVICE_ID,
+  type MesurerContextService,
+} from "./context-plugin";'''
+new = '''import {
+  MESURER_CONTEXT_PLUGIN_ID,
+  MESURER_CONTEXT_SERVICE_ID,
+  contextPlugin,
+  type MesurerContextService,
+} from "./context-plugin";'''
+if old not in source:
+    raise RuntimeError("Expected context-plugin import block not found")
+index.write_text(source.replace(old, new, 1))
+
 contract = Path("visual-parity/plugin-settings-contract.mjs")
 source = contract.read_text()
 marker = "  if (errors.length) throw new Error(`Plugin settings browser errors:"
