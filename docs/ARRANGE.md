@@ -64,6 +64,8 @@ For a dragged element or multi-selection group, Arrange compares these alignment
 
 Nearby visible page elements contribute the same edge and center anchors. Existing Mesurer guides are also valid snap targets.
 
+When **X-ray** is on, its visible element outlines use those same page-element rectangles, so the X-ray lines you can see are valid Arrange alignment targets too. Arrange can stick to the left, center, right, top, center, or bottom geometry exposed by those outlined elements; X-ray does not create a separate or approximate coordinate system.
+
 When an anchor comes within the snap distance, Arrange adjusts that drag axis to the exact alignment and shows a red alignment ruler between the moving selection and the matched element. Guide targets use the same ruler treatment across the viewport.
 
 Snapping is evaluated independently on X and Y. With Shift axis locking, only the active movement axis is eligible to snap, so snapping does not break the axis lock.
