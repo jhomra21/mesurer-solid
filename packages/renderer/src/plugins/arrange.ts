@@ -13,13 +13,16 @@ import {
   isElementWithinDomTarget,
 } from "@jhomra21/mesurer-solid-dom";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
+import { GUIDE_SNAP_DISTANCE } from "../core/constants";
 
 export const MESURER_ARRANGE_PLUGIN_ID = "mesurer.arrange";
 export const MESURER_ARRANGE_SERVICE_ID = "arrange";
 export const MESURER_ARRANGE_STATE_ID = "mesurer.arrange.intents";
 export const MESURER_ARRANGE_ACTIVE_STATE_ID = "mesurer.arrange.active";
+export const MESURER_ARRANGE_SETTINGS_STATE_ID = "mesurer.arrange.settings";
 
 const RUNTIME_SERVICE_ID = "runtime:solid";
+const BUILTIN_SELECT_COMMAND = "builtin.select";
 const TOGGLE_COMMAND = "arrange.toggle";
 const COMMIT_COMMAND = "arrange.commit";
 const CLEAR_COMMAND = "arrange.clear";
@@ -27,6 +30,9 @@ const SELECTION_AVAILABLE_STATE_ID = "mesurer.arrange.selection-available";
 const MAX_INTENTS = 100;
 const DEFAULT_REVIEW_TOLERANCE = 1;
 const CAPTURE_PADDING = 24;
+const SNAP_RELEVANCE_DISTANCE = 160;
+const MAX_SNAP_ELEMENTS = 500;
+const SNAP_LINE_COLOR = "#ef4444";
 
 export type ArrangeRect = {
   left: number;
@@ -88,6 +94,15 @@ export type ArrangeCapturePlan = {
   >;
 };
 
+export type MesurerArrangeSettings = {
+  snapping: boolean;
+  elementEdges: boolean;
+  elementCenters: boolean;
+  guides: boolean;
+  preferXrayEdges: boolean;
+  snapLines: boolean;
+};
+
 export type MesurerArrangeService = {
   active(): boolean;
   intents(): ArrangeIntent[];
@@ -137,7 +152,22 @@ type ArrangeStateValue = {
   intents: ArrangeIntentValue[];
 };
 
+type ArrangeSettingsValue = {
+  [key: string]: PluginValue;
+  snapping: boolean;
+  elementEdges: boolean;
+  elementCenters: boolean;
+  guides: boolean;
+  preferXrayEdges: boolean;
+  snapLines: boolean;
+};
+
 type InlineTransform = {
+  value: string;
+  priority: string;
+};
+
+type InlineVisibility = {
   value: string;
   priority: string;
 };
@@ -152,11 +182,26 @@ type DragTarget = {
   target: ArrangeTargetValue;
 };
 
+type SnapCandidate = {
+  axis: "x" | "y";
+  position: number;
+  start: number;
+  end: number;
+  source: "element" | "guide";
+  kind: "edge" | "center" | "guide";
+};
+
+type AxisSnap = SnapCandidate & {
+  delta: number;
+};
+
 type DragState = {
   pointerId: number;
   originX: number;
   originY: number;
   targets: DragTarget[];
+  groupBefore: ArrangeRect;
+  snapCandidates: SnapCandidate[];
   dx: number;
   dy: number;
 };
@@ -194,6 +239,61 @@ const unionRects = (values: ArrangeRect[]): ArrangeRect | null => {
   const right = Math.max(...values.map((value) => value.left + value.width));
   const bottom = Math.max(...values.map((value) => value.top + value.height));
   return { left, top, width: right - left, height: bottom - top };
+};
+
+const rangeGap = (aStart: number, aEnd: number, bStart: number, bEnd: number) =>
+  Math.max(0, Math.max(aStart, bStart) - Math.min(aEnd, bEnd));
+
+const axisAnchors = (
+  value: ArrangeRect,
+  axis: "x" | "y",
+  kind: SnapCandidate["kind"],
+) => {
+  const start = axis === "x" ? value.left : value.top;
+  const size = axis === "x" ? value.width : value.height;
+  const end = start + size;
+  if (kind === "edge") return [start, end];
+  if (kind === "center") return [start + size / 2];
+  return [start, start + size / 2, end];
+};
+
+const axisRange = (value: ArrangeRect, axis: "x" | "y") => axis === "x"
+  ? { start: value.top, end: value.top + value.height }
+  : { start: value.left, end: value.left + value.width };
+
+const snapPriority = (candidate: SnapCandidate) => candidate.kind === "edge" ? 2
+  : candidate.kind === "guide" ? 1 : 0;
+
+const findAxisSnap = (
+  axis: "x" | "y",
+  moving: ArrangeRect,
+  candidates: SnapCandidate[],
+): AxisSnap | null => {
+  const movingRange = axisRange(moving, axis);
+  let best: AxisSnap | null = null;
+
+  for (const candidate of candidates) {
+    if (candidate.axis !== axis) continue;
+    if (
+      candidate.source === "element"
+      && rangeGap(movingRange.start, movingRange.end, candidate.start, candidate.end) > SNAP_RELEVANCE_DISTANCE
+    ) continue;
+
+    for (const anchor of axisAnchors(moving, axis, candidate.kind)) {
+      const delta = candidate.position - anchor;
+      const distance = Math.abs(delta);
+      if (distance > GUIDE_SNAP_DISTANCE) continue;
+      const bestDistance = best ? Math.abs(best.delta) : Number.POSITIVE_INFINITY;
+      if (
+        distance < bestDistance
+        || (distance === bestDistance && (!best || snapPriority(candidate) > snapPriority(best)))
+      ) {
+        best = { ...candidate, delta };
+      }
+    }
+  }
+
+  return best;
 };
 
 const pageUrl = (ownerWindow: Window) => {
@@ -261,8 +361,8 @@ const isEditable = (target: EventTarget | null) => {
 export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
   id: MESURER_ARRANGE_PLUGIN_ID,
   version: "0.1.0",
-  requires: [RUNTIME_SERVICE_ID],
-  provides: ["tool:arrange", "intent:arrange", "agent:arrange"],
+  requires: [RUNTIME_SERVICE_ID, "tool:select"],
+  provides: ["tool:arrange", "intent:arrange", "agent:arrange", "settings:arrange"],
   setup(ctx) {
     const runtime = ctx.service.get<MesurerSolidRuntimeService>(RUNTIME_SERVICE_ID);
     if (!runtime) throw new Error("Arrange plugin requires the Solid renderer runtime.");
@@ -271,6 +371,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     const workspace = runtime.createWorkspaceRuntime();
     const inspectorMount = runtime.createInspectorMount();
     const pageTarget = runtime.pageTarget ?? ownerDocument.body ?? ownerDocument.documentElement;
+    const overlayTarget: ParentNode = runtime.portalTarget;
     // SAFETY: ownerWindow is the browsing-context global for ownerDocument and owns these DOM constructors.
     const realm = ownerWindow as Window & typeof globalThis;
 
@@ -284,6 +385,18 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       id: MESURER_ARRANGE_ACTIVE_STATE_ID,
       initial: false,
     });
+    ctx.state.register<ArrangeSettingsValue>({
+      id: MESURER_ARRANGE_SETTINGS_STATE_ID,
+      initial: {
+        snapping: true,
+        elementEdges: true,
+        elementCenters: true,
+        guides: true,
+        preferXrayEdges: true,
+        snapLines: true,
+      },
+      persist: true,
+    });
 
     const root = inspectorMount.element;
     root.dataset.mesurerArrange = "true";
@@ -291,6 +404,24 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     root.style.inset = "0";
     root.style.zIndex = "84";
     root.style.pointerEvents = "none";
+
+    const verticalSnapLine = ownerDocument.createElement("div");
+    verticalSnapLine.dataset.mesurerArrangeSnapLine = "vertical";
+    verticalSnapLine.setAttribute("aria-hidden", "true");
+    verticalSnapLine.style.position = "fixed";
+    verticalSnapLine.style.display = "none";
+    verticalSnapLine.style.width = "1px";
+    verticalSnapLine.style.backgroundColor = SNAP_LINE_COLOR;
+    verticalSnapLine.style.pointerEvents = "none";
+
+    const horizontalSnapLine = ownerDocument.createElement("div");
+    horizontalSnapLine.dataset.mesurerArrangeSnapLine = "horizontal";
+    horizontalSnapLine.setAttribute("aria-hidden", "true");
+    horizontalSnapLine.style.position = "fixed";
+    horizontalSnapLine.style.display = "none";
+    horizontalSnapLine.style.height = "1px";
+    horizontalSnapLine.style.backgroundColor = SNAP_LINE_COLOR;
+    horizontalSnapLine.style.pointerEvents = "none";
 
     const box = ownerDocument.createElement("div");
     box.dataset.mesurerArrangeBox = "true";
@@ -304,9 +435,10 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     box.style.pointerEvents = "auto";
     box.style.touchAction = "none";
     box.style.userSelect = "none";
-    root.append(box);
+    root.append(verticalSnapLine, horizontalSnapLine, box);
 
     const previews = new Map<HTMLElement, AppliedPreview>();
+    const hiddenMeasurements = new Map<HTMLElement, InlineVisibility>();
     let presentation: PresentationState = { intentId: null, state: "desired" };
     let drag: DragState | null = null;
     let pendingIntent: ArrangeIntentValue | null = null;
@@ -316,6 +448,23 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const state = () => ctx.state.get<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID) ?? { intents: [] };
     const active = () => ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+    const settings = (): MesurerArrangeSettings => {
+      const stored = ctx.state.get<ArrangeSettingsValue>(MESURER_ARRANGE_SETTINGS_STATE_ID);
+      return {
+        snapping: stored?.snapping ?? true,
+        elementEdges: stored?.elementEdges ?? true,
+        elementCenters: stored?.elementCenters ?? true,
+        guides: stored?.guides ?? true,
+        preferXrayEdges: stored?.preferXrayEdges ?? true,
+        snapLines: stored?.snapLines ?? true,
+      };
+    };
+    const updateSettings = (patch: Partial<MesurerArrangeSettings>) => {
+      ctx.state.update<ArrangeSettingsValue>(MESURER_ARRANGE_SETTINGS_STATE_ID, (current) => ({
+        ...current,
+        ...patch,
+      }));
+    };
     const currentPage = () => pageUrl(ownerWindow);
     const currentIntents = () => state().intents.filter((intent) => intent.pageUrl === currentPage());
 
@@ -366,16 +515,56 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       previews.clear();
     };
 
-    const presentationIntents = () => {
-      const intents = currentIntents();
-      if (presentation.state === "live") return [];
-      if (!presentation.intentId) return intents;
-      const index = intents.findIndex((intent) => intent.id === presentation.intentId);
-      if (index < 0) return intents;
-      return intents.slice(0, presentation.state === "before" ? index : index + 1);
+    const hideSnapLines = () => {
+      verticalSnapLine.style.display = "none";
+      horizontalSnapLine.style.display = "none";
     };
 
-    const effectiveOffsets = (intents = presentationIntents()) => {
+    const renderSnapLines = (xSnap: AxisSnap | null, ySnap: AxisSnap | null, moved: ArrangeRect) => {
+      hideSnapLines();
+      if (!settings().snapLines) return;
+      if (xSnap) {
+        const top = Math.min(moved.top, xSnap.start);
+        const bottom = Math.max(moved.top + moved.height, xSnap.end);
+        verticalSnapLine.style.display = "block";
+        verticalSnapLine.style.left = `${xSnap.position}px`;
+        verticalSnapLine.style.top = `${top}px`;
+        verticalSnapLine.style.height = `${Math.max(1, bottom - top)}px`;
+      }
+      if (ySnap) {
+        const left = Math.min(moved.left, ySnap.start);
+        const right = Math.max(moved.left + moved.width, ySnap.end);
+        horizontalSnapLine.style.display = "block";
+        horizontalSnapLine.style.left = `${left}px`;
+        horizontalSnapLine.style.top = `${ySnap.position}px`;
+        horizontalSnapLine.style.width = `${Math.max(1, right - left)}px`;
+      }
+    };
+
+    const hideMeasurementOverlays = () => {
+      if (hiddenMeasurements.size > 0) return;
+      for (const candidate of overlayTarget.querySelectorAll("[data-mesurer-measurement='true']")) {
+        if (!(candidate instanceof realm.HTMLElement)) continue;
+        hiddenMeasurements.set(candidate, {
+          value: candidate.style.getPropertyValue("visibility"),
+          priority: candidate.style.getPropertyPriority("visibility"),
+        });
+        candidate.style.setProperty("visibility", "hidden", "important");
+      }
+    };
+
+    const restoreMeasurementOverlays = () => {
+      for (const [element, visibility] of hiddenMeasurements) {
+        if (visibility.value || visibility.priority) {
+          element.style.setProperty("visibility", visibility.value, visibility.priority);
+        } else {
+          element.style.removeProperty("visibility");
+        }
+      }
+      hiddenMeasurements.clear();
+    };
+
+    const effectiveOffsets = (intents = currentIntents()) => {
       const offsets = new Map<HTMLElement, ArrangeOffset>();
       for (const intent of intents) {
         for (const target of intent.targets) {
@@ -383,6 +572,22 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           if (!element) continue;
           offsets.set(element, { x: target.desiredOffsetX, y: target.desiredOffsetY });
         }
+      }
+      return offsets;
+    };
+
+    const presentationOffsets = () => {
+      if (presentation.state === "live") return new Map<HTMLElement, ArrangeOffset>();
+      if (!presentation.intentId) return effectiveOffsets();
+      const intent = state().intents.find((candidate) => candidate.id === presentation.intentId);
+      if (!intent) return effectiveOffsets();
+      const offsets = new Map<HTMLElement, ArrangeOffset>();
+      for (const target of intent.targets) {
+        const element = resolveTarget(target);
+        if (!element) continue;
+        offsets.set(element, presentation.state === "before"
+          ? { x: target.beforeOffsetX, y: target.beforeOffsetY }
+          : { x: target.desiredOffsetX, y: target.desiredOffsetY });
       }
       return offsets;
     };
@@ -407,7 +612,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       }
     };
 
-    const applyPresentation = () => applyOffsets(effectiveOffsets());
+    const applyPresentation = () => applyOffsets(presentationOffsets());
 
     const withPreviewsSuspended = <T>(operation: () => T): T => {
       clearPreviewStyles();
@@ -435,6 +640,118 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const selectionRect = () => unionRects(selectedElements().map((element) => getRectFromDom(element)));
 
+    const collectSnapCandidates = (elements: HTMLElement[]) => {
+      const snapSettings = settings();
+      if (!snapSettings.snapping) return [];
+
+      const candidates: SnapCandidate[] = [];
+      const selected = new Set(elements);
+      const snapshot = workspace.snapshot();
+      const xrayEdgesOnly = snapshot.xrayVisible
+        && snapSettings.preferXrayEdges
+        && snapSettings.elementEdges;
+      let acceptedElements = 0;
+
+      const addElement = (element: HTMLElement) => {
+        if (acceptedElements >= MAX_SNAP_ELEMENTS) return;
+        if (selected.has(element) || elements.some((selectedElement) => selectedElement.contains(element))) return;
+        if (!isPageElement(element)) return;
+        const style = ownerWindow.getComputedStyle(element);
+        if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") return;
+        const outlinedByXray = style.outlineStyle === "solid"
+          && (Number.parseFloat(style.outlineWidth) || 0) > 0;
+        if (xrayEdgesOnly && !outlinedByXray) return;
+        const value = getRectFromDom(element);
+        if (value.width <= 0 || value.height <= 0) return;
+        const margin = SNAP_RELEVANCE_DISTANCE;
+        if (
+          value.left + value.width < -margin
+          || value.top + value.height < -margin
+          || value.left > ownerWindow.innerWidth + margin
+          || value.top > ownerWindow.innerHeight + margin
+        ) return;
+        acceptedElements += 1;
+        const right = value.left + value.width;
+        const bottom = value.top + value.height;
+
+        if (snapSettings.elementEdges) {
+          for (const position of [value.left, right]) {
+            candidates.push({
+              axis: "x",
+              position,
+              start: value.top,
+              end: bottom,
+              source: "element",
+              kind: "edge",
+            });
+          }
+          for (const position of [value.top, bottom]) {
+            candidates.push({
+              axis: "y",
+              position,
+              start: value.left,
+              end: right,
+              source: "element",
+              kind: "edge",
+            });
+          }
+        }
+
+        if (snapSettings.elementCenters && !xrayEdgesOnly) {
+          candidates.push({
+            axis: "x",
+            position: value.left + value.width / 2,
+            start: value.top,
+            end: bottom,
+            source: "element",
+            kind: "center",
+          });
+          candidates.push({
+            axis: "y",
+            position: value.top + value.height / 2,
+            start: value.left,
+            end: right,
+            source: "element",
+            kind: "center",
+          });
+        }
+      };
+
+      if (snapSettings.elementEdges || snapSettings.elementCenters) {
+        if (pageTarget instanceof realm.HTMLElement) addElement(pageTarget);
+        for (const candidate of pageTarget.querySelectorAll("*")) {
+          if (acceptedElements >= MAX_SNAP_ELEMENTS) break;
+          if (candidate instanceof realm.HTMLElement) addElement(candidate);
+        }
+      }
+
+      if (snapSettings.guides) {
+        for (const guide of snapshot.guides) {
+          if (guide.orientation === "vertical") {
+            candidates.push({
+              axis: "x",
+              position: guide.position,
+              start: 0,
+              end: ownerWindow.innerHeight,
+              source: "guide",
+              kind: "guide",
+            });
+          } else {
+            candidates.push({
+              axis: "y",
+              position: guide.position,
+              start: 0,
+              end: ownerWindow.innerWidth,
+              source: "guide",
+              kind: "guide",
+            });
+          }
+        }
+      }
+
+      return candidates;
+    };
+
     const renderBox = (override?: ArrangeRect | null) => {
       if (!active()) {
         box.style.display = "none";
@@ -452,9 +769,27 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       box.style.height = `${value.height}px`;
     };
 
+    const showCurrentDesired = () => {
+      presentation = { intentId: null, state: "desired" };
+      applyPresentation();
+      hideSnapLines();
+      if (active()) hideMeasurementOverlays();
+      else restoreMeasurementOverlays();
+    };
+
+    const returnToLive = () => {
+      presentation = { intentId: null, state: "live" };
+      clearPreviewStyles();
+      hideSnapLines();
+      restoreMeasurementOverlays();
+    };
+
     const refresh = () => {
       if (disposed || drag) return;
       applyPresentation();
+      hideSnapLines();
+      if (active()) hideMeasurementOverlays();
+      else restoreMeasurementOverlays();
       renderBox();
     };
 
@@ -466,6 +801,12 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       });
     };
 
+    const ensureSelectActive = async () => {
+      const button = overlayTarget.querySelector<HTMLButtonElement>("[data-mesurer-builtin='select'] button");
+      if (button?.getAttribute("aria-pressed") === "true") return;
+      await ctx.command.execute(BUILTIN_SELECT_COMMAND, undefined, { source: "arrange" });
+    };
+
     const beginDrag = (event: PointerEvent) => {
       if (!active() || event.button !== 0) return;
       const elements = selectedElements();
@@ -473,11 +814,13 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       event.preventDefault();
       event.stopPropagation();
 
-      const offsets = effectiveOffsets(currentIntents());
+      presentation = { intentId: null, state: "desired" };
+      applyPresentation();
+      const previousOffsets = effectiveOffsets(currentIntents());
       clearPreviewStyles();
       const targets = elements.map((element, index): DragTarget => {
         const natural = getRectFromDom(element);
-        const beforeOffset = offsets.get(element) ?? { x: 0, y: 0 };
+        const beforeOffset = previousOffsets.get(element) ?? { x: 0, y: 0 };
         const before = addOffset(natural, beforeOffset);
         const fingerprint = getElementFingerprint(element);
         return {
@@ -507,15 +850,31 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           },
         };
       });
+      const groupBefore = unionRects(targets.map(({ target }) => ({
+        left: target.beforeLeft,
+        top: target.beforeTop,
+        width: target.beforeWidth,
+        height: target.beforeHeight,
+      })));
+      if (!groupBefore) {
+        applyPresentation();
+        return;
+      }
+
       applyPresentation();
+      hideMeasurementOverlays();
+      hideSnapLines();
       drag = {
         pointerId: event.pointerId,
         originX: event.clientX,
         originY: event.clientY,
         targets,
+        groupBefore,
+        snapCandidates: collectSnapCandidates(elements),
         dx: 0,
         dy: 0,
       };
+      renderBox(groupBefore);
       box.style.cursor = "grabbing";
       box.setPointerCapture?.(event.pointerId);
     };
@@ -524,10 +883,22 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (!drag || event.pointerId !== drag.pointerId) return;
       let dx = event.clientX - drag.originX;
       let dy = event.clientY - drag.originY;
+      let movementAxis: "x" | "y" | null = null;
       if (event.shiftKey) {
-        if (Math.abs(dx) >= Math.abs(dy)) dy = 0;
-        else dx = 0;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          dy = 0;
+          movementAxis = "x";
+        } else {
+          dx = 0;
+          movementAxis = "y";
+        }
       }
+
+      const rawMoved = addOffset(drag.groupBefore, { x: dx, y: dy });
+      const xSnap = movementAxis === "y" ? null : findAxisSnap("x", rawMoved, drag.snapCandidates);
+      const ySnap = movementAxis === "x" ? null : findAxisSnap("y", rawMoved, drag.snapCandidates);
+      dx += xSnap?.delta ?? 0;
+      dy += ySnap?.delta ?? 0;
       drag.dx = dx;
       drag.dy = dy;
 
@@ -539,13 +910,9 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         });
       }
       applyOffsets(offsets);
-      const beforeGroup = unionRects(drag.targets.map((item) => ({
-        left: item.target.beforeLeft,
-        top: item.target.beforeTop,
-        width: item.target.beforeWidth,
-        height: item.target.beforeHeight,
-      })));
-      renderBox(beforeGroup ? addOffset(beforeGroup, { x: dx, y: dy }) : null);
+      const moved = addOffset(drag.groupBefore, { x: dx, y: dy });
+      renderBox(moved);
+      renderSnapLines(xSnap, ySnap, moved);
     };
 
     const cancelDrag = () => {
@@ -554,7 +921,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       drag = null;
       if (box.hasPointerCapture?.(pointerId)) box.releasePointerCapture(pointerId);
       box.style.cursor = "grab";
-      applyPresentation();
+      showCurrentDesired();
       renderBox();
     };
 
@@ -566,9 +933,10 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       drag = null;
       if (box.hasPointerCapture?.(event.pointerId)) box.releasePointerCapture(event.pointerId);
       box.style.cursor = "grab";
+      hideSnapLines();
 
       if (completed.dx === 0 && completed.dy === 0) {
-        applyPresentation();
+        showCurrentDesired();
         renderBox();
         return;
       }
@@ -587,7 +955,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       };
       void ctx.command.execute(COMMIT_COMMAND).catch(() => {
         pendingIntent = null;
-        applyPresentation();
+        showCurrentDesired();
         renderBox();
       });
     };
@@ -602,8 +970,13 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (isEditable(event.target)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (drag) cancelDrag();
-      else ctx.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => false);
+      if (drag) {
+        cancelDrag();
+      } else {
+        ctx.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => false);
+        returnToLive();
+        renderBox();
+      }
     };
 
     box.addEventListener("pointerdown", beginDrag);
@@ -748,12 +1121,78 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       command: TOGGLE_COMMAND,
       icon: moveIcon,
       active,
-      disabled: () => !selectionAvailable(),
     });
-    ctx.command.register(TOGGLE_COMMAND, () => {
+    ctx.settings.register({
+      id: "arrange",
+      label: "Arrange",
+      order: 35,
+      controls: [
+        {
+          type: "toggle",
+          id: "snapping",
+          label: "Snapping",
+          description: "Magnetically align dragged selections to nearby layout anchors.",
+          value: () => settings().snapping,
+          set: (snapping) => updateSettings({ snapping }),
+        },
+        {
+          type: "toggle",
+          id: "element-edges",
+          label: "Element edges",
+          description: "Snap left/right and top/bottom edges to nearby elements.",
+          value: () => settings().elementEdges,
+          set: (elementEdges) => updateSettings({ elementEdges }),
+          disabled: () => !settings().snapping,
+        },
+        {
+          type: "toggle",
+          id: "element-centers",
+          label: "Element centers",
+          description: "Snap center-to-center when X-ray edge preference is not active.",
+          value: () => settings().elementCenters,
+          set: (elementCenters) => updateSettings({ elementCenters }),
+          disabled: () => !settings().snapping,
+        },
+        {
+          type: "toggle",
+          id: "guides",
+          label: "Guides",
+          description: "Snap to existing Mesurer guides.",
+          value: () => settings().guides,
+          set: (guides) => updateSettings({ guides }),
+          disabled: () => !settings().snapping,
+        },
+        {
+          type: "toggle",
+          id: "prefer-xray-edges",
+          label: "Prefer X-ray edges",
+          description: "When X-ray is on, use its visible blue box edges as element snap targets.",
+          value: () => settings().preferXrayEdges,
+          set: (preferXrayEdges) => updateSettings({ preferXrayEdges }),
+          disabled: () => !settings().snapping || !settings().elementEdges,
+        },
+        {
+          type: "toggle",
+          id: "alignment-rulers",
+          label: "Alignment rulers",
+          description: "Show the red alignment ruler while a snap is active.",
+          value: () => settings().snapLines,
+          set: (snapLines) => updateSettings({ snapLines }),
+          disabled: () => !settings().snapping,
+        },
+      ],
+    });
+    ctx.command.register(TOGGLE_COMMAND, async () => {
       const next = !active();
+      if (next) await ensureSelectActive();
       ctx.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => next);
-      if (!next && drag) cancelDrag();
+      if (!next) {
+        if (drag) cancelDrag();
+        returnToLive();
+        renderBox();
+        return;
+      }
+      showCurrentDesired();
       renderBox();
     });
     ctx.command.register(COMMIT_COMMAND, () => {
@@ -763,11 +1202,17 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       ctx.state.update<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID, (current) => ({
         intents: [...current.intents, intent].slice(-MAX_INTENTS),
       }));
-      presentation = { intentId: null, state: "desired" };
+      showCurrentDesired();
+      renderBox();
     });
     ctx.command.register(CLEAR_COMMAND, () => {
       ctx.state.update<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID, () => ({ intents: [] }));
       presentation = { intentId: null, state: "desired" };
+      clearPreviewStyles();
+      hideSnapLines();
+      if (active()) hideMeasurementOverlays();
+      else restoreMeasurementOverlays();
+      renderBox();
     });
     ctx.service.provide(MESURER_ARRANGE_SERVICE_ID, service);
 
@@ -790,6 +1235,8 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       workspaceUnsubscribe();
       stateSubscription.dispose();
       clearPreviewStyles();
+      hideSnapLines();
+      restoreMeasurementOverlays();
       workspace.dispose();
       inspectorMount.dispose();
     });

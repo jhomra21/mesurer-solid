@@ -5,6 +5,7 @@ import type { MesurerSolidRuntimeService } from "../src/ComposableMesurer";
 import { createMesurerModel } from "../src/model/create-mesurer-model";
 import {
   MESURER_ARRANGE_SERVICE_ID,
+  MESURER_ARRANGE_SETTINGS_STATE_ID,
   arrangePlugin,
   type MesurerArrangeService,
 } from "../src/plugins/arrange";
@@ -54,9 +55,13 @@ const setup = async () => {
   };
   await host.load(defineMesurerPlugin({
     id: "test.runtime",
-    provides: ["runtime:solid"],
+    provides: ["runtime:solid", "tool:select"],
     setup(ctx) {
       ctx.service.provide("runtime:solid", runtime);
+      ctx.command.register("builtin.select", () => {
+        model.setEnabled(true);
+        model.setToolMode("select");
+      });
     },
   }));
   await host.load(arrangePlugin());
@@ -76,66 +81,120 @@ const arrangeBox = async (host: ReturnType<typeof createMesurerPluginHost>) => {
   return box;
 };
 
+const pointer = (
+  type: "pointerdown" | "pointermove" | "pointerup",
+  value: { x: number; y: number; shiftKey?: boolean },
+) => new PointerEvent(type, {
+  bubbles: true,
+  button: 0,
+  buttons: type === "pointermove" ? 1 : undefined,
+  clientX: value.x,
+  clientY: value.y,
+  pointerId: 1,
+  shiftKey: value.shiftKey ?? false,
+});
+
 const drag = (
   box: HTMLElement,
   from: { x: number; y: number },
   to: { x: number; y: number },
   shiftKey = false,
 ) => {
-  box.dispatchEvent(new PointerEvent("pointerdown", {
-    bubbles: true,
-    button: 0,
-    clientX: from.x,
-    clientY: from.y,
-    pointerId: 1,
-  }));
-  box.dispatchEvent(new PointerEvent("pointermove", {
-    bubbles: true,
-    button: 0,
-    buttons: 1,
-    clientX: to.x,
-    clientY: to.y,
-    pointerId: 1,
-    shiftKey,
-  }));
-  box.dispatchEvent(new PointerEvent("pointerup", {
-    bubbles: true,
-    button: 0,
-    clientX: to.x,
-    clientY: to.y,
-    pointerId: 1,
-    shiftKey,
-  }));
+  box.dispatchEvent(pointer("pointerdown", from));
+  box.dispatchEvent(pointer("pointermove", { ...to, shiftKey }));
+  box.dispatchEvent(pointer("pointerup", { ...to, shiftKey }));
 };
 
 describe("arrangePlugin", () => {
-  it("notifies the toolbar when selection availability changes after plugin load", async () => {
+  it("can activate before selection and automatically activates Select", async () => {
     const { host, model, pageTarget } = await setup();
     const tool = host.tools().find((item) => item.id === "arrange");
-    expect(tool?.disabled?.()).toBe(true);
+    const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+    const box = document.querySelector<HTMLElement>("[data-mesurer-arrange-box='true']");
 
-    let stateEvents = 0;
-    const unsubscribe = host.subscribe((event) => {
-      if (event.reason === "state") stateEvents += 1;
-    });
+    expect(tool?.disabled).toBeUndefined();
+    expect(model.current.toolMode).toBe("none");
+    expect(model.current.selectedMeasurements).toHaveLength(0);
+
+    await host.command.execute("arrange.toggle");
+
+    expect(service?.active()).toBe(true);
+    expect(model.current.toolMode).toBe("select");
+    expect(box?.style.display).toBe("none");
 
     const target = document.createElement("button");
-    target.id = "late-selection";
+    target.id = "selected-after-arrange";
     pageTarget.append(target);
     setRect(target, { left: 20, top: 30, width: 80, height: 32 });
     select(model, [target]);
 
-    await vi.waitFor(() => expect(tool?.disabled?.()).toBe(false));
-    expect(stateEvents).toBeGreaterThan(0);
-
-    model.setSelectedMeasurements([], null);
-    await vi.waitFor(() => expect(tool?.disabled?.()).toBe(true));
-
-    unsubscribe();
+    await vi.waitFor(() => expect(box?.style.display).toBe("block"));
     host.dispose();
   });
 
-  it("records one persisted drag and reconstructs Before, Desired, Live, undo, and redo", async () => {
+  it("activates Select when Arrange is activated and preserves the existing selection", async () => {
+    const { host, model, pageTarget } = await setup();
+    const target = document.createElement("button");
+    target.id = "selected-before-arrange";
+    pageTarget.append(target);
+    setRect(target, { left: 20, top: 30, width: 80, height: 32 });
+    select(model, [target]);
+
+    expect(model.current.toolMode).toBe("none");
+    expect(model.current.selectedMeasurements.map((measurement) => measurement.elementRef)).toEqual([target]);
+
+    await arrangeBox(host);
+
+    expect(model.current.toolMode).toBe("select");
+    expect(model.current.selectedMeasurements.map((measurement) => measurement.elementRef)).toEqual([target]);
+    host.dispose();
+  });
+
+  it("registers persisted Arrange preferences and can disable snapping", async () => {
+    const { host, model, pageTarget } = await setup();
+    const target = document.createElement("button");
+    target.id = "free-move";
+    const reference = document.createElement("div");
+    reference.id = "reference";
+    pageTarget.append(target, reference);
+    setRect(target, { left: 100, top: 80, width: 60, height: 30 });
+    setRect(reference, { left: 200, top: 80, width: 80, height: 40 });
+    select(model, [target]);
+
+    const section = host.settings().find((item) => item.id === "arrange");
+    expect(section?.label).toBe("Arrange");
+    expect(section?.controls?.map((control) => control.id)).toEqual([
+      "snapping",
+      "element-edges",
+      "element-centers",
+      "guides",
+      "prefer-xray-edges",
+      "alignment-rulers",
+    ]);
+
+    const snapping = section?.controls?.find((control) => control.id === "snapping");
+    expect(snapping?.value()).toBe(true);
+    await Promise.resolve(snapping?.set(false));
+    expect(snapping?.value()).toBe(false);
+    expect(host.state.serialize("persist")[MESURER_ARRANGE_SETTINGS_STATE_ID]).toBeDefined();
+
+    const box = await arrangeBox(host);
+    drag(box, { x: 100, y: 80 }, { x: 193, y: 80 });
+
+    const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+    await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
+    expect(service?.intents()[0]?.targets[0]).toMatchObject({
+      before: { left: 100, top: 80 },
+      desired: { left: 193, top: 80 },
+      desiredOffset: { x: 93, y: 0 },
+    });
+    expect(target.style.transform).toContain("translate3d(93px, 0px, 0)");
+    expect(document.querySelector<HTMLElement>("[data-mesurer-arrange-snap-line='vertical']")?.style.display).toBe("none");
+
+    host.dispose();
+  });
+
+  it("records one persisted drag, keeps Desired visible, and reconstructs Before and Live on demand", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");
     target.dataset.testid = "checkout";
@@ -146,7 +205,7 @@ describe("arrangePlugin", () => {
 
     const tool = host.tools().find((item) => item.id === "arrange");
     expect(tool).toMatchObject({ label: "Arrange" });
-    expect(tool?.disabled?.()).toBe(false);
+    expect(tool?.disabled).toBeUndefined();
     expect(tool?.shortcut).toBeUndefined();
 
     const box = await arrangeBox(host);
@@ -175,6 +234,7 @@ describe("arrangePlugin", () => {
     service?.show(intent.id, "live");
     expect(target.style.getPropertyValue("transform")).toBe("scale(1)");
     service?.showCurrent();
+    expect(target.style.transform).toContain("translate3d(40px, 20px, 0)");
 
     expect(service?.capturePlan(intent.id, "desired")).toMatchObject({
       schema: "mesurer.arrange-capture/v1",
@@ -197,9 +257,82 @@ describe("arrangePlugin", () => {
     expect(service?.intents()).toHaveLength(1);
     await vi.waitFor(() => expect(target.style.transform).toContain("translate3d(40px, 20px, 0)"));
 
+    service?.show(intent.id, "live");
     host.dispose();
     expect(target.style.getPropertyValue("transform")).toBe("scale(1)");
     expect(target.style.getPropertyPriority("transform")).toBe("important");
+  });
+
+  it("starts repeated drags from the current Desired position and accumulates the offset", async () => {
+    const { host, model, pageTarget } = await setup();
+    const target = document.createElement("button");
+    target.id = "repeat";
+    pageTarget.append(target);
+    setRect(target, { left: 100, top: 80, width: 60, height: 30 });
+    select(model, [target]);
+
+    const box = await arrangeBox(host);
+    drag(box, { x: 100, y: 80 }, { x: 140, y: 100 });
+    const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+    await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
+    expect(target.style.transform).toContain("translate3d(40px, 20px, 0)");
+
+    drag(box, { x: 140, y: 100 }, { x: 150, y: 105 });
+    await vi.waitFor(() => expect(service?.intents()).toHaveLength(2));
+    const second = service?.intents()[1];
+    expect(second?.targets[0]).toMatchObject({
+      before: { left: 140, top: 100 },
+      desired: { left: 150, top: 105 },
+      beforeOffset: { x: 40, y: 20 },
+      desiredOffset: { x: 50, y: 25 },
+    });
+    expect(target.style.transform).toContain("translate3d(50px, 25px, 0)");
+
+    host.dispose();
+  });
+
+  it("snaps element edges to element edges, keeps Desired on release, and suppresses stale measurement ghosts", async () => {
+    const { host, model, pageTarget } = await setup();
+    const target = document.createElement("button");
+    target.id = "moving";
+    const reference = document.createElement("div");
+    reference.id = "reference";
+    pageTarget.append(target, reference);
+    setRect(target, { left: 100, top: 80, width: 60, height: 30 });
+    setRect(reference, { left: 200, top: 80, width: 80, height: 40 });
+    select(model, [target]);
+
+    const measurementGhost = document.createElement("div");
+    measurementGhost.dataset.mesurerMeasurement = "true";
+    document.body.append(measurementGhost);
+
+    const box = await arrangeBox(host);
+    box.dispatchEvent(pointer("pointerdown", { x: 100, y: 80 }));
+    expect(measurementGhost.style.getPropertyValue("visibility")).toBe("hidden");
+
+    box.dispatchEvent(pointer("pointermove", { x: 193, y: 80 }));
+    expect(target.style.transform).toContain("translate3d(100px, 0px, 0)");
+    const verticalLine = document.querySelector<HTMLElement>("[data-mesurer-arrange-snap-line='vertical']");
+    expect(verticalLine?.style.display).toBe("block");
+    expect(verticalLine?.style.left).toBe("200px");
+
+    box.dispatchEvent(pointer("pointerup", { x: 193, y: 80 }));
+    const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+    await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
+    expect(service?.intents()[0]?.targets[0]).toMatchObject({
+      before: { left: 100, top: 80 },
+      desired: { left: 200, top: 80 },
+      desiredOffset: { x: 100, y: 0 },
+    });
+    expect(target.style.transform).toContain("translate3d(100px, 0px, 0)");
+    expect(measurementGhost.style.getPropertyValue("visibility")).toBe("hidden");
+    expect(verticalLine?.style.display).toBe("none");
+
+    await host.command.execute("arrange.toggle");
+    expect(target.style.transform).toBe("");
+    expect(measurementGhost.style.getPropertyValue("visibility")).toBe("");
+
+    host.dispose();
   });
 
   it("moves a multi-selection together and Shift locks to the dominant axis", async () => {

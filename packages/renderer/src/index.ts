@@ -29,6 +29,7 @@ export {
   MESURER_ARRANGE_ACTIVE_STATE_ID,
   MESURER_ARRANGE_PLUGIN_ID,
   MESURER_ARRANGE_SERVICE_ID,
+  MESURER_ARRANGE_SETTINGS_STATE_ID,
   MESURER_ARRANGE_STATE_ID,
   arrangePlugin,
 } from "./plugins/arrange";
@@ -42,6 +43,7 @@ export type {
   ArrangeReviewTarget,
   ArrangeTarget,
   MesurerArrangeService,
+  MesurerArrangeSettings,
 } from "./plugins/arrange";
 export {
   MESURER_SCREENSHOT_ACTIVE_STATE_ID,
