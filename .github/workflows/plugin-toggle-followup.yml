@@ -25,6 +25,8 @@ jobs:
         run: python3 scripts/plugin-toggle-normalize.py
       - name: Fix lifecycle callback binding
         run: python3 scripts/plugin-toggle-provider-fix.py
+      - name: Make defaults assertion order independent
+        run: python3 scripts/plugin-toggle-order-fix.py
       - name: Add lifecycle diagnostics
         run: python3 scripts/plugin-toggle-diagnose.py
       - name: Install workspace
