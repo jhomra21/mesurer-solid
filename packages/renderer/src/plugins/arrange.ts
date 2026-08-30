@@ -19,8 +19,10 @@ export const MESURER_ARRANGE_PLUGIN_ID = "mesurer.arrange";
 export const MESURER_ARRANGE_SERVICE_ID = "arrange";
 export const MESURER_ARRANGE_STATE_ID = "mesurer.arrange.intents";
 export const MESURER_ARRANGE_ACTIVE_STATE_ID = "mesurer.arrange.active";
+export const MESURER_ARRANGE_SETTINGS_STATE_ID = "mesurer.arrange.settings";
 
 const RUNTIME_SERVICE_ID = "runtime:solid";
+const BUILTIN_SELECT_COMMAND = "builtin.select";
 const TOGGLE_COMMAND = "arrange.toggle";
 const COMMIT_COMMAND = "arrange.commit";
 const CLEAR_COMMAND = "arrange.clear";
@@ -92,6 +94,15 @@ export type ArrangeCapturePlan = {
   >;
 };
 
+export type MesurerArrangeSettings = {
+  snapping: boolean;
+  elementEdges: boolean;
+  elementCenters: boolean;
+  guides: boolean;
+  preferXrayEdges: boolean;
+  snapLines: boolean;
+};
+
 export type MesurerArrangeService = {
   active(): boolean;
   intents(): ArrangeIntent[];
@@ -141,6 +152,16 @@ type ArrangeStateValue = {
   intents: ArrangeIntentValue[];
 };
 
+type ArrangeSettingsValue = {
+  [key: string]: PluginValue;
+  snapping: boolean;
+  elementEdges: boolean;
+  elementCenters: boolean;
+  guides: boolean;
+  preferXrayEdges: boolean;
+  snapLines: boolean;
+};
+
 type InlineTransform = {
   value: string;
   priority: string;
@@ -167,6 +188,7 @@ type SnapCandidate = {
   start: number;
   end: number;
   source: "element" | "guide";
+  kind: "edge" | "center" | "guide";
 };
 
 type AxisSnap = SnapCandidate & {
@@ -222,20 +244,31 @@ const unionRects = (values: ArrangeRect[]): ArrangeRect | null => {
 const rangeGap = (aStart: number, aEnd: number, bStart: number, bEnd: number) =>
   Math.max(0, Math.max(aStart, bStart) - Math.min(aEnd, bEnd));
 
-const axisAnchors = (value: ArrangeRect, axis: "x" | "y") => axis === "x"
-  ? [value.left, value.left + value.width / 2, value.left + value.width]
-  : [value.top, value.top + value.height / 2, value.top + value.height];
+const axisAnchors = (
+  value: ArrangeRect,
+  axis: "x" | "y",
+  kind: SnapCandidate["kind"],
+) => {
+  const start = axis === "x" ? value.left : value.top;
+  const size = axis === "x" ? value.width : value.height;
+  const end = start + size;
+  if (kind === "edge") return [start, end];
+  if (kind === "center") return [start + size / 2];
+  return [start, start + size / 2, end];
+};
 
 const axisRange = (value: ArrangeRect, axis: "x" | "y") => axis === "x"
   ? { start: value.top, end: value.top + value.height }
   : { start: value.left, end: value.left + value.width };
+
+const snapPriority = (candidate: SnapCandidate) => candidate.kind === "edge" ? 2
+  : candidate.kind === "guide" ? 1 : 0;
 
 const findAxisSnap = (
   axis: "x" | "y",
   moving: ArrangeRect,
   candidates: SnapCandidate[],
 ): AxisSnap | null => {
-  const anchors = axisAnchors(moving, axis);
   const movingRange = axisRange(moving, axis);
   let best: AxisSnap | null = null;
 
@@ -246,14 +279,14 @@ const findAxisSnap = (
       && rangeGap(movingRange.start, movingRange.end, candidate.start, candidate.end) > SNAP_RELEVANCE_DISTANCE
     ) continue;
 
-    for (const anchor of anchors) {
+    for (const anchor of axisAnchors(moving, axis, candidate.kind)) {
       const delta = candidate.position - anchor;
       const distance = Math.abs(delta);
       if (distance > GUIDE_SNAP_DISTANCE) continue;
       const bestDistance = best ? Math.abs(best.delta) : Number.POSITIVE_INFINITY;
       if (
         distance < bestDistance
-        || (distance === bestDistance && candidate.source === "element" && best?.source === "guide")
+        || (distance === bestDistance && (!best || snapPriority(candidate) > snapPriority(best)))
       ) {
         best = { ...candidate, delta };
       }
@@ -329,7 +362,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
   id: MESURER_ARRANGE_PLUGIN_ID,
   version: "0.1.0",
   requires: [RUNTIME_SERVICE_ID],
-  provides: ["tool:arrange", "intent:arrange", "agent:arrange"],
+  provides: ["tool:arrange", "intent:arrange", "agent:arrange", "settings:arrange"],
   setup(ctx) {
     const runtime = ctx.service.get<MesurerSolidRuntimeService>(RUNTIME_SERVICE_ID);
     if (!runtime) throw new Error("Arrange plugin requires the Solid renderer runtime.");
@@ -351,6 +384,18 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     ctx.state.register<boolean>({
       id: MESURER_ARRANGE_ACTIVE_STATE_ID,
       initial: false,
+    });
+    ctx.state.register<ArrangeSettingsValue>({
+      id: MESURER_ARRANGE_SETTINGS_STATE_ID,
+      initial: {
+        snapping: true,
+        elementEdges: true,
+        elementCenters: true,
+        guides: true,
+        preferXrayEdges: true,
+        snapLines: true,
+      },
+      persist: true,
     });
 
     const root = inspectorMount.element;
@@ -403,6 +448,23 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const state = () => ctx.state.get<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID) ?? { intents: [] };
     const active = () => ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+    const settings = (): MesurerArrangeSettings => {
+      const stored = ctx.state.get<ArrangeSettingsValue>(MESURER_ARRANGE_SETTINGS_STATE_ID);
+      return {
+        snapping: stored?.snapping ?? true,
+        elementEdges: stored?.elementEdges ?? true,
+        elementCenters: stored?.elementCenters ?? true,
+        guides: stored?.guides ?? true,
+        preferXrayEdges: stored?.preferXrayEdges ?? true,
+        snapLines: stored?.snapLines ?? true,
+      };
+    };
+    const updateSettings = (patch: Partial<MesurerArrangeSettings>) => {
+      ctx.state.update<ArrangeSettingsValue>(MESURER_ARRANGE_SETTINGS_STATE_ID, (current) => ({
+        ...current,
+        ...patch,
+      }));
+    };
     const currentPage = () => pageUrl(ownerWindow);
     const currentIntents = () => state().intents.filter((intent) => intent.pageUrl === currentPage());
 
@@ -460,6 +522,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const renderSnapLines = (xSnap: AxisSnap | null, ySnap: AxisSnap | null, moved: ArrangeRect) => {
       hideSnapLines();
+      if (!settings().snapLines) return;
       if (xSnap) {
         const top = Math.min(moved.top, xSnap.start);
         const bottom = Math.max(moved.top + moved.height, xSnap.end);
@@ -578,8 +641,13 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     const selectionRect = () => unionRects(selectedElements().map((element) => getRectFromDom(element)));
 
     const collectSnapCandidates = (elements: HTMLElement[]) => {
+      const snapSettings = settings();
+      if (!snapSettings.snapping) return [];
+
       const candidates: SnapCandidate[] = [];
       const selected = new Set(elements);
+      const snapshot = workspace.snapshot();
+      const xrayEdgesOnly = snapshot.xrayVisible && snapSettings.preferXrayEdges;
       let acceptedElements = 0;
 
       const addElement = (element: HTMLElement) => {
@@ -588,6 +656,9 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         if (!isPageElement(element)) return;
         const style = ownerWindow.getComputedStyle(element);
         if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") return;
+        const outlinedByXray = style.outlineStyle === "solid"
+          && (Number.parseFloat(style.outlineWidth) || 0) > 0;
+        if (xrayEdgesOnly && !outlinedByXray) return;
         const value = getRectFromDom(element);
         if (value.width <= 0 || value.height <= 0) return;
         const margin = SNAP_RELEVANCE_DISTANCE;
@@ -600,37 +671,79 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         acceptedElements += 1;
         const right = value.left + value.width;
         const bottom = value.top + value.height;
-        for (const position of [value.left, value.left + value.width / 2, right]) {
-          candidates.push({ axis: "x", position, start: value.top, end: bottom, source: "element" });
+
+        if (snapSettings.elementEdges) {
+          for (const position of [value.left, right]) {
+            candidates.push({
+              axis: "x",
+              position,
+              start: value.top,
+              end: bottom,
+              source: "element",
+              kind: "edge",
+            });
+          }
+          for (const position of [value.top, bottom]) {
+            candidates.push({
+              axis: "y",
+              position,
+              start: value.left,
+              end: right,
+              source: "element",
+              kind: "edge",
+            });
+          }
         }
-        for (const position of [value.top, value.top + value.height / 2, bottom]) {
-          candidates.push({ axis: "y", position, start: value.left, end: right, source: "element" });
+
+        if (snapSettings.elementCenters && !xrayEdgesOnly) {
+          candidates.push({
+            axis: "x",
+            position: value.left + value.width / 2,
+            start: value.top,
+            end: bottom,
+            source: "element",
+            kind: "center",
+          });
+          candidates.push({
+            axis: "y",
+            position: value.top + value.height / 2,
+            start: value.left,
+            end: right,
+            source: "element",
+            kind: "center",
+          });
         }
       };
 
-      if (pageTarget instanceof realm.HTMLElement) addElement(pageTarget);
-      for (const candidate of pageTarget.querySelectorAll("*")) {
-        if (acceptedElements >= MAX_SNAP_ELEMENTS) break;
-        if (candidate instanceof realm.HTMLElement) addElement(candidate);
+      if (snapSettings.elementEdges || snapSettings.elementCenters) {
+        if (pageTarget instanceof realm.HTMLElement) addElement(pageTarget);
+        for (const candidate of pageTarget.querySelectorAll("*")) {
+          if (acceptedElements >= MAX_SNAP_ELEMENTS) break;
+          if (candidate instanceof realm.HTMLElement) addElement(candidate);
+        }
       }
 
-      for (const guide of workspace.snapshot().guides) {
-        if (guide.orientation === "vertical") {
-          candidates.push({
-            axis: "x",
-            position: guide.position,
-            start: 0,
-            end: ownerWindow.innerHeight,
-            source: "guide",
-          });
-        } else {
-          candidates.push({
-            axis: "y",
-            position: guide.position,
-            start: 0,
-            end: ownerWindow.innerWidth,
-            source: "guide",
-          });
+      if (snapSettings.guides) {
+        for (const guide of snapshot.guides) {
+          if (guide.orientation === "vertical") {
+            candidates.push({
+              axis: "x",
+              position: guide.position,
+              start: 0,
+              end: ownerWindow.innerHeight,
+              source: "guide",
+              kind: "guide",
+            });
+          } else {
+            candidates.push({
+              axis: "y",
+              position: guide.position,
+              start: 0,
+              end: ownerWindow.innerWidth,
+              source: "guide",
+              kind: "guide",
+            });
+          }
         }
       }
 
@@ -684,6 +797,12 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         refreshFrame = 0;
         refresh();
       });
+    };
+
+    const ensureSelectActive = async () => {
+      const button = overlayTarget.querySelector<HTMLButtonElement>("[data-mesurer-builtin='select'] button");
+      if (button?.getAttribute("aria-pressed") === "true") return;
+      await ctx.command.execute(BUILTIN_SELECT_COMMAND, undefined, { source: "arrange" });
     };
 
     const beginDrag = (event: PointerEvent) => {
@@ -1002,8 +1121,69 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       active,
       disabled: () => !selectionAvailable(),
     });
-    ctx.command.register(TOGGLE_COMMAND, () => {
+    ctx.settings.register({
+      id: "arrange",
+      label: "Arrange",
+      order: 35,
+      controls: [
+        {
+          type: "toggle",
+          id: "snapping",
+          label: "Snapping",
+          description: "Magnetically align dragged selections to nearby layout anchors.",
+          value: () => settings().snapping,
+          set: (snapping) => updateSettings({ snapping }),
+        },
+        {
+          type: "toggle",
+          id: "element-edges",
+          label: "Element edges",
+          description: "Snap left/right and top/bottom edges to nearby elements.",
+          value: () => settings().elementEdges,
+          set: (elementEdges) => updateSettings({ elementEdges }),
+          disabled: () => !settings().snapping,
+        },
+        {
+          type: "toggle",
+          id: "element-centers",
+          label: "Element centers",
+          description: "Snap center-to-center when X-ray edge preference is not active.",
+          value: () => settings().elementCenters,
+          set: (elementCenters) => updateSettings({ elementCenters }),
+          disabled: () => !settings().snapping,
+        },
+        {
+          type: "toggle",
+          id: "guides",
+          label: "Guides",
+          description: "Snap to existing Mesurer guides.",
+          value: () => settings().guides,
+          set: (guides) => updateSettings({ guides }),
+          disabled: () => !settings().snapping,
+        },
+        {
+          type: "toggle",
+          id: "prefer-xray-edges",
+          label: "Prefer X-ray edges",
+          description: "When X-ray is on, use its visible blue box edges as element snap targets.",
+          value: () => settings().preferXrayEdges,
+          set: (preferXrayEdges) => updateSettings({ preferXrayEdges }),
+          disabled: () => !settings().snapping || !settings().elementEdges,
+        },
+        {
+          type: "toggle",
+          id: "alignment-rulers",
+          label: "Alignment rulers",
+          description: "Show the red alignment ruler while a snap is active.",
+          value: () => settings().snapLines,
+          set: (snapLines) => updateSettings({ snapLines }),
+          disabled: () => !settings().snapping,
+        },
+      ],
+    });
+    ctx.command.register(TOGGLE_COMMAND, async () => {
       const next = !active();
+      if (next) await ensureSelectActive();
       ctx.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => next);
       if (!next) {
         if (drag) cancelDrag();
