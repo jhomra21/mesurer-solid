@@ -45,6 +45,9 @@ try {
   const dragBox = await arrangeBox.boundingBox();
   assert(dragBox, "Arrange drag surface must follow the current selection");
 
+  // Aim near a known page-element alignment cluster. The production snapper deliberately
+  // chooses whichever valid nearby anchor requires the smallest correction, so the browser
+  // contract validates the winning anchor rather than assuming one named element must win.
   const rawDesiredLeft = referenceBox.x + 7;
   const dx = rawDesiredLeft - before.x;
   const startX = dragBox.x + dragBox.width / 2;
@@ -59,16 +62,48 @@ try {
   });
 
   const duringDrag = await target.boundingBox();
-  assert(duringDrag, "Arrange target must keep a bounding box while dragging");
-  assert(
-    Math.abs(duringDrag.x - referenceBox.x) <= 1,
-    `Arrange should snap the target left edge to the nearby element at ${referenceBox.x}px; got ${duringDrag.x}px`,
-  );
   const snapLineBox = await verticalSnapLine.boundingBox();
+  assert(duringDrag, "Arrange target must keep a bounding box while dragging");
   assert(snapLineBox, "Arrange should show a vertical alignment ruler while snapped");
+
+  const movingAnchors = [
+    duringDrag.x,
+    duringDrag.x + duringDrag.width / 2,
+    duringDrag.x + duringDrag.width,
+  ];
   assert(
-    Math.abs(snapLineBox.x - referenceBox.x) <= 1,
-    `Arrange alignment ruler should be at ${referenceBox.x}px; got ${snapLineBox.x}px`,
+    movingAnchors.some((anchor) => Math.abs(anchor - snapLineBox.x) <= 1),
+    `Arrange target edge/center should land on the active alignment ruler at ${snapLineBox.x}px; anchors were ${movingAnchors.join(", ")}`,
+  );
+
+  const snapMatchesNearbyPageElement = await page.evaluate(({ snapX, movingTop, movingBottom }) => {
+    const moving = document.querySelector(".primary-action");
+    if (!(moving instanceof HTMLElement)) return false;
+    const rangeGap = (aStart, aEnd, bStart, bEnd) =>
+      Math.max(0, Math.max(aStart, bStart) - Math.min(aEnd, bEnd));
+
+    for (const candidate of document.querySelectorAll("*")) {
+      if (!(candidate instanceof HTMLElement)) continue;
+      if (candidate === moving || moving.contains(candidate)) continue;
+      if (candidate.closest("[data-mesurer-island='true'], [data-mesurer-inspector-ui='true'], [data-mesurer-root='true']")) continue;
+      const style = getComputedStyle(candidate);
+      if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") continue;
+      const rect = candidate.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      if (rangeGap(movingTop, movingBottom, rect.top, rect.bottom) > 160) continue;
+      const anchors = [rect.left, rect.left + rect.width / 2, rect.right];
+      if (anchors.some((anchor) => Math.abs(anchor - snapX) <= 1)) return true;
+    }
+    return false;
+  }, {
+    snapX: snapLineBox.x,
+    movingTop: duringDrag.y,
+    movingBottom: duringDrag.y + duringDrag.height,
+  });
+  assert.equal(
+    snapMatchesNearbyPageElement,
+    true,
+    `Arrange ruler at ${snapLineBox.x}px should correspond to a nearby visible page-element edge or center`,
   );
 
   const visibleMeasurementGhosts = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>
