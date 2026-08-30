@@ -16,12 +16,14 @@ try {
 
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
   const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
+  const settingsButton = page.locator("[data-mesurer-builtin='settings'] button");
   const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
   const target = page.locator(".primary-action");
   const reference = page.locator(".feature-copy");
 
   await selectButton.waitFor({ state: "visible" });
   await xrayButton.waitFor({ state: "visible" });
+  await settingsButton.waitFor({ state: "visible" });
   await arrangeButton.waitFor({ state: "visible" });
   await target.waitFor({ state: "visible" });
   await reference.waitFor({ state: "visible" });
@@ -51,6 +53,35 @@ try {
   });
   assert.equal(referenceOutline.style, "solid", "X-ray should render a solid outline on page elements");
   assert(referenceOutline.width > 0, "X-ray outline should have visible width");
+
+  await settingsButton.click();
+  const arrangeSettings = page.locator("[data-mesurer-plugin-settings-section='arrange']");
+  await arrangeSettings.waitFor({ state: "visible" });
+  const settingLabels = (await arrangeSettings.getByRole("switch").allTextContents())
+    .map((label) => label.trim());
+  assert.deepEqual(settingLabels, [
+    "Snapping",
+    "Element edges",
+    "Element centers",
+    "Guides",
+    "Prefer X-ray edges",
+    "Alignment rulers",
+  ]);
+  const snappingSwitch = arrangeSettings.getByRole("switch", { name: "Snapping", exact: true });
+  assert.equal(await snappingSwitch.getAttribute("aria-checked"), "true", "Arrange snapping should default on");
+  await snappingSwitch.click();
+  await page.waitForFunction(() => {
+    const section = document.querySelector("[data-mesurer-plugin-settings-section='arrange']");
+    const control = section?.querySelector("button[role='switch']");
+    return control instanceof HTMLButtonElement && control.getAttribute("aria-checked") === "false";
+  });
+  await snappingSwitch.click();
+  await page.waitForFunction(() => {
+    const section = document.querySelector("[data-mesurer-plugin-settings-section='arrange']");
+    const control = section?.querySelector("button[role='switch']");
+    return control instanceof HTMLButtonElement && control.getAttribute("aria-checked") === "true";
+  });
+  await settingsButton.click();
 
   await arrangeButton.click();
   await page.waitForFunction(() => {
@@ -169,7 +200,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Arrange browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Arrange browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Arrange Select coexistence + X-ray edge snapping + persistent Desired placement: PASS");
+  console.log("Arrange settings + Select coexistence + X-ray edge snapping + persistent Desired placement: PASS");
 } finally {
   await browser.close();
 }
