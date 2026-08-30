@@ -120,7 +120,8 @@ jobs:
           print("")
           print("### Arrange")
           print("- Toolbar enablement after selection exercised in Chromium")
-          print("- Drag presentation and plugin-history undo exercised in Chromium")
+          print("- Nearby-element alignment snapping and ruler feedback exercised in Chromium")
+          print("- Drag-only preview, ghost suppression, and Live snapback exercised in Chromium")
 
           print("")
           self_path = Path("self-hosting-artifacts/self-hosting-measurements.json")
