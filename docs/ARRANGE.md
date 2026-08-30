@@ -23,19 +23,21 @@ Use the same browser-only Mesurer setup module described in [`GETTING_STARTED.md
 3. Drag the selection to the desired position.
 4. Move near another visible element edge or center, or an existing Mesurer guide, to snap into alignment.
 5. Hold **Shift** while dragging to lock movement to the dominant axis.
-6. Release the pointer. The real page element returns to its source-rendered position while Arrange saves the snapped **Desired** geometry.
+6. Release the pointer. The snapped **Desired** placement remains visible so you can inspect it or continue arranging.
 
 Arrange records one history entry when the drag finishes. Pointer movement itself is transient, so a single drag does not create dozens of undo steps.
 
-`Cmd/Ctrl+Z` and redo use the normal Mesurer plugin history to remove or restore the saved intent. Because the page returns to Live after release, history changes the saved intent rather than leaving application elements translated on the page.
+`Cmd/Ctrl+Z` and redo use the normal Mesurer plugin history. Undo removes the latest saved placement from the visible Desired presentation; redo restores it.
+
+Repeated drags start from the current Desired placement rather than the source-rendered position, so you can refine a layout in several small moves.
 
 ## What Arrange changes
 
 Arrange changes only the temporary browser presentation. It does **not** edit CSS, component source, templates, or application state.
 
-While the pointer is down, Arrange temporarily translates the selected rendered elements so the person can place them visually. Mesurer's normal measurement boxes are hidden during that drag so a stale selection rectangle is not left behind as a visual ghost.
+While Arrange is active, the saved Desired offsets are previewed on the rendered page. During a drag, Arrange temporarily updates those offsets as the pointer moves. Mesurer's normal measurement boxes are suppressed while Arrange is active so a stale source-position rectangle is not left behind as a detached visual ghost.
 
-When the pointer is released, the temporary transform is removed immediately and the page returns to **Live**. The intent remains saved and can be replayed as **Before** or **Desired** when a person or agent needs to inspect it.
+When the pointer is released, the snapped placement remains visible as **Desired**. Leaving Arrange returns the page to **Live**, which removes the temporary Arrange preview and shows only what the application source currently renders.
 
 Each completed drag records:
 
@@ -47,7 +49,7 @@ Each completed drag records:
 - page URL scope;
 - creation time.
 
-The intent is persisted after reload, but its temporary transform is not automatically reapplied to the live page. Desired presentation is replayed explicitly through the Arrange API when needed.
+The intent and Desired presentation are persisted after reload when the target can be rebound safely. The temporary transform remains a Mesurer preview; it is never written back to application source.
 
 If a target becomes ambiguous or cannot be rebound conservatively, Arrange does not move another element in its place.
 
@@ -78,7 +80,7 @@ Arrange intentionally distinguishes three presentations:
 
 That distinction lets a coding agent compare human intent with the real implementation instead of mistaking a temporary preview for completed work.
 
-Live is the default human presentation after a drag, after Arrange is deactivated, and after reload.
+Desired remains visible after a completed drag and can be restored after reload. Deactivating Arrange returns the human page to Live. Agents can switch explicitly between Before, Desired, and Live through the Arrange API.
 
 ## Agent API
 
@@ -142,7 +144,7 @@ transform: translateX(96px);
 
 The agent should inspect the surrounding rendered layout and make the source-level change that actually expresses the design: flex/grid alignment, gap, margins, sizing, ordering, component structure, or another appropriate rule.
 
-The temporary Arrange transform exists only while previewing the desired result or explicitly replaying Desired evidence.
+The temporary Arrange transform exists only to preview the desired result. It is evidence of intent, not the prescribed source implementation.
 
 ## Review after source edits
 
@@ -190,7 +192,7 @@ This is useful for communicating changes such as moving an entire action group, 
 
 Arrange state uses the normal plugin persistence channel. With `persistKey`, it is stored under that Mesurer instance's plugin key; otherwise it uses the default plugin storage key.
 
-Persistence keeps the intent evidence, not a permanent visual translation. Reloading the page leaves the application in Live presentation. A compatible agent can replay Before or Desired from the saved intent whenever it needs the visual evidence.
+Persistence keeps both the intent evidence and the current Desired preview. After reload, safely rebound targets return to their saved Desired positions. Deactivating Arrange or explicitly switching to Live removes the preview without deleting the intent.
 
 Targets are rebound with Mesurer's selector + fingerprint rules. An ambiguous match is treated as unresolved rather than guessed.
 
@@ -198,7 +200,7 @@ Arrange also scopes intents to the current origin, pathname, and query string so
 
 ## Cleanup
 
-Releasing or cancelling a drag, deactivating Arrange, removing the plugin, disposing Mesurer, or switching to Live restores the page presentation. Existing inline transform and visibility values and priorities are preserved and restored exactly.
+Cancelling a drag restores the previously saved Desired presentation. Deactivating Arrange, removing the plugin, disposing Mesurer, or switching explicitly to Live restores the source-rendered page presentation. Existing inline transform and visibility values and priorities are preserved and restored exactly.
 
 Arrange-owned UI is marked as Mesurer inspector chrome and cannot become a page target itself.
 
@@ -206,4 +208,4 @@ Arrange-owned UI is marked as Mesurer inspector chrome and cannot become a page 
 
 Arrange is deliberately a **visual layout-intent tool**, not a general DOM/CSS editor.
 
-It focuses on repositioning with edge/center alignment snapping. The temporary drag preview does not reflow siblings, and Arrange does not write application source. Future extensions can build on the same Before/Desired/Live contract without changing that separation.
+It focuses on repositioning with edge/center alignment snapping. The temporary preview does not reflow siblings, and Arrange does not write application source. Future extensions can build on the same Before/Desired/Live contract without changing that separation.
