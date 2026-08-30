@@ -16,7 +16,7 @@ try {
 
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
   const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
-  const settingsButton = page.locator("[data-mesurer-builtin='settings'] button");
+  const settingsButton = page.locator("button[data-mesurer-builtin='settings']");
   const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
   const target = page.locator(".primary-action");
   const reference = page.locator(".feature-copy");
@@ -55,6 +55,8 @@ try {
   assert(referenceOutline.width > 0, "X-ray outline should have visible width");
 
   await settingsButton.click();
+  const generalTab = page.getByRole("tab", { name: "General", exact: true });
+  await generalTab.click();
   const arrangeSettings = page.locator("[data-mesurer-plugin-settings-section='arrange']");
   await arrangeSettings.waitFor({ state: "visible" });
   const settingLabels = (await arrangeSettings.getByRole("switch").allTextContents())
