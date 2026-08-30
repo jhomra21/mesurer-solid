@@ -410,14 +410,11 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                           : [...current, plugin.id]);
                     };
                     const setEnabled = (enabled: boolean) => {
-                      if (!enabled) {
-                        setExpandedPluginSections((current) => current.filter((id) => id !== plugin.id));
-                      }
                       pluginSettings?.setEnabled(plugin.id, enabled);
                     };
                     return (
                       <div data-mesurer-plugin-settings-section={plugin.id} class="msr:relative">
-                        <div class="msr:flex msr:h-7 msr:w-full msr:items-center msr:hover:bg-ink-50">
+                        <div class="msr:grid msr:h-7 msr:w-full msr:grid-cols-[minmax(0,1fr)_28px] msr:items-center msr:hover:bg-ink-50">
                           <button
                             type="button"
                             role="switch"
@@ -425,7 +422,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                             aria-checked={plugin.enabled ? "true" : "false"}
                             disabled={plugin.busy}
                             data-mesurer-plugin-toggle={plugin.id}
-                            class="msr:flex msr:h-full msr:min-w-0 msr:flex-1 msr:items-center msr:gap-2 msr:px-2 msr:text-left msr:text-[11px] msr:text-ink-600 msr:disabled:opacity-45"
+                            class="msr:col-start-1 msr:flex msr:h-full msr:min-w-0 msr:items-center msr:gap-2 msr:px-2 msr:text-left msr:text-[11px] msr:text-ink-600 msr:disabled:opacity-45"
                             onClick={() => setEnabled(!plugin.enabled)}
                           >
                             <span class="msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap">{plugin.label}</span>
@@ -443,7 +440,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                               aria-label={`${plugin.label} settings`}
                               data-mesurer-plugin-settings-disclosure={plugin.id}
                               aria-expanded={expanded() ? "true" : "false"}
-                              class="msr:flex msr:size-7 msr:shrink-0 msr:items-center msr:justify-center msr:text-ink-500 msr:hover:text-ink-700 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#0d99ff]"
+                              class="msr:col-start-2 msr:flex msr:size-7 msr:items-center msr:justify-center msr:text-ink-500 msr:hover:text-ink-700 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#0d99ff]"
                               onClick={toggleExpanded}
                             >
                               <CaretDownIcon size={9} class={expanded() ? "msr:rotate-180" : ""} />

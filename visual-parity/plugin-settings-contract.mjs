@@ -76,6 +76,18 @@ const openSettings = async () => {
 const pluginToggle = (dialog, label) => dialog.getByRole("switch", { name: label, exact: true });
 const settingSwitch = (dialog, label) => dialog.getByRole("switch", { name: label, exact: true });
 const checked = async (control) => (await control.getAttribute("aria-checked")) === "true";
+const pluginTrackX = async (dialog, id) => {
+  const track = dialog.locator(`[data-mesurer-plugin-toggle='${id}'] .mesurer-switch-track`);
+  await track.waitFor({ state: "visible" });
+  const box = await track.boundingBox();
+  if (!box) throw new Error(`Plugin toggle track ${id} has no bounding box`);
+  return box.x;
+};
+const expectToggleAlignment = async (dialog, ids, label) => {
+  const positions = await Promise.all(ids.map((id) => pluginTrackX(dialog, id)));
+  const spread = Math.max(...positions) - Math.min(...positions);
+  if (spread > 0.5) throw new Error(`${label} plugin toggles are misaligned: ${JSON.stringify(positions)}`);
+};
 const expectChecked = async (control, expected, label) => {
   const actual = await checked(control);
   if (actual !== expected) throw new Error(`${label} expected ${expected ? "on" : "off"}, got ${actual ? "on" : "off"}`);
@@ -129,6 +141,7 @@ try {
   await expectChecked(contextToggle, true, "Context plugin");
   await expectChecked(arrangeToggle, false, "Arrange plugin");
   await expectChecked(screenshotToggle, true, "Screenshot plugin");
+  await expectToggleAlignment(dialog, ["mesurer.context", "mesurer.arrange", "mesurer.screenshot"], "Initial");
   await expectNoDisclosure(dialog, "mesurer.context", "Context");
   await expectNoDisclosure(dialog, "mesurer.arrange", "Disabled Arrange");
   if ((await settingSwitch(dialog, "Context tools").count()) !== 0) throw new Error("Context tools redundant nested toggle is still visible");
@@ -139,6 +152,7 @@ try {
   await waitForPlugin("mesurer.arrange", true);
   await waitForTool("arrange", true);
   await expectChecked(arrangeToggle, true, "Arrange plugin after Settings enable");
+  await expectToggleAlignment(dialog, ["mesurer.context", "mesurer.arrange", "mesurer.screenshot"], "Arrange enabled");
   await expandPlugin(dialog, "mesurer.arrange", "Arrange");
   const arrangeSnapping = settingSwitch(dialog, "Snapping");
   await arrangeSnapping.waitFor({ state: "visible" });
@@ -194,6 +208,12 @@ try {
   // Keep Arrange enabled and Screenshot disabled, then prove availability itself survives reload.
   await arrangeToggle.click();
   await waitForPlugin("mesurer.arrange", true);
+  const restoredArrangeDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='mesurer.arrange']");
+  await restoredArrangeDisclosure.waitFor({ state: "visible" });
+  if ((await restoredArrangeDisclosure.getAttribute("aria-expanded")) !== "true") {
+    throw new Error("Arrange disclosure state did not survive plugin disable/re-enable");
+  }
+  await dialog.locator("[data-mesurer-plugin-settings-controls='mesurer.arrange']").waitFor({ state: "visible" });
   await screenshotToggle.click();
   await waitForPlugin("mesurer.screenshot", false);
   await page.waitForTimeout(100);
