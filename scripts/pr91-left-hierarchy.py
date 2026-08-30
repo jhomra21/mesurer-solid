@@ -14,12 +14,17 @@ settings = "packages/renderer/src/components/SettingsPanel.tsx"
 replace_exact(
     settings,
     '<span class="msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap">{props.label}</span>',
-    '<span class="mesurer-plugin-setting-label msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap msr:pl-6">{props.label}</span>',
+    '<span class="mesurer-plugin-setting-label msr:ml-6 msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap">{props.label}</span>',
 )
 replace_exact(
     settings,
     '<span class="msr:col-start-1 msr:min-w-0 msr:truncate msr:whitespace-nowrap msr:px-2 msr:text-[11px] msr:text-ink-600">{plugin.label}</span>',
-    '<span data-mesurer-plugin-label={plugin.id} class="msr:col-start-1 msr:min-w-0 msr:truncate msr:whitespace-nowrap msr:px-2 msr:text-[11px] msr:text-ink-600">{plugin.label}</span>',
+    '<span data-mesurer-plugin-label={plugin.id} class="msr:col-start-1 msr:ml-2 msr:min-w-0 msr:truncate msr:whitespace-nowrap msr:pr-2 msr:text-[11px] msr:text-ink-600">{plugin.label}</span>',
+)
+replace_exact(
+    settings,
+    'class="msr:flex msr:flex-col msr:gap-0.5 msr:bg-white/60 msr:py-1 msr:pl-2" data-mesurer-plugin-settings-controls={plugin.id}',
+    'class="msr:flex msr:flex-col msr:gap-0.5 msr:bg-white/60 msr:py-1" data-mesurer-plugin-settings-controls={plugin.id}',
 )
 
 contract = "visual-parity/plugin-settings-contract.mjs"
@@ -76,4 +81,4 @@ replace_exact(
   const autoCopyX = await switchTrackX(autoCopy, "Screenshot Auto-copy");''',
 )
 
-print("Applied consistent plugin label hierarchy: plugin rows + 16px nested setting indent.")
+print("Applied structural plugin label hierarchy: 8px plugin inset, 24px nested inset.")
