@@ -1121,7 +1121,6 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       command: TOGGLE_COMMAND,
       icon: moveIcon,
       active,
-      disabled: () => !selectionAvailable(),
     });
     ctx.settings.register({
       id: "arrange",
