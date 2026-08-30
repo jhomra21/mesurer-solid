@@ -40,9 +40,18 @@ try {
   });
   assert.equal(await arrangeButton.isDisabled(), false, "Arrange should enable after selecting a page element");
 
+  // Leave the selection in place but deliberately turn Select off. Activating Arrange must
+  // turn Select back on so the user can keep selecting page elements while Arrange is active.
+  await selectButton.click();
+  await page.waitForFunction(() => {
+    const button = document.querySelector("[data-mesurer-builtin='select'] button");
+    return button instanceof HTMLButtonElement && button.getAttribute("aria-pressed") === "false";
+  });
+  assert.equal(await arrangeButton.isDisabled(), false, "Turning Select off should not discard the existing Arrange selection");
+
   await xrayButton.click();
   await page.waitForFunction(() => {
-    const button = document.querySelector("button[data-mesurer-builtin='xray']");
+    const button = document.querySelector("[data-mesurer-builtin='xray'] button");
     return button instanceof HTMLButtonElement && button.getAttribute("aria-pressed") === "true";
   });
   const referenceOutline = await reference.evaluate((element) => {
@@ -53,16 +62,23 @@ try {
   assert(referenceOutline.width > 0, "X-ray outline should have visible width");
 
   await arrangeButton.click();
+  await page.waitForFunction(() => {
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
+    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
+    return select instanceof HTMLButtonElement
+      && select.getAttribute("aria-pressed") === "true"
+      && arrange instanceof HTMLButtonElement
+      && arrange.getAttribute("aria-pressed") === "true";
+  });
+
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
   const verticalSnapLine = page.locator("[data-mesurer-arrange-snap-line='vertical']");
   await arrangeBox.waitFor({ state: "visible" });
   const dragBox = await arrangeBox.boundingBox();
   assert(dragBox, "Arrange drag surface must follow the current selection");
 
-  // Aim near a known page-element alignment cluster. The production snapper deliberately
-  // chooses whichever valid nearby anchor requires the smallest correction, so the browser
-  // contract validates the winning X-ray-visible anchor rather than assuming one named
-  // element must win.
+  // Aim within the 10px snap radius of a visible X-ray edge. With X-ray edge preference on,
+  // invisible element centers are not valid element snap targets.
   const rawDesiredLeft = referenceBox.x + 7;
   const dx = rawDesiredLeft - before.x;
   const startX = dragBox.x + dragBox.width / 2;
@@ -81,17 +97,13 @@ try {
   assert(duringDrag, "Arrange target must keep a bounding box while dragging");
   assert(snapLineBox, "Arrange should show a vertical alignment ruler while snapped");
 
-  const movingAnchors = [
-    duringDrag.x,
-    duringDrag.x + duringDrag.width / 2,
-    duringDrag.x + duringDrag.width,
-  ];
+  const movingEdges = [duringDrag.x, duringDrag.x + duringDrag.width];
   assert(
-    movingAnchors.some((anchor) => Math.abs(anchor - snapLineBox.x) <= 1),
-    `Arrange target edge/center should land on the active alignment ruler at ${snapLineBox.x}px; anchors were ${movingAnchors.join(", ")}`,
+    movingEdges.some((edge) => Math.abs(edge - snapLineBox.x) <= 1),
+    `Arrange target edge should land on the active X-ray edge ruler at ${snapLineBox.x}px; edges were ${movingEdges.join(", ")}`,
   );
 
-  const snapMatchesXrayLine = await page.evaluate(({ snapX, movingTop, movingBottom }) => {
+  const snapMatchesXrayEdge = await page.evaluate(({ snapX, movingTop, movingBottom }) => {
     const moving = document.querySelector(".primary-action");
     if (!(moving instanceof HTMLElement)) return false;
     const rangeGap = (aStart, aEnd, bStart, bEnd) =>
@@ -107,8 +119,7 @@ try {
       const rect = candidate.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) continue;
       if (rangeGap(movingTop, movingBottom, rect.top, rect.bottom) > 160) continue;
-      const anchors = [rect.left, rect.left + rect.width / 2, rect.right];
-      if (anchors.some((anchor) => Math.abs(anchor - snapX) <= 1)) return true;
+      if ([rect.left, rect.right].some((edge) => Math.abs(edge - snapX) <= 1)) return true;
     }
     return false;
   }, {
@@ -117,9 +128,9 @@ try {
     movingBottom: duringDrag.y + duringDrag.height,
   });
   assert.equal(
-    snapMatchesXrayLine,
+    snapMatchesXrayEdge,
     true,
-    `Arrange ruler at ${snapLineBox.x}px should correspond to a visible X-ray element edge or center`,
+    `Arrange ruler at ${snapLineBox.x}px should correspond to a visible X-ray box edge`,
   );
 
   const visibleMeasurementGhosts = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>
@@ -167,7 +178,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Arrange browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Arrange browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Arrange toolbar + X-ray snapping + persistent Desired placement: PASS");
+  console.log("Arrange auto-Select + X-ray edge snapping + persistent Desired placement: PASS");
 } finally {
   await browser.close();
 }
