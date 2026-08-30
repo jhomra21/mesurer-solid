@@ -83,13 +83,17 @@ const pluginTrackX = async (dialog, id) => {
   if (!box) throw new Error(`Plugin toggle track ${id} has no bounding box`);
   return box.x;
 };
-const persistTrackX = async (dialog) => {
-  const track = dialog.getByRole("switch", { name: "Persist", exact: true }).locator(".mesurer-switch-track");
+const switchTrackX = async (control, label) => {
+  const track = control.locator(".mesurer-switch-track");
   await track.waitFor({ state: "visible" });
   const box = await track.boundingBox();
-  if (!box) throw new Error("Persist toggle track has no bounding box");
+  if (!box) throw new Error(`${label} toggle track has no bounding box`);
   return box.x;
 };
+const persistTrackX = async (dialog) => switchTrackX(
+  dialog.getByRole("switch", { name: "Persist", exact: true }),
+  "Persist",
+);
 const expectToggleAlignment = async (dialog, ids, label) => {
   const persist = await persistTrackX(dialog);
   const plugins = await Promise.all(ids.map((id) => pluginTrackX(dialog, id)));
@@ -165,6 +169,11 @@ try {
   await expandPlugin(dialog, "mesurer.arrange", "Arrange");
   const arrangeSnapping = settingSwitch(dialog, "Snapping");
   await arrangeSnapping.waitFor({ state: "visible" });
+  const persistX = await persistTrackX(dialog);
+  const snappingX = await switchTrackX(arrangeSnapping, "Arrange snapping");
+  if (Math.abs(persistX - snappingX) > 0.5) {
+    throw new Error(`Expanded Arrange setting is not aligned with Persist: ${JSON.stringify({ persistX, snappingX })}`);
+  }
   await expectChecked(arrangeSnapping, true, "Arrange snapping default");
   await arrangeSnapping.click();
   await expectChecked(arrangeSnapping, false, "Arrange snapping before unload");
@@ -180,6 +189,11 @@ try {
   const autoCopy = settingSwitch(dialog, "Auto-copy");
   const autoDownload = settingSwitch(dialog, "Auto-download");
   const includeMeasurements = settingSwitch(dialog, "Include measurements");
+  const autoCopyX = await switchTrackX(autoCopy, "Screenshot Auto-copy");
+  const screenshotPersistX = await persistTrackX(dialog);
+  if (Math.abs(screenshotPersistX - autoCopyX) > 0.5) {
+    throw new Error(`Expanded Screenshot setting is not aligned with Persist: ${JSON.stringify({ persistX: screenshotPersistX, autoCopyX })}`);
+  }
   await expectChecked(autoCopy, false, "Auto-copy default");
   await expectChecked(autoDownload, false, "Auto-download default");
   await expectChecked(includeMeasurements, false, "Include measurements default");

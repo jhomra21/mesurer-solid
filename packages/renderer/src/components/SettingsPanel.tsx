@@ -448,7 +448,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                           </button>
                         </div>
                         <Show when={canExpand() && expanded()}>
-                          <div class="msr:flex msr:flex-col msr:gap-0.5 msr:bg-white/60 msr:px-2 msr:py-1" data-mesurer-plugin-settings-controls={plugin.id}>
+                          <div class="msr:flex msr:flex-col msr:gap-0.5 msr:bg-white/60 msr:py-1 msr:pl-2" data-mesurer-plugin-settings-controls={plugin.id}>
                             <For each={plugin.sections}>{(section) => (
                               <For each={section.controls ?? []}>{(control) => (
                                 <PluginSettingsSwitch
