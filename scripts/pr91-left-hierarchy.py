@@ -14,7 +14,7 @@ settings = "packages/renderer/src/components/SettingsPanel.tsx"
 replace_exact(
     settings,
     '<span class="msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap">{props.label}</span>',
-    '<span class="mesurer-plugin-setting-label msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap msr:pl-4">{props.label}</span>',
+    '<span class="mesurer-plugin-setting-label msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap msr:pl-6">{props.label}</span>',
 )
 replace_exact(
     settings,
