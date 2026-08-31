@@ -54,7 +54,7 @@ const arrangeInteractionFixture = defineMesurerPlugin({
 });
 
 describe("page interaction coordination", () => {
-  it("treats native color picking as one-shot while keeping the result available", async () => {
+  it("opens native color picking on every press while keeping the standard result active", async () => {
     let opens = 0;
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
@@ -76,17 +76,18 @@ describe("page interaction coordination", () => {
     button.click();
     await vi.waitFor(() => expect(opens).toBe(1));
     await settle();
-    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(button.getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#123456");
 
     button.click();
     await vi.waitFor(() => expect(opens).toBe(2));
     await settle();
-    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(button.getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#abcdef");
 
-    document.querySelector<HTMLButtonElement>('button[aria-label="Close color picker result"]')!.click();
+    document.querySelector<HTMLButtonElement>('button[aria-label="X-ray (X)"]')!.click();
     await settle();
+    expect(button.getAttribute("aria-pressed")).toBe("false");
     expect(document.querySelector(".mesurer-color-picker")).toBeNull();
   });
 
