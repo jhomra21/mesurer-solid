@@ -1,0 +1,90 @@
+name: fix screenshot preview contract
+
+on:
+  push:
+    branches:
+      - pr/text-editing-toolbar-parity
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: pr/text-editing-toolbar-parity
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+      - name: Preserve native image context menu but suppress preview chrome menu
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("packages/renderer/src/plugins/screenshot-preview.ts")
+          text = path.read_text()
+          old = '''  const onPreviewKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openViewer();
+  };
+
+  const onViewerClick = (event: MouseEvent) => {'''
+          new = '''  const onPreviewKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openViewer();
+  };
+
+  const onPreviewContextMenu = (event: MouseEvent) => {
+    if (event.target === previewImage) return;
+    event.preventDefault();
+  };
+
+  const onViewerClick = (event: MouseEvent) => {'''
+          if old not in text:
+              raise SystemExit("preview handler insertion point not found")
+          text = text.replace(old, new, 1)
+          old = '''  preview.addEventListener("mousedown", onPreviewMouseDown);
+  preview.addEventListener("pointerdown", onPreviewPointerDown);
+  preview.addEventListener("keydown", onPreviewKeyDown);
+  viewer.addEventListener("click", onViewerClick);'''
+          new = '''  preview.addEventListener("mousedown", onPreviewMouseDown);
+  preview.addEventListener("pointerdown", onPreviewPointerDown);
+  preview.addEventListener("keydown", onPreviewKeyDown);
+  preview.addEventListener("contextmenu", onPreviewContextMenu);
+  viewer.addEventListener("click", onViewerClick);'''
+          if old not in text:
+              raise SystemExit("preview listener insertion point not found")
+          text = text.replace(old, new, 1)
+          old = '''      preview.removeEventListener("mousedown", onPreviewMouseDown);
+      preview.removeEventListener("pointerdown", onPreviewPointerDown);
+      preview.removeEventListener("keydown", onPreviewKeyDown);
+      viewer.removeEventListener("click", onViewerClick);'''
+          new = '''      preview.removeEventListener("mousedown", onPreviewMouseDown);
+      preview.removeEventListener("pointerdown", onPreviewPointerDown);
+      preview.removeEventListener("keydown", onPreviewKeyDown);
+      preview.removeEventListener("contextmenu", onPreviewContextMenu);
+      viewer.removeEventListener("click", onViewerClick);'''
+          if old not in text:
+              raise SystemExit("preview listener cleanup point not found")
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Validate
+        run: |
+          bun install --frozen-lockfile
+          bun run lint
+          bun run typecheck
+          bun run test
+          bun run build
+          git diff --check
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/renderer/src/plugins/screenshot-preview.ts
+          git commit -m "fix: preserve screenshot preview context menu contract"
+          git push origin HEAD:pr/text-editing-toolbar-parity
