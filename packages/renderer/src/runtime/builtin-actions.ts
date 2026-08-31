@@ -28,7 +28,7 @@ const activateMode = (model: MesurerModel, mode: ToolMode) => {
 };
 
 const settingsTab = (model: MesurerModel) =>
-  model.current.colorPickerActive || model.current.colorPickerSample || model.current.colorPickerUnsupported ? "color-picker" as const
+  model.current.colorPickerActive ? "color-picker" as const
     : model.current.rulersVisible ? "rulers" as const
       : model.current.toolMode === "guides" ? "guides" as const
         : model.current.toolMode === "select" || model.current.toolMode === "text-inspector" ? "select" as const
@@ -39,36 +39,22 @@ const openColorPicker = async (model: MesurerModel, ownerWindow: Window) => {
   model.setToolMode("none", model.current.toolMode !== "none");
   // SAFETY: EyeDropper is an optional browser Window extension and is existence-checked before construction.
   const EyeDropper = (ownerWindow as WindowWithEyeDropper).EyeDropper;
-  if (!EyeDropper) {
-    model.setTransient({
-      colorPickerActive: false,
-      colorPickerSample: null,
-      colorPickerUnsupported: true,
-    });
-    return;
-  }
-
-  model.setTransient({ colorPickerActive: true, colorPickerUnsupported: false });
+  model.setTransient({ colorPickerActive: true, colorPickerSample: null, colorPickerUnsupported: !EyeDropper });
+  if (!EyeDropper) return;
   try {
     const result = await new EyeDropper().open();
     const sample = parseCssColor(result.sRGBHex);
-    if (!sample) {
-      model.setTransient({ colorPickerActive: false });
-      return;
-    }
-    model.setTransient({
-      colorPickerActive: false,
-      colorPickerSample: sample,
-      colorPickerUnsupported: false,
-    });
+    if (!sample) return;
+    model.setTransient({ colorPickerSample: sample, colorPickerUnsupported: false });
     void ownerWindow.navigator.clipboard?.writeText(
       formatColor(sample, model.current.settings.colorPickerClickFormat),
     ).catch(() => undefined);
   } catch (cause) {
-    model.setTransient({ colorPickerActive: false });
     // SAFETY: ownerWindow is the realm that owns EyeDropper and therefore its DOMException constructor.
     const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;
-    if (cause instanceof DOMExceptionCtor && cause.name === "AbortError") return;
+    if (cause instanceof DOMExceptionCtor && cause.name === "AbortError") {
+      model.setTransient({ colorPickerActive: false });
+    }
   }
 };
 
@@ -90,10 +76,6 @@ export function createMesurerBuiltinController(options: {
           model.toggleXray();
           return;
         case "color-picker":
-          if (model.current.colorPickerActive) {
-            model.setTransient({ colorPickerActive: false });
-            return;
-          }
           await openColorPicker(model, ownerWindow);
           return;
         case "rulers":
