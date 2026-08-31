@@ -15,6 +15,7 @@ import {
   type MesurerModel,
 } from "./model/create-mesurer-model";
 import {
+  MESURER_ARRANGE_ACTIVE_STATE_ID,
   MESURER_ARRANGE_PLUGIN_ID,
   arrangePlugin,
 } from "./plugins/arrange";
@@ -57,7 +58,7 @@ export type MesurerAvailablePlugin = {
 
 export type MesurerProps = Omit<
   BaseMesurerProps,
-  "pluginTools" | "onPluginTool" | "onPluginToolMenuItem" | "onBuiltinController"
+  "pluginTools" | "onPluginTool" | "onPluginToolMenuItem" | "isBuiltinActionDisabled" | "onBuiltinController"
 > & {
   /** Public package/release version shown by Settings and official Mesurer plugin metadata. */
   version?: string;
@@ -215,6 +216,14 @@ export default function ComposableMesurer(props: MesurerProps) {
     }
     return host.tools().some((tool) => tool.builtin === id || tool.id === id);
   };
+
+  const arrangeActive = () => {
+    revision();
+    return host.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+  };
+
+  const builtinActionDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) =>
+    arrangeActive() && (id === "color-picker" || id === "text-inspector" || id === "guides");
 
   const customTools = createMemo(() => {
     revision();
@@ -562,6 +571,7 @@ export default function ComposableMesurer(props: MesurerProps) {
     });
 
     const runBuiltinSlot = async (id: Exclude<MesurerBuiltinPluginId, "distance">) => {
+      if (builtinActionDisabled(id)) return;
       const replacement = replacementBuiltinTool(id);
       if (replacement) {
         await executeTool(replacement, { source: "builtin-command", builtin: id });
@@ -636,7 +646,7 @@ export default function ComposableMesurer(props: MesurerProps) {
     };
     void setupPlugins();
 
-    const builtinShortcut = (event: KeyboardEvent): MesurerBuiltinPluginId | null => {
+    const builtinShortcut = (event: KeyboardEvent): Exclude<MesurerBuiltinPluginId, "distance"> | null => {
       const key = event.key.toLowerCase();
       const mod = event.metaKey || event.ctrlKey;
       if (mod && key === ",") return "settings";
@@ -654,6 +664,11 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (isEditableKeyboardEvent(event, ownerWindow)) return;
 
       const slot = builtinShortcut(event);
+      if (slot && builtinActionDisabled(slot)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       const replacement = slot ? replacementBuiltinTool(slot) : undefined;
       if (slot && replacement) {
         event.preventDefault();
@@ -663,6 +678,11 @@ export default function ComposableMesurer(props: MesurerProps) {
       }
 
       const key = event.key.toLowerCase();
+      if ((key === "h" || key === "v") && builtinActionDisabled("guides")) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       if ((key === "h" || key === "v") && replacementBuiltinTool("guides")) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -729,6 +749,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           pluginTools={customTools()}
           onPluginTool={(tool) => runTool(tool)}
           onPluginToolMenuItem={runToolMenuItem}
+          isBuiltinActionDisabled={builtinActionDisabled}
           onBuiltinController={(controller) => { builtinController = controller; }}
         />
       </MesurerModelRegistrationContext>

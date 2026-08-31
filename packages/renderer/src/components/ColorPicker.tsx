@@ -16,6 +16,11 @@ export function ColorPicker(props: { model: MesurerModel; ownerWindow: Window })
     if (copyTimeout !== null) props.ownerWindow.clearTimeout(copyTimeout);
     copyTimeout = props.ownerWindow.setTimeout(() => { copyTimeout = null; setCopiedId(null); }, 1500);
   };
+  const closeResult = () => props.model.setTransient({
+    colorPickerActive: false,
+    colorPickerSample: null,
+    colorPickerUnsupported: false,
+  });
   const tooltipEnter = (id: string) => {
     if (copiedId() !== null && copiedId() !== id) {
       if (copyTimeout !== null) props.ownerWindow.clearTimeout(copyTimeout);
@@ -67,8 +72,9 @@ export function ColorPicker(props: { model: MesurerModel; ownerWindow: Window })
   };
 
   return (
-    <Show when={props.model.state.colorPickerActive && (props.model.state.colorPickerSample || props.model.state.colorPickerUnsupported)}>
-      <div ref={(element) => { panel = element; }} class="mesurer-color-picker msr:pointer-events-auto msr:fixed msr:z-[80] msr:min-w-36 msr:rounded-lg msr:border msr:border-black/10 msr:bg-white msr:px-2 msr:py-2 msr:font-mono msr:text-[10px] msr:leading-4 msr:shadow-lg" role="dialog" aria-label="Selected color values" data-mesurer-inspector-ui="true" onMouseLeave={tooltip.onTooltipContainerLeave}>
+    <Show when={props.model.state.enabled && (props.model.state.colorPickerSample || props.model.state.colorPickerUnsupported)}>
+      <div ref={(element) => { panel = element; }} class="mesurer-color-picker msr:pointer-events-auto msr:fixed msr:z-[80] msr:min-w-36 msr:rounded-lg msr:border msr:border-black/10 msr:bg-white msr:px-2 msr:py-2 msr:pr-5 msr:font-mono msr:text-[10px] msr:leading-4 msr:shadow-lg" role="dialog" aria-label="Selected color values" data-mesurer-inspector-ui="true" onMouseLeave={tooltip.onTooltipContainerLeave}>
+        <button type="button" class="msr:absolute msr:right-1 msr:top-1 msr:text-black/45 msr:hover:text-black" aria-label="Close color picker result" onClick={closeResult}>x</button>
         <Show when={props.model.state.colorPickerUnsupported} fallback={
           <Show when={props.model.state.colorPickerSample}>{(sample) => <>
             <Show
@@ -85,7 +91,7 @@ export function ColorPicker(props: { model: MesurerModel; ownerWindow: Window })
             <For each={secondaryFormats()}>{(format) => <div class="msr:flex msr:items-center msr:gap-2"><span class="msr:w-9 msr:text-black/45">{format}</span><CopyValue id={format} value={formatColor(sample(), format)} class="msr:tabular-nums msr:text-black msr:hover:underline" /></div>}</For>
           </>}</Show>
         }>
-          <div class="msr:flex msr:items-start msr:gap-2"><span class="msr:text-black/60">Color picker is not supported in this browser.</span><button type="button" class="msr:text-black/45 msr:hover:text-black" aria-label="Close color picker message" onClick={() => props.model.setTransient({ colorPickerActive: false })}>x</button></div>
+          <div class="msr:flex msr:items-start msr:gap-2"><span class="msr:text-black/60">Color picker is not supported in this browser.</span></div>
         </Show>
       </div>
     </Show>

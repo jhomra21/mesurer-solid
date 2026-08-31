@@ -12,14 +12,23 @@ export type MesurerBuiltinController = {
   deactivate(id: MesurerBuiltinPluginId): void;
 };
 
+const dismissColorPicker = (model: MesurerModel) => {
+  model.setTransient({
+    colorPickerActive: false,
+    colorPickerSample: null,
+    colorPickerUnsupported: false,
+  });
+};
+
 const activateMode = (model: MesurerModel, mode: ToolMode) => {
   model.setEnabled(true, !model.current.enabled);
-  model.setTransient({ colorPickerActive: false, toolbarActive: true });
+  dismissColorPicker(model);
+  model.setTransient({ toolbarActive: true });
   model.toggleToolMode(mode);
 };
 
 const settingsTab = (model: MesurerModel) =>
-  model.current.colorPickerActive ? "color-picker" as const
+  model.current.colorPickerActive || model.current.colorPickerSample || model.current.colorPickerUnsupported ? "color-picker" as const
     : model.current.rulersVisible ? "rulers" as const
       : model.current.toolMode === "guides" ? "guides" as const
         : model.current.toolMode === "select" || model.current.toolMode === "text-inspector" ? "select" as const
@@ -30,22 +39,36 @@ const openColorPicker = async (model: MesurerModel, ownerWindow: Window) => {
   model.setToolMode("none", model.current.toolMode !== "none");
   // SAFETY: EyeDropper is an optional browser Window extension and is existence-checked before construction.
   const EyeDropper = (ownerWindow as WindowWithEyeDropper).EyeDropper;
-  model.setTransient({ colorPickerActive: true, colorPickerSample: null, colorPickerUnsupported: !EyeDropper });
-  if (!EyeDropper) return;
+  if (!EyeDropper) {
+    model.setTransient({
+      colorPickerActive: false,
+      colorPickerSample: null,
+      colorPickerUnsupported: true,
+    });
+    return;
+  }
+
+  model.setTransient({ colorPickerActive: true, colorPickerUnsupported: false });
   try {
     const result = await new EyeDropper().open();
     const sample = parseCssColor(result.sRGBHex);
-    if (!sample) return;
-    model.setTransient({ colorPickerSample: sample, colorPickerUnsupported: false });
+    if (!sample) {
+      model.setTransient({ colorPickerActive: false });
+      return;
+    }
+    model.setTransient({
+      colorPickerActive: false,
+      colorPickerSample: sample,
+      colorPickerUnsupported: false,
+    });
     void ownerWindow.navigator.clipboard?.writeText(
       formatColor(sample, model.current.settings.colorPickerClickFormat),
     ).catch(() => undefined);
   } catch (cause) {
+    model.setTransient({ colorPickerActive: false });
     // SAFETY: ownerWindow is the realm that owns EyeDropper and therefore its DOMException constructor.
     const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;
-    if (cause instanceof DOMExceptionCtor && cause.name === "AbortError") {
-      model.setTransient({ colorPickerActive: false });
-    }
+    if (cause instanceof DOMExceptionCtor && cause.name === "AbortError") return;
   }
 };
 
@@ -63,7 +86,7 @@ export function createMesurerBuiltinController(options: {
           return;
         case "xray":
           model.setEnabled(true);
-          model.setTransient({ colorPickerActive: false });
+          dismissColorPicker(model);
           model.toggleXray();
           return;
         case "color-picker":
@@ -75,7 +98,7 @@ export function createMesurerBuiltinController(options: {
           return;
         case "rulers":
           model.setEnabled(true);
-          model.setTransient({ colorPickerActive: false });
+          dismissColorPicker(model);
           model.toggleRulers();
           return;
         case "text-inspector":
@@ -105,7 +128,7 @@ export function createMesurerBuiltinController(options: {
           model.setXrayVisible(false);
           return;
         case "color-picker":
-          model.setTransient({ colorPickerActive: false });
+          dismissColorPicker(model);
           return;
         case "rulers":
           model.setRulersVisible(false);
