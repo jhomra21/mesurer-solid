@@ -390,7 +390,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                 type="button"
                 data-mesurer-plugin-settings-disclosure="plugins"
                 aria-expanded={pluginsExpanded() ? "true" : "false"}
-                class="msr:flex msr:h-7 msr:w-full msr:items-center msr:gap-2 msr:px-2 msr:text-left msr:text-[11px] msr:font-medium msr:text-ink-700 msr:hover:bg-ink-50"
+                class="msr:flex msr:h-7 msr:w-full msr:items-center msr:gap-1 msr:px-2 msr:text-left msr:text-[11px] msr:font-medium msr:text-ink-700 msr:hover:bg-ink-50"
                 onClick={() => setPluginsExpanded((value) => !value)}
               >
                 <span class="msr:flex-1">Plugins</span>

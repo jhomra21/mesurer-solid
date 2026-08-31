@@ -94,6 +94,29 @@ const persistTrackX = async (dialog) => switchTrackX(
   dialog.getByRole("switch", { name: "Persist", exact: true }),
   "Persist",
 );
+const expectPluginsDisclosureAlignment = async (dialog) => {
+  const disclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
+  const pluginsLabel = disclosure.locator("span").first();
+  const chevron = disclosure.locator("svg");
+  const persistLabel = dialog.getByText("Persist", { exact: true });
+  const versionLabel = dialog.getByText("Version", { exact: true });
+  const disclosureBox = await disclosure.boundingBox();
+  const pluginsBox = await pluginsLabel.boundingBox();
+  const chevronBox = await chevron.boundingBox();
+  const persistBox = await persistLabel.boundingBox();
+  const versionBox = await versionLabel.boundingBox();
+  if (!disclosureBox || !pluginsBox || !chevronBox || !persistBox || !versionBox) {
+    throw new Error("Plugins disclosure alignment controls have no bounding box");
+  }
+  const leftInset = pluginsBox.x - disclosureBox.x;
+  const rightInset = disclosureBox.x + disclosureBox.width - (chevronBox.x + chevronBox.width);
+  if (Math.abs(pluginsBox.x - persistBox.x) > 0.5 || Math.abs(pluginsBox.x - versionBox.x) > 0.5) {
+    throw new Error(`Plugins label is not aligned with General labels: ${JSON.stringify({ plugins: pluginsBox.x, persist: persistBox.x, version: versionBox.x })}`);
+  }
+  if (Math.abs(leftInset - 8) > 0.5 || Math.abs(rightInset - 8) > 0.5) {
+    throw new Error(`Plugins disclosure should have symmetric 8px content insets: ${JSON.stringify({ leftInset, rightInset })}`);
+  }
+};
 const leftX = async (locator, label) => {
   await locator.waitFor({ state: "visible" });
   const box = await locator.boundingBox();
@@ -158,6 +181,7 @@ try {
 
   let dialog = await openSettings();
   const releaseMetadata = await assertReleaseMetadata(dialog);
+  await expectPluginsDisclosureAlignment(dialog);
   const pluginList = dialog.locator("[data-mesurer-plugin-settings-list='true']");
   for (const id of ["mesurer.context", "mesurer.arrange", "mesurer.screenshot"]) {
     await pluginList.locator(`[data-mesurer-plugin-settings-section='${id}']`).waitFor({ state: "visible" });
