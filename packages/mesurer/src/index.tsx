@@ -29,7 +29,9 @@ import type {
   MesurerReviewV1,
 } from "./context";
 import {
+  MESURER_CONTEXT_PLUGIN_ID,
   MESURER_CONTEXT_SERVICE_ID,
+  contextPlugin,
   type MesurerContextService,
 } from "./context-plugin";
 import type { MesurerPlugin, MesurerPluginDescription, MesurerPluginHost } from "./core";
@@ -37,6 +39,24 @@ import { mountMesurerHost, type MesurerHostLayerMode } from "./host-layer";
 import { MESURER_VERSION } from "./version";
 
 const ARRANGE_SERVICE_ID = "arrange";
+
+export type MesurerAvailablePlugin = {
+  id: string;
+  label: string;
+  order?: number;
+  create(): MesurerPlugin | Promise<MesurerPlugin>;
+  settingsIds?: string[];
+  hiddenSettingsControlIds?: string[];
+};
+
+const firstPartyAvailablePlugins = (): MesurerAvailablePlugin[] => [{
+  id: MESURER_CONTEXT_PLUGIN_ID,
+  label: "Context",
+  order: 30,
+  create: () => contextPlugin(),
+  settingsIds: ["context"],
+  hiddenSettingsControlIds: ["ui"],
+}];
 
 export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 export type MesurerBuiltinPluginId = "select" | "xray" | "color-picker" | "rulers" | "text-inspector" | "guides" | "distance" | "settings";
@@ -116,6 +136,8 @@ export type MesurerOptions = {
   selectionSpacingStyle?: Partial<SelectionSpacingStyle>;
   rulerSettings?: Partial<RulerSettings>;
   plugins?: MesurerPlugin[];
+  /** Additional plugins that Settings may load on demand even when initially disabled. */
+  availablePlugins?: MesurerAvailablePlugin[];
   excludePlugins?: MesurerBuiltinPluginId[];
   pluginHost?: MesurerPluginHost;
   onPluginHost?: (host: MesurerPluginHost) => void;
@@ -200,6 +222,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     agent: agentOption = false,
     onPluginHost,
     onPluginsReady,
+    availablePlugins = [],
     ...mesurerProps
   } = options;
   const ownerDocument = target.ownerDocument ?? document;
@@ -319,7 +342,11 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     reviewArrange,
   });
 
-  const rendererProps: RendererMesurerProps = { ...mesurerProps, version: MESURER_VERSION };
+  const rendererProps: RendererMesurerProps = {
+    ...mesurerProps,
+    version: MESURER_VERSION,
+    availablePlugins: [...firstPartyAvailablePlugins(), ...availablePlugins],
+  };
   const disposeRender = render(
     () => (
       <RendererMesurer

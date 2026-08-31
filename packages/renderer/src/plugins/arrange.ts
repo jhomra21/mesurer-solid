@@ -968,6 +968,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || (!active() && !drag)) return;
       if (isEditable(event.target)) return;
+      if (overlayTarget.querySelector("[data-mesurer-tool-menu]")) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       if (drag) {
@@ -1121,6 +1122,52 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       command: TOGGLE_COMMAND,
       icon: moveIcon,
       active,
+      menu: {
+        label: "Arrange options",
+        items: [
+          {
+            id: "snapping",
+            label: "Snapping",
+            checked: () => settings().snapping,
+            run: () => updateSettings({ snapping: !settings().snapping }),
+          },
+          {
+            id: "element-edges",
+            label: "Element edges",
+            checked: () => settings().elementEdges,
+            disabled: () => !settings().snapping,
+            run: () => updateSettings({ elementEdges: !settings().elementEdges }),
+          },
+          {
+            id: "element-centers",
+            label: "Element centers",
+            checked: () => settings().elementCenters,
+            disabled: () => !settings().snapping,
+            run: () => updateSettings({ elementCenters: !settings().elementCenters }),
+          },
+          {
+            id: "guides",
+            label: "Guides",
+            checked: () => settings().guides,
+            disabled: () => !settings().snapping,
+            run: () => updateSettings({ guides: !settings().guides }),
+          },
+          {
+            id: "prefer-xray-edges",
+            label: "Prefer X-ray edges",
+            checked: () => settings().preferXrayEdges,
+            disabled: () => !settings().snapping || !settings().elementEdges,
+            run: () => updateSettings({ preferXrayEdges: !settings().preferXrayEdges }),
+          },
+          {
+            id: "alignment-rulers",
+            label: "Alignment rulers",
+            checked: () => settings().snapLines,
+            disabled: () => !settings().snapping,
+            run: () => updateSettings({ snapLines: !settings().snapLines }),
+          },
+        ],
+      },
     });
     ctx.settings.register({
       id: "arrange",

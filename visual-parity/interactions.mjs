@@ -60,12 +60,12 @@ async function openColorPicker(page) {
 // explicitly plugin-owned settings are exercised by browser-contracts instead.
 async function normalizeSharedParitySurface(page, implementation) {
   if (implementation !== "solid") return;
-  const extension = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"]');
-  if ((await extension.count()) === 0) return;
-  await extension.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
-  // Removing the extension changes the Select panel's layout. Give the shared
-  // surface the same >150ms settle window used for settings/control transitions
-  // before taking a zero-tolerance pixel snapshot.
+  const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"]');
+  if ((await extensions.count()) === 0) return;
+  await extensions.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
+  // Removing Solid-only extensions changes panel layout. Give the shared surface
+  // the same >150ms settle window used for settings/control transitions before
+  // taking a zero-tolerance pixel snapshot.
   await sleep(page, 240);
 }
 
@@ -164,7 +164,7 @@ const cases = [
   { name: "settings-rulers-edge-reveal-toggle", run: async (p) => { await openSettingsTab(p, "Rulers"); await realClick(sw(p, "Edge reveal")); } },
   { name: "settings-general-persist-toggle", allowVersionDiff: true, run: async (p) => { await openSettingsTab(p, "General"); await realClick(sw(p, "Persist")); } },
   { name: "settings-general-use-defaults", allowVersionDiff: true, run: async (p) => { await openSettingsTab(p, "Select"); await realClick(sw(p, "Hover")); await realClick(tab(p, "General")); await realClick(button(p, "Reset settings to defaults")); } },
-  { name: "settings-general-clear-workspace", allowVersionDiff: true, run: async (p) => { await realClick(button(p, /^Guides/)); await sleep(p, 50); await p.mouse.click(620, 400); await sleep(p, 80); await openSettingsTab(p, "General"); await realClick(button(p, "Clear workspace")); } },
+  { name: "settings-general-clear-workspace", allowVersionDiff: true, run: async (p) => { await realClick(button(p, /^Guides/)); await sleep(p, 50); await p.mouse.click(620, 400); await sleep(p, 80); await openSettingsTab(p, "General"); await realClick(button(p, "Clear workspace")); await p.evaluate(() => { const active = document.activeElement; if (active instanceof HTMLElement) active.blur(); }); await p.mouse.move(900, 700); } },
 
   { name: "color-copy-first", run: async (p) => { await openColorPicker(p); await realClick(p.locator(".mesurer-color-picker button").nth(0)); await sleep(p, 80); } },
   { name: "color-copy-second", run: async (p) => { await openColorPicker(p); await realClick(p.locator(".mesurer-color-picker button").nth(1)); await sleep(p, 80); } },

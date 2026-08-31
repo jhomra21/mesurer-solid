@@ -103,6 +103,38 @@ describe("Mesurer plugin host", () => {
     expect(stateNotifications).toBe(2);
   });
 
+  it("exposes live tool quick menus without leaking handlers through describe", async () => {
+    const host = createMesurerPluginHost();
+    await host.load(defineMesurerPlugin({
+      id: "menu.example",
+      setup(ctx) {
+        ctx.state.register({ id: "menu.example", initial: { enabled: true }, persist: true });
+        const enabled = () => ctx.state.get<{ enabled: boolean }>("menu.example")?.enabled ?? false;
+        const toggle = () => ctx.state.update<{ enabled: boolean }>("menu.example", (value) => ({ enabled: !value.enabled }));
+        ctx.command.register("menu.example.toggle", toggle);
+        ctx.tool.register({
+          id: "menu.example",
+          label: "Menu example",
+          command: "menu.example.toggle",
+          menu: {
+            label: "Menu example options",
+            items: [{ id: "enabled", label: "Enabled", checked: enabled, run: toggle }],
+          },
+        });
+      },
+    }));
+
+    const item = host.tools()[0]?.menu?.items[0];
+    expect(item?.checked?.()).toBe(true);
+    await item?.run();
+    expect(item?.checked?.()).toBe(false);
+    expect(host.describe().tools[0]).toEqual({
+      id: "menu.example",
+      label: "Menu example",
+      command: "menu.example.toggle",
+    });
+  });
+
   it("treats nested command dispatch as one history action", async () => {
     const host = createMesurerPluginHost();
     await host.load(defineMesurerPlugin({

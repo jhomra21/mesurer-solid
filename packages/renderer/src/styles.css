@@ -133,6 +133,13 @@
   white-space: nowrap;
 }
 
+/* Give the top-level Plugins disclosure equal breathing room outside its
+   content while keeping its text and chevron aligned with the settings grid. */
+[data-mesurer-plugin-settings-disclosure="plugins"] {
+  width: calc(100% + 16px);
+  margin-inline: -8px;
+}
+
 /* Solid host compatibility: visually equivalent to upstream's root utility classes. */
 .mesurer-solid-root {
   position: fixed;

@@ -150,6 +150,30 @@ describe("arrangePlugin", () => {
     host.dispose();
   });
 
+  it("keeps Arrange quick-menu toggles synchronized with plugin settings", async () => {
+    const { host } = await setup();
+    const tool = host.tools().find((item) => item.id === "arrange");
+    expect(tool?.menu?.items.map((item) => item.label)).toEqual([
+      "Snapping",
+      "Element edges",
+      "Element centers",
+      "Guides",
+      "Prefer X-ray edges",
+      "Alignment rulers",
+    ]);
+    const snappingItem = tool?.menu?.items.find((item) => item.id === "snapping");
+    const section = host.settings().find((item) => item.id === "arrange");
+    const snappingSetting = section?.controls?.find((control) => control.id === "snapping");
+    expect(snappingItem?.checked?.()).toBe(true);
+    expect(snappingSetting?.value()).toBe(true);
+    await snappingItem?.run();
+    expect(snappingItem?.checked?.()).toBe(false);
+    expect(snappingSetting?.value()).toBe(false);
+    await Promise.resolve(snappingSetting?.set(true));
+    expect(snappingItem?.checked?.()).toBe(true);
+    host.dispose();
+  });
+
   it("registers persisted Arrange preferences and can disable snapping", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");

@@ -1,5 +1,5 @@
 import { For, Show, createSignal, onSettled } from "solid-js";
-import type { ToolContribution } from "@jhomra21/mesurer-solid-core";
+import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
@@ -24,6 +24,7 @@ export type ToolbarProps = {
   onBuiltinAction: (id: Exclude<MesurerBuiltinPluginId, "distance">) => void;
   pluginTools?: ToolContribution[];
   onPluginTool?: (tool: ToolContribution) => void;
+  onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
   onClearWorkspace: () => void;
   onResetSettings: () => void;
   selectionSpacingStyle: SelectionSpacingStyle;
@@ -32,6 +33,7 @@ export type ToolbarProps = {
 
 const TOOLBAR_DRAG_SLOP = 6;
 const GUIDE_MENU_WIDTH = 176;
+const TOOL_MENU_WIDTH = 224;
 const VIEWPORT_PADDING = 8;
 const GUIDE_MENU_IDEAL_HEIGHT = 72;
 const SETTINGS_MENU_IDEAL_HEIGHT = 360;
@@ -85,6 +87,8 @@ function ToolbarButton(props: ToolbarButtonProps) {
 export function Toolbar(props: ToolbarProps) {
   const [position, setPosition] = createSignal({ x: 16, y: 16 });
   const [guideMenuOpen, setGuideMenuOpen] = createSignal(false);
+  const [pluginMenuOpenId, setPluginMenuOpenId] = createSignal<string | null>(null);
+  const [pluginMenuAlign, setPluginMenuAlign] = createSignal<"left" | "right">("right");
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
   const [menuAlign, setMenuAlign] = createSignal<"left" | "right">("right");
   const tooltip = createTooltip(props.ownerWindow);
@@ -94,7 +98,7 @@ export function Toolbar(props: ToolbarProps) {
   let suppressClick = false;
   let previousUserSelect: string | null = null;
 
-  const tooltipsEnabled = () => !guideMenuOpen() && !props.model.state.settingsOpen;
+  const tooltipsEnabled = () => !guideMenuOpen() && !pluginMenuOpenId() && !props.model.state.settingsOpen;
   const viewportHeight = () => props.ownerWindow.innerHeight || 0;
   const nearTop = () => position().y < 56;
   const nearBottom = () => viewportHeight() > 0 && position().y > viewportHeight() - 56;
@@ -124,6 +128,16 @@ export function Toolbar(props: ToolbarProps) {
     if (rightAlignedLeft < VIEWPORT_PADDING) { setMenuAlign("left"); return; }
     if (leftAlignedRight > props.ownerWindow.innerWidth - VIEWPORT_PADDING) { setMenuAlign("right"); return; }
     setMenuAlign("right");
+  };
+
+  const togglePluginMenu = (toolId: string, anchor: HTMLElement) => {
+    if (pluginMenuOpenId() === toolId) {
+      setPluginMenuOpenId(null);
+      return;
+    }
+    const rect = anchor.getBoundingClientRect();
+    setPluginMenuAlign(rect.right - TOOL_MENU_WIDTH < VIEWPORT_PADDING ? "left" : "right");
+    setPluginMenuOpenId(toolId);
   };
 
   const onToolbarPointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
@@ -179,6 +193,10 @@ export function Toolbar(props: ToolbarProps) {
     const handlePointerDown = (event: PointerEvent) => {
       const path = event.composedPath();
       if (guideMenuOpen() && guideMenuElement && !path.includes(guideMenuElement)) setGuideMenuOpen(false);
+      const insidePluginMenu = path.some((entry) =>
+        entry instanceof Element
+        && entry.getAttribute("data-mesurer-plugin-menu-root") === "true");
+      if (pluginMenuOpenId() && !insidePluginMenu) setPluginMenuOpenId(null);
       if (props.model.current.settingsOpen && settingsElement && !path.includes(settingsElement)) props.model.setTransient({ settingsOpen: false });
     };
     const handleClickCapture = (event: MouseEvent) => {
@@ -187,12 +205,21 @@ export function Toolbar(props: ToolbarProps) {
       event.stopPropagation();
       suppressClick = false;
     };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !pluginMenuOpenId()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPluginMenuOpenId(null);
+    };
     const resize = () => { if (guideMenuOpen()) updateMenuAlign(); };
+    const keyboardTarget = props.ownerWindow.document;
     props.ownerWindow.addEventListener("pointerdown", handlePointerDown);
+    keyboardTarget.addEventListener("keydown", handleKeyDown, true);
     props.ownerWindow.addEventListener("resize", resize);
     toolbarElement?.addEventListener("click", handleClickCapture, true);
     return () => {
       props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);
+      keyboardTarget.removeEventListener("keydown", handleKeyDown, true);
       props.ownerWindow.removeEventListener("resize", resize);
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
@@ -255,22 +282,92 @@ export function Toolbar(props: ToolbarProps) {
       <Show when={(props.pluginTools?.length ?? 0) > 0}>
         <div data-mesurer-plugin-tool-separator="true" aria-hidden="true" class="msr:mx-0.5 msr:h-5 msr:w-px msr:bg-black/10" />
         <For each={props.pluginTools ?? []}>{(tool) => (
-          <ToolbarButton
-            id={`plugin:${tool.id}`}
-            toolId={tool.id}
-            active={tool.active?.() ?? false}
-            disabled={tool.disabled?.() ?? false}
-            label={tool.label}
-            shortcut={tool.shortcut}
-            onClick={() => props.onPluginTool?.(tool)}
-            {...buttonProps(`plugin:${tool.id}`)}
+          <Show
+            when={(tool.menu?.items.length ?? 0) > 0}
+            fallback={
+              <ToolbarButton
+                id={`plugin:${tool.id}`}
+                toolId={tool.id}
+                active={tool.active?.() ?? false}
+                disabled={tool.disabled?.() ?? false}
+                label={tool.label}
+                shortcut={tool.shortcut}
+                onClick={() => props.onPluginTool?.(tool)}
+                {...buttonProps(`plugin:${tool.id}`)}
+              >
+                <Show when={tool.icon} fallback={<span class="msr:text-[12px] msr:font-semibold">{tool.label.slice(0, 1).toUpperCase()}</span>}>{(icon) => (
+                  <svg width="20" height="20" viewBox={icon().viewBox ?? "0 0 24 24"} aria-hidden="true">
+                    <For each={icon().paths}>{(path) => <path d={path} fill="currentColor" />}</For>
+                  </svg>
+                )}</Show>
+              </ToolbarButton>
+            }
           >
-            <Show when={tool.icon} fallback={<span class="msr:text-[12px] msr:font-semibold">{tool.label.slice(0, 1).toUpperCase()}</span>}>{(icon) => (
-              <svg width="20" height="20" viewBox={icon().viewBox ?? "0 0 24 24"} aria-hidden="true">
-                <For each={icon().paths}>{(path) => <path d={path} fill="currentColor" />}</For>
-              </svg>
-            )}</Show>
-          </ToolbarButton>
+            <div
+              data-mesurer-plugin-menu-root="true"
+              data-mesurer-tool-menu-root={tool.id}
+              class="msr:relative msr:flex msr:items-stretch"
+            >
+              <ToolbarButton
+                id={`plugin:${tool.id}`}
+                toolId={tool.id}
+                active={tool.active?.() ?? false}
+                disabled={tool.disabled?.() ?? false}
+                label={tool.label}
+                shortcut={tool.shortcut}
+                onClick={() => props.onPluginTool?.(tool)}
+                {...buttonProps(`plugin:${tool.id}`)}
+              >
+                <Show when={tool.icon} fallback={<span class="msr:text-[12px] msr:font-semibold">{tool.label.slice(0, 1).toUpperCase()}</span>}>{(icon) => (
+                  <svg width="20" height="20" viewBox={icon().viewBox ?? "0 0 24 24"} aria-hidden="true">
+                    <For each={icon().paths}>{(path) => <path d={path} fill="currentColor" />}</For>
+                  </svg>
+                )}</Show>
+              </ToolbarButton>
+              <button
+                type="button"
+                data-mesurer-tool-menu-trigger={tool.id}
+                aria-label={`${tool.label} options`}
+                aria-expanded={pluginMenuOpenId() === tool.id ? "true" : "false"}
+                class={`msr:-ml-1 msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${pluginMenuOpenId() === tool.id ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
+                onClick={(event) => togglePluginMenu(tool.id, event.currentTarget.parentElement ?? event.currentTarget)}
+              >
+                <CaretDownIcon size={8} />
+              </button>
+              <Show when={pluginMenuOpenId() === tool.id}>
+                <div
+                  data-mesurer-tool-menu={tool.id}
+                  class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:w-56 msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:flex msr:flex-col msr:gap-px ${nearBottom() ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"} ${pluginMenuAlign() === "left" ? "msr:left-0" : "msr:right-0"}`}
+                  role="menu"
+                  aria-label={tool.menu?.label ?? `${tool.label} options`}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape") return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setPluginMenuOpenId(null);
+                  }}
+                >
+                  <For each={tool.menu?.items ?? []}>{(item) => (
+                    <button
+                      type="button"
+                      role={item.checked ? "menuitemcheckbox" : "menuitem"}
+                      aria-checked={item.checked ? (item.checked() ? "true" : "false") : undefined}
+                      data-mesurer-tool-menu-item={item.id}
+                      disabled={item.disabled?.() ?? false}
+                      class="msr:flex msr:h-7 msr:w-full msr:items-center msr:gap-2 msr:rounded-md msr:px-2 msr:text-left msr:text-[12px] msr:text-ink-700 msr:outline-none msr:whitespace-nowrap msr:hover:bg-[#0d99ff] msr:hover:text-white msr:focus-visible:bg-[#0d99ff] msr:focus-visible:text-white msr:disabled:opacity-40"
+                      onClick={() => props.onPluginToolMenuItem?.(tool, item)}
+                    >
+                      <span class="msr:flex msr:w-3 msr:shrink-0 msr:justify-center">
+                        <CheckIcon size={12} class={item.checked?.() ? "msr:opacity-100" : "msr:opacity-0"} />
+                      </span>
+                      <span class="msr:flex-1 msr:whitespace-nowrap">{item.label}</span>
+                      <Show when={item.shortcut}><span class="msr:shrink-0 msr:text-[10px] msr:opacity-60">{item.shortcut}</span></Show>
+                    </button>
+                  )}</For>
+                </div>
+              </Show>
+            </div>
+          </Show>
         )}</For>
       </Show>
 

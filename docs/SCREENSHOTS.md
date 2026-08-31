@@ -56,6 +56,8 @@ When the plugin is mounted, **Settings → General → Plugins → Screenshot** 
 - **Auto-download** — automatically saves successful captures locally;
 - **Include measurements** — controls whether visible selection/measurement/guide/ruler presentation remains in the capture frame.
 
+The camera toolbar button also has a small chevron quick menu for **Auto-copy**, **Auto-download**, and **Include measurements**. Tool visibility remains in the full Screenshot plugin settings. The quick menu and Settings use the same persisted values.
+
 Screenshot-selection chrome and Mesurer control chrome are always excluded from the PNG. Turning **Include measurements** off only hides measurement presentation for the capture frame and restores it immediately afterward.
 
 The controls use the same compact Settings switch geometry as Mesurer's existing Persist and Edge Reveal controls. Their values are persistent plugin settings, so the UI and `MesurerScreenshotService.settings()` / `setSettings()` stay in sync.
