@@ -22,7 +22,8 @@ export function installArrangeSelectGuard(
     if (disposed || frame) return;
     frame = runtime.ownerWindow.requestAnimationFrame(() => {
       frame = 0;
-      if (disposed || deactivating || runtime.currentToolMode() === "select") return;
+      const toolMode = runtime.currentToolMode?.();
+      if (disposed || deactivating || toolMode === undefined || toolMode === "select") return;
       if (!(ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false)) return;
 
       deactivating = true;
