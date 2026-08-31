@@ -64,6 +64,11 @@ jobs:
           if count != 3:
               raise SystemExit(f"{text_editing}: expected 3 currentToolMode calls, found {count}")
           Path(text_editing).write_text(text.replace('runtime.currentToolMode()', 'currentToolMode()'))
+          replace_once(
+              text_editing,
+              '  const beginEditor = (event: MouseEvent) => {\n    if (currentToolMode() !== "text-inspector") return;\n',
+              '  const beginEditor = (event: Event) => {\n    if (!(event instanceof realm.MouseEvent)) return;\n    if (currentToolMode() !== "text-inspector") return;\n',
+          )
           PY
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
