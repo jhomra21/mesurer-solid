@@ -156,6 +156,7 @@ export function installTextEditing(
   let editorSession: EditorSession | null = null;
   let disposed = false;
   let frame = 0;
+  const currentToolMode = () => runtime.currentToolMode?.() ?? "none";
 
   const isPageElement = (element: HTMLElement) =>
     isElementWithinDomTarget(element, pageTarget)
@@ -373,8 +374,9 @@ export function installTextEditing(
     }) ?? null;
   };
 
-  const beginEditor = (event: MouseEvent) => {
-    if (runtime.currentToolMode() !== "text-inspector") return;
+  const beginEditor = (event: Event) => {
+    if (!(event instanceof realm.MouseEvent)) return;
+    if (currentToolMode() !== "text-inspector") return;
     const target = directTextTarget(event.clientX, event.clientY);
     if (!target) return;
     event.preventDefault();
@@ -459,7 +461,7 @@ export function installTextEditing(
   const syncPresentation = () => {
     frame = 0;
     if (disposed) return;
-    if (runtime.currentToolMode() !== "text-inspector") {
+    if (currentToolMode() !== "text-inspector") {
       if (editorSession) cancelEditor();
       restoreApplied();
       return;
@@ -495,7 +497,7 @@ export function installTextEditing(
       }
       return;
     }
-    if (event.key === "Escape" && runtime.currentToolMode() === "text-inspector") {
+    if (event.key === "Escape" && currentToolMode() === "text-inspector") {
       void ctx.command.execute(CLEAR_COMMAND, undefined, { source: "text-inspector-clear" });
     }
   };

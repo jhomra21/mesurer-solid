@@ -24,7 +24,9 @@ import {
   screenshotPlugin,
 } from "./plugins/screenshot";
 import { MesurerPluginSettingsProvider } from "./plugins/settings-runtime";
+import { installArrangeSelectGuard } from "./runtime/arrange-select-guard";
 import type { MesurerBuiltinController } from "./runtime/builtin-actions";
+import { installTextEditing } from "./runtime/text-editing";
 import {
   createMesurerWorkspaceRuntime,
   type MesurerWorkspaceRuntime,
@@ -35,6 +37,8 @@ export type MesurerSolidRuntimeService = {
   ownerWindow: Window;
   portalTarget: HTMLElement | ShadowRoot;
   pageTarget: HTMLElement | ShadowRoot;
+  /** Current canonical page-targeting tool when exposed by the renderer bridge. */
+  currentToolMode?(): MesurerModel["state"]["toolMode"];
   createWorkspaceRuntime(): MesurerWorkspaceRuntime;
   /** Create Mesurer-owned DOM that is automatically excluded from inspection/X-ray. */
   createInspectorMount(): { element: HTMLDivElement; dispose(): void };
@@ -576,14 +580,18 @@ export default function ComposableMesurer(props: MesurerProps) {
         version,
         provides: ["runtime:solid"],
         setup(ctx) {
-          ctx.service.provide<MesurerSolidRuntimeService>("runtime:solid", {
+          const runtimeService: MesurerSolidRuntimeService = {
             ownerDocument,
             ownerWindow,
             portalTarget: target,
             pageTarget,
+            currentToolMode: () => requireModel().current.toolMode,
             createWorkspaceRuntime,
             createInspectorMount,
-          });
+          };
+          ctx.service.provide<MesurerSolidRuntimeService>("runtime:solid", runtimeService);
+          installArrangeSelectGuard(ctx, runtimeService);
+          installTextEditing(ctx, runtimeService);
           for (const id of BUILTIN_TOOL_IDS) {
             ctx.command.register(builtinCommand(id), () => runBuiltinSlot(id));
           }

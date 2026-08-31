@@ -329,10 +329,18 @@ export function Toolbar(props: ToolbarProps) {
                 data-mesurer-tool-menu-trigger={tool.id}
                 aria-label={`${tool.label} options`}
                 aria-expanded={pluginMenuOpenId() === tool.id ? "true" : "false"}
-                class={`msr:-ml-1 msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${pluginMenuOpenId() === tool.id ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
+                class={`msr:relative msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${pluginMenuOpenId() === tool.id ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
+                onMouseEnter={() => tooltip.onTooltipEnter(`plugin-menu:${tool.id}`)}
+                onMouseLeave={tooltip.onTooltipLeave}
                 onClick={(event) => togglePluginMenu(tool.id, event.currentTarget.parentElement ?? event.currentTarget)}
               >
                 <CaretDownIcon size={8} />
+                <Tooltip
+                  label={`${tool.label} options`}
+                  visible={tooltipsEnabled() && tooltip.visibleTooltipId() === `plugin-menu:${tool.id}`}
+                  instant={tooltip.tooltipInstant()}
+                  side={tooltipSide()}
+                />
               </button>
               <Show when={pluginMenuOpenId() === tool.id}>
                 <div
