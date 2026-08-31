@@ -357,6 +357,7 @@ export {
   captureMesurerContext,
   copyTextToClipboard,
   createMesurerCapturePlan,
+  createMesurerFeedbackBus,
   formatMesurerContext,
   reviewMesurerAnnotation,
   toAcpContentBlocks,
@@ -383,6 +384,10 @@ export type {
   MesurerElementInspection,
   MesurerEvidenceImage,
   MesurerEvidenceProvider,
+  MesurerFeedbackBus,
+  MesurerFeedbackEvent,
+  MesurerFeedbackWaitRequest,
+  MesurerFeedbackWaitResult,
   MesurerReviewChange,
   MesurerReviewMetricChange,
   MesurerReviewPresenceChange,
@@ -390,6 +395,7 @@ export type {
 } from "./context";
 export {
   contextPlugin,
+  MESURER_CONTEXT_FEEDBACK_SERVICE_ID,
   MESURER_CONTEXT_PLUGIN_ID,
   MESURER_CONTEXT_SERVICE_ID,
 } from "./context-plugin";
@@ -397,6 +403,12 @@ export type {
   MesurerContextPluginOptions,
   MesurerContextService,
 } from "./context-plugin";
+export {
+  webMcpPlugin,
+  MESURER_WEBMCP_PLUGIN_ID,
+  MESURER_WEBMCP_SERVICE_ID,
+} from "./webmcp";
+export type { MesurerWebMcpPluginOptions, MesurerWebMcpService } from "./webmcp";
 export { createMesurerPluginHost, createMesurerRuntime, defineMesurerPlugin } from "./core";
 export type {
   CommandHandler as MesurerCommandHandler,

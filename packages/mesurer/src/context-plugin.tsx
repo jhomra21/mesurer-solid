@@ -6,8 +6,13 @@ import {
 } from "@jhomra21/mesurer-solid-renderer";
 import type { MesurerPlugin } from "./core";
 import {
+  MESURER_CONTEXT_FEEDBACK_SERVICE_ID,
+  MESURER_CONTEXT_SERVICE_ID,
+} from "./context-services";
+import {
   captureMesurerContext,
   copyTextToClipboard,
+  createMesurerFeedbackBus,
   createMesurerCapturePlan,
   formatMesurerContext,
   reviewMesurerAnnotation,
@@ -17,11 +22,12 @@ import {
   type MesurerContextSender,
   type MesurerContextV1,
   type MesurerEvidenceProvider,
+  type MesurerFeedbackBus,
   type MesurerReviewV1,
 } from "./context";
 
 export const MESURER_CONTEXT_PLUGIN_ID = "mesurer.context";
-export const MESURER_CONTEXT_SERVICE_ID = "context:v1";
+export { MESURER_CONTEXT_FEEDBACK_SERVICE_ID, MESURER_CONTEXT_SERVICE_ID } from "./context-services";
 
 const CONTEXT_UI_STATE_ID = "context.ui";
 const COPY_ICON = {
@@ -53,6 +59,8 @@ export type MesurerContextPluginOptions = {
   /** Optional direct handoff callback, normally backed by an ACP client outside Mesurer. */
   sendContext?: MesurerContextSender;
   sendLabel?: string;
+  /** Shared feedback log used by WebMCP or another host-owned transport. */
+  feedbackBus?: MesurerFeedbackBus;
 };
 
 export type MesurerContextService = {
@@ -89,6 +97,7 @@ const createService = (
   ownerDocument: Document,
   ownerWindow: Window,
   options: MesurerContextPluginOptions,
+  feedbackBus: MesurerFeedbackBus,
 ): MesurerContextService => {
   const context = async (request?: MesurerContextRequest) =>
     captureMesurerContext({ runtime, ownerDocument, ownerWindow, request });
@@ -116,7 +125,6 @@ const createService = (
     await stable(ownerDocument, ownerWindow);
   };
   const sendContext = async (request?: MesurerContextRequest) => {
-    if (!options.sendContext) throw new Error("No Mesurer context sender is configured.");
     const value = await context(request);
     const text = formatMesurerContext(value);
     const plan = createMesurerCapturePlan(value);
@@ -131,7 +139,8 @@ const createService = (
         await stable(ownerDocument, ownerWindow);
       }
     }
-    await options.sendContext({ context: value, text, images });
+    feedbackBus.publish({ context: value, text, images }, plan);
+    if (options.sendContext) await options.sendContext({ context: value, text, images });
   };
 
   return {
@@ -145,7 +154,7 @@ const createService = (
     finishCapture,
     sendContext,
     screenshots: Boolean(options.evidenceProvider),
-    send: Boolean(options.sendContext),
+    send: Boolean(options.sendContext || options.feedbackBus),
   };
 };
 
@@ -159,18 +168,20 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
     id: MESURER_CONTEXT_PLUGIN_ID,
     version: "0.1.0",
     requires: ["runtime:solid"],
-    provides: [MESURER_CONTEXT_SERVICE_ID],
+    provides: [MESURER_CONTEXT_SERVICE_ID, MESURER_CONTEXT_FEEDBACK_SERVICE_ID],
     setup(ctx) {
       const solid = ctx.service.get<SolidRuntimeService>("runtime:solid");
       if (!solid) throw new Error("Mesurer context plugin requires the renderer runtime service.");
 
       const runtime = solid.createWorkspaceRuntime();
-      const service = createService(runtime, solid.ownerDocument, solid.ownerWindow, options);
+      const feedbackBus = options.feedbackBus ?? createMesurerFeedbackBus();
+      const service = createService(runtime, solid.ownerDocument, solid.ownerWindow, options, feedbackBus);
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
+      ctx.service.provide(MESURER_CONTEXT_FEEDBACK_SERVICE_ID, feedbackBus);
 
       ctx.command.register("context.copy", () => service.copyContext());
       ctx.command.register("context.copy-selection", () => service.copyContext({ scope: "selection" }));
-      if (options.sendContext) {
+      if (options.sendContext || options.feedbackBus) {
         ctx.command.register("context.send-selection", () => service.sendContext({ scope: "selection" }));
       }
 
@@ -219,7 +230,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
           icon: NOTE_ICON,
           disabled: () => !hasSelection(),
         });
-        if (options.sendContext) {
+        if (options.sendContext || options.feedbackBus) {
           ctx.tool.register({
             id: "context.send-selection",
             label: options.sendLabel ?? "Send to agent",
@@ -238,7 +249,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
         };
-        if (options.sendContext) actionProps.onSend = service.sendContext;
+        if (options.sendContext || options.feedbackBus) actionProps.onSend = service.sendContext;
         if (options.sendLabel) actionProps.sendLabel = options.sendLabel;
         disposeUi = render(() => <ContextActions {...actionProps} />, uiMount.element);
       }

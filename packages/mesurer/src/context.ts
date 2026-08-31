@@ -152,6 +152,31 @@ export type MesurerEvidenceImage = {
 };
 export type MesurerEvidenceProvider = (input: { context: MesurerContextV1; plan: MesurerCapturePlanV1 }) => Promise<MesurerEvidenceImage[]>;
 export type MesurerContextDelivery = { context: MesurerContextV1; text: string; images: MesurerEvidenceImage[] };
+export type MesurerFeedbackEvent = {
+  schema: "mesurer.feedback/v1";
+  id: string;
+  sequence: number;
+  createdAt: string;
+  context: MesurerContextV1;
+  text: string;
+  capturePlan: MesurerCapturePlanV1;
+  evidence: { count: number; ids: string[] };
+};
+export type MesurerFeedbackWaitRequest = {
+  afterId?: string;
+  afterSequence?: number;
+  timeoutMs?: number;
+};
+export type MesurerFeedbackWaitResult =
+  | { status: "received"; event: MesurerFeedbackEvent }
+  | { status: "timeout"; lastSequence: number };
+export type MesurerFeedbackBus = {
+  publish(delivery: MesurerContextDelivery, capturePlan: MesurerCapturePlanV1): MesurerFeedbackEvent;
+  wait(request?: MesurerFeedbackWaitRequest, signal?: AbortSignal): Promise<MesurerFeedbackWaitResult>;
+  latestSequence(): number;
+  hasPendingWaiters(): boolean;
+  subscribe(listener: () => void): () => void;
+};
 export type MesurerContextSender = (delivery: MesurerContextDelivery) => Promise<void>;
 export type AcpTextContentBlock = { type: "text"; text: string };
 export type AcpImageContentBlock = { type: "image"; mimeType: string; data: string };
@@ -181,6 +206,102 @@ export type MesurerWorkspaceContextSource = {
   annotation(id: string): (MesurerAnnotation & { resolvedTargets: Array<{ target: MesurerAnnotationTarget; element: HTMLElement | null }> }) | null;
   annotationRect(id: string): MesurerContextRect | null;
 };
+
+const FEEDBACK_HISTORY_LIMIT = 50;
+const DEFAULT_FEEDBACK_TIMEOUT_MS = 180_000;
+type FeedbackWaiter = {
+  afterSequence: number;
+  resolve: (result: MesurerFeedbackWaitResult) => void;
+  reject: (cause: unknown) => void;
+  timer: ReturnType<typeof setTimeout> | undefined;
+  signal: AbortSignal | undefined;
+  onAbort: (() => void) | undefined;
+};
+
+const feedbackId = () => globalThis.crypto?.randomUUID?.()
+  ?? `feedback-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+export function createMesurerFeedbackBus(): MesurerFeedbackBus {
+  let nextSequence = 1;
+  const events: MesurerFeedbackEvent[] = [];
+  const waiters = new Set<FeedbackWaiter>();
+  const listeners = new Set<() => void>();
+
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
+  const removeWaiter = (waiter: FeedbackWaiter) => {
+    waiters.delete(waiter);
+    if (waiter.timer !== undefined) clearTimeout(waiter.timer);
+    if (waiter.signal && waiter.onAbort) waiter.signal.removeEventListener("abort", waiter.onAbort);
+  };
+  const afterSequence = (request: MesurerFeedbackWaitRequest) => {
+    const sequence = request.afterSequence;
+    if (sequence !== undefined && Number.isFinite(sequence)) return Math.max(0, Math.floor(sequence));
+    if (request.afterId) return events.find((event) => event.id === request.afterId)?.sequence ?? 0;
+    return 0;
+  };
+  const nextEvent = (sequence: number) => events.find((event) => event.sequence > sequence);
+
+  return {
+    publish(delivery, capturePlan) {
+      const event: MesurerFeedbackEvent = {
+        schema: "mesurer.feedback/v1",
+        id: feedbackId(),
+        sequence: nextSequence++,
+        createdAt: new Date().toISOString(),
+        context: delivery.context,
+        text: delivery.text,
+        capturePlan,
+        evidence: { count: delivery.images.length, ids: delivery.images.map((image) => image.id) },
+      };
+      events.push(event);
+      if (events.length > FEEDBACK_HISTORY_LIMIT) events.shift();
+      for (const waiter of waiters) {
+        if (event.sequence <= waiter.afterSequence) continue;
+        removeWaiter(waiter);
+        waiter.resolve({ status: "received", event });
+      }
+      notify();
+      return event;
+    },
+    wait(request = {}, signal) {
+      const existing = nextEvent(afterSequence(request));
+      if (existing) return Promise.resolve({ status: "received", event: existing });
+      if (signal?.aborted) return Promise.reject(signal.reason ?? new DOMException("The feedback wait was aborted.", "AbortError"));
+      return new Promise<MesurerFeedbackWaitResult>((resolve, reject) => {
+        const waiter: FeedbackWaiter = {
+          afterSequence: afterSequence(request),
+          resolve,
+          reject,
+          timer: undefined,
+          signal,
+          onAbort: undefined,
+        };
+        const finishTimeout = () => {
+          removeWaiter(waiter);
+          resolve({ status: "timeout", lastSequence: nextSequence - 1 });
+        };
+        waiter.onAbort = () => {
+          removeWaiter(waiter);
+          reject(signal?.reason ?? new DOMException("The feedback wait was aborted.", "AbortError"));
+        };
+        const timeoutMs = request.timeoutMs === undefined
+          ? DEFAULT_FEEDBACK_TIMEOUT_MS
+          : Math.max(1, Math.min(300_000, Math.floor(request.timeoutMs)));
+        waiter.timer = setTimeout(finishTimeout, timeoutMs);
+        signal?.addEventListener("abort", waiter.onAbort, { once: true });
+        waiters.add(waiter);
+      });
+    },
+    latestSequence: () => nextSequence - 1,
+    hasPendingWaiters: () => waiters.size > 0,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
 
 const DEFAULT_GUIDE_RELEVANCE_TOLERANCE = 10;
 const rect = (value: MesurerContextRect): MesurerContextRect => ({

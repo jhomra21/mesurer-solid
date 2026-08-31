@@ -61,6 +61,25 @@ window.__MESURER_CONFIG__ = { context: false };
 
 Do not create another Chromium instance, another CDP connection, a Mesurer-specific server, a special application build, or source changes merely to inspect an app that the harness can already evaluate.
 
+## Optional WebMCP tools
+
+If the browser exposes the draft [`document.modelContext`](https://webmachinelearning.github.io/webmcp/) API, injection also installs the removable `mesurer.webmcp` plugin. It shares a retained feedback bus with `mesurer.context` and registers these tools:
+
+```text
+mesurer.feedback.wait
+mesurer.context.get
+mesurer.annotations.list
+mesurer.review
+mesurer.capture.prepare
+mesurer.capture.finish
+```
+
+The important flow is agent-initiated: a browser agent calls `mesurer.feedback.wait`, the page keeps that tool execution pending, and a human presses Send in Mesurer. The pending call then resolves with a `MesurerFeedbackEvent` in the same agent tool flow. Use `afterId` or `afterSequence` to replay retained events, and call again after a timeout using the returned `lastSequence`.
+
+The feedback bus is append-only and bounded. Cancellation removes a waiter without deleting the event log. Events include context, text, capture planning, and evidence metadata. They do not contain screenshot bytes; the outer harness remains responsible for native screenshot capture. `capture.prepare` and `capture.finish` only change Mesurer presentation and should be paired with `try/finally` in the harness.
+
+WebMCP does not give page JavaScript a Codex thread id, ACP session id, credential, or conversation-routing handle. It also cannot start a new Codex turn after the agent has finished. For hosts that own those values, use the capability-only `mesurer.host/v1` bridge and the ACP/App Server adapters below. If WebMCP is unavailable, the context API and host bridge remain usable without registering these tools.
+
 ## Discover the browser contract
 
 Wait for plugin setup before reading dynamic capabilities:
@@ -131,6 +150,23 @@ import {
 const mesurer = mountMeasurer({
   agent: true,
   plugins: [contextPlugin()],
+});
+```
+
+For a source-mounted browser that supports WebMCP, pass one bus to both plugins:
+
+```ts
+import {
+  contextPlugin,
+  createMesurerFeedbackBus,
+  mountMeasurer,
+  webMcpPlugin,
+} from "mesurer-solid";
+
+const feedbackBus = createMesurerFeedbackBus();
+mountMeasurer({
+  agent: true,
+  plugins: [contextPlugin({ feedbackBus }), webMcpPlugin({ feedbackBus })],
 });
 ```
 

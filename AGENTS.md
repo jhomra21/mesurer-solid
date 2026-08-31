@@ -10,6 +10,17 @@ The core rules are simple:
 
 Do not build a second browser-control stack around Mesurer.
 
+## Launch Evolution
+Mesurer-solid has launched and has no users or production data in the deployed app that is needed or to worry about. Revisit this policy before the first production deployment.
+- Optimize for the smallest coherent design that represents the product today.
+- Remove obsolete code, schemas, APIs, configuration, aliases, and transitional paths directly.
+- Do not add backward-compatibility shims, legacy aliases, dual-read or dual-write paths, or data-preserving backfills unless the user explicitly asks for them.
+- Internal interfaces are not public compatibility contracts. Update their callers and tests atomically when they change.
+- Development and test data are disposable. Prefer recreating those databases over complicating the product to preserve local data.
+- Treat migration history as a replaceable development baseline, but keep the checked-in migration chain and setup workflow coherent. Do not rewrite an already-applied migration without also resetting affected development and test databases.
+- Preserve database invariants, transactional safety, migration idempotence, and deterministic setup. These are correctness properties, not backward-compatibility requirements.
+- Consolidate the migration baseline only as an explicit, coordinated change rather than as incidental work in a feature branch.
+
 ## Zero-mutation default for host projects
 
 **Default host-project mutation budget: zero.** Using Mesurer from an agent should normally require no changes to the target application's source or build.
@@ -188,6 +199,23 @@ try {
 Capture preparation hides Mesurer chrome while retaining useful evidence, and restoration must preserve the exact prior inline presentation. Do not replace this with DOM-to-canvas rendering or add a second browser driver.
 
 The portable Agent Skill installer leaves both `SKILL.md` and the exact built `assets/inject-script.js` under `.agents/skills/mesurer-ui`, so an agent can inject that asset through its existing browser channel without keeping Mesurer in the host application's dependencies.
+
+### Optional WebMCP feedback tools
+
+When the browser exposes the draft [`document.modelContext`](https://webmachinelearning.github.io/webmcp/) API, injection also loads the removable `mesurer.webmcp` plugin. It shares a bounded, append-only feedback bus with `mesurer.context` and registers:
+
+```text
+mesurer.feedback.wait
+mesurer.context.get
+mesurer.annotations.list
+mesurer.review
+mesurer.capture.prepare
+mesurer.capture.finish
+```
+
+`mesurer.feedback.wait` is agent-initiated. It may remain pending while a human selects or annotates the page and presses Send; the result then returns structured context in the same tool flow. Use its `afterId`/`afterSequence` cursor and retry after a timeout using `lastSequence`. Cancellation removes the waiter but does not discard retained feedback. The event contains context, text, capture planning, and evidence metadata; screenshot capture still belongs to the outer browser harness.
+
+WebMCP does not expose Codex/ACP identifiers or credentials to the inspected page, discover the current conversation, or push into a completed turn. Keep `mesurer.host/v1` and `/delivery` for hosts that own ACP or Codex App Server routing. If `document.modelContext` is absent, do not emulate it: use the normal context APIs, host bridge, or clipboard fallback.
 
 ## 4. Required design feedback loop
 

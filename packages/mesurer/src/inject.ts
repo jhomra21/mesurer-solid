@@ -5,6 +5,8 @@ import {
   type MountMeasurerOptions,
   type MountedMeasurer,
 } from "./index";
+import { createMesurerFeedbackBus } from "./context";
+import { isWebMcpAvailable, webMcpPlugin } from "./webmcp";
 import {
   connectContextPluginToHost,
   getMesurerHostBridge,
@@ -43,10 +45,15 @@ const target = targetSelector ? document.querySelector<HTMLElement>(targetSelect
 if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
 const hostBridge = getMesurerHostBridge(globalThis.__MESURER_HOST__);
+const webMcpAvailable = isWebMcpAvailable(document);
+const feedbackBus = webMcpAvailable ? createMesurerFeedbackBus() : undefined;
+const configuredContext: MesurerContextPluginOptions = context === true || context === false ? {} : context;
+const contextOptions = feedbackBus ? { ...configuredContext, feedbackBus } : configuredContext;
 const injectedPlugins = context === false
   ? plugins
   : [
-      contextPlugin(connectContextPluginToHost(context === true ? {} : context, hostBridge)),
+      contextPlugin(connectContextPluginToHost(contextOptions, hostBridge)),
+      ...(feedbackBus ? [webMcpPlugin({ feedbackBus })] : []),
       ...plugins,
     ];
 

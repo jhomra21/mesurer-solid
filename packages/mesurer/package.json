@@ -28,7 +28,7 @@
     "THIRD_PARTY_LICENSES.md"
   ],
   "scripts": {
-    "build": "vite build && vite build --config vite.core.config.ts && vite build --config vite.delivery.config.ts && vite build --config vite.inject.config.ts && vite build --config vite.inject-script.config.ts && bun scripts/check-bundle.mjs && tsc -p tsconfig.build.json && bun scripts/check-context-review.mjs && bun scripts/check-delivery-adapters.mjs && bun scripts/check-package.mjs",
+    "build": "vite build && vite build --config vite.core.config.ts && vite build --config vite.delivery.config.ts && vite build --config vite.inject.config.ts && vite build --config vite.inject-script.config.ts && bun scripts/check-bundle.mjs && tsc -p tsconfig.build.json && bun scripts/check-context-review.mjs && bun scripts/check-delivery-adapters.mjs && bun scripts/check-webmcp.mjs && bun scripts/check-package.mjs",
     "typecheck": "tsc --noEmit",
     "stage": "bun scripts/stage-package.mjs",
     "pack:dry": "bun run stage && npm pack .publish --dry-run",

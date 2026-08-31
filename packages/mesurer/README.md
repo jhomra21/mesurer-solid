@@ -47,7 +47,7 @@ With the default `contextPlugin()` UI enabled, Mesurer adds these controls to th
 | Copy Context | `C` | Copies the current workspace context. |
 | Copy Selection | `Shift+C` | Copies context scoped to the selected element(s) or dragged region. |
 | Add Note | `N` | Creates an annotation for the current element selection or dragged region. |
-| Send selection | `Cmd/Ctrl+Enter` | Appears only when `sendContext` is configured and sends scoped context through the host callback. |
+| Send selection | `Cmd/Ctrl+Enter` | Appears when `sendContext` or a feedback bus is configured and publishes scoped context to that transport. |
 
 ### Annotating elements, multi-selection, and regions
 
@@ -183,7 +183,45 @@ const mesurer = mountMeasurer({
 });
 ```
 
-Without `sendContext`, the plugin does not render a Send control.
+Without `sendContext` or `feedbackBus`, the plugin does not render a Send control.
+
+## WebMCP and same-turn feedback
+
+Browsers that expose the draft [`document.modelContext`](https://webmachinelearning.github.io/webmcp/) API can use the removable `mesurer.webmcp` plugin. It registers a small set of page tools for a browser agent and shares a retained feedback bus with `mesurer.context`:
+
+```ts
+import {
+  contextPlugin,
+  createMesurerFeedbackBus,
+  mountMeasurer,
+  webMcpPlugin,
+} from "mesurer-solid";
+
+const feedbackBus = createMesurerFeedbackBus();
+const mesurer = mountMeasurer({
+  agent: true,
+  plugins: [
+    contextPlugin({ feedbackBus }),
+    webMcpPlugin({ feedbackBus }),
+  ],
+});
+```
+
+The injected entry points detect `document.modelContext` and install this integration automatically when it is available. Unsupported browsers keep the normal context APIs and host bridge; they do not receive fake WebMCP tools.
+
+The registered tools are:
+
+| Tool | Purpose |
+| --- | --- |
+| `mesurer.feedback.wait` | Wait for the next human feedback event, or replay retained feedback after an id/sequence cursor. |
+| `mesurer.context.get` | Read workspace, selection, or annotation context. |
+| `mesurer.annotations.list` | Read stored notes and their scoped targets. |
+| `mesurer.review` | Compare an annotation baseline with the current render. |
+| `mesurer.capture.prepare` / `mesurer.capture.finish` | Hide and restore Mesurer chrome around an outer-harness screenshot. |
+
+`mesurer.feedback.wait` may remain pending until a person presses Send. It accepts a bounded timeout and returns the last sequence on timeout so an agent can call it again. Cancellation removes only the waiter; the retained feedback event is not lost. Feedback results contain structured context, a capture plan, and evidence metadata—not base64 screenshots. The outer browser harness still owns screenshot capture and supplies image evidence through its native channel.
+
+WebMCP is agent-initiated: it lets an agent wait for a page event in the same tool call, but it does not expose Codex thread ids, credentials, or conversation routing to the page, and it does not interrupt a finished agent turn. Hosts that own ACP or Codex App Server state can continue to use the `mesurer.host/v1` bridge and `/delivery` adapters described below.
 
 ## Portable Agent Skill
 
