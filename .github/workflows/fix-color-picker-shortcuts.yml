@@ -113,7 +113,7 @@ jobs:
             cursorStyle.dataset.mesurerColorPickerFallback = "true";
             cursorStyle.textContent = [
               "html, body, body * { cursor: crosshair !important; }",
-              "[data-mesurer-inspector-ui='true'], [data-mesurer-inspector-ui='true'] * { cursor: default !important; }",
+              "[data-mesurer-root='true'], [data-mesurer-root='true'] *, [data-mesurer-inspector-ui='true'], [data-mesurer-inspector-ui='true'] * { cursor: default !important; }",
             ].join("\n");
             (ownerDocument.head ?? ownerDocument.documentElement).append(cursorStyle);
 
@@ -129,7 +129,7 @@ jobs:
             const onPointerDown = (event: PointerEvent) => {
               if (event.button !== 0) return;
               const path = event.composedPath().filter((entry): entry is Element => entry instanceof realm.Element);
-              if (path.some((entry) => entry.closest("[data-mesurer-inspector-ui='true']"))) return;
+              if (path.some((entry) => entry.closest("[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']"))) return;
               const target = path[0];
               if (!target) return;
               const sample = sampleDomColor(target, ownerWindow);
@@ -266,124 +266,102 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          arrange = Path("packages/renderer/src/plugins/arrange.ts")
-          text = arrange.read_text()
-          old = '      id: "arrange",\n      label: "Arrange",\n      order: 65,'
-          new = '      id: "arrange",\n      label: "Arrange",\n      shortcut: "M",\n      order: 65,'
-          if old not in text:
-              raise SystemExit("arrange tool registration pattern not found")
-          arrange.write_text(text.replace(old, new, 1))
-
-          screenshot = Path("packages/renderer/src/plugins/screenshot.ts")
-          text = screenshot.read_text()
-          old = '      id: "screenshot",\n      label: "Screenshot",\n      order: 70,'
-          new = '      id: "screenshot",\n      label: "Screenshot",\n      shortcut: "Shift+S",\n      order: 70,'
-          if old not in text:
-              raise SystemExit("screenshot tool registration pattern not found")
-          screenshot.write_text(text.replace(old, new, 1))
-
-          composable = Path("packages/renderer/src/ComposableMesurer.tsx")
-          text = composable.read_text()
-          old = '''    const builtinShortcut = (event: KeyboardEvent): Exclude<MesurerBuiltinPluginId, "distance"> | null => {
-              const key = event.key.toLowerCase();
-              const mod = event.metaKey || event.ctrlKey;
-              if (mod && key === ",") return "settings";
-              if (mod) return null;
-              if (key === "s") return "select";
-              if (key === "a") return "text-inspector";
-              if (key === "g") return "guides";
-              if (key === "p") return "color-picker";
-              if (key === "x") return "xray";
-              if (key === "r") return "rulers";
-              return null;
-            };'''
-          new = '''    const builtinShortcut = (event: KeyboardEvent): Exclude<MesurerBuiltinPluginId, "distance"> | null => {
-              const key = event.key.toLowerCase();
-              const mod = event.metaKey || event.ctrlKey;
-              if (mod && !event.shiftKey && !event.altKey && key === ",") return "settings";
-              if (mod || event.shiftKey || event.altKey) return null;
-              if (key === "s") return "select";
-              if (key === "a") return "text-inspector";
-              if (key === "g") return "guides";
-              if (key === "p") return "color-picker";
-              if (key === "x") return "xray";
-              if (key === "r") return "rulers";
-              return null;
-            };'''
-          if old not in text:
-              raise SystemExit("builtinShortcut pattern not found")
-          composable.write_text(text.replace(old, new, 1))
+          replacements = [
+              (
+                  Path("packages/renderer/src/plugins/arrange.ts"),
+                  '      id: "arrange",\n      label: "Arrange",\n      order: 65,',
+                  '      id: "arrange",\n      label: "Arrange",\n      shortcut: "M",\n      order: 65,',
+                  "arrange shortcut",
+              ),
+              (
+                  Path("packages/renderer/src/plugins/screenshot.ts"),
+                  '      id: "screenshot",\n      label: "Screenshot",\n      order: 70,',
+                  '      id: "screenshot",\n      label: "Screenshot",\n      shortcut: "Shift+S",\n      order: 70,',
+                  "screenshot shortcut",
+              ),
+              (
+                  Path("packages/renderer/src/ComposableMesurer.tsx"),
+                  '      if (mod && key === ",") return "settings";\n      if (mod) return null;',
+                  '      if (mod && !event.shiftKey && !event.altKey && key === ",") return "settings";\n      if (mod || event.shiftKey || event.altKey) return null;',
+                  "exact builtin shortcut modifiers",
+              ),
+          ]
+          for path, old, new, label in replacements:
+              text = path.read_text()
+              if old not in text:
+                  raise SystemExit(f"{label} pattern not found")
+              path.write_text(text.replace(old, new, 1))
 
           test = Path("packages/renderer/test/interaction-coordination.test.tsx")
           text = test.read_text()
-          text = text.replace(
-              'import { MESURER_ARRANGE_ACTIVE_STATE_ID } from "../src/plugins/arrange";',
-              'import { MESURER_ARRANGE_ACTIVE_STATE_ID, arrangePlugin } from "../src/plugins/arrange";\nimport { screenshotPlugin } from "../src/plugins/screenshot";',
-              1,
-          )
-          marker = '''  it("reserves page-interaction tools for Arrange and closes its quick menu after a choice", async () => {'''
+          old_import = 'import { MESURER_ARRANGE_ACTIVE_STATE_ID } from "../src/plugins/arrange";'
+          new_import = 'import { MESURER_ARRANGE_ACTIVE_STATE_ID, arrangePlugin } from "../src/plugins/arrange";\nimport { screenshotPlugin } from "../src/plugins/screenshot";'
+          if old_import not in text:
+              raise SystemExit("interaction test import pattern not found")
+          text = text.replace(old_import, new_import, 1)
+          marker = '  it("reserves page-interaction tools for Arrange and closes its quick menu after a choice", async () => {'
+          if marker not in text:
+              raise SystemExit("interaction test insertion marker not found")
           addition = '''  it("falls back to page color sampling when the native EyeDropper API is unavailable", async () => {
-              const target = document.createElement("div");
-              target.textContent = "fallback target";
-              target.style.backgroundColor = "rgb(18, 52, 86)";
-              document.body.append(target);
-              const host = document.createElement("div");
-              document.body.append(host);
-              const dispose = render(() => <Mesurer persistKey="interaction-color-picker-fallback" />, host);
-              mounted.push(dispose);
-              await settle();
+            const target = document.createElement("div");
+            target.textContent = "fallback target";
+            target.style.backgroundColor = "rgb(18, 52, 86)";
+            document.body.append(target);
+            const host = document.createElement("div");
+            document.body.append(host);
+            const dispose = render(() => <Mesurer persistKey="interaction-color-picker-fallback" />, host);
+            mounted.push(dispose);
+            await settle();
 
-              const button = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')!;
-              button.click();
-              await settle();
-              expect(button.getAttribute("aria-pressed")).toBe("true");
-              expect(document.querySelector(".mesurer-color-picker")).toBeNull();
-              expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeTruthy();
+            const button = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')!;
+            button.click();
+            await settle();
+            expect(button.getAttribute("aria-pressed")).toBe("true");
+            expect(document.querySelector(".mesurer-color-picker")).toBeNull();
+            expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeTruthy();
 
-              target.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));
-              await settle();
-              expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeNull();
-              expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#123456");
-              expect(button.getAttribute("aria-pressed")).toBe("true");
+            target.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));
+            await settle();
+            expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeNull();
+            expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#123456");
+            expect(button.getAttribute("aria-pressed")).toBe("true");
+          });
+
+          it("shows and executes shortcuts for first-party Arrange and Screenshot tools", async () => {
+            const host = document.createElement("div");
+            document.body.append(host);
+            const dispose = render(
+              () => <ComposableMesurer
+                persistKey="interaction-first-party-shortcuts"
+                plugins={[
+                  arrangePlugin(),
+                  screenshotPlugin({ captureVisibleTab: async () => new Blob([], { type: "image/png" }) }),
+                ]}
+              />,
+              host,
+            );
+            mounted.push(dispose);
+
+            const arrangeButton = await vi.waitFor(() => {
+              const value = document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (M)"]');
+              expect(value).toBeTruthy();
+              return value!;
             });
+            const screenshotButton = document.querySelector<HTMLButtonElement>('button[aria-label="Screenshot (Shift+S)"]')!;
+            expect(screenshotButton).toBeTruthy();
 
-            it("shows and executes shortcuts for first-party Arrange and Screenshot tools", async () => {
-              const host = document.createElement("div");
-              document.body.append(host);
-              const dispose = render(
-                () => <ComposableMesurer
-                  persistKey="interaction-first-party-shortcuts"
-                  plugins={[
-                    arrangePlugin(),
-                    screenshotPlugin({ captureVisibleTab: async () => new Blob([], { type: "image/png" }) }),
-                  ]}
-                />,
-                host,
-              );
-              mounted.push(dispose);
+            window.dispatchEvent(new KeyboardEvent("keydown", { key: "S", shiftKey: true, bubbles: true, cancelable: true }));
+            await vi.waitFor(() => expect(screenshotButton.getAttribute("aria-pressed")).toBe("true"));
+            expect(document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')?.getAttribute("aria-pressed")).toBe("false");
 
-              const arrangeButton = await vi.waitFor(() => {
-                const value = document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (M)"]');
-                expect(value).toBeTruthy();
-                return value!;
-              });
-              const screenshotButton = document.querySelector<HTMLButtonElement>('button[aria-label="Screenshot (Shift+S)"]')!;
-              expect(screenshotButton).toBeTruthy();
+            window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+            await vi.waitFor(() => expect(screenshotButton.getAttribute("aria-pressed")).toBe("false"));
 
-              window.dispatchEvent(new KeyboardEvent("keydown", { key: "S", shiftKey: true, bubbles: true, cancelable: true }));
-              await vi.waitFor(() => expect(screenshotButton.getAttribute("aria-pressed")).toBe("true"));
-              expect(document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')?.getAttribute("aria-pressed")).toBe("false");
-
-              window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
-              await vi.waitFor(() => expect(screenshotButton.getAttribute("aria-pressed")).toBe("false"));
-
-              window.dispatchEvent(new KeyboardEvent("keydown", { key: "m", bubbles: true, cancelable: true }));
-              await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));
-            });
+            window.dispatchEvent(new KeyboardEvent("keydown", { key: "m", bubbles: true, cancelable: true }));
+            await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));
+          });
 
           '''
-          if marker not in text:
-              raise SystemExit("test insertion marker not found")
           test.write_text(text.replace(marker, addition + marker, 1))
           PY
 
