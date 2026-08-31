@@ -47,6 +47,14 @@ jobs:
           )
           replace_once(source, '  classes: [...value.fingerprintClasses],\n', '  classes: value.fingerprintClasses,\n')
           replace_once(source, '      fingerprintClasses: [...session.fingerprint.classes],\n', '      fingerprintClasses: session.fingerprint.classes,\n')
+          text = Path(source).read_text()
+          count = text.count('for (const [id, value] of [...applied])')
+          if count != 2:
+              raise SystemExit(f"{source}: expected two copied applied loops, found {count}")
+          Path(source).write_text(text.replace(
+              'for (const [id, value] of [...applied])',
+              'for (const [id, value] of applied)',
+          ))
 
           test = "packages/renderer/test/runtime-intent-extensions.test.ts"
           replace_once(
@@ -57,6 +65,7 @@ jobs:
           PY
       - run: bun install --frozen-lockfile
       - run: bun run lint
+      - run: bun run build:foundations
       - run: bun run --filter '@jhomra21/mesurer-solid-renderer' test -- runtime-intent-extensions.test.ts
       - run: bun run typecheck
       - run: bun run test
