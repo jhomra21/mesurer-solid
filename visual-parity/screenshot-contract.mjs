@@ -97,7 +97,7 @@ try {
     throw new Error("Screenshot preview did not move after dragging");
   }
 
-  const closeButton = island.getByRole("button", { name: "Close screenshot preview" });
+  const closeButton = island.getByRole("button", { name: "Dismiss screenshot preview" });
   await closeButton.click();
   await preview.waitFor({ state: "hidden" });
 
