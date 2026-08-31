@@ -1,0 +1,47 @@
+name: prepare interaction coordination fixes v6
+
+on:
+  push:
+    branches: [feat/text-editing-toolbar-parity]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      - name: Apply candidate patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/prepare-interaction-coordination-v5.yml').read_text().splitlines()
+          start = workflow.index("          python - <<'PY'") + 1
+          end = workflow.index("          PY", start)
+          script = "\n".join(line[10:] if line.startswith("          ") else line for line in workflow[start:end])
+          exec(compile(script, "interaction-coordination-v5", "exec"))
+
+          Path('packages/renderer/test/interaction-coordination.test.tsx').write_text('''import { flush } from "solid-js";\nimport { afterEach, describe, expect, it, vi } from "vitest";\nimport { defineMesurerPlugin, type MesurerPluginHost } from "@jhomra21/mesurer-solid-core";\nimport ComposableMesurer from "../src/ComposableMesurer";\nimport Mesurer from "../src/Mesurer";\nimport { MESURER_ARRANGE_ACTIVE_STATE_ID } from "../src/plugins/arrange";\nimport { render } from "../src/solid-dom";\n\nconst settle = async () => {\n  await Promise.resolve();\n  flush();\n  await Promise.resolve();\n  flush();\n};\n\nconst mounted: Array<() => void> = [];\n\nafterEach(async () => {\n  while (mounted.length) mounted.pop()?.();\n  await settle();\n  Reflect.deleteProperty(window, "EyeDropper");\n  localStorage.clear();\n  document.body.replaceChildren();\n  document.head.querySelectorAll("#mesurer-solid-styles, #mesurer-solid-xray-styles").forEach((node) => node.remove());\n  vi.restoreAllMocks();\n});\n\nconst arrangeInteractionFixture = defineMesurerPlugin({\n  id: "test.arrange-interaction",\n  setup(ctx) {\n    ctx.state.register<boolean>({\n      id: MESURER_ARRANGE_ACTIVE_STATE_ID,\n      initial: true,\n    });\n    ctx.command.register("test.arrange.toggle", () => {\n      ctx.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, (active) => !active);\n    });\n    ctx.tool.register({\n      id: "arrange",\n      label: "Arrange",\n      command: "test.arrange.toggle",\n      active: () => ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false,\n      menu: {\n        label: "Arrange options",\n        items: [{\n          id: "snapping",\n          label: "Snapping",\n          checked: () => true,\n          run: () => undefined,\n        }],\n      },\n    });\n  },\n});\n\ndescribe("page interaction coordination", () => {\n  it("treats native color picking as one-shot while keeping the result available", async () => {\n    let opens = 0;\n    Object.defineProperty(window, "EyeDropper", {\n      configurable: true,\n      value: class {\n        async open() {\n          opens += 1;\n          return { sRGBHex: opens === 1 ? "#123456" : "#abcdef" };\n        }\n      },\n    });\n\n    const host = document.createElement("div");\n    document.body.append(host);\n    const dispose = render(() => <Mesurer persistKey="interaction-color-picker" />, host);\n    mounted.push(dispose);\n    await settle();\n\n    const button = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')!;\n    button.click();\n    await vi.waitFor(() => expect(opens).toBe(1));\n    await settle();\n    expect(button.getAttribute("aria-pressed")).toBe("false");\n    expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#123456");\n\n    button.click();\n    await vi.waitFor(() => expect(opens).toBe(2));\n    await settle();\n    expect(button.getAttribute("aria-pressed")).toBe("false");\n    expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#abcdef");\n\n    document.querySelector<HTMLButtonElement>('button[aria-label="Close color picker result"]')!.click();\n    await settle();\n    expect(document.querySelector(".mesurer-color-picker")).toBeNull();\n  });\n\n  it("reserves page-interaction tools for Arrange and closes its quick menu after a choice", async () => {\n    const host = document.createElement("div");\n    document.body.append(host);\n    let pluginHost: MesurerPluginHost | null = null;\n    const dispose = render(\n      () => <ComposableMesurer\n        persistKey="interaction-arrange"\n        plugins={[arrangeInteractionFixture]}\n        onPluginHost={(value) => { pluginHost = value; }}\n      />,\n      host,\n    );\n    mounted.push(dispose);\n\n    await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-id="arrange"] button')).toBeTruthy());\n    expect(pluginHost).toBeTruthy();\n    const arrangeButton = document.querySelector<HTMLButtonElement>('[data-mesurer-tool-id="arrange"] button')!;\n    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));\n\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(true);\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Text inspector (A)"]')?.disabled).toBe(true);\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guides (G)"]')?.disabled).toBe(true);\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guide orientation menu"]')?.disabled).toBe(true);\n\n    window.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));\n    await settle();\n    expect(arrangeButton.getAttribute("aria-pressed")).toBe("true");\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Text inspector (A)"]')?.getAttribute("aria-pressed")).toBe("false");\n\n    const menuTrigger = document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-trigger="arrange"]')!;\n    menuTrigger.click();\n    await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-menu="arrange"]')).toBeTruthy());\n    document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-item="snapping"]')!.click();\n    await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-menu="arrange"]')).toBeNull());\n    expect(arrangeButton.getAttribute("aria-pressed")).toBe("true");\n\n    pluginHost!.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => false);\n    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("false"));\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(false);\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Text inspector (A)"]')?.disabled).toBe(false);\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guides (G)"]')?.disabled).toBe(false);\n  });\n});\n''')
+          PY
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run build:foundations
+      - run: bun run --filter '@jhomra21/mesurer-solid-renderer' test -- interaction-coordination.test.tsx runtime-intent-extensions.test.ts
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run build
+      - run: bun run --filter 'mesurer-solid-renderer-example' build
+      - run: git diff --check
+      - name: Commit interaction fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/renderer/src/ComposableMesurer.tsx packages/renderer/src/Mesurer.tsx packages/renderer/src/components/ColorPicker.tsx packages/renderer/src/components/Toolbar.tsx packages/renderer/src/runtime/builtin-actions.ts packages/renderer/test/interaction-coordination.test.tsx
+          git commit -m "fix: coordinate Arrange page interactions"
+          git push origin HEAD:${GITHUB_REF_NAME}
