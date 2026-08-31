@@ -4,11 +4,13 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.3-beta.0 - 2026-08-31
+
 - Add the optional Arrange layout-intent workflow with persistent Desired placement, repeated-drag accumulation, X-ray/guide alignment snapping, configurable snap preferences, and automatic Select activation.
 - Keep plugin-heavy Settings compact with collapsed, borderless plugin disclosures, and add Guides-style chevron quick menus with single-line entries for Arrange and Screenshot preferences so common modes can be changed without opening the full Settings panel.
 - General → Plugins now treats each plugin row as its lifecycle toggle. First-party Context, Arrange, and Screenshot remain discoverable even when initially disabled; enabled plugins show a settings chevron only when they have additional controls, redundant Context/Screenshot visibility rows are hidden, lifecycle choices and plugin preferences persist across reloads, and Use defaults deterministically restores mount-time availability without discarding plugin-owned workspace state.
-
-<!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.1.2 - 2026-08-29
 
