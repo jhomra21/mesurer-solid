@@ -102,7 +102,7 @@ const fingerprintFromValue = (value: TextEditValue): MesurerElementFingerprint =
   testId: value.fingerprintTestId,
   role: value.fingerprintRole,
   ariaLabel: value.fingerprintAriaLabel,
-  classes: [...value.fingerprintClasses],
+  classes: value.fingerprintClasses,
   text: value.fingerprintText,
 });
 
@@ -132,6 +132,7 @@ export function installTextEditing(
   runtime: MesurerSolidRuntimeService,
 ) {
   const { ownerDocument, ownerWindow, pageTarget } = runtime;
+  // SAFETY: ownerWindow is the browsing-context global for ownerDocument, so it carries that realm's DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
   const workspace = runtime.createWorkspaceRuntime();
   const inspectorMount = runtime.createInspectorMount();
@@ -203,6 +204,7 @@ export function installTextEditing(
     const element = selectorMatches[0];
     const node = element.childNodes.item(edit.nodeIndex);
     if (!node || node.nodeType !== realm.Node.TEXT_NODE) return null;
+    // SAFETY: nodeType was checked against this realm's TEXT_NODE constant immediately above.
     const resolved = { element, node: node as Text };
     liveNodes.set(edit.id, resolved);
     return resolved;
@@ -227,7 +229,7 @@ export function installTextEditing(
     const edits = state().edits.filter((edit) => edit.pageUrl === currentPage(ownerWindow));
     const nextIds = new Set(edits.map((edit) => edit.id));
 
-    for (const [id, value] of [...applied]) {
+    for (const [id, value] of applied) {
       if (nextIds.has(id) && value.node.isConnected) continue;
       if (value.node.isConnected && value.node.nodeValue === value.desiredText) {
         setNodeText(value.node, value.beforeText);
@@ -328,7 +330,7 @@ export function installTextEditing(
       fingerprintTestId: session.fingerprint.testId,
       fingerprintRole: session.fingerprint.role,
       fingerprintAriaLabel: session.fingerprint.ariaLabel,
-      fingerprintClasses: [...session.fingerprint.classes],
+      fingerprintClasses: session.fingerprint.classes,
       fingerprintText: session.fingerprint.text,
     };
     liveNodes.set(session.editId, { element: session.element, node: session.node });
@@ -359,6 +361,7 @@ export function installTextEditing(
         .map((node, index) => ({ node, index }))
         .filter(({ node }) => node.nodeType === realm.Node.TEXT_NODE && Boolean(node.nodeValue?.trim()));
       if (nodes.length !== 1) continue;
+      // SAFETY: nodes contains only direct children whose nodeType is this realm's TEXT_NODE.
       return { element: candidate, node: nodes[0].node as Text, nodeIndex: nodes[0].index };
     }
     return null;
@@ -512,7 +515,7 @@ export function installTextEditing(
         else expectedMutations.set(node, expected - 1);
         continue;
       }
-      for (const [id, value] of [...applied]) {
+      for (const [id, value] of applied) {
         if (value.node === node) applied.delete(id);
       }
     }

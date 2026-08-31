@@ -197,7 +197,7 @@ describe("visual intent runtime extensions", () => {
   });
 
   it("does not overwrite a later framework/source text update when leaving Text Inspector", async () => {
-    const { host, model, pageTarget } = await setup();
+    const { model, pageTarget } = await setup();
     const target = document.createElement("p");
     target.id = "source-owned-copy";
     target.textContent = "Before";
