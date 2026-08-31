@@ -25,145 +25,152 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          replacements = [
-              (
-                  Path("packages/renderer/src/plugins/arrange.ts"),
-                  '      id: "arrange",\n      label: "Arrange",\n      order: 65,',
-                  '      id: "arrange",\n      label: "Arrange",\n      shortcut: "Shift+A",\n      order: 65,',
-                  "arrange shortcut",
-              ),
-              (
-                  Path("packages/renderer/src/plugins/screenshot.ts"),
-                  '      id: "screenshot",\n      label: "Screenshot",\n      order: 70,',
-                  '      id: "screenshot",\n      label: "Screenshot",\n      shortcut: "Shift+S",\n      order: 70,',
-                  "screenshot shortcut",
-              ),
-              (
-                  Path("packages/renderer/src/ComposableMesurer.tsx"),
-                  '      if (mod && key === ",") return "settings";\n      if (mod) return null;',
-                  '      if (mod && !event.shiftKey && !event.altKey && key === ",") return "settings";\n      if (mod || event.shiftKey || event.altKey) return null;',
-                  "exact builtin shortcut modifiers",
-              ),
-              (
-                  Path("packages/renderer/test/arrange-plugin.test.ts"),
-                  '    expect(tool?.shortcut).toBeUndefined();',
-                  '    expect(tool?.shortcut).toBe("Shift+A");',
-                  "arrange shortcut contract",
-              ),
-              (
-                  Path("packages/renderer/test/screenshot-plugin.test.ts"),
-                  '    expect(host.tools()[0]?.hidden?.()).toBe(false);',
-                  '    expect(host.tools()[0]?.hidden?.()).toBe(false);\n    expect(host.tools()[0]?.shortcut).toBe("Shift+S");',
-                  "screenshot shortcut contract",
-              ),
-          ]
-          for path, old, new, label in replacements:
+          def replace_once(path_name, old, new, label):
+              path = Path(path_name)
               text = path.read_text()
               if old not in text:
                   raise SystemExit(f"{label} pattern not found")
               path.write_text(text.replace(old, new, 1))
 
-          integration = Path("packages/renderer/test/mesurer.integration.test.tsx")
-          text = integration.read_text()
-          old = '''    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p" }));
-    await settle();
-    const picker = document.querySelector<HTMLElement>(".mesurer-color-picker");
-    expect(picker).toBeTruthy();
-    expect(picker!.className).toContain("msr:min-w-36");
-    expect(picker!.className).toContain("msr:font-mono");
-    expect(picker!.className).toContain("msr:text-[10px]");'''
-          new = '''    host.style.backgroundColor = "rgb(18, 52, 86)";
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p" }));
-    await settle();
-    expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeTruthy();
-    host.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));
-    await settle();
-    const picker = document.querySelector<HTMLElement>(".mesurer-color-picker");
-    expect(picker).toBeTruthy();
-    expect(picker!.textContent).toContain("#123456");
-    expect(picker!.className).toContain("msr:min-w-36");
-    expect(picker!.className).toContain("msr:font-mono");
-    expect(picker!.className).toContain("msr:text-[10px]");'''
-          if old not in text:
-              raise SystemExit("integration color picker contract pattern not found")
-          integration.write_text(text.replace(old, new, 1))
+          replace_once(
+              "packages/renderer/src/plugins/arrange.ts",
+              '      id: "arrange",\n      label: "Arrange",\n      order: 65,',
+              '      id: "arrange",\n      label: "Arrange",\n      shortcut: "Shift+A",\n      order: 65,',
+              "arrange shortcut",
+          )
+          replace_once(
+              "packages/renderer/src/plugins/screenshot.ts",
+              '      id: "screenshot",\n      label: "Screenshot",\n      order: 70,',
+              '      id: "screenshot",\n      label: "Screenshot",\n      shortcut: "Shift+S",\n      order: 70,',
+              "screenshot shortcut",
+          )
+          replace_once(
+              "packages/renderer/src/ComposableMesurer.tsx",
+              '      if (mod && key === ",") return "settings";\n      if (mod) return null;',
+              '      if (mod && !event.shiftKey && !event.altKey && key === ",") return "settings";\n      if (mod || event.shiftKey || event.altKey) return null;',
+              "exact builtin shortcut modifiers",
+          )
+          replace_once(
+              "packages/renderer/test/arrange-plugin.test.ts",
+              '    expect(tool?.shortcut).toBeUndefined();',
+              '    expect(tool?.shortcut).toBe("Shift+A");',
+              "arrange shortcut contract",
+          )
+          replace_once(
+              "packages/renderer/test/screenshot-plugin.test.ts",
+              '    expect(host.tools()[0]?.hidden?.()).toBe(false);',
+              '    expect(host.tools()[0]?.hidden?.()).toBe(false);\n    expect(host.tools()[0]?.shortcut).toBe("Shift+S");',
+              "screenshot shortcut contract",
+          )
 
-          test = Path("packages/renderer/test/interaction-coordination.test.tsx")
-          text = test.read_text()
+          integration_old = "\n".join([
+              '    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p" }));',
+              '    await settle();',
+              '    const picker = document.querySelector<HTMLElement>(".mesurer-color-picker");',
+              '    expect(picker).toBeTruthy();',
+              '    expect(picker!.className).toContain("msr:min-w-36");',
+              '    expect(picker!.className).toContain("msr:font-mono");',
+              '    expect(picker!.className).toContain("msr:text-[10px]");',
+          ])
+          integration_new = "\n".join([
+              '    host.style.backgroundColor = "rgb(18, 52, 86)";',
+              '    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p" }));',
+              '    await settle();',
+              '    expect(document.querySelector("[data-mesurer-color-picker-fallback=\'true\']")).toBeTruthy();',
+              '    host.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));',
+              '    await settle();',
+              '    const picker = document.querySelector<HTMLElement>(".mesurer-color-picker");',
+              '    expect(picker).toBeTruthy();',
+              '    expect(picker!.textContent).toContain("#123456");',
+              '    expect(picker!.className).toContain("msr:min-w-36");',
+              '    expect(picker!.className).toContain("msr:font-mono");',
+              '    expect(picker!.className).toContain("msr:text-[10px]");',
+          ])
+          replace_once(
+              "packages/renderer/test/mesurer.integration.test.tsx",
+              integration_old,
+              integration_new,
+              "integration color picker fallback contract",
+          )
+
+          interaction = Path("packages/renderer/test/interaction-coordination.test.tsx")
+          text = interaction.read_text()
           old_import = 'import { MESURER_ARRANGE_ACTIVE_STATE_ID } from "../src/plugins/arrange";'
           new_import = 'import { MESURER_ARRANGE_ACTIVE_STATE_ID, arrangePlugin } from "../src/plugins/arrange";\nimport { screenshotPlugin } from "../src/plugins/screenshot";'
           if old_import not in text:
-              raise SystemExit("interaction test import pattern not found")
+              raise SystemExit("interaction import pattern not found")
           text = text.replace(old_import, new_import, 1)
 
           marker = '  it("reserves page-interaction tools for Arrange and closes its quick menu after a choice", async () => {'
           if marker not in text:
-              raise SystemExit("interaction test insertion marker not found")
-          addition = '''  it("falls back to page color sampling when the native EyeDropper API is unavailable", async () => {
-    const target = document.createElement("div");
-    target.textContent = "fallback target";
-    target.style.backgroundColor = "rgb(18, 52, 86)";
-    document.body.append(target);
-    const host = document.createElement("div");
-    document.body.append(host);
-    const dispose = render(() => <Mesurer persistKey="interaction-color-picker-fallback" />, host);
-    mounted.push(dispose);
-    await settle();
-
-    const button = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')!;
-    button.click();
-    await settle();
-    expect(button.getAttribute("aria-pressed")).toBe("true");
-    expect(document.querySelector(".mesurer-color-picker")).toBeNull();
-    expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeTruthy();
-
-    target.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));
-    await settle();
-    expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeNull();
-    expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#123456");
-    expect(button.getAttribute("aria-pressed")).toBe("true");
-  });
-
-  it("shows and executes shortcuts for first-party Arrange and Screenshot tools", async () => {
-    const host = document.createElement("div");
-    document.body.append(host);
-    const dispose = render(
-      () => <ComposableMesurer
-        persistKey="interaction-first-party-shortcuts"
-        plugins={[
-          arrangePlugin(),
-          screenshotPlugin({ captureVisibleTab: async () => new Blob([], { type: "image/png" }) }),
-        ]}
-      />,
-      host,
-    );
-    mounted.push(dispose);
-
-    const arrangeButton = await vi.waitFor(() => {
-      const value = document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]');
-      expect(value).toBeTruthy();
-      return value!;
-    });
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Screenshot (Shift+S)"]')).toBeTruthy();
-
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "S", shiftKey: true, bubbles: true, cancelable: true }));
-    const screenshotOverlay = await vi.waitFor(() => {
-      const value = document.querySelector<HTMLElement>("[data-mesurer-screenshot-select='true']");
-      expect(value?.style.display).toBe("block");
-      return value!;
-    });
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')?.getAttribute("aria-pressed")).toBe("false");
-
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
-    await vi.waitFor(() => expect(screenshotOverlay.style.display).toBe("none"));
-
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "A", shiftKey: true, bubbles: true, cancelable: true }));
-    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Text inspector (A)"]')?.getAttribute("aria-pressed")).toBe("false");
-  });
-
-'''
-          test.write_text(text.replace(marker, addition + marker, 1))
+              raise SystemExit("interaction insertion marker not found")
+          addition = "\n".join([
+              '  it("falls back to page color sampling when the native EyeDropper API is unavailable", async () => {',
+              '    const target = document.createElement("div");',
+              '    target.textContent = "fallback target";',
+              '    target.style.backgroundColor = "rgb(18, 52, 86)";',
+              '    document.body.append(target);',
+              '    const host = document.createElement("div");',
+              '    document.body.append(host);',
+              '    const dispose = render(() => <Mesurer persistKey="interaction-color-picker-fallback" />, host);',
+              '    mounted.push(dispose);',
+              '    await settle();',
+              '',
+              '    const button = document.querySelector<HTMLButtonElement>(\'button[aria-label="Color picker (P)"]\')!;',
+              '    button.click();',
+              '    await settle();',
+              '    expect(button.getAttribute("aria-pressed")).toBe("true");',
+              '    expect(document.querySelector(".mesurer-color-picker")).toBeNull();',
+              '    expect(document.querySelector("[data-mesurer-color-picker-fallback=\'true\']")).toBeTruthy();',
+              '',
+              '    target.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));',
+              '    await settle();',
+              '    expect(document.querySelector("[data-mesurer-color-picker-fallback=\'true\']")).toBeNull();',
+              '    expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#123456");',
+              '    expect(button.getAttribute("aria-pressed")).toBe("true");',
+              '  });',
+              '',
+              '  it("shows and executes shortcuts for first-party Arrange and Screenshot tools", async () => {',
+              '    const host = document.createElement("div");',
+              '    document.body.append(host);',
+              '    const dispose = render(',
+              '      () => <ComposableMesurer',
+              '        persistKey="interaction-first-party-shortcuts"',
+              '        plugins={[',
+              '          arrangePlugin(),',
+              '          screenshotPlugin({ captureVisibleTab: async () => new Blob([], { type: "image/png" }) }),',
+              '        ]}',
+              '      />,',
+              '      host,',
+              '    );',
+              '    mounted.push(dispose);',
+              '',
+              '    const arrangeButton = await vi.waitFor(() => {',
+              '      const value = document.querySelector<HTMLButtonElement>(\'button[aria-label="Arrange (Shift+A)"]\');',
+              '      expect(value).toBeTruthy();',
+              '      return value!;',
+              '    });',
+              '    expect(document.querySelector<HTMLButtonElement>(\'button[aria-label="Screenshot (Shift+S)"]\')).toBeTruthy();',
+              '',
+              '    window.dispatchEvent(new KeyboardEvent("keydown", { key: "S", shiftKey: true, bubbles: true, cancelable: true }));',
+              '    const screenshotOverlay = await vi.waitFor(() => {',
+              '      const value = document.querySelector<HTMLElement>("[data-mesurer-screenshot-select=\'true\']");',
+              '      expect(value?.style.display).toBe("block");',
+              '      return value!;',
+              '    });',
+              '    expect(document.querySelector<HTMLButtonElement>(\'button[aria-label="Select (S)"]\')?.getAttribute("aria-pressed")).toBe("false");',
+              '',
+              '    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));',
+              '    await vi.waitFor(() => expect(screenshotOverlay.style.display).toBe("none"));',
+              '',
+              '    window.dispatchEvent(new KeyboardEvent("keydown", { key: "A", shiftKey: true, bubbles: true, cancelable: true }));',
+              '    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));',
+              '    expect(document.querySelector<HTMLButtonElement>(\'button[aria-label="Text inspector (A)"]\')?.getAttribute("aria-pressed")).toBe("false");',
+              '  });',
+              '',
+              '',
+          ])
+          interaction.write_text(text.replace(marker, addition + marker, 1))
           PY
       - name: Validate changes
         run: |
