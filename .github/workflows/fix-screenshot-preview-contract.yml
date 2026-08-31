@@ -24,51 +24,67 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
           path = Path("packages/renderer/src/plugins/screenshot-preview.ts")
           text = path.read_text()
-          old = '''  const onPreviewKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    openViewer();
-  };
 
-  const onViewerClick = (event: MouseEvent) => {'''
-          new = '''  const onPreviewKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    openViewer();
-  };
-
-  const onPreviewContextMenu = (event: MouseEvent) => {
-    if (event.target === previewImage) return;
-    event.preventDefault();
-  };
-
-  const onViewerClick = (event: MouseEvent) => {'''
+          old = "\n".join([
+              '  const onPreviewKeyDown = (event: KeyboardEvent) => {',
+              '    if (event.key !== "Enter" && event.key !== " ") return;',
+              '    event.preventDefault();',
+              '    openViewer();',
+              '  };',
+              '',
+              '  const onViewerClick = (event: MouseEvent) => {',
+          ])
+          new = "\n".join([
+              '  const onPreviewKeyDown = (event: KeyboardEvent) => {',
+              '    if (event.key !== "Enter" && event.key !== " ") return;',
+              '    event.preventDefault();',
+              '    openViewer();',
+              '  };',
+              '',
+              '  const onPreviewContextMenu = (event: MouseEvent) => {',
+              '    if (event.target === previewImage) return;',
+              '    event.preventDefault();',
+              '  };',
+              '',
+              '  const onViewerClick = (event: MouseEvent) => {',
+          ])
           if old not in text:
               raise SystemExit("preview handler insertion point not found")
           text = text.replace(old, new, 1)
-          old = '''  preview.addEventListener("mousedown", onPreviewMouseDown);
-  preview.addEventListener("pointerdown", onPreviewPointerDown);
-  preview.addEventListener("keydown", onPreviewKeyDown);
-  viewer.addEventListener("click", onViewerClick);'''
-          new = '''  preview.addEventListener("mousedown", onPreviewMouseDown);
-  preview.addEventListener("pointerdown", onPreviewPointerDown);
-  preview.addEventListener("keydown", onPreviewKeyDown);
-  preview.addEventListener("contextmenu", onPreviewContextMenu);
-  viewer.addEventListener("click", onViewerClick);'''
+
+          old = "\n".join([
+              '  preview.addEventListener("mousedown", onPreviewMouseDown);',
+              '  preview.addEventListener("pointerdown", onPreviewPointerDown);',
+              '  preview.addEventListener("keydown", onPreviewKeyDown);',
+              '  viewer.addEventListener("click", onViewerClick);',
+          ])
+          new = "\n".join([
+              '  preview.addEventListener("mousedown", onPreviewMouseDown);',
+              '  preview.addEventListener("pointerdown", onPreviewPointerDown);',
+              '  preview.addEventListener("keydown", onPreviewKeyDown);',
+              '  preview.addEventListener("contextmenu", onPreviewContextMenu);',
+              '  viewer.addEventListener("click", onViewerClick);',
+          ])
           if old not in text:
               raise SystemExit("preview listener insertion point not found")
           text = text.replace(old, new, 1)
-          old = '''      preview.removeEventListener("mousedown", onPreviewMouseDown);
-      preview.removeEventListener("pointerdown", onPreviewPointerDown);
-      preview.removeEventListener("keydown", onPreviewKeyDown);
-      viewer.removeEventListener("click", onViewerClick);'''
-          new = '''      preview.removeEventListener("mousedown", onPreviewMouseDown);
-      preview.removeEventListener("pointerdown", onPreviewPointerDown);
-      preview.removeEventListener("keydown", onPreviewKeyDown);
-      preview.removeEventListener("contextmenu", onPreviewContextMenu);
-      viewer.removeEventListener("click", onViewerClick);'''
+
+          old = "\n".join([
+              '      preview.removeEventListener("mousedown", onPreviewMouseDown);',
+              '      preview.removeEventListener("pointerdown", onPreviewPointerDown);',
+              '      preview.removeEventListener("keydown", onPreviewKeyDown);',
+              '      viewer.removeEventListener("click", onViewerClick);',
+          ])
+          new = "\n".join([
+              '      preview.removeEventListener("mousedown", onPreviewMouseDown);',
+              '      preview.removeEventListener("pointerdown", onPreviewPointerDown);',
+              '      preview.removeEventListener("keydown", onPreviewKeyDown);',
+              '      preview.removeEventListener("contextmenu", onPreviewContextMenu);',
+              '      viewer.removeEventListener("click", onViewerClick);',
+          ])
           if old not in text:
               raise SystemExit("preview listener cleanup point not found")
           path.write_text(text.replace(old, new, 1))
