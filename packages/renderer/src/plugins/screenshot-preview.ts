@@ -476,6 +476,11 @@ export const createScreenshotPreviewController = ({
     openViewer();
   };
 
+  const onPreviewContextMenu = (event: MouseEvent) => {
+    if (event.target === previewImage) return;
+    event.preventDefault();
+  };
+
   const onViewerClick = (event: MouseEvent) => {
     if (event.target === viewer) closeViewer();
   };
@@ -496,6 +501,7 @@ export const createScreenshotPreviewController = ({
   preview.addEventListener("mousedown", onPreviewMouseDown);
   preview.addEventListener("pointerdown", onPreviewPointerDown);
   preview.addEventListener("keydown", onPreviewKeyDown);
+  preview.addEventListener("contextmenu", onPreviewContextMenu);
   viewer.addEventListener("click", onViewerClick);
   copyButton.addEventListener("click", () => { void copyCurrent(); });
   saveButton.addEventListener("click", saveCurrent);
@@ -541,6 +547,7 @@ export const createScreenshotPreviewController = ({
       preview.removeEventListener("mousedown", onPreviewMouseDown);
       preview.removeEventListener("pointerdown", onPreviewPointerDown);
       preview.removeEventListener("keydown", onPreviewKeyDown);
+      preview.removeEventListener("contextmenu", onPreviewContextMenu);
       viewer.removeEventListener("click", onViewerClick);
       interactionRoot.remove();
     },
