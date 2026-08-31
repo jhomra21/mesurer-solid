@@ -52,8 +52,10 @@ try {
   assert.equal(await arrangeButton.isDisabled(), false, "Arrange should remain available after selecting a page element");
 
   const arrangeOptionsButton = page.getByRole("button", { name: "Arrange options", exact: true });
-  await arrangeOptionsButton.click();
   const arrangeMenu = page.getByRole("menu", { name: "Arrange options", exact: true });
+  const quickSnapping = () => arrangeMenu.getByRole("menuitemcheckbox", { name: "Snapping", exact: true });
+
+  await arrangeOptionsButton.click();
   await arrangeMenu.waitFor({ state: "visible" });
   const expectedArrangeOptions = ["Snapping", "Element edges", "Element centers", "Guides", "Prefer X-ray edges", "Alignment rulers"];
   assert.deepEqual((await arrangeMenu.getByRole("menuitemcheckbox").allTextContents()).map((value) => value.trim()), expectedArrangeOptions);
@@ -65,12 +67,19 @@ try {
     arrangeMenuMetrics.every((metrics) => metrics.whiteSpace === "nowrap" && metrics.height <= 28.5),
     `Arrange quick-menu entries should stay on one compact line: ${JSON.stringify(arrangeMenuMetrics)}`,
   );
-  const quickSnapping = arrangeMenu.getByRole("menuitemcheckbox", { name: "Snapping", exact: true });
-  assert.equal(await quickSnapping.getAttribute("aria-checked"), "true", "Arrange quick-menu snapping should default on");
-  await quickSnapping.click();
-  assert.equal(await quickSnapping.getAttribute("aria-checked"), "false", "Arrange quick-menu should disable snapping in place");
-  await quickSnapping.click();
-  assert.equal(await quickSnapping.getAttribute("aria-checked"), "true", "Arrange quick-menu should re-enable snapping in place");
+  assert.equal(await quickSnapping().getAttribute("aria-checked"), "true", "Arrange quick-menu snapping should default on");
+  await quickSnapping().click();
+  await arrangeMenu.waitFor({ state: "hidden" });
+
+  await arrangeOptionsButton.click();
+  await arrangeMenu.waitFor({ state: "visible" });
+  assert.equal(await quickSnapping().getAttribute("aria-checked"), "false", "Arrange quick-menu should disable snapping and close after the choice");
+  await quickSnapping().click();
+  await arrangeMenu.waitFor({ state: "hidden" });
+
+  await arrangeOptionsButton.click();
+  await arrangeMenu.waitFor({ state: "visible" });
+  assert.equal(await quickSnapping().getAttribute("aria-checked"), "true", "Arrange quick-menu should re-enable snapping after reopening");
   await arrangeOptionsButton.focus();
   await page.keyboard.press("Escape");
   await arrangeMenu.waitFor({ state: "hidden" });
