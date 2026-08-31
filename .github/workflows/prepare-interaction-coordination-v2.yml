@@ -1,0 +1,147 @@
+name: prepare interaction coordination fixes v2
+
+on:
+  push:
+    branches: [feat/text-editing-toolbar-parity]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      - name: Apply interaction coordination fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              if text.count(old) != 1:
+                  raise SystemExit(f"{path}: expected one match for replacement")
+              file.write_text(text.replace(old, new, 1))
+
+          builtin = "packages/renderer/src/runtime/builtin-actions.ts"
+          replace_once(builtin,
+              'const activateMode = (model: MesurerModel, mode: ToolMode) => {\n  model.setEnabled(true, !model.current.enabled);\n  model.setTransient({ colorPickerActive: false, toolbarActive: true });\n  model.toggleToolMode(mode);\n};\n',
+              'const dismissColorPicker = (model: MesurerModel) => {\n  model.setTransient({\n    colorPickerActive: false,\n    colorPickerSample: null,\n    colorPickerUnsupported: false,\n  });\n};\n\nconst activateMode = (model: MesurerModel, mode: ToolMode) => {\n  model.setEnabled(true, !model.current.enabled);\n  dismissColorPicker(model);\n  model.setTransient({ toolbarActive: true });\n  model.toggleToolMode(mode);\n};\n')
+          replace_once(builtin,
+              'const settingsTab = (model: MesurerModel) =>\n  model.current.colorPickerActive ? "color-picker" as const\n',
+              'const settingsTab = (model: MesurerModel) =>\n  model.current.colorPickerActive || model.current.colorPickerSample || model.current.colorPickerUnsupported ? "color-picker" as const\n')
+          old_picker = '''const openColorPicker = async (model: MesurerModel, ownerWindow: Window) => {\n  model.setEnabled(true, !model.current.enabled);\n  model.setToolMode("none", model.current.toolMode !== "none");\n  // SAFETY: EyeDropper is an optional browser Window extension and is existence-checked before construction.\n  const EyeDropper = (ownerWindow as WindowWithEyeDropper).EyeDropper;\n  model.setTransient({ colorPickerActive: true, colorPickerSample: null, colorPickerUnsupported: !EyeDropper });\n  if (!EyeDropper) return;\n  try {\n    const result = await new EyeDropper().open();\n    const sample = parseCssColor(result.sRGBHex);\n    if (!sample) return;\n    model.setTransient({ colorPickerSample: sample, colorPickerUnsupported: false });\n    void ownerWindow.navigator.clipboard?.writeText(\n      formatColor(sample, model.current.settings.colorPickerClickFormat),\n    ).catch(() => undefined);\n  } catch (cause) {\n    // SAFETY: ownerWindow is the realm that owns EyeDropper and therefore its DOMException constructor.\n    const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;\n    if (cause instanceof DOMExceptionCtor && cause.name === "AbortError") {\n      model.setTransient({ colorPickerActive: false });\n    }\n  }\n};\n'''
+          new_picker = '''const openColorPicker = async (model: MesurerModel, ownerWindow: Window) => {\n  model.setEnabled(true, !model.current.enabled);\n  model.setToolMode("none", model.current.toolMode !== "none");\n  // SAFETY: EyeDropper is an optional browser Window extension and is existence-checked before construction.\n  const EyeDropper = (ownerWindow as WindowWithEyeDropper).EyeDropper;\n  if (!EyeDropper) {\n    model.setTransient({\n      colorPickerActive: false,\n      colorPickerSample: null,\n      colorPickerUnsupported: true,\n    });\n    return;\n  }\n\n  model.setTransient({ colorPickerActive: true, colorPickerUnsupported: false });\n  try {\n    const result = await new EyeDropper().open();\n    const sample = parseCssColor(result.sRGBHex);\n    if (!sample) {\n      model.setTransient({ colorPickerActive: false });\n      return;\n    }\n    model.setTransient({\n      colorPickerActive: false,\n      colorPickerSample: sample,\n      colorPickerUnsupported: false,\n    });\n    void ownerWindow.navigator.clipboard?.writeText(\n      formatColor(sample, model.current.settings.colorPickerClickFormat),\n    ).catch(() => undefined);\n  } catch (cause) {\n    model.setTransient({ colorPickerActive: false });\n    // SAFETY: ownerWindow is the realm that owns EyeDropper and therefore its DOMException constructor.\n    const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;\n    if (cause instanceof DOMExceptionCtor && cause.name === "AbortError") return;\n  }\n};\n'''
+          replace_once(builtin, old_picker, new_picker)
+          replace_once(builtin,
+              '        case "xray":\n          model.setEnabled(true);\n          model.setTransient({ colorPickerActive: false });\n          model.toggleXray();\n',
+              '        case "xray":\n          model.setEnabled(true);\n          dismissColorPicker(model);\n          model.toggleXray();\n')
+          replace_once(builtin,
+              '        case "rulers":\n          model.setEnabled(true);\n          model.setTransient({ colorPickerActive: false });\n          model.toggleRulers();\n',
+              '        case "rulers":\n          model.setEnabled(true);\n          dismissColorPicker(model);\n          model.toggleRulers();\n')
+          replace_once(builtin,
+              '        case "color-picker":\n          model.setTransient({ colorPickerActive: false });\n          return;\n',
+              '        case "color-picker":\n          dismissColorPicker(model);\n          return;\n')
+
+          picker = "packages/renderer/src/components/ColorPicker.tsx"
+          replace_once(picker,
+              '  const tooltipEnter = (id: string) => {\n',
+              '  const closeResult = () => props.model.setTransient({\n    colorPickerActive: false,\n    colorPickerSample: null,\n    colorPickerUnsupported: false,\n  });\n  const tooltipEnter = (id: string) => {\n')
+          replace_once(picker,
+              '    <Show when={props.model.state.colorPickerActive && (props.model.state.colorPickerSample || props.model.state.colorPickerUnsupported)}>\n      <div ref={(element) => { panel = element; }} class="mesurer-color-picker msr:pointer-events-auto msr:fixed msr:z-[80] msr:min-w-36 msr:rounded-lg msr:border msr:border-black/10 msr:bg-white msr:px-2 msr:py-2 msr:font-mono msr:text-[10px] msr:leading-4 msr:shadow-lg" role="dialog" aria-label="Selected color values" data-mesurer-inspector-ui="true" onMouseLeave={tooltip.onTooltipContainerLeave}>\n',
+              '    <Show when={props.model.state.enabled && (props.model.state.colorPickerSample || props.model.state.colorPickerUnsupported)}>\n      <div ref={(element) => { panel = element; }} class="mesurer-color-picker msr:pointer-events-auto msr:fixed msr:relative msr:z-[80] msr:min-w-36 msr:rounded-lg msr:border msr:border-black/10 msr:bg-white msr:px-2 msr:py-2 msr:pr-5 msr:font-mono msr:text-[10px] msr:leading-4 msr:shadow-lg" role="dialog" aria-label="Selected color values" data-mesurer-inspector-ui="true" onMouseLeave={tooltip.onTooltipContainerLeave}>\n        <button type="button" class="msr:absolute msr:right-1 msr:top-1 msr:text-black/45 msr:hover:text-black" aria-label="Close color picker result" onClick={closeResult}>x</button>\n')
+          replace_once(picker,
+              '          <div class="msr:flex msr:items-start msr:gap-2"><span class="msr:text-black/60">Color picker is not supported in this browser.</span><button type="button" class="msr:text-black/45 msr:hover:text-black" aria-label="Close color picker message" onClick={() => props.model.setTransient({ colorPickerActive: false })}>x</button></div>\n',
+              '          <div class="msr:flex msr:items-start msr:gap-2"><span class="msr:text-black/60">Color picker is not supported in this browser.</span></div>\n')
+
+          toolbar = "packages/renderer/src/components/Toolbar.tsx"
+          replace_once(toolbar,
+              '  onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;\n  onClearWorkspace: () => void;\n',
+              '  onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;\n  isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;\n  onClearWorkspace: () => void;\n')
+          replace_once(toolbar,
+              '  const tooltipsEnabled = () => !guideMenuOpen() && !pluginMenuOpenId() && !props.model.state.settingsOpen;\n',
+              '  const tooltipsEnabled = () => !guideMenuOpen() && !pluginMenuOpenId() && !props.model.state.settingsOpen;\n  const builtinDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => props.isBuiltinActionDisabled?.(id) ?? false;\n')
+          for old, new in [
+              ('active={props.model.state.colorPickerActive} label="Color picker"', 'active={props.model.state.colorPickerActive} disabled={builtinDisabled("color-picker")} label="Color picker"'),
+              ('active={props.model.state.toolMode === "text-inspector"} label="Text inspector"', 'active={props.model.state.toolMode === "text-inspector"} disabled={builtinDisabled("text-inspector")} label="Text inspector"'),
+              ('active={props.model.state.toolMode === "guides"} label="Guides"', 'active={props.model.state.toolMode === "guides"} disabled={builtinDisabled("guides")} label="Guides"'),
+          ]:
+              replace_once(toolbar, old, new)
+          replace_once(toolbar,
+              '          aria-label="Guide orientation menu"\n          class={`msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${guideMenuOpen() ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}\n',
+              '          aria-label="Guide orientation menu"\n          disabled={builtinDisabled("guides")}\n          class={`msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none ${builtinDisabled("guides") ? "msr:cursor-default msr:text-black/30" : "msr:hover:bg-black/10"} ${guideMenuOpen() ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}\n')
+          replace_once(toolbar,
+              '                      onClick={() => props.onPluginToolMenuItem?.(tool, item)}\n',
+              '                      onClick={() => {\n                        props.onPluginToolMenuItem?.(tool, item);\n                        setPluginMenuOpenId(null);\n                      }}\n')
+
+          mesurer = "packages/renderer/src/Mesurer.tsx"
+          replace_once(mesurer,
+              'import { MESURER_STYLES } from "./styles.generated";\n',
+              'import type { MesurerBuiltinPluginId } from "./plugins/builtins";\nimport { MESURER_STYLES } from "./styles.generated";\n')
+          replace_once(mesurer,
+              '  onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;\n  onBuiltinController?: (controller: MesurerBuiltinController | null) => void;\n',
+              '  onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;\n  isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;\n  onBuiltinController?: (controller: MesurerBuiltinController | null) => void;\n')
+          replace_once(mesurer,
+              '  const builtinController = createMesurerBuiltinController({ model, ownerWindow });\n  const xrayScope = createXrayScope({\n',
+              '  const builtinController = createMesurerBuiltinController({ model, ownerWindow });\n  const builtinActionDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => input.isBuiltinActionDisabled?.(id) ?? false;\n  const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">) => {\n    if (builtinActionDisabled(id)) return;\n    void builtinController.run(id);\n  };\n  const xrayScope = createXrayScope({\n')
+          for old, new in [
+              ('if (mod && key === ",") { event.preventDefault(); void builtinController.run("settings"); return; }', 'if (mod && key === ",") { event.preventDefault(); runBuiltinAction("settings"); return; }'),
+              ('if (key === "s") { void builtinController.run("select"); return; }', 'if (key === "s") { runBuiltinAction("select"); return; }'),
+              ('if (key === "a") { void builtinController.run("text-inspector"); return; }', 'if (key === "a") { runBuiltinAction("text-inspector"); return; }'),
+              ('if (key === "g") { void builtinController.run("guides"); return; }', 'if (key === "g") { runBuiltinAction("guides"); return; }'),
+              ('if (key === "p") { void builtinController.run("color-picker"); return; }', 'if (key === "p") { runBuiltinAction("color-picker"); return; }'),
+              ('if (key === "x") { void builtinController.run("xray"); return; }', 'if (key === "x") { runBuiltinAction("xray"); return; }'),
+              ('if (key === "r") { void builtinController.run("rulers"); return; }', 'if (key === "r") { runBuiltinAction("rulers"); return; }'),
+              ('if (key === "h") { model.setGuideOrientation("horizontal", true); return; }', 'if (key === "h") { if (!builtinActionDisabled("guides")) model.setGuideOrientation("horizontal", true); return; }'),
+              ('if (key === "v") { model.setGuideOrientation("vertical", true); }', 'if (key === "v") { if (!builtinActionDisabled("guides")) model.setGuideOrientation("vertical", true); }'),
+              ('onBuiltinAction={(id) => { void builtinController.run(id); }}', 'onBuiltinAction={runBuiltinAction}'),
+              ('onPluginToolMenuItem={input.onPluginToolMenuItem}\n          onClearWorkspace', 'onPluginToolMenuItem={input.onPluginToolMenuItem}\n          isBuiltinActionDisabled={builtinActionDisabled}\n          onClearWorkspace'),
+          ]:
+              replace_once(mesurer, old, new)
+
+          composable = "packages/renderer/src/ComposableMesurer.tsx"
+          replace_once(composable,
+              '  MESURER_ARRANGE_PLUGIN_ID,\n  arrangePlugin,\n',
+              '  MESURER_ARRANGE_ACTIVE_STATE_ID,\n  MESURER_ARRANGE_PLUGIN_ID,\n  arrangePlugin,\n')
+          replace_once(composable,
+              '  "pluginTools" | "onPluginTool" | "onPluginToolMenuItem" | "onBuiltinController"\n',
+              '  "pluginTools" | "onPluginTool" | "onPluginToolMenuItem" | "isBuiltinActionDisabled" | "onBuiltinController"\n')
+          replace_once(composable,
+              '  const customTools = createMemo(() => {\n',
+              '  const arrangeActive = () => {\n    revision();\n    return host.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;\n  };\n\n  const builtinActionDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) =>\n    arrangeActive() && (id === "color-picker" || id === "text-inspector" || id === "guides");\n\n  const customTools = createMemo(() => {\n')
+          replace_once(composable,
+              '    const runBuiltinSlot = async (id: Exclude<MesurerBuiltinPluginId, "distance">) => {\n      const replacement = replacementBuiltinTool(id);\n',
+              '    const runBuiltinSlot = async (id: Exclude<MesurerBuiltinPluginId, "distance">) => {\n      if (builtinActionDisabled(id)) return;\n      const replacement = replacementBuiltinTool(id);\n')
+          replace_once(composable,
+              '      const slot = builtinShortcut(event);\n      const replacement = slot ? replacementBuiltinTool(slot) : undefined;\n',
+              '      const slot = builtinShortcut(event);\n      if (slot && builtinActionDisabled(slot)) {\n        event.preventDefault();\n        event.stopImmediatePropagation();\n        return;\n      }\n      const replacement = slot ? replacementBuiltinTool(slot) : undefined;\n')
+          replace_once(composable,
+              '      const key = event.key.toLowerCase();\n      if ((key === "h" || key === "v") && replacementBuiltinTool("guides")) {\n',
+              '      const key = event.key.toLowerCase();\n      if ((key === "h" || key === "v") && builtinActionDisabled("guides")) {\n        event.preventDefault();\n        event.stopImmediatePropagation();\n        return;\n      }\n      if ((key === "h" || key === "v") && replacementBuiltinTool("guides")) {\n')
+          replace_once(composable,
+              '          onPluginToolMenuItem={runToolMenuItem}\n          onBuiltinController={(controller) => { builtinController = controller; }}\n',
+              '          onPluginToolMenuItem={runToolMenuItem}\n          isBuiltinActionDisabled={builtinActionDisabled}\n          onBuiltinController={(controller) => { builtinController = controller; }}\n')
+
+          Path("packages/renderer/test/interaction-coordination.test.tsx").write_text('''import { flush } from "solid-js";\nimport { afterEach, describe, expect, it, vi } from "vitest";\nimport ComposableMesurer from "../src/ComposableMesurer";\nimport Mesurer from "../src/Mesurer";\nimport { arrangePlugin } from "../src/plugins/arrange";\nimport { render } from "../src/solid-dom";\n\nconst settle = async () => {\n  await Promise.resolve();\n  flush();\n  await Promise.resolve();\n  flush();\n};\n\nconst mounted: Array<() => void> = [];\n\nafterEach(async () => {\n  while (mounted.length) mounted.pop()?.();\n  await settle();\n  Reflect.deleteProperty(window, "EyeDropper");\n  localStorage.clear();\n  document.body.replaceChildren();\n  document.head.querySelectorAll("#mesurer-solid-styles, #mesurer-solid-xray-styles").forEach((node) => node.remove());\n  vi.restoreAllMocks();\n});\n\ndescribe("page interaction coordination", () => {\n  it("treats native color picking as one-shot while keeping the result available", async () => {\n    let opens = 0;\n    Object.defineProperty(window, "EyeDropper", { configurable: true, value: class { async open() { opens += 1; return { sRGBHex: opens === 1 ? "#123456" : "#abcdef" }; } } });\n    const host = document.createElement("div");\n    document.body.append(host);\n    const dispose = render(() => <Mesurer persistKey="interaction-color-picker" />, host);\n    mounted.push(dispose);\n    await settle();\n    const button = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')!;\n    button.click();\n    await vi.waitFor(() => expect(opens).toBe(1));\n    await settle();\n    expect(button.getAttribute("aria-pressed")).toBe("false");\n    expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#123456");\n    button.click();\n    await vi.waitFor(() => expect(opens).toBe(2));\n    await settle();\n    expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#abcdef");\n    document.querySelector<HTMLButtonElement>('button[aria-label="Close color picker result"]')!.click();\n    await settle();\n    expect(document.querySelector(".mesurer-color-picker")).toBeNull();\n  });\n\n  it("reserves page-interaction tools while Arrange is active and closes its quick menu after a choice", async () => {\n    const host = document.createElement("div");\n    document.body.append(host);\n    const dispose = render(() => <ComposableMesurer persistKey="interaction-arrange" plugins={[arrangePlugin()]} />, host);\n    mounted.push(dispose);\n    await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-id="arrange"] button')).toBeTruthy());\n    const arrangeButton = document.querySelector<HTMLButtonElement>('[data-mesurer-tool-id="arrange"] button')!;\n    arrangeButton.click();\n    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')?.getAttribute("aria-pressed")).toBe("true");\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(true);\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Text inspector (A)"]')?.disabled).toBe(true);\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guides (G)"]')?.disabled).toBe(true);\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guide orientation menu"]')?.disabled).toBe(true);\n    window.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));\n    await settle();\n    expect(arrangeButton.getAttribute("aria-pressed")).toBe("true");\n    const menuTrigger = document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-trigger="arrange"]')!;\n    menuTrigger.click();\n    await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-menu="arrange"]')).toBeTruthy());\n    document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-item="snapping"]')!.click();\n    await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-menu="arrange"]')).toBeNull());\n    expect(arrangeButton.getAttribute("aria-pressed")).toBe("true");\n    arrangeButton.click();\n    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("false"));\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(false);\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Text inspector (A)"]')?.disabled).toBe(false);\n    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guides (G)"]')?.disabled).toBe(false);\n  });\n});\n''')
+          PY
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run build:foundations
+      - run: bun run --filter '@jhomra21/mesurer-solid-renderer' test -- interaction-coordination.test.tsx runtime-intent-extensions.test.ts
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run build
+      - run: bun run --filter 'mesurer-solid-renderer-example' build
+      - run: git diff --check
+      - name: Commit interaction fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/renderer/src/ComposableMesurer.tsx packages/renderer/src/Mesurer.tsx packages/renderer/src/components/ColorPicker.tsx packages/renderer/src/components/Toolbar.tsx packages/renderer/src/runtime/builtin-actions.ts packages/renderer/test/interaction-coordination.test.tsx
+          git commit -m "fix: coordinate Arrange page interactions"
+          git push origin HEAD:${GITHUB_REF_NAME}
