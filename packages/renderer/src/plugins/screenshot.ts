@@ -614,6 +614,7 @@ export const screenshotPlugin = (
     ctx.tool.register({
       id: "screenshot",
       label: "Screenshot",
+      shortcut: "Shift+S",
       order: 70,
       command: SCREENSHOT_COMMAND,
       icon: cameraIcon,

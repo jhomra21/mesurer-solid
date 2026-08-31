@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { defineMesurerPlugin, type MesurerPluginHost } from "@jhomra21/mesurer-solid-core";
 import ComposableMesurer from "../src/ComposableMesurer";
 import Mesurer from "../src/Mesurer";
-import { MESURER_ARRANGE_ACTIVE_STATE_ID } from "../src/plugins/arrange";
+import { MESURER_ARRANGE_ACTIVE_STATE_ID, arrangePlugin } from "../src/plugins/arrange";
+import { screenshotPlugin } from "../src/plugins/screenshot";
 import { render } from "../src/solid-dom";
 
 const settle = async () => {
@@ -89,6 +90,67 @@ describe("page interaction coordination", () => {
     await settle();
     expect(button.getAttribute("aria-pressed")).toBe("false");
     expect(document.querySelector(".mesurer-color-picker")).toBeNull();
+  });
+
+  it("falls back to page color sampling when the native EyeDropper API is unavailable", async () => {
+    const target = document.createElement("div");
+    target.textContent = "fallback target";
+    target.style.backgroundColor = "rgb(18, 52, 86)";
+    document.body.append(target);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const dispose = render(() => <Mesurer persistKey="interaction-color-picker-fallback" />, host);
+    mounted.push(dispose);
+    await settle();
+
+    const button = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')!;
+    button.click();
+    await settle();
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelector(".mesurer-color-picker")).toBeNull();
+    expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeTruthy();
+
+    target.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));
+    await settle();
+    expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeNull();
+    expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#123456");
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("shows and executes shortcuts for first-party Arrange and Screenshot tools", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const dispose = render(
+      () => <ComposableMesurer
+        persistKey="interaction-first-party-shortcuts"
+        plugins={[
+          arrangePlugin(),
+          screenshotPlugin({ captureVisibleTab: async () => new Blob([], { type: "image/png" }) }),
+        ]}
+      />,
+      host,
+    );
+    mounted.push(dispose);
+
+    await vi.waitFor(() => {
+      expect(document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]')).toBeTruthy();
+      expect(document.querySelector<HTMLButtonElement>('button[aria-label="Screenshot (Shift+S)"]')).toBeTruthy();
+    });
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "S", shiftKey: true, bubbles: true, cancelable: true }));
+    const screenshotOverlay = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLElement>("[data-mesurer-screenshot-select='true']");
+      expect(value?.style.display).toBe("block");
+      return value!;
+    });
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')?.getAttribute("aria-pressed")).toBe("false");
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(screenshotOverlay.style.display).toBe("none"));
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "A", shiftKey: true, bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]')?.getAttribute("aria-pressed")).toBe("true"));
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Text inspector (A)"]')?.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("reserves page-interaction tools for Arrange and closes its quick menu after a choice", async () => {

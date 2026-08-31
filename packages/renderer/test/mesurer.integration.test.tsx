@@ -75,10 +75,15 @@ describe("Mesurer host integration", () => {
     await settle();
     expect(document.querySelector('[role="dialog"][aria-label="Settings"]')).toBeNull();
 
+    host.style.backgroundColor = "rgb(18, 52, 86)";
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "p" }));
+    await settle();
+    expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeTruthy();
+    host.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));
     await settle();
     const picker = document.querySelector<HTMLElement>(".mesurer-color-picker");
     expect(picker).toBeTruthy();
+    expect(picker!.textContent).toContain("#123456");
     expect(picker!.className).toContain("msr:min-w-36");
     expect(picker!.className).toContain("msr:font-mono");
     expect(picker!.className).toContain("msr:text-[10px]");

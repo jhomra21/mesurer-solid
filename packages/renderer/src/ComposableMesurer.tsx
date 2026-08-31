@@ -649,8 +649,8 @@ export default function ComposableMesurer(props: MesurerProps) {
     const builtinShortcut = (event: KeyboardEvent): Exclude<MesurerBuiltinPluginId, "distance"> | null => {
       const key = event.key.toLowerCase();
       const mod = event.metaKey || event.ctrlKey;
-      if (mod && key === ",") return "settings";
-      if (mod) return null;
+      if (mod && !event.shiftKey && !event.altKey && key === ",") return "settings";
+      if (mod || event.shiftKey || event.altKey) return null;
       if (key === "s") return "select";
       if (key === "a") return "text-inspector";
       if (key === "g") return "guides";
