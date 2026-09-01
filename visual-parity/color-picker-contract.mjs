@@ -10,9 +10,16 @@ page.on("console", (message) => {
 });
 
 const clickCenter = async (locator) => {
+  await locator.scrollIntoViewIfNeeded();
   const box = await locator.boundingBox();
   if (!box) throw new Error("Color picker target has no geometry");
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const hit = await page.evaluate(({ x, y }) => {
+    const element = document.elementFromPoint(x, y);
+    return element?.matches(".swatches b") ?? false;
+  }, point);
+  if (!hit) throw new Error(`Color picker target is not hit-testable at ${JSON.stringify(point)}`);
+  await page.mouse.click(point.x, point.y);
 };
 
 try {
