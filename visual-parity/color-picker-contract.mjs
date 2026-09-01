@@ -47,6 +47,9 @@ try {
 
   let fallback = page.locator("[data-mesurer-color-picker-fallback='true']");
   await fallback.waitFor({ state: "visible" });
+  if ((await fallback.getAttribute("data-mesurer-color-picker-mode")) !== "dom-fallback") {
+    throw new Error("Color Picker fallback did not expose its sampling mode");
+  }
   const fallbackCursor = await fallback.evaluate((element) => getComputedStyle(element).cursor);
   if (fallbackCursor !== "crosshair") {
     throw new Error(`Color Picker fallback did not expose a crosshair cursor: ${fallbackCursor}`);
@@ -58,6 +61,13 @@ try {
 
   const panel = page.locator(".mesurer-color-picker");
   await panel.waitFor({ state: "visible" });
+  if ((await panel.getAttribute("data-mesurer-color-picker-mode")) !== "dom-fallback") {
+    throw new Error("Color Picker result lost its DOM fallback provenance");
+  }
+  const description = (await panel.getAttribute("aria-description")) ?? "";
+  if (!description.includes("page CSS fallback")) {
+    throw new Error(`Color Picker fallback result did not describe its provenance: ${description}`);
+  }
   const firstResult = (await panel.textContent()) ?? "";
   if (!firstResult.includes("#818cf8")) {
     throw new Error(`Color Picker fallback sampled the wrong color: ${firstResult}`);
@@ -86,6 +96,9 @@ try {
   await clickCenter(thirdSwatch);
   await fallback.waitFor({ state: "detached" });
   await panel.waitFor({ state: "visible" });
+  if ((await panel.getAttribute("data-mesurer-color-picker-mode")) !== "dom-fallback") {
+    throw new Error("Keyboard Color Picker result lost its DOM fallback provenance");
+  }
   const secondResult = (await panel.textContent()) ?? "";
   if (!secondResult.includes("#fb7185")) {
     throw new Error(`Keyboard Color Picker fallback sampled the wrong color: ${secondResult}`);
