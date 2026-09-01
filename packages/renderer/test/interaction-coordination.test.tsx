@@ -157,6 +157,28 @@ describe("page interaction coordination", () => {
     expect(document.querySelector(".mesurer-color-picker")).toBeNull();
   });
 
+  it("revalidates Color Picker visibility when native capability disappears after mount", async () => {
+    installStaticEyeDropper();
+    const host = document.createElement("div");
+    document.body.append(host);
+    const dispose = render(
+      () => <ComposableMesurer persistKey="interaction-color-picker-capability-refresh" />,
+      host,
+    );
+    mounted.push(dispose);
+
+    await vi.waitFor(() => {
+      expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeTruthy();
+    });
+
+    Reflect.deleteProperty(window, "EyeDropper");
+    window.dispatchEvent(new Event("focus"));
+
+    await vi.waitFor(() => {
+      expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
+    });
+  });
+
   it("shows and executes shortcuts for first-party Arrange and Screenshot tools", async () => {
     const host = document.createElement("div");
     document.body.append(host);

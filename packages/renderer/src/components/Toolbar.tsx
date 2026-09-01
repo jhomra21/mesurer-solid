@@ -99,6 +99,13 @@ export function Toolbar(props: ToolbarProps) {
   let guideMenuElement: HTMLDivElement | undefined;
   let suppressClick = false;
   let previousUserSelect: string | null = null;
+  const [colorPickerSupported, setColorPickerSupported] = createSignal(
+    supportsNativeColorPicker(props.ownerWindow),
+  );
+  const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;
+  const refreshColorPickerCapability = () => {
+    setColorPickerSupported(supportsNativeColorPicker(colorPickerOwnerWindow()));
+  };
 
   const tooltipsEnabled = () => !guideMenuOpen() && !pluginMenuOpenId() && !props.model.state.settingsOpen;
   const builtinDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => props.isBuiltinActionDisabled?.(id) ?? false;
@@ -193,6 +200,9 @@ export function Toolbar(props: ToolbarProps) {
   };
 
   onSettled(() => {
+    refreshColorPickerCapability();
+    const capabilityInterval = props.ownerWindow.setInterval(refreshColorPickerCapability, 500);
+    const handleCapabilityRefresh = () => refreshColorPickerCapability();
     const handlePointerDown = (event: PointerEvent) => {
       const path = event.composedPath();
       if (guideMenuOpen() && guideMenuElement && !path.includes(guideMenuElement)) setGuideMenuOpen(false);
@@ -217,11 +227,18 @@ export function Toolbar(props: ToolbarProps) {
     const resize = () => { if (guideMenuOpen()) updateMenuAlign(); };
     const keyboardTarget = props.ownerWindow.document;
     props.ownerWindow.addEventListener("pointerdown", handlePointerDown);
+    props.ownerWindow.addEventListener("focus", handleCapabilityRefresh);
+    props.ownerWindow.addEventListener("pageshow", handleCapabilityRefresh);
+    props.ownerWindow.document.addEventListener("visibilitychange", handleCapabilityRefresh);
     keyboardTarget.addEventListener("keydown", handleKeyDown, true);
     props.ownerWindow.addEventListener("resize", resize);
     toolbarElement?.addEventListener("click", handleClickCapture, true);
     return () => {
+      props.ownerWindow.clearInterval(capabilityInterval);
       props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);
+      props.ownerWindow.removeEventListener("focus", handleCapabilityRefresh);
+      props.ownerWindow.removeEventListener("pageshow", handleCapabilityRefresh);
+      props.ownerWindow.document.removeEventListener("visibilitychange", handleCapabilityRefresh);
       keyboardTarget.removeEventListener("keydown", handleKeyDown, true);
       props.ownerWindow.removeEventListener("resize", resize);
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
@@ -246,11 +263,12 @@ export function Toolbar(props: ToolbarProps) {
       style={{ left: `${position().x}px`, top: `${position().y}px` }}
       onPointerDown={(event) => { event.stopPropagation(); props.model.setTransient({ toolbarActive: true }); onToolbarPointerDown(event); }}
       onClick={(event) => event.stopPropagation()}
+      onMouseEnter={refreshColorPickerCapability}
       onMouseLeave={tooltip.onTooltipContainerLeave}
     >
       <ToolbarButton id="select" builtin="select" active={props.model.state.toolMode === "select"} label="Select" shortcut="S" onClick={() => props.onBuiltinAction("select")} {...buttonProps("select")}><CursorIcon size={20} /></ToolbarButton>
       <ToolbarButton id="xray" builtin="xray" active={props.model.state.xrayVisible} label="X-ray" shortcut="X" onClick={() => props.onBuiltinAction("xray")} {...buttonProps("xray")}><XrayIcon size={20} /></ToolbarButton>
-      <Show when={supportsNativeColorPicker(props.ownerWindow)}>
+      <Show when={colorPickerSupported()}>
         <ToolbarButton id="color-picker" builtin="color-picker" active={props.model.state.colorPickerActive} disabled={builtinDisabled("color-picker")} label="Color picker" shortcut="P" onClick={() => props.onBuiltinAction("color-picker")} {...buttonProps("color-picker")}><ColorPickerIcon size={20} /></ToolbarButton>
       </Show>
       <ToolbarButton id="rulers" builtin="rulers" active={props.model.state.rulersVisible} label="Rulers" shortcut="R" onClick={() => props.onBuiltinAction("rulers")} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>

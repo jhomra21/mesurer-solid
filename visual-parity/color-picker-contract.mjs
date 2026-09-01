@@ -102,6 +102,15 @@ try {
   if (opens !== 3) {
     throw new Error(`Expected three native EyeDropper opens, got ${opens}`);
   }
+
+  await supportedPage.evaluate(() => {
+    Reflect.deleteProperty(window, "EyeDropper");
+    window.dispatchEvent(new Event("focus"));
+  });
+  await supportedPage.waitForFunction(() =>
+    document.querySelector('button[aria-label="Color picker (P)"]') === null,
+  );
+
   if (await supportedPage.locator("[data-mesurer-color-picker-fallback='true']").count()) {
     throw new Error("Legacy DOM Color Picker fallback should not exist when EyeDropper is supported");
   }
