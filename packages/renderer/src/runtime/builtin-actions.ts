@@ -119,9 +119,7 @@ const installDomColorPickerFallback = (
     // Let the browser hit-test through the transparent capture surface so the
     // fallback samples the real page element rather than its own overlay.
     overlay.style.pointerEvents = "none";
-    const candidates = typeof ownerDocument.elementsFromPoint === "function"
-      ? ownerDocument.elementsFromPoint(clientX, clientY)
-      : [];
+    const candidates = ownerDocument.elementsFromPoint(clientX, clientY);
     overlay.style.pointerEvents = "auto";
     const target = candidates.find((candidate) => !isMesurerUi(candidate));
     return target ? sampleDomColor(target, ownerWindow) : null;
