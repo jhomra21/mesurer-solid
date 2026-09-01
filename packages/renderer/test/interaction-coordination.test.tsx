@@ -107,17 +107,25 @@ describe("page interaction coordination", () => {
     expect(document.querySelector(".mesurer-color-picker")).toBeNull();
   });
 
-  it("hides the Color Picker tool when native EyeDropper is unavailable", async () => {
+  it("removes the Color Picker contribution when native EyeDropper is unavailable", async () => {
     const host = document.createElement("div");
     document.body.append(host);
+    let pluginHost: MesurerPluginHost | null = null;
     const dispose = render(
-      () => <ComposableMesurer persistKey="interaction-color-picker-unavailable" />,
+      () => <ComposableMesurer
+        persistKey="interaction-color-picker-unavailable"
+        onPluginHost={(value) => { pluginHost = value; }}
+      />,
       host,
     );
     mounted.push(dispose);
 
-    const button = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')!;
-    await vi.waitFor(() => expect(getComputedStyle(button).display).toBe("none"));
+    await vi.waitFor(() => expect(pluginHost).toBeTruthy());
+    await vi.waitFor(() => {
+      expect(pluginHost!.tools().some((tool) => tool.builtin === "color-picker")).toBe(false);
+    });
+    const visibilityStyle = document.querySelector<HTMLStyleElement>("style[data-mesurer-plugin-visibility='true']");
+    await vi.waitFor(() => expect(visibilityStyle?.textContent).toContain("[data-mesurer-builtin='color-picker']{display:none!important}"));
 
     window.dispatchEvent(new KeyboardEvent("keydown", {
       key: "p",
