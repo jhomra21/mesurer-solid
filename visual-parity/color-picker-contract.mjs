@@ -104,12 +104,14 @@ try {
   }
 
   await supportedPage.evaluate(() => {
+    window.requestAnimationFrame = () => 1;
     Reflect.deleteProperty(window, "EyeDropper");
     window.dispatchEvent(new Event("focus"));
   });
-  await supportedPage.waitForFunction(() =>
-    document.querySelector('button[aria-label="Color picker (P)"]') === null,
-  );
+  await supportedPage.waitForTimeout(200);
+  if (await colorButton.count()) {
+    throw new Error("Color Picker remained visible after native support disappeared while animation frames were unavailable");
+  }
 
   if (await supportedPage.locator("[data-mesurer-color-picker-fallback='true']").count()) {
     throw new Error("Legacy DOM Color Picker fallback should not exist when EyeDropper is supported");

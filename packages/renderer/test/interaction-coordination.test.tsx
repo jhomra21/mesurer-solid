@@ -111,7 +111,7 @@ describe("page interaction coordination", () => {
     expect(document.querySelector(".mesurer-color-picker")).toBeNull();
   });
 
-  it("requires native EyeDropper to remain available through a rendered frame before showing the tool", async () => {
+  it("requires native EyeDropper to remain available through capability confirmation before showing the tool", async () => {
     const NativeEyeDropper = class {
       async open() {
         return { sRGBHex: "#123456" };
@@ -135,7 +135,7 @@ describe("page interaction coordination", () => {
     mounted.push(dispose);
 
     expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
-    await new Promise((resolve) => window.setTimeout(resolve, 50));
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
     await settle();
     expect(reads).toBeGreaterThanOrEqual(2);
     expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
@@ -265,6 +265,7 @@ describe("page interaction coordination", () => {
     mounted.push(dispose);
 
     await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-id="arrange"] button')).toBeTruthy());
+    await vi.waitFor(() => expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeTruthy());
     expect(pluginHost).toBeTruthy();
     const arrangeButton = document.querySelector<HTMLButtonElement>('[data-mesurer-tool-id="arrange"] button')!;
     await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));

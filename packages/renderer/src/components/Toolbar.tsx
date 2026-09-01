@@ -100,19 +100,35 @@ export function Toolbar(props: ToolbarProps) {
   let suppressClick = false;
   let previousUserSelect: string | null = null;
   const [colorPickerSupported, setColorPickerSupported] = createSignal(false);
-  let colorPickerConfirmFrame = 0;
+  let colorPickerConfirmTimer = 0;
+  let colorPickerCapabilityRevision = 0;
   const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;
-  const refreshColorPickerCapability = () => {
-    const candidateWindow = colorPickerOwnerWindow();
-    const firstPass = supportsNativeColorPicker(candidateWindow);
-    if (colorPickerConfirmFrame) candidateWindow.cancelAnimationFrame(colorPickerConfirmFrame);
-    colorPickerConfirmFrame = candidateWindow.requestAnimationFrame(() => {
-      colorPickerConfirmFrame = 0;
-      setColorPickerSupported(
-        firstPass && supportsNativeColorPicker(colorPickerOwnerWindow()),
-      );
+  const commitColorPickerCapability = (supported: boolean, revision: number) => {
+    colorPickerOwnerWindow().queueMicrotask(() => {
+      if (revision !== colorPickerCapabilityRevision) return;
+      setColorPickerSupported(supported);
       flush();
     });
+  };
+  const refreshColorPickerCapability = () => {
+    const candidateWindow = colorPickerOwnerWindow();
+    const revision = ++colorPickerCapabilityRevision;
+    if (colorPickerConfirmTimer) {
+      candidateWindow.clearTimeout(colorPickerConfirmTimer);
+      colorPickerConfirmTimer = 0;
+    }
+    if (!supportsNativeColorPicker(candidateWindow)) {
+      commitColorPickerCapability(false, revision);
+      return;
+    }
+    colorPickerConfirmTimer = candidateWindow.setTimeout(() => {
+      colorPickerConfirmTimer = 0;
+      if (revision !== colorPickerCapabilityRevision) return;
+      commitColorPickerCapability(
+        supportsNativeColorPicker(colorPickerOwnerWindow()),
+        revision,
+      );
+    }, 100);
   };
 
   const tooltipsEnabled = () => !guideMenuOpen() && !pluginMenuOpenId() && !props.model.state.settingsOpen;
@@ -243,9 +259,10 @@ export function Toolbar(props: ToolbarProps) {
     toolbarElement?.addEventListener("click", handleClickCapture, true);
     return () => {
       props.ownerWindow.clearInterval(capabilityInterval);
-      if (colorPickerConfirmFrame) {
-        colorPickerOwnerWindow().cancelAnimationFrame(colorPickerConfirmFrame);
-        colorPickerConfirmFrame = 0;
+      colorPickerCapabilityRevision += 1;
+      if (colorPickerConfirmTimer) {
+        colorPickerOwnerWindow().clearTimeout(colorPickerConfirmTimer);
+        colorPickerConfirmTimer = 0;
       }
       props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);
       props.ownerWindow.removeEventListener("focus", handleCapabilityRefresh);
