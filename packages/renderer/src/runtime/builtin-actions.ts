@@ -54,8 +54,10 @@ const recordColorPickerOpenStatus = (
   delete root.dataset.mesurerColorPickerOpenErrorMessage;
   if (cause === undefined) return;
 
-  const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;
-  const ErrorCtor = (ownerWindow as Window & typeof globalThis).Error;
+  // SAFETY: ownerWindow is the realm that produced any DOM-native EyeDropper rejection, so its global Error constructors are the correct instanceof boundary.
+  const globalWindow = ownerWindow as Window & typeof globalThis;
+  const DOMExceptionCtor = globalWindow.DOMException;
+  const ErrorCtor = globalWindow.Error;
   if (cause instanceof DOMExceptionCtor || cause instanceof ErrorCtor) {
     root.dataset.mesurerColorPickerOpenErrorName = cause.name;
     root.dataset.mesurerColorPickerOpenErrorMessage = cause.message;
