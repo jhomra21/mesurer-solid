@@ -3,6 +3,7 @@ import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesur
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
+import { supportsNativeColorPicker } from "../runtime/color-picker-support";
 import { SettingsPanel } from "./SettingsPanel";
 import { Tooltip, createTooltip } from "./Tooltip";
 import {
@@ -249,7 +250,9 @@ export function Toolbar(props: ToolbarProps) {
     >
       <ToolbarButton id="select" builtin="select" active={props.model.state.toolMode === "select"} label="Select" shortcut="S" onClick={() => props.onBuiltinAction("select")} {...buttonProps("select")}><CursorIcon size={20} /></ToolbarButton>
       <ToolbarButton id="xray" builtin="xray" active={props.model.state.xrayVisible} label="X-ray" shortcut="X" onClick={() => props.onBuiltinAction("xray")} {...buttonProps("xray")}><XrayIcon size={20} /></ToolbarButton>
-      <ToolbarButton id="color-picker" builtin="color-picker" active={props.model.state.colorPickerActive} disabled={builtinDisabled("color-picker")} label="Color picker" shortcut="P" onClick={() => props.onBuiltinAction("color-picker")} {...buttonProps("color-picker")}><ColorPickerIcon size={20} /></ToolbarButton>
+      <Show when={supportsNativeColorPicker(props.ownerWindow)}>
+        <ToolbarButton id="color-picker" builtin="color-picker" active={props.model.state.colorPickerActive} disabled={builtinDisabled("color-picker")} label="Color picker" shortcut="P" onClick={() => props.onBuiltinAction("color-picker")} {...buttonProps("color-picker")}><ColorPickerIcon size={20} /></ToolbarButton>
+      </Show>
       <ToolbarButton id="rulers" builtin="rulers" active={props.model.state.rulersVisible} label="Rulers" shortcut="R" onClick={() => props.onBuiltinAction("rulers")} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>
       <ToolbarButton id="text-inspector" builtin="text-inspector" active={props.model.state.toolMode === "text-inspector"} disabled={builtinDisabled("text-inspector")} label="Text inspector" shortcut="A" onClick={() => props.onBuiltinAction("text-inspector")} {...buttonProps("text-inspector")}><TextInspectorIcon size={20} /></ToolbarButton>
       <ToolbarButton id="guides" builtin="guides" active={props.model.state.toolMode === "guides"} disabled={builtinDisabled("guides")} label="Guides" shortcut="G" onClick={() => props.onBuiltinAction("guides")} {...buttonProps("guides")}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
