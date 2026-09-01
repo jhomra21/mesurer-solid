@@ -14,33 +14,16 @@ export type MesurerBuiltinPluginId =
   | "distance"
   | "settings";
 
-type WindowWithEyeDropper = Window & { EyeDropper?: unknown };
-type BrowserGlobal = typeof globalThis & { window?: WindowWithEyeDropper };
-
-export const supportsNativeColorPicker = (ownerWindow: Window) => {
-  // SAFETY: EyeDropper is an optional browser Window extension represented by this named capability type.
-  const browserWindow = ownerWindow as WindowWithEyeDropper;
-  return Boolean(browserWindow.EyeDropper);
-};
-
-const activeWindowSupportsNativeColorPicker = () => {
-  // SAFETY: browser runtimes add window to globalThis; non-browser runtimes leave this optional capability absent.
-  const browserGlobal = globalThis as BrowserGlobal;
-  return Boolean(browserGlobal.window?.EyeDropper);
-};
-
 const toolPlugin = (
   id: Exclude<MesurerBuiltinPluginId, "distance">,
   label: string,
   shortcut: string,
   order: number,
-  available: () => boolean = () => true,
 ): MesurerPlugin => defineMesurerPlugin({
   id: `mesurer.${id}`,
   version: "0.1.0",
   provides: [`tool:${id}`],
   setup(ctx) {
-    if (!available()) return;
     ctx.tool.register({
       id,
       builtin: id,
@@ -54,13 +37,7 @@ const toolPlugin = (
 
 export const selectPlugin = () => toolPlugin("select", "Select", "S", 10);
 export const xrayPlugin = () => toolPlugin("xray", "X-ray", "X", 20);
-export const colorPickerPlugin = () => toolPlugin(
-  "color-picker",
-  "Color picker",
-  "P",
-  30,
-  activeWindowSupportsNativeColorPicker,
-);
+export const colorPickerPlugin = () => toolPlugin("color-picker", "Color picker", "P", 30);
 export const rulersPlugin = () => toolPlugin("rulers", "Rulers", "R", 40);
 export const textInspectorPlugin = () => toolPlugin("text-inspector", "Text inspector", "A", 50);
 export const guidesPlugin = () => toolPlugin("guides", "Guides", "G", 60);
