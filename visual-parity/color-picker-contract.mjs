@@ -21,9 +21,9 @@ try {
   });
   await page.goto(url, { waitUntil: "networkidle" });
 
-  const eyeDropperType = await page.evaluate(() => typeof window.EyeDropper);
-  if (eyeDropperType !== "undefined") {
-    throw new Error(`Fallback contract requires EyeDropper to be absent, got ${eyeDropperType}`);
+  const hasEyeDropper = await page.evaluate(() => Reflect.has(window, "EyeDropper"));
+  if (hasEyeDropper) {
+    throw new Error("Fallback contract requires EyeDropper to be absent");
   }
 
   const colorButton = page.getByRole("button", { name: "Color picker (P)" });
