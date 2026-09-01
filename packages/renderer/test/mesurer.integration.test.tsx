@@ -15,6 +15,7 @@ const mounted: Array<() => void> = [];
 afterEach(async () => {
   while (mounted.length) mounted.pop()?.();
   await settle();
+  Reflect.deleteProperty(window, "EyeDropper");
   document.body.replaceChildren();
   document.head.querySelectorAll("#mesurer-solid-styles, #mesurer-solid-xray-styles").forEach((node) => node.remove());
   vi.restoreAllMocks();
@@ -22,6 +23,15 @@ afterEach(async () => {
 
 describe("Mesurer host integration", () => {
   it("uses the upstream Mesurer toolbar/settings visual contract and public shortcuts", async () => {
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      value: class {
+        async open() {
+          return { sRGBHex: "#123456" };
+        }
+      },
+    });
+
     const host = document.createElement("div");
     document.body.append(host);
 
@@ -75,15 +85,12 @@ describe("Mesurer host integration", () => {
     await settle();
     expect(document.querySelector('[role="dialog"][aria-label="Settings"]')).toBeNull();
 
-    host.style.backgroundColor = "rgb(18, 52, 86)";
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "p" }));
-    await settle();
-    expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeTruthy();
-    host.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));
     await settle();
     const picker = document.querySelector<HTMLElement>(".mesurer-color-picker");
     expect(picker).toBeTruthy();
     expect(picker!.textContent).toContain("#123456");
+    expect(picker!.dataset.mesurerColorPickerMode).toBe("native");
     expect(picker!.className).toContain("msr:min-w-36");
     expect(picker!.className).toContain("msr:font-mono");
     expect(picker!.className).toContain("msr:text-[10px]");
