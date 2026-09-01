@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   patch:
-    if: "${{ github.event.head_commit.message == 'chore: validate secure Color Picker capability' }}"
+    if: "${{ github.event.head_commit.message == 'chore: retry secure Color Picker capability validation' }}"
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -56,8 +56,21 @@ jobs:
           secure_test = '''  it("does not render Color Picker when the host does not affirm a secure context", async () => {\n    Object.defineProperty(window, "isSecureContext", { configurable: true, value: undefined });\n    Object.defineProperty(window, "EyeDropper", {\n      configurable: true,\n      value: class {\n        async open() {\n          return { sRGBHex: "#123456" };\n        }\n      },\n    });\n\n    const host = document.createElement("div");\n    document.body.append(host);\n    const dispose = render(\n      () => <ComposableMesurer persistKey="interaction-color-picker-insecure-unknown" />,\n      host,\n    );\n    mounted.push(dispose);\n    await new Promise((resolve) => window.setTimeout(resolve, 150));\n    await settle();\n\n    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();\n    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", bubbles: true, cancelable: true }));\n    await settle();\n    expect(document.querySelector(".mesurer-color-picker")).toBeNull();\n  });\n\n'''
           if anchor not in text:
             raise SystemExit('Color Picker unsupported test anchor not found')
-          text = text.replace(anchor, secure_test + anchor, 1)
-          interaction.write_text(text)
+          interaction.write_text(text.replace(anchor, secure_test + anchor, 1))
+
+          integration = Path('packages/renderer/test/mesurer.integration.test.tsx')
+          text = integration.read_text()
+          text = text.replace(
+            '  Reflect.deleteProperty(window, "EyeDropper");\n  document.body.replaceChildren();',
+            '  Reflect.deleteProperty(window, "EyeDropper");\n  Reflect.deleteProperty(window, "isSecureContext");\n  document.body.replaceChildren();',
+            1,
+          )
+          text = text.replace(
+            '  it("uses the upstream Mesurer toolbar/settings visual contract and public shortcuts", async () => {\n    Object.defineProperty(window, "EyeDropper", {',
+            '  it("uses the upstream Mesurer toolbar/settings visual contract and public shortcuts", async () => {\n    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });\n    Object.defineProperty(window, "EyeDropper", {',
+            1,
+          )
+          integration.write_text(text)
 
           contract = Path('visual-parity/color-picker-contract.mjs')
           text = contract.read_text()
@@ -99,6 +112,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages/renderer/test/interaction-coordination.test.tsx visual-parity/color-picker-contract.mjs
+          git add packages/renderer/test/interaction-coordination.test.tsx packages/renderer/test/mesurer.integration.test.tsx visual-parity/color-picker-contract.mjs
           git commit -m "test: require secure context for Color Picker"
           git push origin HEAD:pr/text-editing-toolbar-parity
