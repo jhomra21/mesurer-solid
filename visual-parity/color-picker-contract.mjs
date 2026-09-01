@@ -25,24 +25,33 @@ try {
   });
   watchDiagnostics(unsupportedPage, "unsupported");
   await unsupportedPage.addInitScript(() => {
-    Reflect.deleteProperty(window, "EyeDropper");
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      value: { unavailable: true },
+    });
   });
   await unsupportedPage.goto(url, { waitUntil: "networkidle" });
 
-  const unsupportedHasEyeDropper = await unsupportedPage.evaluate(() => Reflect.has(window, "EyeDropper"));
-  if (unsupportedHasEyeDropper) {
-    throw new Error("Unsupported Color Picker contract requires EyeDropper to be absent");
+  const unsupportedShape = await unsupportedPage.evaluate(() => {
+    const candidate = window.EyeDropper;
+    return {
+      type: typeof candidate,
+      hasOpen: typeof candidate?.prototype?.open === "function",
+    };
+  });
+  if (unsupportedShape.type === "function" && unsupportedShape.hasOpen) {
+    throw new Error("Unsupported Color Picker contract requires an unusable EyeDropper shape");
   }
 
   const unavailableButton = unsupportedPage.locator('button[aria-label="Color picker (P)"]');
   if (await unavailableButton.count()) {
-    throw new Error("Color Picker button should not render without native EyeDropper support");
+    throw new Error("Color Picker button rendered without a usable native EyeDropper API");
   }
 
   await unsupportedPage.keyboard.press("p");
   await unsupportedPage.waitForTimeout(80);
   if (await unsupportedPage.locator(".mesurer-color-picker").count()) {
-    throw new Error("Color Picker produced a result without native EyeDropper support");
+    throw new Error("Color Picker produced a result without usable native EyeDropper support");
   }
   if (await unsupportedPage.locator("[data-mesurer-color-picker-fallback='true']").count()) {
     throw new Error("Legacy DOM Color Picker fallback should not exist");
