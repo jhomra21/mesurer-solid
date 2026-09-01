@@ -18,7 +18,7 @@ type EyeDropperObservation = {
   constructorSource: string;
   openSource: string;
   instanceBrand: string;
-  constructor?: EyeDropperConstructor;
+  eyeDropperConstructor?: EyeDropperConstructor;
 };
 
 const isEyeDropperConstructor = (value: unknown): value is EyeDropperConstructor => {
@@ -53,7 +53,7 @@ const readEyeDropperObservation = (ownerWindow: Window): EyeDropperObservation =
   return {
     available: true,
     tag,
-    constructor: value,
+    eyeDropperConstructor: value,
     constructorName: value.name ?? "",
     constructorSource: Function.prototype.toString.call(value),
     openSource: Function.prototype.toString.call(value.prototype.open),
@@ -97,7 +97,7 @@ export const supportsNativeColorPicker = (ownerWindow: Window) => {
     recordColorPickerCapability(ownerWindow, observation, "secure-context-unavailable");
     return false;
   }
-  if (!observation.available || !observation.constructor) {
+  if (!observation.available || !observation.eyeDropperConstructor) {
     recordColorPickerCapability(ownerWindow, observation, "eyedropper-unavailable");
     return false;
   }
