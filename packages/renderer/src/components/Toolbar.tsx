@@ -1,4 +1,4 @@
-import { For, Show, createSignal, onSettled } from "solid-js";
+import { For, Show, createSignal, flush, onSettled } from "solid-js";
 import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
@@ -99,12 +99,20 @@ export function Toolbar(props: ToolbarProps) {
   let guideMenuElement: HTMLDivElement | undefined;
   let suppressClick = false;
   let previousUserSelect: string | null = null;
-  const [colorPickerSupported, setColorPickerSupported] = createSignal(
-    supportsNativeColorPicker(props.ownerWindow),
-  );
+  const [colorPickerSupported, setColorPickerSupported] = createSignal(false);
+  let colorPickerConfirmFrame = 0;
   const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;
   const refreshColorPickerCapability = () => {
-    setColorPickerSupported(supportsNativeColorPicker(colorPickerOwnerWindow()));
+    const candidateWindow = colorPickerOwnerWindow();
+    const firstPass = supportsNativeColorPicker(candidateWindow);
+    if (colorPickerConfirmFrame) candidateWindow.cancelAnimationFrame(colorPickerConfirmFrame);
+    colorPickerConfirmFrame = candidateWindow.requestAnimationFrame(() => {
+      colorPickerConfirmFrame = 0;
+      setColorPickerSupported(
+        firstPass && supportsNativeColorPicker(colorPickerOwnerWindow()),
+      );
+      flush();
+    });
   };
 
   const tooltipsEnabled = () => !guideMenuOpen() && !pluginMenuOpenId() && !props.model.state.settingsOpen;
@@ -235,6 +243,10 @@ export function Toolbar(props: ToolbarProps) {
     toolbarElement?.addEventListener("click", handleClickCapture, true);
     return () => {
       props.ownerWindow.clearInterval(capabilityInterval);
+      if (colorPickerConfirmFrame) {
+        colorPickerOwnerWindow().cancelAnimationFrame(colorPickerConfirmFrame);
+        colorPickerConfirmFrame = 0;
+      }
       props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);
       props.ownerWindow.removeEventListener("focus", handleCapabilityRefresh);
       props.ownerWindow.removeEventListener("pageshow", handleCapabilityRefresh);

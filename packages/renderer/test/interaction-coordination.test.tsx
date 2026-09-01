@@ -84,7 +84,11 @@ describe("page interaction coordination", () => {
     mounted.push(dispose);
     await settle();
 
-    const button = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')!;
+    const button = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]');
+      expect(value).toBeTruthy();
+      return value!;
+    });
     button.click();
     await vi.waitFor(() => expect(opens).toBe(1));
     await settle();
@@ -105,6 +109,36 @@ describe("page interaction coordination", () => {
     await settle();
     expect(button.getAttribute("aria-pressed")).toBe("false");
     expect(document.querySelector(".mesurer-color-picker")).toBeNull();
+  });
+
+  it("requires native EyeDropper to remain available through a rendered frame before showing the tool", async () => {
+    const NativeEyeDropper = class {
+      async open() {
+        return { sRGBHex: "#123456" };
+      }
+    };
+    let reads = 0;
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      get() {
+        reads += 1;
+        return reads === 1 ? NativeEyeDropper : undefined;
+      },
+    });
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const dispose = render(
+      () => <ComposableMesurer persistKey="interaction-color-picker-confirmed-only" />,
+      host,
+    );
+    mounted.push(dispose);
+
+    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+    await settle();
+    expect(reads).toBeGreaterThanOrEqual(2);
+    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
   });
 
   it("does not render the Color Picker tool when native EyeDropper is unavailable", async () => {
