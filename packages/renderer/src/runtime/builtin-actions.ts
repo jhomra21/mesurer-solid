@@ -73,7 +73,7 @@ const commitColorSample = (
   ownerWindow: Window,
   sample: ColorSample,
 ) => {
-  model.setTransient({ colorPickerSample: sample, colorPickerUnsupported: false });
+  model.setTransient({ colorPickerSample: sample });
   void ownerWindow.navigator.clipboard?.writeText(
     formatColor(sample, model.current.settings.colorPickerClickFormat),
   ).catch(() => undefined);
@@ -86,10 +86,14 @@ const installDomColorPickerFallback = (
   ownerWindow: Window,
 ): (() => void) => {
   const ownerDocument = ownerWindow.document;
+  // colorPickerUnsupported tracks native EyeDropper support. A true value while
+  // active means Mesurer is using its best-effort DOM/CSS page-color fallback.
+  model.setTransient({ colorPickerUnsupported: true });
   // SAFETY: composedPath entries are checked against the Element constructor belonging to this document's window realm.
   const realm = ownerWindow as Window & typeof globalThis;
   const overlay = ownerDocument.createElement("div");
   overlay.dataset.mesurerColorPickerFallback = "true";
+  overlay.dataset.mesurerColorPickerMode = "dom-fallback";
   overlay.dataset.mesurerInspectorUi = "true";
   overlay.setAttribute("aria-hidden", "true");
   Object.assign(overlay.style, {
@@ -191,7 +195,11 @@ export function createMesurerBuiltinController(options: {
     model.setToolMode("none", model.current.toolMode !== "none");
     // SAFETY: EyeDropper is an optional browser Window extension and is existence-checked before construction.
     const EyeDropper = (ownerWindow as WindowWithEyeDropper).EyeDropper;
-    model.setTransient({ colorPickerActive: true, colorPickerSample: null, colorPickerUnsupported: false });
+    model.setTransient({
+      colorPickerActive: true,
+      colorPickerSample: null,
+      colorPickerUnsupported: !EyeDropper,
+    });
     if (!EyeDropper) {
       colorPickerFallbackCleanup = installDomColorPickerFallback(model, ownerWindow);
       return;
