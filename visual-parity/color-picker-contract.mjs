@@ -77,6 +77,40 @@ try {
   }
   await unsupportedPage.close();
 
+  const unsupportedHostPage = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+    deviceScaleFactor: 2,
+  });
+  watchDiagnostics(unsupportedHostPage, "unsupported-host");
+  await unsupportedHostPage.addInitScript(() => {
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: true,
+    });
+    Object.defineProperty(window.navigator, "userAgent", {
+      configurable: true,
+      value: "CodexBrowser Mozilla/5.0 Chrome/151.0.0.0 Safari/537.36",
+    });
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      value: class {
+        async open() {
+          return { sRGBHex: "#5eead4" };
+        }
+      },
+    });
+  });
+  await unsupportedHostPage.goto(url, { waitUntil: "networkidle" });
+  if (await unsupportedHostPage.locator('button[aria-label="Color picker (P)"]').count()) {
+    throw new Error("Color Picker rendered in the Codex in-app browser host");
+  }
+  await unsupportedHostPage.keyboard.press("p");
+  await unsupportedHostPage.waitForTimeout(80);
+  if (await unsupportedHostPage.locator(".mesurer-color-picker").count()) {
+    throw new Error("Color Picker ran in the Codex in-app browser host");
+  }
+  await unsupportedHostPage.close();
+
   const supportedPage = await browser.newPage({
     viewport: { width: 1280, height: 900 },
     deviceScaleFactor: 2,
