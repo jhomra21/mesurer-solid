@@ -1,5 +1,5 @@
 type EyeDropperConstructor = Function & {
-  prototype: { open: (...args: never[]) => unknown };
+  prototype: { open: Function };
 };
 type WindowWithEyeDropper = Window & { EyeDropper?: unknown };
 
