@@ -15,10 +15,14 @@ const clickCenter = async (locator) => {
   if (!box) throw new Error("Color picker target has no geometry");
   const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   const hit = await page.evaluate(({ x, y }) => {
+    const fallback = document.querySelector("[data-mesurer-color-picker-fallback='true']");
+    if (!(fallback instanceof HTMLElement)) return false;
+    fallback.style.pointerEvents = "none";
     const element = document.elementFromPoint(x, y);
+    fallback.style.pointerEvents = "auto";
     return element?.matches(".swatches b") ?? false;
   }, point);
-  if (!hit) throw new Error(`Color picker target is not hit-testable at ${JSON.stringify(point)}`);
+  if (!hit) throw new Error(`Color picker target is not hit-testable below the fallback overlay at ${JSON.stringify(point)}`);
   await page.mouse.click(point.x, point.y);
 };
 
