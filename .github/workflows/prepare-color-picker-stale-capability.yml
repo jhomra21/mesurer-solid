@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   patch:
-    if: "${{ github.event.head_commit.message == 'chore: prepare stale Color Picker capability fix' }}"
+    if: "${{ github.event.head_commit.message == 'chore: retry stale Color Picker capability fix' }}"
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -50,7 +50,11 @@ jobs:
             '    await new Promise((resolve) => window.setTimeout(resolve, 150));',
             1,
           )
-          interaction.write_text(text)
+          old = '''    mounted.push(dispose);\n\n    await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-id="arrange"] button')).toBeTruthy());\n    expect(pluginHost).toBeTruthy();'''
+          new = '''    mounted.push(dispose);\n\n    await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-id="arrange"] button')).toBeTruthy());\n    await vi.waitFor(() => expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeTruthy());\n    expect(pluginHost).toBeTruthy();'''
+          if old not in text:
+              raise SystemExit('Arrange coordination capability wait anchor not found')
+          interaction.write_text(text.replace(old, new, 1))
 
           contract = Path('visual-parity/color-picker-contract.mjs')
           text = contract.read_text()
