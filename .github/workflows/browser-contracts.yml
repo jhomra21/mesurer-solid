@@ -14,6 +14,7 @@ on:
       - "packages/renderer/src/plugins/arrange.ts"
       - "packages/renderer/src/plugins/settings-runtime.tsx"
       - "packages/renderer/src/plugins/screenshot.ts"
+      - "packages/renderer/src/runtime/builtin-actions.ts"
       - "packages/renderer/test/arrange-plugin.test.ts"
       - "packages/renderer/test/distances.test.ts"
       - "packages/mesurer/src/context-plugin.tsx"
@@ -26,6 +27,7 @@ on:
       - "examples/basic/plugin-settings.html"
       - "examples/basic/src/plugin-settings.ts"
       - "visual-parity/arrange-contract.mjs"
+      - "visual-parity/color-picker-contract.mjs"
       - "visual-parity/self-hosting-context.mjs"
       - "visual-parity/multi-spacing.mjs"
       - "visual-parity/plugin-settings-contract.mjs"
@@ -89,6 +91,11 @@ jobs:
           ARRANGE_URL: http://127.0.0.1:4174/
         run: bun visual-parity/arrange-contract.mjs
 
+      - name: Exercise Color Picker fallback
+        env:
+          COLOR_PICKER_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/color-picker-contract.mjs
+
       - name: Measure Mesurer with Mesurer
         env:
           SELF_HOST_URL: http://127.0.0.1:4174/self-hosting.html
@@ -122,6 +129,11 @@ jobs:
           print("- Toolbar enablement after selection exercised in Chromium")
           print("- Nearby-element, X-ray-outline, and guide alignment snapping exercised in Chromium")
           print("- Ghost suppression, persistent Desired placement, and Live restoration on deactivation exercised in Chromium")
+
+          print("")
+          print("### Color Picker")
+          print("- Native EyeDropper absence is forced in Chromium")
+          print("- Crosshair fallback, page hit-testing, Escape cancellation, toolbar P shortcut, and visible color results are exercised")
 
           print("")
           self_path = Path("self-hosting-artifacts/self-hosting-measurements.json")
