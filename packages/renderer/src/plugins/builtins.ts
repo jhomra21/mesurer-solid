@@ -14,13 +14,19 @@ export type MesurerBuiltinPluginId =
   | "distance"
   | "settings";
 
-export const supportsNativeColorPicker = (ownerWindow: Window) =>
-  Boolean(Reflect.get(ownerWindow, "EyeDropper"));
+type WindowWithEyeDropper = Window & { EyeDropper?: unknown };
+type BrowserGlobal = typeof globalThis & { window?: WindowWithEyeDropper };
+
+export const supportsNativeColorPicker = (ownerWindow: Window) => {
+  // SAFETY: EyeDropper is an optional browser Window extension represented by this named capability type.
+  const browserWindow = ownerWindow as WindowWithEyeDropper;
+  return Boolean(browserWindow.EyeDropper);
+};
 
 const activeWindowSupportsNativeColorPicker = () => {
-  // SAFETY: the browser global is read reflectively so non-browser runtimes resolve to undefined without touching an undeclared identifier.
-  const ownerWindow = Reflect.get(globalThis, "window") as Window | undefined;
-  return ownerWindow ? supportsNativeColorPicker(ownerWindow) : false;
+  // SAFETY: browser runtimes add window to globalThis; non-browser runtimes leave this optional capability absent.
+  const browserGlobal = globalThis as BrowserGlobal;
+  return Boolean(browserGlobal.window?.EyeDropper);
 };
 
 const toolPlugin = (
