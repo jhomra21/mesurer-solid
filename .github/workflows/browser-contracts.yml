@@ -10,11 +10,13 @@ on:
       - "packages/renderer/src/components/MeasurementBox.tsx"
       - "packages/renderer/src/components/MesurerOverlay.tsx"
       - "packages/renderer/src/components/SettingsPanel.tsx"
+      - "packages/renderer/src/components/Toolbar.tsx"
       - "packages/renderer/src/core/distances.ts"
       - "packages/renderer/src/plugins/arrange.ts"
       - "packages/renderer/src/plugins/settings-runtime.tsx"
       - "packages/renderer/src/plugins/screenshot.ts"
       - "packages/renderer/src/runtime/builtin-actions.ts"
+      - "packages/renderer/src/runtime/color-picker-support.ts"
       - "packages/renderer/test/arrange-plugin.test.ts"
       - "packages/renderer/test/distances.test.ts"
       - "packages/mesurer/src/context-plugin.tsx"
@@ -91,7 +93,7 @@ jobs:
           ARRANGE_URL: http://127.0.0.1:4174/
         run: bun visual-parity/arrange-contract.mjs
 
-      - name: Exercise Color Picker fallback
+      - name: Exercise Color Picker capability
         env:
           COLOR_PICKER_URL: http://127.0.0.1:4174/
         run: bun visual-parity/color-picker-contract.mjs
@@ -132,8 +134,9 @@ jobs:
 
           print("")
           print("### Color Picker")
-          print("- Native EyeDropper absence is forced in Chromium")
-          print("- Crosshair fallback, page hit-testing, Escape cancellation, toolbar P shortcut, and visible color results are exercised")
+          print("- Native EyeDropper absence is forced and the unavailable toolbar control is required to be absent")
+          print("- A mocked native EyeDropper exercises toolbar click, repeated picking, the P shortcut, and visible native results")
+          print("- No DOM/CSS Color Picker fallback is permitted")
 
           print("")
           self_path = Path("self-hosting-artifacts/self-hosting-measurements.json")
