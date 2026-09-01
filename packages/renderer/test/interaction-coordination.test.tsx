@@ -78,13 +78,17 @@ describe("page interaction coordination", () => {
     await vi.waitFor(() => expect(opens).toBe(1));
     await settle();
     expect(button.getAttribute("aria-pressed")).toBe("true");
-    expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#123456");
+    const firstPanel = document.querySelector<HTMLElement>(".mesurer-color-picker");
+    expect(firstPanel?.textContent).toContain("#123456");
+    expect(firstPanel?.dataset.mesurerColorPickerMode).toBe("native");
 
     button.click();
     await vi.waitFor(() => expect(opens).toBe(2));
     await settle();
     expect(button.getAttribute("aria-pressed")).toBe("true");
-    expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#abcdef");
+    const secondPanel = document.querySelector<HTMLElement>(".mesurer-color-picker");
+    expect(secondPanel?.textContent).toContain("#abcdef");
+    expect(secondPanel?.dataset.mesurerColorPickerMode).toBe("native");
 
     document.querySelector<HTMLButtonElement>('button[aria-label="X-ray (X)"]')!.click();
     await settle();
@@ -108,12 +112,17 @@ describe("page interaction coordination", () => {
     await settle();
     expect(button.getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector(".mesurer-color-picker")).toBeNull();
-    expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeTruthy();
+    const fallback = document.querySelector<HTMLElement>("[data-mesurer-color-picker-fallback='true']");
+    expect(fallback).toBeTruthy();
+    expect(fallback?.dataset.mesurerColorPickerMode).toBe("dom-fallback");
 
     target.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));
     await settle();
     expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeNull();
-    expect(document.querySelector(".mesurer-color-picker")?.textContent).toContain("#123456");
+    const panel = document.querySelector<HTMLElement>(".mesurer-color-picker");
+    expect(panel?.textContent).toContain("#123456");
+    expect(panel?.dataset.mesurerColorPickerMode).toBe("dom-fallback");
+    expect(panel?.getAttribute("aria-description")).toContain("page CSS fallback");
     expect(button.getAttribute("aria-pressed")).toBe("true");
   });
 
