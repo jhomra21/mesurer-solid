@@ -35,12 +35,8 @@ try {
   }
 
   const unavailableButton = unsupportedPage.locator('button[aria-label="Color picker (P)"]');
-  await unsupportedPage.waitForFunction(() => {
-    const button = document.querySelector('button[aria-label="Color picker (P)"]');
-    return button instanceof HTMLElement && getComputedStyle(button).display === "none";
-  });
-  if (await unavailableButton.isVisible()) {
-    throw new Error("Color Picker button remained visible without native EyeDropper support");
+  if (await unavailableButton.count()) {
+    throw new Error("Color Picker button should not render without native EyeDropper support");
   }
 
   await unsupportedPage.keyboard.press("p");
