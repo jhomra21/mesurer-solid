@@ -20,6 +20,7 @@ afterEach(async () => {
   while (mounted.length) mounted.pop()?.();
   await settle();
   Reflect.deleteProperty(window, "EyeDropper");
+  Reflect.deleteProperty(window, "isSecureContext");
   localStorage.clear();
   document.body.replaceChildren();
   document.head.querySelectorAll("#mesurer-solid-styles, #mesurer-solid-xray-styles").forEach((node) => node.remove());
@@ -27,6 +28,7 @@ afterEach(async () => {
 });
 
 const installStaticEyeDropper = (color = "#123456") => {
+  Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
   Object.defineProperty(window, "EyeDropper", {
     configurable: true,
     value: class {
@@ -68,6 +70,7 @@ const arrangeInteractionFixture = defineMesurerPlugin({
 describe("page interaction coordination", () => {
   it("opens native color picking on every press while keeping the standard result active", async () => {
     let opens = 0;
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
       value: class {
@@ -118,6 +121,7 @@ describe("page interaction coordination", () => {
       }
     };
     let reads = 0;
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
       get() {
@@ -139,6 +143,33 @@ describe("page interaction coordination", () => {
     await settle();
     expect(reads).toBeGreaterThanOrEqual(2);
     expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
+  });
+
+  it("does not render Color Picker when the host does not affirm a secure context", async () => {
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: undefined });
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      value: class {
+        async open() {
+          return { sRGBHex: "#123456" };
+        }
+      },
+    });
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const dispose = render(
+      () => <ComposableMesurer persistKey="interaction-color-picker-insecure-unknown" />,
+      host,
+    );
+    mounted.push(dispose);
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+    await settle();
+
+    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", bubbles: true, cancelable: true }));
+    await settle();
+    expect(document.querySelector(".mesurer-color-picker")).toBeNull();
   });
 
   it("does not render the Color Picker tool when native EyeDropper is unavailable", async () => {
@@ -165,6 +196,7 @@ describe("page interaction coordination", () => {
   });
 
   it("does not treat a truthy non-EyeDropper placeholder as native support", async () => {
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
       value: { unavailable: true },

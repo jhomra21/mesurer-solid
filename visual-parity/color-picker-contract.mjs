@@ -19,6 +19,36 @@ const clickLocatorCenter = async (locator) => {
 };
 
 try {
+  const unknownSecureContextPage = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+    deviceScaleFactor: 2,
+  });
+  watchDiagnostics(unknownSecureContextPage, "unknown-secure-context");
+  await unknownSecureContextPage.addInitScript(() => {
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      value: class {
+        async open() {
+          return { sRGBHex: "#5eead4" };
+        }
+      },
+    });
+  });
+  await unknownSecureContextPage.goto(url, { waitUntil: "networkidle" });
+  if (await unknownSecureContextPage.locator('button[aria-label="Color picker (P)"]').count()) {
+    throw new Error("Color Picker rendered when secure-context capability was not affirmed");
+  }
+  await unknownSecureContextPage.keyboard.press("p");
+  await unknownSecureContextPage.waitForTimeout(80);
+  if (await unknownSecureContextPage.locator(".mesurer-color-picker").count()) {
+    throw new Error("Color Picker ran when secure-context capability was not affirmed");
+  }
+  await unknownSecureContextPage.close();
+
   const unsupportedPage = await browser.newPage({
     viewport: { width: 1280, height: 900 },
     deviceScaleFactor: 2,

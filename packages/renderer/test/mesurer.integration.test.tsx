@@ -16,6 +16,7 @@ afterEach(async () => {
   while (mounted.length) mounted.pop()?.();
   await settle();
   Reflect.deleteProperty(window, "EyeDropper");
+  Reflect.deleteProperty(window, "isSecureContext");
   document.body.replaceChildren();
   document.head.querySelectorAll("#mesurer-solid-styles, #mesurer-solid-xray-styles").forEach((node) => node.remove());
   vi.restoreAllMocks();
@@ -23,6 +24,7 @@ afterEach(async () => {
 
 describe("Mesurer host integration", () => {
   it("uses the upstream Mesurer toolbar/settings visual contract and public shortcuts", async () => {
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
       value: class {
