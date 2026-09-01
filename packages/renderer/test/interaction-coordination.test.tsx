@@ -107,25 +107,17 @@ describe("page interaction coordination", () => {
     expect(document.querySelector(".mesurer-color-picker")).toBeNull();
   });
 
-  it("removes the Color Picker contribution when native EyeDropper is unavailable", async () => {
+  it("does not render the Color Picker tool when native EyeDropper is unavailable", async () => {
     const host = document.createElement("div");
     document.body.append(host);
-    let pluginHost: MesurerPluginHost | null = null;
     const dispose = render(
-      () => <ComposableMesurer
-        persistKey="interaction-color-picker-unavailable"
-        onPluginHost={(value) => { pluginHost = value; }}
-      />,
+      () => <ComposableMesurer persistKey="interaction-color-picker-unavailable" />,
       host,
     );
     mounted.push(dispose);
+    await settle();
 
-    await vi.waitFor(() => expect(pluginHost).toBeTruthy());
-    await vi.waitFor(() => {
-      expect(pluginHost!.tools().some((tool) => tool.builtin === "color-picker")).toBe(false);
-    });
-    const visibilityStyle = document.querySelector<HTMLStyleElement>("style[data-mesurer-plugin-visibility='true']");
-    await vi.waitFor(() => expect(visibilityStyle?.textContent).toContain("[data-mesurer-builtin='color-picker']{display:none!important}"));
+    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
 
     window.dispatchEvent(new KeyboardEvent("keydown", {
       key: "p",
