@@ -128,7 +128,7 @@ try {
   await fallback.waitFor({ state: "detached" });
   await panel.waitFor({ state: "visible" });
   const keyboardResult = (await panel.textContent()) ?? "";
-  if (!keyboardResult.includes("#22d3ee")) {
+  if (!keyboardResult.includes("#5eead4")) {
     throw new Error(`Keyboard Color Picker fallback sampled the wrong color: ${keyboardResult}`);
   }
 
