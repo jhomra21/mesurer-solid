@@ -79,6 +79,8 @@ const commitColorSample = (
   ).catch(() => undefined);
 };
 
+const MESURER_UI_SELECTOR = "[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']";
+
 const installDomColorPickerFallback = (
   model: MesurerModel,
   ownerWindow: Window,
@@ -86,27 +88,68 @@ const installDomColorPickerFallback = (
   const ownerDocument = ownerWindow.document;
   // SAFETY: composedPath entries are checked against the Element constructor belonging to this document's window realm.
   const realm = ownerWindow as Window & typeof globalThis;
-  const cursorStyle = ownerDocument.createElement("style");
-  cursorStyle.dataset.mesurerColorPickerFallback = "true";
-  cursorStyle.textContent = [
-    "html, body, body * { cursor: crosshair !important; }",
-    "[data-mesurer-root='true'], [data-mesurer-root='true'] *, [data-mesurer-inspector-ui='true'], [data-mesurer-inspector-ui='true'] * { cursor: default !important; }",
-  ].join("\n");
-  (ownerDocument.head ?? ownerDocument.documentElement).append(cursorStyle);
+  const overlay = ownerDocument.createElement("div");
+  overlay.dataset.mesurerColorPickerFallback = "true";
+  overlay.dataset.mesurerInspectorUi = "true";
+  overlay.setAttribute("aria-hidden", "true");
+  Object.assign(overlay.style, {
+    position: "fixed",
+    inset: "0",
+    zIndex: "89",
+    cursor: "crosshair",
+    background: "transparent",
+    pointerEvents: "auto",
+  });
+  (ownerDocument.body ?? ownerDocument.documentElement).append(overlay);
 
   let cleaned = false;
   const cleanup = () => {
     if (cleaned) return;
     cleaned = true;
-    ownerDocument.removeEventListener("pointerdown", onPointerDown, true);
+    ownerDocument.removeEventListener("pointerdown", onDocumentPointerDown, true);
     ownerDocument.removeEventListener("keydown", onKeyDown, true);
-    cursorStyle.remove();
+    overlay.removeEventListener("pointerdown", onOverlayPointerDown);
+    overlay.removeEventListener("click", onOverlayClick);
+    overlay.remove();
   };
 
-  const onPointerDown = (event: PointerEvent) => {
+  const isMesurerUi = (element: Element) => Boolean(element.closest(MESURER_UI_SELECTOR));
+
+  const sampleAtPoint = (clientX: number, clientY: number) => {
+    // Let the browser hit-test through the transparent capture surface so the
+    // fallback samples the real page element rather than its own overlay.
+    overlay.style.pointerEvents = "none";
+    const candidates = typeof ownerDocument.elementsFromPoint === "function"
+      ? ownerDocument.elementsFromPoint(clientX, clientY)
+      : [];
+    overlay.style.pointerEvents = "auto";
+    const target = candidates.find((candidate) => !isMesurerUi(candidate));
+    return target ? sampleDomColor(target, ownerWindow) : null;
+  };
+
+  const onOverlayPointerDown = (event: PointerEvent) => {
     if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+
+  const onOverlayClick = (event: MouseEvent) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const sample = sampleAtPoint(event.clientX, event.clientY);
+    if (!sample) return;
+    cleanup();
+    commitColorSample(model, ownerWindow, sample);
+  };
+
+  // Keep a document-level path as a defensive fallback for pages whose own
+  // stacking contexts sit above the capture surface. The normal browser path
+  // is the overlay, which visibly supplies the crosshair and consumes the click.
+  const onDocumentPointerDown = (event: PointerEvent) => {
+    if (event.button !== 0 || event.target === overlay) return;
     const path = event.composedPath().filter((entry): entry is Element => entry instanceof realm.Element);
-    if (path.some((entry) => entry.closest("[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']"))) return;
+    if (path.some(isMesurerUi)) return;
     const target = path[0];
     if (!target) return;
     const sample = sampleDomColor(target, ownerWindow);
@@ -125,7 +168,9 @@ const installDomColorPickerFallback = (
     dismissColorPicker(model);
   };
 
-  ownerDocument.addEventListener("pointerdown", onPointerDown, true);
+  overlay.addEventListener("pointerdown", onOverlayPointerDown);
+  overlay.addEventListener("click", onOverlayClick);
+  ownerDocument.addEventListener("pointerdown", onDocumentPointerDown, true);
   ownerDocument.addEventListener("keydown", onKeyDown, true);
   return cleanup;
 };
