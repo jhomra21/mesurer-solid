@@ -130,6 +130,33 @@ describe("page interaction coordination", () => {
     expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeNull();
   });
 
+  it("does not treat a truthy non-EyeDropper placeholder as native support", async () => {
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      value: { unavailable: true },
+    });
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const dispose = render(
+      () => <ComposableMesurer persistKey="interaction-color-picker-placeholder" />,
+      host,
+    );
+    mounted.push(dispose);
+    await settle();
+
+    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "p",
+      bubbles: true,
+      cancelable: true,
+    }));
+    await settle();
+
+    expect(document.querySelector(".mesurer-color-picker")).toBeNull();
+  });
+
   it("shows and executes shortcuts for first-party Arrange and Screenshot tools", async () => {
     const host = document.createElement("div");
     document.body.append(host);
