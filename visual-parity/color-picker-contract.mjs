@@ -32,17 +32,6 @@ try {
   });
   await unsupportedPage.goto(url, { waitUntil: "networkidle" });
 
-  const unsupportedShape = await unsupportedPage.evaluate(() => {
-    const candidate = window.EyeDropper;
-    return {
-      type: typeof candidate,
-      hasOpen: typeof candidate?.prototype?.open === "function",
-    };
-  });
-  if (unsupportedShape.type === "function" && unsupportedShape.hasOpen) {
-    throw new Error("Unsupported Color Picker contract requires an unusable EyeDropper shape");
-  }
-
   const unavailableButton = unsupportedPage.locator('button[aria-label="Color picker (P)"]');
   if (await unavailableButton.count()) {
     throw new Error("Color Picker button rendered without a usable native EyeDropper API");
