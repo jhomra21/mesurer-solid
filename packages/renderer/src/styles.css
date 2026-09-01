@@ -133,12 +133,11 @@
   white-space: nowrap;
 }
 
-/* The plugin group spans both General columns. Indent its disclosure so the
-   8px-inset Plugins label lands on the same x-position as Persist and Version,
-   while shrinking the row by the same amount keeps the right inset at 8px. */
+/* Give the top-level Plugins disclosure equal breathing room outside its
+   content while keeping its text and chevron aligned with the settings grid. */
 [data-mesurer-plugin-settings-disclosure="plugins"] {
-  width: calc(100% - 28px);
-  margin-left: 28px;
+  width: calc(100% + 16px);
+  margin-inline: -8px;
 }
 
 /* Solid host compatibility: visually equivalent to upstream's root utility classes. */
