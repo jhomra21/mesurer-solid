@@ -1,12 +1,18 @@
-type EyeDropperCandidate = Function & {
-  prototype?: { open?: unknown };
+type EyeDropperConstructor = Function & {
+  prototype: { open: (...args: never[]) => unknown };
 };
 type WindowWithEyeDropper = Window & { EyeDropper?: unknown };
 
+const isEyeDropperConstructor = (value: unknown): value is EyeDropperConstructor => {
+  if (typeof value !== "function") return false;
+  // SAFETY: the function check establishes a callable boundary; this assertion is used only to validate the required native EyeDropper prototype contract below.
+  const candidate = value as Function & { prototype?: { open?: unknown } };
+  return typeof candidate.prototype?.open === "function";
+};
+
 export const supportsNativeColorPicker = (ownerWindow: Window) => {
   if (ownerWindow.isSecureContext === false) return false;
-  // SAFETY: EyeDropper is an optional browser Window extension. A truthy placeholder is not enough; the native contract needs a constructible-looking API with an open method.
+  // SAFETY: EyeDropper is an optional browser Window extension read as unknown and decoded by isEyeDropperConstructor before use.
   const candidate = (ownerWindow as WindowWithEyeDropper).EyeDropper;
-  return typeof candidate === "function"
-    && typeof (candidate as EyeDropperCandidate).prototype?.open === "function";
+  return isEyeDropperConstructor(candidate);
 };
