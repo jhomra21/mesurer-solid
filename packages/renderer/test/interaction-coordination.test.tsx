@@ -145,12 +145,14 @@ describe("page interaction coordination", () => {
     expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
   });
 
-  it("does not render Color Picker when the host does not affirm a secure context", async () => {
+  it("uses the native EyeDropper contract as the capability source", async () => {
+    let opens = 0;
     Object.defineProperty(window, "isSecureContext", { configurable: true, value: undefined });
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
       value: class {
         async open() {
+          opens += 1;
           return { sRGBHex: "#123456" };
         }
       },
@@ -159,17 +161,18 @@ describe("page interaction coordination", () => {
     const host = document.createElement("div");
     document.body.append(host);
     const dispose = render(
-      () => <ComposableMesurer persistKey="interaction-color-picker-insecure-unknown" />,
+      () => <ComposableMesurer persistKey="interaction-color-picker-native-contract" />,
       host,
     );
     mounted.push(dispose);
-    await new Promise((resolve) => window.setTimeout(resolve, 150));
-    await settle();
 
-    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", bubbles: true, cancelable: true }));
-    await settle();
-    expect(document.querySelector(".mesurer-color-picker")).toBeNull();
+    const button = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]');
+      expect(value).toBeTruthy();
+      return value!;
+    });
+    button.click();
+    await vi.waitFor(() => expect(opens).toBe(1));
   });
 
   it("does not render the Color Picker tool when native EyeDropper is unavailable", async () => {
