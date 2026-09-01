@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message == 'chore: prepare confirmed Color Picker capability'
+    if: "${{ github.event.head_commit.message == 'chore: prepare confirmed Color Picker capability' }}"
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
