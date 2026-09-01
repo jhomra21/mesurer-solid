@@ -18,6 +18,13 @@ const clickLocatorCenter = async (locator) => {
   await locator.page().mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 };
 
+const disableWebDriverFlag = () => {
+  Object.defineProperty(Navigator.prototype, "webdriver", {
+    configurable: true,
+    get: () => false,
+  });
+};
+
 try {
   const unknownSecureContextPage = await browser.newPage({
     viewport: { width: 1280, height: 900 },
@@ -25,6 +32,10 @@ try {
   });
   watchDiagnostics(unknownSecureContextPage, "unknown-secure-context");
   await unknownSecureContextPage.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, "webdriver", {
+      configurable: true,
+      get: () => false,
+    });
     Object.defineProperty(window, "isSecureContext", {
       configurable: true,
       value: undefined,
@@ -55,6 +66,10 @@ try {
   });
   watchDiagnostics(unsupportedPage, "unsupported");
   await unsupportedPage.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, "webdriver", {
+      configurable: true,
+      get: () => false,
+    });
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
       value: { unavailable: true },
@@ -77,19 +92,15 @@ try {
   }
   await unsupportedPage.close();
 
-  const unsupportedHostPage = await browser.newPage({
+  const automatedHostPage = await browser.newPage({
     viewport: { width: 1280, height: 900 },
     deviceScaleFactor: 2,
   });
-  watchDiagnostics(unsupportedHostPage, "unsupported-host");
-  await unsupportedHostPage.addInitScript(() => {
+  watchDiagnostics(automatedHostPage, "automated-host");
+  await automatedHostPage.addInitScript(() => {
     Object.defineProperty(window, "isSecureContext", {
       configurable: true,
       value: true,
-    });
-    Object.defineProperty(window.navigator, "userAgent", {
-      configurable: true,
-      value: "CodexBrowser Mozilla/5.0 Chrome/151.0.0.0 Safari/537.36",
     });
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
@@ -100,16 +111,58 @@ try {
       },
     });
   });
-  await unsupportedHostPage.goto(url, { waitUntil: "networkidle" });
-  if (await unsupportedHostPage.locator('button[aria-label="Color picker (P)"]').count()) {
-    throw new Error("Color Picker rendered in the Codex in-app browser host");
+  await automatedHostPage.goto(url, { waitUntil: "networkidle" });
+  const webdriver = await automatedHostPage.evaluate(() => navigator.webdriver);
+  if (webdriver !== true) {
+    throw new Error(`Expected Playwright browser to identify automation, got ${String(webdriver)}`);
   }
-  await unsupportedHostPage.keyboard.press("p");
-  await unsupportedHostPage.waitForTimeout(80);
-  if (await unsupportedHostPage.locator(".mesurer-color-picker").count()) {
-    throw new Error("Color Picker ran in the Codex in-app browser host");
+  if (await automatedHostPage.locator('button[aria-label="Color picker (P)"]').count()) {
+    throw new Error("Color Picker rendered in an automated browser host");
   }
-  await unsupportedHostPage.close();
+  await automatedHostPage.keyboard.press("p");
+  await automatedHostPage.waitForTimeout(80);
+  if (await automatedHostPage.locator(".mesurer-color-picker").count()) {
+    throw new Error("Color Picker ran in an automated browser host");
+  }
+  await automatedHostPage.close();
+
+  const unidentifiedHostPage = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+    deviceScaleFactor: 2,
+  });
+  watchDiagnostics(unidentifiedHostPage, "unidentified-host");
+  await unidentifiedHostPage.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, "webdriver", {
+      configurable: true,
+      get: () => false,
+    });
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: true,
+    });
+    Object.defineProperty(window.navigator, "userAgent", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      value: class {
+        async open() {
+          return { sRGBHex: "#5eead4" };
+        }
+      },
+    });
+  });
+  await unidentifiedHostPage.goto(url, { waitUntil: "networkidle" });
+  if (await unidentifiedHostPage.locator('button[aria-label="Color picker (P)"]').count()) {
+    throw new Error("Color Picker rendered when the browser host could not identify itself");
+  }
+  await unidentifiedHostPage.keyboard.press("p");
+  await unidentifiedHostPage.waitForTimeout(80);
+  if (await unidentifiedHostPage.locator(".mesurer-color-picker").count()) {
+    throw new Error("Color Picker ran when the browser host could not identify itself");
+  }
+  await unidentifiedHostPage.close();
 
   const supportedPage = await browser.newPage({
     viewport: { width: 1280, height: 900 },
@@ -117,6 +170,10 @@ try {
   });
   watchDiagnostics(supportedPage, "supported");
   await supportedPage.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, "webdriver", {
+      configurable: true,
+      get: () => false,
+    });
     const colors = ["#5eead4", "#818cf8", "#fb7185"];
     Object.defineProperty(window, "__mesurerEyeDropperOpens", {
       configurable: true,
