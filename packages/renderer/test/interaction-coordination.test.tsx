@@ -26,6 +26,17 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+const installStaticEyeDropper = (color = "#123456") => {
+  Object.defineProperty(window, "EyeDropper", {
+    configurable: true,
+    value: class {
+      async open() {
+        return { sRGBHex: color };
+      }
+    },
+  });
+};
+
 const arrangeInteractionFixture = defineMesurerPlugin({
   id: "test.arrange-interaction",
   setup(ctx) {
@@ -96,34 +107,27 @@ describe("page interaction coordination", () => {
     expect(document.querySelector(".mesurer-color-picker")).toBeNull();
   });
 
-  it("falls back to page color sampling when the native EyeDropper API is unavailable", async () => {
-    const target = document.createElement("div");
-    target.textContent = "fallback target";
-    target.style.backgroundColor = "rgb(18, 52, 86)";
-    document.body.append(target);
+  it("hides the Color Picker tool when native EyeDropper is unavailable", async () => {
     const host = document.createElement("div");
     document.body.append(host);
-    const dispose = render(() => <Mesurer persistKey="interaction-color-picker-fallback" />, host);
+    const dispose = render(
+      () => <ComposableMesurer persistKey="interaction-color-picker-unavailable" />,
+      host,
+    );
     mounted.push(dispose);
-    await settle();
 
     const button = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')!;
-    button.click();
-    await settle();
-    expect(button.getAttribute("aria-pressed")).toBe("true");
-    expect(document.querySelector(".mesurer-color-picker")).toBeNull();
-    const fallback = document.querySelector<HTMLElement>("[data-mesurer-color-picker-fallback='true']");
-    expect(fallback).toBeTruthy();
-    expect(fallback?.dataset.mesurerColorPickerMode).toBe("dom-fallback");
+    await vi.waitFor(() => expect(getComputedStyle(button).display).toBe("none"));
 
-    target.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 }));
+    window.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "p",
+      bubbles: true,
+      cancelable: true,
+    }));
     await settle();
+
+    expect(document.querySelector(".mesurer-color-picker")).toBeNull();
     expect(document.querySelector("[data-mesurer-color-picker-fallback='true']")).toBeNull();
-    const panel = document.querySelector<HTMLElement>(".mesurer-color-picker");
-    expect(panel?.textContent).toContain("#123456");
-    expect(panel?.dataset.mesurerColorPickerMode).toBe("dom-fallback");
-    expect(panel?.getAttribute("aria-description")).toContain("page CSS fallback");
-    expect(button.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("shows and executes shortcuts for first-party Arrange and Screenshot tools", async () => {
@@ -163,6 +167,7 @@ describe("page interaction coordination", () => {
   });
 
   it("reserves page-interaction tools for Arrange and closes its quick menu after a choice", async () => {
+    installStaticEyeDropper();
     const host = document.createElement("div");
     document.body.append(host);
     let pluginHost: MesurerPluginHost | null = null;
