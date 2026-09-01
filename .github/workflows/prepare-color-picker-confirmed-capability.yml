@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   patch:
-    if: "${{ github.event.head_commit.message == 'chore: prepare confirmed Color Picker capability' }}"
+    if: "${{ github.event.head_commit.message == 'chore: prepare delayed Color Picker confirmation' }}"
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -20,26 +20,44 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
-      - name: Make Color Picker capability opt-in only
+      - name: Confirm native Color Picker after browser settles
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
           toolbar = Path('packages/renderer/src/components/Toolbar.tsx')
           text = toolbar.read_text()
-          old = '''  const [colorPickerSupported, setColorPickerSupported] = createSignal(\n    supportsNativeColorPicker(props.ownerWindow),\n  );'''
-          new = '''  const [colorPickerSupported, setColorPickerSupported] = createSignal(false);'''
+          text = text.replace(
+            'import { For, Show, createSignal, onSettled } from "solid-js";',
+            'import { For, Show, createSignal, flush, onSettled } from "solid-js";',
+            1,
+          )
+          old = '''  const [colorPickerSupported, setColorPickerSupported] = createSignal(\n    supportsNativeColorPicker(props.ownerWindow),\n  );\n  const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;\n  const refreshColorPickerCapability = () => {\n    setColorPickerSupported(supportsNativeColorPicker(colorPickerOwnerWindow()));\n  };'''
+          new = '''  const [colorPickerSupported, setColorPickerSupported] = createSignal(false);\n  let colorPickerConfirmFrame = 0;\n  const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;\n  const applyColorPickerCapability = (supported: boolean) => {\n    setColorPickerSupported(supported);\n    flush();\n  };\n  const refreshColorPickerCapability = () => {\n    const candidateWindow = colorPickerOwnerWindow();\n    if (!supportsNativeColorPicker(candidateWindow)) {\n      if (colorPickerConfirmFrame) {\n        candidateWindow.cancelAnimationFrame(colorPickerConfirmFrame);\n        colorPickerConfirmFrame = 0;\n      }\n      applyColorPickerCapability(false);\n      return;\n    }\n    if (colorPickerConfirmFrame) candidateWindow.cancelAnimationFrame(colorPickerConfirmFrame);\n    colorPickerConfirmFrame = candidateWindow.requestAnimationFrame(() => {\n      colorPickerConfirmFrame = 0;\n      applyColorPickerCapability(supportsNativeColorPicker(colorPickerOwnerWindow()));\n    });\n  };'''
           if old not in text:
-              raise SystemExit('Toolbar capability initialization anchor not found')
-          toolbar.write_text(text.replace(old, new, 1))
+              raise SystemExit('Toolbar capability block anchor not found')
+          text = text.replace(old, new, 1)
+          old = '''      props.ownerWindow.clearInterval(capabilityInterval);\n      props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);'''
+          new = '''      props.ownerWindow.clearInterval(capabilityInterval);\n      if (colorPickerConfirmFrame) {\n        colorPickerOwnerWindow().cancelAnimationFrame(colorPickerConfirmFrame);\n        colorPickerConfirmFrame = 0;\n      }\n      props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);'''
+          if old not in text:
+              raise SystemExit('Toolbar cleanup anchor not found')
+          text = text.replace(old, new, 1)
+          toolbar.write_text(text)
 
           test = Path('packages/renderer/test/interaction-coordination.test.tsx')
           text = test.read_text()
+          old = '''    const button = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')!;\n    button.click();'''
+          new = '''    const button = await vi.waitFor(() => {\n      const value = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]');\n      expect(value).toBeTruthy();\n      return value!;\n    });\n    button.click();'''
+          if old not in text:
+              raise SystemExit('Native Color Picker button test anchor not found')
+          text = text.replace(old, new, 1)
+
           anchor = '''  it("does not render the Color Picker tool when native EyeDropper is unavailable", async () => {'''
-          case = '''  it("does not expose Color Picker before native capability is positively confirmed", async () => {\n    const NativeEyeDropper = class {\n      async open() {\n        return { sRGBHex: "#123456" };\n      }\n    };\n    let reads = 0;\n    Object.defineProperty(window, "EyeDropper", {\n      configurable: true,\n      get() {\n        reads += 1;\n        return reads === 1 ? NativeEyeDropper : undefined;\n      },\n    });\n\n    const host = document.createElement("div");\n    document.body.append(host);\n    const dispose = render(\n      () => <ComposableMesurer persistKey="interaction-color-picker-confirmed-only" />,\n      host,\n    );\n    mounted.push(dispose);\n\n    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();\n    await settle();\n    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();\n  });\n\n'''
+          case = '''  it("requires native EyeDropper to remain available through confirmation before showing the tool", async () => {\n    const NativeEyeDropper = class {\n      async open() {\n        return { sRGBHex: "#123456" };\n      }\n    };\n    let reads = 0;\n    Object.defineProperty(window, "EyeDropper", {\n      configurable: true,\n      get() {\n        reads += 1;\n        return reads === 1 ? NativeEyeDropper : undefined;\n      },\n    });\n\n    const host = document.createElement("div");\n    document.body.append(host);\n    const dispose = render(\n      () => <ComposableMesurer persistKey="interaction-color-picker-confirmed-only" />,\n      host,\n    );\n    mounted.push(dispose);\n\n    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();\n    await new Promise((resolve) => window.setTimeout(resolve, 50));\n    await settle();\n    expect(reads).toBeGreaterThanOrEqual(2);\n    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();\n  });\n\n'''
           if anchor not in text:
-              raise SystemExit('Interaction test anchor not found')
-          test.write_text(text.replace(anchor, case + anchor, 1))
+              raise SystemExit('Interaction unsupported anchor not found')
+          text = text.replace(anchor, case + anchor, 1)
+          test.write_text(text)
           PY
       - run: bun run lint
       - run: bun run typecheck
@@ -52,5 +70,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add packages/renderer/src/components/Toolbar.tsx packages/renderer/test/interaction-coordination.test.tsx
-          git commit -m "fix: require confirmed native Color Picker capability"
+          git commit -m "fix: confirm native Color Picker capability"
           git push origin HEAD:pr/text-editing-toolbar-parity
