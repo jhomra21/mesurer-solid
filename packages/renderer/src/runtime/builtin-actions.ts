@@ -1,10 +1,8 @@
 import type { ToolMode } from "@jhomra21/mesurer-solid-core";
 import { formatColor, parseCssColor, type ColorSample } from "../core/colors";
 import type { MesurerModel } from "../model/create-mesurer-model";
-import {
-  supportsNativeColorPicker,
-  type MesurerBuiltinPluginId,
-} from "../plugins/builtins";
+import type { MesurerBuiltinPluginId } from "../plugins/builtins";
+import { supportsNativeColorPicker } from "./color-picker-support";
 
 type EyeDropperResult = { sRGBHex: string };
 type EyeDropperLike = { open: () => Promise<EyeDropperResult> };
