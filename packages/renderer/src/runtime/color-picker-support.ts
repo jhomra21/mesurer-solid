@@ -13,15 +13,11 @@ const isEyeDropperConstructor = (value: unknown): value is EyeDropperConstructor
 const isAutomatedBrowserHost = (ownerWindow: Window) =>
   ownerWindow.navigator.webdriver === true;
 
-const hasUsableBrowserIdentity = (ownerWindow: Window) =>
-  typeof ownerWindow.navigator.userAgent === "string"
-  && ownerWindow.navigator.userAgent.length > 0;
-
 export const supportsNativeColorPicker = (ownerWindow: Window) => {
-  // Native EyeDropper opens browser/OS chrome. Automated and nonstandard embedded
-  // hosts can expose an EyeDropper-shaped page API without being able to present
-  // that UI, so do not advertise an inert toolbar action there.
-  if (isAutomatedBrowserHost(ownerWindow) || !hasUsableBrowserIdentity(ownerWindow)) return false;
+  // Native EyeDropper opens browser/OS chrome. Automated hosts can expose an
+  // EyeDropper-shaped page API without being able to present that UI, so do not
+  // advertise an inert toolbar action there.
+  if (isAutomatedBrowserHost(ownerWindow)) return false;
   // EyeDropper is a secure-context-only browser capability. If the host does not
   // positively expose a secure context, do not advertise a control that cannot work.
   if (ownerWindow.isSecureContext !== true) return false;
