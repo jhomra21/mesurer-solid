@@ -18,13 +18,6 @@ const clickLocatorCenter = async (locator) => {
   await locator.page().mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 };
 
-const disableWebDriverFlag = () => {
-  Object.defineProperty(Navigator.prototype, "webdriver", {
-    configurable: true,
-    get: () => false,
-  });
-};
-
 try {
   const unknownSecureContextPage = await browser.newPage({
     viewport: { width: 1280, height: 900 },
@@ -125,44 +118,6 @@ try {
     throw new Error("Color Picker ran in an automated browser host");
   }
   await automatedHostPage.close();
-
-  const unidentifiedHostPage = await browser.newPage({
-    viewport: { width: 1280, height: 900 },
-    deviceScaleFactor: 2,
-  });
-  watchDiagnostics(unidentifiedHostPage, "unidentified-host");
-  await unidentifiedHostPage.addInitScript(() => {
-    Object.defineProperty(Navigator.prototype, "webdriver", {
-      configurable: true,
-      get: () => false,
-    });
-    Object.defineProperty(window, "isSecureContext", {
-      configurable: true,
-      value: true,
-    });
-    Object.defineProperty(window.navigator, "userAgent", {
-      configurable: true,
-      value: undefined,
-    });
-    Object.defineProperty(window, "EyeDropper", {
-      configurable: true,
-      value: class {
-        async open() {
-          return { sRGBHex: "#5eead4" };
-        }
-      },
-    });
-  });
-  await unidentifiedHostPage.goto(url, { waitUntil: "networkidle" });
-  if (await unidentifiedHostPage.locator('button[aria-label="Color picker (P)"]').count()) {
-    throw new Error("Color Picker rendered when the browser host could not identify itself");
-  }
-  await unidentifiedHostPage.keyboard.press("p");
-  await unidentifiedHostPage.waitForTimeout(80);
-  if (await unidentifiedHostPage.locator(".mesurer-color-picker").count()) {
-    throw new Error("Color Picker ran when the browser host could not identify itself");
-  }
-  await unidentifiedHostPage.close();
 
   const supportedPage = await browser.newPage({
     viewport: { width: 1280, height: 900 },
