@@ -8,6 +8,13 @@ type EyeDropperResult = { sRGBHex: string };
 type EyeDropperLike = { open: () => Promise<EyeDropperResult> };
 type WindowWithEyeDropper = Window & { EyeDropper?: new () => EyeDropperLike };
 
+type ColorPickerOpenStatus =
+  | "opening"
+  | "sampled"
+  | "invalid-sample"
+  | "aborted"
+  | "failed";
+
 export type MesurerBuiltinController = {
   run(id: Exclude<MesurerBuiltinPluginId, "distance">): Promise<void>;
   deactivate(id: MesurerBuiltinPluginId): void;
@@ -34,6 +41,29 @@ const settingsTab = (model: MesurerModel) =>
       : model.current.toolMode === "guides" ? "guides" as const
         : model.current.toolMode === "select" || model.current.toolMode === "text-inspector" ? "select" as const
           : "general" as const;
+
+const recordColorPickerOpenStatus = (
+  ownerWindow: Window,
+  status: ColorPickerOpenStatus,
+  cause?: unknown,
+) => {
+  const root = ownerWindow.document.documentElement;
+  root.dataset.mesurerColorPickerOpenStatus = status;
+  root.dataset.mesurerColorPickerOpenUserActivation = String(ownerWindow.navigator.userActivation?.isActive);
+  delete root.dataset.mesurerColorPickerOpenErrorName;
+  delete root.dataset.mesurerColorPickerOpenErrorMessage;
+  if (cause === undefined) return;
+
+  const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;
+  const ErrorCtor = (ownerWindow as Window & typeof globalThis).Error;
+  if (cause instanceof DOMExceptionCtor || cause instanceof ErrorCtor) {
+    root.dataset.mesurerColorPickerOpenErrorName = cause.name;
+    root.dataset.mesurerColorPickerOpenErrorMessage = cause.message;
+    return;
+  }
+  root.dataset.mesurerColorPickerOpenErrorName = Object.prototype.toString.call(cause);
+  root.dataset.mesurerColorPickerOpenErrorMessage = String(cause);
+};
 
 const commitColorSample = (
   model: MesurerModel,
@@ -68,21 +98,26 @@ export function createMesurerBuiltinController(options: {
       colorPickerUnsupported: false,
     });
 
+    recordColorPickerOpenStatus(ownerWindow, "opening");
     try {
       const result = await new EyeDropper().open();
       const sample = parseCssColor(result.sRGBHex);
       if (!sample) {
+        recordColorPickerOpenStatus(ownerWindow, "invalid-sample");
         dismissColorPicker(model);
         return;
       }
+      recordColorPickerOpenStatus(ownerWindow, "sampled");
       commitColorSample(model, ownerWindow, sample);
     } catch (cause) {
       // SAFETY: ownerWindow is the realm that owns EyeDropper and therefore its DOMException constructor.
       const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;
       if (cause instanceof DOMExceptionCtor && cause.name === "AbortError") {
+        recordColorPickerOpenStatus(ownerWindow, "aborted", cause);
         dismissColorPicker(model);
         return;
       }
+      recordColorPickerOpenStatus(ownerWindow, "failed", cause);
       dismissColorPicker(model);
     }
   };
