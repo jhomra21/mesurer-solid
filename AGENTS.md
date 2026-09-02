@@ -357,7 +357,7 @@ outer-harness screenshot    → pixels, composition, hierarchy, clipping, appear
 
 A successful capture leaves a persistent draggable thumbnail with native image right-click behavior and a dismiss control. Clicking it opens a larger viewer with Copy, Save, and Close actions; Escape/backdrop closes the viewer without discarding the thumbnail. Capture/output status is shown separately so an unavailable clipboard/download does not discard a valid image.
 
-Normal browsers use `getDisplayMedia()` with stream reuse. The first-party Chrome extension enables the plugin automatically and captures through `chrome.tabs.captureVisibleTab()` via its isolated-world bridge, avoiding the screen-share chooser and a broad `<all_urls>` permission.
+Normal browsers use `getDisplayMedia()` with stream reuse. A browser may show a permission prompt or screen/tab chooser before the first capture; pause and wait for the user to approve it. If the current harness already has a validated tab with capture permission, reuse that tab for later captures instead of creating a new tab for every attempt. The first-party Chrome extension enables the plugin automatically and captures through `chrome.tabs.captureVisibleTab()` via its isolated-world bridge, avoiding the screen-share chooser and a broad `<all_urls>` permission.
 
 The typed screenshot service is available through the mounted plugin host under service id `screenshot`. It is not a context/delivery capability.
 
