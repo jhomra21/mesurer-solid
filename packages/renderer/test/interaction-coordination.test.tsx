@@ -68,15 +68,17 @@ const arrangeInteractionFixture = defineMesurerPlugin({
 });
 
 describe("page interaction coordination", () => {
-  it("opens native color picking on every press while keeping the standard result active", async () => {
+  it("matches upstream Color Picker button toggling while P starts a fresh native pick", async () => {
     let opens = 0;
+    const colors = ["#123456", "#abcdef", "#fedcba"];
     Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
       value: class {
         async open() {
+          const color = colors[opens] ?? colors.at(-1)!;
           opens += 1;
-          return { sRGBHex: opens === 1 ? "#123456" : "#abcdef" };
+          return { sRGBHex: color };
         }
       },
     });
@@ -101,12 +103,28 @@ describe("page interaction coordination", () => {
     expect(firstPanel?.dataset.mesurerColorPickerMode).toBe("native");
 
     button.click();
+    await settle();
+    expect(opens).toBe(1);
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(document.querySelector(".mesurer-color-picker")).toBeNull();
+
+    button.click();
     await vi.waitFor(() => expect(opens).toBe(2));
     await settle();
     expect(button.getAttribute("aria-pressed")).toBe("true");
-    const secondPanel = document.querySelector<HTMLElement>(".mesurer-color-picker");
-    expect(secondPanel?.textContent).toContain("#abcdef");
-    expect(secondPanel?.dataset.mesurerColorPickerMode).toBe("native");
+    expect(document.querySelector<HTMLElement>(".mesurer-color-picker")?.textContent).toContain("#abcdef");
+
+    window.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "p",
+      bubbles: true,
+      cancelable: true,
+    }));
+    await vi.waitFor(() => expect(opens).toBe(3));
+    await settle();
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    const shortcutPanel = document.querySelector<HTMLElement>(".mesurer-color-picker");
+    expect(shortcutPanel?.textContent).toContain("#fedcba");
+    expect(shortcutPanel?.dataset.mesurerColorPickerMode).toBe("native");
 
     document.querySelector<HTMLButtonElement>('button[aria-label="X-ray (X)"]')!.click();
     await settle();
