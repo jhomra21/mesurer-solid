@@ -208,14 +208,18 @@ const selected = await mesurer.context({ scope: "selection" })
 
 ## Annotations and review
 
-Mesurer Solid context annotations attach a note to rendered UI and keep a baseline that can be reviewed again after changes:
+Mesurer Solid context annotations are semantic, target-bound review context. A note stays attached to the rendered element or region the person selected and carries the related evidence an agent needs: target identity, geometry, measurements, distances, guides, styles, layout, and an immutable baseline.
 
 ```ts
 const annotation = await mesurer.context({ annotation: annotationId })
 const review = await mesurer.review(annotationId)
 ```
 
-This is useful when a visual change needs to be checked against the same target or region after an edit. These context/review annotations are distinct from the arrow, pen, and text drawing tools introduced by upstream Mesurer `0.1.1`; current upstream-parity status is tracked in [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md).
+This lets a person highlight the UI and say what should change without also drawing an arrow or exporting a screenshot for the agent to interpret. The coding agent can read the selected target and its context directly through Mesurer, edit source, then review the same baseline after the real UI renders again.
+
+Upstream Mesurer `0.1.1` added a different annotation model built around freeform arrows, pen strokes, text drawings, and a grouped drawing-tool surface. Mesurer Solid intentionally does not adopt that drawing workflow for the current product: its context/review annotations already encode what is selected and the measurements/relationships around it. Screenshots remain available for the separate cases where real pixel evidence is useful.
+
+See [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) for the agent-first review model and [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) for the current upstream audit and intentional product differences.
 
 ## Agent integration
 
@@ -290,14 +294,14 @@ mesurer-solid/inject-script
 - [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) — screenshot plugin
 - [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — context, selection, annotations, and review
 - [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) — host isolation and browser compatibility
-- [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) — upstream Mesurer parity and stable-release blockers
+- [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) — upstream audit, adopted contracts, and intentional product differences
 - [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md) — agent-specific setup and API usage
 
 ## Origin and attribution
 
-Mesurer Solid started as a Solid port of [ibelick/mesurer](https://github.com/ibelick/mesurer) and preserves the original tool's visual language and interaction model where practical.
+Mesurer Solid started as a Solid port of [ibelick/mesurer](https://github.com/ibelick/mesurer). Adopted interactions stay source-first where practical, while Mesurer Solid intentionally diverges where its plugin and agent-first workflows solve a different product problem.
 
-The current upstream audit is pinned in [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md). Do not assume that a newer upstream feature is present here unless that audit marks it implemented.
+The current upstream audit is pinned in [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md). Do not assume that a newer upstream feature is present here unless that audit marks it adopted; some upstream features are deliberately outside Mesurer Solid's scope.
 
 Original Mesurer copyright and attribution are documented in [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).
 
