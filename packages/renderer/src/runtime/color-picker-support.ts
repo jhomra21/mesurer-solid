@@ -4,9 +4,15 @@ type EyeDropperConstructor = {
 };
 type WindowWithEyeDropper = Window & { EyeDropper?: unknown };
 
-// Some embedded Chromium hosts expose a native EyeDropper interface but abort
-// every open before a person can interact with it. Once observed, stop
-// advertising the tool for the rest of this page realm.
+// CodexBrowser currently exposes a native-looking EyeDropper in Mesurer's page
+// realm even though the host cannot present the picker UI. Hide the control up
+// front there instead of making the first user click discover that mismatch.
+const isKnownUnavailableHost = (ownerWindow: Window) =>
+  ownerWindow.navigator.userAgent.startsWith("CodexBrowser ");
+
+// Some embedded Chromium hosts may still expose a native EyeDropper interface
+// that aborts every open before a person can interact with it. Once observed,
+// stop advertising the tool for the rest of this page realm.
 const operationallyUnavailableWindows = new WeakSet<Window>();
 
 const isEyeDropperConstructor = (value: unknown): value is EyeDropperConstructor => {
@@ -25,6 +31,7 @@ export const resetNativeColorPickerOperationalState = (ownerWindow: Window) => {
 };
 
 export const supportsNativeColorPicker = (ownerWindow: Window) => {
+  if (isKnownUnavailableHost(ownerWindow)) return false;
   if (operationallyUnavailableWindows.has(ownerWindow)) return false;
   // SAFETY: EyeDropper is an optional Window extension and is decoded immediately by isEyeDropperConstructor before use.
   const candidate = (ownerWindow as WindowWithEyeDropper).EyeDropper;
