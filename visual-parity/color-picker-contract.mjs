@@ -165,6 +165,16 @@ try {
   }
 
   await clickLocatorCenter(colorButton);
+  await panel.waitFor({ state: "detached" });
+  if ((await colorButton.getAttribute("aria-pressed")) !== "false") {
+    throw new Error("Second Color Picker button press did not toggle the active result off");
+  }
+  const opensAfterToggleOff = await supportedPage.evaluate(() => window.__mesurerEyeDropperOpens);
+  if (opensAfterToggleOff !== 1) {
+    throw new Error(`Toggle-off unexpectedly opened EyeDropper again: ${opensAfterToggleOff} opens`);
+  }
+
+  await clickLocatorCenter(colorButton);
   await supportedPage.waitForFunction(() =>
     document.querySelector(".mesurer-color-picker")?.textContent?.includes("#818cf8") === true,
   );
@@ -176,7 +186,7 @@ try {
 
   const opens = await supportedPage.evaluate(() => window.__mesurerEyeDropperOpens);
   if (opens !== 3) {
-    throw new Error(`Expected three native EyeDropper opens, got ${opens}`);
+    throw new Error(`Expected three native EyeDropper opens across button reactivation and P restart, got ${opens}`);
   }
 
   await supportedPage.evaluate(() => {
