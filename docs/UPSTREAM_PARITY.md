@@ -1,8 +1,14 @@
 # Upstream parity audit
 
-Mesurer Solid tracks the product behavior of [`ibelick/mesurer`](https://github.com/ibelick/mesurer) without copying its React architecture into the Solid implementation.
+Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/ibelick/mesurer), but it is not a feature-for-feature fork. We audit upstream source so adopted behavior stays source-faithful and so product differences are deliberate rather than accidental.
 
-This document is a release gate, not a claim that every upstream implementation detail belongs in Mesurer Solid. Product behavior and visible interaction fidelity come first; Mesurer Solid-specific architecture such as the plugin runtime, framework-neutral public package, agent/context workflow, Arrange, host isolation, and private Solid renderer stays local where it does not change the upstream user contract.
+The release question is therefore not “does Mesurer Solid contain every upstream feature?” It is:
+
+1. does an adopted upstream interaction still match the source behavior we claim to preserve;
+2. is each new upstream capability classified as adopted, intentionally different, or not relevant to this product; and
+3. do the public docs describe the Mesurer Solid workflow that actually ships.
+
+Mesurer Solid-specific architecture and workflows remain local where they serve this product better: the plugin runtime, framework-neutral public package, agent/context workflow, Arrange, host isolation, screenshots, and private Solid renderer.
 
 ## Current audit
 
@@ -11,11 +17,11 @@ This document is a release gate, not a claim that every upstream implementation 
 - Current audited upstream main: `ibelick/mesurer@74936ac1420d3cb214a6b78fc93e5058be1ef9f7` (`0.1.1` release commit, audited 2026-09-02)
 - Upstream commits after the previous audit point: 1 large product commit (`feat: add annotate (#22)`)
 
-The `74936ac` audit supersedes the earlier conclusion that arrow/text annotation work had been reverted. Upstream `0.1.1` now ships annotation tools as current product behavior.
+The `74936ac` audit supersedes the earlier conclusion that arrow/text annotation work had been reverted. Upstream `0.1.1` now ships those drawing tools. Mesurer Solid intentionally does not adopt that annotation/tool-group workflow for the current product.
 
 ## Product capability delta
 
-| Upstream area | Mesurer Solid status | Stable-release decision |
+| Upstream area | Mesurer Solid status | Product decision |
 | --- | --- | --- |
 | Screenshot region selection | Implemented | First-party optional `screenshotPlugin()` |
 | Clipboard PNG output | Implemented | Screenshot plugin setting/service; automatic copy is best-effort so a clipboard failure never discards a successful capture |
@@ -26,29 +32,53 @@ The `74936ac` audit supersedes the earlier conclusion that arrow/text annotation
 | Canonical `Mesurer` product naming | Implemented | Public APIs and examples use `Mesurer` / `mountMesurer()`; the 0.1.1 `Measurer` spellings remain only as deprecated compatibility aliases |
 | Native screen Color Picker | Implemented with host capability gating | Preserve upstream native `EyeDropper` behavior where operational; hide the tool and keep `P` inert where the native sampler is unavailable or the current Codex host cannot use it |
 | Color Picker active-button vs `P` behavior | Implemented | Active toolbar button toggles the result off without another native open; `P` starts a fresh native pick, matching upstream |
-| Grouped **Select & Inspect** / **Annotate** tool switch | **Not implemented** | **Stable parity blocker** unless explicitly scoped out before release |
-| Arrow annotations | **Not implemented** | **Stable parity blocker** |
-| Freehand pen annotations | **Not implemented** | **Stable parity blocker** |
-| Upstream text annotations | **Not implemented** | **Stable parity blocker**. Mesurer Solid's Text Inspector / Desired-text editing and context notes are different features and do not satisfy this upstream contract |
-| Annotation selection, move/resize/rotate, multi-select, delete | **Not implemented** | **Stable parity blocker** |
-| Annotation persistence and undo/redo | **Not implemented** | **Stable parity blocker** |
-| Arrow/text configuration and annotation settings | **Not implemented** | **Stable parity blocker** |
-| Upstream `0.1.1` shortcut/group switching and layered Escape behavior | Requires parity work with the grouped tools | Validate as part of the annotation/tool-group port rather than documenting the older shortcut model as current upstream parity |
-| Other `0.1.1` inspection refinements (for example SVG targeting, layout details, click cycling, remembered tool state) | Requires focused behavior audit | Do not assume parity from source similarity; lock each adopted behavior with browser tests |
+| Grouped **Select & Inspect** / **Annotate** tool switch | Intentionally not adopted | Mesurer Solid keeps its existing inspector/plugin toolbar because its primary review flow is context-first rather than drawing-tool-first |
+| Arrow annotations | Intentionally not adopted | Freeform arrows are not required for the current agent workflow |
+| Freehand pen annotations | Intentionally not adopted | Freeform drawing is outside the current stable product scope |
+| Upstream text drawing annotations | Intentionally not adopted | Mesurer Solid uses target-bound context notes plus Text Inspector / Desired-text editing instead |
+| Annotation selection, move/resize/rotate, multi-select, delete | Intentionally not adopted | Those transforms belong to the upstream drawing-canvas model, which Mesurer Solid does not use |
+| Drawing-annotation persistence and undo/redo | Intentionally not adopted | Mesurer Solid persists semantic annotations and review baselines through `mesurer.context` instead |
+| Arrow/text drawing configuration and annotation settings | Intentionally not adopted | No drawing-tool configuration surface is needed without the drawing tools |
+| Upstream `0.1.1` shortcut/group switching and layered Escape behavior | Intentionally not adopted as a group contract | Keep Mesurer Solid shortcuts coherent with its own toolbar/plugin workflow; source-match individual adopted tools where applicable |
+| Other `0.1.1` inspection refinements (for example SVG targeting, layout details, click cycling, remembered tool state) | Requires focused behavior audit | Evaluate individually; adopt source-first when they improve the Mesurer Solid inspection contract |
 | Site/analytics/footer/build changes | Not library parity | Do not port |
 
-## Stable-release gate
+## Why annotations intentionally differ
 
-Do **not** describe Mesurer Solid as fully current with upstream `0.1.1`, and do not use this document as evidence for a stable promotion, while the blocker rows above remain unresolved.
+Upstream `0.1.1` treats annotation as a visual drawing surface: a person can add arrows, pen strokes, and freeform text, then manipulate those drawing objects.
 
-Before stable promotion, choose one of these explicitly:
+Mesurer Solid uses annotation for a different job. A context annotation is attached to the rendered target or region the person selected and stores structured evidence with the note: target identity, geometry, measurements, distances, guides, computed styles, layout information, and an immutable review baseline.
 
-1. port the current upstream annotation/tool-group product behavior with source-first UI and interaction fidelity, adapting ownership to Mesurer Solid's composable architecture without reducing functionality; or
-2. deliberately scope those features out of the first stable release and state that product difference clearly in the README, release notes, and this audit.
+That means a coding agent does not need to infer what a drawn arrow points at or recover intent from screenshot pixels. It can read the selected target and its related context directly through `window.__MESURER__`, edit source, then call `review()` against the same semantic baseline.
 
-The default project direction is source-first parity, so option 1 is the expected path unless the release scope is intentionally changed.
+```text
+human selects/highlights rendered UI + adds note
+                 ↓
+        target-bound Mesurer context
+                 ↓
+           coding agent reads it
+                 ↓
+              source edit
+                 ↓
+       fresh context / review()
+```
 
-A parity implementation should preserve upstream-visible behavior rather than copy React hook structure mechanically. Mesurer Solid may expose the annotation capability through a first-party plugin if that keeps the core composable, but the resulting toolbar, tools, transforms, settings, persistence, shortcuts, and Escape behavior must be validated against the pinned upstream source.
+Screenshots remain useful for visual composition, evidence, or other human workflows, but they are not the transport for Mesurer Solid annotation intent. This is an intentional product distinction, not an incomplete port.
+
+See [`CONTEXT_WORKFLOW.md`](./CONTEXT_WORKFLOW.md) for the full agent-first review model.
+
+## Stable-release rule
+
+The upstream drawing annotation/tool-group surface listed above is **not a blocker for Mesurer Solid stable release**. It is explicitly outside the current product scope.
+
+A stable release is blocked when one of these is true:
+
+- Mesurer Solid publicly claims an upstream capability that it does not actually implement;
+- an upstream behavior we intentionally adopted has drifted in a way that breaks the user contract we claim to preserve;
+- a new upstream change exposes a regression or missing behavior in an already-adopted Mesurer Solid feature; or
+- the current product differences have not been classified/documented clearly enough for users to understand what ships.
+
+A newer upstream feature is not automatically a release blocker merely because it exists. Audit it, decide whether it belongs in Mesurer Solid, and record that decision here.
 
 ## Screenshot architecture
 
@@ -70,4 +100,10 @@ For the current user-facing API, capture lifecycle, preview/viewer behavior, ext
 
 ## Audit rule
 
-Keep the exact upstream commit in this document. Before every stable release, re-check upstream `main`. If it moved, compare from the current audited SHA and classify the product delta before declaring parity or promoting the package.
+Keep the exact upstream commit in this document. Before every stable release, re-check upstream `main`. If it moved, compare from the current audited SHA and classify each meaningful product delta as:
+
+- **adopt** — preserve the relevant source-visible behavior and validate it;
+- **intentional divergence** — document why Mesurer Solid's workflow differs; or
+- **not applicable** — do not port repository/site/internal changes that do not belong to the library.
+
+Do not turn upstream churn into an automatic feature backlog. The purpose of the audit is to prevent accidental drift while keeping Mesurer Solid's product direction explicit.
