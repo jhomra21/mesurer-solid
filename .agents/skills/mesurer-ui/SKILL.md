@@ -1,6 +1,6 @@
 ---
 name: mesurer-ui
-description: Use Mesurer when implementing, reviewing, debugging, or fixing frontend UI in a browser. Load for visual alignment, spacing, sizing, layout, CSS, responsive work, design/Figma implementation, screenshots, pixel discrepancies, human Mesurer selections/measurements/guides/annotations, or Arrange intents. Consume existing human visual intent before editing and obtain fresh rendered evidence before claiming completion.
+description: Use Mesurer when implementing, reviewing, debugging, or fixing frontend UI in a browser. Load for visual alignment, spacing, sizing, layout, CSS, responsive work, design/Figma implementation, screenshots, pixel discrepancies, human Mesurer selections/measurements/guides/annotations, Arrange intents, or any request to check Mesurer/Measure context. A broad Mesurer/context request means inventory all existing human visual intent before narrowing. Consume existing human visual intent before editing and obtain fresh rendered evidence before claiming completion.
 ---
 
 # Mesurer UI workflow
@@ -93,6 +93,44 @@ reviewArrange
 ```
 
 The optional screenshot plugin remains a separate human tool/service. It is not a screenshot-delivery capability on `window.__MESURER__`.
+
+### Treat broad Mesurer/context requests as a full intent sweep
+
+If the user says “check Mesurer,” “check Measure,” “look at Mesurer context,” “see what I highlighted/moved/annotated,” or otherwise asks generally about Mesurer state without naming one specific tool, do **not** assume `context()` alone is the whole message.
+
+Inventory the live human-intent channels before narrowing:
+
+```js
+const capabilities = window.__MESURER__.capabilities().capabilities
+const workspace = await window.__MESURER__.context()
+const annotations = await window.__MESURER__.annotations()
+const arrangements = capabilities.arrange
+  ? await window.__MESURER__.arrangements()
+  : []
+
+let selection = null
+try {
+  selection = await window.__MESURER__.context({ scope: "selection" })
+} catch {}
+```
+
+Then read the relevant saved objects instead of only listing them:
+
+```js
+const annotationContexts = await Promise.all(
+  annotations.map((annotation) =>
+    window.__MESURER__.context({ annotation: annotation.id })
+  ),
+)
+
+const arrangeIntents = await Promise.all(
+  arrangements.map((intent) => window.__MESURER__.arrange(intent.id)),
+)
+```
+
+Bring forward whatever is relevant from the combined state: current selection, target-bound annotations and notes, Arrange Before/Desired geometry, guides, measurements, held distances, layout/style inspection, rulers/X-ray state, and any existing human screenshot preview that should be preserved. A person may use several Mesurer tools in one review; treat the combined state as one visual message rather than asking them to restate intent that is already encoded in the page.
+
+Do not clear or replace any of those channels until their relevant evidence has been consumed.
 
 ## 2. Consume Arrange before source edits
 

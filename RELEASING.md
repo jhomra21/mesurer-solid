@@ -10,9 +10,9 @@ Do not manually edit the public package version, create release tags, or run `np
 
 When a user-facing feature changes the public package, keep its documentation current as part of the source PR. At minimum audit the root/package READMEs, feature-specific docs, `packages/mesurer/AGENT_INTEGRATION.md`, the repository and packaged `mesurer-ui` Agent Skill copies, and distribution-specific docs such as `extension/README.md` when the feature changes those surfaces.
 
-## Stable documentation gate
+## Stable documentation and upstream audit gate
 
-Before preparing a stable release, perform a final documentation sweep against the actual public artifact and feature set.
+Before preparing a stable release, perform a final documentation sweep against the actual public artifact and feature set **and re-audit current upstream Mesurer**.
 
 For a stable release:
 
@@ -23,11 +23,16 @@ For a stable release:
 - `packages/mesurer/AGENT_INTEGRATION.md` and the Agent Skill must reflect the current agent contract;
 - `.agents/skills/mesurer-ui/SKILL.md` and `packages/mesurer/skills/mesurer-ui/SKILL.md` must remain byte-identical;
 - extension-specific behavior must be reflected in `extension/README.md`;
-- feature-specific guides and architecture docs must not contradict the public README.
+- feature-specific guides and architecture docs must not contradict the public README;
+- [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) must pin an audit of upstream `ibelick/mesurer` current `main` from the final stable-readiness sweep;
+- each meaningful upstream delta must be classified as **adopted**, **intentional divergence**, or **not applicable** before stable promotion;
+- adopted upstream contracts must be implemented and regression-tested; intentional divergences must be documented clearly enough that the public package never implies those features are present or required for Mesurer Solid's workflow.
+
+A newer upstream feature is not automatically a stable-release blocker. Mesurer Solid started as a source-first port, but it has its own plugin and agent-first product direction. The upstream audit exists to prevent accidental drift in behavior we adopt and to make deliberate differences explicit.
 
 For screenshot releases specifically, keep [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md), the public README, Agent Integration guide, Agent Skill, extension guide, architecture docs, and the screenshot browser contract aligned.
 
-This check is intentionally done before version-only release preparation. The generated release PR is metadata-only and is not the place to fix stale feature documentation.
+This check is intentionally done before version-only release preparation. The generated release PR is metadata-only and is not the place to fix stale feature documentation or unresolved adopted-contract regressions.
 
 ## Prepare a release
 

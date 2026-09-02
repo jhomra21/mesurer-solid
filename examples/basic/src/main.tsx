@@ -15,7 +15,7 @@ function App() {
         <div class="shortcut-row">
           <kbd>M</kbd><span>toggle</span><kbd>S</kbd><span>select</span><kbd>A</kbd><span>text</span>
           <kbd>G</kbd><span>guides</span><kbd>R</kbd><span>rulers</span><kbd>X</kbd><span>x-ray</span>
-          <kbd>P</kbd><span>color</span><kbd>Alt</kbd><span>distance</span>
+          <kbd>P</kbd><span>color</span><kbd>Shift+A</kbd><span>arrange</span><kbd>Alt</kbd><span>distance</span>
         </div>
       </header>
 
@@ -25,7 +25,7 @@ function App() {
           <div class="feature-copy">
             <p class="kicker">Selection target</p>
             <h2>Drag across several cards, or Shift-click individual elements.</h2>
-            <p>Select one or more elements, then use Arrange to drag them into the layout you want.</p>
+            <p>Select one or more elements, then use Arrange or <kbd>Shift+A</kbd> to drag them into the layout you want.</p>
           </div>
           <button class="primary-action" type="button">A real button target</button>
         </article>
@@ -33,7 +33,7 @@ function App() {
         <article class="card warm-card">
           <span class="index">02</span>
           <h2>Guides + rulers</h2>
-          <p>Create red guides with <kbd>G</kbd>, or turn on rulers with <kbd>R</kbd> and drag from an edge.</p>
+          <p>Create red guides with <kbd>G</kbd>, choose their axis with <kbd>H</kbd>/<kbd>V</kbd>, or turn on rulers with <kbd>R</kbd> and drag from an edge.</p>
           <div class="alignment-demo"><i /><i /><i /></div>
         </article>
 

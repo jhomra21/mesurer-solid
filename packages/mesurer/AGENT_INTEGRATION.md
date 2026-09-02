@@ -141,6 +141,44 @@ reviewArrange(id, tolerance?)
 
 There is no `send`, `screenshots`, or `sendContext` delivery capability. Screenshot bytes stay with the outer browser harness.
 
+## Broad Mesurer/context requests mean inspect all human intent
+
+If the user says “check Mesurer,” “check Measure,” “look at Mesurer context,” “see what I highlighted/moved/annotated,” or otherwise asks generally about Mesurer state, treat that as a request to inspect the **combined live review state**, not only the return value of `context()`.
+
+Start with a non-destructive inventory:
+
+```js
+const capabilities = window.__MESURER__.capabilities().capabilities
+const workspace = await window.__MESURER__.context()
+const annotations = await window.__MESURER__.annotations()
+const arrangements = capabilities.arrange
+  ? await window.__MESURER__.arrangements()
+  : []
+
+let selection = null
+try {
+  selection = await window.__MESURER__.context({ scope: "selection" })
+} catch {}
+```
+
+Then resolve the saved human intent that is relevant to the task:
+
+```js
+const annotationContexts = await Promise.all(
+  annotations.map((annotation) =>
+    window.__MESURER__.context({ annotation: annotation.id })
+  ),
+)
+
+const arrangeIntents = await Promise.all(
+  arrangements.map((intent) => window.__MESURER__.arrange(intent.id)),
+)
+```
+
+Bring the useful pieces together before editing: target-bound notes, current selection, Arrange Before/Desired geometry, guides, measurements, held distances, exact target inspection, layout/style data, rulers/X-ray state, and any existing human screenshot preview that must be preserved.
+
+The user may have selected one element, annotated another, moved a group with Arrange, and left measurements/guides that explain the relationship. Those are not separate conversations. They are one encoded visual request. Do not ask the person to repeat information Mesurer already contains, and do not overwrite one channel before reading the others.
+
 ## Arrange has highest human-intent precedence
 
 Arrange lets a person reposition selected rendered elements into the layout they want without editing application source. If Arrange is available, consume relevant saved intents before changing human selection or editing source:
@@ -441,15 +479,16 @@ A good harness-level loop is:
 
 ```text
 1. discover/reuse Mesurer and preserve human state
-2. consume relevant Arrange intent first
-3. capture Before/Desired when useful, before source edits
-4. consume existing annotation/selection context
-5. resolve exact targets; ask only when genuinely ambiguous
-6. edit normal source
-7. wait for stable render
-8. switch Arrange to Live when applicable
-9. get fresh Arrange review/context and optional screenshot
-10. iterate until rendered evidence supports completion
+2. if the request is broad, inventory Arrange + annotations + selection + workspace context before narrowing
+3. consume relevant Arrange intent first
+4. capture Before/Desired when useful, before source edits
+5. consume existing annotation/selection context
+6. resolve exact targets; ask only when genuinely ambiguous
+7. edit normal source
+8. wait for stable render
+9. switch Arrange to Live when applicable
+10. get fresh Arrange review/context and optional screenshot
+11. iterate until rendered evidence supports completion
 ```
 
 Do not clear Arrange history, alter human measurements/guides, replace live Mesurer state, or use a temporary preview to make unfinished source work appear correct.

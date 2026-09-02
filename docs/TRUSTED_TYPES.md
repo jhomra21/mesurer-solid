@@ -95,6 +95,4 @@ The Trusted Types contract begins once that payload is evaluated. Mesurer guaran
 
 ## Release status
 
-`0.1.0-beta.5` contains the generalized host-page isolation work, but it predates this Trusted Types renderer fix and must **not** be described as Trusted-Types-safe.
-
-The first beta that includes the universal renderer change and passes the exact strict-CSP packed-artifact regression is the first release covered by this contract.
+Trusted Types compatibility is part of the current package contract and is covered by the exact packed-artifact regression above. Stable candidates must keep that regression green; old prerelease version numbers are not used as evidence of current compatibility.

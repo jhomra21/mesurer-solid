@@ -35,7 +35,7 @@ import.meta.hot?.dispose(() => {
 })
 ```
 
-This file is where Mesurer-specific setup belongs. Add `contextPlugin()`, `screenshotPlugin()`, or other Mesurer plugins here too.
+This file is where Mesurer-specific setup belongs. Add `contextPlugin()`, `arrangePlugin()`, `screenshotPlugin()`, or other Mesurer plugins here too.
 
 For example:
 
@@ -44,12 +44,14 @@ import {
   contextPlugin,
   mountMesurer,
 } from "mesurer-solid"
+import { arrangePlugin } from "mesurer-solid/arrange"
 import { screenshotPlugin } from "mesurer-solid/screenshot"
 
 const mesurer = mountMesurer({
   agent: true,
   plugins: [
     contextPlugin(),
+    arrangePlugin(),
     screenshotPlugin(),
   ],
 })
@@ -156,7 +158,7 @@ import { mountMesurer } from "mesurer-solid"
 const mesurer = mountMesurer()
 ```
 
-Context and annotations:
+Context and review notes:
 
 ```ts
 import {
@@ -167,6 +169,17 @@ import {
 const mesurer = mountMesurer({
   agent: true,
   plugins: [contextPlugin()],
+})
+```
+
+Arrange visual intent:
+
+```ts
+import { mountMesurer } from "mesurer-solid"
+import { arrangePlugin } from "mesurer-solid/arrange"
+
+const mesurer = mountMesurer({
+  plugins: [arrangePlugin()],
 })
 ```
 
@@ -205,7 +218,9 @@ Load the development module from the renderer's entry file using the same develo
 
 ## Next steps
 
-- [`SCREENSHOTS.md`](./SCREENSHOTS.md) — screenshot plugin behavior and capture providers
-- [`CONTEXT_WORKFLOW.md`](./CONTEXT_WORKFLOW.md) — selection, context, annotations, and review
+- [`ARRANGE.md`](./ARRANGE.md) — Arrange visual layout intent, `Shift+A`, and Before/Desired/Live review
+- [`SCREENSHOTS.md`](./SCREENSHOTS.md) — screenshot plugin behavior, `Shift+S`, and capture providers
+- [`CONTEXT_WORKFLOW.md`](./CONTEXT_WORKFLOW.md) — selection, context, review notes, and review
+- [`UPSTREAM_PARITY.md`](./UPSTREAM_PARITY.md) — current upstream audit and stable-release parity blockers
 - [`HOST_ISOLATION.md`](./HOST_ISOLATION.md) — browser/host isolation guarantees
 - [`../packages/mesurer/AGENT_INTEGRATION.md`](../packages/mesurer/AGENT_INTEGRATION.md) — coding-agent integration

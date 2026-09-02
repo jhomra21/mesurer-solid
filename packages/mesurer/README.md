@@ -77,7 +77,31 @@ import { mountMesurer } from "mesurer-solid"
 const mesurer = mountMesurer()
 ```
 
-The base inspector includes Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, Settings, the plugin host, and the low-level inspection API.
+The base inspector includes Select, X-ray, Rulers, Text Inspector, Guides, Distance, Settings, the plugin host, and the low-level inspection API. Color Picker is also available when the host exposes an operational native `EyeDropper`; it is intentionally hidden in unsupported hosts and has no DOM/CSS fallback.
+
+Text Inspector can inspect rendered typography and supports reversible Desired-text preview editing on double-click.
+
+### Keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `M` | Toggle Mesurer visibility |
+| `S` | Select |
+| `X` | X-ray |
+| `P` | Native Color Picker when supported |
+| `R` | Rulers |
+| `A` | Text Inspector |
+| `G` | Guides |
+| `H` / `V` | Choose horizontal / vertical guide orientation |
+| `Alt` / `Option` | Distance overlay |
+| `Cmd/Ctrl + ,` | Settings |
+| `Shift + A` | Arrange when `arrangePlugin()` is mounted |
+| `Shift + S` | Screenshot when `screenshotPlugin()` is mounted |
+| `C` | Copy Context when `contextPlugin()` is mounted |
+| `Shift + C` | Copy Selection when `contextPlugin()` is mounted |
+| `N` | Add Note when `contextPlugin()` is mounted |
+
+In the current Codex browser host, Color Picker is not advertised and `P` is inert because native screen sampling is not operational there.
 
 ## Arrange
 
@@ -92,7 +116,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-Select one or more page elements, click **Arrange**, and drag the selection. Hold **Shift** while dragging to lock movement to the dominant axis.
+Select one or more page elements, click **Arrange** or press **Shift+A**, and drag the selection. Arrange activates Select automatically and stays coordinated with selection state. Hold **Shift** while dragging to lock movement to the dominant axis.
 
 Each completed drag records one persisted, undoable intent containing:
 
@@ -204,7 +228,7 @@ Every selector must resolve to exactly one page target. Invalid, missing, or amb
 
 ## Annotations and review
 
-A human annotation stores a note plus an immutable rendered baseline:
+Mesurer Solid context annotations are semantic, target-bound review records. A note stays attached to the rendered element or region the person selected and keeps an immutable baseline together with the structured context around that target.
 
 ```js
 const annotations = await window.__MESURER__.annotations()
@@ -220,7 +244,11 @@ await window.__MESURER__.stable()
 const review = await window.__MESURER__.review(annotationId)
 ```
 
-Review reports concrete pixel changes and missing evidence rather than relying on source assumptions.
+Review reports concrete pixel changes and missing evidence rather than relying on source assumptions. Because the annotation already carries target identity, geometry, measurements, distances, guides, styles, and layout context, a coding agent can read what was highlighted directly instead of inferring intent from a drawn arrow or screenshot markup.
+
+Upstream Mesurer `0.1.1` added a separate drawing workflow with arrows, freehand pen strokes, text drawings, transforms, and grouped annotation tools. Mesurer Solid intentionally does not adopt that drawing surface for the current product. Its annotation workflow is designed around structured context that an agent can consume and review against the same rendered target. Screenshots remain a separate optional tool for cases where real pixel evidence is useful.
+
+The current upstream audit and intentional differences are documented in [`docs/UPSTREAM_PARITY.md`](https://github.com/jhomra21/mesurer-solid/blob/main/docs/UPSTREAM_PARITY.md).
 
 ## Agent integration
 
@@ -276,7 +304,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-The human camera tool supports drag-region visible-tab capture, HiDPI/Retina-aware PNG cropping, copy/download settings, a draggable thumbnail, and a larger Copy/Save viewer.
+The human camera tool supports **Shift+S**, drag-region visible-tab capture, HiDPI/Retina-aware PNG cropping, copy/download settings, a draggable thumbnail, and a larger Copy/Save viewer.
 
 For coding-agent verification, the outer browser harness should normally own screenshot bytes. Mesurer supplies exact capture scope and can temporarily remove inspector presentation:
 
@@ -330,6 +358,7 @@ Mesurer's renderer is bundled and isolated from the host framework. Supported ho
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
 - [Host isolation](https://github.com/jhomra21/mesurer-solid/blob/main/docs/HOST_ISOLATION.md)
+- [Upstream audit and intentional differences](https://github.com/jhomra21/mesurer-solid/blob/main/docs/UPSTREAM_PARITY.md)
 - [Agent integration](./AGENT_INTEGRATION.md)
 
 ## License
