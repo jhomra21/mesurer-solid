@@ -50,19 +50,9 @@ try {
   const x = targetBox.x + targetBox.width / 2;
   const y = targetBox.y + targetBox.height / 2;
 
-  // Match the real Arrange workflow: Select owns target acquisition, then Arrange becomes
-  // available for the existing selection. Direct text editing must still work through the
-  // active Arrange surface without forcing the user to leave the move workflow.
-  await selectButton.click();
-  await page.mouse.click(x, y);
-  await page.waitForFunction(() => {
-    const select = document.querySelector("[data-mesurer-builtin='select'] button");
-    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
-    return select instanceof HTMLButtonElement
-      && select.getAttribute("aria-pressed") === "true"
-      && arrange instanceof HTMLButtonElement
-      && !arrange.disabled;
-  });
+  // Match the real Arrange-first workflow. Arrange activates Select; Shift-click then chooses
+  // the exact text element rather than a snap-nearby ancestor. Direct text editing must work
+  // through the active Arrange drag surface without forcing the user to leave that workflow.
   await arrangeButton.click();
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
@@ -72,7 +62,13 @@ try {
       && arrange instanceof HTMLButtonElement
       && arrange.getAttribute("aria-pressed") === "true";
   });
-  await page.locator("[data-mesurer-arrange-box='true']").waitFor({ state: "visible" });
+  await page.keyboard.down("Shift");
+  await page.mouse.click(x, y);
+  await page.keyboard.up("Shift");
+  await page.locator("[data-mesurer-selected-measurement='true']").waitFor({ state: "visible" });
+
+  const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
+  await arrangeBox.waitFor({ state: "visible" });
   await page.mouse.dblclick(x, y);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
