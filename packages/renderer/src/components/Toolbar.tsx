@@ -1,8 +1,9 @@
-import { For, Show, createSignal, onSettled } from "solid-js";
+import { For, Show, createSignal, flush, onSettled } from "solid-js";
 import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesurer-solid-core";
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
+import { supportsNativeColorPicker } from "../runtime/color-picker-support";
 import { SettingsPanel } from "./SettingsPanel";
 import { Tooltip, createTooltip } from "./Tooltip";
 import {
@@ -25,6 +26,7 @@ export type ToolbarProps = {
   pluginTools?: ToolContribution[];
   onPluginTool?: (tool: ToolContribution) => void;
   onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
+  isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;
   onClearWorkspace: () => void;
   onResetSettings: () => void;
   selectionSpacingStyle: SelectionSpacingStyle;
@@ -97,8 +99,40 @@ export function Toolbar(props: ToolbarProps) {
   let guideMenuElement: HTMLDivElement | undefined;
   let suppressClick = false;
   let previousUserSelect: string | null = null;
+  const [colorPickerSupported, setColorPickerSupported] = createSignal(false);
+  let colorPickerConfirmTimer = 0;
+  let colorPickerCapabilityRevision = 0;
+  const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;
+  const commitColorPickerCapability = (supported: boolean, revision: number) => {
+    colorPickerOwnerWindow().queueMicrotask(() => {
+      if (revision !== colorPickerCapabilityRevision) return;
+      setColorPickerSupported(supported);
+      flush();
+    });
+  };
+  const refreshColorPickerCapability = () => {
+    const candidateWindow = colorPickerOwnerWindow();
+    const revision = ++colorPickerCapabilityRevision;
+    if (colorPickerConfirmTimer) {
+      candidateWindow.clearTimeout(colorPickerConfirmTimer);
+      colorPickerConfirmTimer = 0;
+    }
+    if (!supportsNativeColorPicker(candidateWindow)) {
+      commitColorPickerCapability(false, revision);
+      return;
+    }
+    colorPickerConfirmTimer = candidateWindow.setTimeout(() => {
+      colorPickerConfirmTimer = 0;
+      if (revision !== colorPickerCapabilityRevision) return;
+      commitColorPickerCapability(
+        supportsNativeColorPicker(colorPickerOwnerWindow()),
+        revision,
+      );
+    }, 100);
+  };
 
   const tooltipsEnabled = () => !guideMenuOpen() && !pluginMenuOpenId() && !props.model.state.settingsOpen;
+  const builtinDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => props.isBuiltinActionDisabled?.(id) ?? false;
   const viewportHeight = () => props.ownerWindow.innerHeight || 0;
   const nearTop = () => position().y < 56;
   const nearBottom = () => viewportHeight() > 0 && position().y > viewportHeight() - 56;
@@ -190,6 +224,9 @@ export function Toolbar(props: ToolbarProps) {
   };
 
   onSettled(() => {
+    refreshColorPickerCapability();
+    const capabilityInterval = props.ownerWindow.setInterval(refreshColorPickerCapability, 500);
+    const handleCapabilityRefresh = () => refreshColorPickerCapability();
     const handlePointerDown = (event: PointerEvent) => {
       const path = event.composedPath();
       if (guideMenuOpen() && guideMenuElement && !path.includes(guideMenuElement)) setGuideMenuOpen(false);
@@ -214,11 +251,23 @@ export function Toolbar(props: ToolbarProps) {
     const resize = () => { if (guideMenuOpen()) updateMenuAlign(); };
     const keyboardTarget = props.ownerWindow.document;
     props.ownerWindow.addEventListener("pointerdown", handlePointerDown);
+    props.ownerWindow.addEventListener("focus", handleCapabilityRefresh);
+    props.ownerWindow.addEventListener("pageshow", handleCapabilityRefresh);
+    props.ownerWindow.document.addEventListener("visibilitychange", handleCapabilityRefresh);
     keyboardTarget.addEventListener("keydown", handleKeyDown, true);
     props.ownerWindow.addEventListener("resize", resize);
     toolbarElement?.addEventListener("click", handleClickCapture, true);
     return () => {
+      props.ownerWindow.clearInterval(capabilityInterval);
+      colorPickerCapabilityRevision += 1;
+      if (colorPickerConfirmTimer) {
+        colorPickerOwnerWindow().clearTimeout(colorPickerConfirmTimer);
+        colorPickerConfirmTimer = 0;
+      }
       props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);
+      props.ownerWindow.removeEventListener("focus", handleCapabilityRefresh);
+      props.ownerWindow.removeEventListener("pageshow", handleCapabilityRefresh);
+      props.ownerWindow.document.removeEventListener("visibilitychange", handleCapabilityRefresh);
       keyboardTarget.removeEventListener("keydown", handleKeyDown, true);
       props.ownerWindow.removeEventListener("resize", resize);
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
@@ -243,20 +292,24 @@ export function Toolbar(props: ToolbarProps) {
       style={{ left: `${position().x}px`, top: `${position().y}px` }}
       onPointerDown={(event) => { event.stopPropagation(); props.model.setTransient({ toolbarActive: true }); onToolbarPointerDown(event); }}
       onClick={(event) => event.stopPropagation()}
+      onMouseEnter={refreshColorPickerCapability}
       onMouseLeave={tooltip.onTooltipContainerLeave}
     >
       <ToolbarButton id="select" builtin="select" active={props.model.state.toolMode === "select"} label="Select" shortcut="S" onClick={() => props.onBuiltinAction("select")} {...buttonProps("select")}><CursorIcon size={20} /></ToolbarButton>
       <ToolbarButton id="xray" builtin="xray" active={props.model.state.xrayVisible} label="X-ray" shortcut="X" onClick={() => props.onBuiltinAction("xray")} {...buttonProps("xray")}><XrayIcon size={20} /></ToolbarButton>
-      <ToolbarButton id="color-picker" builtin="color-picker" active={props.model.state.colorPickerActive} label="Color picker" shortcut="P" onClick={() => props.onBuiltinAction("color-picker")} {...buttonProps("color-picker")}><ColorPickerIcon size={20} /></ToolbarButton>
+      <Show when={colorPickerSupported()}>
+        <ToolbarButton id="color-picker" builtin="color-picker" active={props.model.state.colorPickerActive} disabled={builtinDisabled("color-picker")} label="Color picker" shortcut="P" onClick={() => props.onBuiltinAction("color-picker")} {...buttonProps("color-picker")}><ColorPickerIcon size={20} /></ToolbarButton>
+      </Show>
       <ToolbarButton id="rulers" builtin="rulers" active={props.model.state.rulersVisible} label="Rulers" shortcut="R" onClick={() => props.onBuiltinAction("rulers")} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>
-      <ToolbarButton id="text-inspector" builtin="text-inspector" active={props.model.state.toolMode === "text-inspector"} label="Text inspector" shortcut="A" onClick={() => props.onBuiltinAction("text-inspector")} {...buttonProps("text-inspector")}><TextInspectorIcon size={20} /></ToolbarButton>
-      <ToolbarButton id="guides" builtin="guides" active={props.model.state.toolMode === "guides"} label="Guides" shortcut="G" onClick={() => props.onBuiltinAction("guides")} {...buttonProps("guides")}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
+      <ToolbarButton id="text-inspector" builtin="text-inspector" active={props.model.state.toolMode === "text-inspector"} disabled={builtinDisabled("text-inspector")} label="Text inspector" shortcut="A" onClick={() => props.onBuiltinAction("text-inspector")} {...buttonProps("text-inspector")}><TextInspectorIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="guides" builtin="guides" active={props.model.state.toolMode === "guides"} disabled={builtinDisabled("guides")} label="Guides" shortcut="G" onClick={() => props.onBuiltinAction("guides")} {...buttonProps("guides")}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
 
       <div data-mesurer-builtin="guides-menu" ref={(element) => { guideMenuElement = element; }} class="msr:group msr:relative msr:-ml-1 msr:flex msr:items-stretch" onMouseEnter={() => tooltip.onTooltipEnter("guide-menu")} onMouseLeave={tooltip.onTooltipLeave}>
         <button
           type="button"
           aria-label="Guide orientation menu"
-          class={`msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${guideMenuOpen() ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
+          disabled={builtinDisabled("guides")}
+          class={`msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none ${builtinDisabled("guides") ? "msr:cursor-default msr:text-black/30" : "msr:hover:bg-black/10"} ${guideMenuOpen() ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
           onClick={() => { setGuideMenuOpen((open) => { if (!open) { setActiveMenuIndex(props.model.state.guideOrientation === "horizontal" ? 0 : 1); updateMenuAlign(); } return !open; }); }}
         ><CaretDownIcon size={8} /></button>
         <span class={`msr:pointer-events-none msr:absolute msr:left-1/2 msr:-translate-x-1/2 msr:whitespace-nowrap msr:rounded msr:bg-black msr:px-2 msr:py-1 msr:text-[11px] msr:text-white msr:transition-opacity msr:duration-150 msr:select-none ${tooltipSide() === "top" ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"} ${tooltip.visibleTooltipId() === "guide-menu" && tooltipsEnabled() ? "msr:opacity-100" : "msr:opacity-0"}`}>Orientation Guide</span>
@@ -329,10 +382,18 @@ export function Toolbar(props: ToolbarProps) {
                 data-mesurer-tool-menu-trigger={tool.id}
                 aria-label={`${tool.label} options`}
                 aria-expanded={pluginMenuOpenId() === tool.id ? "true" : "false"}
-                class={`msr:-ml-1 msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${pluginMenuOpenId() === tool.id ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
+                class={`msr:relative msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${pluginMenuOpenId() === tool.id ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
+                onMouseEnter={() => tooltip.onTooltipEnter(`plugin-menu:${tool.id}`)}
+                onMouseLeave={tooltip.onTooltipLeave}
                 onClick={(event) => togglePluginMenu(tool.id, event.currentTarget.parentElement ?? event.currentTarget)}
               >
                 <CaretDownIcon size={8} />
+                <Tooltip
+                  label={`${tool.label} options`}
+                  visible={tooltipsEnabled() && tooltip.visibleTooltipId() === `plugin-menu:${tool.id}`}
+                  instant={tooltip.tooltipInstant()}
+                  side={tooltipSide()}
+                />
               </button>
               <Show when={pluginMenuOpenId() === tool.id}>
                 <div
@@ -355,7 +416,10 @@ export function Toolbar(props: ToolbarProps) {
                       data-mesurer-tool-menu-item={item.id}
                       disabled={item.disabled?.() ?? false}
                       class="msr:flex msr:h-7 msr:w-full msr:items-center msr:gap-2 msr:rounded-md msr:px-2 msr:text-left msr:text-[12px] msr:text-ink-700 msr:outline-none msr:whitespace-nowrap msr:hover:bg-[#0d99ff] msr:hover:text-white msr:focus-visible:bg-[#0d99ff] msr:focus-visible:text-white msr:disabled:opacity-40"
-                      onClick={() => props.onPluginToolMenuItem?.(tool, item)}
+                      onClick={() => {
+                        props.onPluginToolMenuItem?.(tool, item);
+                        setPluginMenuOpenId(null);
+                      }}
                     >
                       <span class="msr:flex msr:w-3 msr:shrink-0 msr:justify-center">
                         <CheckIcon size={12} class={item.checked?.() ? "msr:opacity-100" : "msr:opacity-0"} />

@@ -52,6 +52,7 @@ import {
 import { ensureMesurerStyles } from "./runtime/style-inject";
 import { createTextInspector, type TextInspectorAPI } from "./runtime/text-inspector";
 import { createXrayScope } from "./runtime/xray-scope";
+import type { MesurerBuiltinPluginId } from "./plugins/builtins";
 import { MESURER_STYLES } from "./styles.generated";
 
 export type MesurerProps = {
@@ -78,6 +79,7 @@ export type MesurerProps = {
   pluginTools?: ToolContribution[];
   onPluginTool?: (tool: ToolContribution) => void;
   onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
+  isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;
   onBuiltinController?: (controller: MesurerBuiltinController | null) => void;
 };
 
@@ -171,6 +173,14 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   let guideDragHoldId: string | null = null;
   let scrollPosition = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
   const builtinController = createMesurerBuiltinController({ model, ownerWindow });
+  const builtinActionDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => input.isBuiltinActionDisabled?.(id) ?? false;
+  const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">, restartColorPicker = false) => {
+    if (builtinActionDisabled(id)) return;
+    if (id === "color-picker" && restartColorPicker && model.current.colorPickerActive) {
+      model.setTransient({ colorPickerActive: false });
+    }
+    void builtinController.run(id);
+  };
   const xrayScope = createXrayScope({
     ownerDocument,
     target: input.pageTarget ?? ownerDocument.body,
@@ -573,7 +583,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         return;
       }
       if (event.key === "Alt") { model.setTransient({ altPressed: true }); return; }
-      if (mod && key === ",") { event.preventDefault(); void builtinController.run("settings"); return; }
+      if (mod && key === ",") { event.preventDefault(); runBuiltinAction("settings"); return; }
       if (mod && key === "z") {
         event.preventDefault();
         if (model.current.toolMode === "text-inspector") {
@@ -588,14 +598,14 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         event.preventDefault(); model.removeGuides(model.current.selectedGuideIds); return;
       }
       if (key === "m") { model.toggleEnabled(true); return; }
-      if (key === "s") { void builtinController.run("select"); return; }
-      if (key === "a") { void builtinController.run("text-inspector"); return; }
-      if (key === "g") { void builtinController.run("guides"); return; }
-      if (key === "p") { void builtinController.run("color-picker"); return; }
-      if (key === "x") { void builtinController.run("xray"); return; }
-      if (key === "r") { void builtinController.run("rulers"); return; }
-      if (key === "h") { model.setGuideOrientation("horizontal", true); return; }
-      if (key === "v") { model.setGuideOrientation("vertical", true); }
+      if (key === "s") { runBuiltinAction("select"); return; }
+      if (key === "a") { runBuiltinAction("text-inspector"); return; }
+      if (key === "g") { runBuiltinAction("guides"); return; }
+      if (key === "p") { runBuiltinAction("color-picker", true); return; }
+      if (key === "x") { runBuiltinAction("xray"); return; }
+      if (key === "r") { runBuiltinAction("rulers"); return; }
+      if (key === "h") { if (!builtinActionDisabled("guides")) model.setGuideOrientation("horizontal", true); return; }
+      if (key === "v") { if (!builtinActionDisabled("guides")) model.setGuideOrientation("vertical", true); }
     };
     const keyup = (event: KeyboardEvent) => { if (event.key === "Alt") model.setTransient({ altPressed: false }); };
     ownerWindow.addEventListener("keydown", keydown);
@@ -707,10 +717,11 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         <Toolbar
           model={model}
           ownerWindow={ownerWindow}
-          onBuiltinAction={(id) => { void builtinController.run(id); }}
+          onBuiltinAction={runBuiltinAction}
           pluginTools={input.pluginTools}
           onPluginTool={input.onPluginTool}
           onPluginToolMenuItem={input.onPluginToolMenuItem}
+          isBuiltinActionDisabled={builtinActionDisabled}
           onClearWorkspace={clearWorkspace}
           selectionSpacingStyle={props.selectionSpacingStyle}
           onSelectionSpacingStyleChange={onSelectionSpacingStyleChange}

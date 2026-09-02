@@ -1118,6 +1118,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     ctx.tool.register({
       id: "arrange",
       label: "Arrange",
+      shortcut: "Shift+A",
       order: 65,
       command: TOGGLE_COMMAND,
       icon: moveIcon,

@@ -230,7 +230,7 @@ describe("arrangePlugin", () => {
     const tool = host.tools().find((item) => item.id === "arrange");
     expect(tool).toMatchObject({ label: "Arrange" });
     expect(tool?.disabled).toBeUndefined();
-    expect(tool?.shortcut).toBeUndefined();
+    expect(tool?.shortcut).toBe("Shift+A");
 
     const box = await arrangeBox(host);
     drag(box, { x: 100, y: 80 }, { x: 140, y: 100 });

@@ -15,6 +15,8 @@ const mounted: Array<() => void> = [];
 afterEach(async () => {
   while (mounted.length) mounted.pop()?.();
   await settle();
+  Reflect.deleteProperty(window, "EyeDropper");
+  Reflect.deleteProperty(window, "isSecureContext");
   document.body.replaceChildren();
   document.head.querySelectorAll("#mesurer-solid-styles, #mesurer-solid-xray-styles").forEach((node) => node.remove());
   vi.restoreAllMocks();
@@ -22,6 +24,16 @@ afterEach(async () => {
 
 describe("Mesurer host integration", () => {
   it("uses the upstream Mesurer toolbar/settings visual contract and public shortcuts", async () => {
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      value: class {
+        async open() {
+          return { sRGBHex: "#123456" };
+        }
+      },
+    });
+
     const host = document.createElement("div");
     document.body.append(host);
 
@@ -35,6 +47,9 @@ describe("Mesurer host integration", () => {
     expect(toolbar!.className).toContain("mesurer-toolbar-surface");
     expect(toolbar!.className).toContain("msr:rounded-[12px]");
     expect(toolbar!.className).toContain("msr:p-1");
+    await vi.waitFor(() => {
+      expect(toolbar!.querySelector('button[aria-label="Color picker (P)"]')).toBeTruthy();
+    });
 
     const labels = [...toolbar!.querySelectorAll<HTMLButtonElement>("button[aria-label]")].map((button) => button.getAttribute("aria-label"));
     expect(labels.slice(0, 7)).toEqual([
@@ -79,6 +94,8 @@ describe("Mesurer host integration", () => {
     await settle();
     const picker = document.querySelector<HTMLElement>(".mesurer-color-picker");
     expect(picker).toBeTruthy();
+    expect(picker!.textContent).toContain("#123456");
+    expect(picker!.dataset.mesurerColorPickerMode).toBe("native");
     expect(picker!.className).toContain("msr:min-w-36");
     expect(picker!.className).toContain("msr:font-mono");
     expect(picker!.className).toContain("msr:text-[10px]");

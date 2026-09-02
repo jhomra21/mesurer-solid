@@ -143,6 +143,7 @@ describe("screenshotPlugin", () => {
 
     expect(host.tools().map((tool) => tool.id)).toEqual(["screenshot"]);
     expect(host.tools()[0]?.hidden?.()).toBe(false);
+    expect(host.tools()[0]?.shortcut).toBe("Shift+S");
     expect(host.describe().settings[0]?.controls.map((control) => ({ id: control.id, value: control.value }))).toEqual([
       { id: "tool", value: true },
       { id: "copy", value: true },

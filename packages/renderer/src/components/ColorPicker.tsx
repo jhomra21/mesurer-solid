@@ -67,27 +67,30 @@ export function ColorPicker(props: { model: MesurerModel; ownerWindow: Window })
   };
 
   return (
-    <Show when={props.model.state.colorPickerActive && (props.model.state.colorPickerSample || props.model.state.colorPickerUnsupported)}>
-      <div ref={(element) => { panel = element; }} class="mesurer-color-picker msr:pointer-events-auto msr:fixed msr:z-[80] msr:min-w-36 msr:rounded-lg msr:border msr:border-black/10 msr:bg-white msr:px-2 msr:py-2 msr:font-mono msr:text-[10px] msr:leading-4 msr:shadow-lg" role="dialog" aria-label="Selected color values" data-mesurer-inspector-ui="true" onMouseLeave={tooltip.onTooltipContainerLeave}>
-        <Show when={props.model.state.colorPickerUnsupported} fallback={
-          <Show when={props.model.state.colorPickerSample}>{(sample) => <>
-            <Show
-              when={headerFormat()}
-              fallback={
-                <div class="msr:flex msr:items-center">
-                  <span class="msr:size-3 msr:shrink-0 msr:rounded-full msr:border msr:border-black/15" style={{ "background-color": colorToHex(sample()) }} aria-hidden="true" />
-                </div>
-              }
-            >{(format) => <div class={secondaryFormats().length > 0 ? "msr:mb-1 msr:flex msr:items-center msr:gap-1.5 msr:border-b msr:border-black/8 msr:pb-1" : "msr:flex msr:items-center msr:gap-1.5"}>
+    <Show when={props.model.state.colorPickerActive && props.model.state.colorPickerSample}>{(sample) =>
+      <div
+        ref={(element) => { panel = element; }}
+        class="mesurer-color-picker msr:pointer-events-auto msr:fixed msr:z-[80] msr:min-w-36 msr:rounded-lg msr:border msr:border-black/10 msr:bg-white msr:px-2 msr:py-2 msr:font-mono msr:text-[10px] msr:leading-4 msr:shadow-lg"
+        role="dialog"
+        aria-label="Selected color values"
+        aria-description="Sampled from the native browser EyeDropper."
+        data-mesurer-inspector-ui="true"
+        data-mesurer-color-picker-mode="native"
+        onMouseLeave={tooltip.onTooltipContainerLeave}
+      >
+        <Show
+          when={headerFormat()}
+          fallback={
+            <div class="msr:flex msr:items-center">
               <span class="msr:size-3 msr:shrink-0 msr:rounded-full msr:border msr:border-black/15" style={{ "background-color": colorToHex(sample()) }} aria-hidden="true" />
-              <CopyValue id={format()} value={formatColor(sample(), format())} class="msr:font-medium msr:tabular-nums msr:text-black msr:hover:underline" />
-            </div>}</Show>
-            <For each={secondaryFormats()}>{(format) => <div class="msr:flex msr:items-center msr:gap-2"><span class="msr:w-9 msr:text-black/45">{format}</span><CopyValue id={format} value={formatColor(sample(), format)} class="msr:tabular-nums msr:text-black msr:hover:underline" /></div>}</For>
-          </>}</Show>
-        }>
-          <div class="msr:flex msr:items-start msr:gap-2"><span class="msr:text-black/60">Color picker is not supported in this browser.</span><button type="button" class="msr:text-black/45 msr:hover:text-black" aria-label="Close color picker message" onClick={() => props.model.setTransient({ colorPickerActive: false })}>x</button></div>
-        </Show>
+            </div>
+          }
+        >{(format) => <div class={secondaryFormats().length > 0 ? "msr:mb-1 msr:flex msr:items-center msr:gap-1.5 msr:border-b msr:border-black/8 msr:pb-1" : "msr:flex msr:items-center msr:gap-1.5"}>
+          <span class="msr:size-3 msr:shrink-0 msr:rounded-full msr:border msr:border-black/15" style={{ "background-color": colorToHex(sample()) }} aria-hidden="true" />
+          <CopyValue id={format()} value={formatColor(sample(), format())} class="msr:font-medium msr:tabular-nums msr:text-black msr:hover:underline" />
+        </div>}</Show>
+        <For each={secondaryFormats()}>{(format) => <div class="msr:flex msr:items-center msr:gap-2"><span class="msr:w-9 msr:text-black/45">{format}</span><CopyValue id={format} value={formatColor(sample(), format)} class="msr:tabular-nums msr:text-black msr:hover:underline" /></div>}</For>
       </div>
-    </Show>
+    }</Show>
   );
 }
