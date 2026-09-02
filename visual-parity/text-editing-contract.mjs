@@ -45,8 +45,24 @@ try {
     };
   });
 
-  // Arrange is intentionally active here. Its drag/selection surface may sit above the page text,
-  // so the edit gesture must still resolve the real rendered text underneath Mesurer's own overlay.
+  const targetBox = await target.boundingBox();
+  assert(targetBox, "Text editing contract target must have a bounding box");
+  const x = targetBox.x + targetBox.width / 2;
+  const y = targetBox.y + targetBox.height / 2;
+
+  // Match the real Arrange workflow: Select owns target acquisition, then Arrange becomes
+  // available for the existing selection. Direct text editing must still work through the
+  // active Arrange surface without forcing the user to leave the move workflow.
+  await selectButton.click();
+  await page.mouse.click(x, y);
+  await page.waitForFunction(() => {
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
+    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
+    return select instanceof HTMLButtonElement
+      && select.getAttribute("aria-pressed") === "true"
+      && arrange instanceof HTMLButtonElement
+      && !arrange.disabled;
+  });
   await arrangeButton.click();
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
@@ -56,12 +72,6 @@ try {
       && arrange instanceof HTMLButtonElement
       && arrange.getAttribute("aria-pressed") === "true";
   });
-
-  const targetBox = await target.boundingBox();
-  assert(targetBox, "Text editing contract target must have a bounding box");
-  const x = targetBox.x + targetBox.width / 2;
-  const y = targetBox.y + targetBox.height / 2;
-  await page.mouse.click(x, y);
   await page.locator("[data-mesurer-arrange-box='true']").waitFor({ state: "visible" });
   await page.mouse.dblclick(x, y);
 
