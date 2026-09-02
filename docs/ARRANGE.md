@@ -18,7 +18,7 @@ Use the same browser-only Mesurer setup module described in [`GETTING_STARTED.md
 
 ## Human workflow
 
-1. Click **Arrange** in the toolbar. Arrange activates **Select** automatically.
+1. Click **Arrange** in the toolbar or press **Shift+A**. Arrange activates **Select** automatically.
 2. Select one or more page elements. If a selection already exists, Arrange preserves it.
 3. Drag the selection to the desired position.
 4. Move near another visible element edge, center, X-ray box edge, or existing Mesurer guide to snap into alignment.
@@ -26,6 +26,8 @@ Use the same browser-only Mesurer setup module described in [`GETTING_STARTED.md
 6. Release the pointer. The snapped **Desired** placement remains visible so you can inspect it or continue arranging.
 
 Arrange does not require a page selection before it can be activated. This keeps the interaction one-step: choose Arrange, then choose what to move.
+
+Arrange and Select are coordinated. Arrange keeps Select active because selection is required for Arrange interaction; leaving Select exits Arrange and returns the page to Live rather than leaving an unusable Arrange state selected. While Arrange is active, conflicting page-interaction tools and their shortcuts are disabled so they cannot steal the interaction mid-drag.
 
 Arrange records one history entry when the drag finishes. Pointer movement itself is transient, so a single drag does not create dozens of undo steps.
 
@@ -35,7 +37,7 @@ Repeated drags start from the current Desired placement rather than the source-r
 
 ## Arrange settings
 
-Arrange exposes these frequently changed preferences from the small chevron beside the Arrange toolbar button and from its full, collapsed plugin section in Mesurer Settings. Both surfaces read and write the same persisted plugin state:
+Arrange exposes these frequently changed preferences from the small chevron beside the Arrange toolbar button and from its full, collapsed plugin section in Mesurer Settings. Both surfaces read and write the same persisted plugin state. The quick menu closes after a preference is chosen:
 
 - **Snapping** — master switch for magnetic alignment. Enabled by default.
 - **Element edges** — snap left/right and top/bottom edges to nearby elements. Enabled by default.
