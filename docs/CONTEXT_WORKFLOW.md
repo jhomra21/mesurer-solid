@@ -248,6 +248,24 @@ const context = await window.__MESURER__.context({ annotation: annotationId })
 
 The annotation note is intent. Computed DOM data, measurements, guides, distances, and screenshots are evidence.
 
+Mesurer Solid intentionally treats annotations as **semantic review context**, not as a freeform drawing canvas. The note remains bound to the selected rendered target or region, so an agent can read exactly what the person highlighted together with target identity, geometry, styles, layout, measurements, guides, and relationships. It does not need to infer what a drawn arrow points at or recover intent from screenshot markup.
+
+This differs deliberately from upstream Mesurer `0.1.1`, which added arrows, pen strokes, freeform text drawings, and grouped drawing tools. Those drawing tools are outside the current Mesurer Solid product scope; they are not required for the context-first agent workflow described here.
+
+```text
+highlight/select target + Add Note
+              ↓
+   target-bound structured context
+              ↓
+         agent reads intent
+              ↓
+           source edit
+              ↓
+        review(annotationId)
+```
+
+Screenshots remain a separate tool for cases where real pixel composition matters. Annotation intent itself stays machine-readable and attached to the rendered UI.
+
 ## What `MesurerContextV1` means
 
 Context is JSON-safe and uses `viewport-css-px` coordinates.
