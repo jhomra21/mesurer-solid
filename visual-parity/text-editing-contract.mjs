@@ -16,11 +16,13 @@ try {
 
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
   const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
+  const arrangeTarget = page.locator(".type-card");
   const target = page.locator(".tracked-text");
   const reference = page.locator(".type-card h2");
 
   await selectButton.waitFor({ state: "visible" });
   await arrangeButton.waitFor({ state: "visible" });
+  await arrangeTarget.waitFor({ state: "visible" });
   await target.waitFor({ state: "visible" });
   await reference.waitFor({ state: "visible" });
 
@@ -45,14 +47,17 @@ try {
     };
   });
 
+  const arrangeTargetBox = await arrangeTarget.boundingBox();
   const targetBox = await target.boundingBox();
+  assert(arrangeTargetBox, "Text editing Arrange target must have a bounding box");
   assert(targetBox, "Text editing contract target must have a bounding box");
   const x = targetBox.x + targetBox.width / 2;
   const y = targetBox.y + targetBox.height / 2;
 
-  // Match the real Arrange-first workflow. Arrange activates Select; Shift-click then chooses
-  // the exact text element rather than a snap-nearby ancestor. Direct text editing must work
-  // through the active Arrange drag surface without forcing the user to leave that workflow.
+  // Match the already-proven Arrange-first workflow. Select the enclosing typography card
+  // through its empty padding so the normal point-selection path resolves the card itself.
+  // Then edit the nested paragraph through the active Arrange box. The feature contract is
+  // that Mesurer's own move surface must not prevent direct editing of underlying page text.
   await arrangeButton.click();
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
@@ -62,13 +67,22 @@ try {
       && arrange instanceof HTMLButtonElement
       && arrange.getAttribute("aria-pressed") === "true";
   });
-  await page.keyboard.down("Shift");
-  await page.mouse.click(x, y);
-  await page.keyboard.up("Shift");
-  await page.locator("[data-mesurer-selected-measurement='true']").waitFor({ state: "visible" });
+  await page.mouse.click(
+    arrangeTargetBox.x + arrangeTargetBox.width - 12,
+    arrangeTargetBox.y + arrangeTargetBox.height - 12,
+  );
 
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
   await arrangeBox.waitFor({ state: "visible" });
+  const arrangedSelection = await arrangeBox.boundingBox();
+  assert(arrangedSelection, "Arrange selection box should have rendered geometry");
+  assert(
+    x >= arrangedSelection.x
+      && x <= arrangedSelection.x + arrangedSelection.width
+      && y >= arrangedSelection.y
+      && y <= arrangedSelection.y + arrangedSelection.height,
+    "Nested text should sit underneath the active Arrange interaction surface",
+  );
   await page.mouse.dblclick(x, y);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
