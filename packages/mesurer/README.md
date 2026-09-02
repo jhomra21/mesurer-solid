@@ -45,13 +45,13 @@ import { createRoot } from "react-dom/client"
 import { mountMesurer } from "mesurer-solid"
 import { App } from "./App"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer()
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 
 createRoot(document.getElementById("root")!).render(<App />)
 ```
@@ -63,13 +63,13 @@ import { render } from "solid-js/web"
 import { mountMesurer } from "mesurer-solid"
 import App from "./App"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer()
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 
 render(() => <App />, document.getElementById("root")!)
 ```
@@ -79,13 +79,13 @@ For Vue, Svelte, or vanilla Vite, put the same Mesurer block in the existing `sr
 ```ts
 import { mountMesurer } from "mesurer-solid"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer()
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 
 // Keep the app's existing browser startup code here as usual.
 ```
@@ -96,13 +96,13 @@ For Electron, use the renderer entry—not the Electron main process:
 // src/renderer.ts
 import { mountMesurer } from "mesurer-solid"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer()
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 
 // Existing renderer startup follows.
 ```
@@ -129,9 +129,9 @@ import { mountMesurer } from "mesurer-solid"
 
 const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer.dispose()
-})
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => mesurer.dispose())
+}
 ```
 
 Then load that helper from the same existing browser entry:
