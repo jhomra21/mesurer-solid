@@ -45,6 +45,7 @@ try {
       color: style.color,
     };
   });
+  const firstFamily = (families) => (families.split(",")[0] ?? families).trim().replace(/^['"]|['"]$/g, "");
 
   const targetBox = await target.boundingBox();
   assert(targetBox, "Text editing contract target must have a bounding box");
@@ -81,8 +82,30 @@ try {
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
   const toolbar = page.locator("[data-mesurer-text-style-toolbar='true']");
+  const inspectorInfo = page.locator("[data-mesurer-text-inspector-info='true']");
   await editor.waitFor({ state: "visible" });
   await toolbar.waitFor({ state: "visible" });
+  await inspectorInfo.waitFor({ state: "visible" });
+
+  const toolbarChrome = await toolbar.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      classes: element.className,
+      surface: element.dataset.mesurerTextStyleSurface,
+      background: style.backgroundColor,
+      borderRadius: style.borderRadius,
+      padding: style.padding,
+      gap: style.gap,
+      shadow: style.boxShadow,
+    };
+  });
+  assert.match(toolbarChrome.classes, /mesurer-toolbar-surface/, "Direct text controls should use the canonical Mesurer toolbar surface");
+  assert.equal(toolbarChrome.surface, "toolbar", "Direct text controls should identify themselves as a toolbar-style surface");
+  assert.equal(toolbarChrome.background, "rgb(255, 255, 255)", "Direct text toolbar should use Mesurer's white toolbar surface");
+  assert.equal(toolbarChrome.borderRadius, "12px", "Direct text toolbar should use the canonical 12px toolbar radius");
+  assert.equal(toolbarChrome.padding, "4px", "Direct text toolbar should use the canonical 4px toolbar padding");
+  assert.equal(toolbarChrome.gap, "4px", "Direct text toolbar should use the canonical 4px control gap");
+  assert.notEqual(toolbarChrome.shadow, "none", "Direct text toolbar should retain Mesurer's floating toolbar shadow");
 
   const editorState = await editor.evaluate((element) => ({
     value: element.value,
@@ -101,12 +124,34 @@ try {
   assert.equal(editorState.fontWeight, before.fontWeight, "Editor should inherit the target font weight");
   assert.equal(editorState.color, before.color, "Editor should inherit the target text color");
 
+  const inspectorText = await inspectorInfo.textContent();
+  for (const label of ["Family", "Size", "Weight", "Line", "Tracking"]) {
+    assert(inspectorText?.includes(label), `Automatic Text Inspector information should include ${label}`);
+  }
+  assert(inspectorText?.includes(firstFamily(before.fontFamily)), "Automatic Text Inspector should describe the double-clicked field's font family");
+  assert(inspectorText?.includes(before.fontSize), "Automatic Text Inspector should describe the double-clicked field's font size");
+  assert(inspectorText?.includes(before.text ?? ""), "Automatic Text Inspector should identify the double-clicked field's text");
+
   const familySelect = page.locator("[data-mesurer-text-style-select='font-family']");
   const sizeSelect = page.locator("[data-mesurer-text-style-select='font-size']");
   const weightSelect = page.locator("[data-mesurer-text-style-select='font-weight']");
   const boldButton = page.locator("[data-mesurer-text-style-button='bold']");
   const italicButton = page.locator("[data-mesurer-text-style-button='italic']");
   const underlineButton = page.locator("[data-mesurer-text-style-button='underline']");
+
+  const buttonChrome = await boldButton.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      width: style.width,
+      height: style.height,
+      borderRadius: style.borderRadius,
+      ariaPressed: element.getAttribute("aria-pressed"),
+    };
+  });
+  assert.equal(buttonChrome.width, "32px", "Text formatting buttons should match the toolbar's 32px control size");
+  assert.equal(buttonChrome.height, "32px", "Text formatting buttons should match the toolbar's 32px control size");
+  assert.equal(buttonChrome.borderRadius, "8px", "Text formatting buttons should match Mesurer toolbar button rounding");
+  assert(["true", "false"].includes(buttonChrome.ariaPressed), "Formatting buttons should expose pressed state");
 
   const families = await familySelect.locator("option").evaluateAll((options) => options.map((option) => option.value));
   const sizes = await sizeSelect.locator("option").evaluateAll((options) => options.map((option) => option.value));
@@ -127,6 +172,17 @@ try {
   await familySelect.selectOption(referenceStyle.fontFamily);
   await sizeSelect.selectOption(referenceStyle.fontSize);
   await weightSelect.selectOption(referenceStyle.fontWeight);
+  await page.waitForFunction(({ family, size, weight }) => {
+    const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
+    if (!(card instanceof HTMLElement)) return false;
+    const text = card.textContent ?? "";
+    const first = (family.split(",")[0] ?? family).trim().replace(/^['"]|['"]$/g, "");
+    return text.includes(first) && text.includes(size) && text.includes(weight);
+  }, {
+    family: referenceStyle.fontFamily,
+    size: referenceStyle.fontSize,
+    weight: referenceStyle.fontWeight,
+  });
 
   // Exercise the simple formatting toggles as real reversible controls. Bold is toggled on
   // and back to the selected page weight so the final Desired state keeps that page-derived
@@ -184,9 +240,14 @@ try {
 
   const desiredText = "Desired copy from Mesurer";
   await editor.fill(desiredText);
+  await page.waitForFunction((expected) => {
+    const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
+    return card instanceof HTMLElement && (card.textContent ?? "").includes(expected);
+  }, desiredText);
   await editor.focus();
   await page.keyboard.press("Enter");
   await editor.waitFor({ state: "detached" });
+  await inspectorInfo.waitFor({ state: "detached" });
 
   const desired = await target.evaluate((element) => {
     const style = getComputedStyle(element);
@@ -247,7 +308,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Text editing browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Text editing browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Arrange-compatible direct text editing + page-derived styles + B/I/U + custom color + reversible Desired state: PASS");
+  console.log("Arrange-compatible direct text editing + Mesurer toolbar UI + automatic Text Inspector + page-derived styles + B/I/U + custom color + reversible Desired state: PASS");
 } finally {
   await browser.close();
 }
