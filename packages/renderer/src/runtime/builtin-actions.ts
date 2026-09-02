@@ -61,7 +61,8 @@ const retireColorPicker = (model: MesurerModel, ownerWindow: Window) => {
   // Toolbar capability refresh is already wired to focus. Reuse that path so
   // the failed native action disappears immediately without adding a second
   // renderer-specific coordination channel.
-  ownerWindow.dispatchEvent(new Event("focus"));
+  const EventCtor = (ownerWindow as Window & typeof globalThis).Event;
+  ownerWindow.dispatchEvent(new EventCtor("focus"));
 };
 
 export function createMesurerBuiltinController(options: {
