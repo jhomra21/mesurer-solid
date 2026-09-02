@@ -672,7 +672,7 @@ export function installTextEditing(
       padding: "2px",
       cursor: "pointer",
     });
-    customColor.addEventListener("input", () => {
+    customColor.addEventListener("change", () => {
       if (editorSession !== session) return;
       setSessionStyle(session, "color", customColor.value);
     });
