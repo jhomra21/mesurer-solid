@@ -174,8 +174,11 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   let scrollPosition = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
   const builtinController = createMesurerBuiltinController({ model, ownerWindow });
   const builtinActionDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => input.isBuiltinActionDisabled?.(id) ?? false;
-  const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">) => {
+  const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">, restartColorPicker = false) => {
     if (builtinActionDisabled(id)) return;
+    if (id === "color-picker" && restartColorPicker && model.current.colorPickerActive) {
+      model.setTransient({ colorPickerActive: false });
+    }
     void builtinController.run(id);
   };
   const xrayScope = createXrayScope({
@@ -598,7 +601,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       if (key === "s") { runBuiltinAction("select"); return; }
       if (key === "a") { runBuiltinAction("text-inspector"); return; }
       if (key === "g") { runBuiltinAction("guides"); return; }
-      if (key === "p") { runBuiltinAction("color-picker"); return; }
+      if (key === "p") { runBuiltinAction("color-picker", true); return; }
       if (key === "x") { runBuiltinAction("xray"); return; }
       if (key === "r") { runBuiltinAction("rulers"); return; }
       if (key === "h") { if (!builtinActionDisabled("guides")) model.setGuideOrientation("horizontal", true); return; }
