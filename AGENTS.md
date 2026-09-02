@@ -152,23 +152,6 @@ bun run browser:inject-script > /tmp/mesurer-inject.js
 
 The repository's browser harness is a reference/CI adapter, not the agent integration API.
 
-### Optional WebMCP feedback tools
-
-When the browser exposes the draft [`document.modelContext`](https://webmachinelearning.github.io/webmcp/) API, injection also loads the removable `mesurer.webmcp` plugin. It shares a bounded, append-only feedback bus with `mesurer.context` and registers:
-
-```text
-mesurer.feedback.wait
-mesurer.context.get
-mesurer.annotations.list
-mesurer.review
-mesurer.capture.prepare
-mesurer.capture.finish
-```
-
-`mesurer.feedback.wait` is agent-initiated. It may remain pending while a human selects or annotates the page and presses Send; the result then returns structured context in the same tool flow. Use its `afterId`/`afterSequence` cursor and retry after a timeout using `lastSequence`. Cancellation removes the waiter but does not discard retained feedback. The event contains context, text, capture planning, and evidence metadata; screenshot capture still belongs to the outer browser harness.
-
-WebMCP does not expose Codex/ACP identifiers or credentials to the inspected page, discover the current conversation, or push into a completed turn. Keep `mesurer.host/v1` and `/delivery` for hosts that own ACP or Codex App Server routing. If `document.modelContext` is absent, do not emulate it: use the normal context APIs, host bridge, or clipboard fallback.
-
 ## 3. Context-returning agent contract
 
 The `/inject` and `/inject-script` entry points load removable `mesurer.context` by default. Source-mounted applications opt in with `plugins: [contextPlugin()]`.
