@@ -421,10 +421,12 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   ) ?? null;
 
   const onDirectEditFocus = (event: FocusEvent) => {
+    if (legacy) return;
     const editor = directEditorFromEvent(event);
     if (editor) beginDirectEditPreview(editor);
   };
   const onDirectEditLifecycle = () => {
+    if (legacy) return;
     if (directEditPreview) scheduleDirectEditPreview();
   };
 
