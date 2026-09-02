@@ -6,7 +6,7 @@
 
 A Solid 2 port and extension of [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick).
 
-Mesurer Solid is a visual inspection and measurement tool for browser apps. Use it to select elements, inspect spacing and layout, measure distances, add guides, inspect text and colors, arrange a desired layout, capture screenshots, and expose rendered UI state through a programmatic API.
+Mesurer Solid is a visual inspection and measurement tool for browser apps. Use it to select elements, inspect spacing and layout, measure distances, add guides, inspect and edit text, arrange a desired layout, capture screenshots, and expose rendered UI state through a programmatic API.
 
 <p align="center">
   <img src="docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between four selected elements" width="100%">
@@ -140,7 +140,7 @@ Mesurer carries its own isolated Solid 2 renderer, so the host app does not need
 | Guides & rulers | Add visual alignment and position references |
 | X-ray | Inspect page structure visually |
 | Color Picker | Use the browser's native screen sampler when `EyeDropper` is operational; the tool is hidden in unsupported hosts |
-| Text Inspector | Inspect rendered typography and double-click Desired text to make a reversible preview edit |
+| Text Inspector | Inspect rendered typography, edit copy directly, and preview reversible page-derived typography/style changes |
 | Settings | Configure tools and persisted behavior |
 | Arrange | Move selected elements into a desired visual layout without editing application source |
 | Screenshots | Capture a dragged viewport region with the optional screenshot plugin |
@@ -171,6 +171,36 @@ The default renderer and first-party plugins expose shortcuts only while their c
 
 Color Picker intentionally has no DOM/CSS sampling fallback. In hosts where native screen sampling cannot operate—including the current Codex browser bridge—the Color Picker control is not advertised and `P` is inert.
 
+## Edit text and typography directly
+
+Direct text editing extends the existing Text Inspector workflow and is also available while **Select** is active. Because Arrange keeps Select active, you can move an element, double-click its text, edit/style it, and continue arranging without switching to a separate editing tool.
+
+Double-click direct text on desktop, or double-tap it with touch/pen. Mesurer opens an editor over the rendered text using that target's current typography and selects the entire current text so typing immediately replaces it.
+
+The compact style controls expose:
+
+- **Bold**, **Italic**, and **Underline**;
+- font families already rendered on the current page;
+- font sizes already rendered on the current page;
+- font weights already rendered on the current page;
+- commonly used text colors already rendered on the current page;
+- a custom color picker when the desired color is not already present.
+
+These suggestions come from the rendered page, so they reflect styles the application is actually using rather than an arbitrary preset list. The current target style is always retained as an option.
+
+Typing and style changes preview directly on the real rendered target. Press **Enter** to keep the Desired edit or **Escape** to cancel the current editing session. Saved text/style edits participate in Mesurer state history and remain reversible previews rather than pretending to change application source.
+
+Mesurer does not hijack native form editing: `<input>`, `<textarea>`, `<select>`, and `contenteditable` elements keep their normal browser/application behavior.
+
+When the agent bridge is enabled, saved text/style intent is available separately from ordinary context:
+
+```js
+const edits = await window.__MESURER__.textEdits()
+const intent = await window.__MESURER__.textEdit(edits.at(-1).id)
+```
+
+Each intent records the target, Before/Desired copy, and requested style deltas. Coding agents should implement that visual outcome using the application's real component props, classes, CSS variables, theme/design tokens, or stylesheet rules when appropriate—not copy Mesurer's temporary preview styles blindly.
+
 ## Arrange a desired layout
 
 Arrange is an optional first-party plugin for showing how selected UI should be positioned without pretending to edit the application source:
@@ -189,7 +219,7 @@ Select one or more elements, click **Arrange** or press **Shift+A**, and drag th
 
 Each completed drag records Before and Desired geometry, persists through the plugin state channel, and participates in Mesurer undo/redo. Coding agents can reconstruct Before/Desired, capture both through their existing browser harness, switch to Live after editing source, and use exact geometry to verify whether the real implementation matches the human-arranged result.
 
-Arrange is primarily a human/designer intent tool: move the rendered UI to where it should be, then tell the coding agent to check Mesurer context. When the Agent Skill is installed, a broad request to check Mesurer/context tells the agent to inspect all existing human intent before editing—including Arrange intents, annotations, current selection, guides, measurements, held distances, and related target/layout context—so the user does not need to separately describe each adjustment.
+Arrange is primarily a human/designer intent tool: move the rendered UI to where it should be, edit copy or typography when useful, then tell the coding agent to check Mesurer context. When the Agent Skill is installed, a broad request to check Mesurer/context tells the agent to inspect all existing human intent before editing—including Arrange intents, text/style Desired edits, annotations, current selection, guides, measurements, held distances, and related target/layout context—so the user does not need to separately describe each adjustment.
 
 Arrange is a visual specification: an agent should implement the appropriate flex/grid/spacing/component change rather than blindly copying the preview offset into a production transform.
 
@@ -273,7 +303,7 @@ This is useful when a visual change needs to be checked against the same target 
 
 ## Agent integration
 
-For coding-agent setup, injection, state-preservation rules, Arrange handling, and the full visual verification workflow, use the dedicated agent docs instead of the README:
+For coding-agent setup, injection, state-preservation rules, Arrange/text-edit handling, and the full visual verification workflow, use the dedicated agent docs instead of the README:
 
 - [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md)
 - [`.agents/skills/mesurer-ui/SKILL.md`](./.agents/skills/mesurer-ui/SKILL.md)
@@ -284,7 +314,7 @@ Install the portable skill with:
 npx --yes --package=mesurer-solid mesurer-skill install
 ```
 
-The skill treats broad requests such as “check Mesurer,” “check Measure,” or “look at Mesurer context” as a full intent sweep. It preserves and reads existing Arrange, annotation, selection, guide, measurement, and distance state before the agent narrows its work or edits source.
+The skill treats broad requests such as “check Mesurer,” “check Measure,” or “look at Mesurer context” as a full intent sweep. It preserves and reads existing Arrange, text/style Desired edits, annotation, selection, guide, measurement, and distance state before the agent narrows its work or edits source.
 
 ## Supported hosts
 
