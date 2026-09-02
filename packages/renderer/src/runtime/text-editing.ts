@@ -475,13 +475,13 @@ export function installTextEditing(
       session.styleChanges = session.styleChanges.filter((change) => change.property !== property);
     } else {
       session.element.style.setProperty(property, desired);
-      const next: TextStyleChangeValue = {
+      const next = {
         property,
         before,
         desired,
         beforeInline,
         beforePriority,
-      };
+      } satisfies TextStyleChangeValue;
       session.styleChanges = [
         ...session.styleChanges.filter((change) => change.property !== property),
         next,
@@ -1093,8 +1093,8 @@ export function installTextEditing(
 
   const unsubscribeWorkspace = workspace.subscribe(schedulePresentation);
   ctx.state.subscribe(schedulePresentation);
-  pageTarget.addEventListener("dblclick", beginEditor, true);
-  pageTarget.addEventListener("pointerup", onTouchPointerUp, true);
+  ownerWindow.addEventListener("dblclick", beginEditor, true);
+  ownerWindow.addEventListener("pointerup", onTouchPointerUp, true);
   ownerWindow.addEventListener("pointerdown", onPointerDown, true);
   ownerWindow.addEventListener("keydown", onKeyDown, true);
   ownerWindow.addEventListener("resize", schedulePresentation);
@@ -1109,8 +1109,8 @@ export function installTextEditing(
     restoreApplied();
     observer.disconnect();
     unsubscribeWorkspace();
-    pageTarget.removeEventListener("dblclick", beginEditor, true);
-    pageTarget.removeEventListener("pointerup", onTouchPointerUp, true);
+    ownerWindow.removeEventListener("dblclick", beginEditor, true);
+    ownerWindow.removeEventListener("pointerup", onTouchPointerUp, true);
     ownerWindow.removeEventListener("pointerdown", onPointerDown, true);
     ownerWindow.removeEventListener("keydown", onKeyDown, true);
     ownerWindow.removeEventListener("resize", schedulePresentation);
