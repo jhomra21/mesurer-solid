@@ -4,6 +4,10 @@ type EyeDropperConstructor = {
 };
 type WindowWithEyeDropper = Window & { EyeDropper?: unknown };
 
+// Some embedded Chromium hosts expose a genuine native EyeDropper interface
+// but immediately abort every open attempt before a human can interact with it.
+// Once that operational failure is observed, do not keep advertising the tool
+// for the rest of this page realm.
 const operationallyUnavailableWindows = new WeakSet<Window>();
 
 const isEyeDropperConstructor = (value: unknown): value is EyeDropperConstructor => {
