@@ -44,6 +44,45 @@ try {
   }
   await unsupportedPage.close();
 
+  const immediateAbortPage = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+    deviceScaleFactor: 2,
+  });
+  watchDiagnostics(immediateAbortPage, "immediate-abort");
+  await immediateAbortPage.addInitScript(() => {
+    Object.defineProperty(window, "__mesurerEyeDropperOpens", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      value: class {
+        async open() {
+          window.__mesurerEyeDropperOpens += 1;
+          throw new DOMException("The user canceled the selection.", "AbortError");
+        }
+      },
+    });
+  });
+  await immediateAbortPage.goto(url, { waitUntil: "networkidle" });
+
+  const abortingButton = immediateAbortPage.getByRole("button", { name: "Color picker (P)" });
+  await abortingButton.waitFor({ state: "visible" });
+  await clickLocatorCenter(abortingButton);
+  await abortingButton.waitFor({ state: "detached" });
+  if (await immediateAbortPage.locator(".mesurer-color-picker").count()) {
+    throw new Error("Immediately aborted Color Picker left a visible result panel");
+  }
+
+  await immediateAbortPage.keyboard.press("p");
+  await immediateAbortPage.waitForTimeout(80);
+  const abortingOpens = await immediateAbortPage.evaluate(() => window.__mesurerEyeDropperOpens);
+  if (abortingOpens !== 1) {
+    throw new Error(`Immediately aborted Color Picker remained keyboard-accessible: ${abortingOpens} opens`);
+  }
+  await immediateAbortPage.close();
+
   const supportedPage = await browser.newPage({
     viewport: { width: 1280, height: 900 },
     deviceScaleFactor: 2,
