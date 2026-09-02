@@ -1,6 +1,6 @@
 ---
 name: mesurer-ui
-description: Use Mesurer when implementing, reviewing, debugging, or fixing frontend UI in a browser. Load for visual alignment, spacing, sizing, layout, CSS, responsive work, design/Figma implementation, screenshots, pixel discrepancies, human Mesurer selections/measurements/guides/annotations, Arrange intents, or any request to check Mesurer/Measure context. A broad Mesurer/context request means inventory all existing human visual intent before narrowing. Consume existing human visual intent before editing and obtain fresh rendered evidence before claiming completion.
+description: Use Mesurer when implementing, reviewing, debugging, or fixing frontend UI in a browser. Load for visual alignment, spacing, sizing, layout, CSS, responsive work, design/Figma implementation, screenshots, pixel discrepancies, human Mesurer selections/measurements/guides/annotations, Arrange intents, text/style Desired edits, or any request to check Mesurer/Measure context. A broad Mesurer/context request means inventory all existing human visual intent before narrowing. Consume existing human visual intent before editing and obtain fresh rendered evidence before claiming completion.
 ---
 
 # Mesurer UI workflow
@@ -13,12 +13,12 @@ The central rule is:
 
 > A meaningful Mesurer step must return evidence the agent actually consumes.
 
-That evidence may be `MesurerContextV1`, `MesurerReviewV1`, an Arrange intent/review, or a focused low-level measurement. Do not merely draw a highlight and continue from memory.
+That evidence may be `MesurerContextV1`, `MesurerReviewV1`, an Arrange intent/review, a text-edit intent, or a focused low-level measurement. Do not merely draw a highlight or preview a change and continue from memory.
 
 ```text
 human visual intent or agent UI change
   → preserve existing Mesurer state
-  → consume Arrange / annotation / selection evidence
+  → consume Arrange / text edit / annotation / selection evidence
   → reason from exact rendered state
   → edit normal source
   → wait for the real render
@@ -28,7 +28,7 @@ human visual intent or agent UI change
 
 ## 1. Reuse the live Mesurer instance
 
-Never reinject, dispose, or replace Mesurer just because this skill loaded. The person may already have selected elements, placed guides, measured gaps, held distances, enabled rulers/X-ray, created annotations, arranged elements into a desired layout, or kept a screenshot thumbnail/viewer open. That state is part of the user's message.
+Never reinject, dispose, or replace Mesurer just because this skill loaded. The person may already have selected elements, placed guides, measured gaps, held distances, enabled rulers/X-ray, created annotations, arranged elements into a desired layout, edited text or typography into a Desired state, or kept a screenshot thumbnail/viewer open. That state is part of the user's message.
 
 Discover the current page first:
 
@@ -74,7 +74,17 @@ select
 annotations
 review
 capturePlan
+textEdits
+textEdit
 ```
+
+When direct text editing is available, capabilities reports:
+
+```text
+textEdit
+```
+
+`textEdits()` lists saved human text/style Desired intents. `textEdit(id)` resolves one intent by id.
 
 When the first-party Arrange plugin is mounted, capabilities also reports:
 
@@ -96,7 +106,7 @@ The optional screenshot plugin remains a separate human tool/service. It is not 
 
 ### Treat broad Mesurer/context requests as a full intent sweep
 
-If the user says “check Mesurer,” “check Measure,” “look at Mesurer context,” “see what I highlighted/moved/annotated,” or otherwise asks generally about Mesurer state without naming one specific tool, do **not** assume `context()` alone is the whole message.
+If the user says “check Mesurer,” “check Measure,” “look at Mesurer context,” “see what I highlighted/moved/annotated/edited,” or otherwise asks generally about Mesurer state without naming one specific tool, do **not** assume `context()` alone is the whole message.
 
 Inventory the live human-intent channels before narrowing:
 
@@ -106,6 +116,9 @@ const workspace = await window.__MESURER__.context()
 const annotations = await window.__MESURER__.annotations()
 const arrangements = capabilities.arrange
   ? await window.__MESURER__.arrangements()
+  : []
+const textEdits = capabilities.textEdit
+  ? await window.__MESURER__.textEdits()
   : []
 
 let selection = null
@@ -126,9 +139,13 @@ const annotationContexts = await Promise.all(
 const arrangeIntents = await Promise.all(
   arrangements.map((intent) => window.__MESURER__.arrange(intent.id)),
 )
+
+const textEditIntents = await Promise.all(
+  textEdits.map((intent) => window.__MESURER__.textEdit(intent.id)),
+)
 ```
 
-Bring forward whatever is relevant from the combined state: current selection, target-bound annotations and notes, Arrange Before/Desired geometry, guides, measurements, held distances, layout/style inspection, rulers/X-ray state, and any existing human screenshot preview that should be preserved. A person may use several Mesurer tools in one review; treat the combined state as one visual message rather than asking them to restate intent that is already encoded in the page.
+Bring forward whatever is relevant from the combined state: current selection, target-bound annotations and notes, Arrange Before/Desired geometry, text Before/Desired copy and typography/style deltas, guides, measurements, held distances, layout/style inspection, rulers/X-ray state, and any existing human screenshot preview that should be preserved. A person may use several Mesurer tools in one review; treat the combined state as one visual message rather than asking them to restate intent that is already encoded in the page.
 
 Do not clear or replace any of those channels until their relevant evidence has been consumed.
 
@@ -221,9 +238,61 @@ If review reports `stale` or `partial`, do not silently transfer the intent to a
 
 Do not clear, overwrite, or discard a human Arrange intent merely to make validation pass.
 
-## 3. Acquire ordinary context in the right order
+## 3. Consume text/style Desired edits before source edits
 
-After preserving any relevant Arrange intent, use this order for the rest of the visual evidence.
+Direct text editing is human copy and typography intent. When `capabilities.capabilities.textEdit` is true, inspect saved edits before changing source:
+
+```js
+const textEdits = await window.__MESURER__.textEdits()
+```
+
+For a relevant edit:
+
+```js
+const intent = await window.__MESURER__.textEdit(textEditId)
+```
+
+A text-edit intent contains:
+
+```text
+id / createdAt / pageUrl
+selector / nodeIndex
+before
+  original text
+desired
+  requested text
+styles[]
+  property
+  before
+  desired
+```
+
+Treat `desired` and `styles[]` as the requested visual outcome, not as an implementation prescription. Mesurer may preview a font, weight, color, underline, or other text property with a temporary DOM style. Production code should use the application's real component props, classes, CSS variables, design tokens, theme values, or stylesheet rules where appropriate.
+
+Page-derived font/color/weight choices are useful evidence because the person selected from styles already rendered by the application. That still does **not** mean the agent should blindly add an inline style with the sampled computed value. Inspect the source and reuse the semantic source-level token/class when it exists.
+
+Preserve each relevant intent id, selector, Before text, Desired text, and style deltas before HMR can replace the target.
+
+### Verify text edits against Live source, not Mesurer's preview
+
+While Select or Text Inspector is active, Mesurer can render the saved Desired copy/style as a reversible preview. Do not inspect that preview and claim the source implementation is complete.
+
+After making source changes:
+
+1. wait for the application to render;
+2. preserve the text-edit intent;
+3. ensure Mesurer's text Desired preview is not masking the target by deactivating the active Select/Text Inspector mode without clearing the saved intent;
+4. inspect the target's actual rendered text and computed typography;
+5. compare those Live values with the saved Desired text/style changes;
+6. reactivate Select only if continued Mesurer review is useful.
+
+Mesurer relinquishes ownership when the application itself changes a text/style value, so a correct source implementation must survive with the preview inactive.
+
+Do not clear text-edit history just to reveal Live. Deactivate the previewing tool, inspect the real application render, and keep the human intent available for comparison.
+
+## 4. Acquire ordinary context in the right order
+
+After preserving relevant Arrange and text-edit intent, use this order for the rest of the visual evidence.
 
 ### A. Existing human selection or annotation
 
@@ -249,7 +318,7 @@ const annotationContext = await window.__MESURER__.context({
 })
 ```
 
-Treat annotation notes and Arrange Desired state as human intent. Treat selection, guides, distances, measurements, exact geometry, computed styles, and screenshots as evidence supporting that intent.
+Treat annotation notes, Arrange Desired state, and text/style Desired edits as human intent. Treat selection, guides, distances, measurements, exact geometry, computed styles, and screenshots as evidence supporting that intent.
 
 Do not overwrite a meaningful human selection until its context has been retained in the current task.
 
@@ -286,7 +355,7 @@ Use the returned object. Do not call `select()` only for the highlight.
 
 Every supplied selector must resolve to exactly one page target. Missing, invalid, or ambiguous selectors throw. Refine the selector or ask the user to select the target rather than guessing.
 
-## 4. Read rendered context, not source assumptions
+## 5. Read rendered context, not source assumptions
 
 `MesurerContextV1` is JSON-safe and uses `viewport-css-px` coordinates. Relevant fields include:
 
@@ -324,7 +393,7 @@ Examples:
 - rendered width is `318px` → do not report `320px` until the browser measures it;
 - overflow flags are true → the rendered component is overflowing even if source math looked correct.
 
-## 5. Treat multi-selection as relational evidence
+## 6. Treat multi-selection as relational evidence
 
 When several elements are selected, inspect every relevant target and their relationships. Do not summarize the state as only “3 selected.”
 
@@ -348,9 +417,9 @@ const pair = window.__MESURER__.distance(selectorA, selectorB)
 
 For a small selection, report useful unique pair relationships. For a large repeated set, focus on adjacent/repeated/user-relevant relationships rather than dumping O(n²) pairs.
 
-## 6. Preserve the baseline before editing
+## 7. Preserve the baseline before editing
 
-If the human supplied selection, measurements, an annotation, or Arrange state, retain the relevant baseline before source changes or HMR can replace nodes.
+If the human supplied selection, measurements, an annotation, Arrange state, or text/style edits, retain the relevant baseline before source changes or HMR can replace nodes.
 
 Annotation:
 
@@ -366,9 +435,15 @@ const before = await window.__MESURER__.context({ scope: "selection" })
 
 Arrange: capture the intent plus Before/Desired states as described above.
 
-Do not mutate human guides, measurements, held distances, annotations, Arrange history, or screenshot preview/viewer state merely to make the implementation appear correct.
+Text edit:
 
-## 7. Edit the real implementation
+```js
+const textIntent = await window.__MESURER__.textEdit(textEditId)
+```
+
+Do not mutate human guides, measurements, held distances, annotations, Arrange history, text-edit history, or screenshot preview/viewer state merely to make the implementation appear correct.
+
+## 8. Edit the real implementation
 
 Make the smallest source change that addresses the rendered issue. Use the project's normal source, build, and dev-server workflow.
 
@@ -380,7 +455,9 @@ After HMR/render:
 await window.__MESURER__.stable()
 ```
 
-## 8. Fresh rendered evidence is part of completion
+For text/style intents, inspect the source-rendered Live state with Mesurer's Desired preview inactive before claiming the implementation matches.
+
+## 9. Fresh rendered evidence is part of completion
 
 Lint, typecheck, tests, and build are implementation checks. They do not prove a visual result.
 
@@ -395,6 +472,18 @@ const review = await window.__MESURER__.reviewArrange(arrangeId)
 ```
 
 Continue until the live source-rendered geometry matches Desired within the expected tolerance, and use a fresh screenshot when visual composition matters.
+
+### Text/style Desired intent
+
+With the saved intent retained and the temporary text preview inactive:
+
+```js
+await window.__MESURER__.stable()
+const intent = await window.__MESURER__.textEdit(textEditId)
+const live = window.__MESURER__.inspect(intent.selector)
+```
+
+Compare the actual text and relevant `live.typography` values with `intent.desired` and `intent.styles`. If the target no longer resolves uniquely after HMR, do not silently transfer the intent to another element.
 
 ### Human annotation
 
@@ -422,7 +511,7 @@ const after = await window.__MESURER__.select([
 
 If target identity is ambiguous after the change, ask the user to select the intended result. Do not manufacture confidence from a guessed selector.
 
-## 9. Human screenshots and agent screenshots are different paths
+## 10. Human screenshots and agent screenshots are different paths
 
 The optional `mesurer.screenshot` plugin gives the person a camera tool. It can copy/download a HiDPI-aware PNG and keep a draggable preview/viewer. Do not treat it as an agent-delivery transport or destroy a human preview unless the task explicitly requires it.
 
@@ -449,18 +538,22 @@ real screenshot          → composition, hierarchy, clipping, color, visual jud
 
 Screenshots do not replace exact Mesurer measurements, and Mesurer numbers do not replace visual judgment.
 
-## 10. HMR and stale-target rules
+## 11. HMR and stale-target rules
 
-Annotations and Arrange intents rebind conservatively after DOM replacement. If review reports `stale` or `partial`, do not silently bind human intent to a different element.
+Annotations, Arrange intents, and text-edit intents use conservative target identity. If a target becomes stale or ambiguous, do not silently bind human intent to a different element.
 
 An unsaved selection can disappear when HMR replaces nodes. Preserve initial context before editing. After render, use original exact selectors when still valid, `select()` known replacement targets when unambiguous, or ask the user to reselect when identity is uncertain.
 
-## 11. Completion standard
+If the application now renders a text/style value that matches a saved Desired edit, Mesurer must not keep claiming ownership of that value or later restore stale Before state over the application's source-rendered result.
+
+## 12. Completion standard
 
 A valid visual completion statement is grounded in fresh rendered evidence, for example:
 
 ```text
 - Arrange Live now matches Desired within 1px
+- edited copy is source-rendered as "Start free trial"
+- edited text uses the requested 700 weight and page token color with Mesurer preview inactive
 - selected cards measure 320px wide
 - rendered horizontal gap is 24px
 - selected top edges differ by 0px
@@ -480,7 +573,7 @@ build passed
 
 If Mesurer is available and the affected UI can be identified, finishing without fresh Mesurer evidence is a workflow failure.
 
-## 12. Low-level helpers
+## 13. Low-level helpers
 
 Use these only when scoped context/review is not enough:
 
@@ -493,12 +586,14 @@ window.__MESURER__.distance(".a", ".b")
 window.__MESURER__.viewport()
 await window.__MESURER__.feedback([".selector"])
 await window.__MESURER__.state()
+await window.__MESURER__.textEdits()
+await window.__MESURER__.textEdit(textEditId)
 await window.__MESURER__.stable()
 ```
 
-Prefer `arrangements()`, `context()`, `select()`, `reviewArrange()`, and `review()` for human-in-the-loop work because they preserve visual meaning and return evidence that can be carried directly into reasoning.
+Prefer `arrangements()`, `textEdits()`, `context()`, `select()`, `reviewArrange()`, and `review()` for human-in-the-loop work because they preserve visual meaning and return evidence that can be carried directly into reasoning.
 
-## 13. Do not do these things
+## 14. Do not do these things
 
 - do not look for an MCP/WebMCP tool;
 - do not start a local feedback server;
@@ -510,7 +605,9 @@ Prefer `arrangements()`, `context()`, `select()`, `reviewArrange()`, and `review
 - do not reinject over live human Mesurer state;
 - do not overwrite human selection before reading it;
 - do not clear or alter human Arrange history to make validation pass;
+- do not clear text-edit history merely to reveal or validate Live source state;
 - do not implement Arrange offsets as production transforms unless the source layout genuinely calls for that;
+- do not implement a text/style Desired preview as arbitrary production inline styles when the source design system has a semantic token/class/component API;
 - do not capture only Desired after source editing; preserve Before and Desired first when screenshot comparison matters;
 - do not close/destroy a human screenshot preview merely to clean up agent state;
 - do not use `select()` with a knowingly ambiguous selector;
@@ -519,6 +616,7 @@ Prefer `arrangements()`, `context()`, `select()`, `reviewArrange()`, and `review
 - do not ignore context returned by `select()`;
 - do not alter human measurements/guides to make validation pass;
 - do not infer exact geometry from screenshots when Mesurer reports the number;
+- do not inspect Mesurer's temporary text Desired preview and claim the source implementation is complete;
 - do not claim visual completion from source/build output alone.
 
 The direct integration remains intentionally small:
@@ -529,8 +627,8 @@ existing agent harness
 existing rendered page
   ↕
 window.__MESURER__
-  ↳ arrangements() / context() / select()
-  ↳ reviewArrange() / review()
+  ↳ arrangements() / textEdits() / context() / select()
+  ↳ reviewArrange() / textEdit() / review()
 ```
 
 **Rendered evidence is the output.**
