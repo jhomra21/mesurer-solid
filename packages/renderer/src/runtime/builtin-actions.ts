@@ -137,6 +137,10 @@ export function createMesurerBuiltinController(options: {
           model.toggleXray();
           return;
         case "color-picker":
+          if (model.current.colorPickerActive) {
+            dismissColorPicker(model);
+            return;
+          }
           await openColorPicker();
           return;
         case "rulers":
