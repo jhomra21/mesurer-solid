@@ -140,6 +140,22 @@ try {
   const alternateColor = swatchColors.find((value) => value && value !== before.color);
   assert(alternateColor, `Expected a rendered-page color different from ${before.color}`);
   await page.locator(`[data-mesurer-text-color=${JSON.stringify(alternateColor)}]`).click();
+  await page.waitForFunction((expected) => {
+    const element = document.querySelector(".tracked-text");
+    return element instanceof HTMLElement && getComputedStyle(element).color === expected;
+  }, alternateColor);
+
+  const customHex = "#2a6fdb";
+  const customRenderedColor = "rgb(42, 111, 219)";
+  await page.locator("[data-mesurer-text-custom-color='true']").evaluate((element, value) => {
+    if (!(element instanceof HTMLInputElement)) throw new Error("Expected text custom color input");
+    element.value = value;
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  }, customHex);
+  await page.waitForFunction((expected) => {
+    const element = document.querySelector(".tracked-text");
+    return element instanceof HTMLElement && getComputedStyle(element).color === expected;
+  }, customRenderedColor);
 
   const desiredText = "Desired copy from Mesurer";
   await editor.fill(desiredText);
@@ -160,7 +176,7 @@ try {
   assert.equal(desired.text, desiredText, "Committed text should remain as Desired while Select/Arrange is active");
   assert.equal(desired.fontFamily, referenceStyle.fontFamily, "Chosen page font should preview on the real target");
   assert.equal(desired.fontWeight, referenceStyle.fontWeight, "Chosen page weight should preview on the real target");
-  assert.equal(desired.color, alternateColor, "Chosen page color should preview on the real target");
+  assert.equal(desired.color, customRenderedColor, "Custom text color should preview on the real target");
   assert(desired.decoration.includes("underline"), "Underline should preview on the real target");
 
   await arrangeButton.click();
@@ -190,12 +206,12 @@ try {
     text: desiredText,
     fontFamily: referenceStyle.fontFamily,
     fontWeight: referenceStyle.fontWeight,
-    color: alternateColor,
+    color: customRenderedColor,
   });
 
   assert.equal(pageErrors.length, 0, `Text editing browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Text editing browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Arrange-compatible direct text editing + page-derived style suggestions + reversible Desired state: PASS");
+  console.log("Arrange-compatible direct text editing + page-derived styles + custom color + reversible Desired state: PASS");
 } finally {
   await browser.close();
 }
