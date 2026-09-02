@@ -63,7 +63,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## 0.1.1-beta.0 - 2026-08-28
 
-- Add the optional `mesurer-solid/screenshot` plugin with drag-to-select visible-tab capture, HiDPI-aware PNG cropping, best-effort automatic clipboard copy and local download outputs, persisted output settings, a persistent draggable thumbnail, and a larger Copy/Save viewer.
+- Add the optional `mesurer-solid/screenshot` plugin with drag-to-select visible-tab capture, HiDPI-aware PNG cropping, best-effort automatic clipboard copy and local download outputs, persisted output settings, a persistent draggable preview with native image actions and click-to-open Copy/Save viewer, capture-status feedback, and a no-prompt Chrome extension capture bridge with `getDisplayMedia()` fallback for normal browser hosts.
 
 ## 0.1.0 - 2026-08-28
 
