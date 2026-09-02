@@ -44,6 +44,42 @@ try {
   }
   await unsupportedPage.close();
 
+  const codexPage = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+    deviceScaleFactor: 2,
+    userAgent: "CodexBrowser Mozilla/5.0 AppleWebKit/537.36 Chrome/151 Safari/537.36",
+  });
+  watchDiagnostics(codexPage, "codex-host");
+  await codexPage.addInitScript(() => {
+    Object.defineProperty(window, "__mesurerEyeDropperOpens", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      value: class {
+        async open() {
+          window.__mesurerEyeDropperOpens += 1;
+          return { sRGBHex: "#5eead4" };
+        }
+      },
+    });
+  });
+  await codexPage.goto(url, { waitUntil: "networkidle" });
+
+  const codexButton = codexPage.locator('button[aria-label="Color picker (P)"]');
+  if (await codexButton.count()) {
+    throw new Error("Color Picker button rendered in CodexBrowser despite the host capability exclusion");
+  }
+  await codexPage.keyboard.press("p");
+  await codexPage.waitForTimeout(80);
+  const codexOpens = await codexPage.evaluate(() => window.__mesurerEyeDropperOpens);
+  if (codexOpens !== 0) {
+    throw new Error(`CodexBrowser Color Picker remained keyboard-accessible: ${codexOpens} opens`);
+  }
+  await codexPage.close();
+
   const immediateAbortPage = await browser.newPage({
     viewport: { width: 1280, height: 900 },
     deviceScaleFactor: 2,
