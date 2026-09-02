@@ -11,6 +11,15 @@ import {
   isElementWithinDomTarget,
 } from "@jhomra21/mesurer-solid-dom";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
+import {
+  makeCard,
+  populateCard,
+  type InspectorCard,
+} from "./text-inspector-dom";
+import {
+  TypographyInspector,
+  type TypographyInfo,
+} from "./text-inspector-typography";
 
 export const MESURER_TEXT_EDIT_STATE_ID = "mesurer.text-edit.intents";
 export const MESURER_TEXT_EDIT_SERVICE_ID = "text-edit";
@@ -21,6 +30,10 @@ const MAX_EDITS = 100;
 const MAX_STYLE_CANDIDATES = 600;
 const DOUBLE_TAP_MS = 360;
 const DOUBLE_TAP_DISTANCE = 24;
+const TOOLBAR_BLUE = "#0d99ff";
+const TOOLBAR_INK = "#0f172a";
+const TOOLBAR_SHADOW =
+  "0 0 0.5px rgba(0, 0, 0, 0.18), 0 3px 8px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1)";
 const SKIP_TAGS = new Set([
   "HTML", "BODY", "SCRIPT", "STYLE", "META", "LINK", "NOSCRIPT",
   "IMG", "VIDEO", "AUDIO", "IFRAME", "INPUT", "TEXTAREA", "SELECT", "OPTION",
@@ -113,6 +126,8 @@ type EditorSession = {
   node: Text;
   editor: HTMLTextAreaElement;
   toolbar: HTMLDivElement;
+  inspectorCard: InspectorCard;
+  inspectorInfo: TypographyInfo;
   editId: string;
   beforeText: string;
   initialText: string;
@@ -226,6 +241,7 @@ export function installTextEditing(
   // SAFETY: ownerWindow is the browsing-context global for ownerDocument, so it carries that realm's DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
   const workspace = runtime.createWorkspaceRuntime();
+  const typography = new TypographyInspector(ownerDocument, ownerWindow);
   const inspectorMount = runtime.createInspectorMount();
   inspectorMount.element.dataset.mesurerTextEditRuntime = "true";
   inspectorMount.element.style.position = "fixed";
@@ -456,6 +472,23 @@ export function installTextEditing(
   const sessionChange = (session: EditorSession, property: MesurerTextStyleProperty) =>
     session.styleChanges.find((change) => change.property === property) ?? null;
 
+  const renderInspectorCard = (session: EditorSession, refreshVariables: boolean) => {
+    const fast = typography.getFast(session.element);
+    if (refreshVariables) {
+      session.inspectorInfo = typography.getFull(session.element, fast);
+    } else {
+      const variables = new Map(session.inspectorInfo.rows.map((row) => [row.label, row.varName] as const));
+      session.inspectorInfo = {
+        ...fast,
+        rows: fast.rows.map((row) => ({ ...row, varName: variables.get(row.label) ?? null })),
+      };
+    }
+    populateCard(ownerDocument, session.inspectorCard, session.inspectorInfo, false);
+    session.inspectorCard.dataset.mesurerTextInspectorInfo = "true";
+    session.inspectorCard.dataset.state = "visible";
+    session.inspectorCard.setAttribute("aria-label", "Text inspector");
+  };
+
   const setSessionStyle = (
     session: EditorSession,
     property: MesurerTextStyleProperty,
@@ -488,6 +521,7 @@ export function installTextEditing(
       ];
     }
     renderToolbar(session);
+    renderInspectorCard(session, true);
     positionEditor();
   };
 
@@ -506,18 +540,26 @@ export function installTextEditing(
     button.textContent = label;
     button.title = title;
     button.setAttribute("aria-label", title);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
     button.dataset.mesurerTextStyleButton = title.toLowerCase();
     Object.assign(button.style, {
-      width: "28px",
-      height: "28px",
+      width: "32px",
+      height: "32px",
       border: "0",
-      borderRadius: "5px",
-      background: active ? "rgba(255,255,255,.18)" : "transparent",
-      color: "white",
-      font: "600 13px/1 system-ui, sans-serif",
+      borderRadius: "8px",
+      background: active ? TOOLBAR_BLUE : "transparent",
+      color: active ? "#ffffff" : "#000000",
+      font: "600 13px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       textDecoration: title === "Underline" ? "underline" : "none",
       fontStyle: title === "Italic" ? "italic" : "normal",
       cursor: "pointer",
+      outline: "none",
+    });
+    button.addEventListener("mouseenter", () => {
+      if (!active) button.style.background = "rgba(0, 0, 0, 0.04)";
+    });
+    button.addEventListener("mouseleave", () => {
+      button.style.background = active ? TOOLBAR_BLUE : "transparent";
     });
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -540,14 +582,16 @@ export function installTextEditing(
     select.setAttribute("aria-label", label);
     select.dataset.mesurerTextStyleSelect = label.toLowerCase().replace(/\s+/g, "-");
     Object.assign(select.style, {
-      height: "28px",
-      maxWidth: label === "Font family" ? "150px" : "84px",
-      border: "1px solid rgba(255,255,255,.16)",
-      borderRadius: "5px",
-      background: "#1e293b",
-      color: "white",
-      font: "500 12px/1 system-ui, sans-serif",
-      padding: "0 6px",
+      height: "32px",
+      maxWidth: label === "Font family" ? "128px" : "72px",
+      border: "0",
+      borderRadius: "8px",
+      background: "transparent",
+      color: TOOLBAR_INK,
+      font: "500 12px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+      padding: "0 8px",
+      cursor: "pointer",
+      outline: "none",
     });
     for (const value of prependUnique(values, current)) {
       const option = ownerDocument.createElement("option");
@@ -556,6 +600,8 @@ export function installTextEditing(
       option.selected = value === current;
       select.append(option);
     }
+    select.addEventListener("mouseenter", () => { select.style.background = "rgba(0, 0, 0, 0.04)"; });
+    select.addEventListener("mouseleave", () => { select.style.background = "transparent"; });
     select.addEventListener("change", () => {
       if (editorSession !== session) return;
       onChange(select.value);
@@ -630,20 +676,23 @@ export function installTextEditing(
     Object.assign(swatches.style, {
       display: "flex",
       alignItems: "center",
-      gap: "3px",
-      paddingLeft: "2px",
+      gap: "4px",
+      marginLeft: "2px",
+      paddingLeft: "8px",
+      borderLeft: "1px solid rgba(0, 0, 0, 0.10)",
     });
-    for (const value of session.catalog.colors.slice(0, 8)) {
+    for (const [index, value] of session.catalog.colors.slice(0, 8).entries()) {
       const swatch = ownerDocument.createElement("button");
       swatch.type = "button";
       swatch.title = `Use ${value}`;
       swatch.setAttribute("aria-label", `Use text color ${value}`);
       swatch.dataset.mesurerTextColor = value;
       Object.assign(swatch.style, {
+        display: index < 6 ? "block" : "none",
         width: "18px",
         height: "18px",
         borderRadius: "50%",
-        border: value === color ? "2px solid white" : "1px solid rgba(255,255,255,.42)",
+        border: value === color ? `2px solid ${TOOLBAR_BLUE}` : "1px solid rgba(0, 0, 0, 0.18)",
         background: value,
         cursor: "pointer",
         padding: "0",
@@ -665,13 +714,16 @@ export function installTextEditing(
     customColor.setAttribute("aria-label", "Custom text color");
     customColor.dataset.mesurerTextCustomColor = "true";
     Object.assign(customColor.style, {
-      width: "28px",
-      height: "28px",
+      width: "32px",
+      height: "32px",
       border: "0",
+      borderRadius: "8px",
       background: "transparent",
-      padding: "2px",
+      padding: "5px",
       cursor: "pointer",
     });
+    customColor.addEventListener("mouseenter", () => { customColor.style.background = "rgba(0, 0, 0, 0.04)"; });
+    customColor.addEventListener("mouseleave", () => { customColor.style.background = "transparent"; });
     customColor.addEventListener("change", () => {
       if (editorSession !== session) return;
       setSessionStyle(session, "color", customColor.value);
@@ -733,6 +785,22 @@ export function installTextEditing(
     );
     session.toolbar.style.left = `${toolbarLeft}px`;
     session.toolbar.style.top = `${toolbarTop}px`;
+
+    const cardRect = session.inspectorCard.getBoundingClientRect();
+    const cardHeight = Math.max(0, cardRect.height);
+    const cardWidth = Math.max(320, cardRect.width);
+    const halfCard = cardWidth / 2;
+    const toolbarBelowEditor = toolbarTop >= top + editorHeight;
+    const belowToolbar = toolbarTop + toolbarHeight + 8;
+    const cardTop = toolbarBelowEditor && belowToolbar + cardHeight <= ownerWindow.innerHeight - 8
+      ? belowToolbar
+      : Math.max(8, toolbarTop - cardHeight - 8);
+    const cardCenter = Math.min(
+      Math.max(toolbarLeft + toolbarWidth / 2, 8 + halfCard),
+      ownerWindow.innerWidth - 8 - halfCard,
+    );
+    session.inspectorCard.style.left = `${cardCenter}px`;
+    session.inspectorCard.style.top = `${cardTop}px`;
   };
 
   const closeEditor = () => {
@@ -740,6 +808,7 @@ export function installTextEditing(
     if (!session) return;
     session.editor.remove();
     session.toolbar.remove();
+    session.inspectorCard.remove();
     editorSession = null;
   };
 
@@ -910,7 +979,9 @@ export function installTextEditing(
     });
 
     const toolbar = ownerDocument.createElement("div");
+    toolbar.className = "mesurer-toolbar-surface";
     toolbar.dataset.mesurerTextStyleToolbar = "true";
+    toolbar.dataset.mesurerTextStyleSurface = "toolbar";
     toolbar.dataset.mesurerInspectorUi = "true";
     toolbar.setAttribute("role", "toolbar");
     toolbar.setAttribute("aria-label", "Text styles");
@@ -920,21 +991,36 @@ export function installTextEditing(
       pointerEvents: "auto",
       display: "flex",
       alignItems: "center",
-      flexWrap: "wrap",
+      flexWrap: "nowrap",
       gap: "4px",
       maxWidth: "calc(100vw - 16px)",
-      padding: "6px",
-      borderRadius: "8px",
-      background: "rgba(15,23,42,.96)",
-      boxShadow: "0 8px 24px rgba(15,23,42,.24)",
+      padding: "4px",
+      borderRadius: "12px",
+      background: "#ffffff",
+      color: TOOLBAR_INK,
+      boxShadow: TOOLBAR_SHADOW,
     });
 
-    inspectorMount.element.append(editor, toolbar);
+    const inspectorCard = makeCard(ownerDocument, false);
+    inspectorCard.dataset.mesurerTextInspectorInfo = "true";
+    inspectorCard.dataset.mesurerInspectorUi = "true";
+    inspectorCard.setAttribute("aria-label", "Text inspector");
+    Object.assign(inspectorCard.style, {
+      zIndex: "2147483647",
+      pointerEvents: "none",
+      transform: "translateX(-50%)",
+      opacity: "1",
+    });
+
+    inspectorMount.element.append(editor, toolbar, inspectorCard);
+    const inspectorInfo = typography.getFull(target.element);
     editorSession = {
       element: target.element,
       node: target.node,
       editor,
       toolbar,
+      inspectorCard,
+      inspectorInfo,
       editId,
       beforeText,
       initialText,
@@ -948,11 +1034,13 @@ export function installTextEditing(
       catalog: collectStyleCatalog(target.element),
     };
     renderToolbar(editorSession);
+    renderInspectorCard(editorSession, false);
     positionEditor();
     editor.addEventListener("input", () => {
       const session = editorSession;
       if (!session || session.editor !== editor) return;
       setNodeText(session.node, `${session.leading}${editor.value}${session.trailing}`);
+      renderInspectorCard(session, false);
       positionEditor();
     });
     editor.focus({ preventScroll: true });
