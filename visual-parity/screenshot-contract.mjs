@@ -26,8 +26,8 @@ try {
   const island = page.locator("[data-mesurer-island='true']");
   const screenshotButton = island.locator("[data-mesurer-tool-id='screenshot'] button");
   await screenshotButton.waitFor();
-  if ((await screenshotButton.getAttribute("aria-label")) !== "Screenshot") {
-    throw new Error("Screenshot plugin tool did not mount with the expected accessible label");
+  if ((await screenshotButton.getAttribute("aria-label")) !== "Screenshot (Shift+S)") {
+    throw new Error("Screenshot plugin tool did not mount with the expected shortcut label");
   }
 
   await screenshotButton.click();
