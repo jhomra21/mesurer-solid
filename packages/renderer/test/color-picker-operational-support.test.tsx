@@ -17,6 +17,7 @@ afterEach(async () => {
   while (mounted.length) mounted.pop()?.();
   resetNativeColorPickerOperationalState(window);
   Reflect.deleteProperty(window, "EyeDropper");
+  Reflect.deleteProperty(window, "__codexWebMcpModelContext");
   localStorage.clear();
   document.body.replaceChildren();
   document.head.querySelectorAll("#mesurer-solid-styles, #mesurer-solid-xray-styles").forEach((node) => node.remove());
@@ -25,11 +26,12 @@ afterEach(async () => {
 });
 
 describe("native Color Picker operational support", () => {
-  it("does not advertise Color Picker in CodexBrowser even when the page realm exposes EyeDropper", async () => {
+  it("does not advertise Color Picker when the Codex host bridge is present", async () => {
     let opens = 0;
-    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
-      "CodexBrowser Mozilla/5.0 AppleWebKit/537.36 Chrome/151 Safari/537.36",
-    );
+    Object.defineProperty(window, "__codexWebMcpModelContext", {
+      configurable: true,
+      value: {},
+    });
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
       value: class {
