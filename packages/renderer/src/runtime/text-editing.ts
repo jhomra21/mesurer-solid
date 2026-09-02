@@ -822,7 +822,7 @@ export function installTextEditing(
     for (const candidate of ownerDocument.elementsFromPoint(x, y)) {
       if (!(candidate instanceof realm.HTMLElement)) continue;
       if (!isPageElement(candidate) || SKIP_TAGS.has(candidate.tagName)) continue;
-      if (candidate.matches("[contenteditable='true'], [contenteditable=''], [contenteditable='plaintext-only']")) continue;
+      if (candidate.hasAttribute("contenteditable")) continue;
       const nodes = Array.from(candidate.childNodes)
         .map((node, index) => ({ node, index }))
         .filter(({ node }) => node.nodeType === realm.Node.TEXT_NODE && Boolean(node.nodeValue?.trim()));
@@ -965,7 +965,7 @@ export function installTextEditing(
   };
 
   const onTouchPointerUp = (event: PointerEvent) => {
-    if (event.pointerType === "mouse" || !directEditingMode()) return;
+    if (!event.pointerType || event.pointerType === "mouse" || !directEditingMode()) return;
     const target = directTextTarget(event.clientX, event.clientY);
     if (!target) {
       lastTap = null;
