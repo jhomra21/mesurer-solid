@@ -6,11 +6,135 @@ The most important setup rule is:
 
 > Put Mesurer in a client/browser entry path, not in server code, build configuration, or an Electron main process.
 
-## Recommended local-development setup
+There is **no required Mesurer directory or filename**. `src/dev/mesurer.ts` is an optional organization pattern, not a special location Mesurer needs.
 
-For a Vite application, keep the Mesurer setup in a small development-only module and load that module from your browser entry file.
+## Common browser entry locations
 
-A typical project can look like this:
+Put Mesurer in the file that starts the page or renderer you want to inspect, or in a helper module loaded from that file.
+
+| Application | Typical place to mount or load Mesurer |
+| --- | --- |
+| React + Vite | `src/main.tsx` |
+| Solid + Vite | `src/index.tsx`, `src/main.tsx`, or the project's browser entry |
+| Vue + Vite | `src/main.ts` |
+| Svelte + Vite | `src/main.ts` |
+| Vanilla Vite | `src/main.ts` or `src/main.js` |
+| Electron | the renderer entry, such as `src/renderer.ts` or `src/renderer/main.tsx` |
+| SSR / metaframework | a client-only module or component lifecycle that never executes during server rendering |
+
+You can choose either of these valid patterns:
+
+1. **Mount Mesurer directly in that existing browser entry.** This is the simplest setup.
+2. **Extract Mesurer into a helper such as `src/dev/mesurer.ts`.** This keeps inspector-specific setup separate, but the helper is still loaded from the same browser entry.
+
+## Option 1: mount directly in the existing browser entry
+
+### React + Vite
+
+If your app already starts in `src/main.tsx`, Mesurer can live directly in that file:
+
+```tsx
+import { createRoot } from "react-dom/client"
+import { mountMesurer } from "mesurer-solid"
+import { App } from "./App"
+
+const mesurer = import.meta.env.DEV
+  ? mountMesurer()
+  : undefined
+
+import.meta.hot?.dispose(() => {
+  mesurer?.dispose()
+})
+
+createRoot(document.getElementById("root")!).render(<App />)
+```
+
+Nothing about the React startup changes. The Mesurer mount simply sits beside it in the same browser entry.
+
+### Solid + Vite
+
+If the project starts in `src/main.tsx` or `src/index.tsx`, use the same pattern around the existing `render(...)` call:
+
+```tsx
+import { render } from "solid-js/web"
+import { mountMesurer } from "mesurer-solid"
+import App from "./App"
+
+const mesurer = import.meta.env.DEV
+  ? mountMesurer()
+  : undefined
+
+import.meta.hot?.dispose(() => {
+  mesurer?.dispose()
+})
+
+render(() => <App />, document.getElementById("root")!)
+```
+
+### Vue + Vite
+
+A Vue app can mount Mesurer in its existing `src/main.ts` next to `createApp(...)`:
+
+```ts
+import { createApp } from "vue"
+import { mountMesurer } from "mesurer-solid"
+import App from "./App.vue"
+
+const mesurer = import.meta.env.DEV
+  ? mountMesurer()
+  : undefined
+
+import.meta.hot?.dispose(() => {
+  mesurer?.dispose()
+})
+
+createApp(App).mount("#app")
+```
+
+### Svelte + Vite and vanilla Vite
+
+Use the existing `src/main.ts` or `src/main.js`. The Mesurer part is the same regardless of how the application itself starts:
+
+```ts
+import { mountMesurer } from "mesurer-solid"
+
+const mesurer = import.meta.env.DEV
+  ? mountMesurer()
+  : undefined
+
+import.meta.hot?.dispose(() => {
+  mesurer?.dispose()
+})
+
+// Keep the app's existing browser startup code here as usual.
+```
+
+### Electron renderer
+
+Mesurer belongs in the renderer entry because that is where the DOM exists:
+
+```ts
+// src/renderer.ts
+import { mountMesurer } from "mesurer-solid"
+
+const mesurer = import.meta.env.DEV
+  ? mountMesurer()
+  : undefined
+
+import.meta.hot?.dispose(() => {
+  mesurer?.dispose()
+})
+
+// Existing renderer startup follows.
+```
+
+Do not put that code in the Electron main-process entry.
+
+`import.meta.env.DEV` and `import.meta.hot` are provided by Vite. If your project uses another bundler, use that bundler's build-time development flag and HMR cleanup mechanism instead.
+
+## Option 2: extract Mesurer into a development helper
+
+If you prefer to keep inspector setup separate from app startup, a Vite project can look like this:
 
 ```text
 src/
@@ -20,8 +144,6 @@ src/
 ```
 
 Your actual entry filename may be `src/main.ts`, `src/index.tsx`, `src/index.ts`, or something similar. Use whichever file currently starts your browser application.
-
-### 1. Create the Mesurer module
 
 Create `src/dev/mesurer.ts`:
 
@@ -35,35 +157,7 @@ import.meta.hot?.dispose(() => {
 })
 ```
 
-This file is where Mesurer-specific setup belongs. Add `contextPlugin()`, `arrangePlugin()`, `screenshotPlugin()`, or other Mesurer plugins here too.
-
-For example:
-
-```ts
-import {
-  contextPlugin,
-  mountMesurer,
-} from "mesurer-solid"
-import { arrangePlugin } from "mesurer-solid/arrange"
-import { screenshotPlugin } from "mesurer-solid/screenshot"
-
-const mesurer = mountMesurer({
-  agent: true,
-  plugins: [
-    contextPlugin(),
-    arrangePlugin(),
-    screenshotPlugin(),
-  ],
-})
-
-import.meta.hot?.dispose(() => {
-  mesurer.dispose()
-})
-```
-
-### 2. Load it from the browser entry only in development
-
-In a Vite browser entry such as `src/main.tsx`:
+Then load that helper from the existing browser entry:
 
 ```ts
 if (import.meta.env.DEV) {
@@ -71,9 +165,7 @@ if (import.meta.env.DEV) {
 }
 ```
 
-Keep the rest of your existing application startup code in that file as usual.
-
-For example, a React/Vite entry might conceptually look like:
+For example, a React/Vite entry using the extracted helper might look like:
 
 ```tsx
 import { createRoot } from "react-dom/client"
@@ -86,23 +178,43 @@ if (import.meta.env.DEV) {
 createRoot(document.getElementById("root")!).render(<App />)
 ```
 
-A Solid/Vite entry follows the same pattern around its existing `render(...)` call.
+The helper pattern does not change where Mesurer runs. It only moves Mesurer-specific setup out of the browser entry file.
 
-`import.meta.env.DEV` is provided by Vite. If your project uses another bundler, use that bundler's build-time development flag instead. The important part is that the Mesurer module is loaded only by browser/client code in the environments where you want the inspector available.
+## Add plugins in the same place you mount Mesurer
 
-## Common file locations
+Whether you mount directly in `src/main.tsx` or use an extracted helper, keep plugin setup with `mountMesurer()`.
 
-There is no required filename. Put the development guard in the file that starts the page or renderer you want to inspect.
+For example, a direct browser-entry setup with Context, Arrange, and Screenshot can be:
 
-| Application | Typical place to load Mesurer |
-| --- | --- |
-| React + Vite | `src/main.tsx` |
-| Solid + Vite | `src/index.tsx`, `src/main.tsx`, or the project's browser entry |
-| Vue + Vite | `src/main.ts` |
-| Svelte + Vite | `src/main.ts` |
-| Vanilla Vite | `src/main.ts` or `src/main.js` |
-| Electron | the renderer entry, such as `src/renderer.ts` or `src/renderer/main.tsx` |
-| SSR / metaframework | a client-only module or component that never executes during server rendering |
+```ts
+import {
+  contextPlugin,
+  mountMesurer,
+} from "mesurer-solid"
+import { arrangePlugin } from "mesurer-solid/arrange"
+import { screenshotPlugin } from "mesurer-solid/screenshot"
+
+const mesurer = import.meta.env.DEV
+  ? mountMesurer({
+      agent: true,
+      plugins: [
+        contextPlugin(),
+        arrangePlugin(),
+        screenshotPlugin(),
+      ],
+    })
+  : undefined
+
+import.meta.hot?.dispose(() => {
+  mesurer?.dispose()
+})
+```
+
+The exact same `mountMesurer({ ... })` block can instead live inside `src/dev/mesurer.ts` if you chose the extracted-module pattern.
+
+You do not need separate app-level files for Context, Arrange, Screenshot, or other Mesurer plugins unless that organization is useful to your project.
+
+## Files that should not mount Mesurer
 
 Do not put `mountMesurer()` in files such as:
 
@@ -116,7 +228,7 @@ Mesurer needs browser globals and is intended to inspect a rendered page.
 
 ## If you want Mesurer enabled outside local development
 
-If the inspector should be present whenever that browser bundle runs, you can mount it directly in the browser entry instead of using a development-only dynamic import:
+If the inspector should be present whenever that browser bundle runs, mount it in the same browser entry or client-only module without the development guard:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -124,9 +236,9 @@ import { mountMesurer } from "mesurer-solid"
 const mesurer = mountMesurer()
 ```
 
-That code belongs in the same kind of client/browser entry described above. Keep the returned instance if you need to call its API or dispose it later.
+Keep the returned instance if you need to call its API or dispose it later.
 
-For most application development, the development-only module is preferable because Mesurer is commonly installed as a dev dependency:
+For most application development, keeping Mesurer development-only is useful because it is commonly installed as a dev dependency:
 
 ```bash
 bun add -d mesurer-solid
@@ -134,67 +246,15 @@ bun add -d mesurer-solid
 
 ## HMR cleanup
 
-During local development, hot module replacement can evaluate a development module more than once. Dispose the previous Mesurer instance when the module is replaced:
+During local development, hot module replacement can evaluate the module containing Mesurer more than once. Dispose the previous Mesurer instance when that module is replaced:
 
 ```ts
 import.meta.hot?.dispose(() => {
-  mesurer.dispose()
+  mesurer?.dispose()
 })
 ```
-
-This is why the recommended `src/dev/mesurer.ts` example keeps the value returned by `mountMesurer()`.
 
 If your tooling does not provide `import.meta.hot`, use its equivalent cleanup hook or explicitly dispose the instance when your development integration is torn down.
-
-## Plugin setup goes in the same module
-
-Treat the Mesurer mounting module as the single place where you decide what the inspector includes.
-
-Base inspector only:
-
-```ts
-import { mountMesurer } from "mesurer-solid"
-
-const mesurer = mountMesurer()
-```
-
-Context and review notes:
-
-```ts
-import {
-  contextPlugin,
-  mountMesurer,
-} from "mesurer-solid"
-
-const mesurer = mountMesurer({
-  agent: true,
-  plugins: [contextPlugin()],
-})
-```
-
-Arrange visual intent:
-
-```ts
-import { mountMesurer } from "mesurer-solid"
-import { arrangePlugin } from "mesurer-solid/arrange"
-
-const mesurer = mountMesurer({
-  plugins: [arrangePlugin()],
-})
-```
-
-Screenshot capture:
-
-```ts
-import { mountMesurer } from "mesurer-solid"
-import { screenshotPlugin } from "mesurer-solid/screenshot"
-
-const mesurer = mountMesurer({
-  plugins: [screenshotPlugin()],
-})
-```
-
-You do not need separate app-level files for each plugin unless that organization is useful to your project.
 
 ## SSR and client-only applications
 
@@ -202,7 +262,7 @@ If a framework can execute the same module on both the server and browser, do no
 
 Instead, make the Mesurer setup client-only using the framework's normal client boundary or client-side lifecycle. The exact mechanism differs by framework, but the rule is the same: `mountMesurer()` must execute in the browser, not during server rendering.
 
-If the project already has a dedicated client entry, loading `src/dev/mesurer.ts` from that entry is usually the simplest option.
+If the project already has a dedicated client entry, that is the natural place to mount Mesurer directly or load an extracted Mesurer helper.
 
 ## Electron
 
@@ -214,7 +274,7 @@ preload script            → normally no Mesurer
 renderer/browser page     → mount Mesurer here
 ```
 
-Load the development module from the renderer's entry file using the same development guard your Electron/Vite setup already uses.
+Use the renderer's actual browser entry and the same development guard your Electron/Vite setup already uses.
 
 ## Next steps
 
