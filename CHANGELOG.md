@@ -6,6 +6,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.1.3-beta.1 - 2026-09-02
+
+- No user-facing changes.
+
 ## 0.1.3-beta.0 - 2026-08-31
 
 - Add the optional Arrange layout-intent workflow with persistent Desired placement, repeated-drag accumulation, X-ray/guide alignment snapping, configurable snap preferences, and automatic Select activation.
