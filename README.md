@@ -137,6 +137,8 @@ Select one or more elements, click **Arrange** or press **Shift+A**, and drag th
 
 Each completed drag records Before and Desired geometry, persists through the plugin state channel, and participates in Mesurer undo/redo. Coding agents can reconstruct Before/Desired, capture both through their existing browser harness, switch to Live after editing source, and use exact geometry to verify whether the real implementation matches the human-arranged result.
 
+Arrange is primarily a human/designer intent tool: move the rendered UI to where it should be, then tell the coding agent to check Mesurer context. When the Agent Skill is installed, a broad request to check Mesurer/context tells the agent to inspect all existing human intent before editing—including Arrange intents, annotations, current selection, guides, measurements, held distances, and related target/layout context—so the user does not need to separately describe each adjustment.
+
 Arrange is a visual specification: an agent should implement the appropriate flex/grid/spacing/component change rather than blindly copying the preview offset into a production transform.
 
 See [`docs/ARRANGE.md`](./docs/ARRANGE.md) for the human workflow, agent API, Before/Desired/Live states, persistence, screenshots, and review loop.
@@ -208,18 +210,14 @@ const selected = await mesurer.context({ scope: "selection" })
 
 ## Annotations and review
 
-Mesurer Solid context annotations are semantic, target-bound review context. A note stays attached to the rendered element or region the person selected and carries the related evidence an agent needs: target identity, geometry, measurements, distances, guides, styles, layout, and an immutable baseline.
+Mesurer Solid context annotations attach a note to rendered UI and keep a baseline that can be reviewed again after changes:
 
 ```ts
 const annotation = await mesurer.context({ annotation: annotationId })
 const review = await mesurer.review(annotationId)
 ```
 
-This lets a person highlight the UI and say what should change without also drawing an arrow or exporting a screenshot for the agent to interpret. The coding agent can read the selected target and its context directly through Mesurer, edit source, then review the same baseline after the real UI renders again.
-
-Upstream Mesurer `0.1.1` added a different annotation model built around freeform arrows, pen strokes, text drawings, and a grouped drawing-tool surface. Mesurer Solid intentionally does not adopt that drawing workflow for the current product: its context/review annotations already encode what is selected and the measurements/relationships around it. Screenshots remain available for the separate cases where real pixel evidence is useful.
-
-See [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) for the agent-first review model and [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) for the current upstream audit and intentional product differences.
+This is useful when a visual change needs to be checked against the same target or region after an edit. Mesurer Solid intentionally uses this target-bound semantic review model instead of upstream `0.1.1`'s freeform arrow, pen, and text drawing canvas: agents can read what element/region the note belongs to plus its geometry, layout, measurements, distances, and related rendered evidence directly, without inferring intent from a drawn arrow or screenshot.
 
 ## Agent integration
 
@@ -233,6 +231,8 @@ Install the portable skill with:
 ```bash
 npx --yes --package=mesurer-solid mesurer-skill install
 ```
+
+The skill treats broad requests such as “check Mesurer,” “check Measure,” or “look at Mesurer context” as a full intent sweep. It preserves and reads existing Arrange, annotation, selection, guide, measurement, and distance state before the agent narrows its work or edits source.
 
 ## Supported hosts
 
@@ -294,14 +294,14 @@ mesurer-solid/inject-script
 - [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) — screenshot plugin
 - [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — context, selection, annotations, and review
 - [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) — host isolation and browser compatibility
-- [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) — upstream audit, adopted contracts, and intentional product differences
+- [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) — upstream Mesurer audit and intentional product decisions
 - [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md) — agent-specific setup and API usage
 
 ## Origin and attribution
 
-Mesurer Solid started as a Solid port of [ibelick/mesurer](https://github.com/ibelick/mesurer). Adopted interactions stay source-first where practical, while Mesurer Solid intentionally diverges where its plugin and agent-first workflows solve a different product problem.
+Mesurer Solid started as a Solid port of [ibelick/mesurer](https://github.com/ibelick/mesurer) and preserves the original tool's visual language and interaction model where those contracts are adopted.
 
-The current upstream audit is pinned in [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md). Do not assume that a newer upstream feature is present here unless that audit marks it adopted; some upstream features are deliberately outside Mesurer Solid's scope.
+The current upstream audit is pinned in [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md). Newer upstream features are evaluated individually rather than assumed to be part of Mesurer Solid.
 
 Original Mesurer copyright and attribution are documented in [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).
 
