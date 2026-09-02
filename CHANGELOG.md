@@ -4,7 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Extend direct text editing to Select/Arrange workflows with full-text replacement, touch/pen double-tap support, reversible Bold/Italic/Underline and typography/color previews, plus quick font, size, weight, and color choices derived from styles already rendered on the page.
+- Expose saved Before/Desired text and style intent through the agent `textEdit` capability and `textEdits()` / `textEdit(id)` APIs, and teach the portable Agent Skill to include those edits in broad Mesurer-context sweeps and verify the real source-rendered result with Mesurer's preview inactive.
 
 ## 0.1.5 - 2026-09-02
 
@@ -62,7 +63,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## 0.1.1-beta.0 - 2026-08-28
 
-- Add the optional `mesurer-solid/screenshot` plugin with drag-to-select visible-tab capture, HiDPI-aware PNG cropping, best-effort automatic clipboard copy and local download outputs, persisted output settings, a persistent draggable preview with native image actions and click-to-open Copy/Save viewer, capture-status feedback, and a no-prompt Chrome extension capture bridge with `getDisplayMedia()` fallback for normal browser hosts.
+- Add the optional `mesurer-solid/screenshot` plugin with drag-to-select visible-tab capture, HiDPI-aware PNG cropping, best-effort automatic clipboard copy and local download outputs, persisted output settings, a persistent draggable thumbnail, and a larger Copy/Save viewer.
 
 ## 0.1.0 - 2026-08-28
 
