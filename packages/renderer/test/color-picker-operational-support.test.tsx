@@ -25,6 +25,45 @@ afterEach(async () => {
 });
 
 describe("native Color Picker operational support", () => {
+  it("does not advertise Color Picker in CodexBrowser even when the page realm exposes EyeDropper", async () => {
+    let opens = 0;
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "CodexBrowser Mozilla/5.0 AppleWebKit/537.36 Chrome/151 Safari/537.36",
+    );
+    Object.defineProperty(window, "EyeDropper", {
+      configurable: true,
+      value: class {
+        async open() {
+          opens += 1;
+          return { sRGBHex: "#5eead4" };
+        }
+      },
+    });
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const dispose = render(
+      () => <ComposableMesurer persistKey="color-picker-codex-host" />,
+      host,
+    );
+    mounted.push(dispose);
+
+    await vi.waitFor(() => {
+      expect(document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')).toBeTruthy();
+    });
+    expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "p",
+      bubbles: true,
+      cancelable: true,
+    }));
+    await settle();
+
+    expect(opens).toBe(0);
+    expect(document.querySelector(".mesurer-color-picker")).toBeNull();
+  });
+
   it("retires the tool for the current mount when native EyeDropper aborts immediately", async () => {
     let opens = 0;
     Object.defineProperty(window, "EyeDropper", {
