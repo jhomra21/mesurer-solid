@@ -259,7 +259,7 @@ describe("direct text editing", () => {
     const input = document.createElement("input");
     input.value = "Native input";
     const editable = document.createElement("div");
-    editable.contentEditable = "true";
+    editable.setAttribute("contenteditable", "true");
     editable.textContent = "Native rich text";
     pageTarget.append(input, editable);
 
