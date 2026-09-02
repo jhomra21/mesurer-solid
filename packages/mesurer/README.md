@@ -1,6 +1,6 @@
 # mesurer-solid
 
-Framework-agnostic UI measurement, visual inspection, layout intent, and agent-ready rendered context for browser applications.
+Framework-agnostic UI measurement, visual inspection, layout intent, direct text editing, and agent-ready rendered context for browser applications.
 
 Mesurer's private renderer uses Solid 2. Consumer applications can use Solid 1/2, React, Vue, Svelte, vanilla DOM, or Electron renderer pages without providing Solid.
 
@@ -158,7 +158,7 @@ const mesurer = mountMesurer()
 
 The base inspector includes Select, X-ray, Rulers, Text Inspector, Guides, Distance, Settings, the plugin host, and the low-level inspection API. Color Picker is also available when the host exposes an operational native `EyeDropper`; it is intentionally hidden in unsupported hosts and has no DOM/CSS fallback.
 
-Text Inspector can inspect rendered typography and supports reversible Desired-text preview editing on double-click.
+Text Inspector can inspect rendered typography. Direct text editing is also available while Select is active, including the Select state used by Arrange.
 
 ### Keyboard shortcuts
 
@@ -181,6 +181,34 @@ Text Inspector can inspect rendered typography and supports reversible Desired-t
 | `N` | Add Note when `contextPlugin()` is mounted |
 
 In the current Codex browser host, Color Picker is not advertised and `P` is inert because native screen sampling is not operational there.
+
+## Direct text and typography editing
+
+With **Select** or **Text Inspector** active, double-click direct text on desktop or double-tap with touch/pen. Mesurer opens an editor over the rendered target, matches the target's current typography, and selects the complete current text so typing replaces it immediately.
+
+Because Arrange keeps Select active, the same workflow works while arranging: move a selected element, double-click its text, edit/style it, and continue arranging.
+
+The editor offers:
+
+- Bold, Italic, and Underline;
+- font families already rendered on the page;
+- font sizes already rendered on the page;
+- font weights already rendered on the page;
+- common text colors already rendered on the page;
+- a custom color picker.
+
+The page-derived lists use computed styles from actual rendered text, not a built-in font/color preset. Mesurer live-previews the requested copy and styles on the target. Press **Enter** to keep the Desired edit or **Escape** to cancel the current editing session.
+
+Saved text/style changes remain reversible Mesurer intent and participate in history. They do not write application source. Native `<input>`, `<textarea>`, `<select>`, and `contenteditable` controls keep their normal browser/application editing behavior.
+
+When `agent: true` is enabled, the agent surface advertises `textEdit: true` and exposes saved intent directly:
+
+```js
+const edits = await window.__MESURER__.textEdits()
+const intent = await window.__MESURER__.textEdit(edits.at(-1).id)
+```
+
+The intent carries target identity, Before/Desired text, and requested style deltas. A coding agent should map those requests to the application's real component props, classes, CSS variables, design tokens, theme values, or stylesheets instead of copying temporary Mesurer preview styles blindly.
 
 ## Arrange
 
@@ -334,7 +362,7 @@ The current upstream audit and intentional differences are documented in [`docs/
 The coding-agent contract is context-first and preserves existing human state:
 
 ```text
-human Arrange / annotation / selection
+human Arrange / text-style Desired edit / annotation / selection
   → window.__MESURER__
   → structured rendered evidence
   → source edit
@@ -357,7 +385,7 @@ if (hasMesurer) {
 }
 ```
 
-A live human instance may already contain the information the agent needs. Do not overwrite selection, Arrange history, guides, measurements, annotations, or screenshot preview state before reading it.
+A live human instance may already contain the information the agent needs. Do not overwrite selection, Arrange history, text-edit history, guides, measurements, annotations, or screenshot preview state before reading it.
 
 Install the portable Agent Skill with:
 
