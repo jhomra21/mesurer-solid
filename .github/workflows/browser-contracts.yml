@@ -57,6 +57,9 @@ jobs:
       - name: Install workspace
         run: bun install --frozen-lockfile
 
+      - name: Build foundations
+        run: bun run build:foundations
+
       - name: Generate renderer styles
         run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
