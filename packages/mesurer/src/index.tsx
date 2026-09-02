@@ -1,5 +1,6 @@
 import { render } from "@solidjs/web";
 import {
+  MESURER_TEXT_EDIT_SERVICE_ID,
   Mesurer as RendererMesurer,
   colorPickerPlugin as rendererColorPickerPlugin,
   composeMesurerPlugins as rendererComposeMesurerPlugins,
@@ -12,6 +13,8 @@ import {
   textInspectorPlugin as rendererTextInspectorPlugin,
   xrayPlugin as rendererXrayPlugin,
   type MesurerProps as RendererMesurerProps,
+  type MesurerTextEditIntent as RendererTextEditIntent,
+  type MesurerTextEditService as RendererTextEditService,
 } from "@jhomra21/mesurer-solid-renderer";
 import { createMesurerAgentHarness, type MesurerAgentHarness } from "./agent";
 import type {
@@ -162,6 +165,7 @@ export type MesurerAgentCapabilities = {
     review: boolean;
     capturePlan: boolean;
     arrange: boolean;
+    textEdit: boolean;
   };
 };
 export type MesurerContextHarness = {
@@ -204,6 +208,8 @@ export type MountedMesurer = {
   showArrange(id: string, state: ArrangePresentation): Promise<void>;
   arrangeCapturePlan(id: string, state: ArrangePresentation): Promise<ArrangeCapturePlan>;
   reviewArrange(id: string, tolerance?: number): Promise<ArrangeReview>;
+  textEdits(): Promise<RendererTextEditIntent[]>;
+  textEdit(id: string): Promise<RendererTextEditIntent>;
   bringToFront(): void;
   describe(): MesurerPluginDescription | undefined;
   dispose(): void;
@@ -309,9 +315,12 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     (await getArrangeService()).capturePlan(id, state);
   const reviewArrange = async (id: string, tolerance?: number) =>
     (await getArrangeService()).review(id, tolerance);
+  const textEdits = async () => baseAgent.textEdits();
+  const textEdit = async (id: string) => baseAgent.textEdit(id);
   const capabilities = (): MesurerAgentCapabilities => {
     const contextAvailable = Boolean(pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID));
     const arrangeAvailable = Boolean(pluginHost?.service.get<MesurerArrangeService>(ARRANGE_SERVICE_ID));
+    const textEditAvailable = Boolean(pluginHost?.service.get<RendererTextEditService>(MESURER_TEXT_EDIT_SERVICE_ID));
     return {
       protocol: "mesurer.agent/v1",
       contextSchema: "mesurer.context/v1",
@@ -322,6 +331,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
         review: contextAvailable,
         capturePlan: contextAvailable,
         arrange: arrangeAvailable,
+        textEdit: textEditAvailable,
       },
     };
   };
@@ -340,6 +350,8 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     showArrange,
     arrangeCapturePlan,
     reviewArrange,
+    textEdits,
+    textEdit,
   });
 
   const rendererProps: RendererMesurerProps = {
@@ -409,6 +421,8 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     showArrange,
     arrangeCapturePlan,
     reviewArrange,
+    textEdits,
+    textEdit,
     bringToFront: hostLayer.bringToFront,
     describe: () => pluginHost?.describe(),
     dispose() {
@@ -502,6 +516,12 @@ export type {
   ToolContribution,
 } from "./core";
 export type { MesurerHostLayerMode } from "./host-layer";
+export type {
+  MesurerTextEditIntent,
+  MesurerTextEditService,
+  MesurerTextStyleChange,
+  MesurerTextStyleProperty,
+} from "@jhomra21/mesurer-solid-renderer";
 
 const withPackageVersion = (plugin: MesurerPlugin): MesurerPlugin => ({ ...plugin, version: MESURER_VERSION });
 export const selectPlugin = (): MesurerPlugin => withPackageVersion(rendererSelectPlugin());
