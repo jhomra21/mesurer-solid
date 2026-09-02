@@ -2,11 +2,16 @@ import type { ToolMode } from "@jhomra21/mesurer-solid-core";
 import { formatColor, parseCssColor, type ColorSample } from "../core/colors";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
-import { supportsNativeColorPicker } from "./color-picker-support";
+import {
+  markNativeColorPickerOperationallyUnavailable,
+  supportsNativeColorPicker,
+} from "./color-picker-support";
 
 type EyeDropperResult = { sRGBHex: string };
 type EyeDropperLike = { open: () => Promise<EyeDropperResult> };
 type WindowWithEyeDropper = Window & { EyeDropper?: new () => EyeDropperLike };
+
+const COLOR_PICKER_USABLE_OPEN_MS = 200;
 
 export type MesurerBuiltinController = {
   run(id: Exclude<MesurerBuiltinPluginId, "distance">): Promise<void>;
@@ -40,10 +45,23 @@ const commitColorSample = (
   ownerWindow: Window,
   sample: ColorSample,
 ) => {
-  model.setTransient({ colorPickerSample: sample, colorPickerUnsupported: false });
+  model.setTransient({
+    colorPickerActive: true,
+    colorPickerSample: sample,
+    colorPickerUnsupported: false,
+  });
   void ownerWindow.navigator.clipboard?.writeText(
     formatColor(sample, model.current.settings.colorPickerClickFormat),
   ).catch(() => undefined);
+};
+
+const retireColorPicker = (model: MesurerModel, ownerWindow: Window) => {
+  markNativeColorPickerOperationallyUnavailable(ownerWindow);
+  dismissColorPicker(model);
+  // Toolbar capability refresh is already wired to focus. Reuse that path so
+  // the failed native action disappears immediately without adding a second
+  // renderer-specific coordination channel.
+  ownerWindow.dispatchEvent(new Event("focus"));
 };
 
 export function createMesurerBuiltinController(options: {
@@ -63,13 +81,25 @@ export function createMesurerBuiltinController(options: {
     // SAFETY: supportsNativeColorPicker checked this optional browser extension before construction.
     const EyeDropper = (ownerWindow as WindowWithEyeDropper).EyeDropper!;
     model.setTransient({
-      colorPickerActive: true,
+      colorPickerActive: false,
       colorPickerSample: null,
       colorPickerUnsupported: false,
     });
 
+    const openedAt = ownerWindow.performance.now();
+    let activationTimer = ownerWindow.setTimeout(() => {
+      activationTimer = 0;
+      model.setTransient({ colorPickerActive: true });
+    }, COLOR_PICKER_USABLE_OPEN_MS);
+    const clearActivationTimer = () => {
+      if (!activationTimer) return;
+      ownerWindow.clearTimeout(activationTimer);
+      activationTimer = 0;
+    };
+
     try {
       const result = await new EyeDropper().open();
+      clearActivationTimer();
       const sample = parseCssColor(result.sRGBHex);
       if (!sample) {
         dismissColorPicker(model);
@@ -77,13 +107,19 @@ export function createMesurerBuiltinController(options: {
       }
       commitColorSample(model, ownerWindow, sample);
     } catch (cause) {
+      clearActivationTimer();
+      const elapsed = ownerWindow.performance.now() - openedAt;
       // SAFETY: ownerWindow is the realm that owns EyeDropper and therefore its DOMException constructor.
       const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;
       if (cause instanceof DOMExceptionCtor && cause.name === "AbortError") {
+        if (elapsed < COLOR_PICKER_USABLE_OPEN_MS) {
+          retireColorPicker(model, ownerWindow);
+          return;
+        }
         dismissColorPicker(model);
         return;
       }
-      dismissColorPicker(model);
+      retireColorPicker(model, ownerWindow);
     }
   };
 
