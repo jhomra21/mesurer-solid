@@ -14,11 +14,9 @@ function App() {
         </p>
         <div class="shortcut-row">
           <kbd>M</kbd><span>toggle</span><kbd>S</kbd><span>select</span><kbd>A</kbd><span>text</span>
-          <kbd>G</kbd><span>guides</span><kbd>H/V</kbd><span>guide axis</span><kbd>R</kbd><span>rulers</span>
-          <kbd>X</kbd><span>x-ray</span><kbd>P</kbd><span>color*</span><kbd>Shift+A</kbd><span>arrange</span>
-          <kbd>Alt</kbd><span>distance</span>
+          <kbd>G</kbd><span>guides</span><kbd>R</kbd><span>rulers</span><kbd>X</kbd><span>x-ray</span>
+          <kbd>P</kbd><span>color</span><kbd>Shift+A</kbd><span>arrange</span><kbd>Alt</kbd><span>distance</span>
         </div>
-        <p><small>* Color Picker appears only when the host can use the native screen sampler.</small></p>
       </header>
 
       <section class="demo-grid">
