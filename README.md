@@ -55,13 +55,13 @@ import { createRoot } from "react-dom/client"
 import { mountMesurer } from "mesurer-solid"
 import { App } from "./App"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer()
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 
 createRoot(document.getElementById("root")!).render(<App />)
 ```
@@ -73,13 +73,13 @@ import { render } from "solid-js/web"
 import { mountMesurer } from "mesurer-solid"
 import App from "./App"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer()
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 
 render(() => <App />, document.getElementById("root")!)
 ```
@@ -106,9 +106,9 @@ import { mountMesurer } from "mesurer-solid"
 
 const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer.dispose()
-})
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => mesurer.dispose())
+}
 ```
 
 Then load it from your existing browser entry:
