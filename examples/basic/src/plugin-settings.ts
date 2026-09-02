@@ -19,6 +19,10 @@ if (url.searchParams.get("reset") === "1") {
   window.localStorage.removeItem(pluginAvailabilityStorageKey);
 }
 
+// This fixture owns plugin lifecycle and Settings geometry. Native Color Picker
+// capability has its own browser contract, so keep toolbar composition stable here.
+Reflect.deleteProperty(window, "EyeDropper");
+
 type CapturePresentation = {
   measurementVisible: boolean;
   screenshotSelectionVisible: boolean;
