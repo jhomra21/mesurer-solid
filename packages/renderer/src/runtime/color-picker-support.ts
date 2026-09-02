@@ -3,6 +3,43 @@ type EyeDropperConstructor = {
   prototype: { open: Function };
 };
 type WindowWithEyeDropper = Window & { EyeDropper?: unknown };
+type NavigatorWithUserAgentData = Navigator & {
+  userAgentData?: {
+    brands?: Array<{ brand: string; version: string }>;
+    mobile?: boolean;
+    platform?: string;
+  };
+};
+
+const recordColorPickerHostFingerprint = (ownerWindow: Window) => {
+  const navigator = ownerWindow.navigator as NavigatorWithUserAgentData;
+  const matchingNames = (value: object) => Object.getOwnPropertyNames(value)
+    .filter((name) => /codex|openai|electron|webkit|cef|chrome|browser|bridge/i.test(name))
+    .sort();
+  const chromeValue = (ownerWindow as Window & { chrome?: object }).chrome;
+  const fingerprint = {
+    userAgent: navigator.userAgent,
+    appVersion: navigator.appVersion,
+    platform: navigator.platform,
+    vendor: navigator.vendor,
+    webdriver: navigator.webdriver,
+    userAgentData: navigator.userAgentData
+      ? {
+          brands: navigator.userAgentData.brands ?? [],
+          mobile: navigator.userAgentData.mobile,
+          platform: navigator.userAgentData.platform,
+        }
+      : null,
+    topLevel: ownerWindow.top === ownerWindow,
+    hasOpener: Boolean(ownerWindow.opener),
+    referrer: ownerWindow.document.referrer,
+    protocol: ownerWindow.location.protocol,
+    chromeKeys: chromeValue ? matchingNames(chromeValue) : [],
+    windowBridgeKeys: matchingNames(ownerWindow),
+    navigatorBridgeKeys: matchingNames(navigator),
+  };
+  ownerWindow.document.documentElement.dataset.mesurerColorPickerHostFingerprint = JSON.stringify(fingerprint);
+};
 
 // CodexBrowser currently exposes a native-looking EyeDropper in Mesurer's page
 // realm even though the host cannot present the picker UI. Hide the control up
@@ -31,6 +68,7 @@ export const resetNativeColorPickerOperationalState = (ownerWindow: Window) => {
 };
 
 export const supportsNativeColorPicker = (ownerWindow: Window) => {
+  recordColorPickerHostFingerprint(ownerWindow);
   if (isKnownUnavailableHost(ownerWindow)) return false;
   if (operationallyUnavailableWindows.has(ownerWindow)) return false;
   // SAFETY: EyeDropper is an optional Window extension and is decoded immediately by isEyeDropperConstructor before use.
