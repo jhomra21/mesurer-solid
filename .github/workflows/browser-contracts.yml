@@ -135,7 +135,7 @@ jobs:
           print("")
           print("### Color Picker")
           print("- Native EyeDropper absence is forced and the unavailable toolbar control is required to be absent")
-          print("- A mocked native EyeDropper exercises toolbar click, repeated picking, the P shortcut, and visible native results")
+          print("- A mocked native EyeDropper exercises upstream toolbar toggle-off, fresh P-key picking, and visible native results")
           print("- No DOM/CSS Color Picker fallback is permitted")
 
           print("")
