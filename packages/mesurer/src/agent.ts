@@ -1,14 +1,42 @@
 import { getDeepestElementAtPoint, inspectDomElement, isElementWithinDomTarget, withPointerEventsDisabled } from "@jhomra21/mesurer-solid-dom";
-import {
-  MESURER_TEXT_EDIT_SERVICE_ID,
-  type MesurerTextEditIntent,
-  type MesurerTextEditService,
-} from "@jhomra21/mesurer-solid-renderer";
 import type {
   MesurerPluginDescription,
   MesurerPluginHost,
   PluginStateSnapshot,
 } from "./core";
+
+export const MESURER_TEXT_EDIT_SERVICE_ID = "text-edit";
+
+export type MesurerTextStyleProperty =
+  | "font-family"
+  | "font-size"
+  | "font-weight"
+  | "font-style"
+  | "color"
+  | "text-decoration-line";
+
+export type MesurerTextStyleChange = {
+  property: MesurerTextStyleProperty;
+  before: string;
+  desired: string;
+};
+
+export type MesurerTextEditIntent = {
+  id: string;
+  createdAt: number;
+  pageUrl: string;
+  selector: string;
+  nodeIndex: number;
+  before: string;
+  desired: string;
+  styles: MesurerTextStyleChange[];
+};
+
+export type MesurerTextEditService = {
+  intents(): MesurerTextEditIntent[];
+  intent(id: string): MesurerTextEditIntent | null;
+  clear(): Promise<void>;
+};
 
 export type AgentRect = {
   left: number;
