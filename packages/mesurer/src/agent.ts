@@ -1,4 +1,9 @@
 import { getDeepestElementAtPoint, inspectDomElement, isElementWithinDomTarget, withPointerEventsDisabled } from "@jhomra21/mesurer-solid-dom";
+import {
+  MESURER_TEXT_EDIT_SERVICE_ID,
+  type MesurerTextEditIntent,
+  type MesurerTextEditService,
+} from "@jhomra21/mesurer-solid-renderer";
 import type {
   MesurerPluginDescription,
   MesurerPluginHost,
@@ -116,6 +121,8 @@ export type MesurerAgentHarness = {
   feedback(selectors?: string[]): Promise<AgentFeedbackSnapshot>;
   command(id: string, args?: AgentCommandArgs): Promise<void>;
   state(): Promise<PluginStateSnapshot>;
+  textEdits(): Promise<MesurerTextEditIntent[]>;
+  textEdit(id: string): Promise<MesurerTextEditIntent>;
   stable(frames?: number): Promise<void>;
 };
 
@@ -141,6 +148,13 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
   const containsPointElement = (element: Element) => {
     if (root === options.ownerDocument) return true;
     return isElementWithinDomTarget(element, root);
+  };
+
+  const getTextEditService = async () => {
+    const host = options.getPluginHost() ?? await options.waitForPluginHost();
+    const service = host.service.get<MesurerTextEditService>(MESURER_TEXT_EDIT_SERVICE_ID);
+    if (!service) throw new Error("Mesurer text editing service is unavailable.");
+    return service;
   };
 
   const viewport = (): AgentViewportSnapshot => {
@@ -238,6 +252,14 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
     async state() {
       const host = options.getPluginHost() ?? await options.waitForPluginHost();
       return host.state.serialize("all");
+    },
+    async textEdits() {
+      return (await getTextEditService()).intents();
+    },
+    async textEdit(id) {
+      const intent = (await getTextEditService()).intent(id);
+      if (!intent) throw new Error(`Text edit intent not found: ${id}`);
+      return intent;
     },
     stable,
   };
