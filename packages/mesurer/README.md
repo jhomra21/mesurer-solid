@@ -228,7 +228,7 @@ Every selector must resolve to exactly one page target. Invalid, missing, or amb
 
 ## Annotations and review
 
-A Mesurer Solid context annotation stores a note plus an immutable rendered baseline:
+Mesurer Solid context annotations are semantic, target-bound review records. A note stays attached to the rendered element or region the person selected and keeps an immutable baseline together with the structured context around that target.
 
 ```js
 const annotations = await window.__MESURER__.annotations()
@@ -244,9 +244,11 @@ await window.__MESURER__.stable()
 const review = await window.__MESURER__.review(annotationId)
 ```
 
-Review reports concrete pixel changes and missing evidence rather than relying on source assumptions.
+Review reports concrete pixel changes and missing evidence rather than relying on source assumptions. Because the annotation already carries target identity, geometry, measurements, distances, guides, styles, and layout context, a coding agent can read what was highlighted directly instead of inferring intent from a drawn arrow or screenshot markup.
 
-These context/review annotations are not the same feature as upstream Mesurer `0.1.1` arrow, freehand pen, and text drawing annotations. Current source-first parity status and stable-release blockers are tracked in [`docs/UPSTREAM_PARITY.md`](https://github.com/jhomra21/mesurer-solid/blob/main/docs/UPSTREAM_PARITY.md).
+Upstream Mesurer `0.1.1` added a separate drawing workflow with arrows, freehand pen strokes, text drawings, transforms, and grouped annotation tools. Mesurer Solid intentionally does not adopt that drawing surface for the current product. Its annotation workflow is designed around structured context that an agent can consume and review against the same rendered target. Screenshots remain a separate optional tool for cases where real pixel evidence is useful.
+
+The current upstream audit and intentional differences are documented in [`docs/UPSTREAM_PARITY.md`](https://github.com/jhomra21/mesurer-solid/blob/main/docs/UPSTREAM_PARITY.md).
 
 ## Agent integration
 
@@ -356,7 +358,7 @@ Mesurer's renderer is bundled and isolated from the host framework. Supported ho
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
 - [Host isolation](https://github.com/jhomra21/mesurer-solid/blob/main/docs/HOST_ISOLATION.md)
-- [Upstream parity](https://github.com/jhomra21/mesurer-solid/blob/main/docs/UPSTREAM_PARITY.md)
+- [Upstream audit and intentional differences](https://github.com/jhomra21/mesurer-solid/blob/main/docs/UPSTREAM_PARITY.md)
 - [Agent integration](./AGENT_INTEGRATION.md)
 
 ## License
