@@ -38,13 +38,13 @@ import { createRoot } from "react-dom/client"
 import { mountMesurer } from "mesurer-solid"
 import { App } from "./App"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer()
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 
 createRoot(document.getElementById("root")!).render(<App />)
 ```
@@ -60,13 +60,13 @@ import { render } from "solid-js/web"
 import { mountMesurer } from "mesurer-solid"
 import App from "./App"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer()
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 
 render(() => <App />, document.getElementById("root")!)
 ```
@@ -80,13 +80,13 @@ import { createApp } from "vue"
 import { mountMesurer } from "mesurer-solid"
 import App from "./App.vue"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer()
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 
 createApp(App).mount("#app")
 ```
@@ -98,13 +98,13 @@ Use the existing `src/main.ts` or `src/main.js`. The Mesurer part is the same re
 ```ts
 import { mountMesurer } from "mesurer-solid"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer()
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 
 // Keep the app's existing browser startup code here as usual.
 ```
@@ -117,13 +117,13 @@ Mesurer belongs in the renderer entry because that is where the DOM exists:
 // src/renderer.ts
 import { mountMesurer } from "mesurer-solid"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer()
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 
 // Existing renderer startup follows.
 ```
@@ -152,9 +152,9 @@ import { mountMesurer } from "mesurer-solid"
 
 const mesurer = mountMesurer()
 
-import.meta.hot?.dispose(() => {
-  mesurer.dispose()
-})
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => mesurer.dispose())
+}
 ```
 
 Then load that helper from the existing browser entry:
@@ -194,20 +194,20 @@ import {
 import { arrangePlugin } from "mesurer-solid/arrange"
 import { screenshotPlugin } from "mesurer-solid/screenshot"
 
-const mesurer = import.meta.env.DEV
-  ? mountMesurer({
-      agent: true,
-      plugins: [
-        contextPlugin(),
-        arrangePlugin(),
-        screenshotPlugin(),
-      ],
-    })
-  : undefined
+if (import.meta.env.DEV) {
+  const mesurer = mountMesurer({
+    agent: true,
+    plugins: [
+      contextPlugin(),
+      arrangePlugin(),
+      screenshotPlugin(),
+    ],
+  })
 
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => mesurer.dispose())
+  }
+}
 ```
 
 The exact same `mountMesurer({ ... })` block can instead live inside `src/dev/mesurer.ts` if you chose the extracted-module pattern.
@@ -249,9 +249,9 @@ bun add -d mesurer-solid
 During local development, hot module replacement can evaluate the module containing Mesurer more than once. Dispose the previous Mesurer instance when that module is replaced:
 
 ```ts
-import.meta.hot?.dispose(() => {
-  mesurer?.dispose()
-})
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => mesurer.dispose())
+}
 ```
 
 If your tooling does not provide `import.meta.hot`, use its equivalent cleanup hook or explicitly dispose the instance when your development integration is torn down.
