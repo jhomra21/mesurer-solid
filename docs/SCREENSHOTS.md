@@ -45,7 +45,7 @@ The plugin is removable first-party functionality rather than permanent measurem
 - a click-to-open larger viewer with Copy, Save, and Close controls;
 - its service, commands, plugin state, and cleanup lifecycle.
 
-Screenshot does not claim the global `C` shortcut because the context workflow already uses `C` and `Shift+C`.
+Screenshot uses **Shift+S** for its camera shortcut. It intentionally does not claim `C` because the context workflow already uses `C` and `Shift+C`.
 
 ## Human Settings controls
 
@@ -56,7 +56,7 @@ When the plugin is mounted, **Settings → General → Plugins → Screenshot** 
 - **Auto-download** — automatically saves successful captures locally;
 - **Include measurements** — controls whether visible selection/measurement/guide/ruler presentation remains in the capture frame.
 
-The camera toolbar button also has a small chevron quick menu for **Auto-copy**, **Auto-download**, and **Include measurements**. Tool visibility remains in the full Screenshot plugin settings. The quick menu and Settings use the same persisted values.
+The camera toolbar button also has a small chevron quick menu for **Auto-copy**, **Auto-download**, and **Include measurements**. Tool visibility remains in the full Screenshot plugin settings. The quick menu and Settings use the same persisted values, and the quick menu closes after a preference is chosen.
 
 Screenshot-selection chrome and Mesurer control chrome are always excluded from the PNG. Turning **Include measurements** off only hides measurement presentation for the capture frame and restores it immediately afterward.
 
@@ -67,7 +67,7 @@ The controls use the same compact Settings switch geometry as Mesurer's existing
 A normal human capture is:
 
 ```text
-camera tool
+camera tool / Shift+S
   → drag viewport region
   → hide Mesurer control chrome
   → capture visible page
@@ -102,7 +102,7 @@ A short status message distinguishes successful copy, save, capture-only, and un
 
 Outside the first-party extension, the default browser provider uses `getDisplayMedia()`.
 
-Mesurer reuses a live capture stream when possible so repeated region captures do not need to prompt on every selection. Browser permission and chooser behavior remain controlled by the browser/platform.
+Mesurer reuses a live capture stream when possible so repeated region captures do not need to prompt on every selection. Browser permission and chooser behavior remain controlled by the browser/platform. If a chooser or permission prompt appears, wait for the user to approve it; after a tab has been validated for capture, reuse that tab/stream when possible instead of opening a new tab for each attempt.
 
 Applications may provide their own `ScreenshotCaptureProvider` when they already have a better same-tab capture source or need deterministic testing.
 
@@ -183,7 +183,7 @@ outer harness screenshot → composition and visual judgment
 
 Do not estimate spacing, alignment, dimensions, or box-model facts from screenshot pixels when Mesurer can report them exactly.
 
-When the task is specifically about the screenshot feature itself, test the screenshot plugin as the subject under test: camera activation, region selection, hidden capture chrome, HiDPI crop, output behavior, bottom-right 8px default preview placement, thumbnail dragging/clamping/dismissal, viewer actions, repeated captures, cancellation, and console cleanliness.
+When the task is specifically about the screenshot feature itself, test the screenshot plugin as the subject under test: camera activation, `Shift+S`, region selection, hidden capture chrome, HiDPI crop, output behavior, bottom-right 8px default preview placement, thumbnail dragging/clamping/dismissal, viewer actions, repeated captures, cancellation, and console cleanliness.
 
 Agents should not close, replace, or otherwise mutate a human's existing screenshot preview merely to tidy their own session.
 
