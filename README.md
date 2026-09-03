@@ -177,6 +177,10 @@ Direct text editing extends the existing Text Inspector workflow and is also ava
 
 Double-click direct text on desktop, or double-tap it with touch/pen. Mesurer opens an editor over the rendered text using that target's current typography and selects the entire current text so typing immediately replaces it.
 
+Opening the editor also shows the existing **Text Inspector information card for that exact field**. It reports Family, Size, Weight, Line, Tracking, the target/text snippet, and CSS-variable references when available, and it refreshes as the active edit changes. This contextual card does not globally activate Text Inspector or interfere with Arrange.
+
+The formatting strip uses the same visual language as the main Mesurer toolbar—white toolbar surface, compact rounded controls, normal Mesurer shadow, and blue active states—instead of introducing a separate editor UI.
+
 The compact style controls expose:
 
 - **Bold**, **Italic**, and **Underline**;
@@ -188,9 +192,9 @@ The compact style controls expose:
 
 These suggestions come from the rendered page, so they reflect styles the application is actually using rather than an arbitrary preset list. The current target style is always retained as an option.
 
-Typing and style changes preview directly on the real rendered target. Press **Enter** to keep the Desired edit or **Escape** to cancel the current editing session. Saved text/style edits participate in Mesurer state history and remain reversible previews rather than pretending to change application source.
+Typing and style changes preview directly on the real rendered target. Press **Enter** to keep the Desired edit, **Shift+Enter** to insert a newline, or **Escape** to cancel the current editing session. Clicking outside the editor/formatting strip commits the current session. Saved text/style edits participate in Mesurer state history and remain reversible previews rather than pretending to change application source.
 
-Mesurer does not hijack native form editing: `<input>`, `<textarea>`, `<select>`, and `contenteditable` elements keep their normal browser/application behavior.
+The current contract is deliberately **direct-text editing**, not generic rich-text editing. Mesurer targets ordinary elements with one unambiguous non-empty direct text node and does not hijack `<input>`, `<textarea>`, `<select>`, `contenteditable`, or mixed/nested rich-text structures.
 
 When the agent bridge is enabled, saved text/style intent is available separately from ordinary context:
 
@@ -200,6 +204,8 @@ const intent = await window.__MESURER__.textEdit(edits.at(-1).id)
 ```
 
 Each intent records the target, Before/Desired copy, and requested style deltas. Coding agents should implement that visual outcome using the application's real component props, classes, CSS variables, theme/design tokens, or stylesheet rules when appropriate—not copy Mesurer's temporary preview styles blindly.
+
+See [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) for the complete human workflow, target boundaries, toolbar/inspector behavior, Before/Desired/Live semantics, agent API, Arrange coordination, runtime ownership, and browser validation contract.
 
 ## Arrange a desired layout
 
@@ -372,6 +378,7 @@ mesurer-solid/inject-script
 ## Docs
 
 - [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md) — where to mount Mesurer and development/client setup
+- [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) — direct copy/typography editing, automatic inspector context, and agent intent
 - [`docs/ARRANGE.md`](./docs/ARRANGE.md) — Arrange visual layout intent and agent review
 - [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) — screenshot plugin
 - [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — context, selection, annotations, and review
