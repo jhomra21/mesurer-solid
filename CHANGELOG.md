@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Extend direct text editing to Select/Arrange workflows with full-text replacement, touch/pen double-tap support, reversible Bold/Italic/Underline and typography/color previews, plus quick font, size, weight, and color choices derived from styles already rendered on the page.
+- Extend direct text editing to Select/Arrange workflows with full-text replacement, touch/pen double-tap support, reversible Bold/Italic/Underline and page-derived typography/color choices, present formatting in the canonical Mesurer toolbar visual language, and automatically show live Text Inspector information for the edited field.
 - Expose saved Before/Desired text and style intent through the agent `textEdit` capability and `textEdits()` / `textEdit(id)` APIs, and teach the portable Agent Skill to include those edits in broad Mesurer-context sweeps and verify the real source-rendered result with Mesurer's preview inactive.
 
 ## 0.1.5 - 2026-09-02
