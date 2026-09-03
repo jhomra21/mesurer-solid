@@ -159,9 +159,15 @@ describe("direct text editing", () => {
     }));
 
     const editor = document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']")!;
-    const family = document.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='font-family']")!;
-    const size = document.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='font-size']")!;
-    const weight = document.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='font-weight']")!;
+    const menuButton = document.querySelector<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']")!;
+    const menu = document.querySelector<HTMLElement>("[data-mesurer-text-style-menu='true']")!;
+    expect(menu.hidden).toBe(true);
+    menuButton.click();
+    expect(menu.hidden).toBe(false);
+
+    const family = document.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='font']")!;
+    const size = document.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='size']")!;
+    const weight = document.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='weight']")!;
     const underline = document.querySelector<HTMLButtonElement>("[data-mesurer-text-style-button='underline']")!;
     const swatches = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-mesurer-text-color]"));
 
