@@ -32,15 +32,17 @@ The `74936ac` audit supersedes the earlier conclusion that arrow/text annotation
 | Canonical `Mesurer` product naming | Implemented | Public APIs and examples use `Mesurer` / `mountMesurer()`; the 0.1.1 `Measurer` spellings remain only as deprecated compatibility aliases |
 | Native screen Color Picker | Implemented with host capability gating | Preserve upstream native `EyeDropper` behavior where operational; hide the tool and keep `P` inert where the native sampler is unavailable or the current Codex host cannot use it |
 | Color Picker active-button vs `P` behavior | Implemented | Active toolbar button toggles the result off without another native open; `P` starts a fresh native pick, matching upstream |
-| Text Inspector typography inspection | Adopted and extended | Preserve the existing typography inspection contract, then reuse the same typography/card primitives for contextual direct-edit information |
-| Direct copy/typography editing from Select/Text Inspector | Mesurer Solid extension | Double-click/double-tap ordinary direct text, inherit rendered typography, select all text, preview reversible copy/style intent, and expose saved `textEdit` intent to agents |
-| Direct-edit formatting toolbar | Mesurer Solid extension using adopted visual language | Reuse the canonical Mesurer white toolbar surface/spacing/control states instead of creating a separate editor visual system |
-| Automatic Text Inspector card during direct edit | Mesurer Solid extension using existing inspector primitives | Show the edited field's Family/Size/Weight/Line/Tracking context without globally switching Text Inspector mode or interrupting Arrange |
+| Text Inspector typography inspection | Adopted and extended | Preserve the inspection behavior and internal `text-inspector` compatibility id; the user-facing Solid label is intentionally **Typography** |
+| Visible Text Inspector → Typography label | Intentional Mesurer Solid divergence | Rename only the product-facing label/aria text while preserving the internal id, shortcut, icon, geometry, styles, and interaction contract |
+| Direct copy/typography editing from Select/Typography | Mesurer Solid extension | Double-click/double-tap ordinary direct text, inherit rendered typography, select all text, preview reversible copy/style intent, and expose saved `textEdit` intent to agents |
+| Direct-edit formatting toolbar | Mesurer Solid extension using adopted visual language | Reuse the canonical Mesurer white toolbar surface while keeping B/I/U, Font/Size/Weight, rendered colors, and custom color directly available |
+| Semantic Text/H1/H2/H3 preset popup | Mesurer Solid extension | Keep semantic presets separate from unrelated typography properties; derive only levels actually rendered and use the dominant rendered bundle for each level |
+| Automatic Typography context during direct edit | Mesurer Solid extension using existing inspector primitives | Activate the visible Typography context/card for the edited field without stealing Select mode or interrupting Arrange |
 | Page-derived font/size/weight/color suggestions | Mesurer Solid extension | Suggest styles actually rendered on the page, while keeping source implementation semantic rather than prescribing inline computed values |
 | Grouped **Select & Inspect** / **Annotate** tool switch | Intentionally not adopted | Mesurer Solid keeps its existing inspector/plugin toolbar because its primary review flow is context-first rather than drawing-tool-first |
 | Arrow annotations | Intentionally not adopted | Freeform arrows are not required for the current agent workflow |
 | Freehand pen annotations | Intentionally not adopted | Freeform drawing is outside the current stable product scope |
-| Upstream text drawing annotations | Intentionally not adopted | Mesurer Solid uses target-bound context notes plus Text Inspector / direct Desired-text editing instead |
+| Upstream text drawing annotations | Intentionally not adopted | Mesurer Solid uses target-bound context notes plus Typography / direct Desired-text editing instead |
 | Annotation selection, move/resize/rotate, multi-select, delete | Intentionally not adopted | Those transforms belong to the upstream drawing-canvas model, which Mesurer Solid does not use |
 | Drawing-annotation persistence and undo/redo | Intentionally not adopted | Mesurer Solid persists semantic annotations and review baselines through `mesurer.context` instead |
 | Arrow/text drawing configuration and annotation settings | Intentionally not adopted | No drawing-tool configuration surface is needed without the drawing tools |
@@ -48,15 +50,29 @@ The `74936ac` audit supersedes the earlier conclusion that arrow/text annotation
 | Other `0.1.1` inspection refinements (for example SVG targeting, layout details, click cycling, remembered tool state) | Requires focused behavior audit | Evaluate individually; adopt source-first when they improve the Mesurer Solid inspection contract |
 | Site/analytics/footer/build changes | Not library parity | Do not port |
 
+## Typography is an intentional product-label divergence
+
+The pinned upstream baseline calls the inspection tool **Text inspector**. Mesurer Solid now presents that same user-facing inspection concept as **Typography** because the tool also participates in direct copy/type editing and the broader name better matches its role.
+
+This rename does not change the compatibility contract:
+
+- internal built-in id remains `text-inspector`;
+- shortcut remains `A`;
+- icon, toolbar position, dimensions, active-state styling, and interaction behavior stay unchanged;
+- plugin/tool coordination continues to use the existing internal id.
+
+The visual-parity gate therefore normalizes only the exact upstream `Text inspector (A)` → Solid `Typography (A)` product-label difference. Pixel, geometry, style, icon, and all other semantic contract drift remain zero-tolerance. In Settings > General, the comparison additionally normalizes the already-existing React/Solid version-token difference. No broad text or UI parity exception is permitted.
+
 ## Direct text editing is an explicit Mesurer Solid extension
 
 The direct text-edit workflow is not presented as upstream source parity. It builds on adopted Mesurer visual/inspection primitives but solves a Mesurer Solid-specific human-to-agent problem:
 
 ```text
 human sees rendered UI
-  → double-clicks direct text while Select/Text Inspector/Arrange-compatible Select is active
+  → double-clicks direct text while Select/Typography/Arrange-compatible Select is active
   → edits copy and typography in place
-  → Mesurer shows existing Text Inspector information for that exact field
+  → Typography context/card appears for that exact field
+  → Select and Arrange remain active
   → Desired text/style intent is saved separately from source
   → coding agent reads `textEdits()` / `textEdit(id)`
   → agent implements the semantic source change
@@ -66,8 +82,11 @@ human sees rendered UI
 The extension deliberately preserves UI continuity with adopted Mesurer behavior:
 
 - the formatting strip uses the same canonical toolbar visual language;
-- typography information reuses the existing `TypographyInspector` and Text Inspector card renderer;
-- the contextual card does not create a competing Text Inspector mode;
+- B/I/U, Font/Size/Weight, rendered colors, and custom color remain directly available;
+- the separate semantic popup contains only Text/H1/H2/H3 presets;
+- semantic presets use dominant rendered style bundles while non-dominant variants stay available as direct properties;
+- typography information reuses the existing `TypographyInspector` and inspector card renderer;
+- contextual Typography does not create a competing page-targeting mode;
 - Arrange remains usable because direct editing works through the Select state Arrange already requires.
 
 The current scope is ordinary elements with one unambiguous non-empty direct text node. Native form controls, `contenteditable`, and mixed/nested rich-text structures are not silently converted into a generic rich-text editor.
