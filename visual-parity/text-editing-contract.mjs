@@ -52,6 +52,8 @@ try {
       color: style.color,
     };
   });
+  const renderedHeadingTags = await page.locator("h1, h2, h3").evaluateAll((elements) =>
+    [...new Set(elements.map((element) => element.tagName))]);
   const firstFamily = (families) => (families.split(",")[0] ?? families).trim().replace(/^['"]|['"]$/g, "");
 
   const targetBox = await target.boundingBox();
@@ -184,7 +186,11 @@ try {
   const heading2Preset = page.locator("[data-mesurer-text-style-preset='heading-2']");
   await textPreset.waitFor({ state: "visible" });
   await heading2Preset.waitFor({ state: "visible" });
-  assert.equal(await page.locator("[data-mesurer-text-style-preset='heading-1']").count(), 0, "Heading 1 should not be invented when the fixture does not render an H1 preset");
+  for (const level of [1, 2, 3]) {
+    const expected = renderedHeadingTags.includes(`H${level}`) ? 1 : 0;
+    const count = await page.locator(`[data-mesurer-text-style-preset='heading-${level}']`).count();
+    assert.equal(count, expected, `Heading ${level} preset availability should match rendered H${level} usage on the page`);
+  }
   assert((await textPreset.textContent())?.includes("0"), "Text preset should advertise its keyboard shortcut");
   assert((await heading2Preset.textContent())?.includes("2"), "Heading 2 preset should advertise its keyboard shortcut");
 
