@@ -3,7 +3,7 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 
 const TOOLBAR_BLUE = "#0d99ff";
 const TOOLBAR_MUTED = "#8a8a8a";
-const PRESET_MENU_WIDTH = 196;
+const PRESET_MENU_WIDTH = 288;
 
 type TypographyButtonSnapshot = {
   ariaPressed: string | null;
