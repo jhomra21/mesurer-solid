@@ -222,14 +222,17 @@ Direct text editing is part of the mounted renderer; there is no extra text-edit
 2. Double-click ordinary direct text on desktop, or double-tap it with touch/pen.
 3. The current text is selected in full and an in-place editor opens using that target's rendered typography.
 4. Mesurer automatically shows Text Inspector information for that exact field.
-5. Use the Mesurer-style formatting strip for Bold/Italic/Underline, page-derived font/size/weight/color choices, or a custom color.
-6. Press **Enter** to keep the edit as Desired intent, **Shift+Enter** for a newline, or **Escape** to cancel.
+5. Use the compact **B / I / U / Text ▾** bar. B/I/U apply direct formatting; Text opens the detailed typography menu.
+6. In **Text ▾**, choose Text or an available Heading 1/2/3 preset. Those presets come from the dominant rendered style for semantic levels the page actually uses; non-dominant page variants remain available through Font/Size/Weight/Color choices.
+7. Press **Enter** to keep the edit as Desired intent or **Shift+Enter** for a newline. If the Text menu is open, **Escape** closes it first; Escape again cancels the edit session.
 
 Arrange keeps Select active, so this also works while arranging a selected element without switching tools.
 
-The current contract intentionally targets ordinary elements with one unambiguous non-empty direct text node. Native form controls and `contenteditable` keep their own editing behavior.
+While the editor has focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle formatting. Text/H1/H2/H3 presets use `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere.
 
-See [`TEXT_EDITING.md`](./TEXT_EDITING.md) for the full human interaction, automatic inspector/toolbar behavior, Before/Desired/Live semantics, agent API, and validation contract.
+The current contract intentionally targets ordinary elements with one unambiguous non-empty direct text node. Native form controls and `contenteditable` keep their own editing behavior. Link/list structural editing is intentionally not exposed until Mesurer has a proper rich-text intent model for it.
+
+See [`TEXT_EDITING.md`](./TEXT_EDITING.md) for the full human interaction, semantic preset rules, automatic inspector/toolbar behavior, Before/Desired/Live semantics, agent API, and validation contract.
 
 ## Files that should not mount Mesurer
 
