@@ -73,15 +73,15 @@ Fingerprints are deliberately conservative. Strong `id`/`data-testid` identity m
 
 `packages/renderer` is private and owns the Solid 2 UI/lifecycle adapter. The framework-neutral command model is mirrored into Solid state for JSX while imperative interaction reads the synchronous command snapshot.
 
-Built-ins remain Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Distance, and Settings. They can be excluded/replaced through the plugin architecture. Screenshot is deliberately **not** another permanent built-in; `mesurer.screenshot` contributes it as a first-party renderer-aware plugin.
+Human-facing built-ins remain Select, X-ray, Color Picker, Rulers, **Typography**, Guides, Distance, and Settings. The Typography tool retains the internal compatibility id `text-inspector`; product copy and accessibility labels use Typography. Built-ins can be excluded/replaced through the plugin architecture. Screenshot is deliberately **not** another permanent built-in; `mesurer.screenshot` contributes it as a first-party renderer-aware plugin.
 
-Direct text editing is deliberately **not** a competing top-level built-in or plugin-contributed toolbar tool. The renderer bridge installs the direct-edit runtime so the existing Select/Text Inspector targeting modes can enter editing by double-click/double-tap. Arrange keeps Select active, so the same editing interaction works without changing the Arrange tool contract.
+Direct text editing is deliberately **not** a competing top-level built-in or plugin-contributed toolbar tool. The renderer bridge installs the direct-edit runtime so the existing Select/Typography targeting modes can enter editing by double-click/double-tap. Arrange keeps Select active, so the same editing interaction works without changing the Arrange tool contract. When editing begins from Select or Arrange, Typography becomes contextually active for the field while the existing Select/Arrange state stays active.
 
 Each renderer owns one built-in controller. Toolbar clicks, human shortcuts, and programmatic `builtin.*` commands converge on that controller. Programmatic commands do not discover toolbar controls by labels, call `.click()`, or synthesize shared-window keyboard events.
 
 Plugin tools render through the canonical Toolbar and `ToolbarButton` path. The plugin layer does not poll the DOM for a toolbar or maintain a second button renderer.
 
-The direct-edit formatting strip is not rendered through `ToolbarButton`, because it is transient field-local editor UI rather than a registered tool. It nevertheless reuses the **same canonical toolbar visual contract**: white toolbar surface, Mesurer shadow, 12px surface radius, 4px spacing, compact rounded controls, and blue active states. Its default surface is intentionally only **B / I / U / Text ▾**; detailed typography lives in the adjacent Text menu rather than expanding the field-local toolbar. The runtime owns that presentation explicitly so Text Inspector does not secretly restyle another runtime after focus.
+The direct-edit formatting surface is transient field-local editor UI rather than a registered tool, but it reuses the **same canonical toolbar visual contract**: white toolbar surface, Mesurer shadow, 12px surface radius, 4px spacing, compact rounded controls, blue active states, and CSS-drawn chevrons rather than font-glyph arrows. Bold/Italic/Underline plus page-derived Font, Size, Weight, rendered text-color choices, and custom color are direct toolbar controls. A separate semantic preset popup contains only **Text / Heading 1 / Heading 2 / Heading 3** choices that actually exist in the rendered page. The runtime constructs this presentation declaratively; there is no post-render DOM reparenting adapter.
 
 The renderer also supplies screenshot-specific UI/capture helpers used by `mesurer.screenshot`: region overlay, capture presentation integration, CSS-to-bitmap crop logic, persistent draggable thumbnail, larger viewer, and status feedback. Those remain private implementation details behind `mesurer-solid/screenshot`.
 
@@ -118,7 +118,7 @@ The plugin has **no agent-delivery callback**. There is no Send-to-agent toolbar
 
 ## Direct text editing is a renderer-runtime boundary
 
-Direct text editing extends Text Inspector/Select behavior without making the Text Inspector tool runtime own another feature's lifecycle.
+Direct text editing extends Typography/Select behavior without making the Typography (`text-inspector`) tool runtime own another feature's lifecycle.
 
 ```text
 renderer bridge
@@ -127,10 +127,11 @@ renderer bridge
             |
             +-- double-click / double-tap direct-text targeting
             +-- in-place textarea session
-            +-- compact B / I / U / Text toolbar
-            +-- page-derived semantic Text/H1/H2/H3 presets
-            +-- detailed rendered-page style catalog
-            +-- transient Text Inspector info card
+            +-- Mesurer-style direct typography toolbar
+            |     B / I / U / Font / Size / Weight / Color
+            +-- separate semantic Text/H1/H2/H3 preset popup
+            +-- rendered-page style catalog
+            +-- transient contextual Typography info card
             +-- reversible preview ownership
             +-- state: mesurer.text-edit.intents
             `-- service: text-edit
@@ -143,12 +144,12 @@ The runtime owns text/style Before→Desired history and the active editor sessi
 The automatic inspector information shown during an edit is **transient presentation**, not another durable context record. It deliberately reuses:
 
 - `TypographyInspector` for Family/Size/Weight/Line/Tracking and CSS-variable resolution;
-- the existing Text Inspector card renderer;
+- the existing internal `text-inspector` card renderer;
 - the active target's real rendered tag/text information.
 
-It does not globally enable Text Inspector, create a persistent pin, or interfere with Arrange. The durable machine-readable record is the text-edit intent plus ordinary rendered context.
+It does not replace Select, turn Arrange off, create a persistent pin, or create another durable context channel. The durable machine-readable record is the text-edit intent plus ordinary rendered context.
 
-The Text menu separates semantic page presets from detailed variants. **Text** derives from dominant visible direct-text paragraph/span typography; Heading 1/2/3 derive from dominant visible direct-text H1/H2/H3 bundles and are only present when those semantic levels actually occur. Each bundle carries family, size, weight, style, line height, letter spacing, text transform, and color. Pages can still expose non-dominant variants through the detailed Font/Size/Weight/color controls, so canonical semantic choices do not erase special display typography.
+Semantic page presets are separated from detailed variants. **Text** derives from dominant visible direct-text paragraph/span typography; Heading 1/2/3 derive from dominant visible direct-text H1/H2/H3 bundles and are only present when those semantic levels actually occur. Each bundle carries family, size, weight, style, line height, letter spacing, text transform, and color. Pages can still expose non-dominant variants through the direct Font/Size/Weight/color controls, so canonical semantic choices do not erase special display typography.
 
 This discovery is a human convenience and evidence source, not a source-code token scanner. A sampled computed value or semantic preset remains Desired visual intent; agents should implement semantic props/classes/theme tokens/CSS variables/rules when appropriate. Link/list structural controls are intentionally absent until there is a structural/rich-text intent model rather than ordinary typography deltas.
 
@@ -381,7 +382,7 @@ The context plugin describes screenshot scope but does not own a browser driver 
 
 `capturePlan()` always returns the viewport and may add a close-up clip. Focus planning unions scoped regions with relevant target/measurement/distance evidence.
 
-`prepareCapture()` hides control chrome while retaining the visual evidence defined by that capture mode; `finishCapture()` restores the exact prior presentation. Active direct-editor controls, the Text menu, and the transient Text Inspector information card are Mesurer chrome, not application evidence. The outer harness uses its real screenshot primitive.
+`prepareCapture()` hides control chrome while retaining the visual evidence defined by that capture mode; `finishCapture()` restores the exact prior presentation. Active direct-editor controls, the semantic preset popup, and the transient contextual Typography card are Mesurer chrome, not application evidence. The outer harness uses its real screenshot primitive.
 
 ```text
 Mesurer geometry → exact spacing/alignment/box model/computed state
@@ -405,8 +406,8 @@ The Agent Skill teaches behavior rather than transport:
 - treat broad Mesurer/context requests as a full intent sweep across workspace, selection, annotations, Arrange, text edits, guides, measurements, distances, and preserved screenshot state;
 - preserve and consume an existing human selection before changing it;
 - consume saved Arrange Before/Desired geometry and text Before/Desired copy/style deltas before source edits;
-- treat the automatic direct-edit Text Inspector card as transient human UI rather than a separate durable context channel;
-- treat page-derived semantic typography presets and detailed variants as visual intent, not an instruction to paste computed styles into source;
+- treat the contextual direct-edit Typography card as transient human UI rather than a separate durable context channel;
+- treat page-derived semantic typography presets and direct Font/Size/Weight/color variants as visual intent, not an instruction to paste computed styles into source;
 - when exact changed targets are known, use context-returning `select()` to visibly highlight and verify them;
 - when target identity is ambiguous, ask the human to select instead of guessing;
 - read every selected target and relevant pairwise relationships for multi-selection;
@@ -449,7 +450,7 @@ Renderer-aware plugins can request the opaque `runtime:solid` service without im
 
 For `mesurer.screenshot`, disposal additionally releases any reusable media stream, preview/viewer hosts, timers, and listeners owned by that plugin.
 
-The direct text-edit runtime is installed by the renderer bridge rather than loaded as a top-level plugin. Renderer disposal must cancel an active editor, remove its textarea/toolbar/Text-menu/automatic inspector card, restore only preview text/styles still owned by Mesurer, disconnect observers/listeners, and dispose its workspace/inspector mount. Saved history is managed through the same host state lifecycle rather than through stray global DOM state.
+The direct text-edit runtime is installed by the renderer bridge rather than loaded as a top-level plugin. Renderer disposal must cancel an active editor, remove its textarea/direct typography toolbar/semantic preset popup/contextual Typography card, restore only preview text/styles still owned by Mesurer, disconnect observers/listeners, and dispose its workspace/inspector mount. Saved history is managed through the same host state lifecycle rather than through stray global DOM state.
 
 ## Scheduler and isolation rules
 
@@ -458,8 +459,8 @@ The direct text-edit runtime is installed by the renderer bridge rather than loa
 - one renderer instance owns one built-in command controller;
 - plugin tools render through the canonical Toolbar path;
 - transient direct-editor formatting uses the canonical toolbar visual contract without becoming a registered toolbar tool;
-- detailed text typography stays in the transient Text menu rather than becoming permanent toolbar controls;
-- Text Inspector and direct editing share typography/card primitives, not hidden lifecycle ownership;
+- direct Font/Size/Weight/color controls stay in the transient typography toolbar while Text/H1/H2/H3 stay in the separate semantic preset popup;
+- Typography and direct editing share typography/card primitives, not hidden lifecycle ownership; `text-inspector` remains only the internal compatibility id;
 - plugin overlays/previews/editor chrome must remain isolated and interactive without blocking the host page outside their own hit area;
 - screenshot/capture presentation must hide Mesurer control chrome and restore the exact prior presentation;
 - the public mount uses an isolated open ShadowRoot by default;
@@ -479,7 +480,7 @@ The public package build smoke-runs the Agent Skill installer in a fresh tempora
 
 The extension build runs after the public package build so it consumes the same generated injection artifact users, skills, and harnesses receive. The extension output must also include its isolated screenshot capture bridge.
 
-The dedicated direct-text rendered browser contract is a release gate for Arrange-compatible target acquisition, full-text selection, compact B/I/U/Text presentation, automatic/live Text Inspector information, semantic Text/H1/H2/H3 availability, dominant page-derived preset bundles, preserved non-dominant typography variants, page-derived detailed controls, custom color, commit/cancel behavior, reversible Desired/Live state, cleanup, and browser diagnostics.
+The dedicated direct-text rendered browser contracts are release gates for Arrange-compatible target acquisition, full-text selection, direct B/I/U/Font/Size/Weight/Color controls, separate semantic Text/H1/H2/H3 presets, contextual Typography activation while Select/Arrange remain active, dominant page-derived preset bundles, preserved non-dominant typography variants, custom color, CSS-chevron geometry/open-state rotation, commit/cancel behavior, reversible Desired/Live state, cleanup, and browser diagnostics.
 
 The dedicated screenshot browser contract is a release gate for region selection, crop dimensions, control-chrome hiding/restoration, cancellation, preview/viewer behavior, and deterministic provider integration.
 
