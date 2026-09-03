@@ -272,9 +272,11 @@ If review is still numerically wrong, continue editing. If it is `stale` or `par
 
 ## Direct text editing: human UI and durable intent
 
-Direct text editing records human copy and typography intent without pretending to edit application source. It is not a separate top-level tool/plugin.
+Direct text editing records human copy and typography intent without pretending to edit application source. It is not a separate top-level text-edit tool/plugin.
 
-The human enters it while **Select** or **Text Inspector** is active:
+The human-facing inspection tool is **Typography**. The existing internal compatibility id and stable command remain `text-inspector` / `builtin.text-inspector`; agents should not script the toolbar by label.
+
+A person enters direct editing while **Select** or **Typography** is active:
 
 ```text
 double-click ordinary direct text
@@ -284,25 +286,33 @@ current text is selected in full
   ↓
 in-place editor uses rendered typography
   ↓
-compact Mesurer bar: B / I / U / Text ▾
-  + automatic Text Inspector card for that exact field
+Mesurer-style direct typography toolbar
+  B / I / U / Font / Size / Weight / Color
+  + separate semantic Text/H1/H2/H3 preset popup
+  + contextual Typography card for that exact field
   ↓
 Enter keeps Desired / Shift+Enter newline
 ```
 
-Because Arrange keeps Select active, this same interaction works while Arrange remains selected. The transient Text Inspector card does **not** globally enable Text Inspector or interrupt Arrange.
+Because Arrange keeps Select active, this same interaction works while Arrange remains selected. Starting the edit contextually activates Typography for the field while Select/Arrange remain active; it does not force the reviewer out of the layout workflow.
 
-The default formatting surface deliberately stays compact. B/I/U are direct formatting controls; **Text ▾** opens the detailed typography menu. Its top section offers Text plus Heading 1/2/3 only for levels actually rendered by visible direct-text page elements. Each semantic preset uses the page's **dominant rendered typography bundle** for that level: font family, size, weight, style, line height, tracking, text transform, and color. The Text preset derives from dominant visible direct-text paragraph/span typography.
+The typography surface deliberately separates direct properties from semantic meaning:
 
-If a page contains special non-dominant variants of the same semantic level, those variants remain available through the menu's page-derived Font, Size, Weight, color swatches, and custom color picker. Heading levels absent from the rendered page are not invented.
+- Bold/Italic/Underline, Font, Size, Weight, rendered-page text colors, and custom color are direct toolbar controls;
+- the separate semantic popup contains only **Text** plus Heading 1/2/3 for semantic levels actually rendered by visible direct-text page elements;
+- each semantic preset uses the page's **dominant rendered typography bundle** for that level: font family, size, weight, style, line height, tracking, text transform, and color;
+- non-dominant page variants remain available through the direct Font/Size/Weight/color controls;
+- heading levels absent from the rendered page are not invented.
 
-While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle formatting. Text/H1/H2/H3 use `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere. If the Text menu is open, the first Escape closes the menu; Escape with it closed cancels the edit.
+The semantic popup must not become a container for Font/Size/Weight/color. Its CSS chevron is part of the visual contract and rotates with popup state.
+
+While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle formatting. Text/H1/H2/H3 use `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere. If the semantic preset popup is open, the first Escape closes it; Escape with it closed cancels the edit.
 
 Link creation and numbered/bulleted lists are intentionally not exposed as fake controls. Those would require a structural/rich-text intent model rather than ordinary typography deltas.
 
-The automatic card reuses the existing typography/card renderer and reports Family, Size, Weight, Line, Tracking, tag/text information, and CSS-variable references when available. It refreshes during the session. The current editing boundary is intentionally direct text rather than generic rich text: ordinary elements with one unambiguous non-empty direct text node. Native `<input>`, `<textarea>`, `<select>`, `contenteditable`, and ambiguous mixed/nested rich-text structures retain their normal browser/application behavior.
+The contextual Typography card reuses the existing typography/card renderer and reports Family, Size, Weight, Line, Tracking, tag/text information, and CSS-variable references when available. It refreshes during the session. The current editing boundary is intentionally direct text rather than generic rich text: ordinary elements with one unambiguous non-empty direct text node. Native `<input>`, `<textarea>`, `<select>`, `contenteditable`, and ambiguous mixed/nested rich-text structures retain their normal browser/application behavior.
 
-The automatic inspector card is **transient human presentation**, not another durable context channel. Durable intent is the saved text-edit record.
+The contextual Typography card is **transient human presentation**, not another durable context channel. Durable intent is the saved text-edit record.
 
 See the repository's canonical [`docs/TEXT_EDITING.md`](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TEXT_EDITING.md) for the full interaction and runtime contract.
 
@@ -336,13 +346,13 @@ Treat Desired copy and style deltas as a **visual/source specification**, not a 
 
 Page-derived options are evidence of what the application already renders; they are not a source-code token scanner and do not imply that sampled computed values belong in inline styles.
 
-While Select or Text Inspector is active, Mesurer may be rendering the saved Desired text/style as a reversible preview. Do not compare against that preview and declare the source implementation correct.
+While Select or Typography is active, Mesurer may be rendering the saved Desired text/style as a reversible preview. Do not compare against that preview and declare the source implementation correct.
 
 After editing source:
 
 1. retain the text-edit intent;
 2. wait for the real render;
-3. deactivate the active Select/Text Inspector preview without clearing the intent;
+3. deactivate the active Select/Typography preview without clearing the intent;
 4. inspect the actual target text and computed typography;
 5. compare those Live values with `intent.desired` and `intent.styles`;
 6. reactivate Select only if continued review is useful.
@@ -533,7 +543,7 @@ try {
 }
 ```
 
-Active direct-editor controls, its Text menu, and the contextual inspector card are Mesurer chrome, not application evidence. Arrange uses the same screenshot ownership model through `arrangeCapturePlan()` while adding explicit Before/Desired/Live presentation.
+Active direct-editor controls, the semantic preset popup, and the contextual Typography card are Mesurer chrome, not application evidence. Arrange uses the same screenshot ownership model through `arrangeCapturePlan()` while adding explicit Before/Desired/Live presentation.
 
 Use all three signals when relevant:
 
