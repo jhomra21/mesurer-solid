@@ -23,6 +23,23 @@ The unpacked extension is written to `extension/dist/` after the normal Mesurer 
 
 The extension requests only `activeTab` and `scripting`. It does not request persistent access to every website. Browser-protected pages such as `chrome://` pages cannot be injected. File URLs also depend on the browser's extension file-access setting.
 
+## Direct text editing
+
+The extension injects the same renderer/runtime as the npm and browser-harness paths, so direct text editing works without any extension-specific setup.
+
+With **Select** or **Text Inspector** active, double-click ordinary direct text (or double-tap with touch/pen). The current text is selected in full and edited in place using the target's rendered typography.
+
+The edit session also shows:
+
+- the Mesurer-style white formatting toolbar with Bold/Italic/Underline;
+- font family/size/weight choices derived from text already rendered on the page;
+- common page text colors plus a custom color picker;
+- the existing Text Inspector information card for that exact field, updated while the edit is active.
+
+Because Arrange keeps Select active, the same interaction works while arranging. Press **Enter** to keep Desired intent, **Shift+Enter** for a newline, or **Escape** to cancel.
+
+Direct editing deliberately leaves native form controls and `contenteditable` to the page/browser. See [`../docs/TEXT_EDITING.md`](../docs/TEXT_EDITING.md) for the full target, history, agent, and Live-verification contract.
+
 ## Screenshot capture
 
 The extension enables the optional first-party screenshot plugin automatically. Use the camera tool to drag a viewport region and capture a real PNG of the visible tab.
@@ -39,7 +56,7 @@ Captured images keep the screenshot plugin's normal behavior:
 - click-to-open larger viewer with Copy, Save, and Close controls;
 - short capture/output status feedback.
 
-The screenshot plugin hides Mesurer control chrome while the pixels are captured and restores the previous presentation afterward.
+The screenshot plugin hides Mesurer control chrome while the pixels are captured and restores the previous presentation afterward. Active direct-edit controls and their contextual inspector card are Mesurer chrome rather than application content.
 
 This human screenshot tool is separate from agent/harness screenshot evidence. Coding agents can still use `capturePlan()`, `prepareCapture()`, and `finishCapture()` with the browser harness's own screenshot primitive when they need deterministic task evidence controlled by that harness.
 
@@ -47,6 +64,6 @@ This human screenshot tool is separate from agent/harness screenshot evidence. C
 
 The extension does not carry a fork of Mesurer. `extension/build.mjs` copies the same published-style `inject-script` artifact used by browser harnesses into the MV3 package.
 
-That injector installs the removable `mesurer.context` plugin by default, while the extension explicitly enables the removable `mesurer.screenshot` plugin. The context plugin owns annotations, Copy Context/Copy Selection/Add Note UI, review/capture planning, shortcuts, and the `context:v1` service. The screenshot plugin owns the camera tool, screenshot settings/service, region-selection overlay, capture lifecycle, thumbnail, viewer, and output status. The extension shell owns only active-tab execution, the visible-tab capture bridge, and toggling the normal Mesurer injection artifact.
+That injector installs the removable `mesurer.context` plugin by default, while the extension explicitly enables the removable `mesurer.screenshot` plugin. The context plugin owns annotations, Copy Context/Copy Selection/Add Note UI, review/capture planning, shortcuts, and the `context:v1` service. The screenshot plugin owns the camera tool, screenshot settings/service, region-selection overlay, capture lifecycle, thumbnail, viewer, and output status. Direct text editing is installed by the shared renderer bridge, reuses Text Inspector typography/card primitives, owns its reversible text-edit state/service, and does not require a separate extension permission or plugin toggle. The extension shell owns only active-tab execution, the visible-tab capture bridge, and toggling the normal Mesurer injection artifact.
 
-The injected instance therefore exposes the same toolbar, plugin host, and `window.__MESURER__` context APIs as any other harness-injected Mesurer instance. Screenshot capture does not add a chat/session delivery capability and does not change the context-first agent contract.
+The injected instance therefore exposes the same toolbar, direct text-edit behavior, plugin host, and `window.__MESURER__` APIs as any other harness-injected Mesurer instance. Saved text/style intent is available through `textEdits()` / `textEdit(id)` when the agent bridge is enabled. Screenshot capture does not add a chat/session delivery capability and does not change the context-first agent contract.
