@@ -44,10 +44,11 @@ A reviewer can:
 1. activate Arrange;
 2. select and move an element;
 3. double-click ordinary direct text inside that selected element;
-4. replace the copy or change typography/color with the Mesurer-style formatting strip;
-5. inspect the automatic Text Inspector card for that exact field;
-6. press **Enter** to keep the text/style change as Desired intent;
-7. continue arranging.
+4. replace the copy or change typography/color with the field-local Mesurer toolbar;
+5. see **Typography** become contextually active and inspect the live Typography card for that exact field;
+6. use direct B/I/U, Font, Size, Weight, rendered-page colors, custom color, or the separate Text/Heading semantic preset control;
+7. press **Enter** to keep the text/style change as Desired intent;
+8. continue arranging.
 
 The two features record separate but complementary intent:
 
@@ -62,9 +63,9 @@ Text-edit intent
 
 Neither channel should erase the other. A person can move a control and change its label/typography, then simply ask a coding agent to “check Mesurer context.” The Agent Skill inventories both channels before changing source.
 
-Direct text editing does not globally switch into Text Inspector mode while Arrange is active. Its contextual inspector card is transient and attached only to the edit session, so Arrange remains selected and usable.
+Direct text editing does not switch the underlying page-targeting mode from Select to Typography while Arrange is active. Typography is **contextually active** for the edit session—the toolbar button and field card reflect the active typography context—while Select and Arrange remain active and usable. That contextual Typography state clears when editing ends unless Typography itself was explicitly selected.
 
-See [`TEXT_EDITING.md`](./TEXT_EDITING.md) for the complete direct text-edit contract, target boundaries, toolbar behavior, automatic inspector information, agent API, and Live verification rules.
+See [`TEXT_EDITING.md`](./TEXT_EDITING.md) for the complete direct text-edit contract, target boundaries, toolbar behavior, Typography information, agent API, and Live verification rules.
 
 ## Arrange settings
 
