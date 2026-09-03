@@ -1,14 +1,16 @@
-# Direct text editing
+# Direct text editing and Typography
 
-Mesurer Solid extends Text Inspector with a reversible direct-copy and typography workflow for ordinary rendered text. The feature is designed for a human reviewer to express **what the text should say and look like** while staying on the real page, then let a coding agent implement that intent in normal application source.
+Mesurer Solid extends the rendered-page inspection workflow with reversible direct copy and typography editing for ordinary text. The feature is designed for a human reviewer to express **what the text should say and look like** on the real page, then let a coding agent implement that intent in normal application source.
 
-This is a Mesurer Solid extension, not a feature inherited from the pinned upstream Mesurer baseline. It deliberately reuses Mesurer's existing Text Inspector typography renderer and the canonical toolbar visual language instead of introducing a second inspector or a separate top-level editing plugin.
+The user-facing inspection tool is **Typography**. Internally, the long-lived built-in id remains `text-inspector` for compatibility with existing shortcuts, persistence, plugin coordination, and agent integrations.
+
+This is a Mesurer Solid extension, not a feature inherited from the pinned upstream Mesurer baseline. It reuses the existing typography inspector/card primitives and Mesurer's toolbar visual language instead of creating a second typography system.
 
 ## Where direct editing is available
 
 Direct text editing works while either of these page-targeting modes is active:
 
-- **Text Inspector**;
+- **Typography**;
 - **Select**.
 
 Arrange keeps Select active, so the normal combined workflow is:
@@ -18,6 +20,8 @@ select / arrange an element
         ↓
 double-click its text
         ↓
+Typography context appears automatically
+        ↓
 edit copy and typography
         ↓
 Enter to keep Desired
@@ -26,6 +30,8 @@ continue arranging or reviewing
 ```
 
 There is no separate Text Edit toolbar tool to activate.
+
+When editing starts from Select/Arrange, the Typography toolbar control becomes contextually active and the field's Typography card appears. Mesurer does **not** switch the underlying page-targeting mode away from Select, so Arrange remains active and usable. When the edit session closes, the contextual Typography state clears unless Typography itself was explicitly selected.
 
 ## What can be edited
 
@@ -40,7 +46,7 @@ Mesurer does not take over native editing for:
 - media/embedded elements such as images, video, audio, and iframes;
 - mixed/nested rich-text structures that do not resolve to one unambiguous direct text node.
 
-Those boundaries are deliberate. Link creation, numbered/bulleted lists, generic rich-text editing, and form editing are not exposed as decorative controls. Adding those would require a structural intent model rather than pretending they are ordinary typography changes.
+Those boundaries are deliberate. Link creation, numbered/bulleted lists, generic rich-text editing, and form editing are not exposed as decorative controls. Adding those requires a structural intent model rather than pretending they are ordinary typography changes.
 
 ## Human interaction
 
@@ -67,9 +73,9 @@ The editor inherits the target's current rendered:
 
 Typing previews directly on the real rendered target.
 
-### Text Inspector information appears automatically
+### Typography information appears automatically
 
-Opening direct editing also shows Text Inspector information for that exact target. The transient card uses the existing Text Inspector typography renderer and currently reports:
+Opening direct editing also shows Typography information for that exact target. The transient card uses the shared typography renderer and currently reports:
 
 - **Family**;
 - **Size**;
@@ -77,22 +83,31 @@ Opening direct editing also shows Text Inspector information for that exact targ
 - **Line**;
 - **Tracking**;
 - the target tag/text snippet;
-- matching CSS variable names when Text Inspector can resolve them.
+- matching CSS variable names when they can be resolved.
 
 The card updates while the edit session is active, so changing typography or copy does not leave a stale inspector snapshot.
 
-This automatic card does **not** globally switch Mesurer into Text Inspector mode, create a persistent pin, or disable Arrange. It is contextual information attached only to the active direct-edit session.
+This automatic card does **not** create a persistent pin or disable Arrange. It is contextual information attached only to the active direct-edit session.
 
-### Compact formatting toolbar
+### Direct formatting toolbar
 
-The default edit bar intentionally stays compact and follows the same visual language as the main Mesurer toolbar. It exposes only:
+The edit bar follows the same white floating-surface language as the main Mesurer toolbar while keeping frequently used typography controls immediately available.
+
+It contains:
 
 - **B** — Bold;
 - **I** — Italic;
 - **U** — Underline;
-- **Text ▾** — typography/style menu.
+- **Font** — page-derived font-family choices;
+- **Size** — page-derived font-size choices;
+- **Weight** — page-derived font-weight choices;
+- common rendered-page text-color swatches;
+- a custom color control;
+- a separate **Text / Heading** semantic preset control.
 
-The floating surface uses Mesurer's white toolbar treatment, compact spacing, rounded controls, normal shadow, and blue active states. Detailed typography no longer expands the default toolbar with several always-visible selects.
+Font, size, weight, and color are intentionally **not** hidden inside the semantic Text/Heading popup. They are independent typography properties and remain directly reachable from the editing toolbar.
+
+A subtle divider separates direct typography controls from the semantic preset control. The preset control uses fixed CSS chevron geometry rather than a font glyph, so its open/closed indicator stays optically centered.
 
 While the editor owns focus, the usual formatting shortcuts work without triggering Mesurer tools:
 
@@ -100,16 +115,16 @@ While the editor owns focus, the usual formatting shortcuts work without trigger
 - `Cmd/Ctrl+I` — Italic;
 - `Cmd/Ctrl+U` — Underline.
 
-### Text menu and semantic presets
+### Text and heading presets
 
-Open **Text ▾** for typography choices. The top of the menu contains semantic presets derived from the page:
+The final semantic control opens a popup containing only page-derived semantic presets:
 
 - **Text**;
 - **Heading 1** when a visible direct-text `<h1>` exists;
 - **Heading 2** when a visible direct-text `<h2>` exists;
 - **Heading 3** when a visible direct-text `<h3>` exists.
 
-Mesurer does not invent heading levels that the rendered page does not use.
+The popup does not contain font, size, weight, or color controls. Mesurer also does not invent heading levels that the rendered page does not use.
 
 Each preset represents the **dominant rendered typography bundle** Mesurer observes for that semantic level. A bundle includes:
 
@@ -122,17 +137,9 @@ Each preset represents the **dominant rendered typography bundle** Mesurer obser
 - text transform;
 - color.
 
-For **Text**, Mesurer derives the dominant ordinary body-text bundle from visible direct-text paragraph/span usage. For H1/H2/H3, it derives the dominant bundle among visible direct-text headings of that level. This matters on pages that contain several visual variants of the same heading level: the semantic preset stays canonical rather than depending on one special variant.
+For **Text**, Mesurer derives the dominant ordinary body-text bundle from visible direct-text paragraph/span usage. For H1/H2/H3, it derives the dominant bundle among visible direct-text headings of that level. This keeps a semantic preset canonical on pages that contain several visual variants of the same heading level.
 
-A non-dominant variant is not discarded. The lower part of the same menu still exposes page-derived:
-
-- **Font** choices;
-- **Size** choices;
-- **Weight** choices;
-- common text-color swatches;
-- a custom color picker.
-
-So a page can have a canonical Heading 2 preset while still allowing a reviewer to pick a special display font, size, weight, or color that appears elsewhere on the page.
+A non-dominant variant is not discarded. Its individual font, size, weight, or color remains available through the direct page-derived toolbar controls.
 
 Preset shortcuts are available while the editor has focus:
 
@@ -145,7 +152,7 @@ Preset shortcuts are available while the editor has focus:
 
 A shortcut only applies a heading level that exists in the current page-derived catalog.
 
-The page-derived choices are based on **rendered styles**, not an arbitrary Mesurer preset list and not a source-code token scanner. The current target value is retained as an option even when it is not one of the page's most common values.
+The page-derived choices come from **rendered styles**, not an arbitrary Mesurer preset list and not a source-code token scanner. The current target value is retained even when it is not one of the page's most common values.
 
 Choosing a rendered-page value is useful human intent, but it does not imply that production source should receive the sampled computed value as an inline style. A coding agent should still find the appropriate class, CSS variable, theme token, component prop, or stylesheet rule when one exists.
 
@@ -153,7 +160,7 @@ Choosing a rendered-page value is useful human intent, but it does not imply tha
 
 - **Enter** keeps the current edit as Desired intent.
 - **Shift+Enter** inserts a newline in the textarea instead of committing.
-- **Escape** closes the Text menu first when it is open; pressing Escape again cancels the editing session and restores the text/style state that existed when that session opened.
+- **Escape** closes the semantic preset popup first when it is open; pressing Escape again cancels the editing session and restores the text/style state that existed when that session opened.
 - Clicking outside the active editor/formatting surfaces commits the current session.
 
 Keyboard shortcuts such as `S`, `A`, `G`, and other Mesurer tool shortcuts are suppressed while the editor owns keyboard focus, so typing normal text cannot accidentally activate Mesurer tools.
@@ -174,7 +181,7 @@ Desired
   requested text/style deltas
 ```
 
-While Select or Text Inspector is active, Mesurer may preview the saved Desired copy/style on the rendered target. That preview participates in Mesurer history and persists with plugin state.
+While Select or Typography is active, Mesurer may preview the saved Desired copy/style on the rendered target. That preview participates in Mesurer history and persists with plugin state.
 
 When the previewing page-targeting mode is inactive, Mesurer restores the source-rendered value it still owns. This distinction is important for agent verification: a coding agent must not look at Mesurer's Desired preview and mistake it for a source-code implementation.
 
@@ -265,7 +272,7 @@ After editing source:
 
 1. wait for the application render to stabilize;
 2. keep the saved text-edit intent;
-3. deactivate the Select/Text Inspector preview without clearing history;
+3. deactivate the Select/Typography Desired preview without clearing history;
 4. inspect the target's real rendered text and computed typography;
 5. compare the real Live result with Desired;
 6. reactivate Select only if further visual review is useful.
@@ -297,40 +304,45 @@ The direct-edit runtime is installed by Mesurer's renderer bridge rather than as
 - text-edit intent state/history;
 - direct double-click/double-tap targeting;
 - the in-place textarea session;
-- the compact formatting toolbar and Text menu;
 - page-derived style/preset discovery;
 - reversible text/style preview ownership;
 - the `text-edit` service consumed by the public agent bridge.
 
-For presentation it deliberately reuses:
+Presentation remains separate from the intent model. The field-local presentation layer organizes the direct typography controls, semantic preset popup, chevron geometry, and contextual Typography state while reusing the same underlying edit session and intent/history implementation.
+
+For typography interpretation it reuses:
 
 - the canonical Mesurer toolbar surface language;
 - `TypographyInspector` for typography data;
-- the existing Text Inspector card renderer for the automatic information card.
+- the existing inspector card renderer for the automatic Typography information card.
 
-That keeps typography interpretation shared while avoiding hidden ownership between the Text Inspector tool runtime and the direct-edit runtime.
+The compatibility id remains `text-inspector`; the visible product name is Typography.
 
 ## Validation contract
 
-The repository's rendered browser contract covers the complete interaction through active Arrange/Select state. It verifies, in a real Chromium page:
+The repository's rendered browser contracts cover both the complete editing workflow and the presentation/state contract in real Chromium. They verify:
 
-- double-click opens the editor through the Arrange interaction surface;
+- double-click opens the editor through an active Arrange interaction surface;
 - the current text is fully selected;
 - editor typography matches the target;
 - the formatting surface follows Mesurer toolbar geometry/appearance;
-- the default toolbar is compact: B/I/U/Text;
-- automatic Text Inspector information is visible for the edited field;
+- B/I/U, Font, Size, Weight, page colors, and custom color are directly available;
+- the semantic popup contains only Text/H1/H2/H3 preset rows;
+- the semantic chevron is fixed-geometry, optically centered, and rotates when opened;
+- Typography becomes contextually active for the double-clicked field;
+- Select and Arrange remain active during contextual Typography editing;
+- contextual Typography clears when editing ends unless the tool itself was explicitly active;
+- automatic Typography information is visible for the edited field;
 - Text/H1/H2/H3 availability follows visible rendered semantic usage;
 - Heading presets apply the dominant rendered bundle for their level;
-- non-dominant typography variants remain available in detailed choices;
-- page-derived font/size/weight/color values are available;
+- non-dominant typography variants remain available in direct choices;
 - Bold/Italic/Underline work and remain reversible;
 - custom color works;
-- the Text Inspector card updates with live changes;
+- the Typography card updates with live changes;
 - Enter commits Desired state;
 - disabling the preview exposes the real source-rendered Before state;
 - re-enabling Select restores Desired preview;
-- the editor, menu, and transient inspector card clean up together;
+- the editor, menu, and transient card clean up together;
 - no page or console errors are introduced.
 
 Focused renderer tests separately cover dominant body/heading preset selection, absent heading levels, preserved page variants, reversible intent, source ownership, and native-editable exclusions.
