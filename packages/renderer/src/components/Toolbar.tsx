@@ -27,6 +27,7 @@ export type ToolbarProps = {
   onPluginTool?: (tool: ToolContribution) => void;
   onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
   isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;
+  typographyContextActive?: boolean;
   onClearWorkspace: () => void;
   onResetSettings: () => void;
   selectionSpacingStyle: SelectionSpacingStyle;
@@ -301,7 +302,7 @@ export function Toolbar(props: ToolbarProps) {
         <ToolbarButton id="color-picker" builtin="color-picker" active={props.model.state.colorPickerActive} disabled={builtinDisabled("color-picker")} label="Color picker" shortcut="P" onClick={() => props.onBuiltinAction("color-picker")} {...buttonProps("color-picker")}><ColorPickerIcon size={20} /></ToolbarButton>
       </Show>
       <ToolbarButton id="rulers" builtin="rulers" active={props.model.state.rulersVisible} label="Rulers" shortcut="R" onClick={() => props.onBuiltinAction("rulers")} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>
-      <ToolbarButton id="text-inspector" builtin="text-inspector" active={props.model.state.toolMode === "text-inspector"} disabled={builtinDisabled("text-inspector")} label="Text inspector" shortcut="A" onClick={() => props.onBuiltinAction("text-inspector")} {...buttonProps("text-inspector")}><TextInspectorIcon size={20} /></ToolbarButton>
+      <ToolbarButton id="text-inspector" builtin="text-inspector" active={props.model.state.toolMode === "text-inspector" || (props.typographyContextActive ?? false)} disabled={builtinDisabled("text-inspector")} label="Typography" shortcut="A" onClick={() => props.onBuiltinAction("text-inspector")} {...buttonProps("text-inspector")}><TextInspectorIcon size={20} /></ToolbarButton>
       <ToolbarButton id="guides" builtin="guides" active={props.model.state.toolMode === "guides"} disabled={builtinDisabled("guides")} label="Guides" shortcut="G" onClick={() => props.onBuiltinAction("guides")} {...buttonProps("guides")}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
 
       <div data-mesurer-builtin="guides-menu" ref={(element) => { guideMenuElement = element; }} class="msr:group msr:relative msr:-ml-1 msr:flex msr:items-stretch" onMouseEnter={() => tooltip.onTooltipEnter("guide-menu")} onMouseLeave={tooltip.onTooltipLeave}>
