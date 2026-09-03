@@ -69,6 +69,10 @@ if (publishedRoot.mountMeasurer !== publishedRoot.mountMesurer) {
 }
 
 const rootDeclarations = readFileSync(new URL("index.d.ts", dist), "utf8");
+const publishedDeclarations = distFiles
+  .filter((file) => file.endsWith(".d.ts"))
+  .map((file) => readFileSync(new URL(file, dist), "utf8"))
+  .join("\n");
 if (!contextReturningSelectPattern.test(rootDeclarations)) {
   throw new Error("Published declarations must expose select(string | string[]) returning Promise<MesurerContextV1>.");
 }
@@ -107,7 +111,7 @@ for (const property of [
   "color",
   "text-decoration-line",
 ]) {
-  if (!new RegExp(`["']${property}["']`).test(rootDeclarations)) {
+  if (!new RegExp(`["']${property}["']`).test(publishedDeclarations)) {
     throw new Error(`Published MesurerTextStyleProperty is missing runtime style property: ${property}.`);
   }
 }
