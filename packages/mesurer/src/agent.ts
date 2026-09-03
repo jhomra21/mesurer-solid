@@ -12,6 +12,9 @@ export type MesurerTextStyleProperty =
   | "font-size"
   | "font-weight"
   | "font-style"
+  | "line-height"
+  | "letter-spacing"
+  | "text-transform"
   | "color"
   | "text-decoration-line";
 
