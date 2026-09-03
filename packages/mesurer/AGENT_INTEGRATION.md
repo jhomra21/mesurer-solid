@@ -284,17 +284,23 @@ current text is selected in full
   ↓
 in-place editor uses rendered typography
   ↓
-Mesurer-style white formatting toolbar
+compact Mesurer bar: B / I / U / Text ▾
   + automatic Text Inspector card for that exact field
   ↓
-Enter keeps Desired / Shift+Enter newline / Escape cancels
+Enter keeps Desired / Shift+Enter newline
 ```
 
 Because Arrange keeps Select active, this same interaction works while Arrange remains selected. The transient Text Inspector card does **not** globally enable Text Inspector or interrupt Arrange.
 
-The formatting surface deliberately uses Mesurer's canonical toolbar visual language. It exposes Bold/Italic/Underline, page-derived font families/sizes/weights/colors, and a custom color picker. The automatic card reuses the existing typography/card renderer and reports Family, Size, Weight, Line, Tracking, tag/text information, and CSS-variable references when available. It refreshes during the session.
+The default formatting surface deliberately stays compact. B/I/U are direct formatting controls; **Text ▾** opens the detailed typography menu. Its top section offers Text plus Heading 1/2/3 only for levels actually rendered by visible direct-text page elements. Each semantic preset uses the page's **dominant rendered typography bundle** for that level: font family, size, weight, style, line height, tracking, text transform, and color. The Text preset derives from dominant visible direct-text paragraph/span typography.
 
-The current editing boundary is intentionally direct text rather than generic rich text: ordinary elements with one unambiguous non-empty direct text node. Native `<input>`, `<textarea>`, `<select>`, `contenteditable`, and ambiguous mixed/nested rich-text structures retain their normal browser/application behavior.
+If a page contains special non-dominant variants of the same semantic level, those variants remain available through the menu's page-derived Font, Size, Weight, color swatches, and custom color picker. Heading levels absent from the rendered page are not invented.
+
+While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle formatting. Text/H1/H2/H3 use `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere. If the Text menu is open, the first Escape closes the menu; Escape with it closed cancels the edit.
+
+Link creation and numbered/bulleted lists are intentionally not exposed as fake controls. Those would require a structural/rich-text intent model rather than ordinary typography deltas.
+
+The automatic card reuses the existing typography/card renderer and reports Family, Size, Weight, Line, Tracking, tag/text information, and CSS-variable references when available. It refreshes during the session. The current editing boundary is intentionally direct text rather than generic rich text: ordinary elements with one unambiguous non-empty direct text node. Native `<input>`, `<textarea>`, `<select>`, `contenteditable`, and ambiguous mixed/nested rich-text structures retain their normal browser/application behavior.
 
 The automatic inspector card is **transient human presentation**, not another durable context channel. Durable intent is the saved text-edit record.
 
@@ -324,11 +330,11 @@ styles[]
   desired
 ```
 
-Current style deltas can include font family, size, weight, style, color, and text-decoration line.
+Current style deltas can include font family, size, weight, style, line height, letter spacing, text transform, color, and text-decoration line.
 
-Treat Desired copy and style deltas as a **visual/source specification**, not a request to paste Mesurer's preview implementation into production. If the person chose a font, weight, size, or color that already exists on the rendered page, inspect the codebase for the semantic component prop, class, CSS variable, design token, theme value, or stylesheet rule that produces it.
+Treat Desired copy and style deltas as a **visual/source specification**, not a request to paste Mesurer's preview implementation into production. If the person chose a semantic preset or a font, weight, size, or color that already exists on the rendered page, inspect the codebase for the semantic component prop, class, CSS variable, design token, theme value, or stylesheet rule that produces it.
 
-Page-derived options are evidence of what the application already renders; they are not a source-code token scanner and do not imply that the sampled computed value belongs in an inline style.
+Page-derived options are evidence of what the application already renders; they are not a source-code token scanner and do not imply that sampled computed values belong in inline styles.
 
 While Select or Text Inspector is active, Mesurer may be rendering the saved Desired text/style as a reversible preview. Do not compare against that preview and declare the source implementation correct.
 
@@ -527,7 +533,7 @@ try {
 }
 ```
 
-Active direct-editor controls and its contextual inspector card are Mesurer chrome, not application evidence. Arrange uses the same screenshot ownership model through `arrangeCapturePlan()` while adding explicit Before/Desired/Live presentation.
+Active direct-editor controls, its Text menu, and the contextual inspector card are Mesurer chrome, not application evidence. Arrange uses the same screenshot ownership model through `arrangeCapturePlan()` while adding explicit Before/Desired/Live presentation.
 
 Use all three signals when relevant:
 
