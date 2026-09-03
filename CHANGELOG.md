@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Extend direct text editing to Select/Arrange workflows with full-text replacement and touch/pen double-tap support; keep the default formatting bar compact as B/I/U/Text, add page-derived Text/H1/H2/H3 presets from dominant rendered typography while preserving non-dominant page variants in detailed Font/Size/Weight/Color choices, and automatically show live Text Inspector information for the edited field.
+- Extend direct text editing to Select/Arrange workflows with full-text replacement and touch/pen double-tap support; rename the human-facing Text Inspector tool to **Typography** while retaining the internal `text-inspector` compatibility id, keep B/I/U/Font/Size/Weight/rendered colors as direct editing controls, separate page-derived Text/H1/H2/H3 semantic presets into their own popup, and show contextual Typography information for the edited field without interrupting Select or Arrange.
 - Expose saved Before/Desired text and style intent through the agent `textEdit` capability and `textEdits()` / `textEdit(id)` APIs, and teach the portable Agent Skill to include those edits in broad Mesurer-context sweeps and verify the real source-rendered result with Mesurer's preview inactive.
 
 ## 0.1.5 - 2026-09-02
