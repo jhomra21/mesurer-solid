@@ -270,9 +270,39 @@ matched ✓
 
 If review is still numerically wrong, continue editing. If it is `stale` or `partial`, do not silently bind the intent to a different element.
 
+## Direct text editing: human UI and durable intent
+
+Direct text editing records human copy and typography intent without pretending to edit application source. It is not a separate top-level tool/plugin.
+
+The human enters it while **Select** or **Text Inspector** is active:
+
+```text
+double-click ordinary direct text
+(or double-tap with touch/pen)
+  ↓
+current text is selected in full
+  ↓
+in-place editor uses rendered typography
+  ↓
+Mesurer-style white formatting toolbar
+  + automatic Text Inspector card for that exact field
+  ↓
+Enter keeps Desired / Shift+Enter newline / Escape cancels
+```
+
+Because Arrange keeps Select active, this same interaction works while Arrange remains selected. The transient Text Inspector card does **not** globally enable Text Inspector or interrupt Arrange.
+
+The formatting surface deliberately uses Mesurer's canonical toolbar visual language. It exposes Bold/Italic/Underline, page-derived font families/sizes/weights/colors, and a custom color picker. The automatic card reuses the existing typography/card renderer and reports Family, Size, Weight, Line, Tracking, tag/text information, and CSS-variable references when available. It refreshes during the session.
+
+The current editing boundary is intentionally direct text rather than generic rich text: ordinary elements with one unambiguous non-empty direct text node. Native `<input>`, `<textarea>`, `<select>`, `contenteditable`, and ambiguous mixed/nested rich-text structures retain their normal browser/application behavior.
+
+The automatic inspector card is **transient human presentation**, not another durable context channel. Durable intent is the saved text-edit record.
+
+See the repository's canonical [`docs/TEXT_EDITING.md`](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TEXT_EDITING.md) for the full interaction and runtime contract.
+
 ## Text/style Desired edits are source intent too
 
-Direct text editing records human copy and typography intent without pretending to edit application source. If `capabilities.textEdit` is true, read saved edits before source changes:
+If `capabilities.textEdit` is true, read saved edits before source changes:
 
 ```js
 const edits = await window.__MESURER__.textEdits()
@@ -294,7 +324,11 @@ styles[]
   desired
 ```
 
-Treat Desired copy and style deltas as a **visual/source specification**, not a request to paste Mesurer's preview implementation into production. If the person chose a font, weight, or color that already exists on the rendered page, inspect the codebase for the semantic component prop, class, CSS variable, design token, theme value, or stylesheet rule that produces it.
+Current style deltas can include font family, size, weight, style, color, and text-decoration line.
+
+Treat Desired copy and style deltas as a **visual/source specification**, not a request to paste Mesurer's preview implementation into production. If the person chose a font, weight, size, or color that already exists on the rendered page, inspect the codebase for the semantic component prop, class, CSS variable, design token, theme value, or stylesheet rule that produces it.
+
+Page-derived options are evidence of what the application already renders; they are not a source-code token scanner and do not imply that the sampled computed value belongs in an inline style.
 
 While Select or Text Inspector is active, Mesurer may be rendering the saved Desired text/style as a reversible preview. Do not compare against that preview and declare the source implementation correct.
 
@@ -493,12 +527,13 @@ try {
 }
 ```
 
-Arrange uses the same ownership model through `arrangeCapturePlan()` while adding explicit Before/Desired/Live presentation.
+Active direct-editor controls and its contextual inspector card are Mesurer chrome, not application evidence. Arrange uses the same screenshot ownership model through `arrangeCapturePlan()` while adding explicit Before/Desired/Live presentation.
 
-Use both signals:
+Use all three signals when relevant:
 
 ```text
 Mesurer context/review → geometry, box model, styles, distances, overflow
+saved Desired intent    → requested Arrange geometry + copy/typography
 real screenshot          → composition, hierarchy, clipping, color, visual judgment
 ```
 
