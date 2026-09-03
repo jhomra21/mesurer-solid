@@ -107,7 +107,7 @@ for (const property of [
   "color",
   "text-decoration-line",
 ]) {
-  if (!rootDeclarations.includes(`"${property}"`)) {
+  if (!new RegExp(`["']${property}["']`).test(rootDeclarations)) {
     throw new Error(`Published MesurerTextStyleProperty is missing runtime style property: ${property}.`);
   }
 }
