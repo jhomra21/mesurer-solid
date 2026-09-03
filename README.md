@@ -140,7 +140,7 @@ Mesurer carries its own isolated Solid 2 renderer, so the host app does not need
 | Guides & rulers | Add visual alignment and position references |
 | X-ray | Inspect page structure visually |
 | Color Picker | Use the browser's native screen sampler when `EyeDropper` is operational; the tool is hidden in unsupported hosts |
-| Text Inspector | Inspect rendered typography, edit copy directly, and preview reversible page-derived typography/style changes |
+| Typography | Inspect rendered typography, edit copy directly, and preview reversible page-derived typography/style changes |
 | Settings | Configure tools and persisted behavior |
 | Arrange | Move selected elements into a desired visual layout without editing application source |
 | Screenshots | Capture a dragged viewport region with the optional screenshot plugin |
@@ -158,7 +158,7 @@ The default renderer and first-party plugins expose shortcuts only while their c
 | `X` | X-ray |
 | `P` | Native Color Picker when supported |
 | `R` | Rulers |
-| `A` | Text Inspector |
+| `A` | Typography |
 | `G` | Guides |
 | `H` / `V` | Choose horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
@@ -173,15 +173,15 @@ Color Picker intentionally has no DOM/CSS sampling fallback. In hosts where nati
 
 ## Edit text and typography directly
 
-Direct text editing extends the existing Text Inspector workflow and is also available while **Select** is active. Because Arrange keeps Select active, you can move an element, double-click its text, edit/style it, and continue arranging without switching to a separate editing tool.
+Direct text editing is available while **Typography** or **Select** is active. Because Arrange keeps Select active, you can move an element, double-click its text, edit/style it, and continue arranging without switching away from Arrange.
 
 Double-click direct text on desktop, or double-tap it with touch/pen. Mesurer opens an editor over the rendered text using that target's current typography and selects the entire current text so typing immediately replaces it.
 
-Opening the editor also shows the existing **Text Inspector information card for that exact field**. It reports Family, Size, Weight, Line, Tracking, the target/text snippet, and CSS-variable references when available, and it refreshes as the active edit changes. This contextual card does not globally activate Text Inspector or interfere with Arrange.
+Opening the editor also activates **Typography context for that exact field**. The Typography toolbar control becomes visibly active, and a live information card reports Family, Size, Weight, Line, Tracking, the target/text snippet, and CSS-variable references when available. This contextual activation does not steal Select mode, so Select and Arrange remain active. When editing ends, the contextual Typography state clears unless Typography itself was explicitly selected.
 
-The formatting strip uses the same visual language as the main Mesurer toolbar—white toolbar surface, compact rounded controls, normal Mesurer shadow, and blue active states—instead of introducing a separate editor UI. The default bar stays intentionally small: **B / I / U / Text ▾**.
+The editing toolbar keeps frequent typography controls directly available rather than hiding unrelated choices inside a Heading menu. It exposes **B / I / U**, page-derived **Font / Size / Weight**, common rendered-page text colors, a custom color control, and a separate semantic **Text / Heading** preset control.
 
-Open **Text ▾** for detailed typography. Its top section offers page-derived semantic presets:
+The semantic preset popup contains only:
 
 - **Text**;
 - **Heading 1** when the page renders a visible direct-text H1;
@@ -190,13 +190,13 @@ Open **Text ▾** for detailed typography. Its top section offers page-derived s
 
 Each preset uses the **dominant rendered typography bundle** for that semantic level rather than an arbitrary Mesurer default or whichever matching element happens to be visually unusual. The bundle includes family, size, weight, style, line height, tracking, text transform, and color. Heading levels the page does not use are not invented.
 
-Pages can still have multiple visual variants of a heading/body style. Those variants remain available in the lower part of the same Text menu through page-derived **Font**, **Size**, **Weight**, text-color swatches, and the custom color picker. So the semantic preset can stay canonical while a reviewer can still choose a special display font or other existing variant.
+Pages can still have multiple visual variants of a heading/body style. Those non-dominant variants remain available through the direct Font, Size, Weight, and Color controls. The semantic preset control is separated from those properties by a divider and uses a fixed-geometry chevron instead of a font glyph so its indicator stays optically centered.
 
-While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle the compact formatting controls. Text/H1/H2/H3 presets also expose `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere; a heading shortcut only applies when that level exists in the current page-derived catalog.
+While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle formatting. Text/H1/H2/H3 presets expose `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere; a heading shortcut only applies when that level exists in the current page-derived catalog.
 
 These suggestions come from the rendered page, so they reflect styles the application is actually using rather than an arbitrary preset list. The current target style is always retained as an option.
 
-Typing and style changes preview directly on the real rendered target. Press **Enter** to keep the Desired edit or **Shift+Enter** to insert a newline. If the Text menu is open, **Escape** closes the menu first; pressing Escape again cancels the current editing session. Clicking outside the editor/formatting surfaces commits the current session. Saved text/style edits participate in Mesurer state history and remain reversible previews rather than pretending to change application source.
+Typing and style changes preview directly on the real rendered target. Press **Enter** to keep the Desired edit or **Shift+Enter** to insert a newline. If the semantic preset popup is open, **Escape** closes it first; pressing Escape again cancels the current editing session. Clicking outside the editor/formatting surfaces commits the current session. Saved text/style edits participate in Mesurer state history and remain reversible previews rather than pretending to change application source.
 
 The current contract is deliberately **direct-text editing**, not generic rich-text editing. Mesurer targets ordinary elements with one unambiguous non-empty direct text node and does not hijack `<input>`, `<textarea>`, `<select>`, `contenteditable`, or mixed/nested rich-text structures. Link creation and numbered/bulleted lists are intentionally not exposed as fake formatting controls; those would require a real structural/rich-text intent model.
 
@@ -209,7 +209,7 @@ const intent = await window.__MESURER__.textEdit(edits.at(-1).id)
 
 Each intent records the target, Before/Desired copy, and requested style deltas. Coding agents should implement that visual outcome using the application's real component props, classes, CSS variables, theme/design tokens, or stylesheet rules when appropriate—not copy Mesurer's temporary preview styles blindly.
 
-See [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) for the complete human workflow, semantic preset rules, target boundaries, toolbar/inspector behavior, Before/Desired/Live semantics, agent API, Arrange coordination, runtime ownership, and browser validation contract.
+See [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) for the complete human workflow, semantic preset rules, target boundaries, toolbar/Typography behavior, Before/Desired/Live semantics, agent API, Arrange coordination, runtime ownership, and browser validation contract.
 
 ## Arrange a desired layout
 
@@ -382,7 +382,7 @@ mesurer-solid/inject-script
 ## Docs
 
 - [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md) — where to mount Mesurer and development/client setup
-- [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) — direct copy/typography editing, automatic inspector context, and agent intent
+- [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) — direct copy/typography editing, automatic Typography context, and agent intent
 - [`docs/ARRANGE.md`](./docs/ARRANGE.md) — Arrange visual layout intent and agent review
 - [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) — screenshot plugin
 - [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — context, selection, annotations, and review
