@@ -59,6 +59,16 @@ def normalize_version_text(value):
     return version_token.sub("Version<version>", str(value))
 
 
+def normalize_typography_label_text(value):
+    # The visible Solid product label intentionally diverges while the internal
+    # compatibility id and all icon/layout/style contracts remain unchanged.
+    return str(value).replace("Typography A", "Text inspector A")
+
+
+def normalize_allowed_settings_text(value):
+    return normalize_version_text(normalize_typography_label_text(value))
+
+
 def is_intentional_typography_label_difference(difference):
     """Allow only the documented Solid product-label rename; no visual/layout drift."""
     path = difference["path"]
@@ -71,8 +81,12 @@ def is_intentional_typography_label_difference(difference):
     if path in exact_label_paths:
         return react == "Text inspector (A)" and solid == "Typography (A)"
     if path == "toolbar.text":
-        return str(solid).replace("Typography A", "Text inspector A") == str(react)
+        return normalize_typography_label_text(solid) == str(react)
     return False
+
+
+def is_environmental_contract_difference(difference):
+    return difference["path"].endswith(non_design_contract_suffixes)
 
 
 report = {
@@ -140,7 +154,7 @@ for state in states:
     contract_diffs = [
         difference
         for difference in raw_contract_diffs
-        if not difference["path"].endswith(non_design_contract_suffixes)
+        if not is_environmental_contract_difference(difference)
         and not is_intentional_typography_label_difference(difference)
     ]
 
@@ -157,7 +171,9 @@ for state in states:
         "metric_differences": metric_diffs[:100],
         "contract_difference_count": len(contract_diffs),
         "contract_differences": contract_diffs[:200],
-        "ignored_environmental_contract_difference_count": len(raw_contract_diffs) - len(contract_diffs),
+        "ignored_environmental_contract_difference_count": sum(
+            is_environmental_contract_difference(item) for item in raw_contract_diffs
+        ),
         "ignored_typography_label_difference_count": sum(
             is_intentional_typography_label_difference(item)
             for item in [*raw_metric_diffs, *raw_contract_diffs]
@@ -190,8 +206,10 @@ for state, result in report["states"].items():
                 f"{state}: unexpected computed metric differences: {sorted(metric_paths - expected_general_metric_paths)}"
             )
         for item in result["metric_differences"]:
-            if normalize_version_text(item["react"]) != normalize_version_text(item["solid"]):
-                failures.append(f"{state}: allowed text difference is not solely the React/Solid version token")
+            if normalize_allowed_settings_text(item["react"]) != normalize_allowed_settings_text(item["solid"]):
+                failures.append(
+                    f"{state}: allowed text difference is not solely the version token plus the Typography product-label rename"
+                )
     else:
         if result["threshold_diff_pixels"] != 0:
             failures.append(f"{state}: {result['threshold_diff_pixels']} perceptible pixels differ")
