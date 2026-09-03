@@ -17,12 +17,12 @@ try {
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
   const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
   const target = page.locator(".primary-action");
-  const reference = page.locator(".type-card h2");
+  const variantReference = page.locator(".type-card h2");
 
   await selectButton.waitFor({ state: "visible" });
   await arrangeButton.waitFor({ state: "visible" });
   await target.waitFor({ state: "visible" });
-  await reference.waitFor({ state: "visible" });
+  await variantReference.waitFor({ state: "visible" });
 
   const before = await target.evaluate((element) => {
     const style = getComputedStyle(element);
@@ -39,7 +39,7 @@ try {
       decoration: style.textDecorationLine,
     };
   });
-  const referenceStyle = await reference.evaluate((element) => {
+  const variantStyle = await variantReference.evaluate((element) => {
     const style = getComputedStyle(element);
     return {
       fontFamily: style.fontFamily,
@@ -52,8 +52,47 @@ try {
       color: style.color,
     };
   });
+  const dominantHeading2Style = await page.locator("h2").evaluateAll((elements) => {
+    const variants = new Map();
+    for (const element of elements) {
+      const hasDirectText = Array.from(element.childNodes).some(
+        (node) => node.nodeType === Node.TEXT_NODE && Boolean(node.nodeValue?.trim()),
+      );
+      if (!hasDirectText) continue;
+      const style = getComputedStyle(element);
+      if (style.display === "none" || style.visibility === "hidden") continue;
+      const snapshot = {
+        fontFamily: style.fontFamily,
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+        fontStyle: style.fontStyle,
+        lineHeight: style.lineHeight,
+        letterSpacing: style.letterSpacing,
+        textTransform: style.textTransform,
+        color: style.color,
+      };
+      const signature = JSON.stringify(snapshot);
+      const current = variants.get(signature);
+      if (current) current.count += 1;
+      else variants.set(signature, { count: 1, snapshot });
+    }
+    const dominant = [...variants.entries()]
+      .sort(([leftSignature, left], [rightSignature, right]) =>
+        right.count - left.count || leftSignature.localeCompare(rightSignature))[0]?.[1];
+    if (!dominant) throw new Error("Expected at least one visible direct-text H2 for the Heading 2 preset contract");
+    return dominant.snapshot;
+  });
   const renderedHeadingTags = await page.locator("h1, h2, h3").evaluateAll((elements) =>
-    [...new Set(elements.map((element) => element.tagName))]);
+    [...new Set(elements
+      .filter((element) => {
+        const style = getComputedStyle(element);
+        return style.display !== "none"
+          && style.visibility !== "hidden"
+          && Array.from(element.childNodes).some(
+            (node) => node.nodeType === Node.TEXT_NODE && Boolean(node.nodeValue?.trim()),
+          );
+      })
+      .map((element) => element.tagName))]);
   const firstFamily = (families) => (families.split(",")[0] ?? families).trim().replace(/^['"]|['"]$/g, "");
 
   const targetBox = await target.boundingBox();
@@ -221,8 +260,8 @@ try {
   ]) {
     assert.equal(
       presetApplied[property],
-      referenceStyle[property],
-      `Heading 2 preset should apply page-derived ${property}: expected ${referenceStyle[property]}, got ${presetApplied[property]}`,
+      dominantHeading2Style[property],
+      `Heading 2 preset should apply dominant rendered ${property}: expected ${dominantHeading2Style[property]}, got ${presetApplied[property]}`,
     );
   }
 
@@ -233,9 +272,9 @@ try {
     const first = (family.split(",")[0] ?? family).trim().replace(/^['"]|['"]$/g, "");
     return text.includes(first) && text.includes(size) && text.includes(weight);
   }, {
-    family: referenceStyle.fontFamily,
-    size: referenceStyle.fontSize,
-    weight: referenceStyle.fontWeight,
+    family: dominantHeading2Style.fontFamily,
+    size: dominantHeading2Style.fontSize,
+    weight: dominantHeading2Style.fontWeight,
   });
 
   await styleMenuButton.click();
@@ -247,27 +286,27 @@ try {
   const sizes = await sizeSelect.locator("option").evaluateAll((options) => options.map((option) => option.value));
   const weights = await weightSelect.locator("option").evaluateAll((options) => options.map((option) => option.value));
   assert(
-    families.includes(referenceStyle.fontFamily),
-    `Page-derived font list should include ${referenceStyle.fontFamily}: ${JSON.stringify(families)}`,
+    families.includes(variantStyle.fontFamily),
+    `Non-dominant page font variant should remain available: ${variantStyle.fontFamily}: ${JSON.stringify(families)}`,
   );
   assert(
-    sizes.includes(referenceStyle.fontSize),
-    `Page-derived size list should include ${referenceStyle.fontSize}: ${JSON.stringify(sizes)}`,
+    sizes.includes(variantStyle.fontSize),
+    `Non-dominant page size variant should remain available: ${variantStyle.fontSize}: ${JSON.stringify(sizes)}`,
   );
   assert(
-    weights.includes(referenceStyle.fontWeight),
-    `Page-derived weight list should include ${referenceStyle.fontWeight}: ${JSON.stringify(weights)}`,
+    weights.includes(variantStyle.fontWeight),
+    `Non-dominant page weight variant should remain available: ${variantStyle.fontWeight}: ${JSON.stringify(weights)}`,
   );
 
-  await familySelect.selectOption(referenceStyle.fontFamily);
-  await sizeSelect.selectOption(referenceStyle.fontSize);
-  await weightSelect.selectOption(referenceStyle.fontWeight);
+  await familySelect.selectOption(variantStyle.fontFamily);
+  await sizeSelect.selectOption(variantStyle.fontSize);
+  await weightSelect.selectOption(variantStyle.fontWeight);
 
   // Exercise the simple formatting toggles as real reversible controls. Bold is toggled on
   // and back to the selected page weight so the final Desired state keeps that page-derived
-  // weight, while Italic and Underline remain as the user's requested Desired styling.
-  const numericReferenceWeight = Number.parseInt(referenceStyle.fontWeight, 10);
-  const toggledBoldWeight = Number.isFinite(numericReferenceWeight) && numericReferenceWeight >= 600 ? "400" : "700";
+  // variant, while Italic and Underline remain as the user's requested Desired styling.
+  const numericVariantWeight = Number.parseInt(variantStyle.fontWeight, 10);
+  const toggledBoldWeight = Number.isFinite(numericVariantWeight) && numericVariantWeight >= 600 ? "400" : "700";
   await boldButton.click();
   await page.waitForFunction((expected) => {
     const element = document.querySelector(".primary-action");
@@ -277,9 +316,9 @@ try {
   await page.waitForFunction((expected) => {
     const element = document.querySelector(".primary-action");
     return element instanceof HTMLElement && getComputedStyle(element).fontWeight === expected;
-  }, referenceStyle.fontWeight);
+  }, variantStyle.fontWeight);
 
-  const desiredFontStyle = referenceStyle.fontStyle === "normal" ? "italic" : "normal";
+  const desiredFontStyle = variantStyle.fontStyle === "normal" ? "italic" : "normal";
   await italicButton.click();
   await page.waitForFunction((expected) => {
     const element = document.querySelector(".primary-action");
@@ -297,8 +336,12 @@ try {
   const colorSwatches = page.locator("[data-mesurer-text-color]");
   const swatchColors = await colorSwatches.evaluateAll((items) => items.map((item) => item.dataset.mesurerTextColor));
   assert(swatchColors.length > 1, "Text styling should expose a quick list of rendered page colors inside the Text menu");
-  const alternateColor = swatchColors.find((value) => value && value !== referenceStyle.color);
-  assert(alternateColor, `Expected a rendered-page color different from ${referenceStyle.color}`);
+  assert(
+    swatchColors.includes(variantStyle.color),
+    `Non-dominant page color variant should remain available: ${variantStyle.color}: ${JSON.stringify(swatchColors)}`,
+  );
+  const alternateColor = swatchColors.find((value) => value && value !== variantStyle.color);
+  assert(alternateColor, `Expected a rendered-page color different from ${variantStyle.color}`);
   await page.locator(`[data-mesurer-text-color=${JSON.stringify(alternateColor)}]`).click();
   await page.waitForFunction((expected) => {
     const element = document.querySelector(".primary-action");
@@ -345,13 +388,13 @@ try {
     };
   });
   assert.equal(desired.text, desiredText, "Committed text should remain as Desired while Select/Arrange is active");
-  assert.equal(desired.fontFamily, referenceStyle.fontFamily, "Chosen heading/page font should preview on the real target");
-  assert.equal(desired.fontSize, referenceStyle.fontSize, "Chosen heading/page size should preview on the real target");
-  assert.equal(desired.fontWeight, referenceStyle.fontWeight, "Chosen heading/page weight should preview on the real target");
+  assert.equal(desired.fontFamily, variantStyle.fontFamily, "Chosen page font variant should preview on the real target");
+  assert.equal(desired.fontSize, variantStyle.fontSize, "Chosen page size variant should preview on the real target");
+  assert.equal(desired.fontWeight, variantStyle.fontWeight, "Chosen page weight variant should preview on the real target");
   assert.equal(desired.fontStyle, desiredFontStyle, "Italic toggle should preview on the real target");
-  assert.equal(desired.lineHeight, referenceStyle.lineHeight, "Heading preset should carry the page-derived line height");
-  assert.equal(desired.letterSpacing, referenceStyle.letterSpacing, "Heading preset should carry the page-derived tracking");
-  assert.equal(desired.textTransform, referenceStyle.textTransform, "Heading preset should carry the page-derived text transform");
+  assert.equal(desired.lineHeight, dominantHeading2Style.lineHeight, "Heading preset should carry the dominant page-derived line height");
+  assert.equal(desired.letterSpacing, dominantHeading2Style.letterSpacing, "Heading preset should carry the dominant page-derived tracking");
+  assert.equal(desired.textTransform, dominantHeading2Style.textTransform, "Heading preset should carry the dominant page-derived text transform");
   assert.equal(desired.color, customRenderedColor, "Custom text color should preview on the real target");
   assert.equal(desired.decoration.includes("underline"), desiredUnderline, "Underline toggle should preview on the real target");
 
@@ -390,20 +433,20 @@ try {
       && style.textDecorationLine.includes("underline") === underline;
   }, {
     text: desiredText,
-    fontFamily: referenceStyle.fontFamily,
-    fontSize: referenceStyle.fontSize,
-    fontWeight: referenceStyle.fontWeight,
+    fontFamily: variantStyle.fontFamily,
+    fontSize: variantStyle.fontSize,
+    fontWeight: variantStyle.fontWeight,
     fontStyle: desiredFontStyle,
-    lineHeight: referenceStyle.lineHeight,
-    letterSpacing: referenceStyle.letterSpacing,
-    textTransform: referenceStyle.textTransform,
+    lineHeight: dominantHeading2Style.lineHeight,
+    letterSpacing: dominantHeading2Style.letterSpacing,
+    textTransform: dominantHeading2Style.textTransform,
     color: customRenderedColor,
     underline: desiredUnderline,
   });
 
   assert.equal(pageErrors.length, 0, `Text editing browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Text editing browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Arrange-compatible direct text editing + compact Text menu + page-derived heading presets + Mesurer toolbar UI + automatic Text Inspector + B/I/U + custom color + reversible Desired state: PASS");
+  console.log("Arrange-compatible direct text editing + compact Text menu + dominant page-derived heading presets + preserved typography variants + Mesurer toolbar UI + automatic Text Inspector + B/I/U + custom color + reversible Desired state: PASS");
 } finally {
   await browser.close();
 }
