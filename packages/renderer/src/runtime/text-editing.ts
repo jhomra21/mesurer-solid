@@ -1461,13 +1461,15 @@ export function installTextEditing(
         return;
       }
       if (inEditor && event.altKey && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
-        const idByKey: Partial<Record<string, TextStylePresetId>> = {
-          "0": "text",
-          "1": "heading-1",
-          "2": "heading-2",
-          "3": "heading-3",
-        };
-        const presetId = idByKey[event.key];
+        const presetId = event.key === "0"
+          ? "text"
+          : event.key === "1"
+            ? "heading-1"
+            : event.key === "2"
+              ? "heading-2"
+              : event.key === "3"
+                ? "heading-3"
+                : null;
         const preset = presetId
           ? session.catalog.presets.find((candidate) => candidate.id === presetId)
           : null;
