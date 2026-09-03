@@ -135,7 +135,7 @@ Copy Selection
 Add Note
 ```
 
-`select()` is programmatic agent/harness functionality, not another human toolbar button. Direct text editing similarly has no competing top-level Text Edit button: it is entered by double-click/double-tap while Select or Text Inspector is active. When `mesurer.screenshot` is enabled, its camera tool is a separate plugin-contributed toolbar control.
+`select()` is programmatic agent/harness functionality, not another human toolbar button. Direct text editing similarly has no competing top-level Text Edit button: it is entered by double-click/double-tap while Select or **Typography** is active. The human-facing tool is Typography; the existing internal compatibility id/command remains `text-inspector` / `builtin.text-inspector`. When `mesurer.screenshot` is enabled, its camera tool is a separate plugin-contributed toolbar control.
 
 ## Broad Mesurer requests are a full intent sweep
 
@@ -336,9 +336,11 @@ const intent = await window.__MESURER__.textEdit(editId)
 
 Each intent records target identity, Before text, Desired text, and requested style deltas. The human may have chosen typography/color values from styles already rendered on the page, but the coding agent should still implement the semantic source-level class/token/prop/rule rather than blindly reproducing Mesurer's preview inline style.
 
-While Select or Text Inspector is active, Mesurer may show the Desired text/style preview. That preview is not proof that source code has been updated. For final verification, keep the intent, deactivate the previewing mode, and compare the target's real rendered copy/computed typography with Desired.
+The direct editing UI keeps direct properties and semantic presets separate. Bold/Italic/Underline, Font, Size, Weight, rendered text colors, and custom color live in the typography toolbar. A separate popup contains only Text plus available Heading 1/2/3 semantic presets derived from dominant rendered page typography. Non-dominant variants remain available through the direct controls.
 
-The automatic Text Inspector card shown during editing is transient human UI. It does not create another saved context channel; the durable machine-readable evidence is the text-edit intent plus ordinary rendered context.
+While Select or Typography is active, Mesurer may show the Desired text/style preview. That preview is not proof that source code has been updated. For final verification, keep the intent, deactivate the previewing mode, and compare the target's real rendered copy/computed typography with Desired.
+
+The contextual Typography card shown during editing is transient human UI. It does not create another saved context channel; the durable machine-readable evidence is the text-edit intent plus ordinary rendered context.
 
 See [`TEXT_EDITING.md`](./TEXT_EDITING.md) for the full workflow.
 
@@ -385,7 +387,7 @@ The human context toolbar has exactly three controls:
 | Copy Selection | `Shift+C` | Copies context scoped to current selection. |
 | Add Note | `N` | Creates a durable annotation baseline. |
 
-Agents read `window.__MESURER__` directly and do not need to click these controls. Direct text editing uses the Select/Text Inspector gesture rather than adding another Context control. The screenshot camera, when enabled, belongs to `mesurer.screenshot` and deliberately does not claim `C`.
+Agents read `window.__MESURER__` directly and do not need to click these controls. Direct text editing uses the Select/Typography gesture rather than adding another Context control. The screenshot camera, when enabled, belongs to `mesurer.screenshot` and deliberately does not claim `C`.
 
 ## Read before editing
 
@@ -428,7 +430,7 @@ Switch the relevant Arrange intent to Live and run `reviewArrange()` so its temp
 
 ### Text/style intent
 
-Keep the saved text-edit intent, deactivate Select/Text Inspector previewing without clearing history, then inspect the target's actual rendered text and computed typography. A correct implementation survives with Mesurer's text/style preview inactive.
+Keep the saved text-edit intent, deactivate Select/Typography previewing without clearing history, then inspect the target's actual rendered text and computed typography. A correct implementation survives with Mesurer's text/style preview inactive.
 
 ### Annotation baseline
 
@@ -494,7 +496,7 @@ try {
 }
 ```
 
-Capture mode hides Mesurer control chrome while preserving page content, selections/annotations, rulers, guides, measurements, held distances, and pixel labels.
+Capture mode hides Mesurer control chrome—including active direct-editor controls, the semantic preset popup, and the contextual Typography card—while preserving page content, selections/annotations, rulers, guides, measurements, held distances, and pixel labels.
 
 ### Human screenshot plugin
 
