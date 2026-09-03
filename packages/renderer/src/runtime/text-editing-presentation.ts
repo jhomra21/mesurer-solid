@@ -11,8 +11,6 @@ type TypographyButtonSnapshot = {
   color: string;
 };
 
-const isElement = (value: Element | null): value is HTMLElement => value instanceof HTMLElement;
-
 /**
  * Keeps the field-local direct editor aligned with Mesurer's established
  * toolbar language without coupling Typography's hover/pin runtime to the
@@ -25,6 +23,8 @@ export function installTextEditingPresentation(
   runtime: MesurerSolidRuntimeService,
 ) {
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
+  // SAFETY: ownerWindow owns portalTarget and therefore supplies the matching DOM constructors.
+  const realm = ownerWindow as Window & typeof globalThis;
   const runtimeMounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
   const runtimeMount = runtimeMounts.item(runtimeMounts.length - 1);
   if (!runtimeMount) return;
@@ -88,7 +88,6 @@ export function installTextEditingPresentation(
       cursor: "pointer",
       outline: "none",
     });
-    select.addEventListener("mouseenter", () => { select.style.background = "rgba(0, 0, 0, 0.04)"; }, { once: true });
   };
 
   const styleColorControls = (swatches: HTMLElement) => {
@@ -131,7 +130,7 @@ export function installTextEditingPresentation(
     const spans = button.querySelectorAll<HTMLSpanElement>(":scope > span");
     const chevron = spans.item(spans.length - 1);
     if (!chevron) return;
-    chevron.textContent = "";
+    if (chevron.textContent) chevron.textContent = "";
     chevron.dataset.mesurerTextStyleChevron = "true";
     Object.assign(chevron.style, {
       width: "7px",
@@ -217,7 +216,7 @@ export function installTextEditingPresentation(
       }
 
       for (const child of Array.from(menu.children)) {
-        if (child instanceof HTMLButtonElement && child.hasAttribute("data-mesurer-text-style-preset")) continue;
+        if (child instanceof realm.HTMLButtonElement && child.hasAttribute("data-mesurer-text-style-preset")) continue;
         child.remove();
       }
       Object.assign(menu.style, {
@@ -227,20 +226,23 @@ export function installTextEditingPresentation(
       });
       menu.setAttribute("aria-label", "Text presets");
 
-      const oldSeparator = toolbar.querySelector<HTMLElement>("[data-mesurer-text-preset-separator='true']");
-      oldSeparator?.remove();
-      const separator = ownerDocument.createElement("span");
-      separator.dataset.mesurerTextPresetSeparator = "true";
-      separator.setAttribute("aria-hidden", "true");
-      Object.assign(separator.style, {
-        width: "1px",
-        height: "20px",
-        flex: "0 0 1px",
-        margin: "0 2px",
-        background: "rgba(0, 0, 0, 0.10)",
-      });
-      toolbar.insertBefore(separator, presetButton);
-      toolbar.append(presetButton);
+      let separator = toolbar.querySelector<HTMLElement>("[data-mesurer-text-preset-separator='true']");
+      if (!separator) {
+        separator = ownerDocument.createElement("span");
+        separator.dataset.mesurerTextPresetSeparator = "true";
+        separator.setAttribute("aria-hidden", "true");
+        Object.assign(separator.style, {
+          width: "1px",
+          height: "20px",
+          flex: "0 0 1px",
+          margin: "0 2px",
+          background: "rgba(0, 0, 0, 0.10)",
+        });
+        toolbar.insertBefore(separator, presetButton);
+      } else if (separator.nextSibling !== presetButton) {
+        toolbar.insertBefore(separator, presetButton);
+      }
+      if (toolbar.lastElementChild !== presetButton) toolbar.append(presetButton);
       refinePresetButton(presetButton);
       positionRefinedSurfaces(toolbar, menu, inspectorCard);
     } finally {
@@ -248,7 +250,7 @@ export function installTextEditingPresentation(
     }
   };
 
-  const observer = new ownerWindow.MutationObserver(() => refine());
+  const observer = new realm.MutationObserver(() => refine());
   observer.observe(runtimeMount, { childList: true, subtree: true });
   refine();
 
