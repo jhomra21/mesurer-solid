@@ -128,6 +128,93 @@ describe("direct text editing", () => {
     expect(editor?.style.textAlign).toBe("center");
   });
 
+  it("uses dominant rendered Text and heading bundles without hiding page variants", async () => {
+    const { model, pageTarget } = await setup();
+    const target = document.createElement("p");
+    target.id = "preset-target";
+    target.textContent = "Target";
+    Object.assign(target.style, {
+      fontFamily: "Arial, sans-serif",
+      fontSize: "14px",
+      fontWeight: "400",
+      lineHeight: "20px",
+      color: "rgb(10, 20, 30)",
+    });
+
+    const bodyA = document.createElement("p");
+    bodyA.textContent = "Body A";
+    const bodyB = document.createElement("span");
+    bodyB.textContent = "Body B";
+    for (const body of [bodyA, bodyB]) {
+      Object.assign(body.style, {
+        fontFamily: "Georgia, serif",
+        fontSize: "18px",
+        fontWeight: "400",
+        lineHeight: "28px",
+        color: "rgb(40, 50, 60)",
+      });
+    }
+
+    const variantHeading = document.createElement("h2");
+    variantHeading.textContent = "Variant H2";
+    Object.assign(variantHeading.style, {
+      fontFamily: "Courier New, monospace",
+      fontSize: "30px",
+      fontWeight: "600",
+      lineHeight: "36px",
+      color: "rgb(150, 20, 40)",
+    });
+    const dominantHeadingA = document.createElement("h2");
+    dominantHeadingA.textContent = "Dominant H2 A";
+    const dominantHeadingB = document.createElement("h2");
+    dominantHeadingB.textContent = "Dominant H2 B";
+    for (const heading of [dominantHeadingA, dominantHeadingB]) {
+      Object.assign(heading.style, {
+        fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "24px",
+        fontWeight: "700",
+        lineHeight: "30px",
+        color: "rgb(20, 80, 140)",
+      });
+    }
+
+    pageTarget.append(target, bodyA, bodyB, variantHeading, dominantHeadingA, dominantHeadingB);
+    setRect(target, { left: 40, top: 40, width: 160, height: 28 });
+    installHitTest(target, pageTarget);
+
+    model.setToolMode("select");
+    target.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 60, clientY: 50 }));
+
+    const menuButton = document.querySelector<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']")!;
+    menuButton.click();
+    expect(document.querySelector("[data-mesurer-text-style-preset='heading-1']")).toBeNull();
+    expect(document.querySelector("[data-mesurer-text-style-preset='heading-3']")).toBeNull();
+
+    const textPreset = document.querySelector<HTMLButtonElement>("[data-mesurer-text-style-preset='text']")!;
+    textPreset.click();
+    expect(target.style.fontFamily).toContain("Georgia");
+    expect(target.style.fontSize).toBe("18px");
+    expect(target.style.lineHeight).toBe("28px");
+
+    menuButton.click();
+    const heading2 = document.querySelector<HTMLButtonElement>("[data-mesurer-text-style-preset='heading-2']")!;
+    heading2.click();
+    expect(target.style.fontFamily).toContain("Trebuchet MS");
+    expect(target.style.fontSize).toBe("24px");
+    expect(target.style.fontWeight).toBe("700");
+    expect(target.style.lineHeight).toBe("30px");
+
+    menuButton.click();
+    const family = document.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='font']")!;
+    const size = document.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='size']")!;
+    const weight = document.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='weight']")!;
+    const swatches = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-mesurer-text-color]"));
+    expect(Array.from(family.options).some((option) => option.value.includes("Courier New"))).toBe(true);
+    expect(Array.from(size.options).some((option) => option.value === "30px")).toBe(true);
+    expect(Array.from(weight.options).some((option) => option.value === "600")).toBe(true);
+    expect(swatches.some((button) => button.dataset.mesurerTextColor === "rgb(150, 20, 40)")).toBe(true);
+  });
+
   it("offers rendered page styles and records reversible text plus style intent", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("p");
