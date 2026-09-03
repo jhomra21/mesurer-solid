@@ -196,19 +196,35 @@ try {
 
   await heading2Preset.click();
   await styleMenu.waitFor({ state: "hidden" });
-  await page.waitForFunction((expected) => {
-    const element = document.querySelector(".primary-action");
-    if (!(element instanceof HTMLElement)) return false;
+  const presetApplied = await target.evaluate((element) => {
     const style = getComputedStyle(element);
-    return style.fontFamily === expected.fontFamily
-      && style.fontSize === expected.fontSize
-      && style.fontWeight === expected.fontWeight
-      && style.fontStyle === expected.fontStyle
-      && style.lineHeight === expected.lineHeight
-      && style.letterSpacing === expected.letterSpacing
-      && style.textTransform === expected.textTransform
-      && style.color === expected.color;
-  }, referenceStyle);
+    return {
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      fontStyle: style.fontStyle,
+      lineHeight: style.lineHeight,
+      letterSpacing: style.letterSpacing,
+      textTransform: style.textTransform,
+      color: style.color,
+    };
+  });
+  for (const property of [
+    "fontFamily",
+    "fontSize",
+    "fontWeight",
+    "fontStyle",
+    "lineHeight",
+    "letterSpacing",
+    "textTransform",
+    "color",
+  ]) {
+    assert.equal(
+      presetApplied[property],
+      referenceStyle[property],
+      `Heading 2 preset should apply page-derived ${property}: expected ${referenceStyle[property]}, got ${presetApplied[property]}`,
+    );
+  }
 
   await page.waitForFunction(({ family, size, weight }) => {
     const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
