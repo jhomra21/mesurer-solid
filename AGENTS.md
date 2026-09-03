@@ -16,7 +16,7 @@ There is no required Mesurer MCP, WebMCP, ACP, localhost feedback daemon, chat/s
 
 The optional `mesurer.screenshot` camera is a human capture tool/service, not an agent-delivery channel. Ordinary coding-agent screenshot evidence continues to use the existing outer harness. See [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md).
 
-Direct text editing is documented in [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md). It is a Mesurer Solid extension of the existing Select/Text Inspector workflow, not a competing top-level tool.
+Direct text editing is documented in [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md). It is a Mesurer Solid extension of the existing Select/**Typography** workflow, not a competing top-level text-edit tool. The human-facing tool name is Typography; the existing internal compatibility id/command remains `text-inspector` / `builtin.text-inspector`.
 
 ## Launch Evolution
 
@@ -58,7 +58,7 @@ When editing this repository:
 - do not remove or obscure the upstream repository link, copyright notice, MIT attribution, or pinned upstream parity references;
 - distinguish upstream-derived behavior from Mesurer Solid extensions such as the Solid 2 port, framework-independent public package, agent/context workflow, plugin runtime, Arrange, direct text editing, host-page isolation, and Trusted Types renderer;
 - for screenshot work, preserve the upstream-parity record: region capture/copy/download/extension capture came from the newer upstream product delta, while Mesurer Solid adapted it to the plugin architecture and extended the persistent preview/viewer behavior;
-- direct text editing is a Mesurer Solid extension that deliberately reuses the adopted Text Inspector typography/card primitives and canonical Mesurer toolbar visual language; do not describe it as upstream parity unless a future source audit establishes that;
+- direct text editing is a Mesurer Solid extension that deliberately reuses the adopted typography/card primitives from the internal `text-inspector` implementation and canonical Mesurer toolbar visual language; do not describe it as upstream parity unless a future source audit establishes that;
 - if documentation is reorganized, move attribution rather than deleting it;
 - treat weakened upstream attribution as a documentation regression.
 
@@ -193,7 +193,7 @@ textEdit(id)
 
 When the first-party Arrange plugin is mounted, capabilities also reports `arrange` and exposes its saved-intent/presentation/review methods.
 
-`select` is programmatic agent/harness functionality. It does not add a human context toolbar button. Human context controls remain Copy Context, Copy Selection, and Add Note. Direct text editing also does not add a competing top-level Text Edit tool; the human enters it by double-click/double-tap while Select or Text Inspector is active.
+`select` is programmatic agent/harness functionality. It does not add a human context toolbar button. Human context controls remain Copy Context, Copy Selection, and Add Note. Direct text editing also does not add a competing top-level Text Edit tool; the human enters it by double-click/double-tap while Select or Typography is active. When editing begins from Select/Arrange, Typography may become contextually active for the edited field without clearing Select or Arrange.
 
 There is no `sendContext()` or send/delivery capability. There is also no `screenshots` delivery capability: the screenshot plugin contributes a separate human camera tool and typed plugin service rather than adding image transport to `window.__MESURER__`.
 
@@ -355,19 +355,28 @@ Direct text editing is a reversible human specification, not a source editor.
 The human interaction is:
 
 ```text
-Select or Text Inspector active
+Select or Typography active
   → double-click direct text (double-tap touch/pen)
   → current text selected in full
-  → in-place editor + Mesurer-style formatting toolbar
-  → automatic Text Inspector information for the same field
+  → in-place editor + Mesurer-style typography toolbar
+  → contextual Typography information for the same field
   → Enter keeps Desired / Escape cancels
 ```
 
-Arrange keeps Select active, so the same editing flow can happen while Arrange remains selected.
+Arrange keeps Select active, so the same editing flow can happen while Arrange remains selected. Starting the edit contextually activates Typography for the field without turning off Select/Arrange.
+
+The typography surface deliberately separates **direct properties** from **semantic presets**:
+
+- direct toolbar controls: Bold, Italic, Underline, Font, Size, Weight, rendered-page text colors, and custom color;
+- separate semantic preset popup: Text plus Heading 1/2/3 only for semantic levels actually rendered by visible direct-text page elements;
+- semantic presets use the dominant rendered typography bundle for their level;
+- non-dominant page variants stay available through the direct Font/Size/Weight/color controls.
+
+The semantic popup must not become a second container for the direct typography controls. The CSS chevron beside the semantic trigger is part of the Mesurer control contract and rotates with popup state.
 
 The current target contract is deliberately narrow: ordinary elements with one unambiguous non-empty **direct text node**. Do not assume this is a generic rich-text engine. Native `<input>`, `<textarea>`, `<select>`, `contenteditable`, and ambiguous mixed/nested rich text retain their normal page/browser behavior.
 
-The automatic Text Inspector card is transient human UI. It shows Family, Size, Weight, Line, Tracking, target/text information, and CSS-variable references when available, but it does not create a separate durable context/intent record. The durable machine-readable record is:
+The contextual Typography card is transient human UI. It shows Family, Size, Weight, Line, Tracking, target/text information, and CSS-variable references when available, but it does not create a separate durable context/intent record. The durable machine-readable record is:
 
 ```js
 const edits = await window.__MESURER__.textEdits()
@@ -380,13 +389,13 @@ Page-derived font/size/weight/color options are useful evidence because they com
 
 ### Verify real Live source, not the Desired preview
 
-While Select or Text Inspector is active, Mesurer can preview saved Desired copy/style. That preview can make an unfinished source change look correct.
+While Select or Typography is active, Mesurer can preview saved Desired copy/style. That preview can make an unfinished source change look correct.
 
 After source edits:
 
 1. retain the relevant `textEdit(id)` record;
 2. wait for the application render to settle;
-3. deactivate the previewing Select/Text Inspector mode **without clearing text-edit history**;
+3. deactivate the previewing Select/Typography mode **without clearing text-edit history**;
 4. inspect the target's actual rendered text and computed typography;
 5. compare those Live values with the saved Desired copy/style deltas;
 6. reactivate Select only if continued review is useful.
@@ -437,7 +446,7 @@ try {
 }
 ```
 
-Capture preparation hides Mesurer control chrome. Active direct-editor controls and its transient automatic Text Inspector card are inspector chrome rather than host-app evidence.
+Capture preparation hides Mesurer control chrome. Active direct-editor controls, the semantic preset popup, and its transient contextual Typography card are inspector chrome rather than host-app evidence.
 
 Use both signals:
 
@@ -494,7 +503,7 @@ Do not clear Arrange history to reveal Live.
 
 ### Text/style intent exists
 
-Keep the saved text intent, deactivate its Select/Text Inspector preview, and compare the target's real source-rendered copy/computed typography against Desired as described above.
+Keep the saved text intent, deactivate its Select/Typography preview, and compare the target's real source-rendered copy/computed typography against Desired as described above.
 
 ### Human annotation exists
 
@@ -594,7 +603,7 @@ Do not fix website-specific occlusion bugs with hostname checks or selectors for
 
 The public mount boundary must defend against browser primitives. Current invariants include protected outer-host styles, ShadowRoot isolation, browser top-layer promotion, reassertion above later popovers/fullscreen changes, temporary reparenting into active modal dialogs, and a hardened fixed/max-z-index fallback.
 
-Plugin overlays/previews and transient direct-editor UI must obey the same isolation rules. The editor textarea, formatting toolbar, and automatic Text Inspector card must remain visible/interactable without becoming host-page targets or blockers. Screenshot selection, status, thumbnail, and viewer UI follow the same rule, and screenshot/capture presentation must exclude Mesurer control chrome from pixels before restoring prior presentation.
+Plugin overlays/previews and transient direct-editor UI must obey the same isolation rules. The editor textarea, direct typography toolbar, semantic preset popup, and contextual Typography card must remain visible/interactable without becoming host-page targets or blockers. Screenshot selection, status, thumbnail, and viewer UI follow the same rule, and screenshot/capture presentation must exclude Mesurer control chrome from pixels before restoring prior presentation.
 
 When a host-page bug appears, reduce it to the browser primitive, add a regression, and fix the shared mount/runtime boundary. See [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md).
 
@@ -607,11 +616,13 @@ Select
 X-ray
 Color Picker
 Rulers
-Text Inspector
+Typography
 Guides
 Distance overlay
 Settings
 ```
+
+The human-facing label is **Typography**. The established internal compatibility id and stable command remain `text-inspector` / `builtin.text-inspector`.
 
 Stable command routes:
 
@@ -627,7 +638,7 @@ builtin.settings
 
 Distance is currently an overlay capability and does not expose `builtin.distance`.
 
-Direct text editing is not another top-level built-in/command. It extends Select/Text Inspector interaction in the renderer bridge and records intent through the `text-edit` service.
+Direct text editing is not another top-level built-in/command. It extends Select/Typography interaction in the renderer bridge and records intent through the `text-edit` service.
 
 Screenshot is intentionally **not** another permanent built-in. `screenshotPlugin()` contributes the camera tool through the normal plugin host.
 
@@ -667,7 +678,7 @@ Prefer plugins for project-specific Mesurer extensions. Modify core only when be
 
 `mesurer.screenshot` is a first-party example of the plugin architecture: camera tool, settings, service, capture resource, preview/viewer UI, and cleanup all belong to the plugin rather than permanent core state.
 
-Direct text editing is intentionally different: it extends shared renderer Select/Text Inspector behavior and reuses `TypographyInspector` plus the existing Text Inspector card renderer. The renderer bridge owns the direct-edit runtime, state/service connection, editor session, and formatting surface; the Text Inspector tool does **not** secretly own/restyle the direct editor after focus.
+Direct text editing is intentionally different: it extends shared renderer Select/Typography behavior and reuses `TypographyInspector` plus the existing internal `text-inspector` card renderer. The renderer bridge owns the direct-edit runtime, state/service connection, editor session, direct typography toolbar, and semantic preset popup; the Typography tool does **not** secretly own/restyle the direct editor after focus.
 
 ## 17. Replacing a built-in
 
@@ -689,7 +700,7 @@ Plugin service object values never enter history/persistence; `describe()` expos
 
 Screenshot's region overlay, thumbnail, viewer, and status UI use renderer-owned mounts behind this opaque boundary. Public consumers import only `mesurer-solid/screenshot`.
 
-The direct text editor also uses a renderer-owned inspector mount. Its automatic Text Inspector card is presentation derived from the active target, not a new plugin UI registration or persistent Text Inspector pin.
+The direct text editor also uses a renderer-owned inspector mount. Its contextual Typography card is presentation derived from the active target, not a new plugin UI registration or persistent Typography pin.
 
 ## 19. Framework rules
 
@@ -725,8 +736,9 @@ Internal workspaces are private implementation details:
 - DOM helpers own canonical browser measurements and conservative selector/fingerprint identity;
 - `packages/renderer` owns the private Solid 2 UI/reactive adapter, direct text-edit runtime/presentation, and renderer-aware screenshot UI implementation;
 - direct text editing remains a renderer-bridge interaction/service, not a competing toolbar plugin;
-- Text Inspector and direct editing share typography/card primitives without hidden lifecycle ownership;
+- Typography and direct editing share typography/card primitives without hidden lifecycle ownership; `text-inspector` remains the internal compatibility id;
 - direct text target scope remains ordinary unambiguous direct text unless deliberately redesigned/tested/documented;
+- direct Font/Size/Weight/color controls remain distinct from the semantic Text/H1/H2/H3 preset popup;
 - `packages/mesurer` owns the public package and injection artifacts;
 - built-in and external features use the same plugin host;
 - screenshot remains optional plugin state rather than permanent measurement-core state;
