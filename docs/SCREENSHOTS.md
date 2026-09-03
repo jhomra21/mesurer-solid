@@ -58,7 +58,7 @@ When the plugin is mounted, **Settings → General → Plugins → Screenshot** 
 
 The camera toolbar button also has a small chevron quick menu for **Auto-copy**, **Auto-download**, and **Include measurements**. Tool visibility remains in the full Screenshot plugin settings. The quick menu and Settings use the same persisted values, and the quick menu closes after a preference is chosen.
 
-Screenshot-selection chrome and Mesurer control chrome are always excluded from the PNG. Turning **Include measurements** off only hides measurement presentation for the capture frame and restores it immediately afterward.
+Screenshot-selection chrome and Mesurer control chrome are always excluded from the PNG. That control chrome includes an active direct-text textarea, its Mesurer-style formatting toolbar, and its transient automatic Text Inspector card. Turning **Include measurements** off only hides measurement presentation for the capture frame and restores it immediately afterward.
 
 The controls use the same compact Settings switch geometry as Mesurer's existing Persist and Edge Reveal controls. Their values are persistent plugin settings, so the UI and `MesurerScreenshotService.settings()` / `setSettings()` stay in sync.
 
@@ -81,7 +81,9 @@ camera tool / Shift+S
 
 The crop uses the actual captured bitmap dimensions rather than assuming `devicePixelRatio`. This keeps the selected CSS rectangle aligned with the returned image even when the capture provider's bitmap scale differs from CSS pixels.
 
-Selection/capture chrome is excluded from the captured pixels. Existing page content is not rewritten merely to obtain the screenshot.
+Selection/capture/editor chrome is excluded from the captured pixels. Existing page content—including a committed/saved Desired text preview when that page state is intentionally being reviewed—is not rewritten merely to obtain the screenshot.
+
+If an agent needs proof of the **source-rendered Live** result for a saved text-edit intent, it must first deactivate Mesurer's text Desired preview as described in [`TEXT_EDITING.md`](./TEXT_EDITING.md). Hiding editor chrome alone does not turn a Desired preview into Live source evidence.
 
 ## Outputs and preview/viewer
 
@@ -132,7 +134,7 @@ window.__MESURER_CONFIG__ = {
 
 Set the configuration before the first injection. The first-party Chrome extension sets the equivalent option automatically.
 
-Do not reinject over an existing human Mesurer instance merely to turn the screenshot plugin on. Existing selection, guides, measurements, annotations, plugin state, and screenshot preview/viewer state are human review state and should be preserved. If the feature must be added to a live mounted instance, use the plugin host deliberately rather than destructive replacement.
+Do not reinject over an existing human Mesurer instance merely to turn the screenshot plugin on. Existing selection, guides, measurements, annotations, Arrange intents, text-edit intents, plugin state, and screenshot preview/viewer state are human review state and should be preserved. If the feature must be added to a live mounted instance, use the plugin host deliberately rather than destructive replacement.
 
 ## Typed screenshot service
 
@@ -168,20 +170,21 @@ try {
 
 Use `{ annotation: annotationId }` for a saved annotation baseline.
 
-The context plugin's `capturePlan()` / `prepareCapture()` / `finishCapture()` are not a hidden screenshot implementation. They define what evidence should remain visible and temporarily hide Mesurer control chrome so the outer harness can capture clean pixels.
+The context plugin's `capturePlan()` / `prepareCapture()` / `finishCapture()` are not a hidden screenshot implementation. They define what evidence should remain visible and temporarily hide Mesurer control chrome—including transient direct-editor UI—so the outer harness can capture clean pixels.
 
-The capability list therefore still has no `screenshots` or image-delivery capability. The screenshot plugin is a human tool/service; the context API remains context-first.
+The capability list therefore still has no `screenshots` or image-delivery capability. The screenshot plugin is a human tool/service; the context API remains context-first. Saved text/style intent remains available separately through `textEdits()` / `textEdit(id)`.
 
 ## How agents should use the two paths
 
 For ordinary UI implementation/review work:
 
 ```text
-Mesurer context/review → exact numbers and rendered state
+Mesurer context/review   → exact numbers and rendered state
+Arrange/text saved intent → requested human visual outcome
 outer harness screenshot → composition and visual judgment
 ```
 
-Do not estimate spacing, alignment, dimensions, or box-model facts from screenshot pixels when Mesurer can report them exactly.
+Do not estimate spacing, alignment, dimensions, or box-model facts from screenshot pixels when Mesurer can report them exactly. Do not use a screenshot of Mesurer's Desired text preview as proof that application source implements the edit; verify Live source with the preview inactive.
 
 When the task is specifically about the screenshot feature itself, test the screenshot plugin as the subject under test: camera activation, `Shift+S`, region selection, hidden capture chrome, HiDPI crop, output behavior, bottom-right 8px default preview placement, thumbnail dragging/clamping/dismissal, viewer actions, repeated captures, cancellation, and console cleanliness.
 
@@ -192,6 +195,8 @@ Agents should not close, replace, or otherwise mutate a human's existing screens
 Screenshot behavior has a dedicated browser contract in `visual-parity/screenshot-contract.mjs` and `.github/workflows/screenshot-contract.yml`.
 
 The contract exercises the real plugin lifecycle and deterministic capture fixture, including region selection, crop dimensions, cancellation, preview/viewer behavior, and restoration of Mesurer UI. Focused renderer coverage also locks the new-preview default to the bottom-right at an 8px inset while preserving drag clamping. Package guards require the public `./screenshot` entry and declarations to be present in the staged npm package.
+
+Direct text editing has a separate rendered browser contract. Screenshot-related changes must not accidentally include or break its transient editor/automatic-inspector chrome, and direct-text changes must keep screenshot capture presentation clean.
 
 Before a stable release that changes screenshot behavior or public screenshot documentation:
 
