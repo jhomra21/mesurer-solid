@@ -254,13 +254,21 @@ current text selected in full
   ↓
 in-place editor using the target's rendered typography
   ↓
-Mesurer-style white formatting toolbar
+compact Mesurer toolbar: B / I / U / Text ▾
   + automatic Text Inspector information for the exact field
   ↓
-Enter keeps Desired / Shift+Enter inserts newline / Escape cancels
+Enter keeps Desired / Shift+Enter inserts newline
 ```
 
-The formatting toolbar deliberately uses Mesurer's canonical compact white toolbar visual language and exposes Bold/Italic/Underline, page-derived font families/sizes/weights/colors, and a custom color picker.
+The default formatting bar deliberately stays compact. **B**, **I**, and **U** are direct Bold/Italic/Underline controls. **Text ▾** opens the detailed typography menu.
+
+At the top of that menu, Mesurer offers **Text** plus Heading 1/2/3 only for semantic levels actually rendered by visible direct-text page elements. Each semantic preset represents the **dominant rendered typography bundle** for that level—font family, size, weight, style, line height, tracking, text transform, and color. The Text preset uses dominant visible direct-text paragraph/span typography. Heading levels absent from the page are not invented.
+
+Pages may contain multiple visual variants of one semantic level. A special non-dominant heading/body variant is still available through the menu's page-derived Font, Size, Weight, color swatches, and custom color picker. Semantic presets therefore express the canonical rendered style without hiding existing application variants.
+
+While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle formatting. Text/H1/H2/H3 expose `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere. A heading shortcut only applies when that heading level exists in the page-derived catalog.
+
+If the Text menu is open, the first **Escape** closes the menu and keeps editing; Escape with the menu closed cancels the edit session. Link creation and numbered/bulleted lists are intentionally not exposed as fake typography controls because those require a future structural/rich-text intent model.
 
 The automatic Text Inspector card reports Family, Size, Weight, Line, Tracking, tag/text information, and CSS-variable references when available. It updates during the edit session, but it is **transient human UI**: it does not globally enable Text Inspector, does not create a persistent pin, does not interrupt Arrange, and is not another durable agent context channel.
 
@@ -297,9 +305,9 @@ styles[]
   desired
 ```
 
-Treat `desired` and `styles[]` as the requested visual outcome, not as an implementation prescription. Mesurer may preview a font, size, weight, color, underline, or other text property with a temporary DOM style. Production code should use the application's real component props, classes, CSS variables, design tokens, theme values, or stylesheet rules where appropriate.
+Treat `desired` and `styles[]` as the requested visual outcome, not as an implementation prescription. Mesurer may preview a font, size, weight, line height, tracking, text transform, color, underline, or other text property with a temporary DOM style. Production code should use the application's real component props, classes, CSS variables, design tokens, theme values, or stylesheet rules where appropriate.
 
-Page-derived font/size/color/weight choices are useful evidence because the person selected from styles already rendered by the application. They are not a source-code token scanner and still do **not** mean the agent should blindly add an inline style with the sampled computed value. Inspect the source and reuse the semantic source-level token/class when it exists.
+Page-derived semantic presets and font/size/color/weight choices are useful evidence because the person selected from styles already rendered by the application. They are not a source-code token scanner and still do **not** mean the agent should blindly add inline styles with sampled computed values. Inspect the source and reuse the semantic source-level token/class when it exists.
 
 Preserve each relevant intent id, selector, Before text, Desired text, and style deltas before HMR can replace the target.
 
@@ -557,7 +565,7 @@ try {
 }
 ```
 
-Active direct-editor controls and its automatic Text Inspector card are Mesurer chrome, not application evidence. Arrange follows the same ownership model through `arrangeCapturePlan()`. The important difference is that Arrange can deliberately present Before, Desired, or Live before the harness captures.
+Active direct-editor controls, the Text menu, and its automatic Text Inspector card are Mesurer chrome, not application evidence. Arrange follows the same ownership model through `arrangeCapturePlan()`. The important difference is that Arrange can deliberately present Before, Desired, or Live before the harness captures.
 
 Use all relevant signals:
 
@@ -639,9 +647,10 @@ Prefer `arrangements()`, `textEdits()`, `context()`, `select()`, `reviewArrange(
 - do not clear text-edit history merely to reveal or validate Live source state;
 - do not implement Arrange offsets as production transforms unless the source layout genuinely calls for that;
 - do not implement a text/style Desired preview as arbitrary production inline styles when the source design system has a semantic token/class/component API;
-- do not treat page-derived computed font/size/weight/color values as automatic source-token instructions;
+- do not treat page-derived computed font/size/weight/color values or semantic presets as automatic source-token instructions;
 - do not treat the automatic direct-edit Text Inspector card as another saved context/intent channel;
 - do not automate the direct editor for normal application work when saved `textEdit` intent already describes the human request;
+- do not add or infer Link/List structural intent from the current typography-only direct-edit contract;
 - do not capture only Desired after source editing; preserve Before and Desired first when screenshot comparison matters;
 - do not close/destroy a human screenshot preview merely to clean up agent state;
 - do not use `select()` with a knowingly ambiguous selector;
