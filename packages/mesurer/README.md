@@ -188,6 +188,10 @@ With **Select** or **Text Inspector** active, double-click direct text on deskto
 
 Because Arrange keeps Select active, the same workflow works while arranging: move a selected element, double-click its text, edit/style it, and continue arranging.
 
+Opening the editor automatically shows Text Inspector information for the exact field being edited. The contextual card uses the existing Text Inspector renderer and reports Family, Size, Weight, Line, Tracking, target/text information, and CSS-variable references when available. It refreshes during the edit session without globally switching Mesurer into Text Inspector mode or interrupting Arrange.
+
+The floating formatting strip deliberately uses the same white compact toolbar language as the main Mesurer toolbar rather than a separate editor visual system.
+
 The editor offers:
 
 - Bold, Italic, and Underline;
@@ -197,9 +201,11 @@ The editor offers:
 - common text colors already rendered on the page;
 - a custom color picker.
 
-The page-derived lists use computed styles from actual rendered text, not a built-in font/color preset. Mesurer live-previews the requested copy and styles on the target. Press **Enter** to keep the Desired edit or **Escape** to cancel the current editing session.
+The page-derived lists use computed styles from actual rendered text, not a built-in font/color preset. Mesurer live-previews the requested copy and styles on the target. Press **Enter** to keep the Desired edit, **Shift+Enter** to insert a newline, or **Escape** to cancel the current editing session. Clicking outside the active editor/formatting strip commits it.
 
-Saved text/style changes remain reversible Mesurer intent and participate in history. They do not write application source. Native `<input>`, `<textarea>`, `<select>`, and `contenteditable` controls keep their normal browser/application editing behavior.
+Saved text/style changes remain reversible Mesurer intent and participate in history. They do not write application source.
+
+The current contract is deliberately direct-text editing rather than a generic rich-text engine. Mesurer targets ordinary elements with one unambiguous non-empty direct text node. Native `<input>`, `<textarea>`, `<select>`, and `contenteditable` controls keep their normal browser/application editing behavior, and mixed/nested rich-text structures are not silently flattened into this workflow.
 
 When `agent: true` is enabled, the agent surface advertises `textEdit: true` and exposes saved intent directly:
 
@@ -209,6 +215,8 @@ const intent = await window.__MESURER__.textEdit(edits.at(-1).id)
 ```
 
 The intent carries target identity, Before/Desired text, and requested style deltas. A coding agent should map those requests to the application's real component props, classes, CSS variables, design tokens, theme values, or stylesheets instead of copying temporary Mesurer preview styles blindly.
+
+For the complete interaction, Before/Desired/Live semantics, target boundaries, automatic inspector behavior, agent verification workflow, and validation contract, see [`docs/TEXT_EDITING.md`](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TEXT_EDITING.md).
 
 ## Arrange
 
@@ -461,6 +469,7 @@ Mesurer's renderer is bundled and isolated from the host framework. Supported ho
 ## More documentation
 
 - [Getting started](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md)
+- [Direct text editing](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TEXT_EDITING.md)
 - [Arrange](https://github.com/jhomra21/mesurer-solid/blob/main/docs/ARRANGE.md)
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
