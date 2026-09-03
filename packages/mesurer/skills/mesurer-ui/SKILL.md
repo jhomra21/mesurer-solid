@@ -244,7 +244,9 @@ Direct text editing is human copy and typography intent. It extends the existing
 
 ### Understand the human editing surface
 
-A person can open direct editing while **Select** or **Text Inspector** is active. Arrange keeps Select active, so this also works while Arrange remains selected.
+The human-facing inspection tool is **Typography**. Its existing internal compatibility id and stable command remain `text-inspector` / `builtin.text-inspector`; do not automate normal application work by guessing toolbar labels.
+
+A person can open direct editing while **Select** or **Typography** is active. Arrange keeps Select active, so this also works while Arrange remains selected. Starting the edit contextually activates Typography for the field while preserving Select/Arrange.
 
 ```text
 double-click ordinary direct text
@@ -254,23 +256,27 @@ current text selected in full
   ↓
 in-place editor using the target's rendered typography
   ↓
-compact Mesurer toolbar: B / I / U / Text ▾
-  + automatic Text Inspector information for the exact field
+Mesurer-style direct typography toolbar
+  B / I / U / Font / Size / Weight / Color
+  + separate semantic Text/H1/H2/H3 preset popup
+  + contextual Typography information for the exact field
   ↓
 Enter keeps Desired / Shift+Enter inserts newline
 ```
 
-The default formatting bar deliberately stays compact. **B**, **I**, and **U** are direct Bold/Italic/Underline controls. **Text ▾** opens the detailed typography menu.
+The direct toolbar and semantic preset popup have different jobs. **B**, **I**, **U**, Font, Size, Weight, rendered-page text colors, and custom color are direct controls. The semantic popup contains only **Text** plus Heading 1/2/3 for semantic levels actually rendered by visible direct-text page elements.
 
-At the top of that menu, Mesurer offers **Text** plus Heading 1/2/3 only for semantic levels actually rendered by visible direct-text page elements. Each semantic preset represents the **dominant rendered typography bundle** for that level—font family, size, weight, style, line height, tracking, text transform, and color. The Text preset uses dominant visible direct-text paragraph/span typography. Heading levels absent from the page are not invented.
+Each semantic preset represents the **dominant rendered typography bundle** for that level—font family, size, weight, style, line height, tracking, text transform, and color. The Text preset uses dominant visible direct-text paragraph/span typography. Heading levels absent from the page are not invented.
 
-Pages may contain multiple visual variants of one semantic level. A special non-dominant heading/body variant is still available through the menu's page-derived Font, Size, Weight, color swatches, and custom color picker. Semantic presets therefore express the canonical rendered style without hiding existing application variants.
+Pages may contain multiple visual variants of one semantic level. A special non-dominant heading/body variant remains available through the direct Font, Size, Weight, rendered color, and custom color controls. Semantic presets therefore express the canonical rendered style without hiding existing application variants.
+
+The semantic popup must not contain the direct Font/Size/Weight/color controls. Its CSS chevron is part of the UI contract and rotates with popup state.
 
 While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle formatting. Text/H1/H2/H3 expose `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere. A heading shortcut only applies when that heading level exists in the page-derived catalog.
 
-If the Text menu is open, the first **Escape** closes the menu and keeps editing; Escape with the menu closed cancels the edit session. Link creation and numbered/bulleted lists are intentionally not exposed as fake typography controls because those require a future structural/rich-text intent model.
+If the semantic preset popup is open, the first **Escape** closes the popup and keeps editing; Escape with it closed cancels the edit session. Link creation and numbered/bulleted lists are intentionally not exposed as fake typography controls because those require a future structural/rich-text intent model.
 
-The automatic Text Inspector card reports Family, Size, Weight, Line, Tracking, tag/text information, and CSS-variable references when available. It updates during the edit session, but it is **transient human UI**: it does not globally enable Text Inspector, does not create a persistent pin, does not interrupt Arrange, and is not another durable agent context channel.
+The contextual Typography card reports Family, Size, Weight, Line, Tracking, tag/text information, and CSS-variable references when available. It updates during the edit session, but it is **transient human UI**: it does not replace Select, turn Arrange off, create a persistent pin, or become another durable agent context channel.
 
 The current target contract is deliberately narrow. Direct editing targets ordinary page elements with one unambiguous non-empty **direct text node**. It is not a generic rich-text/form editor. Native `<input>`, `<textarea>`, `<select>`, `contenteditable`, and ambiguous mixed/nested rich-text structures retain their normal browser/application behavior.
 
@@ -313,13 +319,13 @@ Preserve each relevant intent id, selector, Before text, Desired text, and style
 
 ### Verify text edits against Live source, not Mesurer's preview
 
-While Select or Text Inspector is active, Mesurer can render the saved Desired copy/style as a reversible preview. Do not inspect that preview and claim the source implementation is complete.
+While Select or Typography is active, Mesurer can render the saved Desired copy/style as a reversible preview. Do not inspect that preview and claim the source implementation is complete.
 
 After making source changes:
 
 1. wait for the application to render;
 2. preserve the text-edit intent;
-3. ensure Mesurer's text Desired preview is not masking the target by deactivating the active Select/Text Inspector mode without clearing the saved intent;
+3. ensure Mesurer's text Desired preview is not masking the target by deactivating the active Select/Typography mode without clearing the saved intent;
 4. inspect the target's actual rendered text and computed typography;
 5. compare those Live values with the saved Desired text/style changes;
 6. reactivate Select only if continued Mesurer review is useful.
@@ -565,7 +571,7 @@ try {
 }
 ```
 
-Active direct-editor controls, the Text menu, and its automatic Text Inspector card are Mesurer chrome, not application evidence. Arrange follows the same ownership model through `arrangeCapturePlan()`. The important difference is that Arrange can deliberately present Before, Desired, or Live before the harness captures.
+Active direct-editor controls, the semantic preset popup, and its contextual Typography card are Mesurer chrome, not application evidence. Arrange follows the same ownership model through `arrangeCapturePlan()`. The important difference is that Arrange can deliberately present Before, Desired, or Live before the harness captures.
 
 Use all relevant signals:
 
@@ -648,7 +654,7 @@ Prefer `arrangements()`, `textEdits()`, `context()`, `select()`, `reviewArrange(
 - do not implement Arrange offsets as production transforms unless the source layout genuinely calls for that;
 - do not implement a text/style Desired preview as arbitrary production inline styles when the source design system has a semantic token/class/component API;
 - do not treat page-derived computed font/size/weight/color values or semantic presets as automatic source-token instructions;
-- do not treat the automatic direct-edit Text Inspector card as another saved context/intent channel;
+- do not treat the contextual direct-edit Typography card as another saved context/intent channel;
 - do not automate the direct editor for normal application work when saved `textEdit` intent already describes the human request;
 - do not add or infer Link/List structural intent from the current typography-only direct-edit contract;
 - do not capture only Desired after source editing; preserve Before and Desired first when screenshot comparison matters;
