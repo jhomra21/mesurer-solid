@@ -179,22 +179,26 @@ Double-click direct text on desktop, or double-tap it with touch/pen. Mesurer op
 
 Opening the editor also shows the existing **Text Inspector information card for that exact field**. It reports Family, Size, Weight, Line, Tracking, the target/text snippet, and CSS-variable references when available, and it refreshes as the active edit changes. This contextual card does not globally activate Text Inspector or interfere with Arrange.
 
-The formatting strip uses the same visual language as the main Mesurer toolbar—white toolbar surface, compact rounded controls, normal Mesurer shadow, and blue active states—instead of introducing a separate editor UI.
+The formatting strip uses the same visual language as the main Mesurer toolbar—white toolbar surface, compact rounded controls, normal Mesurer shadow, and blue active states—instead of introducing a separate editor UI. The default bar stays intentionally small: **B / I / U / Text ▾**.
 
-The compact style controls expose:
+Open **Text ▾** for detailed typography. Its top section offers page-derived semantic presets:
 
-- **Bold**, **Italic**, and **Underline**;
-- font families already rendered on the current page;
-- font sizes already rendered on the current page;
-- font weights already rendered on the current page;
-- commonly used text colors already rendered on the current page;
-- a custom color picker when the desired color is not already present.
+- **Text**;
+- **Heading 1** when the page renders a visible direct-text H1;
+- **Heading 2** when the page renders a visible direct-text H2;
+- **Heading 3** when the page renders a visible direct-text H3.
+
+Each preset uses the **dominant rendered typography bundle** for that semantic level rather than an arbitrary Mesurer default or whichever matching element happens to be visually unusual. The bundle includes family, size, weight, style, line height, tracking, text transform, and color. Heading levels the page does not use are not invented.
+
+Pages can still have multiple visual variants of a heading/body style. Those variants remain available in the lower part of the same Text menu through page-derived **Font**, **Size**, **Weight**, text-color swatches, and the custom color picker. So the semantic preset can stay canonical while a reviewer can still choose a special display font or other existing variant.
+
+While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle the compact formatting controls. Text/H1/H2/H3 presets also expose `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere; a heading shortcut only applies when that level exists in the current page-derived catalog.
 
 These suggestions come from the rendered page, so they reflect styles the application is actually using rather than an arbitrary preset list. The current target style is always retained as an option.
 
-Typing and style changes preview directly on the real rendered target. Press **Enter** to keep the Desired edit, **Shift+Enter** to insert a newline, or **Escape** to cancel the current editing session. Clicking outside the editor/formatting strip commits the current session. Saved text/style edits participate in Mesurer state history and remain reversible previews rather than pretending to change application source.
+Typing and style changes preview directly on the real rendered target. Press **Enter** to keep the Desired edit or **Shift+Enter** to insert a newline. If the Text menu is open, **Escape** closes the menu first; pressing Escape again cancels the current editing session. Clicking outside the editor/formatting surfaces commits the current session. Saved text/style edits participate in Mesurer state history and remain reversible previews rather than pretending to change application source.
 
-The current contract is deliberately **direct-text editing**, not generic rich-text editing. Mesurer targets ordinary elements with one unambiguous non-empty direct text node and does not hijack `<input>`, `<textarea>`, `<select>`, `contenteditable`, or mixed/nested rich-text structures.
+The current contract is deliberately **direct-text editing**, not generic rich-text editing. Mesurer targets ordinary elements with one unambiguous non-empty direct text node and does not hijack `<input>`, `<textarea>`, `<select>`, `contenteditable`, or mixed/nested rich-text structures. Link creation and numbered/bulleted lists are intentionally not exposed as fake formatting controls; those would require a real structural/rich-text intent model.
 
 When the agent bridge is enabled, saved text/style intent is available separately from ordinary context:
 
@@ -205,7 +209,7 @@ const intent = await window.__MESURER__.textEdit(edits.at(-1).id)
 
 Each intent records the target, Before/Desired copy, and requested style deltas. Coding agents should implement that visual outcome using the application's real component props, classes, CSS variables, theme/design tokens, or stylesheet rules when appropriate—not copy Mesurer's temporary preview styles blindly.
 
-See [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) for the complete human workflow, target boundaries, toolbar/inspector behavior, Before/Desired/Live semantics, agent API, Arrange coordination, runtime ownership, and browser validation contract.
+See [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) for the complete human workflow, semantic preset rules, target boundaries, toolbar/inspector behavior, Before/Desired/Live semantics, agent API, Arrange coordination, runtime ownership, and browser validation contract.
 
 ## Arrange a desired layout
 
