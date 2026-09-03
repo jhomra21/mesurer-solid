@@ -18,9 +18,11 @@ The outer harness already knows which task/conversation it belongs to. Mesurer d
 
 Mesurer also has an optional first-party **human screenshot plugin**. That camera tool is distinct from the outer harness's task screenshot primitive; see [Screenshot capture](./SCREENSHOTS.md).
 
+Direct text editing is another page-native human-intent path. It uses the same mounted renderer and exposes saved text/style Desired intent through `window.__MESURER__`; see [`TEXT_EDITING.md`](./TEXT_EDITING.md).
+
 ## Primary rule: discover before injecting
 
-A person may already have a live Mesurer instance with selections, guides, measurements, held distances, rulers/X-ray state, annotations, or a screenshot thumbnail/viewer. That state must survive agent attachment.
+A person may already have a live Mesurer instance with selections, guides, measurements, held distances, rulers/X-ray state, annotations, Arrange intents, saved text/style edits, or a screenshot thumbnail/viewer. That state must survive agent attachment.
 
 Before evaluating an injector:
 
@@ -120,7 +122,7 @@ Use replacement only for explicit HMR/test/tooling scenarios. It is not part of 
 
 The first-party extension still owns its explicit toggle behavior. Agent discovery should not simulate that toggle when it merely wants to read current state.
 
-## Direct context capability contract
+## Direct capability contract
 
 Injected usage installs `mesurer.context` by default.
 
@@ -140,21 +142,40 @@ review
 capturePlan
 ```
 
+When direct text editing is available, capabilities also reports:
+
+```text
+textEdit
+```
+
+and the harness can read:
+
+```js
+const edits = await window.__MESURER__.textEdits()
+const intent = await window.__MESURER__.textEdit(editId)
+```
+
+When Arrange is mounted, `arrange` adds its intent/presentation/review methods too.
+
 `select` is a programmatic agent/harness operation, not another human toolbar action. There is no `send`, `screenshots`, or `sendContext` **delivery capability**. The visible context UI remains exactly Copy Context, Copy Selection, and Add Note. Copy is a human clipboard convenience; agents read the API directly.
 
-The optional `mesurer.screenshot` plugin does not change this contract. It contributes a camera tool and typed plugin service rather than a JSON-safe agent delivery capability.
+Direct text editing likewise does not add a competing top-level Text Edit tool. Human entry is double-click/double-tap while Select or Text Inspector is active. The optional `mesurer.screenshot` plugin does not change the delivery contract either; it contributes a camera tool and typed plugin service rather than a JSON-safe agent delivery capability.
 
 ## Shared visual context API
 
-Read the broad workspace:
+A broad Mesurer request should inventory all human-intent channels before narrowing:
 
 ```js
+const capabilities = window.__MESURER__.capabilities().capabilities
 const workspace = await window.__MESURER__.context()
-```
+const annotations = await window.__MESURER__.annotations()
+const arrangements = capabilities.arrange
+  ? await window.__MESURER__.arrangements()
+  : []
+const textEdits = capabilities.textEdit
+  ? await window.__MESURER__.textEdits()
+  : []
 
-Try the human's current selection before changing it:
-
-```js
 let selection = null
 try {
   selection = await window.__MESURER__.context({ scope: "selection" })
@@ -164,7 +185,6 @@ try {
 Read saved annotations:
 
 ```js
-const annotations = await window.__MESURER__.annotations()
 const annotationContexts = []
 for (const annotation of annotations) {
   annotationContexts.push(
@@ -173,9 +193,20 @@ for (const annotation of annotations) {
 }
 ```
 
-This gives structured data for the state the human can see: exact targets, selection regions, guides, measurements, held distances, rulers/X-ray state, box model, typography, layout, appearance, and overflow.
+Resolve relevant Arrange/text-edit records too:
 
-A harness gathers this state **before source edits** so unsaved selection identity is not lost across DOM replacement.
+```js
+const arrangeIntents = await Promise.all(
+  arrangements.map((intent) => window.__MESURER__.arrange(intent.id)),
+)
+const textEditIntents = await Promise.all(
+  textEdits.map((intent) => window.__MESURER__.textEdit(intent.id)),
+)
+```
+
+This gives structured data for the state the human can see and the Desired state they saved: exact targets, selection regions, guides, measurements, held distances, rulers/X-ray state, box model, typography, layout, appearance, overflow, Arrange geometry, and text/style intent.
+
+A harness gathers this state **before source edits** so unsaved selection identity and saved intent targets are not lost across DOM replacement.
 
 When there is no relevant human selection and the harness knows the exact rendered targets it changed, select them directly:
 
@@ -187,6 +218,25 @@ const changedContext = await window.__MESURER__.select([
 ```
 
 `select()` requires each selector to resolve to exactly one target, visibly highlights those targets using Mesurer's normal Select state, and returns selection-scoped `MesurerContextV1`. If target identity is genuinely ambiguous, ask the user to select the intended element(s) or region instead of guessing.
+
+## Direct text-edit interaction in a browser harness
+
+The harness should normally **read** saved text intent rather than automate the editor UI unless the task is testing Mesurer itself. For Mesurer's own browser contract, the interaction is intentionally exercised through the real page:
+
+```text
+activate Arrange/Select
+  → select rendered target
+  → double-click ordinary direct text through Arrange surface
+  → textarea opens with full text selected
+  → Mesurer-style formatting toolbar appears
+  → automatic Text Inspector card appears for the same field
+  → change page-derived typography/color or B/I/U/custom color
+  → Enter commits Desired intent
+```
+
+While the editor has focus, normal typed shortcut letters must not activate Mesurer tools.
+
+The automatic Text Inspector card is transient presentation, not a separate agent API. Durable agent evidence is `textEdit(id)` plus the target's ordinary rendered context.
 
 ## Multi-selection harness behavior
 
@@ -209,6 +259,10 @@ After the agent edits source and the normal page/HMR updates:
 ```js
 await window.__MESURER__.stable()
 ```
+
+If a relevant Arrange intent exists, switch it to Live and use `reviewArrange()` so the temporary Desired transform cannot make unfinished source look correct.
+
+If a relevant text-edit intent exists, preserve that intent but deactivate the Select/Text Inspector preview before comparing the target's real text/computed typography with Desired. Do not clear text history merely to expose Live.
 
 If the human saved an annotation:
 
@@ -254,7 +308,9 @@ try {
 
 Use `{ scope: "selection" }` when validating an unsaved selection.
 
-Capture preparation hides control chrome while preserving rulers, guides, selected outlines, annotations, measurements, held distances, and pixel labels. This lets the existing harness control browser viewport, timing, artifact storage, and comparison while Mesurer supplies exact scope and presentation.
+Capture preparation hides control chrome while preserving rulers, guides, selected outlines, annotations, measurements, held distances, and pixel labels. Active editor controls and the transient automatic Text Inspector card are inspector chrome, not application evidence.
+
+This lets the existing harness control browser viewport, timing, artifact storage, and comparison while Mesurer supplies exact scope and presentation.
 
 ### Human screenshot plugin
 
@@ -285,6 +341,8 @@ capabilities()
 context(request?)
 select(selectorOrSelectors)
 annotations()
+textEdits()
+textEdit(id)
 review(annotationId?)
 capturePlan(request?)
 prepareCapture()
@@ -300,7 +358,9 @@ command(id, args?)
 state()
 ```
 
-Use `context()` / `select()` / `review()` for human-in-the-loop work. Use low-level methods for focused measurement questions.
+When Arrange is available, add `arrangements()`, `arrange(id)`, `showArrange()`, `arrangeCapturePlan()`, and `reviewArrange()` to that task's relevant surface.
+
+Use `context()` / `select()` / annotation review plus Arrange/text intent for human-in-the-loop work. Use low-level methods for focused measurement questions.
 
 ## Existing browser/CDP sessions
 
@@ -316,9 +376,9 @@ package normally
   → attach existing harness
   → discover existing Mesurer
   → inject only if absent
-  → read human state
+  → read all relevant human state/intent
   → edit/relaunch as normal
-  → remeasure rendered result
+  → verify real Live rendered result
 ```
 
 ## Optional Playwright reference adapter
@@ -331,17 +391,20 @@ Host compatibility guards both positive and negative parts of the direct contrac
 
 1. inject Mesurer;
 2. prove context/select/annotations/review/capture-plan capabilities exist;
-3. use `select()` against real page targets and prove it returns selection-scoped context while creating the same live Select state the user sees;
-4. prove missing and ambiguous selectors fail instead of guessing;
-5. prove `sendContext`, send/delivery capability bits, and the old Send tool do not exist;
-6. prove Copy Context, Copy Selection, and Add Note each render once in the isolated toolbar;
-7. store live plugin/selection state;
-8. evaluate the injector again;
-9. prove the exact same mounted instance, agent object, selection, and state remain;
-10. prove only one Mesurer island exists;
-11. set `reuseExisting: false` and prove deliberate replacement still works.
+3. prove the direct `textEdit` capability and public `textEdits()` / `textEdit()` agent surface exist when expected;
+4. use `select()` against real page targets and prove it returns selection-scoped context while creating the same live Select state the user sees;
+5. prove missing and ambiguous selectors fail instead of guessing;
+6. prove `sendContext`, send/delivery capability bits, and the old Send tool do not exist;
+7. prove Copy Context, Copy Selection, and Add Note each render once in the isolated toolbar;
+8. store live plugin/selection state;
+9. evaluate the injector again;
+10. prove the exact same mounted instance, agent object, selection, and state remain;
+11. prove only one Mesurer island exists;
+12. set `reuseExisting: false` and prove deliberate replacement still works.
 
-Browser contracts separately self-host Mesurer and exercise multi-selection spacing. The dedicated screenshot contract exercises screenshot-plugin activation, region selection/cropping, capture-chrome hiding/restoration, cancellation, persistent preview/viewer behavior, and the deterministic capture-provider path. Package guards require the public `./screenshot` export and declarations in the exact staged npm package.
+Rendered browser contracts separately self-host Mesurer and exercise multi-selection spacing. The direct-text contract exercises editing through active Arrange/Select state, full-text selection, the canonical Mesurer-style formatting toolbar, automatic/live Text Inspector information, page-derived typography/color controls, B/I/U, custom color, commit/cancel semantics, reversible Desired/Live state, cleanup, and clean browser diagnostics.
+
+The dedicated screenshot contract exercises screenshot-plugin activation, region selection/cropping, capture-chrome hiding/restoration, cancellation, persistent preview/viewer behavior, and the deterministic capture-provider path. Package guards require the public `./screenshot` export and declarations in the exact staged npm package and separately protect the `textEdit` capability/method declarations.
 
 ## Browser boundaries
 
