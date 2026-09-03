@@ -1,6 +1,6 @@
 ---
 name: mesurer-ui
-description: Use Mesurer when implementing, reviewing, debugging, or fixing frontend UI in a browser. Load for visual alignment, spacing, sizing, layout, CSS, responsive work, design/Figma implementation, screenshots, pixel discrepancies, human Mesurer selections/measurements/guides/annotations, Arrange intents, text/style Desired edits, or any request to check Mesurer/Measure context. A broad Mesurer/context request means inventory all existing human visual intent before narrowing. Consume existing human visual intent before editing and obtain fresh rendered evidence before claiming completion.
+description: Use Mesurer when implementing, reviewing, debugging, or fixing frontend UI in a browser. Load for visual alignment, spacing, sizing, layout, CSS, responsive work, design/Figma implementation, screenshots, pixel discrepancies, human Mesurer selections/measurements/guides/annotations, Arrange intents, direct text/style Desired edits, or any request to check Mesurer/Measure context. A broad Mesurer/context request means inventory all existing human visual intent before narrowing. Consume existing human visual intent before editing and obtain fresh rendered evidence before claiming completion.
 ---
 
 # Mesurer UI workflow
@@ -238,9 +238,39 @@ If review reports `stale` or `partial`, do not silently transfer the intent to a
 
 Do not clear, overwrite, or discard a human Arrange intent merely to make validation pass.
 
-## 3. Consume text/style Desired edits before source edits
+## 3. Consume direct text/style Desired edits before source edits
 
-Direct text editing is human copy and typography intent. When `capabilities.capabilities.textEdit` is true, inspect saved edits before changing source:
+Direct text editing is human copy and typography intent. It extends the existing page-targeting interaction instead of adding a competing top-level Text Edit tool.
+
+### Understand the human editing surface
+
+A person can open direct editing while **Select** or **Text Inspector** is active. Arrange keeps Select active, so this also works while Arrange remains selected.
+
+```text
+double-click ordinary direct text
+(or double-tap with touch/pen)
+  ↓
+current text selected in full
+  ↓
+in-place editor using the target's rendered typography
+  ↓
+Mesurer-style white formatting toolbar
+  + automatic Text Inspector information for the exact field
+  ↓
+Enter keeps Desired / Shift+Enter inserts newline / Escape cancels
+```
+
+The formatting toolbar deliberately uses Mesurer's canonical compact white toolbar visual language and exposes Bold/Italic/Underline, page-derived font families/sizes/weights/colors, and a custom color picker.
+
+The automatic Text Inspector card reports Family, Size, Weight, Line, Tracking, tag/text information, and CSS-variable references when available. It updates during the edit session, but it is **transient human UI**: it does not globally enable Text Inspector, does not create a persistent pin, does not interrupt Arrange, and is not another durable agent context channel.
+
+The current target contract is deliberately narrow. Direct editing targets ordinary page elements with one unambiguous non-empty **direct text node**. It is not a generic rich-text/form editor. Native `<input>`, `<textarea>`, `<select>`, `contenteditable`, and ambiguous mixed/nested rich-text structures retain their normal browser/application behavior.
+
+For normal application work, do not automate this editor UI just to discover intent that has already been saved. Read `textEdits()` / `textEdit(id)` directly. Automate the editor itself only when the task is testing or changing Mesurer's direct-edit feature.
+
+### Read durable text intent
+
+When `capabilities.capabilities.textEdit` is true, inspect saved edits before changing source:
 
 ```js
 const textEdits = await window.__MESURER__.textEdits()
@@ -267,9 +297,9 @@ styles[]
   desired
 ```
 
-Treat `desired` and `styles[]` as the requested visual outcome, not as an implementation prescription. Mesurer may preview a font, weight, color, underline, or other text property with a temporary DOM style. Production code should use the application's real component props, classes, CSS variables, design tokens, theme values, or stylesheet rules where appropriate.
+Treat `desired` and `styles[]` as the requested visual outcome, not as an implementation prescription. Mesurer may preview a font, size, weight, color, underline, or other text property with a temporary DOM style. Production code should use the application's real component props, classes, CSS variables, design tokens, theme values, or stylesheet rules where appropriate.
 
-Page-derived font/color/weight choices are useful evidence because the person selected from styles already rendered by the application. That still does **not** mean the agent should blindly add an inline style with the sampled computed value. Inspect the source and reuse the semantic source-level token/class when it exists.
+Page-derived font/size/color/weight choices are useful evidence because the person selected from styles already rendered by the application. They are not a source-code token scanner and still do **not** mean the agent should blindly add an inline style with the sampled computed value. Inspect the source and reuse the semantic source-level token/class when it exists.
 
 Preserve each relevant intent id, selector, Before text, Desired text, and style deltas before HMR can replace the target.
 
@@ -527,12 +557,13 @@ try {
 }
 ```
 
-Arrange follows the same ownership model through `arrangeCapturePlan()`. The important difference is that Arrange can deliberately present Before, Desired, or Live before the harness captures.
+Active direct-editor controls and its automatic Text Inspector card are Mesurer chrome, not application evidence. Arrange follows the same ownership model through `arrangeCapturePlan()`. The important difference is that Arrange can deliberately present Before, Desired, or Live before the harness captures.
 
-Use both signals:
+Use all relevant signals:
 
 ```text
 Mesurer context/review → exact geometry, styles, distances, overflow
+saved human intent      → annotation / Arrange / text Desired state
 real screenshot          → composition, hierarchy, clipping, color, visual judgment
 ```
 
@@ -608,6 +639,9 @@ Prefer `arrangements()`, `textEdits()`, `context()`, `select()`, `reviewArrange(
 - do not clear text-edit history merely to reveal or validate Live source state;
 - do not implement Arrange offsets as production transforms unless the source layout genuinely calls for that;
 - do not implement a text/style Desired preview as arbitrary production inline styles when the source design system has a semantic token/class/component API;
+- do not treat page-derived computed font/size/weight/color values as automatic source-token instructions;
+- do not treat the automatic direct-edit Text Inspector card as another saved context/intent channel;
+- do not automate the direct editor for normal application work when saved `textEdit` intent already describes the human request;
 - do not capture only Desired after source editing; preserve Before and Desired first when screenshot comparison matters;
 - do not close/destroy a human screenshot preview merely to clean up agent state;
 - do not use `select()` with a knowingly ambiguous selector;
