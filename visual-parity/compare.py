@@ -59,6 +59,22 @@ def normalize_version_text(value):
     return version_token.sub("Version<version>", str(value))
 
 
+def is_intentional_typography_label_difference(difference):
+    """Allow only the documented Solid product-label rename; no visual/layout drift."""
+    path = difference["path"]
+    react = difference["react"]
+    solid = difference["solid"]
+    exact_label_paths = {
+        "toolbarButtons[4].ariaLabel",
+        "uiContract.toolbarIconContract[4].name",
+    }
+    if path in exact_label_paths:
+        return react == "Text inspector (A)" and solid == "Typography (A)"
+    if path == "toolbar.text":
+        return str(solid).replace("Typography A", "Text inspector A") == str(react)
+    return False
+
+
 report = {
     "threshold_per_channel": threshold,
     "react_version": react_version,
@@ -109,7 +125,12 @@ for state in states:
     solid_metrics = round_numbers(json.loads((out / f"solid-{state}.json").read_text()))
     react_contract = {key: react_metrics.pop(key, None) for key in contract_keys}
     solid_contract = {key: solid_metrics.pop(key, None) for key in contract_keys}
-    metric_diffs = metric_differences(react_metrics, solid_metrics)
+    raw_metric_diffs = metric_differences(react_metrics, solid_metrics)
+    metric_diffs = [
+        difference
+        for difference in raw_metric_diffs
+        if not is_intentional_typography_label_difference(difference)
+    ]
     raw_contract_diffs = metric_differences(
         react_contract,
         solid_contract,
@@ -120,6 +141,7 @@ for state in states:
         difference
         for difference in raw_contract_diffs
         if not difference["path"].endswith(non_design_contract_suffixes)
+        and not is_intentional_typography_label_difference(difference)
     ]
 
     report["states"][state] = {
@@ -136,15 +158,20 @@ for state in states:
         "contract_difference_count": len(contract_diffs),
         "contract_differences": contract_diffs[:200],
         "ignored_environmental_contract_difference_count": len(raw_contract_diffs) - len(contract_diffs),
+        "ignored_typography_label_difference_count": sum(
+            is_intentional_typography_label_difference(item)
+            for item in [*raw_metric_diffs, *raw_contract_diffs]
+        ),
     }
 
 (out / "report.json").write_text(json.dumps(report, indent=2))
 print(json.dumps(report, indent=2))
 
 # Treat the pinned React implementation as the UI contract. Every captured
-# state must have zero semantic/control/icon contract drift. Visual and computed
-# layout/style drift are also zero-tolerance, except Settings > General where
-# upstream and the port intentionally display their own version token.
+# state must have zero semantic/control/icon contract drift except the explicitly
+# documented Solid product-label rename from Text Inspector to Typography.
+# Pixel, computed layout, and style drift remain zero-tolerance, except Settings
+# > General where upstream and the port intentionally display their own version token.
 failures = []
 expected_general_metric_paths = {"settings.text", "toolbar.text"}
 for state, result in report["states"].items():
