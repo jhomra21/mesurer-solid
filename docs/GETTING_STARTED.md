@@ -214,6 +214,23 @@ The exact same `mountMesurer({ ... })` block can instead live inside `src/dev/me
 
 You do not need separate app-level files for Context, Arrange, Screenshot, or other Mesurer plugins unless that organization is useful to your project.
 
+## Try direct text editing
+
+Direct text editing is part of the mounted renderer; there is no extra text-edit plugin to import.
+
+1. Press **S** to activate Select, or **A** to use Text Inspector.
+2. Double-click ordinary direct text on desktop, or double-tap it with touch/pen.
+3. The current text is selected in full and an in-place editor opens using that target's rendered typography.
+4. Mesurer automatically shows Text Inspector information for that exact field.
+5. Use the Mesurer-style formatting strip for Bold/Italic/Underline, page-derived font/size/weight/color choices, or a custom color.
+6. Press **Enter** to keep the edit as Desired intent, **Shift+Enter** for a newline, or **Escape** to cancel.
+
+Arrange keeps Select active, so this also works while arranging a selected element without switching tools.
+
+The current contract intentionally targets ordinary elements with one unambiguous non-empty direct text node. Native form controls and `contenteditable` keep their own editing behavior.
+
+See [`TEXT_EDITING.md`](./TEXT_EDITING.md) for the full human interaction, automatic inspector/toolbar behavior, Before/Desired/Live semantics, agent API, and validation contract.
+
 ## Files that should not mount Mesurer
 
 Do not put `mountMesurer()` in files such as:
@@ -278,6 +295,7 @@ Use the renderer's actual browser entry and the same development guard your Elec
 
 ## Next steps
 
+- [`TEXT_EDITING.md`](./TEXT_EDITING.md) — direct copy/typography editing and automatic Text Inspector context
 - [`ARRANGE.md`](./ARRANGE.md) — Arrange visual layout intent, `Shift+A`, and Before/Desired/Live review
 - [`SCREENSHOTS.md`](./SCREENSHOTS.md) — screenshot plugin behavior, `Shift+S`, and capture providers
 - [`CONTEXT_WORKFLOW.md`](./CONTEXT_WORKFLOW.md) — selection, context, review notes, and review
