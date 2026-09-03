@@ -18,6 +18,8 @@ on:
       - "packages/renderer/src/runtime/builtin-actions.ts"
       - "packages/renderer/src/runtime/color-picker-support.ts"
       - "packages/renderer/src/runtime/text-editing.ts"
+      - "packages/renderer/src/runtime/text-editing-core.ts"
+      - "packages/renderer/src/runtime/text-editing-presentation.ts"
       - "packages/renderer/test/arrange-plugin.test.ts"
       - "packages/renderer/test/distances.test.ts"
       - "packages/renderer/test/text-editing.test.ts"
@@ -33,6 +35,7 @@ on:
       - "visual-parity/arrange-contract.mjs"
       - "visual-parity/color-picker-contract.mjs"
       - "visual-parity/text-editing-contract.mjs"
+      - "visual-parity/typography-editing-layout-contract.mjs"
       - "visual-parity/self-hosting-context.mjs"
       - "visual-parity/multi-spacing.mjs"
       - "visual-parity/plugin-settings-contract.mjs"
@@ -104,6 +107,11 @@ jobs:
           TEXT_EDITING_URL: http://127.0.0.1:4174/
         run: bun visual-parity/text-editing-contract.mjs
 
+      - name: Exercise Typography layout and contextual activation
+        env:
+          TYPOGRAPHY_EDITING_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/typography-editing-layout-contract.mjs
+
       - name: Exercise Color Picker capability
         env:
           COLOR_PICKER_URL: http://127.0.0.1:4174/
@@ -144,10 +152,12 @@ jobs:
           print("- Ghost suppression, persistent Desired placement, and Live restoration on deactivation exercised in Chromium")
 
           print("")
-          print("### Direct text editing")
+          print("### Direct text editing / Typography")
           print("- Double-click through an active Arrange overlay exercised in Chromium")
           print("- Full-text selection and target typography inheritance exercised in Chromium")
           print("- Rendered-page font, size, weight, and color suggestions exercised in Chromium")
+          print("- Direct typography controls, semantic-only preset popup, and centered chevron exercised in Chromium")
+          print("- Contextual Typography activation without stealing Select/Arrange exercised in Chromium")
           print("- Text/style Desired state and Live restoration exercised in Chromium")
 
           print("")
