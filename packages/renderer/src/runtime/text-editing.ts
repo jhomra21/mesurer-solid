@@ -131,12 +131,18 @@ type AppliedEdit = ResolvedEdit & {
 };
 
 type TextStylePresetId = "text" | "heading-1" | "heading-2" | "heading-3";
+type HeadingTag = "H1" | "H2" | "H3";
 
 type TextStylePreset = {
   id: TextStylePresetId;
   label: string;
   shortcut: "0" | "1" | "2" | "3";
   styles: Partial<Record<MesurerTextStyleProperty, string>>;
+};
+
+type TextStyleVariant = {
+  styles: TextStylePreset["styles"];
+  count: number;
 };
 
 type TextStyleCatalog = {
@@ -459,15 +465,32 @@ export function installTextEditing(
     color: style.color,
   });
 
+  const addStyleVariant = (
+    variants: Map<string, TextStyleVariant>,
+    style: CSSStyleDeclaration,
+  ) => {
+    const styles = presetStyles(style);
+    const signature = JSON.stringify(styles);
+    const existing = variants.get(signature);
+    if (existing) {
+      existing.count += 1;
+      return;
+    }
+    variants.set(signature, { styles, count: 1 });
+  };
+
+  const dominantVariant = (variants: Map<string, TextStyleVariant>) =>
+    [...variants.values()].sort((left, right) => right.count - left.count)[0] ?? null;
+
   const collectStyleCatalog = (element: HTMLElement): TextStyleCatalog => {
     const fontFamilies = new Map<string, number>();
     const fontSizes = new Map<string, number>();
     const fontWeights = new Map<string, number>();
     const colors = new Map<string, number>();
     const candidates: HTMLElement[] = [];
-    let bodyTextElement: HTMLElement | null = null;
+    const textVariants = new Map<string, TextStyleVariant>();
+    const headingVariants = new Map<HeadingTag, Map<string, TextStyleVariant>>();
     let fallbackTextElement: HTMLElement | null = null;
-    const headingElements = new Map<"H1" | "H2" | "H3", HTMLElement>();
     if (pageTarget instanceof realm.HTMLElement) candidates.push(pageTarget);
     for (const candidate of pageTarget.querySelectorAll("*")) {
       if (candidate instanceof realm.HTMLElement) candidates.push(candidate);
@@ -489,22 +512,25 @@ export function installTextEditing(
       add(colors, style.color);
 
       fallbackTextElement ??= candidate;
-      if (!bodyTextElement && (candidate.tagName === "P" || candidate.tagName === "SPAN")) {
-        bodyTextElement = candidate;
+      if (candidate.tagName === "P" || candidate.tagName === "SPAN") {
+        addStyleVariant(textVariants, style);
       }
-      if ((candidate.tagName === "H1" || candidate.tagName === "H2" || candidate.tagName === "H3")
-        && !headingElements.has(candidate.tagName)) {
-        headingElements.set(candidate.tagName, candidate);
+      if (candidate.tagName === "H1" || candidate.tagName === "H2" || candidate.tagName === "H3") {
+        const tag = candidate.tagName;
+        const variants = headingVariants.get(tag) ?? new Map<string, TextStyleVariant>();
+        addStyleVariant(variants, style);
+        headingVariants.set(tag, variants);
       }
     }
 
     const current = ownerWindow.getComputedStyle(element);
-    const textSource = bodyTextElement ?? fallbackTextElement ?? element;
+    const textVariant = dominantVariant(textVariants);
     const presets: TextStylePreset[] = [{
       id: "text",
       label: "Text",
       shortcut: "0",
-      styles: presetStyles(ownerWindow.getComputedStyle(textSource)),
+      styles: textVariant?.styles
+        ?? presetStyles(ownerWindow.getComputedStyle(fallbackTextElement ?? element)),
     }];
     const headingDefinitions = [
       ["H1", "heading-1", "Heading 1", "1"],
@@ -512,13 +538,13 @@ export function installTextEditing(
       ["H3", "heading-3", "Heading 3", "3"],
     ] as const;
     for (const [tag, id, label, shortcut] of headingDefinitions) {
-      const heading = headingElements.get(tag);
-      if (!heading) continue;
+      const dominant = dominantVariant(headingVariants.get(tag) ?? new Map());
+      if (!dominant) continue;
       presets.push({
         id,
         label,
         shortcut,
-        styles: presetStyles(ownerWindow.getComputedStyle(heading)),
+        styles: dominant.styles,
       });
     }
 
