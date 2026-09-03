@@ -96,6 +96,21 @@ for (const contractName of ["MesurerTextEditIntent", "MesurerTextStyleChange", "
     throw new Error(`Published root declarations are missing text edit contract ${contractName}.`);
   }
 }
+for (const property of [
+  "font-family",
+  "font-size",
+  "font-weight",
+  "font-style",
+  "line-height",
+  "letter-spacing",
+  "text-transform",
+  "color",
+  "text-decoration-line",
+]) {
+  if (!rootDeclarations.includes(`"${property}"`)) {
+    throw new Error(`Published MesurerTextStyleProperty is missing runtime style property: ${property}.`);
+  }
+}
 for (const canonicalName of ["mountMesurer", "MountMesurerOptions", "MountedMesurer"]) {
   if (!new RegExp(`\\b${canonicalName}\\b`).test(rootDeclarations)) {
     throw new Error(`Published declarations are missing canonical Mesurer API name: ${canonicalName}.`);
