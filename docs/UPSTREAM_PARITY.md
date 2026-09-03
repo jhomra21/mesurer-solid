@@ -8,7 +8,7 @@ The release question is therefore not “does Mesurer Solid contain every upstre
 2. is each new upstream capability classified as adopted, intentionally different, or not relevant to this product; and
 3. do the public docs describe the Mesurer Solid workflow that actually ships.
 
-Mesurer Solid-specific architecture and workflows remain local where they serve this product better: the plugin runtime, framework-neutral public package, agent/context workflow, Arrange, host isolation, screenshots, and private Solid renderer.
+Mesurer Solid-specific architecture and workflows remain local where they serve this product better: the plugin runtime, framework-neutral public package, agent/context workflow, Arrange, direct text editing, host isolation, screenshots, and private Solid renderer.
 
 ## Current audit
 
@@ -32,16 +32,49 @@ The `74936ac` audit supersedes the earlier conclusion that arrow/text annotation
 | Canonical `Mesurer` product naming | Implemented | Public APIs and examples use `Mesurer` / `mountMesurer()`; the 0.1.1 `Measurer` spellings remain only as deprecated compatibility aliases |
 | Native screen Color Picker | Implemented with host capability gating | Preserve upstream native `EyeDropper` behavior where operational; hide the tool and keep `P` inert where the native sampler is unavailable or the current Codex host cannot use it |
 | Color Picker active-button vs `P` behavior | Implemented | Active toolbar button toggles the result off without another native open; `P` starts a fresh native pick, matching upstream |
+| Text Inspector typography inspection | Adopted and extended | Preserve the existing typography inspection contract, then reuse the same typography/card primitives for contextual direct-edit information |
+| Direct copy/typography editing from Select/Text Inspector | Mesurer Solid extension | Double-click/double-tap ordinary direct text, inherit rendered typography, select all text, preview reversible copy/style intent, and expose saved `textEdit` intent to agents |
+| Direct-edit formatting toolbar | Mesurer Solid extension using adopted visual language | Reuse the canonical Mesurer white toolbar surface/spacing/control states instead of creating a separate editor visual system |
+| Automatic Text Inspector card during direct edit | Mesurer Solid extension using existing inspector primitives | Show the edited field's Family/Size/Weight/Line/Tracking context without globally switching Text Inspector mode or interrupting Arrange |
+| Page-derived font/size/weight/color suggestions | Mesurer Solid extension | Suggest styles actually rendered on the page, while keeping source implementation semantic rather than prescribing inline computed values |
 | Grouped **Select & Inspect** / **Annotate** tool switch | Intentionally not adopted | Mesurer Solid keeps its existing inspector/plugin toolbar because its primary review flow is context-first rather than drawing-tool-first |
 | Arrow annotations | Intentionally not adopted | Freeform arrows are not required for the current agent workflow |
 | Freehand pen annotations | Intentionally not adopted | Freeform drawing is outside the current stable product scope |
-| Upstream text drawing annotations | Intentionally not adopted | Mesurer Solid uses target-bound context notes plus Text Inspector / Desired-text editing instead |
+| Upstream text drawing annotations | Intentionally not adopted | Mesurer Solid uses target-bound context notes plus Text Inspector / direct Desired-text editing instead |
 | Annotation selection, move/resize/rotate, multi-select, delete | Intentionally not adopted | Those transforms belong to the upstream drawing-canvas model, which Mesurer Solid does not use |
 | Drawing-annotation persistence and undo/redo | Intentionally not adopted | Mesurer Solid persists semantic annotations and review baselines through `mesurer.context` instead |
 | Arrow/text drawing configuration and annotation settings | Intentionally not adopted | No drawing-tool configuration surface is needed without the drawing tools |
 | Upstream `0.1.1` shortcut/group switching and layered Escape behavior | Intentionally not adopted as a group contract | Keep Mesurer Solid shortcuts coherent with its own toolbar/plugin workflow; source-match individual adopted tools where applicable |
 | Other `0.1.1` inspection refinements (for example SVG targeting, layout details, click cycling, remembered tool state) | Requires focused behavior audit | Evaluate individually; adopt source-first when they improve the Mesurer Solid inspection contract |
 | Site/analytics/footer/build changes | Not library parity | Do not port |
+
+## Direct text editing is an explicit Mesurer Solid extension
+
+The direct text-edit workflow is not presented as upstream source parity. It builds on adopted Mesurer visual/inspection primitives but solves a Mesurer Solid-specific human-to-agent problem:
+
+```text
+human sees rendered UI
+  → double-clicks direct text while Select/Text Inspector/Arrange-compatible Select is active
+  → edits copy and typography in place
+  → Mesurer shows existing Text Inspector information for that exact field
+  → Desired text/style intent is saved separately from source
+  → coding agent reads `textEdits()` / `textEdit(id)`
+  → agent implements the semantic source change
+  → Live source is verified with Mesurer's preview inactive
+```
+
+The extension deliberately preserves UI continuity with adopted Mesurer behavior:
+
+- the formatting strip uses the same canonical toolbar visual language;
+- typography information reuses the existing `TypographyInspector` and Text Inspector card renderer;
+- the contextual card does not create a competing Text Inspector mode;
+- Arrange remains usable because direct editing works through the Select state Arrange already requires.
+
+The current scope is ordinary elements with one unambiguous non-empty direct text node. Native form controls, `contenteditable`, and mixed/nested rich-text structures are not silently converted into a generic rich-text editor.
+
+This is a product extension, so future upstream changes should not replace it automatically. Audit any overlapping upstream text-editing capability source-first, then decide whether to adopt, reconcile, or intentionally diverge.
+
+See [`TEXT_EDITING.md`](./TEXT_EDITING.md) for the shipped contract.
 
 ## Why annotations intentionally differ
 
@@ -63,7 +96,9 @@ human selects/highlights rendered UI + adds note
        fresh context / review()
 ```
 
-Screenshots remain useful for visual composition, evidence, or other human workflows, but they are not the transport for Mesurer Solid annotation intent. This is an intentional product distinction, not an incomplete port.
+Direct text editing complements this distinction: when the human wants to specify exact copy/typography rather than write a note about it, the Desired text/style intent is machine-readable and target-bound instead of being a freeform text drawing.
+
+Screenshots remain useful for visual composition, evidence, or other human workflows, but they are not the transport for Mesurer Solid annotation or direct-text intent. This is an intentional product distinction, not an incomplete port.
 
 See [`CONTEXT_WORKFLOW.md`](./CONTEXT_WORKFLOW.md) for the full agent-first review model.
 
