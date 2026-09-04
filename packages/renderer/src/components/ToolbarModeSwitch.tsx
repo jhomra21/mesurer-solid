@@ -36,6 +36,7 @@ function ModeButton(props: {
   id: string;
   label: string;
   shortcut?: string;
+  toolId?: string;
   pressed: boolean;
   onClick: () => void;
   tooltipVisible: boolean;
@@ -48,11 +49,13 @@ function ModeButton(props: {
   return (
     <div
       class="msr:relative"
+      data-mesurer-tool-id={props.toolId}
       onMouseEnter={() => props.onTooltipEnter(props.id)}
       onMouseLeave={props.onTooltipLeave}
     >
       <button
         type="button"
+        data-mesurer-tool-id={props.toolId}
         aria-label={`${props.label}${props.shortcut ? ` (${props.shortcut})` : ""}`}
         aria-pressed={props.pressed ? "true" : "false"}
         class={`msr:flex msr:size-7 msr:items-center msr:justify-center msr:rounded-[6px] msr:text-[11px] msr:font-medium msr:outline-none msr:focus-visible:outline msr:focus-visible:outline-1 msr:focus-visible:outline-ink-500 msr:focus-visible:outline-offset-1 ${props.pressed ? "msr:bg-transparent msr:text-ink-900" : "msr:text-ink-700 msr:hover:bg-ink-200/50"}`}
@@ -98,6 +101,7 @@ export function ToolbarModeSwitch(props: ToolbarModeSwitchProps) {
         id="toolbar-mode-arrange"
         label="Edit & Arrange"
         shortcut={props.arrangeTool.shortcut}
+        toolId={props.arrangeTool.id}
         pressed={props.value === "arrange"}
         onClick={() => props.onChange("arrange")}
         tooltipVisible={props.tooltipsEnabled && props.tooltipVisibleId === "toolbar-mode-arrange"}
