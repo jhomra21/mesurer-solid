@@ -3,11 +3,13 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { MESURER_ARRANGE_ACTIVE_STATE_ID } from "../plugins/arrange";
 
 const ARRANGE_TOGGLE_COMMAND = "arrange.toggle";
+const BUILTIN_SELECT_COMMAND = "builtin.select";
 
 /**
  * Arrange owns a temporary layout presentation that only makes sense while
  * Select is the active page-targeting tool. Keep that dependency symmetric:
- * Arrange may activate Select, and leaving Select must deactivate Arrange.
+ * activating Arrange must satisfy the Select dependency automatically, while
+ * explicitly leaving Select must deactivate an already-active Arrange session.
  */
 export function installArrangeSelectGuard(
   ctx: MesurerPluginContext,
@@ -16,23 +18,41 @@ export function installArrangeSelectGuard(
   const workspace = runtime.createWorkspaceRuntime();
   let disposed = false;
   let frame = 0;
-  let deactivating = false;
+  let coordinating = false;
+  let previousArrangeActive = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+  let previousToolMode = runtime.currentToolMode?.();
 
   const sync = () => {
     if (disposed || frame) return;
     frame = runtime.ownerWindow.requestAnimationFrame(() => {
       frame = 0;
-      const toolMode = runtime.currentToolMode?.();
-      if (disposed || deactivating || toolMode === undefined || toolMode === "select") return;
-      if (!(ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false)) return;
+      if (disposed || coordinating) return;
 
-      deactivating = true;
+      const toolMode = runtime.currentToolMode?.();
+      const arrangeActive = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+      const arrangeJustActivated = arrangeActive && !previousArrangeActive;
+      const selectJustDeactivated = previousToolMode === "select" && toolMode !== "select";
+
+      previousArrangeActive = arrangeActive;
+      previousToolMode = toolMode;
+
+      if (disposed || toolMode === undefined || !arrangeActive || toolMode === "select") return;
+
+      coordinating = true;
+      const command = arrangeJustActivated && !selectJustDeactivated
+        ? BUILTIN_SELECT_COMMAND
+        : ARRANGE_TOGGLE_COMMAND;
+      const source = command === BUILTIN_SELECT_COMMAND
+        ? "arrange-requires-select"
+        : "select-deactivated";
+
       void ctx.command.execute(
-        ARRANGE_TOGGLE_COMMAND,
+        command,
         undefined,
-        { source: "select-deactivated" },
+        { source },
       ).catch(() => undefined).finally(() => {
-        deactivating = false;
+        coordinating = false;
+        sync();
       });
     });
   };
