@@ -3,6 +3,12 @@ import type { ToolContribution } from "@jhomra21/mesurer-solid-core";
 import { CursorIcon } from "./Icons";
 import { Tooltip } from "./Tooltip";
 
+declare global {
+  interface Window {
+    ResizeObserver?: typeof ResizeObserver;
+  }
+}
+
 export type ToolbarMode = "inspect" | "arrange";
 
 export type ToolbarModeSwitchProps = {
