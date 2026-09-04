@@ -11,6 +11,13 @@ type TypographyButtonSnapshot = {
   color: string;
 };
 
+type InspectorSurfaceSnapshot = {
+  element: HTMLElement;
+  display: string;
+  displayPriority: string;
+  ariaHidden: string | null;
+};
+
 /**
  * Keeps the field-local direct editor aligned with Mesurer's established
  * toolbar language without coupling Typography's hover/pin runtime to the
@@ -31,6 +38,7 @@ export function installTextEditingPresentation(
 
   const root = runtimeMount.closest<HTMLElement>("[data-mesurer-root='true']");
   let typographyButtonSnapshot: TypographyButtonSnapshot | null = null;
+  const suppressedInspectorSurfaces = new Map<HTMLElement, InspectorSurfaceSnapshot>();
   let typographyContextActive = false;
   let disposed = false;
   let refining = false;
@@ -38,6 +46,35 @@ export function installTextEditingPresentation(
   const typographyButton = () => root?.querySelector<HTMLButtonElement>(
     "button[data-mesurer-builtin='text-inspector']",
   ) ?? null;
+
+  const suppressTypographyInspectorSurfaces = () => {
+    for (const element of portalTarget.querySelectorAll<HTMLElement>(".mesurer-ti-card, .mesurer-ti-box")) {
+      if (runtimeMount.contains(element) || suppressedInspectorSurfaces.has(element)) continue;
+      suppressedInspectorSurfaces.set(element, {
+        element,
+        display: element.style.getPropertyValue("display"),
+        displayPriority: element.style.getPropertyPriority("display"),
+        ariaHidden: element.getAttribute("aria-hidden"),
+      });
+      element.style.setProperty("display", "none", "important");
+      element.setAttribute("aria-hidden", "true");
+    }
+  };
+
+  const restoreTypographyInspectorSurfaces = () => {
+    for (const snapshot of suppressedInspectorSurfaces.values()) {
+      const { element } = snapshot;
+      if (!element.isConnected) continue;
+      if (snapshot.display || snapshot.displayPriority) {
+        element.style.setProperty("display", snapshot.display, snapshot.displayPriority);
+      } else {
+        element.style.removeProperty("display");
+      }
+      if (snapshot.ariaHidden === null) element.removeAttribute("aria-hidden");
+      else element.setAttribute("aria-hidden", snapshot.ariaHidden);
+    }
+    suppressedInspectorSurfaces.clear();
+  };
 
   const setTypographyContext = (active: boolean) => {
     if (!root || typographyContextActive === active) return;
@@ -189,11 +226,13 @@ export function installTextEditingPresentation(
       const inspectorCard = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
 
       if (!editor || !toolbar || !menu) {
+        restoreTypographyInspectorSurfaces();
         setTypographyContext(false);
         return;
       }
 
       setTypographyContext(true);
+      suppressTypographyInspectorSurfaces();
       if (inspectorCard) inspectorCard.setAttribute("aria-label", "Typography details");
 
       const presetButton = toolbar.querySelector<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']");
@@ -257,6 +296,7 @@ export function installTextEditingPresentation(
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
+    restoreTypographyInspectorSurfaces();
     setTypographyContext(false);
   });
 }
