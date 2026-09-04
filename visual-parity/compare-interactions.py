@@ -45,9 +45,9 @@ def normalize_historical_toolbar_state(state):
 
 
 def is_historical_toolbar_pixel(name: str, x: int, y: int) -> bool:
-    if 0 <= x < 340 and 0 <= y < 56:
+    if 0 <= x < 340 and 0 <= y < 64:
         return True
-    if name.startswith("toolbar-orientation-") and 0 <= x < 280 and 56 <= y < 150:
+    if name.startswith("toolbar-orientation-") and 0 <= x < 280 and 64 <= y < 150:
         return True
     return False
 
