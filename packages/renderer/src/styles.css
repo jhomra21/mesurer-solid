@@ -259,7 +259,7 @@ body.mesurer-solid-xray .mesurer-ti-close {
   overflow: visible;
 }
 
-.mesurer-toolbar-motion[data-resizing="true"] .mesurer-toolbar-tool-stage {
+.mesurer-toolbar-tool-stage[data-resizing="true"] {
   overflow: hidden;
 }
 
@@ -293,7 +293,7 @@ body.mesurer-solid-xray .mesurer-ti-close {
   pointer-events: none;
 }
 
-.mesurer-toolbar-motion:not([data-resizing])
+.mesurer-toolbar-tool-stage:not([data-resizing="true"])
   .mesurer-toolbar-tool-slot:not([data-open="true"]) {
   visibility: hidden;
 }
