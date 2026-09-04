@@ -94,7 +94,7 @@ function CompactItem(props: { visible: boolean; children: any }) {
       data-visible={props.visible ? "true" : "false"}
       aria-hidden={props.visible ? undefined : "true"}
       inert={props.visible ? undefined : true}
-      class={`msr:flex msr:min-w-0 msr:flex-none msr:transition-[max-width,opacity,transform,padding] msr:duration-200 msr:ease-[ease] msr:motion-reduce:transition-none ${props.visible ? "msr:max-w-20 msr:px-0.5 msr:translate-x-0 msr:overflow-visible msr:opacity-100" : "msr:max-w-0 msr:px-0 msr:-translate-x-1 msr:overflow-hidden msr:opacity-0 msr:pointer-events-none"}`}
+      class={`msr:flex msr:min-w-0 msr:flex-none msr:transition-[max-width,opacity,transform,padding] msr:duration-150 msr:ease-[ease] msr:motion-reduce:transition-none ${props.visible ? "msr:max-w-20 msr:px-0.5 msr:translate-x-0 msr:overflow-visible msr:opacity-100" : "msr:max-w-0 msr:px-0 msr:-translate-x-1 msr:overflow-hidden msr:opacity-0 msr:pointer-events-none"}`}
     >
       {props.children}
     </div>
@@ -107,7 +107,7 @@ function ToolbarDivider(props: { visible?: boolean; marker?: string }) {
     <div
       data-mesurer-toolbar-divider={props.marker ?? "true"}
       aria-hidden="true"
-      class={`msr:self-stretch msr:flex-none msr:bg-black/10 msr:transition-[width,opacity] msr:duration-200 msr:ease-[ease] msr:motion-reduce:transition-none ${visible() ? "msr:w-px msr:opacity-100" : "msr:w-0 msr:opacity-0"}`}
+      class={`msr:self-stretch msr:flex-none msr:bg-black/10 msr:transition-[width,opacity] msr:duration-150 msr:ease-[ease] msr:motion-reduce:transition-none ${visible() ? "msr:w-px msr:opacity-100" : "msr:w-0 msr:opacity-0"}`}
     />
   );
 }
