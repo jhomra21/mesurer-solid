@@ -23,6 +23,12 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+const liveButton = (label: string) => {
+  const button = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  if (!button) throw new Error(`Expected live toolbar button: ${label}`);
+  return button;
+};
+
 describe("Arrange Select dependency", () => {
   it("keeps Select on when Arrange is turned off and turns Arrange off when Select is turned off", async () => {
     const hostElement = document.createElement("div");
@@ -39,41 +45,34 @@ describe("Arrange Select dependency", () => {
     );
     mounted.push(dispose);
 
-    const selectButton = await vi.waitFor(() => {
-      const value = document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]');
-      expect(value).toBeTruthy();
-      return value!;
-    });
-    const arrangeButton = await vi.waitFor(() => {
-      const value = document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]');
-      expect(value).toBeTruthy();
-      return value!;
-    });
+    await vi.waitFor(() => expect(document.querySelector('button[aria-label="Select (S)"]')).toBeTruthy());
+    await vi.waitFor(() => expect(document.querySelector('button[aria-label="Arrange (Shift+A)"]')).toBeTruthy());
 
     // Arrange-first activation is already covered by arrange-plugin.test.ts and
     // the real-browser arrange-contract.mjs. This test owns only the symmetric
-    // deactivation relationship through the actual toolbar buttons.
-    if (selectButton.getAttribute("aria-pressed") !== "true") {
-      selectButton.click();
-      await vi.waitFor(() => expect(selectButton.getAttribute("aria-pressed")).toBe("true"));
+    // deactivation relationship through the actual toolbar buttons. Re-query
+    // after plugin state changes because the contribution may rerender its node.
+    if (liveButton("Select (S)").getAttribute("aria-pressed") !== "true") {
+      liveButton("Select (S)").click();
+      await vi.waitFor(() => expect(liveButton("Select (S)").getAttribute("aria-pressed")).toBe("true"));
     }
 
-    arrangeButton.click();
-    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));
+    liveButton("Arrange (Shift+A)").click();
+    await vi.waitFor(() => expect(liveButton("Arrange (Shift+A)").getAttribute("aria-pressed")).toBe("true"));
     expect(pluginHost?.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(true);
 
     // Turning Arrange off must leave its independent Select prerequisite alone.
-    arrangeButton.click();
-    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("false"));
-    expect(selectButton.getAttribute("aria-pressed")).toBe("true");
+    liveButton("Arrange (Shift+A)").click();
+    await vi.waitFor(() => expect(liveButton("Arrange (Shift+A)").getAttribute("aria-pressed")).toBe("false"));
+    expect(liveButton("Select (S)").getAttribute("aria-pressed")).toBe("true");
 
     // Once Arrange is active again, explicitly leaving Select must retire Arrange.
-    arrangeButton.click();
-    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));
-    selectButton.click();
+    liveButton("Arrange (Shift+A)").click();
+    await vi.waitFor(() => expect(liveButton("Arrange (Shift+A)").getAttribute("aria-pressed")).toBe("true"));
+    liveButton("Select (S)").click();
     await vi.waitFor(() => {
-      expect(selectButton.getAttribute("aria-pressed")).toBe("false");
-      expect(arrangeButton.getAttribute("aria-pressed")).toBe("false");
+      expect(liveButton("Select (S)").getAttribute("aria-pressed")).toBe("false");
+      expect(liveButton("Arrange (Shift+A)").getAttribute("aria-pressed")).toBe("false");
     });
     expect(pluginHost?.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(false);
   });
