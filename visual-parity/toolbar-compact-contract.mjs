@@ -17,6 +17,15 @@ const visible = async (locator) => {
   const box = await locator.boundingBox();
   return Boolean(box && box.width > 0.5 && box.height > 0.5 && await locator.isVisible());
 };
+const compactItemVisible = (locator) => locator.evaluate((button) => {
+  const item = button.closest('[data-mesurer-toolbar-compact-item="true"]');
+  if (!(item instanceof HTMLElement)) return false;
+  const rect = item.getBoundingClientRect();
+  return item.getAttribute("aria-hidden") !== "true"
+    && item.dataset.visible === "true"
+    && rect.width > 0.5
+    && rect.height > 0.5;
+});
 
 try {
   await page.goto(url, { waitUntil: "networkidle" });
@@ -105,10 +114,10 @@ try {
   assert(compactBox, "Compact toolbar must have a bounding box");
   assert(compactBox.width < expandedBox.width - 40, `Compact toolbar should materially shrink: ${expandedBox.width}px -> ${compactBox.width}px`);
 
-  assert.equal(await visible(selectButton), true, "Active Select must remain visible in compact mode");
-  assert.equal(await visible(arrangeButton), true, "Active Arrange plugin must remain visible in compact mode");
-  assert.equal(await visible(xrayButton), false, "Inactive X-ray must collapse in compact mode");
-  assert.equal(await visible(typographyButton), false, "Inactive Typography must collapse in compact mode");
+  assert.equal(await compactItemVisible(selectButton), true, "Active Select must remain visible in compact mode");
+  assert.equal(await compactItemVisible(arrangeButton), true, "Active Arrange plugin must remain visible in compact mode");
+  assert.equal(await compactItemVisible(xrayButton), false, "Inactive X-ray must collapse in compact mode");
+  assert.equal(await compactItemVisible(typographyButton), false, "Inactive Typography must collapse in compact mode");
   assert.equal(await selectButton.getAttribute("aria-pressed"), beforeCompactState.select, "Compacting must not change Select state");
   assert.equal(await arrangeButton.getAttribute("aria-pressed"), beforeCompactState.arrange, "Compacting must not change Arrange state");
   assert.equal(await xrayButton.getAttribute("aria-pressed"), beforeCompactState.xray, "Compacting must not change X-ray state");
@@ -124,7 +133,7 @@ try {
   await page.keyboard.press("x");
   await page.waitForFunction(() => document.querySelector('button[aria-label="X-ray (X)"]')?.getAttribute("aria-pressed") === "true");
   await waitForSettledMotion();
-  assert.equal(await visible(xrayButton), true, "A tool activated while compact must become visible");
+  assert.equal(await compactItemVisible(xrayButton), true, "A tool activated while compact must become visible");
   const compactWithXrayBox = await toolbar.boundingBox();
   assert(compactWithXrayBox && compactWithXrayBox.width > compactBox.width, "Compact toolbar should expand enough to include a newly active tool");
 
@@ -143,16 +152,16 @@ try {
   await page.getByRole("button", { name: "Compact toolbar", exact: true }).click();
   await waitForSettledMotion();
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true", "Rapid expand -> compact must settle compact");
-  assert.equal(await visible(selectButton), true);
-  assert.equal(await visible(arrangeButton), true);
-  assert.equal(await visible(xrayButton), true);
+  assert.equal(await compactItemVisible(selectButton), true);
+  assert.equal(await compactItemVisible(arrangeButton), true);
+  assert.equal(await compactItemVisible(xrayButton), true);
 
   await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
   await waitForSettledMotion();
   const restoredBox = await toolbar.boundingBox();
   assert(restoredBox, "Restored toolbar must have a bounding box");
   assert(Math.abs(restoredBox.width - expandedBox.width) <= 1, `Expanding should restore the original width: ${expandedBox.width}px vs ${restoredBox.width}px`);
-  assert.equal(await visible(typographyButton), true, "Expanding must restore inactive tools");
+  assert.equal(await compactItemVisible(typographyButton), true, "Expanding must restore inactive tools");
   assert.equal(await selectButton.getAttribute("aria-pressed"), "true");
   assert.equal(await arrangeButton.getAttribute("aria-pressed"), "true");
   assert.equal(await xrayButton.getAttribute("aria-pressed"), "true");
