@@ -82,7 +82,34 @@ try {
   const expandedAgainBox = await toolbar.boundingBox();
   assert(expandedAgainBox && Math.abs(expandedAgainBox.width - expandedBox.width) <= 1, "Expanding from the empty compact state must restore the original width");
 
-  // Arrange remains an ordinary plugin tool. Activating it still activates Select.
+  // Arrange is always invokable. Starting with both tools off, clicking Arrange
+  // must satisfy its Select dependency automatically.
+  assert.equal(await selectButton.getAttribute("aria-pressed"), "false", "Arrange dependency contract must start with Select off");
+  assert.equal(await arrangeButton.getAttribute("aria-pressed"), "false", "Arrange dependency contract must start with Arrange off");
+  assert.equal(await arrangeButton.isDisabled(), false, "Arrange must remain clickable while Select is off");
+  await arrangeButton.click();
+  await page.waitForFunction(() => {
+    const select = document.querySelector('button[aria-label="Select (S)"]');
+    const arrange = document.querySelector('button[aria-label="Arrange (Shift+A)"]');
+    return select?.getAttribute("aria-pressed") === "true" && arrange?.getAttribute("aria-pressed") === "true";
+  });
+
+  // Turning Arrange off leaves Select active.
+  await arrangeButton.click();
+  await page.waitForFunction(() => document.querySelector('button[aria-label="Arrange (Shift+A)"]')?.getAttribute("aria-pressed") === "false");
+  assert.equal(await selectButton.getAttribute("aria-pressed"), "true", "Turning Arrange off must leave Select active");
+
+  // Turning Select off while Arrange is active retires Arrange as its dependent tool.
+  await arrangeButton.click();
+  await page.waitForFunction(() => document.querySelector('button[aria-label="Arrange (Shift+A)"]')?.getAttribute("aria-pressed") === "true");
+  await selectButton.click();
+  await page.waitForFunction(() => {
+    const select = document.querySelector('button[aria-label="Select (S)"]');
+    const arrange = document.querySelector('button[aria-label="Arrange (Shift+A)"]');
+    return select?.getAttribute("aria-pressed") === "false" && arrange?.getAttribute("aria-pressed") === "false";
+  });
+
+  // Activate Arrange once more from the fully-off state for the compact toolbar checks below.
   await arrangeButton.click();
   await page.waitForFunction(() => {
     const select = document.querySelector('button[aria-label="Select (S)"]');
@@ -169,7 +196,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Compact toolbar page errors:\n${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Compact toolbar console errors:\n${consoleErrors.join("\n")}`);
-  console.log("Single-toolbar compact presentation + zero phantom group gaps + active-tool retention + flush dividers + 150ms interruptible/reduced motion: PASS");
+  console.log("Single-toolbar compact presentation + Arrange/Select dependency + zero phantom group gaps + active-tool retention + flush dividers + 150ms interruptible/reduced motion: PASS");
 } finally {
   await context.close();
   await browser.close();
