@@ -12,7 +12,7 @@ page.on("console", (message) => {
   if (message.type() === "error") consoleErrors.push(message.text());
 });
 
-const waitForSettledMotion = () => page.waitForTimeout(260);
+const waitForSettledMotion = () => page.waitForTimeout(210);
 const visible = async (locator) => {
   const box = await locator.boundingBox();
   return Boolean(box && box.width > 0.5 && box.height > 0.5 && await locator.isVisible());
@@ -53,6 +53,13 @@ try {
     expandedDividerMetrics.every((metric) => metric.topDelta <= 0.5 && metric.bottomDelta <= 0.5 && Math.abs(metric.height - metric.toolbarHeight) <= 0.5),
     `Toolbar dividers must extend flush from top to bottom: ${JSON.stringify(expandedDividerMetrics)}`,
   );
+
+  const transitionDurations = await page.locator('[data-mesurer-toolbar-compact-item="true"]').first().evaluate((item) => ({
+    item: getComputedStyle(item).transitionDuration,
+    divider: getComputedStyle(document.querySelector('[data-mesurer-toolbar-divider]')).transitionDuration,
+  }));
+  assert(transitionDurations.item.includes("0.15s"), `Compact items must use 150ms transitions, got ${transitionDurations.item}`);
+  assert(transitionDurations.divider.includes("0.15s"), `Toolbar dividers must use 150ms transitions, got ${transitionDurations.divider}`);
 
   // Arrange remains an ordinary plugin tool. Activating it still activates Select.
   await arrangeButton.click();
@@ -103,7 +110,7 @@ try {
   await page.keyboard.press("Escape");
   await arrangeMenu.waitFor({ state: "hidden" });
 
-  // Transitions are interruptible: reverse before 200ms finishes and settle in the requested state.
+  // Transitions are interruptible: reverse before 150ms finishes and settle in the requested state.
   await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
   await page.waitForTimeout(40);
   await page.getByRole("button", { name: "Compact toolbar", exact: true }).click();
@@ -136,7 +143,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Compact toolbar page errors:\n${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Compact toolbar console errors:\n${consoleErrors.join("\n")}`);
-  console.log("Single-toolbar compact presentation + active-tool retention + flush dividers + interruptible/reduced motion: PASS");
+  console.log("Single-toolbar compact presentation + active-tool retention + flush dividers + 150ms interruptible/reduced motion: PASS");
 } finally {
   await context.close();
   await browser.close();
