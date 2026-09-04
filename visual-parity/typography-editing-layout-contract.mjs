@@ -149,9 +149,58 @@ try {
       && typography?.getAttribute("aria-pressed") === "false";
   });
 
+  // Regression: when Typography itself is selected, its hover/pinned inspector
+  // must not remain visible underneath the direct-edit Typography details card.
+  await arrangeButton.click();
+  await page.waitForFunction(() => {
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
+    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
+    return select?.getAttribute("aria-pressed") === "true"
+      && arrange?.getAttribute("aria-pressed") === "false";
+  });
+  assert.equal(await typographyButton.isDisabled(), false, "Typography should be available after Arrange is turned off");
+  await typographyButton.click();
+  await page.waitForFunction(() => document.querySelector("button[data-mesurer-builtin='text-inspector']")?.getAttribute("aria-pressed") === "true");
+
+  await page.mouse.move(x, y);
+  const normalTypographyCard = page.locator(".mesurer-ti-card:not([data-mesurer-text-inspector-info='true'])[data-state='visible']").first();
+  await normalTypographyCard.waitFor({ state: "visible" });
+
+  await page.mouse.dblclick(x, y);
+  const typographyEditor = page.locator("[data-mesurer-text-editor='true']");
+  const directTypographyCard = page.locator("[data-mesurer-text-inspector-info='true']");
+  await typographyEditor.waitFor({ state: "visible" });
+  await directTypographyCard.waitFor({ state: "visible" });
+
+  assert.equal(
+    await page.locator(".mesurer-ti-card:visible").count(),
+    1,
+    "Typography-first direct editing should expose exactly one visible typography information card",
+  );
+  assert.equal(
+    await page.locator(".mesurer-ti-card:not([data-mesurer-text-inspector-info='true']):visible").count(),
+    0,
+    "Typography hover/pinned cards must be suppressed while the direct editor owns Typography details",
+  );
+  assert.equal(
+    await page.locator(".mesurer-ti-box:visible").count(),
+    0,
+    "Typography hover/pinned highlight boxes must be suppressed while direct editing is active",
+  );
+  assert.equal(await typographyButton.getAttribute("aria-pressed"), "true", "Typography must remain selected during direct editing");
+
+  await typographyEditor.focus();
+  await page.keyboard.press("Escape");
+  await typographyEditor.waitFor({ state: "detached" });
+  await page.waitForFunction(() => Array.from(document.querySelectorAll(".mesurer-ti-card:not([data-mesurer-text-inspector-info='true'])"))
+    .some((card) => card instanceof HTMLElement
+      && getComputedStyle(card).display !== "none"
+      && card.getAttribute("aria-hidden") !== "true"));
+  assert.equal(await typographyButton.getAttribute("aria-pressed"), "true", "Closing direct editing must leave explicit Typography mode selected");
+
   assert.equal(pageErrors.length, 0, `Typography layout browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Typography layout browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Direct typography controls + semantic-only presets + centered chevron + contextual Typography without stealing Select/Arrange: PASS");
+  console.log("Direct typography controls + semantic-only presets + contextual/explicit Typography without duplicate cards: PASS");
 } finally {
   await browser.close();
 }
