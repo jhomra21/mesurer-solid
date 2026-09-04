@@ -23,10 +23,12 @@ try {
 
   const toolbar = page.locator('[data-mesurer-toolbar="true"]');
   const compactToggle = page.locator('[data-mesurer-toolbar-compact-toggle="true"]');
+  const compactDivider = page.locator('[data-mesurer-toolbar-divider="compact"]');
   const selectButton = page.getByRole("button", { name: "Select (S)", exact: true });
   const xrayButton = page.getByRole("button", { name: "X-ray (X)", exact: true });
   const typographyButton = page.getByRole("button", { name: "Typography (A)", exact: true });
   const arrangeButton = page.getByRole("button", { name: "Arrange (Shift+A)", exact: true });
+  const arrangeOptions = page.getByRole("button", { name: "Arrange options", exact: true });
 
   await toolbar.waitFor({ state: "visible" });
   await compactToggle.waitFor({ state: "visible" });
@@ -61,6 +63,25 @@ try {
   assert(transitionDurations.item.includes("0.15s"), `Compact items must use 150ms transitions, got ${transitionDurations.item}`);
   assert(transitionDurations.divider.includes("0.15s"), `Toolbar dividers must use 150ms transitions, got ${transitionDurations.divider}`);
 
+  // No active tools: compact presentation should collapse all empty group wrappers,
+  // leaving the chevron evenly padded instead of carrying invisible group spacing.
+  await compactToggle.click();
+  await waitForSettledMotion();
+  assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true");
+  const emptyCompactBox = await toolbar.boundingBox();
+  const emptyToggleBox = await compactToggle.boundingBox();
+  assert(emptyCompactBox && emptyToggleBox, "Empty compact toolbar and chevron must have bounding boxes");
+  const emptyLeftInset = emptyToggleBox.x - emptyCompactBox.x;
+  const emptyRightInset = (emptyCompactBox.x + emptyCompactBox.width) - (emptyToggleBox.x + emptyToggleBox.width);
+  assert(emptyLeftInset <= 5 && emptyRightInset <= 5, `Empty compact toolbar must not retain phantom group padding: left=${emptyLeftInset}px right=${emptyRightInset}px`);
+  assert(Math.abs(emptyLeftInset - emptyRightInset) <= 1, `Empty compact chevron should be centered by even outer padding: left=${emptyLeftInset}px right=${emptyRightInset}px`);
+  assert(emptyCompactBox.width <= emptyToggleBox.width + 10, `Empty compact toolbar should wrap the chevron tightly: toolbar=${emptyCompactBox.width}px toggle=${emptyToggleBox.width}px`);
+
+  await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
+  await waitForSettledMotion();
+  const expandedAgainBox = await toolbar.boundingBox();
+  assert(expandedAgainBox && Math.abs(expandedAgainBox.width - expandedBox.width) <= 1, "Expanding from the empty compact state must restore the original width");
+
   // Arrange remains an ordinary plugin tool. Activating it still activates Select.
   await arrangeButton.click();
   await page.waitForFunction(() => {
@@ -92,6 +113,12 @@ try {
   assert.equal(await xrayButton.getAttribute("aria-pressed"), beforeCompactState.xray, "Compacting must not change X-ray state");
   assert.equal(await typographyButton.getAttribute("aria-pressed"), beforeCompactState.typography, "Compacting must not change Typography state");
 
+  const compactDividerBox = await compactDivider.boundingBox();
+  const arrangeOptionsBox = await arrangeOptions.boundingBox();
+  assert(compactDividerBox && arrangeOptionsBox, "Active compact tools and divider must have bounding boxes");
+  const activeGap = compactDividerBox.x - (arrangeOptionsBox.x + arrangeOptionsBox.width);
+  assert(activeGap >= -0.5 && activeGap <= 5, `Collapsed inactive groups must not leave a gap before the compact chevron divider: ${activeGap}px`);
+
   // A hidden inactive tool can still be activated through its shortcut and then becomes visible.
   await page.keyboard.press("x");
   await page.waitForFunction(() => document.querySelector('button[aria-label="X-ray (X)"]')?.getAttribute("aria-pressed") === "true");
@@ -101,7 +128,6 @@ try {
   assert(compactWithXrayBox && compactWithXrayBox.width > compactBox.width, "Compact toolbar should expand enough to include a newly active tool");
 
   // Arrange's normal plugin-owned quick menu remains usable while compact.
-  const arrangeOptions = page.getByRole("button", { name: "Arrange options", exact: true });
   await arrangeOptions.click();
   const arrangeMenu = page.getByRole("menu", { name: "Arrange options", exact: true });
   await arrangeMenu.waitFor({ state: "visible" });
@@ -143,7 +169,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Compact toolbar page errors:\n${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Compact toolbar console errors:\n${consoleErrors.join("\n")}`);
-  console.log("Single-toolbar compact presentation + active-tool retention + flush dividers + 150ms interruptible/reduced motion: PASS");
+  console.log("Single-toolbar compact presentation + zero phantom group gaps + active-tool retention + flush dividers + 150ms interruptible/reduced motion: PASS");
 } finally {
   await context.close();
   await browser.close();
