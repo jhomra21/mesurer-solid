@@ -282,9 +282,12 @@ describe("page interaction coordination", () => {
     mounted.push(dispose);
 
     await vi.waitFor(() => {
-      expect(document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]')).toBeTruthy();
+      expect(document.querySelector<HTMLButtonElement>('button[aria-label="Edit & Arrange (Shift+A)"]')).toBeTruthy();
       expect(document.querySelector<HTMLButtonElement>('button[aria-label="Screenshot (Shift+S)"]')).toBeTruthy();
     });
+
+    const modeSwitch = document.querySelector<HTMLElement>('[data-mesurer-toolbar-mode-switch="true"]')!;
+    expect(modeSwitch.dataset.value).toBe("inspect");
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "S", shiftKey: true, bubbles: true, cancelable: true }));
     const screenshotOverlay = await vi.waitFor(() => {
@@ -298,7 +301,8 @@ describe("page interaction coordination", () => {
     await vi.waitFor(() => expect(screenshotOverlay.style.display).toBe("none"));
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "A", shiftKey: true, bubbles: true, cancelable: true }));
-    await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]')?.getAttribute("aria-pressed")).toBe("true"));
+    await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('button[aria-label="Edit & Arrange (Shift+A)"]')?.getAttribute("aria-pressed")).toBe("true"));
+    await vi.waitFor(() => expect(modeSwitch.dataset.value).toBe("arrange"));
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.getAttribute("aria-pressed")).toBe("false");
   });
 
@@ -322,6 +326,7 @@ describe("page interaction coordination", () => {
     expect(pluginHost).toBeTruthy();
     const arrangeButton = document.querySelector<HTMLButtonElement>('[data-mesurer-tool-id="arrange"] button')!;
     await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));
+    expect(document.querySelector<HTMLElement>('[data-mesurer-toolbar-mode-switch="true"]')?.dataset.value).toBe("arrange");
 
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(true);
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.disabled).toBe(true);
@@ -342,6 +347,7 @@ describe("page interaction coordination", () => {
 
     pluginHost!.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => false);
     await vi.waitFor(() => expect(pluginHost!.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(false));
+    await vi.waitFor(() => expect(document.querySelector<HTMLElement>('[data-mesurer-toolbar-mode-switch="true"]')?.dataset.value).toBe("inspect"));
     await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(false));
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.disabled).toBe(false);
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guides (G)"]')?.disabled).toBe(false);
