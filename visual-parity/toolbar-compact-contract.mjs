@@ -24,10 +24,12 @@ try {
   const toolbar = page.locator('[data-mesurer-toolbar="true"]');
   const compactToggle = page.locator('[data-mesurer-toolbar-compact-toggle="true"]');
   const compactDivider = page.locator('[data-mesurer-toolbar-divider="compact"]');
-  const selectButton = page.getByRole("button", { name: "Select (S)", exact: true });
-  const xrayButton = page.getByRole("button", { name: "X-ray (X)", exact: true });
-  const typographyButton = page.getByRole("button", { name: "Typography (A)", exact: true });
-  const arrangeButton = page.getByRole("button", { name: "Arrange (Shift+A)", exact: true });
+  // Use stable DOM ids here because this contract intentionally measures tools
+  // after their compact wrapper becomes aria-hidden/inert and leaves the a11y tree.
+  const selectButton = page.locator("[data-mesurer-builtin='select'] button");
+  const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
+  const typographyButton = page.locator("button[data-mesurer-builtin='text-inspector']");
+  const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
   const arrangeOptions = page.getByRole("button", { name: "Arrange options", exact: true });
 
   await toolbar.waitFor({ state: "visible" });
