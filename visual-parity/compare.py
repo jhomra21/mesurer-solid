@@ -25,11 +25,12 @@ version_token = re.compile(r"Version[0-9A-Za-z.+-]+")
 # dedicated current-browser contract. Keep this historical gate authoritative
 # for page results and Settings, but do not make the old toolbar shell veto the
 # explicitly adopted newer shell. The masked region contains only toolbar chrome
-# in these fixtures; page targets begin much farther down the viewport.
+# plus its measured drop-shadow fringe in these fixtures; page targets begin
+# much farther down the viewport.
 def is_historical_toolbar_pixel(state: str, x: int, y: int) -> bool:
-    if 0 <= x < 340 and 0 <= y < 56:
+    if 0 <= x < 340 and 0 <= y < 64:
         return True
-    if state == "orientation-menu" and 0 <= x < 280 and 56 <= y < 150:
+    if state == "orientation-menu" and 0 <= x < 280 and 64 <= y < 150:
         return True
     return False
 
