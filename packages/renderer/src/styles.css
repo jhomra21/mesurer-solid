@@ -187,3 +187,21 @@ body.mesurer-solid-xray .mesurer-ti-card *,
 body.mesurer-solid-xray .mesurer-ti-close {
   outline: none !important;
 }
+
+/* Compact items animate to zero width, so their group wrappers must also stop
+   contributing horizontal padding once every item in that group is hidden.
+   Otherwise invisible built-in/plugin/settings groups leave a phantom gap
+   immediately before the compact/expand chevron. */
+[data-mesurer-toolbar="true"] > div:has(> [data-mesurer-toolbar-compact-item]) {
+  transition: padding-inline 150ms ease;
+}
+
+[data-mesurer-toolbar="true"][data-mesurer-toolbar-compact="true"] > div:has(> [data-mesurer-toolbar-compact-item]):not(:has(> [data-mesurer-toolbar-compact-item][data-visible="true"])) {
+  padding-inline: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-mesurer-toolbar="true"] > div:has(> [data-mesurer-toolbar-compact-item]) {
+    transition: none;
+  }
+}
