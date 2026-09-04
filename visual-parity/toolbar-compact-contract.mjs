@@ -166,16 +166,25 @@ try {
   assert.equal(await arrangeButton.getAttribute("aria-pressed"), "true");
   assert.equal(await xrayButton.getAttribute("aria-pressed"), "true");
 
-  // Reduced motion reaches the same states without a transition duration.
+  // Reduced motion reaches the same final state without an effective transition.
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.getByRole("button", { name: "Compact toolbar", exact: true }).click();
   await page.waitForTimeout(20);
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true");
   const inactiveItemTransition = await typographyButton.evaluate((button) => {
     const item = button.closest('[data-mesurer-toolbar-compact-item="true"]');
-    return item ? getComputedStyle(item).transitionDuration : null;
+    if (!item) return null;
+    const style = getComputedStyle(item);
+    return { property: style.transitionProperty, duration: style.transitionDuration };
   });
-  assert(inactiveItemTransition === "0s" || inactiveItemTransition === "0s, 0s", `Reduced motion must disable compact transitions, got ${inactiveItemTransition}`);
+  assert(inactiveItemTransition, "Reduced-motion compact item must remain mounted");
+  const zeroDuration = inactiveItemTransition.duration
+    .split(",")
+    .every((duration) => Number.parseFloat(duration) === 0);
+  assert(
+    inactiveItemTransition.property === "none" || zeroDuration,
+    `Reduced motion must disable effective compact transitions, got property=${inactiveItemTransition.property} duration=${inactiveItemTransition.duration}`,
+  );
 
   assert.equal(pageErrors.length, 0, `Compact toolbar page errors:\n${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Compact toolbar console errors:\n${consoleErrors.join("\n")}`);
