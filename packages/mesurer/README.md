@@ -1,6 +1,6 @@
 # mesurer-solid
 
-Framework-agnostic UI measurement, visual inspection, layout intent, and agent-ready rendered context for browser applications.
+Framework-agnostic UI measurement, visual inspection, layout intent, direct text editing, and agent-ready rendered context for browser applications.
 
 Mesurer's private renderer uses Solid 2. Consumer applications can use Solid 1/2, React, Vue, Svelte, vanilla DOM, or Electron renderer pages without providing Solid.
 
@@ -156,9 +156,9 @@ import { mountMesurer } from "mesurer-solid"
 const mesurer = mountMesurer()
 ```
 
-The base inspector includes Select, X-ray, Rulers, Text Inspector, Guides, Distance, Settings, the plugin host, and the low-level inspection API. Color Picker is also available when the host exposes an operational native `EyeDropper`; it is intentionally hidden in unsupported hosts and has no DOM/CSS fallback.
+The base inspector includes Select, X-ray, Rulers, **Typography**, Guides, Distance, Settings, the plugin host, and the low-level inspection API. Color Picker is also available when the host exposes an operational native `EyeDropper`; it is intentionally hidden in unsupported hosts and has no DOM/CSS fallback.
 
-Text Inspector can inspect rendered typography and supports reversible Desired-text preview editing on double-click.
+Typography inspects rendered type and uses shortcut `A`. The internal built-in id remains `text-inspector` for compatibility. Direct text editing is also available while Select is active, including the Select state used by Arrange.
 
 ### Keyboard shortcuts
 
@@ -169,7 +169,7 @@ Text Inspector can inspect rendered typography and supports reversible Desired-t
 | `X` | X-ray |
 | `P` | Native Color Picker when supported |
 | `R` | Rulers |
-| `A` | Text Inspector |
+| `A` | Typography |
 | `G` | Guides |
 | `H` / `V` | Choose horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
@@ -181,6 +181,46 @@ Text Inspector can inspect rendered typography and supports reversible Desired-t
 | `N` | Add Note when `contextPlugin()` is mounted |
 
 In the current Codex browser host, Color Picker is not advertised and `P` is inert because native screen sampling is not operational there.
+
+## Direct text and typography editing
+
+With **Select** or **Typography** active, double-click direct text on desktop or double-tap with touch/pen. Mesurer opens an editor over the rendered target, matches the target's current typography, and selects the complete current text so typing replaces it immediately.
+
+Because Arrange keeps Select active, the same workflow works while arranging: move a selected element, double-click its text, edit/style it, and continue arranging.
+
+Opening the editor contextually activates **Typography for that exact field**. The Typography toolbar control becomes visibly active, and the live information card reports Family, Size, Weight, Line, Tracking, target/text information, and CSS-variable references when available. This contextual activation does not switch the page-targeting mode away from Select, so Arrange remains active. The contextual Typography state clears with the edit session unless Typography itself was explicitly selected.
+
+The floating formatting strip uses the same white toolbar language as the main Mesurer toolbar. Frequent typography controls remain directly available: **B / I / U**, page-derived **Font / Size / Weight**, common rendered-page text colors, a custom color control, and a separate semantic **Text / Heading** preset control.
+
+The semantic popup contains only page-derived presets:
+
+- **Text**;
+- **Heading 1** only when the page renders a visible direct-text H1;
+- **Heading 2** only when the page renders a visible direct-text H2;
+- **Heading 3** only when the page renders a visible direct-text H3.
+
+Each preset uses the **dominant rendered typography bundle** for that semantic level. The bundle includes font family, size, weight, style, line height, tracking, text transform, and color. Mesurer does not invent heading levels that are not actually present.
+
+Pages may contain several visual variants of the same semantic heading/body style. Those non-dominant variants remain directly available through Font, Size, Weight, and Color rather than being mixed into the semantic popup. A divider separates direct properties from the semantic preset control, whose fixed-geometry chevron avoids font-baseline alignment problems.
+
+While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle Bold/Italic/Underline. Text/H1/H2/H3 presets expose `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere; unavailable heading levels do nothing rather than creating an invented style.
+
+The page-derived lists use computed styles from actual rendered text, not built-in Mesurer font/color presets. Mesurer live-previews the requested copy and styles on the target. Press **Enter** to keep the Desired edit or **Shift+Enter** to insert a newline. If the semantic preset popup is open, **Escape** closes that popup first; pressing Escape again cancels the editing session. Clicking outside the active editor/formatting surfaces commits it.
+
+Saved text/style changes remain reversible Mesurer intent and participate in history. They do not write application source.
+
+The current contract is deliberately direct-text editing rather than a generic rich-text engine. Mesurer targets ordinary elements with one unambiguous non-empty direct text node. Native `<input>`, `<textarea>`, `<select>`, and `contenteditable` controls keep their normal browser/application editing behavior, and mixed/nested rich-text structures are not silently flattened into this workflow. Link creation and numbered/bulleted lists are intentionally not exposed until there is a real structural/rich-text intent model for them.
+
+When `agent: true` is enabled, the agent surface advertises `textEdit: true` and exposes saved intent directly:
+
+```js
+const edits = await window.__MESURER__.textEdits()
+const intent = await window.__MESURER__.textEdit(edits.at(-1).id)
+```
+
+The intent carries target identity, Before/Desired text, and requested style deltas. A coding agent should map those requests to the application's real component props, classes, CSS variables, design tokens, theme values, or stylesheets instead of copying temporary Mesurer preview styles blindly.
+
+For the complete interaction, semantic preset rules, Before/Desired/Live semantics, target boundaries, automatic Typography behavior, agent verification workflow, and validation contract, see [`docs/TEXT_EDITING.md`](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TEXT_EDITING.md).
 
 ## Arrange
 
@@ -334,7 +374,7 @@ The current upstream audit and intentional differences are documented in [`docs/
 The coding-agent contract is context-first and preserves existing human state:
 
 ```text
-human Arrange / annotation / selection
+human Arrange / text-style Desired edit / annotation / selection
   → window.__MESURER__
   → structured rendered evidence
   → source edit
@@ -357,7 +397,7 @@ if (hasMesurer) {
 }
 ```
 
-A live human instance may already contain the information the agent needs. Do not overwrite selection, Arrange history, guides, measurements, annotations, or screenshot preview state before reading it.
+A live human instance may already contain the information the agent needs. Do not overwrite selection, Arrange history, text-edit history, guides, measurements, annotations, or screenshot preview state before reading it.
 
 Install the portable Agent Skill with:
 
@@ -433,6 +473,7 @@ Mesurer's renderer is bundled and isolated from the host framework. Supported ho
 ## More documentation
 
 - [Getting started](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md)
+- [Direct text editing and Typography](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TEXT_EDITING.md)
 - [Arrange](https://github.com/jhomra21/mesurer-solid/blob/main/docs/ARRANGE.md)
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)

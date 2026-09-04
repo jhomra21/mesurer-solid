@@ -35,6 +35,38 @@ Arrange records one history entry when the drag finishes. Pointer movement itsel
 
 Repeated drags start from the current Desired placement rather than the source-rendered position, so you can refine a layout in several small moves.
 
+## Arrange and direct text editing
+
+Arrange intentionally keeps Select active, so direct text editing works without leaving the layout workflow.
+
+A reviewer can:
+
+1. activate Arrange;
+2. select and move an element;
+3. double-click ordinary direct text inside that selected element;
+4. replace the copy or change typography/color with the field-local Mesurer toolbar;
+5. see **Typography** become contextually active and inspect the live Typography card for that exact field;
+6. use direct B/I/U, Font, Size, Weight, rendered-page colors, custom color, or the separate Text/Heading semantic preset control;
+7. press **Enter** to keep the text/style change as Desired intent;
+8. continue arranging.
+
+The two features record separate but complementary intent:
+
+```text
+Arrange intent
+  Before / Desired geometry
+
+Text-edit intent
+  Before / Desired copy
+  requested typography/style deltas
+```
+
+Neither channel should erase the other. A person can move a control and change its label/typography, then simply ask a coding agent to “check Mesurer context.” The Agent Skill inventories both channels before changing source.
+
+Direct text editing does not switch the underlying page-targeting mode from Select to Typography while Arrange is active. Typography is **contextually active** for the edit session—the toolbar button and field card reflect the active typography context—while Select and Arrange remain active and usable. That contextual Typography state clears when editing ends unless Typography itself was explicitly selected.
+
+See [`TEXT_EDITING.md`](./TEXT_EDITING.md) for the complete direct text-edit contract, target boundaries, toolbar behavior, Typography information, agent API, and Live verification rules.
+
 ## Arrange settings
 
 Arrange exposes these frequently changed preferences from the small chevron beside the Arrange toolbar button and from its full, collapsed plugin section in Mesurer Settings. Both surfaces read and write the same persisted plugin state. The quick menu closes after a preference is chosen:
@@ -104,6 +136,8 @@ That distinction lets a coding agent compare human intent with the real implemen
 
 Desired remains visible after a completed drag and can be restored after reload. Deactivating Arrange returns the human page to Live. Agents can switch explicitly between Before, Desired, and Live through the Arrange API.
 
+Text/style Desired edits have their own preview ownership and history. When a task combines Arrange and text editing, preserve both intent records. Do not clear text-edit history merely to inspect Arrange Live state, and do not clear Arrange history to inspect text Live state.
+
 ## Agent API
 
 When `arrangePlugin()` is mounted, the Mesurer agent capability surface reports `arrange: true`.
@@ -118,6 +152,8 @@ Read saved Arrange intents:
 const intents = await window.__MESURER__.arrangements()
 const intent = await window.__MESURER__.arrange(intents.at(-1).id)
 ```
+
+If direct text editing has also been used, the same broad review should inventory `textEdit` and read `textEdits()` / `textEdit(id)` before source changes. Arrange geometry and text/style intent are independent evidence channels even when they refer to the same rendered component.
 
 Present a historical state:
 
@@ -168,6 +204,8 @@ The agent should inspect the surrounding rendered layout and make the source-lev
 
 The temporary Arrange transform exists only to preview the desired result. It is evidence of intent, not the prescribed source implementation.
 
+The same rule applies to direct text/style edits used alongside Arrange: a sampled font/color/weight is Desired visual evidence, not an instruction to paste Mesurer's temporary inline style into production source.
+
 ## Review after source edits
 
 After editing the application, wait for the real render, switch to Live, and compare it with Desired:
@@ -203,6 +241,8 @@ matched ✓
 ```
 
 The preview is removed while Live geometry is measured, so a temporary Arrange offset cannot make an unfinished source change appear correct.
+
+If the same task includes a text-edit intent, also deactivate the text Desired preview without deleting that intent and compare the target's real rendered copy/computed typography with the saved Desired text/style values. A complete implementation must match both layout and text intent in Live source.
 
 ## Multi-selection
 

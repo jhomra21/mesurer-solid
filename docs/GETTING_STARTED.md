@@ -214,6 +214,26 @@ The exact same `mountMesurer({ ... })` block can instead live inside `src/dev/me
 
 You do not need separate app-level files for Context, Arrange, Screenshot, or other Mesurer plugins unless that organization is useful to your project.
 
+## Try direct text editing
+
+Direct text editing is part of the mounted renderer; there is no extra text-edit plugin to import.
+
+1. Press **S** to activate Select, or **A** to use **Typography**.
+2. Double-click ordinary direct text on desktop, or double-tap it with touch/pen.
+3. The current text is selected in full and an in-place editor opens using that target's rendered typography.
+4. Typography context activates automatically for that exact field. The Typography button becomes visibly active and the live card shows Family, Size, Weight, Line, Tracking, target/text information, and CSS-variable references when available.
+5. Use the direct toolbar controls: **B / I / U**, page-derived **Font / Size / Weight**, rendered-page colors, and custom color.
+6. Use the separate semantic preset control for **Text** or an available **Heading 1/2/3**. The popup contains semantic presets only. Each preset comes from the dominant rendered style for a semantic level the page actually uses; non-dominant variants remain available through the direct typography controls.
+7. Press **Enter** to keep the edit as Desired intent or **Shift+Enter** for a newline. If the semantic preset popup is open, **Escape** closes it first; Escape again cancels the edit session.
+
+Arrange keeps Select active, so this also works while arranging a selected element. Contextual Typography does not steal Select mode or disable Arrange, and it clears when the edit session ends unless Typography itself was explicitly selected.
+
+While the editor has focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle formatting. Text/H1/H2/H3 presets use `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere.
+
+The current contract intentionally targets ordinary elements with one unambiguous non-empty direct text node. Native form controls and `contenteditable` keep their own editing behavior. Link/list structural editing is intentionally not exposed until Mesurer has a proper rich-text intent model for it.
+
+See [`TEXT_EDITING.md`](./TEXT_EDITING.md) for the full human interaction, semantic preset rules, Typography context, Before/Desired/Live semantics, agent API, and validation contract.
+
 ## Files that should not mount Mesurer
 
 Do not put `mountMesurer()` in files such as:
@@ -278,6 +298,7 @@ Use the renderer's actual browser entry and the same development guard your Elec
 
 ## Next steps
 
+- [`TEXT_EDITING.md`](./TEXT_EDITING.md) — direct copy/typography editing and automatic Typography context
 - [`ARRANGE.md`](./ARRANGE.md) — Arrange visual layout intent, `Shift+A`, and Before/Desired/Live review
 - [`SCREENSHOTS.md`](./SCREENSHOTS.md) — screenshot plugin behavior, `Shift+S`, and capture providers
 - [`CONTEXT_WORKFLOW.md`](./CONTEXT_WORKFLOW.md) — selection, context, review notes, and review

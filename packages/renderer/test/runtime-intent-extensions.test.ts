@@ -196,6 +196,81 @@ describe("visual intent runtime extensions", () => {
     expect(target.textContent).toBe("  Start your free trial  ");
   });
 
+  it("offers compact page-derived heading presets without turning text editing into rich text", async () => {
+    const { host, model, pageTarget } = await setup();
+    const target = document.createElement("p");
+    target.id = "preset-target";
+    target.textContent = "Body copy";
+    target.style.fontFamily = "Arial";
+    target.style.fontSize = "14px";
+    target.style.fontWeight = "400";
+    target.style.lineHeight = "20px";
+    pageTarget.append(target);
+
+    const heading = document.createElement("h2");
+    heading.textContent = "Section heading";
+    heading.style.fontFamily = "Georgia";
+    heading.style.fontSize = "30px";
+    heading.style.fontWeight = "700";
+    heading.style.fontStyle = "italic";
+    heading.style.lineHeight = "36px";
+    heading.style.letterSpacing = "1px";
+    heading.style.textTransform = "uppercase";
+    heading.style.color = "rgb(20, 40, 60)";
+    pageTarget.append(heading);
+
+    setRect(target, { left: 80, top: 100, width: 220, height: 32 });
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [target, pageTarget, document.body, document.documentElement],
+    });
+
+    model.setToolMode("text-inspector");
+    target.dispatchEvent(new MouseEvent("dblclick", {
+      bubbles: true,
+      clientX: 100,
+      clientY: 110,
+    }));
+
+    const editor = document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']")!;
+    const toolbar = document.querySelector<HTMLElement>("[data-mesurer-text-style-toolbar='true']")!;
+    const menuButton = document.querySelector<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']")!;
+    const menu = document.querySelector<HTMLElement>("[data-mesurer-text-style-menu='true']")!;
+    expect(toolbar.querySelectorAll(":scope > button")).toHaveLength(4);
+    expect(menu.hidden).toBe(true);
+
+    menuButton.click();
+    expect(menu.hidden).toBe(false);
+    expect(document.querySelector("[data-mesurer-text-style-preset='heading-1']")).toBeNull();
+    const headingPreset = document.querySelector<HTMLButtonElement>("[data-mesurer-text-style-preset='heading-2']")!;
+    expect(headingPreset).toBeTruthy();
+    headingPreset.click();
+
+    expect(menu.hidden).toBe(true);
+    expect(target.style.fontFamily).toBe("Georgia");
+    expect(target.style.fontSize).toBe("30px");
+    expect(target.style.fontWeight).toBe("700");
+    expect(target.style.fontStyle).toBe("italic");
+    expect(target.style.lineHeight).toBe("36px");
+    expect(target.style.letterSpacing).toBe("1px");
+    expect(target.style.textTransform).toBe("uppercase");
+    expect(target.style.color).toBe("rgb(20, 40, 60)");
+
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await Promise.resolve();
+
+    const service = host.service.get<MesurerTextEditService>(MESURER_TEXT_EDIT_SERVICE_ID)!;
+    const intent = service.intents().at(-1);
+    expect(intent?.styles).toEqual(expect.arrayContaining([
+      expect.objectContaining({ property: "font-family", desired: "Georgia" }),
+      expect.objectContaining({ property: "font-size", desired: "30px" }),
+      expect.objectContaining({ property: "font-weight", desired: "700" }),
+      expect.objectContaining({ property: "line-height", desired: "36px" }),
+      expect.objectContaining({ property: "letter-spacing", desired: "1px" }),
+      expect.objectContaining({ property: "text-transform", desired: "uppercase" }),
+    ]));
+  });
+
   it("does not overwrite a later framework/source text update when leaving Text Inspector", async () => {
     const { model, pageTarget } = await setup();
     const target = document.createElement("p");

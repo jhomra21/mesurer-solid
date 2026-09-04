@@ -299,7 +299,7 @@ describe("page interaction coordination", () => {
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "A", shiftKey: true, bubbles: true, cancelable: true }));
     await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]')?.getAttribute("aria-pressed")).toBe("true"));
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Text inspector (A)"]')?.getAttribute("aria-pressed")).toBe("false");
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("reserves page-interaction tools for Arrange and closes its quick menu after a choice", async () => {
@@ -324,14 +324,14 @@ describe("page interaction coordination", () => {
     await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));
 
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(true);
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Text inspector (A)"]')?.disabled).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.disabled).toBe(true);
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guides (G)"]')?.disabled).toBe(true);
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guide orientation menu"]')?.disabled).toBe(true);
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
     await settle();
     expect(arrangeButton.getAttribute("aria-pressed")).toBe("true");
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Text inspector (A)"]')?.getAttribute("aria-pressed")).toBe("false");
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.getAttribute("aria-pressed")).toBe("false");
 
     const menuTrigger = document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-trigger="arrange"]')!;
     menuTrigger.click();
@@ -343,7 +343,7 @@ describe("page interaction coordination", () => {
     pluginHost!.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => false);
     await vi.waitFor(() => expect(pluginHost!.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(false));
     await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(false));
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Text inspector (A)"]')?.disabled).toBe(false);
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.disabled).toBe(false);
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guides (G)"]')?.disabled).toBe(false);
   });
 });

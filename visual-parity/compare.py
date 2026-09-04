@@ -59,6 +59,36 @@ def normalize_version_text(value):
     return version_token.sub("Version<version>", str(value))
 
 
+def normalize_typography_label_text(value):
+    # The visible Solid product label intentionally diverges while the internal
+    # compatibility id and all icon/layout/style contracts remain unchanged.
+    return str(value).replace("Typography A", "Text inspector A")
+
+
+def normalize_allowed_settings_text(value):
+    return normalize_version_text(normalize_typography_label_text(value))
+
+
+def is_intentional_typography_label_difference(difference):
+    """Allow only the documented Solid product-label rename; no visual/layout drift."""
+    path = difference["path"]
+    react = difference["react"]
+    solid = difference["solid"]
+    exact_label_paths = {
+        "toolbarButtons[4].ariaLabel",
+        "uiContract.toolbarIconContract[4].name",
+    }
+    if path in exact_label_paths:
+        return react == "Text inspector (A)" and solid == "Typography (A)"
+    if path == "toolbar.text":
+        return normalize_typography_label_text(solid) == str(react)
+    return False
+
+
+def is_environmental_contract_difference(difference):
+    return difference["path"].endswith(non_design_contract_suffixes)
+
+
 report = {
     "threshold_per_channel": threshold,
     "react_version": react_version,
@@ -109,7 +139,12 @@ for state in states:
     solid_metrics = round_numbers(json.loads((out / f"solid-{state}.json").read_text()))
     react_contract = {key: react_metrics.pop(key, None) for key in contract_keys}
     solid_contract = {key: solid_metrics.pop(key, None) for key in contract_keys}
-    metric_diffs = metric_differences(react_metrics, solid_metrics)
+    raw_metric_diffs = metric_differences(react_metrics, solid_metrics)
+    metric_diffs = [
+        difference
+        for difference in raw_metric_diffs
+        if not is_intentional_typography_label_difference(difference)
+    ]
     raw_contract_diffs = metric_differences(
         react_contract,
         solid_contract,
@@ -119,7 +154,8 @@ for state in states:
     contract_diffs = [
         difference
         for difference in raw_contract_diffs
-        if not difference["path"].endswith(non_design_contract_suffixes)
+        if not is_environmental_contract_difference(difference)
+        and not is_intentional_typography_label_difference(difference)
     ]
 
     report["states"][state] = {
@@ -135,16 +171,23 @@ for state in states:
         "metric_differences": metric_diffs[:100],
         "contract_difference_count": len(contract_diffs),
         "contract_differences": contract_diffs[:200],
-        "ignored_environmental_contract_difference_count": len(raw_contract_diffs) - len(contract_diffs),
+        "ignored_environmental_contract_difference_count": sum(
+            is_environmental_contract_difference(item) for item in raw_contract_diffs
+        ),
+        "ignored_typography_label_difference_count": sum(
+            is_intentional_typography_label_difference(item)
+            for item in [*raw_metric_diffs, *raw_contract_diffs]
+        ),
     }
 
 (out / "report.json").write_text(json.dumps(report, indent=2))
 print(json.dumps(report, indent=2))
 
 # Treat the pinned React implementation as the UI contract. Every captured
-# state must have zero semantic/control/icon contract drift. Visual and computed
-# layout/style drift are also zero-tolerance, except Settings > General where
-# upstream and the port intentionally display their own version token.
+# state must have zero semantic/control/icon contract drift except the explicitly
+# documented Solid product-label rename from Text Inspector to Typography.
+# Pixel, computed layout, and style drift remain zero-tolerance, except Settings
+# > General where upstream and the port intentionally display their own version token.
 failures = []
 expected_general_metric_paths = {"settings.text", "toolbar.text"}
 for state, result in report["states"].items():
@@ -163,8 +206,10 @@ for state, result in report["states"].items():
                 f"{state}: unexpected computed metric differences: {sorted(metric_paths - expected_general_metric_paths)}"
             )
         for item in result["metric_differences"]:
-            if normalize_version_text(item["react"]) != normalize_version_text(item["solid"]):
-                failures.append(f"{state}: allowed text difference is not solely the React/Solid version token")
+            if normalize_allowed_settings_text(item["react"]) != normalize_allowed_settings_text(item["solid"]):
+                failures.append(
+                    f"{state}: allowed text difference is not solely the version token plus the Typography product-label rename"
+                )
     else:
         if result["threshold_diff_pixels"] != 0:
             failures.append(f"{state}: {result['threshold_diff_pixels']} perceptible pixels differ")

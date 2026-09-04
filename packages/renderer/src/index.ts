@@ -97,6 +97,16 @@ export type {
   TextInspectorAPI,
   TextInspectorOptions,
 } from "./runtime/text-inspector";
+export {
+  MESURER_TEXT_EDIT_SERVICE_ID,
+  MESURER_TEXT_EDIT_STATE_ID,
+} from "./runtime/text-editing";
+export type {
+  MesurerTextEditIntent,
+  MesurerTextEditService,
+  MesurerTextStyleChange,
+  MesurerTextStyleProperty,
+} from "./runtime/text-editing";
 export type {
   TypographyInfo,
   TypographyRow,

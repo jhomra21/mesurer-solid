@@ -17,8 +17,12 @@ on:
       - "packages/renderer/src/plugins/screenshot.ts"
       - "packages/renderer/src/runtime/builtin-actions.ts"
       - "packages/renderer/src/runtime/color-picker-support.ts"
+      - "packages/renderer/src/runtime/text-editing.ts"
+      - "packages/renderer/src/runtime/text-editing-core.ts"
+      - "packages/renderer/src/runtime/text-editing-presentation.ts"
       - "packages/renderer/test/arrange-plugin.test.ts"
       - "packages/renderer/test/distances.test.ts"
+      - "packages/renderer/test/text-editing.test.ts"
       - "packages/mesurer/src/context-plugin.tsx"
       - "examples/basic/index.html"
       - "examples/basic/src/main.tsx"
@@ -30,6 +34,8 @@ on:
       - "examples/basic/src/plugin-settings.ts"
       - "visual-parity/arrange-contract.mjs"
       - "visual-parity/color-picker-contract.mjs"
+      - "visual-parity/text-editing-contract.mjs"
+      - "visual-parity/typography-editing-layout-contract.mjs"
       - "visual-parity/self-hosting-context.mjs"
       - "visual-parity/multi-spacing.mjs"
       - "visual-parity/plugin-settings-contract.mjs"
@@ -54,11 +60,14 @@ jobs:
       - name: Install workspace
         run: bun install --frozen-lockfile
 
+      - name: Build foundations
+        run: bun run build:foundations
+
       - name: Generate renderer styles
         run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
-      - name: Run spacing unit tests
-        run: bun run --filter '@jhomra21/mesurer-solid-renderer' test -- distances.test.ts
+      - name: Run rendered-contract unit tests
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' test -- distances.test.ts text-editing.test.ts
 
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
@@ -92,6 +101,16 @@ jobs:
         env:
           ARRANGE_URL: http://127.0.0.1:4174/
         run: bun visual-parity/arrange-contract.mjs
+
+      - name: Exercise direct text editing and page style suggestions
+        env:
+          TEXT_EDITING_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/text-editing-contract.mjs
+
+      - name: Exercise Typography layout and contextual activation
+        env:
+          TYPOGRAPHY_EDITING_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/typography-editing-layout-contract.mjs
 
       - name: Exercise Color Picker capability
         env:
@@ -131,6 +150,15 @@ jobs:
           print("- Toolbar enablement after selection exercised in Chromium")
           print("- Nearby-element, X-ray-outline, and guide alignment snapping exercised in Chromium")
           print("- Ghost suppression, persistent Desired placement, and Live restoration on deactivation exercised in Chromium")
+
+          print("")
+          print("### Direct text editing / Typography")
+          print("- Double-click through an active Arrange overlay exercised in Chromium")
+          print("- Full-text selection and target typography inheritance exercised in Chromium")
+          print("- Rendered-page font, size, weight, and color suggestions exercised in Chromium")
+          print("- Direct typography controls, semantic-only preset popup, and centered chevron exercised in Chromium")
+          print("- Contextual Typography activation without stealing Select/Arrange exercised in Chromium")
+          print("- Text/style Desired state and Live restoration exercised in Chromium")
 
           print("")
           print("### Color Picker")

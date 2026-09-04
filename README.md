@@ -6,7 +6,7 @@
 
 A Solid 2 port and extension of [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick).
 
-Mesurer Solid is a visual inspection and measurement tool for browser apps. Use it to select elements, inspect spacing and layout, measure distances, add guides, inspect text and colors, arrange a desired layout, capture screenshots, and expose rendered UI state through a programmatic API.
+Mesurer Solid is a visual inspection and measurement tool for browser apps. Use it to select elements, inspect spacing and layout, measure distances, add guides, inspect and edit text, arrange a desired layout, capture screenshots, and expose rendered UI state through a programmatic API.
 
 <p align="center">
   <img src="docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between four selected elements" width="100%">
@@ -140,7 +140,7 @@ Mesurer carries its own isolated Solid 2 renderer, so the host app does not need
 | Guides & rulers | Add visual alignment and position references |
 | X-ray | Inspect page structure visually |
 | Color Picker | Use the browser's native screen sampler when `EyeDropper` is operational; the tool is hidden in unsupported hosts |
-| Text Inspector | Inspect rendered typography and double-click Desired text to make a reversible preview edit |
+| Typography | Inspect rendered typography, edit copy directly, and preview reversible page-derived typography/style changes |
 | Settings | Configure tools and persisted behavior |
 | Arrange | Move selected elements into a desired visual layout without editing application source |
 | Screenshots | Capture a dragged viewport region with the optional screenshot plugin |
@@ -158,7 +158,7 @@ The default renderer and first-party plugins expose shortcuts only while their c
 | `X` | X-ray |
 | `P` | Native Color Picker when supported |
 | `R` | Rulers |
-| `A` | Text Inspector |
+| `A` | Typography |
 | `G` | Guides |
 | `H` / `V` | Choose horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
@@ -170,6 +170,46 @@ The default renderer and first-party plugins expose shortcuts only while their c
 | `N` | Add Note when `contextPlugin()` is mounted |
 
 Color Picker intentionally has no DOM/CSS sampling fallback. In hosts where native screen sampling cannot operate—including the current Codex browser bridge—the Color Picker control is not advertised and `P` is inert.
+
+## Edit text and typography directly
+
+Direct text editing is available while **Typography** or **Select** is active. Because Arrange keeps Select active, you can move an element, double-click its text, edit/style it, and continue arranging without switching away from Arrange.
+
+Double-click direct text on desktop, or double-tap it with touch/pen. Mesurer opens an editor over the rendered text using that target's current typography and selects the entire current text so typing immediately replaces it.
+
+Opening the editor also activates **Typography context for that exact field**. The Typography toolbar control becomes visibly active, and a live information card reports Family, Size, Weight, Line, Tracking, the target/text snippet, and CSS-variable references when available. This contextual activation does not steal Select mode, so Select and Arrange remain active. When editing ends, the contextual Typography state clears unless Typography itself was explicitly selected.
+
+The editing toolbar keeps frequent typography controls directly available rather than hiding unrelated choices inside a Heading menu. It exposes **B / I / U**, page-derived **Font / Size / Weight**, common rendered-page text colors, a custom color control, and a separate semantic **Text / Heading** preset control.
+
+The semantic preset popup contains only:
+
+- **Text**;
+- **Heading 1** when the page renders a visible direct-text H1;
+- **Heading 2** when the page renders a visible direct-text H2;
+- **Heading 3** when the page renders a visible direct-text H3.
+
+Each preset uses the **dominant rendered typography bundle** for that semantic level rather than an arbitrary Mesurer default or whichever matching element happens to be visually unusual. The bundle includes family, size, weight, style, line height, tracking, text transform, and color. Heading levels the page does not use are not invented.
+
+Pages can still have multiple visual variants of a heading/body style. Those non-dominant variants remain available through the direct Font, Size, Weight, and Color controls. The semantic preset control is separated from those properties by a divider and uses a fixed-geometry chevron instead of a font glyph so its indicator stays optically centered.
+
+While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle formatting. Text/H1/H2/H3 presets expose `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere; a heading shortcut only applies when that level exists in the current page-derived catalog.
+
+These suggestions come from the rendered page, so they reflect styles the application is actually using rather than an arbitrary preset list. The current target style is always retained as an option.
+
+Typing and style changes preview directly on the real rendered target. Press **Enter** to keep the Desired edit or **Shift+Enter** to insert a newline. If the semantic preset popup is open, **Escape** closes it first; pressing Escape again cancels the current editing session. Clicking outside the editor/formatting surfaces commits the current session. Saved text/style edits participate in Mesurer state history and remain reversible previews rather than pretending to change application source.
+
+The current contract is deliberately **direct-text editing**, not generic rich-text editing. Mesurer targets ordinary elements with one unambiguous non-empty direct text node and does not hijack `<input>`, `<textarea>`, `<select>`, `contenteditable`, or mixed/nested rich-text structures. Link creation and numbered/bulleted lists are intentionally not exposed as fake formatting controls; those would require a real structural/rich-text intent model.
+
+When the agent bridge is enabled, saved text/style intent is available separately from ordinary context:
+
+```js
+const edits = await window.__MESURER__.textEdits()
+const intent = await window.__MESURER__.textEdit(edits.at(-1).id)
+```
+
+Each intent records the target, Before/Desired copy, and requested style deltas. Coding agents should implement that visual outcome using the application's real component props, classes, CSS variables, theme/design tokens, or stylesheet rules when appropriate—not copy Mesurer's temporary preview styles blindly.
+
+See [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) for the complete human workflow, semantic preset rules, target boundaries, toolbar/Typography behavior, Before/Desired/Live semantics, agent API, Arrange coordination, runtime ownership, and browser validation contract.
 
 ## Arrange a desired layout
 
@@ -189,7 +229,7 @@ Select one or more elements, click **Arrange** or press **Shift+A**, and drag th
 
 Each completed drag records Before and Desired geometry, persists through the plugin state channel, and participates in Mesurer undo/redo. Coding agents can reconstruct Before/Desired, capture both through their existing browser harness, switch to Live after editing source, and use exact geometry to verify whether the real implementation matches the human-arranged result.
 
-Arrange is primarily a human/designer intent tool: move the rendered UI to where it should be, then tell the coding agent to check Mesurer context. When the Agent Skill is installed, a broad request to check Mesurer/context tells the agent to inspect all existing human intent before editing—including Arrange intents, annotations, current selection, guides, measurements, held distances, and related target/layout context—so the user does not need to separately describe each adjustment.
+Arrange is primarily a human/designer intent tool: move the rendered UI to where it should be, edit copy or typography when useful, then tell the coding agent to check Mesurer context. When the Agent Skill is installed, a broad request to check Mesurer/context tells the agent to inspect all existing human intent before editing—including Arrange intents, text/style Desired edits, annotations, current selection, guides, measurements, held distances, and related target/layout context—so the user does not need to separately describe each adjustment.
 
 Arrange is a visual specification: an agent should implement the appropriate flex/grid/spacing/component change rather than blindly copying the preview offset into a production transform.
 
@@ -273,7 +313,7 @@ This is useful when a visual change needs to be checked against the same target 
 
 ## Agent integration
 
-For coding-agent setup, injection, state-preservation rules, Arrange handling, and the full visual verification workflow, use the dedicated agent docs instead of the README:
+For coding-agent setup, injection, state-preservation rules, Arrange/text-edit handling, and the full visual verification workflow, use the dedicated agent docs instead of the README:
 
 - [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md)
 - [`.agents/skills/mesurer-ui/SKILL.md`](./.agents/skills/mesurer-ui/SKILL.md)
@@ -284,7 +324,7 @@ Install the portable skill with:
 npx --yes --package=mesurer-solid mesurer-skill install
 ```
 
-The skill treats broad requests such as “check Mesurer,” “check Measure,” or “look at Mesurer context” as a full intent sweep. It preserves and reads existing Arrange, annotation, selection, guide, measurement, and distance state before the agent narrows its work or edits source.
+The skill treats broad requests such as “check Mesurer,” “check Measure,” or “look at Mesurer context” as a full intent sweep. It preserves and reads existing Arrange, text/style Desired edits, annotation, selection, guide, measurement, and distance state before the agent narrows its work or edits source.
 
 ## Supported hosts
 
@@ -342,6 +382,7 @@ mesurer-solid/inject-script
 ## Docs
 
 - [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md) — where to mount Mesurer and development/client setup
+- [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) — direct copy/typography editing, automatic Typography context, and agent intent
 - [`docs/ARRANGE.md`](./docs/ARRANGE.md) — Arrange visual layout intent and agent review
 - [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) — screenshot plugin
 - [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — context, selection, annotations, and review

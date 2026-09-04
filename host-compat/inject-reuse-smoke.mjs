@@ -35,12 +35,15 @@ try {
     };
   });
 
-  const expectedCapabilityKeys = ["annotations", "arrange", "capturePlan", "context", "review", "select"];
+  const expectedCapabilityKeys = ["annotations", "arrange", "capturePlan", "context", "review", "select", "textEdit"];
   if (JSON.stringify(directContract.capabilityKeys) !== JSON.stringify(expectedCapabilityKeys)) {
     throw new Error(`Unexpected direct context capability surface: ${JSON.stringify(directContract)}`);
   }
   if (directContract.capabilities.arrange !== false) {
     throw new Error(`Base injector must advertise Arrange as unavailable until the optional plugin is mounted: ${JSON.stringify(directContract)}`);
+  }
+  if (directContract.capabilities.textEdit !== true) {
+    throw new Error(`Base injector must advertise built-in text-edit intent availability: ${JSON.stringify(directContract)}`);
   }
   const expectedContextToolIds = ["context.add-note", "context.copy", "context.copy-selection"];
   if (JSON.stringify(directContract.contextToolIds) !== JSON.stringify(expectedContextToolIds)) {
@@ -143,7 +146,7 @@ try {
 
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join("\n")}`);
   if (consoleErrors.length) throw new Error(`Console errors: ${consoleErrors.join("\n")}`);
-  console.log("Context-returning selection and human-state-safe injection: PASS");
+  console.log("Context-returning selection, text-edit capability, and human-state-safe injection: PASS");
 } finally {
   await browser.close();
 }

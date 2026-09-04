@@ -69,6 +69,10 @@ if (publishedRoot.mountMeasurer !== publishedRoot.mountMesurer) {
 }
 
 const rootDeclarations = readFileSync(new URL("index.d.ts", dist), "utf8");
+const publishedDeclarations = distFiles
+  .filter((file) => file.endsWith(".d.ts"))
+  .map((file) => readFileSync(new URL(file, dist), "utf8"))
+  .join("\n");
 if (!contextReturningSelectPattern.test(rootDeclarations)) {
   throw new Error("Published declarations must expose select(string | string[]) returning Promise<MesurerContextV1>.");
 }
@@ -78,9 +82,37 @@ if (!/\bselect:\s*boolean\b/.test(rootDeclarations)) {
 if (!/\barrange:\s*boolean\b/.test(rootDeclarations)) {
   throw new Error("Published MesurerAgentCapabilities must advertise Arrange availability.");
 }
+if (!/\btextEdit:\s*boolean\b/.test(rootDeclarations)) {
+  throw new Error("Published MesurerAgentCapabilities must advertise text edit intent availability.");
+}
 for (const methodName of ["arrangements", "arrange", "showArrange", "arrangeCapturePlan", "reviewArrange"]) {
   if (!new RegExp(`\\b${methodName}\\s*\\(`).test(rootDeclarations)) {
     throw new Error(`Published Mesurer agent declarations are missing ${methodName}().`);
+  }
+}
+for (const methodName of ["textEdits", "textEdit"]) {
+  if (!new RegExp(`\\b${methodName}\\s*\\(`).test(rootDeclarations)) {
+    throw new Error(`Published Mesurer agent declarations are missing ${methodName}().`);
+  }
+}
+for (const contractName of ["MesurerTextEditIntent", "MesurerTextStyleChange", "MesurerTextStyleProperty"]) {
+  if (!new RegExp(`\\b${contractName}\\b`).test(rootDeclarations)) {
+    throw new Error(`Published root declarations are missing text edit contract ${contractName}.`);
+  }
+}
+for (const property of [
+  "font-family",
+  "font-size",
+  "font-weight",
+  "font-style",
+  "line-height",
+  "letter-spacing",
+  "text-transform",
+  "color",
+  "text-decoration-line",
+]) {
+  if (!new RegExp(`["']${property}["']`).test(publishedDeclarations)) {
+    throw new Error(`Published MesurerTextStyleProperty is missing runtime style property: ${property}.`);
   }
 }
 for (const canonicalName of ["mountMesurer", "MountMesurerOptions", "MountedMesurer"]) {
@@ -176,4 +208,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, compatibility aliases, context-first agent surface, Arrange, screenshot plugin, and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, compatibility aliases, context-first agent surface, Arrange, text edit intents, screenshot plugin, and Agent Skill installer are self-contained.`);

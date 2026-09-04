@@ -13,7 +13,13 @@ import {
   xrayPlugin as rendererXrayPlugin,
   type MesurerProps as RendererMesurerProps,
 } from "@jhomra21/mesurer-solid-renderer";
-import { createMesurerAgentHarness, type MesurerAgentHarness } from "./agent";
+import {
+  MESURER_TEXT_EDIT_SERVICE_ID,
+  createMesurerAgentHarness,
+  type MesurerAgentHarness,
+  type MesurerTextEditIntent,
+  type MesurerTextEditService,
+} from "./agent";
 import type {
   ArrangeCapturePlan,
   ArrangeIntent,
@@ -162,6 +168,7 @@ export type MesurerAgentCapabilities = {
     review: boolean;
     capturePlan: boolean;
     arrange: boolean;
+    textEdit: boolean;
   };
 };
 export type MesurerContextHarness = {
@@ -204,6 +211,8 @@ export type MountedMesurer = {
   showArrange(id: string, state: ArrangePresentation): Promise<void>;
   arrangeCapturePlan(id: string, state: ArrangePresentation): Promise<ArrangeCapturePlan>;
   reviewArrange(id: string, tolerance?: number): Promise<ArrangeReview>;
+  textEdits(): Promise<MesurerTextEditIntent[]>;
+  textEdit(id: string): Promise<MesurerTextEditIntent>;
   bringToFront(): void;
   describe(): MesurerPluginDescription | undefined;
   dispose(): void;
@@ -309,9 +318,12 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     (await getArrangeService()).capturePlan(id, state);
   const reviewArrange = async (id: string, tolerance?: number) =>
     (await getArrangeService()).review(id, tolerance);
+  const textEdits = async () => baseAgent.textEdits();
+  const textEdit = async (id: string) => baseAgent.textEdit(id);
   const capabilities = (): MesurerAgentCapabilities => {
     const contextAvailable = Boolean(pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID));
     const arrangeAvailable = Boolean(pluginHost?.service.get<MesurerArrangeService>(ARRANGE_SERVICE_ID));
+    const textEditAvailable = Boolean(pluginHost?.service.get<MesurerTextEditService>(MESURER_TEXT_EDIT_SERVICE_ID));
     return {
       protocol: "mesurer.agent/v1",
       contextSchema: "mesurer.context/v1",
@@ -322,6 +334,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
         review: contextAvailable,
         capturePlan: contextAvailable,
         arrange: arrangeAvailable,
+        textEdit: textEditAvailable,
       },
     };
   };
@@ -340,6 +353,8 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     showArrange,
     arrangeCapturePlan,
     reviewArrange,
+    textEdits,
+    textEdit,
   });
 
   const rendererProps: RendererMesurerProps = {
@@ -409,6 +424,8 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     showArrange,
     arrangeCapturePlan,
     reviewArrange,
+    textEdits,
+    textEdit,
     bringToFront: hostLayer.bringToFront,
     describe: () => pluginHost?.describe(),
     dispose() {
@@ -429,7 +446,7 @@ export type MountedMeasurer = MountedMesurer;
 /** @deprecated Use `mountMesurer()`. */
 export const mountMeasurer = mountMesurer;
 
-export { createMesurerAgentHarness } from "./agent";
+export { createMesurerAgentHarness, MESURER_TEXT_EDIT_SERVICE_ID } from "./agent";
 export { MESURER_VERSION } from "./version";
 export type {
   AgentDistance,
@@ -440,6 +457,10 @@ export type {
   AgentViewportSnapshot,
   CreateMesurerAgentHarnessOptions,
   MesurerAgentHarness,
+  MesurerTextEditIntent,
+  MesurerTextEditService,
+  MesurerTextStyleChange,
+  MesurerTextStyleProperty,
 } from "./agent";
 export type {
   ArrangeCapturePlan,

@@ -24,6 +24,14 @@ const button = (page, name) => page.getByRole("button", { name });
 const tab = (page, name) => page.getByRole("tab", { name });
 const sw = (page, name) => page.getByRole("switch", { name });
 const radio = (page, name) => page.getByRole("radio", { name });
+const typographyButton = (page, implementation) => button(
+  page,
+  implementation === "solid" ? /^Typography/ : /^Text inspector/,
+);
+const canonicalToolbarLabel = (label, implementation) =>
+  implementation === "solid" && label === "Typography (A)" ? "Text inspector (A)" : label;
+const canonicalTooltipText = (text, implementation) =>
+  implementation === "solid" ? text.replace(/^Typography(?=\s|$)/, "Text inspector") : text;
 
 async function openSettings(page) {
   await realClick(button(page, /^Settings/));
@@ -69,14 +77,18 @@ async function normalizeSharedParitySurface(page, implementation) {
   await sleep(page, 240);
 }
 
-async function stateSnapshot(page) {
+async function stateSnapshot(page, implementation) {
   const toolbar = page.locator(".mesurer-toolbar-surface").first();
-  const toolbarButtons = await toolbar.locator("button[aria-label]").evaluateAll((nodes) =>
+  const rawToolbarButtons = await toolbar.locator("button[aria-label]").evaluateAll((nodes) =>
     nodes.map((node) => ({
       label: node.getAttribute("aria-label"),
       pressed: node.getAttribute("aria-pressed"),
     })),
   );
+  const toolbarButtons = rawToolbarButtons.map((item) => ({
+    ...item,
+    label: canonicalToolbarLabel(item.label, implementation),
+  }));
   const selectedTab = await page.locator('[role="tab"][aria-selected="true"]').allTextContents();
   const switches = await page.locator('[role="switch"]:visible').evaluateAll((nodes) =>
     nodes.map((node) => ({ text: node.textContent?.trim() ?? "", checked: node.getAttribute("aria-checked") })),
@@ -94,6 +106,8 @@ async function stateSnapshot(page) {
     nodes.map((node) => ({ value: /** @type {HTMLSelectElement} */ (node).value })),
   );
   const guideIconTransform = await button(page, /^Guides/).locator("svg").first().evaluate((node) => getComputedStyle(node).transform);
+  const visibleTooltips = (await page.locator('[role="tooltip"]:visible').allTextContents())
+    .map((text) => canonicalTooltipText(text, implementation));
   return {
     toolbarButtons,
     settingsOpen: await page.getByRole("dialog", { name: "Settings" }).count() > 0,
@@ -111,7 +125,7 @@ async function stateSnapshot(page) {
     selectedMeasurements: await page.locator('[data-mesurer-selected-measurement="true"]').count(),
     guides: await page.locator('[data-mesurer-guide="true"]').count(),
     copiedTooltip: await page.getByRole("tooltip", { name: "Copied!" }).count() > 0,
-    visibleTooltips: await page.locator('[role="tooltip"]:visible').allTextContents(),
+    visibleTooltips,
     guideIconTransform,
   };
 }
@@ -125,8 +139,8 @@ const cases = [
   { name: "toolbar-color-picker-close", run: async (p) => { await openColorPicker(p); await realClick(button(p, /^Color picker/)); await sleep(p, 80); } },
   { name: "toolbar-rulers-on", run: async (p) => realClick(button(p, /^Rulers/)) },
   { name: "toolbar-rulers-off", run: async (p) => { await realClick(button(p, /^Rulers/)); await sleep(p, 40); await realClick(button(p, /^Rulers/)); await p.mouse.move(900, 700); } },
-  { name: "toolbar-text-inspector-on", run: async (p) => realClick(button(p, /^Text inspector/)) },
-  { name: "toolbar-text-inspector-off", run: async (p) => { await realClick(button(p, /^Text inspector/)); await sleep(p, 40); await realClick(button(p, /^Text inspector/)); } },
+  { name: "toolbar-text-inspector-on", run: async (p, implementation) => { await realClick(typographyButton(p, implementation)); await p.mouse.move(900, 700); } },
+  { name: "toolbar-text-inspector-off", run: async (p, implementation) => { await realClick(typographyButton(p, implementation)); await sleep(p, 40); await realClick(typographyButton(p, implementation)); await p.mouse.move(900, 700); } },
   { name: "toolbar-guides-on", run: async (p) => realClick(button(p, /^Guides/)) },
   { name: "toolbar-guides-off", run: async (p) => { await realClick(button(p, /^Guides/)); await sleep(p, 40); await realClick(button(p, /^Guides/)); } },
   { name: "toolbar-orientation-menu-open", run: openOrientation },
@@ -138,7 +152,7 @@ const cases = [
   { name: "action-select-target", run: async (p) => { await realClick(button(p, /^Select/)); await sleep(p, 80); await p.mouse.click(340, 290); await sleep(p, 180); } },
   { name: "action-guide-create-vertical", run: async (p) => { await realClick(button(p, /^Guides/)); await sleep(p, 80); await p.mouse.click(620, 400); await sleep(p, 180); } },
   { name: "action-guide-create-horizontal", run: async (p) => { await openOrientation(p); await realClick(button(p, "Horizontal")); await sleep(p, 80); await p.mouse.click(620, 400); await sleep(p, 180); } },
-  { name: "action-text-inspector-hover", run: async (p) => { await realClick(button(p, /^Text inspector/)); await sleep(p, 80); await p.mouse.move(340, 290); await sleep(p, 220); } },
+  { name: "action-text-inspector-hover", run: async (p, implementation) => { await realClick(typographyButton(p, implementation)); await sleep(p, 80); await p.mouse.move(340, 290); await sleep(p, 220); } },
 
   { name: "settings-tab-guides", run: async (p) => openSettingsTab(p, "Guides") },
   { name: "settings-tab-select", run: async (p) => openSettingsTab(p, "Select") },
@@ -212,14 +226,14 @@ try {
       await page.goto(url, { waitUntil: "networkidle" });
       await page.locator(".mesurer-toolbar-surface").waitFor();
       await sleep(page, 100);
-      await item.run(page);
+      await item.run(page, implementation);
       // Let the upstream 150ms switch/control transitions settle before the
       // screenshot so the comparison measures the final pressed state rather
       // than framework scheduling within the animation.
       await sleep(page, 240);
       await normalizeSharedParitySurface(page, implementation);
       await page.screenshot({ path: path.join(outputDir, `${implementation}-${item.name}.png`), fullPage: false, scale: "device" });
-      await fs.writeFile(path.join(outputDir, `${implementation}-${item.name}.json`), JSON.stringify(await stateSnapshot(page), null, 2));
+      await fs.writeFile(path.join(outputDir, `${implementation}-${item.name}.json`), JSON.stringify(await stateSnapshot(page, implementation), null, 2));
       await context.close();
     }
   }

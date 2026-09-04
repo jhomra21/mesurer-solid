@@ -57,7 +57,7 @@ describe("Mesurer host integration", () => {
       "X-ray (X)",
       "Color picker (P)",
       "Rulers (R)",
-      "Text inspector (A)",
+      "Typography (A)",
       "Guides (G)",
       "Guide orientation menu",
     ]);
