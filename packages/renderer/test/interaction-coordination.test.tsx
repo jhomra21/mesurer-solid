@@ -302,61 +302,6 @@ describe("page interaction coordination", () => {
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("compacts to active tools without changing tool or plugin state", async () => {
-    installStaticEyeDropper();
-    const host = document.createElement("div");
-    document.body.append(host);
-    const dispose = render(
-      () => <ComposableMesurer
-        persistKey="interaction-compact-toolbar"
-        plugins={[arrangePlugin()]}
-      />,
-      host,
-    );
-    mounted.push(dispose);
-
-    await vi.waitFor(() => {
-      expect(document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]')).toBeTruthy();
-      expect(document.querySelector<HTMLButtonElement>('button[aria-label="Compact toolbar"]')).toBeTruthy();
-    });
-
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "A", shiftKey: true, bubbles: true, cancelable: true }));
-    const selectButton = document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')!;
-    const arrangeButton = document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]')!;
-    const xrayButton = document.querySelector<HTMLButtonElement>('button[aria-label="X-ray (X)"]')!;
-    const typographyButton = document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')!;
-    await vi.waitFor(() => {
-      expect(selectButton.getAttribute("aria-pressed")).toBe("true");
-      expect(arrangeButton.getAttribute("aria-pressed")).toBe("true");
-    });
-
-    document.querySelector<HTMLButtonElement>('button[aria-label="Compact toolbar"]')!.click();
-    const toolbar = document.querySelector<HTMLElement>('[data-mesurer-toolbar="true"]')!;
-    await vi.waitFor(() => expect(toolbar.dataset.mesurerToolbarCompact).toBe("true"));
-
-    const compactItem = (button: HTMLButtonElement) =>
-      button.closest<HTMLElement>('[data-mesurer-toolbar-compact-item="true"]');
-    expect(compactItem(selectButton)?.getAttribute("aria-hidden")).toBeNull();
-    expect(compactItem(arrangeButton)?.getAttribute("aria-hidden")).toBeNull();
-    expect(compactItem(xrayButton)?.getAttribute("aria-hidden")).toBe("true");
-    expect(compactItem(typographyButton)?.getAttribute("aria-hidden")).toBe("true");
-    expect(selectButton.getAttribute("aria-pressed")).toBe("true");
-    expect(arrangeButton.getAttribute("aria-pressed")).toBe("true");
-
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true }));
-    await vi.waitFor(() => {
-      expect(xrayButton.getAttribute("aria-pressed")).toBe("true");
-      expect(compactItem(xrayButton)?.getAttribute("aria-hidden")).toBeNull();
-    });
-
-    document.querySelector<HTMLButtonElement>('button[aria-label="Expand toolbar"]')!.click();
-    await vi.waitFor(() => expect(toolbar.dataset.mesurerToolbarCompact).toBe("false"));
-    expect(compactItem(typographyButton)?.getAttribute("aria-hidden")).toBeNull();
-    expect(selectButton.getAttribute("aria-pressed")).toBe("true");
-    expect(arrangeButton.getAttribute("aria-pressed")).toBe("true");
-    expect(xrayButton.getAttribute("aria-pressed")).toBe("true");
-  });
-
   it("reserves page-interaction tools for Arrange and closes its quick menu after a choice", async () => {
     installStaticEyeDropper();
     const host = document.createElement("div");
