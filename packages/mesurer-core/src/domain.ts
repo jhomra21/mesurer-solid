@@ -61,6 +61,7 @@ export type MesurerStoredSettings = {
   selectNewGuideEnabled?: boolean;
   multiMeasureEnabled?: boolean;
   persistOnReload?: boolean;
+  shortcutsEnabled?: boolean;
   guideStyle?: Partial<GuideStyle>;
   rulerSettings?: Partial<RulerSettings>;
 };
@@ -83,6 +84,7 @@ export type MesurerSettings = {
   guideColor: string;
   hoverHighlightEnabled: boolean;
   persistOnReload: boolean;
+  shortcutsEnabled: boolean;
   colorPickerFormats: ColorPickerFormat[];
   colorPickerClickFormat: ColorPickerFormat;
   snapEnabled: boolean;

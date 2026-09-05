@@ -675,6 +675,7 @@ export default function ComposableMesurer(props: MesurerProps) {
 
     const captureShortcut = (event: KeyboardEvent) => {
       if (isEditableKeyboardEvent(event, ownerWindow)) return;
+      if (rendererModel?.current.settings.shortcutsEnabled === false) return;
 
       const slot = builtinShortcut(event);
       if (slot && builtinActionDisabled(slot)) {

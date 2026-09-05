@@ -17,7 +17,7 @@ export type MesurerStoredSettings = {
   highlightColor?: string; guideColor?: string; hoverHighlightEnabled?: boolean;
   colorPickerFormats?: ColorPickerFormat[]; colorPickerClickFormat?: ColorPickerFormat;
   snapEnabled?: boolean; snapGuidesEnabled?: boolean; selectNewGuideEnabled?: boolean;
-  multiMeasureEnabled?: boolean; persistOnReload?: boolean; guideStyle?: Partial<GuideStyle>;
+  multiMeasureEnabled?: boolean; persistOnReload?: boolean; shortcutsEnabled?: boolean; guideStyle?: Partial<GuideStyle>;
   selectionSpacingStyle?: Partial<SelectionSpacingStyle>; rulerSettings?: Partial<RulerSettings>;
 };
 export type MesurerStoredWorkspace = {
@@ -126,6 +126,7 @@ export const normalizeStoredSettings = (value: PersistedValue | undefined): Mesu
   if (isBoolean(value.selectNewGuideEnabled)) settings.selectNewGuideEnabled = value.selectNewGuideEnabled;
   if (isBoolean(value.multiMeasureEnabled)) settings.multiMeasureEnabled = value.multiMeasureEnabled;
   if (isBoolean(value.persistOnReload)) settings.persistOnReload = value.persistOnReload;
+  if (isBoolean(value.shortcutsEnabled)) settings.shortcutsEnabled = value.shortcutsEnabled;
   const guideStyle = normalizeGuideStyle(value.guideStyle);
   if (guideStyle) settings.guideStyle = guideStyle;
   const selectionSpacingStyle = normalizeSelectionSpacingStyle(value.selectionSpacingStyle);
