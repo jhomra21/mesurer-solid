@@ -1,44 +1,42 @@
 # Direct text editing and Typography
 
-Mesurer can preview copy and typography changes directly on the rendered page. Those changes are reversible visual intent; they do not edit application source.
+Mesurer can preview copy and typography changes directly on the rendered page. These changes are reversible Desired intent; they do not edit application source.
 
 The visible inspection tool is **Typography**. Its internal built-in id remains `text-inspector` for compatibility.
 
-## Start an edit
+## Start editing
 
 Direct editing works while Select or Typography is active. Arrange keeps Select active, so the same interaction also works while arranging.
 
-Double-click ordinary direct text on desktop, or double-tap it with touch or pen. Mesurer places an editor over the rendered target, matches its current typography, and selects the existing text so typing replaces it immediately.
+Double-click ordinary direct text on desktop, or double-tap with touch or pen. Mesurer places an editor over the rendered target, matches its current typography, and selects the existing text so typing replaces it immediately.
 
-When editing starts, Typography becomes contextually active for that field without replacing Select. If Typography was already explicitly selected, Mesurer suppresses the older hover/pinned Typography surface for the duration of the edit so there is only one live card for the field. Closing the edit restores the normal Typography surface and leaves the explicitly selected tool active.
+When editing begins from Select or Arrange, Typography becomes contextually active for that field without replacing Select. If Typography was already explicitly selected, the normal hover/pinned Typography surface is temporarily suppressed so the field has one live card. Ending the edit restores the normal Typography surface and keeps the explicitly selected tool active.
 
-The direct-edit card reports the current Family, Size, Weight, Line, Tracking, target/text information, and CSS-variable references when available.
+The contextual card reports Family, Size, Weight, Line, Tracking, target/text information, and CSS-variable references when available.
 
-## Editable targets
+## What can be edited
 
-Mesurer targets an ordinary element with one unambiguous, non-empty direct text node. It does not take over:
+Mesurer targets an ordinary element with one unambiguous, non-empty direct text node. It leaves these under browser/application control:
 
-- `<input>`, `<textarea>`, `<select>`, or `<option>`;
+- `<input>`, `<textarea>`, `<select>`, and `<option>`;
 - media and embedded elements;
-- ambiguous mixed/nested rich text;
+- ambiguous mixed or nested rich text;
 - content that is natively editable through `contenteditable` inheritance.
 
-The editability check follows browser semantics. A child of `contenteditable="true"`, `contenteditable=""`, or `contenteditable="plaintext-only"` stays under native editing even when the child itself has no attribute. A nested `contenteditable="false"` boundary ends that inherited editable region; a descendant inside that boundary can use Mesurer direct editing when the normal target rules pass.
+Editability follows browser semantics. Descendants of `contenteditable="true"`, `contenteditable=""`, or `contenteditable="plaintext-only"` stay native even when the descendant has no attribute. A nested `contenteditable="false"` boundary ends that inherited editable region; text inside that boundary can use Mesurer editing when the normal direct-text rules pass.
 
-This boundary is intentional. Mesurer does not expose link creation, lists, or other structural rich-text controls until there is a real structural intent model for them.
+Mesurer does not expose link creation, lists, or other structural rich-text controls until there is a real structural intent model for them.
 
 ## Formatting
 
-The editor exposes the common controls directly:
+The editor exposes direct controls for:
 
-- Bold, Italic, Underline;
+- Bold, Italic, and Underline;
 - page-derived Font, Size, and Weight values;
-- common rendered-page text colors and a custom color control;
-- a separate Text/Heading semantic preset control.
+- common rendered-page text colors plus a custom color;
+- a separate Text/Heading semantic preset.
 
-The semantic popup contains Text and only the H1/H2/H3 levels that are actually rendered on the page. Each row uses the dominant rendered typography bundle for that semantic level rather than an arbitrary Mesurer preset. Less common page variants remain available through the direct Font, Size, Weight, and Color controls.
-
-Formatting shortcuts work while the editor owns focus:
+The semantic popup contains Text and only the H1/H2/H3 levels actually rendered on the page. Each preset uses the dominant rendered typography bundle for that semantic level. Less common variants stay available through the direct Font, Size, Weight, and Color controls.
 
 | Action | Shortcut |
 | --- | --- |
@@ -50,87 +48,49 @@ Formatting shortcuts work while the editor owns focus:
 | Heading 2 | `Option+Cmd+2` / `Alt+Ctrl+2` |
 | Heading 3 | `Option+Cmd+3` / `Alt+Ctrl+3` |
 
-An unavailable heading shortcut does nothing instead of inventing a style.
+A heading shortcut does nothing when that level is unavailable.
 
-## Commit and cancel
+## Keep or cancel an edit
 
-- Enter keeps the current copy/style as Desired intent.
-- Shift+Enter inserts a newline.
-- Escape closes the semantic popup first when it is open; Escape again cancels the edit session.
+- **Enter** keeps the current copy/style as Desired intent.
+- **Shift+Enter** inserts a newline.
+- **Escape** closes the semantic popup first when it is open; Escape again cancels the edit.
 - Clicking outside the editor and its formatting surfaces commits the session.
 
 Normal Mesurer tool shortcuts are suppressed while the editor owns keyboard focus.
 
-## Before, Desired, and Live
+## Desired preview and ownership
 
-Each saved edit records the original target and the requested result:
+Each saved edit records the original target, Before text, Desired text, and requested style deltas. Mesurer may preview Desired on the real target while Select or Typography is active, but application source remains unchanged.
 
-```text
-Before
-  original direct text
-  original relevant style values
+Undo and redo update the rendered preview only while Mesurer still owns the current value. If Mesurer changed `Original → First → Second`, undo can move the DOM from `Second` back to `First` when `Second` is still the value Mesurer applied. Style ownership uses the same rule and includes inline priority.
 
-Desired
-  requested direct text
-  requested style deltas
-```
-
-Mesurer may show Desired on the real target while Select or Typography is active. The preview participates in Mesurer history and persistence, but the application source remains unchanged.
-
-Undo and redo are ownership-aware. Suppose Mesurer changes `Original → First → Second` and undo restores the intent to `First`. If the DOM still contains Mesurer's previously owned `Second`, Mesurer updates it to `First`. Redo moves it back to `Second` by the same rule.
-
-Text styles use the same ownership model. If Mesurer still owns `font-size: 24px`, undo can restore its previous Desired `20px`. Inline style priority is part of that ownership check.
-
-Mesurer does not fight the application. If the host changes the text or an inline style while a preview is active, the current value no longer matches what Mesurer owns. Mesurer then relinquishes ownership and preserves the host-authored value through later history changes and cleanup.
-
-Clearing the intent, disabling its preview, or disposing Mesurer restores the original value only while Mesurer still owns the current preview. A newer host value is left alone.
+If the application changes the text or inline style itself, Mesurer relinquishes ownership and leaves that host-authored value alone through later history changes, cleanup, or disposal.
 
 ## Agent API
 
-With the agent bridge enabled, saved edits are available through `textEdit`:
+With the agent bridge enabled:
 
 ```js
 const edits = await window.__MESURER__.textEdits()
 const intent = await window.__MESURER__.textEdit(edits.at(-1).id)
 ```
 
-An intent includes target identity, Before/Desired copy, and style deltas such as:
+An intent includes target identity, Before/Desired copy, and style deltas such as font family, size, weight, style, line height, letter spacing, text transform, color, and text decoration.
 
-```text
-font-family
-font-size
-font-weight
-font-style
-line-height
-letter-spacing
-text-transform
-color
-text-decoration-line
-```
+Treat these values as visual requirements, not source-level instructions. Implement the result with the application's components, classes, design tokens, theme values, CSS variables, or stylesheet rules where appropriate.
 
-These values are visual requirements, not source-level instructions. An agent should implement the outcome with the application's component props, classes, theme values, CSS variables, design tokens, or stylesheet rules where appropriate.
+## Verify the source result
 
-## Verify an implementation
+Before editing source, retain the relevant intent. After the application renders:
 
-Before editing source, retain the relevant intent and its Before/Desired values. After changing the application:
-
-1. Wait for the real render to settle.
-2. Keep the saved intent but disable its Desired preview.
+1. Wait for Mesurer to settle.
+2. Keep the intent, but make sure its Desired preview is inactive.
 3. Read the target's Live text and computed typography.
 4. Compare Live with Desired.
 
-A correct source implementation still matches after the temporary Mesurer preview is inactive.
+A correct implementation still matches after Mesurer's temporary preview is removed.
 
-When Arrange intent exists for the same task, preserve both channels. Arrange owns geometry intent; text editing owns copy and typography intent. A broad request to check Mesurer context should consume both before source changes.
+If the same task also has Arrange intent, preserve both channels: Arrange owns geometry intent; direct text editing owns copy and typography intent.
 
-## Runtime ownership
-
-Direct editing is installed by the renderer bridge and owns its text-edit state/history, targeting, editor session, page-derived typography catalog, reversible preview ownership, and `text-edit` service.
-
-The presentation layer owns the field editor, formatting controls, semantic popup, and contextual Typography card. It reuses the same Typography inspector/card primitives as the normal tool rather than creating a second inspection model.
-
-## Validation
-
-Repository tests cover text and style undo/redo, host-authored changes, cleanup, inherited editable regions, nested `contenteditable="false"`, contextual Typography behavior, Arrange coordination, and browser editing in Chromium. Package smoke tests protect the public `textEdit` capability and `textEdits()` / `textEdit()` APIs.
-
-See [Arrange](./ARRANGE.md) for layout intent and [Context workflow](./CONTEXT_WORKFLOW.md) for combined human/agent review.
+See [Arrange](./ARRANGE.md), [Context](./CONTEXT_WORKFLOW.md), and [Architecture](../ARCHITECTURE.md) for the surrounding runtime and agent contracts.

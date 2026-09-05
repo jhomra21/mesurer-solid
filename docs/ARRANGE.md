@@ -1,6 +1,6 @@
 # Arrange
 
-Arrange lets a person move selected rendered UI into the position they want without pretending to edit application source.
+Arrange lets a person move rendered UI into the position they want without pretending to edit application source.
 
 It is an optional first-party plugin:
 
@@ -16,80 +16,57 @@ const mesurer = mountMesurer({
 
 Mount it from the same browser-only Mesurer setup described in [Getting started](./GETTING_STARTED.md).
 
-## Human workflow
+## Arrange a selection
 
 1. Click Arrange or press `Shift+A`.
 2. Select one or more elements.
 3. Drag the selection to the desired position.
-4. Release the pointer to keep that placement as Desired intent.
+4. Release the pointer to save that placement as Desired intent.
 
-Arrange can be activated before a selection exists. Activating it automatically enables Select; an existing selection is preserved.
+Arrange can be activated before a selection exists. It enables Select automatically and preserves any existing selection.
 
-Arrange and Select have a one-way dependency:
+Arrange depends on Select, but the dependency is one-way: turning Arrange off leaves Select active; turning Select off while Arrange is active also exits Arrange.
 
-- turning Arrange off leaves Select active;
-- turning Select off while Arrange is active also exits Arrange, because Arrange requires selection interaction.
+Arrange is a normal optional tool in one stable toolbar, not a toolbar mode.
 
-Arrange is a normal tool in one stable toolbar, not a toolbar mode.
-
-Hold Shift while dragging to lock movement to the dominant axis. One completed drag creates one history entry; pointer movement during the drag is transient.
-
-Repeated drags start from the current Desired placement, so a layout can be refined in several small moves.
+Hold Shift while dragging to lock movement to the dominant axis. One completed drag creates one history entry. Repeated drags start from the current Desired position so the layout can be refined incrementally.
 
 ## Snapping
 
-The chevron beside Arrange exposes the same persisted preferences as its Settings section:
+The Arrange chevron and Settings expose the same persisted preferences:
 
-- Snapping;
-- Element edges;
-- Element centers;
-- Guides;
-- Prefer X-ray edges;
-- Alignment rulers.
+- Snapping
+- Element edges
+- Element centers
+- Guides
+- Prefer X-ray edges
+- Alignment rulers
 
-Element edges snap to edges, centers snap center-to-center, and Mesurer guides can align compatible edges or centers. X and Y are evaluated independently. With Shift axis locking, only the active movement axis can snap.
+X and Y are evaluated independently. With Shift axis locking, only the active movement axis can snap. Multi-selection snaps the group bounding box and applies the final delta to each selected element.
 
-When X-ray is visible and Prefer X-ray edges is enabled, Arrange uses the visible X-ray box edges as element snap targets. Multi-selection snaps the group bounding box and applies the same final delta to each selected element.
+When X-ray is visible and **Prefer X-ray edges** is enabled, the visible X-ray boxes become snap targets.
 
 ## Before, Desired, and Live
 
-Arrange distinguishes three presentations:
+Arrange keeps three presentations separate:
 
 - **Before** — geometry before a saved Arrange action.
 - **Desired** — the human-arranged result.
-- **Live** — the page with Arrange previews removed, showing only application source.
+- **Live** — the application page with Arrange preview removed.
 
-Each completed drag records target identity, Before and Desired rectangles, visual offsets, page scope, and creation time. Intent participates in Mesurer history and can persist across reloads when the target can be rebound safely.
+Each completed drag records target identity, Before and Desired rectangles, offsets, page scope, and creation time. Intent participates in Mesurer history and can persist when the target can be rebound safely.
 
-The preview is temporary browser presentation. Arrange never writes CSS, component source, templates, or application state.
+The preview is temporary browser presentation. Arrange never writes production CSS, templates, component source, or application state.
 
 ## Transform ownership
 
-Arrange previews movement with an inline transform while keeping the element's original inline transform value and priority as the baseline.
+Arrange previews movement with an inline transform while retaining the element's previous inline transform value and priority as its baseline.
 
-Cleanup is ownership-aware. Mesurer restores the previous transform only when the current inline transform still matches the exact preview value and priority Mesurer applied. If the host application changes the transform while Arrange owns a preview, Mesurer preserves that host change and relinquishes the obsolete ownership record instead of restoring an older baseline over it.
+Mesurer restores that baseline only while the current transform still matches the exact preview value and priority it applied. If the application changes the transform, Mesurer relinquishes ownership and preserves the host-authored value through Live review, refresh, plugin removal, and disposal.
 
-That rule applies when switching to Live, reviewing an intent, refreshing/reapplying presentation, turning Arrange off, removing the plugin, and disposing Mesurer. Refresh does not accumulate old preview offsets or revive an obsolete baseline.
-
-## Direct text editing
-
-Arrange keeps Select active, so a reviewer can move an element and then double-click its text without leaving the layout workflow.
-
-Direct editing records its own Before/Desired copy and typography intent. Contextual Typography appears for the active field without turning off Select or Arrange. The two intent channels remain independent:
-
-```text
-Arrange
-  Before / Desired geometry
-
-Text edit
-  Before / Desired copy and typography
-```
-
-Preserve both until their evidence has been consumed. See [Direct text editing and Typography](./TEXT_EDITING.md).
+This prevents stale Arrange state from overwriting a real source update.
 
 ## Agent API
-
-When `arrangePlugin()` is mounted, the agent capability surface reports `arrange: true`.
 
 Read saved intent:
 
@@ -106,7 +83,7 @@ await window.__MESURER__.showArrange(intent.id, "desired")
 await window.__MESURER__.showArrange(intent.id, "live")
 ```
 
-Request screenshot geometry for an outer browser harness:
+Get capture geometry for an outer browser harness:
 
 ```js
 const plan = await window.__MESURER__.arrangeCapturePlan(
@@ -115,39 +92,28 @@ const plan = await window.__MESURER__.arrangeCapturePlan(
 )
 ```
 
-The harness owns screenshot bytes. Mesurer supplies the viewport/focus geometry.
+Mesurer supplies the reproducible state and geometry; the harness owns screenshot bytes.
 
-## Implement the outcome
+## Implement and review
 
-An Arrange offset describes what the user wants to see, not how source code should implement it.
+Desired describes the visual result, not the source-level implementation. A 96px preview offset might ultimately be implemented with flex/grid alignment, gap, sizing, ordering, margins, or component structure rather than a production transform.
 
-If the Desired preview moves a control 96px to the right, the correct source change may be flex/grid alignment, gap, sizing, ordering, margins, or component structure. Copying the preview transform into production CSS is usually the wrong implementation.
-
-The same rule applies to text/style intent: sampled rendered values describe the visual target, not necessarily the source token or declaration to paste.
-
-## Review after source changes
-
-After implementing the design, wait for the application to settle, show Live, and compare it with Desired:
+After editing source:
 
 ```js
 await window.__MESURER__.stable()
 await window.__MESURER__.showArrange(intent.id, "live")
-
 const review = await window.__MESURER__.reviewArrange(intent.id)
 ```
 
-`reviewArrange()` reports target status, Desired and current Live rectangles, exact deltas, tolerance, and match state. The preview is removed while Live geometry is measured, so temporary Arrange offsets cannot make unfinished source look correct.
+`reviewArrange()` compares the real Live rectangles with Desired and reports exact deltas and target status. Because the preview is removed during Live review, temporary Arrange transforms cannot make unfinished source look correct.
 
-If the task also has text-edit intent, verify Live copy and typography with the text Desired preview inactive as well.
-
-## Persistence and cleanup
-
-Arrange preferences and intent use the normal plugin persistence channel. Targets are rebound conservatively through selector and fingerprint rules and are scoped to the current origin, pathname, and query string. Ambiguous targets remain unresolved rather than being guessed.
-
-Cancelling a drag returns to the previously saved Desired presentation. Switching to Live, disabling Arrange, or disposing Mesurer removes only presentation that Mesurer still owns; newer host-authored transforms are preserved.
+If the task also contains direct text-edit intent, verify Live copy and typography with the text Desired preview inactive too.
 
 ## Scope
 
-Arrange is a visual layout-intent tool, not a general DOM/CSS editor. It focuses on repositioning with edge, center, guide, and X-ray alignment. The preview does not reflow siblings and never claims to be the final source implementation.
+Arrange is a layout-intent tool, not a general DOM/CSS editor. It focuses on repositioning with edge, center, guide, ruler, and X-ray alignment. The preview does not reflow siblings and never claims to be the final source implementation.
 
-See [Context workflow](./CONTEXT_WORKFLOW.md) for combined human/agent review.
+Targets are rebound conservatively. Ambiguous targets remain unresolved rather than being guessed.
+
+See [Direct text editing and Typography](./TEXT_EDITING.md) for copy/type intent and [Context](./CONTEXT_WORKFLOW.md) for combined review.

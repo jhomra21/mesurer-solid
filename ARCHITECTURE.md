@@ -1,6 +1,6 @@
 # Architecture
 
-Mesurer Solid publishes one framework-agnostic package backed by private core, DOM, and Solid 2 renderer workspaces. The browser extension packages the same runtime rather than maintaining a fork.
+Mesurer Solid publishes one framework-agnostic package backed by private core, DOM, and Solid 2 renderer workspaces. The browser extension packages the same runtime instead of maintaining a fork.
 
 ```text
 host application / arbitrary browser page
@@ -30,13 +30,7 @@ Solid 2 is a renderer implementation detail. Host applications do not need to pr
 
 ## Public package
 
-Users install:
-
-```text
-mesurer-solid
-```
-
-The package exposes:
+Users install `mesurer-solid`.
 
 | Entry | Purpose |
 | --- | --- |
@@ -47,68 +41,57 @@ The package exposes:
 | `mesurer-solid/inject` | Programmatic injection helper |
 | `mesurer-solid/inject-script` | Self-contained classic browser payload |
 
-The package also ships the `mesurer-skill` installer and a portable `mesurer-ui` Agent Skill.
+The package also ships `mesurer-skill` and the portable `mesurer-ui` Agent Skill. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
 
-Private workspace package names and Solid runtime dependencies must not leak into public JavaScript or declarations.
+## Workspace ownership
 
-## Framework-neutral core
+### Core
 
-`packages/mesurer-core` owns observable model state, commands, history, plugin registration, state slices, tools, settings, overlays, hooks, services, capability introspection, serialization, and shared domain contracts.
+`packages/mesurer-core` owns observable state, commands, history, plugin registration, state slices, tools, settings, overlays, hooks, services, capability introspection, serialization, and shared domain contracts. It does not import Solid, Electron, or browser globals.
 
-It does not import Solid, Electron, or browser globals.
+Plugin registrations are owned and disposable. Asynchronous setup is an in-flight load that can be cancelled. If cancellation happens while setup is awaiting, later registrations are disposed immediately rather than reviving resources after their owner is gone.
 
-Plugin registrations are owned and disposable. An asynchronous plugin setup is represented as an in-flight load that can be cancelled. If cancellation happens while setup is awaiting, later registrations are immediately disposed rather than resurrecting resources after the owner is gone.
+Cancellation is scoped to the load that started it. Code using a shared plugin host must not dispose unrelated plugins.
 
-Cancellation is scoped to the specific pending load. A component using an externally supplied/shared plugin host can cancel only the loads it started; unrelated plugins on that host remain alive.
-
-## DOM boundary
+### DOM boundary
 
 `packages/mesurer-dom` owns browser/document helpers, storage adapters, Electron-renderer detection, box-model inspection, selectors, fingerprints, DOM identity, and rich element inspection.
 
-Select, programmatic `select()`, Context rebinding, Arrange target identity, and direct text-edit rebinding share these rules. Weak structural position alone is not enough to transfer human intent to another element; rebinding must remain conservative and unique.
+Select, Context rebinding, Arrange targets, direct text-edit targets, and programmatic `select()` share these rules. Rebinding is conservative: weak structural position alone is not enough to transfer human intent to another element.
 
-## Renderer
+### Renderer
 
 `packages/renderer` owns the isolated Solid 2 UI/lifecycle adapter and browser interaction runtime.
 
 Human-facing built-ins are Select, X-ray, Color Picker when supported, Rulers, Typography, Guides, Distance, and Settings. Typography retains the internal compatibility id `text-inspector`.
 
-The toolbar has one stable tool order. Compact presentation collapses inactive controls while preserving every active tool and its state. Expanding restores the same order. Arrange remains a normal plugin contribution rather than a toolbar mode.
+The toolbar keeps one stable tool order. Compact presentation collapses inactive controls while preserving active tools and state. Arrange remains a plugin contribution rather than a toolbar mode.
 
-Plugin tools render through the same `Toolbar` / `ToolbarButton` path as built-ins; plugins do not maintain a second toolbar renderer.
+Plugin tools render through the same toolbar path as built-ins instead of maintaining a second renderer.
 
 ## Direct text editing
 
-Direct editing is a renderer-runtime feature, not another top-level tool or public plugin entry.
+Direct editing is a renderer-runtime feature, not a top-level plugin or package entry.
 
 ```text
 renderer bridge
-    │
-    └─ installTextEditing(...)
-         ├─ direct-text targeting
-         ├─ in-place editor
-         ├─ typography controls + semantic presets
-         ├─ contextual Typography card
-         ├─ Before/Desired history
-         ├─ ownership-aware preview
-         ├─ state: mesurer.text-edit.intents
-         └─ service: text-edit
+  └─ direct-text targeting
+     ├─ in-place editor
+     ├─ typography controls + semantic presets
+     ├─ contextual Typography card
+     ├─ Before/Desired history
+     ├─ ownership-aware preview
+     ├─ state: mesurer.text-edit.intents
+     └─ service: text-edit
 ```
 
-The runtime activates from Select or Typography by double-click/double-tap. Arrange keeps Select active, so text editing can occur without leaving the Arrange workflow.
+It activates from Select or Typography by double-click/double-tap. Arrange keeps Select active, so text editing can occur without leaving the Arrange workflow.
 
-The target boundary follows browser editability semantics:
+The target boundary follows browser editability semantics: form controls stay native; descendants that inherit `contenteditable` stay native; a nested `contenteditable="false"` boundary ends that inherited region; ambiguous mixed/nested rich text is not converted into a generic editor.
 
-- native form controls stay native;
-- descendants that inherit `contenteditable` stay under browser/application editing;
-- a nested `contenteditable="false"` boundary ends that inherited region and can become a Mesurer direct-text target when the normal one-unambiguous-direct-text-node rule passes;
-- ambiguous mixed/nested rich text is not converted into a generic rich-text editor.
+If Typography was already selected, the normal hover/pinned surface is suppressed during the direct-edit session so the field has one live card.
 
-The field-local formatting UI uses Mesurer's toolbar visual language but is not a registered global tool. B/I/U, Font, Size, Weight, rendered-page colors, and custom color are direct controls. A separate semantic popup contains Text and only Heading 1/2/3 levels actually rendered by the page.
-
-If Typography is already explicitly selected when editing begins, the normal hover/pinned Typography surface is temporarily suppressed so the field has one live card. Ending the session restores the normal surface without deselecting Typography.
-
-Text and style previews are ownership-aware. If the DOM still matches Mesurer's previously applied value, undo/redo can transition it to the restored Desired value. If the host application changes the text or inline style itself, Mesurer relinquishes ownership and preserves the host value through later history and cleanup.
+Text and style previews are ownership-aware. Undo/redo can update a value Mesurer still owns. A host-authored change takes ownership and survives later history and cleanup.
 
 See [Direct text editing and Typography](./docs/TEXT_EDITING.md).
 
@@ -116,11 +99,9 @@ See [Direct text editing and Typography](./docs/TEXT_EDITING.md).
 
 Arrange is a renderer-aware first-party plugin exported from `mesurer-solid/arrange`.
 
-It owns its active state, `Shift+A`, settings, snapping, transient drag preview, Before/Desired intent, persistence, and review service. Activating Arrange automatically enables Select. Turning Arrange off leaves Select active; turning Select off exits Arrange.
+It owns active state, `Shift+A`, snapping, drag preview, Before/Desired intent, persistence, and review. Activating Arrange enables Select; turning Arrange off leaves Select active; turning Select off exits Arrange.
 
-Arrange previews movement with an inline transform but does not treat that transform as production source. It records both the previous inline transform and the exact value/priority Mesurer applies. Cleanup restores the previous transform only while the current value and priority still match Mesurer's owned preview. Host-authored transform changes take ownership and survive Live review, refresh, and disposal.
-
-Repeated refresh/reapplication starts from the current owned state rather than accumulating stale preview offsets.
+Arrange previews movement with an inline transform but records the previous value and priority as its baseline. Cleanup restores that baseline only while the current transform still matches Mesurer's preview. Host-authored transform changes take ownership and survive Live review, refresh, and disposal.
 
 See [Arrange](./docs/ARRANGE.md).
 
@@ -138,11 +119,9 @@ contextPlugin()
 
 Injection enables Context by default. Source-mounted applications opt in with `contextPlugin()`.
 
-There is no Send-to-agent transport. `window.__MESURER__` is the shared browser-state boundary. Arrange and text-edit intent remain separate structured channels so they retain their own Before/Desired/Live semantics.
+`window.__MESURER__` is the shared browser-state boundary; there is no Send-to-agent transport. Arrange and text-edit intent remain separate structured channels so they retain their own Before/Desired/Live semantics.
 
-A broad agent request inventories selection, workspace Context, annotations, Arrange intents, and text-edit intents before editing source.
-
-See [Context workflow](./docs/CONTEXT_WORKFLOW.md) and [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md).
+See [Context](./docs/CONTEXT_WORKFLOW.md) and [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md).
 
 ## Screenshot
 
@@ -154,17 +133,17 @@ Screenshot bytes are not part of `MesurerContextV1`. Human camera capture and co
 
 See [Screenshots](./docs/SCREENSHOTS.md).
 
-## Host isolation and Trusted Types
+## Browser boundary
 
-Mesurer's visible renderer mounts in a ShadowRoot for style isolation and uses a hardened outer host/top-layer strategy for stacking, clipping, later popovers, and modal dialogs. Renderer-aware plugin and transient editor surfaces remain inside the same ownership boundary.
+The visible renderer mounts in a ShadowRoot and uses a hardened outer host/top-layer strategy for stacking, clipping, later popovers, and modal dialogs. Renderer-aware plugins and transient editor surfaces stay inside the same ownership boundary.
 
-The renderer compiles through Solid's universal runtime and constructs DOM nodes directly rather than requiring HTML-string template sinks. This keeps the packed artifact compatible with strict Trusted Types pages without weakening host CSP.
+The renderer uses Solid's universal runtime and constructs DOM nodes directly rather than depending on HTML-string template sinks, keeping the packed artifact compatible with strict Trusted Types pages without weakening host CSP.
 
 See [Host isolation](./docs/HOST_ISOLATION.md) and [Trusted Types](./docs/TRUSTED_TYPES.md).
 
-## Agent boundary
+## Human/agent boundary
 
-The page is shared state between the human reviewer and coding agent:
+The page is shared state:
 
 ```text
 human selection / notes / Arrange / text Desired
@@ -179,14 +158,14 @@ human selection / notes / Arrange / text Desired
                existing browser harness
 ```
 
-Agent attachment must reuse an existing instance when present. A live instance can contain unsaved selection, measurements, guides, plugin state, annotations, Arrange intent, text/style intent, or screenshot review state.
+Agent attachment reuses an existing Mesurer instance when present. After source changes, verification uses the real Live page: Arrange preview removed, text Desired preview inactive, and fresh Context/measurement/review evidence.
 
-After source changes, verification uses the real Live page: Arrange preview removed, text Desired preview inactive, and fresh Context/measurements/review. Temporary Mesurer presentation is intent/evidence, not proof that source was updated.
+Temporary Mesurer presentation expresses intent or evidence; it is not proof that source was updated.
 
-## Distribution and release invariants
+## Distribution and release
 
-The public package bundles private workspaces into self-contained artifacts and is exercised as an exact packed npm candidate across clean React, Solid 1, and Solid 2 consumers.
+The public package bundles the private workspaces into self-contained artifacts and is validated as an exact packed npm candidate across clean React, Solid 1, and Solid 2 consumers.
 
-Release validation also protects host isolation, browser contracts, screenshots, historical/current visual parity, public subpaths, declarations, Agent Skill packaging, and source-first upstream decisions.
+Release validation also covers browser contracts, host isolation, screenshots, public subpaths and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions.
 
 See [Releasing](./RELEASING.md) and [Upstream parity](./docs/UPSTREAM_PARITY.md).
