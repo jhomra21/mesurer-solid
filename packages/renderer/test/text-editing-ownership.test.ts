@@ -131,9 +131,11 @@ describe("direct text ownership", () => {
     const service = host.service.get<MesurerTextEditService>(MESURER_TEXT_EDIT_SERVICE_ID)!;
 
     await commitText(target, pageTarget, "Desired", service);
-    const node = target.firstChild as Text;
+    const node = target.firstChild;
+    if (!(node instanceof Text)) throw new Error("Expected the test target to retain its direct Text node.");
     node.nodeValue = "Host authored";
-    await vi.waitFor(() => expect(target.textContent).toBe("Host authored"));
+    await Promise.resolve();
+    expect(target.textContent).toBe("Host authored");
 
     expect(host.undo()).toBe(true);
     await Promise.resolve();
