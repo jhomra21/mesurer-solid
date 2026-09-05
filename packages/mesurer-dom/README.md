@@ -1,5 +1,7 @@
 # @jhomra21/mesurer-solid-dom
 
-DOM/browser host boundary for Mesurer. It contains browser environment, portal-mount, storage, and host-detection helpers while keeping `@jhomra21/mesurer-solid-core` free of DOM globals.
+Browser/DOM boundary for Mesurer. It contains host detection, mounting, storage, element identity, and DOM helpers while keeping `@jhomra21/mesurer-solid-core` free of browser globals.
 
-Electron renderer processes use this same DOM boundary; Electron main/preload integration remains an optional adapter rather than a core dependency.
+Electron renderer processes use this same DOM boundary. Mesurer does not import Electron or require Electron APIs for inspection; privileged application behavior belongs behind an application-owned preload bridge or plugin adapter.
+
+Application users normally install `mesurer-solid` rather than importing this internal workspace directly.
