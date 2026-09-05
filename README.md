@@ -4,17 +4,17 @@
 [![CI](https://github.com/jhomra21/mesurer-solid/actions/workflows/ci.yml/badge.svg)](https://github.com/jhomra21/mesurer-solid/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-black.svg)](./LICENSE)
 
-A Solid 2 port and extension of [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut (`@ibelick`)](https://github.com/ibelick).
+Inspect, measure, and express visual intent directly on a live browser UI.
 
-Mesurer Solid is a visual inspection and measurement tool for browser apps. Use it to select elements, inspect spacing and layout, measure distances, add guides, inspect and edit text, arrange a desired layout, capture screenshots, and expose rendered UI state through a programmatic API.
+Mesurer Solid is a Solid 2 port and extension of [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut](https://github.com/ibelick). It keeps Mesurer's source-first visual language while adding framework-agnostic mounting, plugins, agent-readable context, reversible layout and text intent, screenshot capture, and host isolation.
+
+The renderer carries its own isolated Solid 2 runtime. Your application can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without installing Solid for Mesurer.
 
 <p align="center">
-  <img src="docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between four selected elements" width="100%">
+  <img src="docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
 </p>
 
-<sub>Mesurer Solid measuring the rendered 24px and 32px gaps in a four-element selection.</sub>
-
-## Install
+## Installation
 
 ```bash
 bun add -d mesurer-solid
@@ -28,32 +28,12 @@ npm install -D mesurer-solid
 
 Use `mesurer-solid@beta` only when intentionally testing a prerelease.
 
-## Quick start
+## Usage
 
-Mesurer runs in the browser. Mount it once from the client/browser entry for the page you want to inspect, not from server code or build configuration.
+Mount Mesurer once from the browser entry for the page you want to inspect:
 
-**There is no required `src/dev/mesurer.ts` file.** You can mount Mesurer directly in the browser entry your app already has. A separate `dev/mesurer.ts` module is only an optional way to keep inspector setup organized.
-
-Typical browser entry locations:
-
-| Application | Typical location |
-| --- | --- |
-| React + Vite | `src/main.tsx` |
-| Solid + Vite | `src/index.tsx`, `src/main.tsx`, or the project browser entry |
-| Vue + Vite | `src/main.ts` |
-| Svelte + Vite | `src/main.ts` |
-| Vanilla Vite | `src/main.ts` or `src/main.js` |
-| Electron | renderer entry such as `src/renderer.ts` or `src/renderer/main.tsx` |
-| SSR / metaframework | client-only module or lifecycle that never executes during SSR |
-
-### Simplest: put Mesurer in that existing entry file
-
-For example, if your React + Vite app already starts in `src/main.tsx`, Mesurer can live right there:
-
-```tsx
-import { createRoot } from "react-dom/client"
+```ts
 import { mountMesurer } from "mesurer-solid"
-import { App } from "./App"
 
 if (import.meta.env.DEV) {
   const mesurer = mountMesurer()
@@ -62,342 +42,134 @@ if (import.meta.env.DEV) {
     import.meta.hot.dispose(() => mesurer.dispose())
   }
 }
-
-createRoot(document.getElementById("root")!).render(<App />)
 ```
 
-The same pattern works in a Solid browser entry such as `src/main.tsx` or `src/index.tsx`:
+For Vite, that usually means `src/main.tsx`, `src/main.ts`, or the equivalent browser entry. In Electron, use the renderer entry. In SSR applications, mount from a client-only boundary. Do not mount Mesurer from server code, build configuration, or an Electron main process.
 
-```tsx
-import { render } from "solid-js/web"
-import { mountMesurer } from "mesurer-solid"
-import App from "./App"
+See [Getting started](./docs/GETTING_STARTED.md) for framework-specific placement and HMR guidance.
 
-if (import.meta.env.DEV) {
-  const mesurer = mountMesurer()
+### Add first-party plugins
 
-  if (import.meta.hot) {
-    import.meta.hot.dispose(() => mesurer.dispose())
-  }
-}
-
-render(() => <App />, document.getElementById("root")!)
-```
-
-For Vue, Svelte, or vanilla Vite, put the same Mesurer block in the existing `src/main.ts` or `src/main.js` next to the code that starts the browser app. For Electron, put it in the renderer entry, not the Electron main process.
-
-`import.meta.env.DEV` and `import.meta.hot` are Vite-specific. With another bundler, use its build-time development flag and HMR cleanup mechanism instead.
-
-### Optional: keep Mesurer in a separate development module
-
-If you prefer to keep inspector setup out of the app entry, this is also valid:
-
-```text
-src/
-├── main.tsx          # your existing browser entry; the filename may differ
-└── dev/
-    └── mesurer.ts    # optional Mesurer-only helper
-```
-
-Create `src/dev/mesurer.ts`:
+Keep plugin setup next to `mountMesurer()`:
 
 ```ts
-import { mountMesurer } from "mesurer-solid"
+import {
+  contextPlugin,
+  mountMesurer,
+} from "mesurer-solid"
+import { arrangePlugin } from "mesurer-solid/arrange"
+import { screenshotPlugin } from "mesurer-solid/screenshot"
 
-const mesurer = mountMesurer()
-
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => mesurer.dispose())
-}
+const mesurer = mountMesurer({
+  agent: true,
+  plugins: [
+    contextPlugin(),
+    arrangePlugin(),
+    screenshotPlugin(),
+  ],
+})
 ```
 
-Then load it from your existing browser entry:
+## Features
 
-```ts
-if (import.meta.env.DEV) {
-  void import("./dev/mesurer")
-}
-```
+- **Select** — inspect one or more rendered elements.
+- **Distance** — measure spacing and geometry, including pairwise multi-selection spacing.
+- **X-ray, guides, and rulers** — inspect page structure and alignment.
+- **Typography** — inspect rendered type and directly preview reversible copy and typography changes.
+- **Arrange** — drag selected UI into a Desired layout without writing application source.
+- **Screenshots** — capture a dragged visible-tab region with the optional screenshot plugin.
+- **Context and annotations** — expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents.
+- **Plugins** — add tools, commands, overlays, settings, state, hooks, and services at runtime.
+- **Compact toolbar** — collapse inactive controls while every active tool remains visible; expanding restores the same stable toolbar and order.
+- **Color Picker** — use the browser's native `EyeDropper` when it is operational. Unsupported hosts do not advertise the tool.
 
-Both approaches mount Mesurer in the same conceptual place: the browser entry for the page you want to inspect. The helper module only moves Mesurer-specific code out of that file.
+Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a toolbar mode. Clicking Arrange automatically enables Select; turning Arrange off leaves Select active, while turning Select off also exits Arrange.
 
-If you intentionally want Mesurer in every build of a browser bundle, call `mountMesurer()` without the development guard in that same browser entry.
-
-In SSR/metaframework apps, mount Mesurer only from a client-only module or lifecycle that never runs during server rendering.
-
-Do not put `mountMesurer()` in `vite.config.ts`, API/server routes, Node-only scripts, an Electron main process, or a shared SSR module that also executes on the server.
-
-Add plugins in the same place you mount Mesurer—either directly in the browser entry or in the optional Mesurer helper module. See [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md) for detailed placement examples, Vite/HMR setup, client-only/SSR guidance, Electron placement, and plugin examples.
-
-Mesurer carries its own isolated Solid 2 renderer, so the host app does not need Solid.
-
-## What you can do
-
-| Feature | What it does |
-| --- | --- |
-| Select | Inspect one or multiple rendered elements |
-| Distance | Measure exact spacing and geometry between elements |
-| Guides & rulers | Add visual alignment and position references |
-| X-ray | Inspect page structure visually |
-| Color Picker | Use the browser's native screen sampler when `EyeDropper` is operational; the tool is hidden in unsupported hosts |
-| Typography | Inspect rendered typography, edit copy directly, and preview reversible page-derived typography/style changes |
-| Settings | Configure tools and persisted behavior |
-| Arrange | Move selected elements into a desired visual layout without editing application source |
-| Screenshots | Capture a dragged viewport region with the optional screenshot plugin |
-| Context & annotations | Read selections, measurements, guides, notes, geometry, styles, and relationships programmatically |
-| Plugins | Add or replace tools, commands, overlays, settings, state, and services at runtime |
-
-### Keyboard shortcuts
-
-The default renderer and first-party plugins expose shortcuts only while their corresponding tools are available:
+## Shortcuts
 
 | Shortcut | Action |
 | --- | --- |
-| `M` | Toggle Mesurer visibility |
+| `M` | Toggle Mesurer |
 | `S` | Select |
 | `X` | X-ray |
 | `P` | Native Color Picker when supported |
 | `R` | Rulers |
 | `A` | Typography |
 | `G` | Guides |
-| `H` / `V` | Choose horizontal / vertical guide orientation |
+| `H` / `V` | Horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
 | `Cmd/Ctrl + ,` | Settings |
-| `Shift + A` | Arrange when `arrangePlugin()` is mounted |
-| `Shift + S` | Screenshot when `screenshotPlugin()` is mounted |
-| `C` | Copy Context when `contextPlugin()` is mounted |
-| `Shift + C` | Copy Selection when `contextPlugin()` is mounted |
-| `N` | Add Note when `contextPlugin()` is mounted |
+| `Shift + A` | Arrange |
+| `Shift + S` | Screenshot |
+| `C` | Copy Context |
+| `Shift + C` | Copy Selection |
+| `N` | Add Note |
 
-Color Picker intentionally has no DOM/CSS sampling fallback. In hosts where native screen sampling cannot operate—including the current Codex browser bridge—the Color Picker control is not advertised and `P` is inert.
+Plugin shortcuts appear only when the corresponding plugin is mounted and enabled.
 
-## Edit text and typography directly
+## Direct text editing
 
-Direct text editing is available while **Typography** or **Select** is active. Because Arrange keeps Select active, you can move an element, double-click its text, edit/style it, and continue arranging without switching away from Arrange.
+With Select or Typography active, double-click ordinary direct text to edit it on the rendered page. Mesurer previews the text and typography as reversible Desired intent; it does not write source code.
 
-Double-click direct text on desktop, or double-tap it with touch/pen. Mesurer opens an editor over the rendered text using that target's current typography and selects the entire current text so typing immediately replaces it.
+Native editing stays native. Mesurer does not intercept form controls or descendants that inherit `contenteditable`. A nested `contenteditable="false"` boundary ends that inherited editable region, so an otherwise valid direct-text target inside it can use Mesurer editing.
 
-Opening the editor also activates **Typography context for that exact field**. The Typography toolbar control becomes visibly active, and a live information card reports Family, Size, Weight, Line, Tracking, the target/text snippet, and CSS-variable references when available. This contextual activation does not steal Select mode, so Select and Arrange remain active. When editing ends, the contextual Typography state clears unless Typography itself was explicitly selected.
+Undo and redo update the rendered Desired preview while Mesurer still owns the current text/style value. If the application changes that value itself, Mesurer relinquishes ownership instead of overwriting the host change.
 
-The editing toolbar keeps frequent typography controls directly available rather than hiding unrelated choices inside a Heading menu. It exposes **B / I / U**, page-derived **Font / Size / Weight**, common rendered-page text colors, a custom color control, and a separate semantic **Text / Heading** preset control.
+See [Direct text editing and Typography](./docs/TEXT_EDITING.md).
 
-The semantic preset popup contains only:
+## Arrange
 
-- **Text**;
-- **Heading 1** when the page renders a visible direct-text H1;
-- **Heading 2** when the page renders a visible direct-text H2;
-- **Heading 3** when the page renders a visible direct-text H3.
+Arrange records Before and Desired geometry while previewing the requested layout through temporary browser presentation. It activates Select automatically, supports snapping and multi-selection, persists intent, and exposes Before/Desired/Live review APIs for agents.
 
-Each preset uses the **dominant rendered typography bundle** for that semantic level rather than an arbitrary Mesurer default or whichever matching element happens to be visually unusual. The bundle includes family, size, weight, style, line height, tracking, text transform, and color. Heading levels the page does not use are not invented.
+Arrange restores a previous inline transform only while the element still carries the exact preview value and priority Mesurer applied. Host-authored transform changes take ownership and survive Live review, refresh, and disposal.
 
-Pages can still have multiple visual variants of a heading/body style. Those non-dominant variants remain available through the direct Font, Size, Weight, and Color controls. The semantic preset control is separated from those properties by a divider and uses a fixed-geometry chevron instead of a font glyph so its indicator stays optically centered.
-
-While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle formatting. Text/H1/H2/H3 presets expose `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere; a heading shortcut only applies when that level exists in the current page-derived catalog.
-
-These suggestions come from the rendered page, so they reflect styles the application is actually using rather than an arbitrary preset list. The current target style is always retained as an option.
-
-Typing and style changes preview directly on the real rendered target. Press **Enter** to keep the Desired edit or **Shift+Enter** to insert a newline. If the semantic preset popup is open, **Escape** closes it first; pressing Escape again cancels the current editing session. Clicking outside the editor/formatting surfaces commits the current session. Saved text/style edits participate in Mesurer state history and remain reversible previews rather than pretending to change application source.
-
-The current contract is deliberately **direct-text editing**, not generic rich-text editing. Mesurer targets ordinary elements with one unambiguous non-empty direct text node and does not hijack `<input>`, `<textarea>`, `<select>`, `contenteditable`, or mixed/nested rich-text structures. Link creation and numbered/bulleted lists are intentionally not exposed as fake formatting controls; those would require a real structural/rich-text intent model.
-
-When the agent bridge is enabled, saved text/style intent is available separately from ordinary context:
-
-```js
-const edits = await window.__MESURER__.textEdits()
-const intent = await window.__MESURER__.textEdit(edits.at(-1).id)
-```
-
-Each intent records the target, Before/Desired copy, and requested style deltas. Coding agents should implement that visual outcome using the application's real component props, classes, CSS variables, theme/design tokens, or stylesheet rules when appropriate—not copy Mesurer's temporary preview styles blindly.
-
-See [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) for the complete human workflow, semantic preset rules, target boundaries, toolbar/Typography behavior, Before/Desired/Live semantics, agent API, Arrange coordination, runtime ownership, and browser validation contract.
-
-## Arrange a desired layout
-
-Arrange is an optional first-party plugin for showing how selected UI should be positioned without pretending to edit the application source:
-
-```ts
-import { mountMesurer } from "mesurer-solid"
-import { arrangePlugin } from "mesurer-solid/arrange"
-
-const mesurer = mountMesurer({
-  agent: true,
-  plugins: [arrangePlugin()],
-})
-```
-
-Select one or more elements, click **Arrange** or press **Shift+A**, and drag the selection. Arrange activates Select automatically and stays coordinated with selection state. Hold **Shift** while dragging to lock movement to the dominant axis.
-
-Each completed drag records Before and Desired geometry, persists through the plugin state channel, and participates in Mesurer undo/redo. Coding agents can reconstruct Before/Desired, capture both through their existing browser harness, switch to Live after editing source, and use exact geometry to verify whether the real implementation matches the human-arranged result.
-
-Arrange is primarily a human/designer intent tool: move the rendered UI to where it should be, edit copy or typography when useful, then tell the coding agent to check Mesurer context. When the Agent Skill is installed, a broad request to check Mesurer/context tells the agent to inspect all existing human intent before editing—including Arrange intents, text/style Desired edits, annotations, current selection, guides, measurements, held distances, and related target/layout context—so the user does not need to separately describe each adjustment.
-
-Arrange is a visual specification: an agent should implement the appropriate flex/grid/spacing/component change rather than blindly copying the preview offset into a production transform.
-
-See [`docs/ARRANGE.md`](./docs/ARRANGE.md) for the human workflow, agent API, Before/Desired/Live states, persistence, screenshots, and review loop.
-
-## Screenshot capture
-
-Add screenshot capture in the same Mesurer mounting module used in the quick start:
-
-```ts
-import { mountMesurer } from "mesurer-solid"
-import { screenshotPlugin } from "mesurer-solid/screenshot"
-
-const mesurer = mountMesurer({
-  plugins: [
-    screenshotPlugin({
-      copy: true,
-      download: false,
-    }),
-  ],
-})
-```
-
-The camera tool supports **Shift+S**, drag-region visible-tab capture, HiDPI/Retina-aware PNG cropping, copy/download settings, a draggable thumbnail, and a larger Copy/Save viewer.
-
-See [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) for screenshot options and browser/extension behavior.
-
-## Programmatic selection and context
-
-Add the context plugin in that same Mesurer mounting module when you want rendered UI state available through the API:
-
-```ts
-import {
-  contextPlugin,
-  mountMesurer,
-} from "mesurer-solid"
-
-const mesurer = mountMesurer({
-  agent: true,
-  plugins: [contextPlugin()],
-})
-```
-
-Read the current workspace or selection:
-
-```ts
-const workspace = await mesurer.context()
-const selected = await mesurer.context({ scope: "selection" })
-```
-
-Select exact rendered targets from code and get their context back:
-
-```ts
-const selected = await mesurer.select([
-  "#pricing-card",
-  "#pricing-cta",
-])
-```
-
-Every selector must resolve to exactly one rendered element. Missing or ambiguous selectors reject instead of guessing.
-
-After the page changes, wait for the UI to settle and inspect it again:
-
-```ts
-await mesurer.agent.stable()
-const selected = await mesurer.context({ scope: "selection" })
-```
-
-`MesurerContextV1` includes rendered geometry, computed styles, typography, layout, overflow, guides, measurements, distances, selected targets, and annotated regions.
-
-## Annotations and review
-
-Mesurer Solid context annotations attach a note to rendered UI and keep a baseline that can be reviewed again after changes:
-
-```ts
-const annotation = await mesurer.context({ annotation: annotationId })
-const review = await mesurer.review(annotationId)
-```
-
-This is useful when a visual change needs to be checked against the same target or region after an edit. Mesurer Solid intentionally uses this target-bound semantic review model instead of upstream `0.1.1`'s freeform arrow, pen, and text drawing canvas: agents can read what element/region the note belongs to plus its geometry, layout, measurements, distances, and related rendered evidence directly, without inferring intent from a drawn arrow or screenshot.
+See [Arrange](./docs/ARRANGE.md).
 
 ## Agent integration
 
-For coding-agent setup, injection, state-preservation rules, Arrange/text-edit handling, and the full visual verification workflow, use the dedicated agent docs instead of the README:
+Enable the agent bridge when a coding agent should read the same rendered state and human intent:
 
-- [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md)
-- [`.agents/skills/mesurer-ui/SKILL.md`](./.agents/skills/mesurer-ui/SKILL.md)
+```ts
+const mesurer = mountMesurer({
+  agent: true,
+  plugins: [contextPlugin(), arrangePlugin()],
+})
+```
 
-Install the portable skill with:
+Read context or select exact rendered targets:
+
+```ts
+const workspace = await mesurer.context()
+const selected = await mesurer.select(["#pricing-card", "#pricing-cta"])
+```
+
+The portable Mesurer skill teaches compatible agents to preserve existing human state, consume Arrange/text/annotation intent before editing source, and verify the real Live result afterward:
 
 ```bash
 npx --yes --package=mesurer-solid mesurer-skill install
 ```
 
-The skill treats broad requests such as “check Mesurer,” “check Measure,” or “look at Mesurer context” as a full intent sweep. It preserves and reads existing Arrange, text/style Desired edits, annotation, selection, guide, measurement, and distance state before the agent narrows its work or edits source.
+See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the packaged [`mesurer-ui` skill](./.agents/skills/mesurer-ui/SKILL.md).
 
-## Supported hosts
+## Documentation
 
-The renderer is bundled and isolated from the host framework. Mesurer Solid can run over:
+Start with the [documentation index](./docs/README.md).
 
-- Solid 1
-- Solid 2
-- React
-- Vue
-- Svelte
-- vanilla DOM apps
-- Electron renderer pages
+- [Getting started](./docs/GETTING_STARTED.md)
+- [Direct text editing and Typography](./docs/TEXT_EDITING.md)
+- [Arrange](./docs/ARRANGE.md)
+- [Screenshots](./docs/SCREENSHOTS.md)
+- [Context workflow](./docs/CONTEXT_WORKFLOW.md)
+- [Browser harness](./docs/BROWSER_HARNESS.md)
+- [Host isolation](./docs/HOST_ISOLATION.md)
+- [Trusted Types](./docs/TRUSTED_TYPES.md)
+- [Upstream parity](./docs/UPSTREAM_PARITY.md)
+- [Architecture](./ARCHITECTURE.md)
 
-## Runs over real applications
+## Upstream
 
-<table>
-  <tr>
-    <td><img src="docs/assets/showcase/youtube.png" alt="Mesurer Solid inspecting YouTube" width="100%"></td>
-    <td><img src="docs/assets/showcase/github.png" alt="Mesurer Solid inspecting GitHub" width="100%"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>YouTube</sub></td>
-    <td align="center"><sub>GitHub</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/assets/showcase/google-maps.png" alt="Mesurer Solid inspecting Google Maps" width="100%"></td>
-    <td><img src="docs/assets/showcase/electron-solid.jpg" alt="Mesurer Solid running over a packaged Electron application with a Solid 1 renderer" width="100%"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Google Maps</sub></td>
-    <td align="center"><sub>Electron + Solid 1</sub></td>
-  </tr>
-</table>
-
-## Public entry points
-
-```ts
-import {
-  contextPlugin,
-  defineMesurerPlugin,
-  mountMesurer,
-} from "mesurer-solid"
-
-import { arrangePlugin } from "mesurer-solid/arrange"
-import { createMesurerPluginHost } from "mesurer-solid/core"
-import { screenshotPlugin } from "mesurer-solid/screenshot"
-```
-
-The classic injectable browser bundle is available at:
-
-```text
-mesurer-solid/inject-script
-```
-
-## Docs
-
-- [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md) — where to mount Mesurer and development/client setup
-- [`docs/TEXT_EDITING.md`](./docs/TEXT_EDITING.md) — direct copy/typography editing, automatic Typography context, and agent intent
-- [`docs/ARRANGE.md`](./docs/ARRANGE.md) — Arrange visual layout intent and agent review
-- [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md) — screenshot plugin
-- [`docs/CONTEXT_WORKFLOW.md`](./docs/CONTEXT_WORKFLOW.md) — context, selection, annotations, and review
-- [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md) — host isolation and browser compatibility
-- [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md) — upstream Mesurer audit and intentional product decisions
-- [`packages/mesurer/AGENT_INTEGRATION.md`](./packages/mesurer/AGENT_INTEGRATION.md) — agent-specific setup and API usage
-
-## Origin and attribution
-
-Mesurer Solid started as a Solid port of [ibelick/mesurer](https://github.com/ibelick/mesurer) and preserves the original tool's visual language and interaction model where those contracts are adopted.
-
-The current upstream audit is pinned in [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md). Newer upstream features are evaluated individually rather than assumed to be part of Mesurer Solid.
-
-Original Mesurer copyright and attribution are documented in [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@91ca55768f1f9e7d6afe72e046a582e424967b91`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 
-MIT
+MIT. See [LICENSE](./LICENSE) and [THIRD_PARTY_LICENSES.md](./THIRD_PARTY_LICENSES.md).
