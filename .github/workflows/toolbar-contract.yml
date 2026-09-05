@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "packages/renderer/src/components/Toolbar.tsx"
+      - "packages/renderer/src/styles.css"
       - "packages/renderer/test/toolbar-compact.test.tsx"
       - "visual-parity/toolbar-compact-contract.mjs"
       - ".github/workflows/toolbar-contract.yml"
