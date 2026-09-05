@@ -3,7 +3,10 @@ name: browser-contracts
 on:
   pull_request:
     paths:
+      - "packages/mesurer-core/src/domain.ts"
+      - "packages/mesurer-core/src/model.ts"
       - "packages/renderer/src/ComposableMesurer.tsx"
+      - "packages/renderer/src/Mesurer.tsx"
       - "packages/renderer/src/components/Icons.tsx"
       - "packages/renderer/src/components/ContextActions.tsx"
       - "packages/renderer/src/components/DistanceOverlayItem.tsx"
@@ -12,6 +15,8 @@ on:
       - "packages/renderer/src/components/SettingsPanel.tsx"
       - "packages/renderer/src/components/Toolbar.tsx"
       - "packages/renderer/src/core/distances.ts"
+      - "packages/renderer/src/core/persistence.ts"
+      - "packages/renderer/src/model/create-mesurer-model.ts"
       - "packages/renderer/src/plugins/arrange.ts"
       - "packages/renderer/src/plugins/settings-runtime.tsx"
       - "packages/renderer/src/plugins/screenshot.ts"
@@ -34,6 +39,7 @@ on:
       - "examples/basic/src/plugin-settings.ts"
       - "visual-parity/arrange-contract.mjs"
       - "visual-parity/color-picker-contract.mjs"
+      - "visual-parity/shortcuts-setting-contract.mjs"
       - "visual-parity/text-editing-contract.mjs"
       - "visual-parity/typography-editing-layout-contract.mjs"
       - "visual-parity/self-hosting-context.mjs"
@@ -102,6 +108,11 @@ jobs:
           ARRANGE_URL: http://127.0.0.1:4174/
         run: bun visual-parity/arrange-contract.mjs
 
+      - name: Exercise global Shortcuts setting
+        env:
+          SHORTCUTS_SETTING_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/shortcuts-setting-contract.mjs
+
       - name: Exercise direct text editing and page style suggestions
         env:
           TEXT_EDITING_URL: http://127.0.0.1:4174/
@@ -150,6 +161,12 @@ jobs:
           print("- Toolbar enablement after selection exercised in Chromium")
           print("- Nearby-element, X-ray-outline, and guide alignment snapping exercised in Chromium")
           print("- Ghost suppression, persistent Desired placement, and Live restoration on deactivation exercised in Chromium")
+
+          print("")
+          print("### Shortcuts")
+          print("- General → Shortcuts persisted master switch exercised in Chromium")
+          print("- Disabled global shortcuts leave toolbar actions and Escape lifecycle behavior available")
+          print("- Built-in and first-party plugin shortcut gating exercised in Chromium")
 
           print("")
           print("### Direct text editing / Typography")
