@@ -28,6 +28,10 @@ export default defineConfig({
     // Node 25+ enables process-wide Web Storage by default. Disable it in
     // Vitest workers so jsdom remains the owner of window.localStorage.
     execArgv: webStorageDisableFlag ? [webStorageDisableFlag] : [],
+    // jsdom does not currently expose HTMLElement.isContentEditable. Model
+    // the browser's inherited contenteditable semantics so direct-edit tests
+    // exercise the same native boundary as the Chromium contract.
+    setupFiles: ["./test/setup.ts"],
   },
   build: {
     target: "esnext",
