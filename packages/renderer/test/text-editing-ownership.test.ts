@@ -95,6 +95,29 @@ const commitText = async (
   await vi.waitFor(() => expect(service.intents().at(-1)?.desired).toBe(desired));
 };
 
+const commitFontSize = async (
+  target: HTMLElement,
+  pageTarget: HTMLElement,
+  desired: string,
+  service: MesurerTextEditService,
+) => {
+  const editor = beginEdit(target, pageTarget);
+  if (!editor) throw new Error("Direct text editor did not open.");
+  const menuButton = document.querySelector<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']");
+  if (!menuButton) throw new Error("Text style menu button did not mount.");
+  menuButton.click();
+  const size = document.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='size']");
+  if (!size) throw new Error("Text size control did not mount.");
+  expect(Array.from(size.options, (option) => option.value)).toContain(desired);
+  size.value = desired;
+  size.dispatchEvent(new Event("change", { bubbles: true }));
+  editor.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }));
+  await vi.waitFor(() => {
+    const fontSize = service.intents().at(-1)?.styles.find((style) => style.property === "font-size");
+    expect(fontSize?.desired).toBe(desired);
+  });
+};
+
 describe("direct text ownership", () => {
   it("renders restored Desired text through undo/redo and restores Live text on clear", async () => {
     const { host, pageTarget } = await setup();
@@ -120,6 +143,63 @@ describe("direct text ownership", () => {
     await service.clear();
     await vi.waitFor(() => expect(target.textContent).toBe("Original"));
     expect(service.intents()).toHaveLength(0);
+  });
+
+  it("reconciles owned style Desired values through undo/redo and restores the original inline style", async () => {
+    const { host, pageTarget } = await setup();
+    const target = document.createElement("p");
+    target.id = "styled-copy";
+    target.textContent = "Styled";
+    target.style.fontSize = "16px";
+    const twenty = document.createElement("p");
+    twenty.textContent = "Twenty";
+    twenty.style.fontSize = "20px";
+    const twentyFour = document.createElement("p");
+    twentyFour.textContent = "Twenty four";
+    twentyFour.style.fontSize = "24px";
+    pageTarget.append(target, twenty, twentyFour);
+    const service = host.service.get<MesurerTextEditService>(MESURER_TEXT_EDIT_SERVICE_ID)!;
+
+    await commitFontSize(target, pageTarget, "20px", service);
+    expect(target.style.fontSize).toBe("20px");
+    await commitFontSize(target, pageTarget, "24px", service);
+    expect(target.style.fontSize).toBe("24px");
+
+    expect(host.undo()).toBe(true);
+    await vi.waitFor(() => expect(target.style.fontSize).toBe("20px"));
+    expect(service.intents()[0]?.styles.find((style) => style.property === "font-size")?.desired).toBe("20px");
+
+    expect(host.redo()).toBe(true);
+    await vi.waitFor(() => expect(target.style.fontSize).toBe("24px"));
+
+    await service.clear();
+    await vi.waitFor(() => expect(target.style.fontSize).toBe("16px"));
+  });
+
+  it("relinquishes style ownership when the host application changes the inline value or priority", async () => {
+    const { host, pageTarget } = await setup();
+    const target = document.createElement("p");
+    target.id = "host-styled-copy";
+    target.textContent = "Styled";
+    target.style.fontSize = "16px";
+    const twenty = document.createElement("p");
+    twenty.textContent = "Twenty";
+    twenty.style.fontSize = "20px";
+    pageTarget.append(target, twenty);
+    const service = host.service.get<MesurerTextEditService>(MESURER_TEXT_EDIT_SERVICE_ID)!;
+
+    await commitFontSize(target, pageTarget, "20px", service);
+    target.style.setProperty("font-size", "18px", "important");
+
+    expect(host.undo()).toBe(true);
+    await Promise.resolve();
+    expect(target.style.getPropertyValue("font-size")).toBe("18px");
+    expect(target.style.getPropertyPriority("font-size")).toBe("important");
+
+    await service.clear();
+    await Promise.resolve();
+    expect(target.style.getPropertyValue("font-size")).toBe("18px");
+    expect(target.style.getPropertyPriority("font-size")).toBe("important");
   });
 
   it("relinquishes ownership when the host application changes the text", async () => {
