@@ -3,12 +3,10 @@ import { createMesurerPluginHost, defineMesurerPlugin } from "../src/plugins";
 
 const deferred = <T = void>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+  const promise = new Promise<T>((resolvePromise) => {
     resolve = resolvePromise;
-    reject = rejectPromise;
   });
-  return { promise, resolve, reject };
+  return { promise, resolve };
 };
 
 describe("async plugin lifecycle", () => {
