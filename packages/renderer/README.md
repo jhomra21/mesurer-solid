@@ -1,13 +1,11 @@
-# Mesurer Solid renderer (internal)
+# Mesurer Solid renderer
 
-This workspace contains Mesurer's Solid 2 reference UI renderer. It is an implementation detail and is not published for users to install directly.
+Internal Solid 2 renderer for Mesurer Solid. Application users should install `mesurer-solid`, not this workspace.
 
-The public package is `mesurer-solid`. It bundles this renderer and its Solid 2 runtime into an isolated browser island so the host application can use Solid 1, Solid 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer.
+The public package bundles this renderer and its Solid 2 runtime into an isolated browser island, so host applications can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without providing Solid.
 
-The framework-neutral state, plugin host, DOM measurement primitives, universal mount API, and agent harness live outside this renderer workspace.
+This workspace owns the visible inspector UI, compact toolbar, measurement overlays, Typography/direct editing presentation, Arrange and Screenshot UI, and browser-facing coordination around the framework-neutral model/plugin host.
 
-The renderer also owns the UI implementation of the optional first-party screenshot plugin: region selection, capture presentation, HiDPI crop helpers, persistent draggable preview, full Copy/Save viewer, and capture-status feedback. Consumers access that feature through the public `mesurer-solid/screenshot` entry instead of importing this private workspace.
+Current runtime contracts include ownership-aware text/style previews, inherited `contenteditable` boundaries, ownership-aware Arrange transforms, and cancellable plugin setup. Browser contracts cover these interactions in real Chromium; historical and current visual-parity checks protect the adopted Mesurer UI surface.
 
-For repository development, use the root scripts. Renderer-specific checks can be run with the `@jhomra21/mesurer-solid-renderer` workspace filter.
-
-The visual-parity workflow keeps the existing upstream-derived UI contract intact. Screenshot-specific behavior is additionally covered by the dedicated screenshot browser contract so the real plugin lifecycle, crop scaling, preview/viewer interactions, and capture-chrome hiding remain regression-tested.
+Use the repository root scripts for normal development. Renderer-only checks can use the `@jhomra21/mesurer-solid-renderer` workspace filter.

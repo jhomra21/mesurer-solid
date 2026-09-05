@@ -1,32 +1,10 @@
 # Mesurer agent integration
 
-Mesurer's agent integration is direct: **the agent reads Mesurer through the same rendered page it is already controlling**.
+Mesurer's agent integration is the rendered page itself. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
 
-There is no Mesurer MCP, WebMCP, ACP, localhost feedback daemon, Send-to-agent callback, chat/session bridge, or harness-specific Mesurer adapter.
+There is no Mesurer MCP server, localhost daemon, Send-to-agent callback, or harness-specific transport.
 
-The page is the shared state boundary. A meaningful Mesurer operation should return evidence that the coding agent actually consumes before it edits source or claims completion.
-
-```text
-human visual intent
-  ↓
-Arrange / text-style Desired edits / annotation / selection
-  ↓
-window.__MESURER__
-  ↓
-structured rendered evidence + optional harness screenshot
-  ↓
-agent edits normal source
-  ↓
-real render / HMR
-  ↓
-fresh Live review/context
-  ↓
-validated result
-```
-
-## Install the portable Agent Skill
-
-Use the stable package by default:
+## Install the Agent Skill
 
 ```bash
 npx --yes --package=mesurer-solid mesurer-skill install
@@ -34,7 +12,7 @@ npx --yes --package=mesurer-solid mesurer-skill install
 
 Use `mesurer-solid@beta` only when intentionally validating a prerelease.
 
-The installed skill is self-contained:
+The installer writes a self-contained skill and injection artifact:
 
 ```text
 .agents/skills/mesurer-ui/
@@ -43,11 +21,9 @@ The installed skill is self-contained:
     └── inject-script.js
 ```
 
-The skill defines the same state-preservation, Arrange, text-edit, context, screenshot, HMR, and completion rules described here.
+## Reuse a live instance
 
-## Reuse a live human instance
-
-Before injecting anything:
+Before injecting anything, check whether Mesurer is already connected:
 
 ```js
 const hasMesurer = Boolean(
@@ -60,107 +36,31 @@ if (hasMesurer) {
 }
 ```
 
-If Mesurer exists, use that exact instance. The person may already have arranged elements, edited copy/typography into a Desired state, selected targets, placed guides, measured gaps, held distances, enabled rulers/X-ray, saved annotations, or kept a screenshot preview open. That state is part of the user's visual message.
+If it exists, use that instance. A person may already have selected targets, guides, measurements, annotations, Arrange intent, text/style intent, or screenshot review state. That state is part of the request.
 
-The injector reuses a live injected instance by default. Deliberate destructive replacement requires:
+The injector reuses a connected instance by default. Deliberate replacement requires:
 
 ```js
 window.__MESURER_CONFIG__ = { reuseExisting: false }
 ```
 
-Do not use that while consuming human review state.
+Do not replace a live instance while consuming human review state.
 
 ## Inject only when absent
 
-Default host-project mutation budget is zero. Reuse the browser, Electron, WebView, Playwright, CDP, or other evaluation channel the harness already owns.
+Use the browser, Electron, WebView, Playwright, CDP, or other evaluation channel the harness already owns. With the installed skill, evaluate `.agents/skills/mesurer-ui/assets/inject-script.js`. With the npm package installed, read `mesurer-solid/inject-script`.
 
-With the installed skill, evaluate `.agents/skills/mesurer-ui/assets/inject-script.js`. With the npm package installed, use `mesurer-solid/inject-script`.
+Do not mutate application source or create another browser connection merely to get Mesurer into a page the harness can already evaluate.
 
-```js
-import { readFile } from "node:fs/promises"
-import { fileURLToPath } from "node:url"
-
-const source = await readFile(
-  fileURLToPath(import.meta.resolve("mesurer-solid/inject-script")),
-  "utf8",
-)
-
-const alreadyPresent = await browser.evaluate(() => Boolean(
-  window.__MESURER__ &&
-  window.__MESURER_INSTANCE__?.element?.isConnected
-))
-
-if (!alreadyPresent) {
-  await browser.evaluate(source)
-}
-
-await browser.evaluate(() => window.__MESURER__.ready())
-```
-
-Do not create a second browser/CDP connection, Mesurer server, special app build, or source mutation merely to inspect a page the harness already controls.
-
-Normal injection keeps the optional human screenshot plugin disabled unless requested:
+The optional human Screenshot plugin remains disabled during normal agent injection unless configured before first injection:
 
 ```js
 window.__MESURER_CONFIG__ = { screenshot: true }
 ```
 
-## Capabilities
+## Inventory human intent
 
-After `ready()`:
-
-```js
-window.__MESURER__.capabilities()
-```
-
-The context-oriented surface is:
-
-```text
-context
-select
-annotations
-review
-capturePlan
-textEdits
-textEdit
-```
-
-Direct text editing reports:
-
-```text
-textEdit
-```
-
-and exposes:
-
-```text
-textEdits()
-textEdit(id)
-```
-
-When `arrangePlugin()` is mounted, capabilities also reports:
-
-```text
-arrange
-```
-
-and exposes:
-
-```text
-arrangements()
-arrange(id)
-showArrange(id, state)
-arrangeCapturePlan(id, state)
-reviewArrange(id, tolerance?)
-```
-
-There is no `send`, `screenshots`, or `sendContext` delivery capability. Screenshot bytes stay with the outer browser harness.
-
-## Broad Mesurer/context requests mean inspect all human intent
-
-If the user says “check Mesurer,” “check Measure,” “look at Mesurer context,” “see what I highlighted/moved/annotated/edited,” or otherwise asks generally about Mesurer state, treat that as a request to inspect the **combined live review state**, not only the return value of `context()`.
-
-Start with a non-destructive inventory:
+For a broad request such as “check Mesurer,” collect all relevant state before editing source:
 
 ```js
 const capabilities = window.__MESURER__.capabilities().capabilities
@@ -179,7 +79,7 @@ try {
 } catch {}
 ```
 
-Then resolve the saved human intent that is relevant to the task:
+Resolve relevant records before HMR can replace their DOM targets:
 
 ```js
 const annotationContexts = await Promise.all(
@@ -197,207 +97,11 @@ const textEditIntents = await Promise.all(
 )
 ```
 
-Bring the useful pieces together before editing: target-bound notes, current selection, Arrange Before/Desired geometry, text Before/Desired copy and style deltas, guides, measurements, held distances, exact target inspection, layout/style data, rulers/X-ray state, and any existing human screenshot preview that must be preserved.
+Treat annotation notes, Arrange Desired geometry, and text/style Desired state as intent. Treat selection, measurements, distances, geometry, and computed styles as rendered evidence.
 
-The user may have selected one element, annotated another, moved a group with Arrange, edited copy or typography, and left measurements/guides that explain the relationship. Those are not separate conversations. They are one encoded visual request. Do not ask the person to repeat information Mesurer already contains, and do not overwrite one channel before reading the others.
+## Select exact targets
 
-## Arrange has high human-intent precedence
-
-Arrange lets a person reposition selected rendered elements into the layout they want without editing application source. If Arrange is available, consume relevant saved intents before changing human selection or editing source:
-
-```js
-const arrangements = await window.__MESURER__.arrangements()
-const intent = await window.__MESURER__.arrange(arrangeId)
-```
-
-Each intent contains exact target identity plus Before and Desired geometry.
-
-Desired is a **visual specification**, not an implementation prescription. If a target moved `96px` right, do not blindly write `transform: translateX(96px)` into production CSS. Inspect the rendered layout and implement the appropriate flex/grid alignment, gap, margin, sizing, ordering, component structure, or other semantic source change.
-
-### Capture Before and Desired before source edits
-
-When screenshot comparison will help, reconstruct and capture both states before HMR can change the baseline:
-
-```js
-await window.__MESURER__.showArrange(arrangeId, "before")
-const beforePlan = await window.__MESURER__.arrangeCapturePlan(arrangeId, "before")
-
-await window.__MESURER__.prepareCapture()
-try {
-  // outer harness captures Before with beforePlan
-} finally {
-  await window.__MESURER__.finishCapture()
-}
-
-await window.__MESURER__.showArrange(arrangeId, "desired")
-const desiredPlan = await window.__MESURER__.arrangeCapturePlan(arrangeId, "desired")
-
-await window.__MESURER__.prepareCapture()
-try {
-  // outer harness captures Desired with desiredPlan
-} finally {
-  await window.__MESURER__.finishCapture()
-}
-```
-
-The user should not need to export, attach, or send these screenshots manually. The harness already owns its screenshot primitive; Mesurer supplies the reproducible state and exact capture geometry.
-
-For source-mounted integrations that use this capture workflow, mount `contextPlugin()` together with `arrangePlugin()` so the generic capture preparation methods are available.
-
-### Verify the source-produced result
-
-After editing source:
-
-```js
-await window.__MESURER__.stable()
-await window.__MESURER__.showArrange(arrangeId, "live")
-const review = await window.__MESURER__.reviewArrange(arrangeId)
-```
-
-Live removes Arrange's temporary preview. `reviewArrange()` compares the real application layout with Desired and returns exact rectangle deltas plus `connected`, `partial`, or `stale` target status.
-
-```text
-Before       Desired      Live
-x 120   →    x 284        x 276
-                         remaining +8px
-
-edit source
-  ↓
-Live x 284
-  ↓
-matched ✓
-```
-
-If review is still numerically wrong, continue editing. If it is `stale` or `partial`, do not silently bind the intent to a different element.
-
-## Direct text editing: human UI and durable intent
-
-Direct text editing records human copy and typography intent without pretending to edit application source. It is not a separate top-level text-edit tool/plugin.
-
-The human-facing inspection tool is **Typography**. The existing internal compatibility id and stable command remain `text-inspector` / `builtin.text-inspector`; agents should not script the toolbar by label.
-
-A person enters direct editing while **Select** or **Typography** is active:
-
-```text
-double-click ordinary direct text
-(or double-tap with touch/pen)
-  ↓
-current text is selected in full
-  ↓
-in-place editor uses rendered typography
-  ↓
-Mesurer-style direct typography toolbar
-  B / I / U / Font / Size / Weight / Color
-  + separate semantic Text/H1/H2/H3 preset popup
-  + contextual Typography card for that exact field
-  ↓
-Enter keeps Desired / Shift+Enter newline
-```
-
-Because Arrange keeps Select active, this same interaction works while Arrange remains selected. Starting the edit contextually activates Typography for the field while Select/Arrange remain active; it does not force the reviewer out of the layout workflow.
-
-The typography surface deliberately separates direct properties from semantic meaning:
-
-- Bold/Italic/Underline, Font, Size, Weight, rendered-page text colors, and custom color are direct toolbar controls;
-- the separate semantic popup contains only **Text** plus Heading 1/2/3 for semantic levels actually rendered by visible direct-text page elements;
-- each semantic preset uses the page's **dominant rendered typography bundle** for that level: font family, size, weight, style, line height, tracking, text transform, and color;
-- non-dominant page variants remain available through the direct Font/Size/Weight/color controls;
-- heading levels absent from the rendered page are not invented.
-
-The semantic popup must not become a container for Font/Size/Weight/color. Its CSS chevron is part of the visual contract and rotates with popup state.
-
-While the editor owns focus, `Cmd/Ctrl+B`, `Cmd/Ctrl+I`, and `Cmd/Ctrl+U` toggle formatting. Text/H1/H2/H3 use `Option+Cmd+0/1/2/3` on macOS and `Alt+Ctrl+0/1/2/3` elsewhere. If the semantic preset popup is open, the first Escape closes it; Escape with it closed cancels the edit.
-
-Link creation and numbered/bulleted lists are intentionally not exposed as fake controls. Those would require a structural/rich-text intent model rather than ordinary typography deltas.
-
-The contextual Typography card reuses the existing typography/card renderer and reports Family, Size, Weight, Line, Tracking, tag/text information, and CSS-variable references when available. It refreshes during the session. The current editing boundary is intentionally direct text rather than generic rich text: ordinary elements with one unambiguous non-empty direct text node. Native `<input>`, `<textarea>`, `<select>`, `contenteditable`, and ambiguous mixed/nested rich-text structures retain their normal browser/application behavior.
-
-The contextual Typography card is **transient human presentation**, not another durable context channel. Durable intent is the saved text-edit record.
-
-See the repository's canonical [`docs/TEXT_EDITING.md`](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TEXT_EDITING.md) for the full interaction and runtime contract.
-
-## Text/style Desired edits are source intent too
-
-If `capabilities.textEdit` is true, read saved edits before source changes:
-
-```js
-const edits = await window.__MESURER__.textEdits()
-const intent = await window.__MESURER__.textEdit(textEditId)
-```
-
-Each intent contains:
-
-```text
-id / createdAt / pageUrl
-selector / nodeIndex
-before
-  original text
-desired
-  requested text
-styles[]
-  property
-  before
-  desired
-```
-
-Current style deltas can include font family, size, weight, style, line height, letter spacing, text transform, color, and text-decoration line.
-
-Treat Desired copy and style deltas as a **visual/source specification**, not a request to paste Mesurer's preview implementation into production. If the person chose a semantic preset or a font, weight, size, or color that already exists on the rendered page, inspect the codebase for the semantic component prop, class, CSS variable, design token, theme value, or stylesheet rule that produces it.
-
-Page-derived options are evidence of what the application already renders; they are not a source-code token scanner and do not imply that sampled computed values belong in inline styles.
-
-While Select or Typography is active, Mesurer may be rendering the saved Desired text/style as a reversible preview. Do not compare against that preview and declare the source implementation correct.
-
-After editing source:
-
-1. retain the text-edit intent;
-2. wait for the real render;
-3. deactivate the active Select/Typography preview without clearing the intent;
-4. inspect the actual target text and computed typography;
-5. compare those Live values with `intent.desired` and `intent.styles`;
-6. reactivate Select only if continued review is useful.
-
-Mesurer relinquishes ownership when the application itself changes the value, so correct source output remains correct with the temporary preview inactive.
-
-## Context acquisition after intent preservation
-
-Once any relevant Arrange and text-edit intent is retained, use this order for ordinary context.
-
-### Existing human selection or annotation
-
-```js
-const workspace = await window.__MESURER__.context()
-const annotations = await window.__MESURER__.annotations()
-
-let selection = null
-try {
-  selection = await window.__MESURER__.context({ scope: "selection" })
-} catch {}
-```
-
-For a relevant annotation:
-
-```js
-const context = await window.__MESURER__.context({
-  annotation: annotation.id,
-})
-```
-
-Do not overwrite a meaningful human selection until its context has been retained by the current task.
-
-### Ambiguous target
-
-If the user's visual reference cannot be mapped confidently to exact rendered elements or a region, ask the person to select the intended element(s) or region in Mesurer, then read:
-
-```js
-const context = await window.__MESURER__.context({ scope: "selection" })
-```
-
-Do not guess merely to avoid asking for a selection.
-
-### Agent knows the exact target
-
-Use `select()` and consume its return value:
+Do not overwrite a meaningful human selection until its context has been retained. When there is no relevant human selection and the exact targets are known:
 
 ```js
 const context = await window.__MESURER__.select([
@@ -406,214 +110,113 @@ const context = await window.__MESURER__.select([
 ])
 ```
 
-`select()` switches Mesurer to Select, visibly highlights the exact rendered targets, makes them the live selection, waits for the selection to settle, and returns selection-scoped `MesurerContextV1`.
+Each selector must resolve to exactly one target. Missing or ambiguous selectors throw rather than binding to a guess.
 
-Every selector must resolve to exactly one page target. Invalid, missing, or ambiguous selectors throw.
+For multi-selection, inspect every selected target and the relevant pair relationships. Prefer `selection.visualContext.distances`; use `distance(a, b)` when a needed pair has no existing evidence.
 
-## What context contains
+## Arrange intent
 
-`MesurerContextV1` is JSON-safe and uses `viewport-css-px` coordinates:
-
-```text
-schema / id / createdAt
-scope
-page
-viewport / DPR / scroll
-coordinateSpace
-regions
-visualState
-  rulersVisible
-  xrayVisible
-targets[]
-  ref
-  inspection.selector
-  inspection.rect
-  margin / padding / border
-  typography
-  appearance
-  layout
-  scroll / overflow
-visualContext
-  guides[]
-  measurements[]
-  distances[]
-```
-
-Prefer rendered numbers over screenshot estimates or source assumptions.
-
-## Multi-selection is relational
-
-When several targets are selected, consume each target plus the useful relationships between them. Start with `visualContext.distances`; for a pair not represented there:
+Arrange expresses requested geometry, not source implementation.
 
 ```js
-const pair = window.__MESURER__.distance(selectorA, selectorB)
+const intents = await window.__MESURER__.arrangements()
+const intent = await window.__MESURER__.arrange(arrangeId)
 ```
 
-A useful result can be:
+A 96px Desired offset does not mean production source should use `transform: translateX(96px)`. Implement the visual outcome through the application's real flex/grid, spacing, sizing, ordering, or component structure.
 
-```text
-Card A width: 320px
-Card B width: 320px
-A → B horizontal gap: 24px
-A/B top-edge delta: 0px
-```
-
-For large repeated sets, focus on adjacent or user-relevant relationships rather than dumping all O(n²) pairs.
-
-## Fresh evidence is required after visual edits
-
-Wait for the actual rendered page:
+After source changes:
 
 ```js
 await window.__MESURER__.stable()
-```
-
-Then use the strongest applicable path.
-
-Arrange:
-
-```js
 await window.__MESURER__.showArrange(arrangeId, "live")
 const review = await window.__MESURER__.reviewArrange(arrangeId)
 ```
 
-Text/style Desired intent, with its temporary preview inactive:
+Live removes the temporary Arrange preview before measuring source output.
+
+Arrange preview ownership is conservative. Mesurer restores an older transform only while the element still carries the exact preview value and priority Mesurer applied. Host-authored transform changes survive review, refresh, and disposal.
+
+See [Arrange](../../docs/ARRANGE.md).
+
+## Text and Typography intent
+
+Direct text editing records copy and typography intent without pretending to edit source. The human-facing tool is **Typography**; the internal compatibility id remains `text-inspector`.
+
+Editing starts by double-click/double-tap while Select or Typography is active. Arrange keeps Select active, so editing works while Arrange remains selected.
+
+Native editing stays native. Mesurer does not intercept form controls or descendants that inherit `contenteditable`. A nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer target when the direct-text rules otherwise pass.
+
+The editing UI exposes direct B/I/U, Font, Size, Weight, rendered-page colors, custom color, and a separate Text/H1/H2/H3 semantic preset popup. Missing heading levels are not invented.
+
+If Typography was already explicitly selected, the direct-edit session suppresses the older hover/pinned Typography surface so the field has one live card. The normal surface returns when editing ends.
+
+Read durable intent through:
 
 ```js
+const edits = await window.__MESURER__.textEdits()
 const intent = await window.__MESURER__.textEdit(textEditId)
-const live = window.__MESURER__.inspect(intent.selector)
 ```
 
-Compare the actual rendered text and relevant typography values with the saved Desired intent.
+Treat `intent.desired` and style deltas as visual/source requirements, not inline CSS instructions. Look for the application's semantic props, classes, design tokens, CSS variables, theme values, or stylesheet rules that produce the requested render.
 
-Annotation:
+Verification must use Live source with the Desired preview inactive. Text/style preview ownership follows the same conservative rule as Arrange: while the DOM still equals Mesurer's owned value, undo/redo can move it to the restored Desired value; once the application changes it, Mesurer preserves the host value instead of overwriting it during history or cleanup.
+
+See [Direct text editing and Typography](../../docs/TEXT_EDITING.md).
+
+## Annotation and context review
+
+A saved annotation carries target-bound intent and an immutable baseline:
 
 ```js
+const context = await window.__MESURER__.context({ annotation: annotationId })
+```
+
+After source changes:
+
+```js
+await window.__MESURER__.stable()
 const review = await window.__MESURER__.review(annotationId)
 ```
 
-Still-relevant human selection:
+`review()` can report exact geometry/evidence changes without any external message transport.
+
+## Screenshots
+
+For ordinary coding-agent evidence, the outer harness owns screenshot bytes while Mesurer prepares capture presentation:
 
 ```js
-const after = await window.__MESURER__.context({ scope: "selection" })
-```
-
-Agent-known changed targets:
-
-```js
-const after = await window.__MESURER__.select([
-  changedSelectorA,
-  changedSelectorB,
-])
-```
-
-For meaningful visual work, lint/typecheck/tests/build are not enough. They validate implementation mechanics, not the rendered result.
-
-## Screenshot ownership
-
-Mesurer has two different screenshot roles.
-
-### Human camera tool
-
-The optional `mesurer.screenshot` plugin gives the person a camera tool:
-
-```ts
-import { mountMesurer } from "mesurer-solid"
-import { screenshotPlugin } from "mesurer-solid/screenshot"
-
-const mesurer = mountMesurer({
-  plugins: [screenshotPlugin()],
-})
-```
-
-It captures HiDPI-aware PNGs and can copy/download them or keep a draggable preview/viewer. Preserve an existing human screenshot preview unless the task explicitly requires manipulating it.
-
-### Agent screenshot evidence
-
-The outer coding harness owns screenshot bytes so it controls the exact browser, viewport, timing, and artifact destination. Mesurer supplies exact geometry and clean capture presentation:
-
-```js
-const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
-
+const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
 await window.__MESURER__.prepareCapture()
 try {
-  // use the harness's real screenshot primitive
+  // harness screenshot
 } finally {
   await window.__MESURER__.finishCapture()
 }
 ```
 
-Active direct-editor controls, the semantic preset popup, and the contextual Typography card are Mesurer chrome, not application evidence. Arrange uses the same screenshot ownership model through `arrangeCapturePlan()` while adding explicit Before/Desired/Live presentation.
+The optional `mesurer-solid/screenshot` plugin is a separate human camera workflow. It is not an agent delivery capability. Preserve an existing human preview unless the task is specifically about Screenshot behavior.
 
-Use all three signals when relevant:
+## Revalidate after source edits
 
-```text
-Mesurer context/review → geometry, box model, styles, distances, overflow
-saved Desired intent    → requested Arrange geometry + copy/typography
-real screenshot          → composition, hierarchy, clipping, color, visual judgment
-```
-
-## Source-mounted usage
-
-For context plus Arrange:
-
-```ts
-import {
-  contextPlugin,
-  mountMesurer,
-} from "mesurer-solid"
-import { arrangePlugin } from "mesurer-solid/arrange"
-
-const mesurer = mountMesurer({
-  agent: true,
-  plugins: [
-    contextPlugin(),
-    arrangePlugin(),
-  ],
-})
-```
-
-The same API is available on `mesurer.agent` and, when configured, `window.__MESURER__`.
-
-Arrange remains optional. Direct text editing and text-edit intent are part of the base inspector runtime; applications do not need a separate text-edit plugin.
-
-## Low-level inspection
-
-These remain useful for focused queries:
+After HMR or reload settles:
 
 ```js
-window.__MESURER__.inspect(".selector")
-window.__MESURER__.inspectAll(".selector")
-window.__MESURER__.at(x, y)
-window.__MESURER__.distance(".a", ".b")
-window.__MESURER__.viewport()
-await window.__MESURER__.feedback([".selector"])
-await window.__MESURER__.state()
-await window.__MESURER__.textEdits()
-await window.__MESURER__.textEdit(textEditId)
 await window.__MESURER__.stable()
 ```
 
-Prefer `arrangements()`, `textEdits()`, `context()`, `select()`, `reviewArrange()`, and `review()` for visual development because those paths preserve human meaning and return evidence the agent can reason from directly.
+Then compare the same evidence retained before editing:
+
+- Arrange Desired against Live through `reviewArrange()`;
+- text/style Desired against Live with the text preview inactive;
+- saved annotations through `review()`;
+- current selections and measurements through fresh `context()`;
+- exact geometry through `inspect()`, `distance()`, and `viewport()`.
+
+Do not clear human history merely to expose Live state, and do not reinject just to refresh context.
 
 ## Completion rule
 
-A good harness-level loop is:
+A meaningful Mesurer call should affect the work. If exact geometry is available, use it instead of estimating pixels from a screenshot. If the user already encoded intent in Arrange, text editing, annotations, or selection, consume it before asking them to repeat it.
 
-```text
-1. discover/reuse Mesurer and preserve human state
-2. if the request is broad, inventory Arrange + text edits + annotations + selection + workspace context before narrowing
-3. consume relevant Arrange and text/style Desired intent first
-4. capture Arrange Before/Desired when useful, before source edits
-5. consume existing annotation/selection context
-6. resolve exact targets; ask only when genuinely ambiguous
-7. edit normal source
-8. wait for stable render
-9. switch Arrange to Live and deactivate text Desired preview when applicable
-10. get fresh source-rendered review/context and optional screenshot
-11. iterate until rendered evidence supports completion
-```
-
-Do not clear Arrange history, clear text-edit history just to reveal Live, alter human measurements/guides, replace live Mesurer state, or use a temporary preview to make unfinished source work appear correct.
-
-**Rendered evidence is the output of the Mesurer step, not an optional side effect.**
+The repository's packaged [`mesurer-ui` skill](./skills/mesurer-ui/SKILL.md) carries the operational version of this contract for coding agents. [Browser and agent integration](../../docs/BROWSER_HARNESS.md) documents the outer harness boundary.

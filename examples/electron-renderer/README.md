@@ -1,11 +1,13 @@
-# Electron renderer usage
+# Electron renderer example
 
-Electron renderer processes expose the same DOM boundary Mesurer uses in a browser. No Electron API is required for inspection itself.
+Mesurer runs in the Electron renderer process because that is where the DOM exists.
 
 ```ts
-import { mountMesurer } from "mesurer-solid";
+import { mountMesurer } from "mesurer-solid"
 
-const mesurer = mountMesurer({ target: document.body });
+const mesurer = mountMesurer({ target: document.body })
 ```
 
-Keep `contextIsolation` enabled. If a plugin needs privileged filesystem or main-process behavior, expose a narrow API from preload with `contextBridge`, then consume that API from the plugin. Mesurer core and the DOM adapter intentionally do not import Electron.
+Keep `contextIsolation` enabled. Mesurer itself does not need Electron APIs. If a plugin needs filesystem or main-process behavior, expose a narrow application-owned API from preload with `contextBridge` and call that API from the plugin.
+
+Do not mount Mesurer from the Electron main process. See [Getting started](../../docs/GETTING_STARTED.md) for development guards and HMR cleanup.

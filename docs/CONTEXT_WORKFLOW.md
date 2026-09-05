@@ -1,38 +1,12 @@
-# Human-in-the-loop visual context workflow
+# Context
 
-Mesurer turns what a person or coding agent is doing in the real page into structured visual context that the agent reads directly through the browser harness it already owns.
+Mesurer turns live browser state and human visual intent into structured context a coding agent can read through `window.__MESURER__`.
 
-There is no Mesurer MCP/WebMCP/ACP/session-delivery layer or Send-to-agent callback.
+Context is the shared page state. There is no separate Mesurer message-delivery layer.
 
-The core contract is:
+## Enable Context
 
-> **Context is the output.** A meaningful Mesurer visual step should return structured rendered evidence to the agent, and meaningful visual edits should end with fresh Mesurer context/review for the affected UI.
-
-```text
-human selection / annotation / Arrange / text-style Desired intent
-                            ↓
-                    window.__MESURER__
-                            ↓
-       context / Arrange / text-edit intent + review
-                            ↓
-                    structured evidence
-                            ↓
-                       coding agent
-                            ↓
-                    source edit/render
-                            ↓
-                    fresh Live evidence
-```
-
-Mesurer also has an optional human screenshot plugin. It captures real pixels for the person, but it does not change the context-first agent contract or create an image-delivery API. See [Screenshot capture](./SCREENSHOTS.md).
-
-Direct text editing is another human-intent channel. It records Before/Desired copy and typography/style deltas separately from ordinary `MesurerContextV1`. See [`TEXT_EDITING.md`](./TEXT_EDITING.md).
-
-## Enable the feature
-
-The context/annotation workflow is provided by removable `mesurer.context`.
-
-### Source-mounted applications
+Source-mounted applications opt in with `contextPlugin()`:
 
 ```ts
 import {
@@ -41,109 +15,38 @@ import {
 } from "mesurer-solid"
 
 const mesurer = mountMesurer({
+  agent: true,
   plugins: [contextPlugin()],
-  agent: true,
 })
 ```
 
-With default options, Copy Context, Copy Selection, Add Note, annotation UI, and context/select/review/capture APIs are enabled.
-
-The human screenshot camera is a separate optional plugin:
-
-```ts
-import { screenshotPlugin } from "mesurer-solid/screenshot"
-
-const mesurer = mountMesurer({
-  plugins: [contextPlugin(), screenshotPlugin()],
-  agent: true,
-})
-```
-
-### Injection and browser extension
-
-`/inject` and `/inject-script` install `contextPlugin()` by default. Screenshot capture remains opt-in for normal injection:
-
-```js
-window.__MESURER_CONFIG__ = { screenshot: true }
-```
-
-Set that before the first injection when the human camera is required. The first-party Chrome extension uses the same injected runtime and enables screenshot capture automatically so its camera tool can use the extension visible-tab capture bridge.
-
-A harness that deliberately wants only the low-level inspector can set:
+Normal `/inject` and `/inject-script` usage installs Context by default. A deliberately low-level injection can disable it:
 
 ```js
 window.__MESURER_CONFIG__ = { context: false }
 ```
 
-Do not reinject over a live human instance merely to change plugin configuration. Existing review state should be preserved.
+Do not reinject over a live Mesurer instance merely to change configuration. Existing review state may be part of the user's message.
 
-## Preserve existing human state
+## Human controls
 
-Before injection:
+| Action | Shortcut | Result |
+| --- | --- | --- |
+| Copy Context | `C` | Copies workspace context |
+| Copy Selection | `Shift+C` | Copies selection-scoped context |
+| Add Note | `N` | Saves a target/region annotation baseline |
 
-```js
-const hasMesurer = Boolean(
-  window.__MESURER__ &&
-  window.__MESURER_INSTANCE__?.element?.isConnected
-)
-```
+Agents normally read the API directly instead of clicking these controls.
 
-If it exists, use it. Do not reinject or dispose it. The human's current selection, guides, measurements, held distances, X-ray/ruler state, annotations, Arrange intents, saved text/style Desired edits, and screenshot preview/viewer state are part of the visual message.
+## Read existing intent first
 
-Injected Mesurer also preserves a live instance by default. Explicit replacement requires:
+A broad request such as “check Mesurer” can include several channels at once: current selection, annotations, Arrange intent, text/style intent, guides, measurements, rulers/X-ray state, and screenshot review state.
 
-```js
-window.__MESURER_CONFIG__ = { reuseExisting: false }
-```
-
-That is for deliberate testing/tooling, not normal agent attachment.
-
-## Direct capability contract
+Start with a non-destructive inventory:
 
 ```js
 await window.__MESURER__.ready()
-window.__MESURER__.capabilities().capabilities
-```
 
-The context layer exposes:
-
-```text
-context
-select
-annotations
-review
-capturePlan
-```
-
-When direct text editing is available, the agent surface also exposes:
-
-```text
-textEdit
-textEdits()
-textEdit(id)
-```
-
-When the first-party Arrange plugin is mounted, it also exposes the `arrange` capability plus Arrange intent/presentation/review methods.
-
-There are no send/delivery capability bits and no `sendContext()`. The screenshot plugin also does not add a `screenshots` delivery capability; its typed service lives on the plugin host rather than the JSON-safe context API.
-
-The human context toolbar remains exactly:
-
-```text
-Copy Context
-Copy Selection
-Add Note
-```
-
-`select()` is programmatic agent/harness functionality, not another human toolbar button. Direct text editing similarly has no competing top-level Text Edit button: it is entered by double-click/double-tap while Select or **Typography** is active. The human-facing tool is Typography; the existing internal compatibility id/command remains `text-inspector` / `builtin.text-inspector`. When `mesurer.screenshot` is enabled, its camera tool is a separate plugin-contributed toolbar control.
-
-## Broad Mesurer requests are a full intent sweep
-
-If the user says “check Mesurer,” “check Measure,” “look at Mesurer context,” or asks generally what they highlighted/moved/annotated/edited, `context()` alone may not contain the whole message.
-
-Inventory all live human-intent channels before narrowing:
-
-```js
 const capabilities = window.__MESURER__.capabilities().capabilities
 const workspace = await window.__MESURER__.context()
 const annotations = await window.__MESURER__.annotations()
@@ -160,73 +63,15 @@ try {
 } catch {}
 ```
 
-Resolve the relevant saved objects too:
+Resolve relevant saved objects before HMR can replace their targets. Annotation notes, Arrange Desired geometry, and text/style Desired state are intent. Measurements and computed inspection are rendered evidence.
 
-```js
-const annotationContexts = await Promise.all(
-  annotations.map((annotation) =>
-    window.__MESURER__.context({ annotation: annotation.id })
-  ),
-)
+## Choose the target safely
 
-const arrangeIntents = await Promise.all(
-  arrangements.map((intent) => window.__MESURER__.arrange(intent.id)),
-)
+Use this order after preserving relevant saved intent:
 
-const textEditIntents = await Promise.all(
-  textEdits.map((intent) => window.__MESURER__.textEdit(intent.id)),
-)
-```
-
-Bring forward whatever is relevant: selection, annotation notes, Arrange Before/Desired geometry, text Before/Desired copy and style deltas, guides, measurements, held distances, typography/layout inspection, rulers/X-ray state, and preserved screenshot UI. Treat the combined state as one human visual message.
-
-Do not clear or replace those channels before consuming their relevant evidence.
-
-## Target acquisition: read, ask, or self-select
-
-Agents should use the following precedence after preserving relevant Arrange/text-edit intent.
-
-### 1. Existing human selection/annotation → read it first
-
-```js
-const workspace = await window.__MESURER__.context()
-const annotations = await window.__MESURER__.annotations()
-
-let selection = null
-try {
-  selection = await window.__MESURER__.context({ scope: "selection" })
-} catch {}
-```
-
-Read relevant annotation contexts too:
-
-```js
-const context = await window.__MESURER__.context({ annotation: annotation.id })
-```
-
-Do not overwrite meaningful human selection until its context has been retained in the current task.
-
-### 2. No relevant selection + intended target ambiguous → ask the user
-
-If the request cannot be confidently mapped to exact rendered elements or a region, ask the user to select the intended element(s) or drag the intended region with Mesurer.
-
-Then immediately read:
-
-```js
-const context = await window.__MESURER__.context({ scope: "selection" })
-```
-
-Do not guess merely to avoid asking for visual disambiguation.
-
-### 3. No relevant selection + exact target known → call `select()`
-
-If the agent knows exactly which rendered elements it changed or needs to inspect, it should select them itself:
-
-```js
-const context = await window.__MESURER__.select("#pricing-card")
-```
-
-or:
+1. Read an existing human selection or annotation first.
+2. If the intended target is ambiguous, ask the human to select it.
+3. If the exact rendered target is known and no human selection needs preserving, call `select()`.
 
 ```js
 const context = await window.__MESURER__.select([
@@ -235,306 +80,83 @@ const context = await window.__MESURER__.select([
 ])
 ```
 
-`select()` performs one context-returning visual operation:
+`select()` visibly updates normal Select state and returns selection-scoped context. Every selector must resolve to exactly one target; missing or ambiguous selectors throw rather than guessing.
 
-1. Mesurer is enabled and switched to Select;
-2. the exact rendered target(s) are visibly highlighted;
-3. those elements become the live Mesurer selection;
-4. the visual state settles;
-5. selection-scoped `MesurerContextV1` is returned.
+## Context scopes
 
-The agent should consume the returned object. The highlight is useful to the human, but context is the output for the agent.
-
-Every selector must resolve to exactly one target inside Mesurer's page target. Invalid, missing, or ambiguous selectors throw. Refine the selector or ask the human to select the target rather than guessing.
-
-## Workspace, selection, and annotation scopes
-
-### Workspace
+Workspace:
 
 ```js
 await window.__MESURER__.context()
 ```
 
-Workspace context captures meaningful current visual state:
-
-- selected/referenced targets;
-- page and viewport state;
-- rulers/X-ray visibility;
-- guides;
-- measurements;
-- held distances;
-- exact DOM geometry;
-- margin/padding/border;
-- typography;
-- appearance;
-- flex/grid/layout state;
-- scroll and overflow.
-
-Saved Arrange/text-edit intents are separate structured channels and should be combined with workspace context when relevant rather than forced into `MesurerContextV1`.
-
-### Selection
+Selection:
 
 ```js
 await window.__MESURER__.context({ scope: "selection" })
 ```
 
-Selection context identifies what is being pointed at now. A selection can contain one or more DOM elements or only a dragged viewport region.
+Annotation:
 
-An agent should gather human selection before editing. When no human selection exists and exact affected targets are known, `select()` creates the selection and returns the same scoped context directly.
+```js
+await window.__MESURER__.context({ annotation: annotationId })
+```
 
-### Multi-selection
+`MesurerContextV1` is JSON-safe and uses viewport CSS-pixel coordinates. It can include page/viewport state, targets, rectangles, box model, typography, appearance, flex/grid/layout, scroll/overflow, guides, measurements, and distances.
 
-Multiple selected elements are a first-class human/agent signal.
+Arrange and text-edit intent remain separate structured channels so they keep their own Before/Desired/Live semantics.
 
-For every target in `selection.targets`, consume full inspection: selector/identity, rect, margin/padding/border, typography, appearance, flex/grid/layout, and scroll/overflow.
+## Multi-selection
 
-Then inspect relationships. Existing `selection.visualContext.distances` take priority. For a selected pair without relevant distance evidence:
+A multi-selection is relational state, not just a count. Inspect every selected target and the relationships that matter between them.
+
+Use `selection.visualContext.distances` first. For a needed pair without useful distance evidence:
 
 ```js
 window.__MESURER__.distance(selectorA, selectorB)
 ```
 
-For small selections, report all useful pair relationships. For large selections, focus on adjacent/repeated/user-relevant pairs rather than dumping O(n²) output.
+For small selections, keep useful unique pair relationships. For large selections, focus on adjacent, repeated, or user-relevant pairs rather than generating mechanical O(n²) output.
 
-### Annotation
+## Annotations and review
 
-A saved annotation adds human intent and an immutable scoped baseline.
+Annotations are target- or region-bound review context rather than freeform drawing objects. A saved note carries its baseline with the rendered evidence it describes.
 
-```js
-const annotations = await window.__MESURER__.annotations()
-const context = await window.__MESURER__.context({ annotation: annotationId })
-```
-
-The annotation note is intent. Computed DOM data, measurements, guides, distances, and screenshots are evidence.
-
-Mesurer Solid intentionally treats annotations as **semantic review context**, not as a freeform drawing canvas. The note remains bound to the selected rendered target or region, so an agent can read exactly what the person highlighted together with target identity, geometry, styles, layout, measurements, guides, and relationships. It does not need to infer what a drawn arrow points at or recover intent from screenshot markup.
-
-This differs deliberately from upstream Mesurer `0.1.1`, which added arrows, pen strokes, freeform text drawings, and grouped drawing tools. Those drawing tools are outside the current Mesurer Solid product scope; they are not required for the context-first agent workflow described here.
-
-```text
-highlight/select target + Add Note
-              ↓
-   target-bound structured context
-              ↓
-         agent reads intent
-              ↓
-           source edit
-              ↓
-        review(annotationId)
-```
-
-Screenshots remain a separate tool for cases where real pixel composition matters. Annotation intent itself stays machine-readable and attached to the rendered UI.
-
-### Text/style Desired edit
-
-Direct text editing adds another explicit human-intent record:
-
-```js
-const edits = await window.__MESURER__.textEdits()
-const intent = await window.__MESURER__.textEdit(editId)
-```
-
-Each intent records target identity, Before text, Desired text, and requested style deltas. The human may have chosen typography/color values from styles already rendered on the page, but the coding agent should still implement the semantic source-level class/token/prop/rule rather than blindly reproducing Mesurer's preview inline style.
-
-The direct editing UI keeps direct properties and semantic presets separate. Bold/Italic/Underline, Font, Size, Weight, rendered text colors, and custom color live in the typography toolbar. A separate popup contains only Text plus available Heading 1/2/3 semantic presets derived from dominant rendered page typography. Non-dominant variants remain available through the direct controls.
-
-While Select or Typography is active, Mesurer may show the Desired text/style preview. That preview is not proof that source code has been updated. For final verification, keep the intent, deactivate the previewing mode, and compare the target's real rendered copy/computed typography with Desired.
-
-The contextual Typography card shown during editing is transient human UI. It does not create another saved context channel; the durable machine-readable evidence is the text-edit intent plus ordinary rendered context.
-
-See [`TEXT_EDITING.md`](./TEXT_EDITING.md) for the full workflow.
-
-## What `MesurerContextV1` means
-
-Context is JSON-safe and uses `viewport-css-px` coordinates.
-
-```text
-MesurerContextV1
-├─ scope
-├─ page
-├─ viewport
-├─ coordinateSpace
-├─ regions
-├─ visualState
-│  ├─ rulersVisible
-│  └─ xrayVisible
-├─ targets[]
-│  └─ inspection
-│     ├─ selector / text / accessibility identity
-│     ├─ rect
-│     ├─ margin / padding / border
-│     ├─ typography
-│     ├─ appearance
-│     ├─ layout
-│     └─ scroll / overflow
-└─ visualContext
-   ├─ guides[]
-   ├─ measurements[]
-   └─ distances[]
-```
-
-Mesurer does not use model inference to guess evidence. Scoped relevance is deterministic and based on selected element references and geometry.
-
-Prefer exact rendered values over screenshot estimates or source declarations.
-
-## Context controls
-
-The human context toolbar has exactly three controls:
-
-| Action | Shortcut | Result |
-| --- | --- | --- |
-| Copy Context | `C` | Copies current workspace context. |
-| Copy Selection | `Shift+C` | Copies context scoped to current selection. |
-| Add Note | `N` | Creates a durable annotation baseline. |
-
-Agents read `window.__MESURER__` directly and do not need to click these controls. Direct text editing uses the Select/Typography gesture rather than adding another Context control. The screenshot camera, when enabled, belongs to `mesurer.screenshot` and deliberately does not claim `C`.
-
-## Read before editing
-
-A direct-harness agent captures existing human state before HMR can replace nodes:
-
-```js
-await window.__MESURER__.ready()
-
-const capabilities = window.__MESURER__.capabilities().capabilities
-const annotations = await window.__MESURER__.annotations()
-const workspace = await window.__MESURER__.context()
-const arrangements = capabilities.arrange
-  ? await window.__MESURER__.arrangements()
-  : []
-const textEdits = capabilities.textEdit
-  ? await window.__MESURER__.textEdits()
-  : []
-
-let selection = null
-try {
-  selection = await window.__MESURER__.context({ scope: "selection" })
-} catch {}
-```
-
-Retain the relevant selectors, geometry, relationships, annotation/Arrange/text intent, and screenshot state in the task.
-
-## Fresh context after an edit
-
-After changing source and allowing the real application to render:
+After source changes:
 
 ```js
 await window.__MESURER__.stable()
-```
-
-Then choose the strongest path.
-
-### Arrange intent
-
-Switch the relevant Arrange intent to Live and run `reviewArrange()` so its temporary Desired transform cannot make unfinished source look correct.
-
-### Text/style intent
-
-Keep the saved text-edit intent, deactivate Select/Typography previewing without clearing history, then inspect the target's actual rendered text and computed typography. A correct implementation survives with Mesurer's text/style preview inactive.
-
-### Annotation baseline
-
-```js
 const review = await window.__MESURER__.review(annotationId)
 ```
 
-`review()` includes original note, target status, immutable baseline, fresh current context, exact before/current/delta pixel changes, and explicit missing evidence.
+This target-bound model intentionally differs from upstream Mesurer's drawing annotations. See [Upstream parity](./UPSTREAM_PARITY.md).
 
-### Still-relevant human selection
+## Fresh evidence after source changes
 
-```js
-const after = await window.__MESURER__.context({ scope: "selection" })
-```
+Re-read the evidence that mattered before the edit:
 
-Re-check the same target dimensions and relationships captured before editing.
+- `review(annotationId)` for saved annotations;
+- `reviewArrange()` while Arrange is showing Live;
+- Live text/computed typography with text Desired preview inactive;
+- fresh workspace or selection context;
+- focused `inspect()`, `distance()`, or `viewport()` values when needed.
 
-### Agent knows the changed rendered targets
-
-Proactively select/highlight them and receive exact context:
-
-```js
-const after = await window.__MESURER__.select([
-  changedSelectorA,
-  changedSelectorB,
-])
-```
-
-This is the preferred final evidence path when there was no human selection. It simultaneously shows the user what changed and gives the agent exact rendered evidence.
-
-### Target identity became ambiguous
-
-Ask the user to select the intended result and then read selection context. Do not guess.
-
-For meaningful visual changes, lint/typecheck/tests/build are not sufficient proof. If Mesurer is available and affected UI can be identified, fresh Mesurer context/review plus any relevant Arrange/text Live comparison is part of completion.
-
-## Annotation rebinding after HMR
-
-While an annotated element remains connected, Mesurer retains exact identity. After replacement, rebinding is conservative:
-
-- strong `id` / `data-testid` identity must remain compatible;
-- weaker fingerprints must remain compatible;
-- weak candidates must resolve uniquely;
-- incompatible/ambiguous targets remain stale.
-
-The agent must not silently move human intent to a different element when Mesurer reports `stale` or `partial`.
+Do not delete human history merely to reveal Live state.
 
 ## Screenshot evidence
 
-Mesurer uses two different screenshot paths.
-
-### Agent/harness evidence
-
-The context API does not render a fake DOM screenshot. For coding-agent verification, the outer browser harness takes the real pixels while Mesurer controls clean evidence presentation:
+Context can prepare clean screenshot evidence while the outer browser harness owns the pixels:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
 await window.__MESURER__.prepareCapture()
 try {
-  // capture current viewport / focus clip through the harness
+  // harness screenshot
 } finally {
   await window.__MESURER__.finishCapture()
 }
 ```
 
-Capture mode hides Mesurer control chrome—including active direct-editor controls, the semantic preset popup, and the contextual Typography card—while preserving page content, selections/annotations, rulers, guides, measurements, held distances, and pixel labels.
+The optional Screenshot plugin is a separate human camera workflow and does not add an image-delivery capability to Context.
 
-### Human screenshot plugin
-
-The optional `mesurer-solid/screenshot` plugin captures real visible-tab PNGs for a person. It adds drag-region selection, HiDPI-aware cropping, persisted copy/download outputs, a persistent draggable thumbnail, native image actions, and a larger Copy/Save viewer. Normal browsers use `getDisplayMedia()`; the first-party Chrome extension uses `chrome.tabs.captureVisibleTab()` through its extension bridge.
-
-This plugin does not add screenshots to `MesurerContextV1` or create an image-delivery capability. Preserve an existing human screenshot preview unless the task explicitly asks to manipulate it.
-
-See [`SCREENSHOTS.md`](./SCREENSHOTS.md) for the complete screenshot contract.
-
-Use screenshots for visual composition and Mesurer context for exact numeric claims.
-
-## Agent Skill
-
-Canonical stable installation:
-
-```bash
-npx --yes --package=mesurer-solid mesurer-skill install
-```
-
-Use `--package=mesurer-solid@beta` only when intentionally validating a prerelease.
-
-The installed skill teaches this integration, including Arrange and text-edit intent plus the human-screenshot-vs-agent-screenshot distinction:
-
-```text
-existing harness
-  ↕ JavaScript evaluation + screenshots
-existing rendered page
-  ↕
-window.__MESURER__
-  ↳ context / Arrange / text-edit intent / review
-```
-
-## Browser extension
-
-The first-party MV3 extension is a zero-source-change human path for arbitrary pages. It packages the same injected runtime, installs `mesurer.context`, and enables `mesurer.screenshot` automatically.
-
-The extension shell owns active-tab execution and the narrow visible-tab capture bridge used by the camera tool; it does not add chat/session delivery. Agents with page JavaScript evaluation continue to use the same direct context API, including saved text-edit intent when present.
-
-See [`../extension/README.md`](../extension/README.md) for extension setup and capture behavior.
-
-**Context is the output.**
+See [Browser and agent integration](./BROWSER_HARNESS.md), [Arrange](./ARRANGE.md), [Direct text editing and Typography](./TEXT_EDITING.md), and [Screenshots](./SCREENSHOTS.md).
