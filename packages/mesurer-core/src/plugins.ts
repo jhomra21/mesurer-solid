@@ -85,6 +85,12 @@ type PluginEvents = {
   command: { id: string; args: PluginValue | undefined };
 };
 
+type PendingPluginLoad = {
+  plugin: MesurerPlugin;
+  registrations: Registration[];
+  active: boolean;
+};
+
 export type MesurerPluginContext = {
   state: {
     register<T extends PluginValue>(definition: StateSliceDefinition<T>): Registration;
@@ -142,6 +148,7 @@ export function createMesurerPluginHost() {
   let commandDepth = 0;
   const events = createEventBus<PluginEvents>();
   const plugins = new Map<string, { plugin: MesurerPlugin; registrations: Registration[] }>();
+  const pendingLoads = new Map<string, PendingPluginLoad>();
   const tools = new Map<number, Owned<ToolContribution>>();
   const settings = new Map<number, Owned<SettingsContribution>>();
   const overlays = new Map<number, Owned<OverlayContribution>>();
@@ -302,15 +309,28 @@ export function createMesurerPluginHost() {
     restore: restoreState,
   };
 
-  const makeContext = (pluginId: string, registrations: Registration[]): MesurerPluginContext => {
+  const makeContext = (
+    pluginId: string,
+    registrations: Registration[],
+    isActive: () => boolean = () => true,
+  ): MesurerPluginContext => {
     const capture = (registration: Registration) => {
+      if (!isActive()) {
+        registration.dispose();
+        return registration;
+      }
       registrations.push(registration);
       return registration;
     };
     return {
       state: {
         register<T extends PluginValue>(definition: StateSliceDefinition<T>) {
-          const registration = capture(register(stateDefinitions, pluginId, definition));
+          const registration = register(stateDefinitions, pluginId, definition);
+          if (!isActive()) {
+            registration.dispose();
+            return registration;
+          }
+          registrations.push(registration);
           if (!state.has(definition.id)) state.set(definition.id, definition.initial);
           return registration;
         },
@@ -349,22 +369,46 @@ export function createMesurerPluginHost() {
     for (const id of state.keys()) if (!activeIds.has(id)) state.delete(id);
   };
 
-  const remove = (id: string) => {
-    const loaded = plugins.get(id);
-    if (!loaded) return false;
-    for (let index = loaded.registrations.length - 1; index >= 0; index -= 1) {
-      loaded.registrations[index]?.dispose();
+  const disposeRegistrations = (registrations: Registration[]) => {
+    for (let index = registrations.length - 1; index >= 0; index -= 1) {
+      registrations[index]?.dispose();
     }
-    plugins.delete(id);
+  };
+
+  const cancelLoad = (plugin: MesurerPlugin) => {
+    const pending = pendingLoads.get(plugin.id);
+    if (!pending || pending.plugin !== plugin) return false;
+    pending.active = false;
+    pendingLoads.delete(plugin.id);
+    disposeRegistrations(pending.registrations);
     cleanupOrphanState();
-    clearHistory();
-    notify(id, "remove");
+    notify(plugin.id, "remove");
+    return true;
+  };
+
+  const remove = (id: string) => {
+    let removed = false;
+    const pending = pendingLoads.get(id);
+    if (pending) removed = cancelLoad(pending.plugin) || removed;
+
+    const loaded = plugins.get(id);
+    if (loaded) {
+      disposeRegistrations(loaded.registrations);
+      plugins.delete(id);
+      removed = true;
+    }
+    if (!removed) return false;
+    cleanupOrphanState();
+    if (loaded) clearHistory();
+    if (loaded) notify(id, "remove");
     return true;
   };
 
   const load = async (plugin: MesurerPlugin) => {
-    const replacing = plugins.has(plugin.id);
-    if (replacing) remove(plugin.id);
+    const replacing = plugins.has(plugin.id) || pendingLoads.has(plugin.id);
+    const pending = pendingLoads.get(plugin.id);
+    if (pending) cancelLoad(pending.plugin);
+    if (plugins.has(plugin.id)) remove(plugin.id);
     const missing = (plugin.requires ?? []).filter((required) =>
       ![...plugins.values()].some(({ plugin: existing }) => existing.provides?.includes(required)),
     );
@@ -372,14 +416,26 @@ export function createMesurerPluginHost() {
       throw new Error(`Plugin ${plugin.id} requires missing capabilities: ${missing.join(", ")}`);
     }
     const registrations: Registration[] = [];
+    const pendingLoad: PendingPluginLoad = { plugin, registrations, active: true };
+    pendingLoads.set(plugin.id, pendingLoad);
     try {
-      await plugin.setup(makeContext(plugin.id, registrations));
+      await plugin.setup(makeContext(plugin.id, registrations, () => pendingLoad.active));
+      if (!pendingLoad.active || pendingLoads.get(plugin.id) !== pendingLoad) {
+        disposeRegistrations(registrations);
+        cleanupOrphanState();
+        return;
+      }
+      pendingLoads.delete(plugin.id);
       plugins.set(plugin.id, { plugin, registrations });
       clearHistory();
       notify(plugin.id, replacing ? "replace" : "load");
     } catch (error) {
-      for (const registration of registrations.reverse()) registration.dispose();
+      const cancelled = !pendingLoad.active || pendingLoads.get(plugin.id) !== pendingLoad;
+      if (pendingLoads.get(plugin.id) === pendingLoad) pendingLoads.delete(plugin.id);
+      pendingLoad.active = false;
+      disposeRegistrations(registrations);
       cleanupOrphanState();
+      if (cancelled) return;
       throw error;
     }
   };
@@ -391,6 +447,7 @@ export function createMesurerPluginHost() {
 
   const host = {
     load,
+    cancelLoad,
     remove,
     replace: load,
     has: (id: string) => plugins.has(id),
@@ -440,6 +497,7 @@ export function createMesurerPluginHost() {
       };
     },
     dispose() {
+      for (const pending of [...pendingLoads.values()].reverse()) cancelLoad(pending.plugin);
       for (const id of [...plugins.keys()].reverse()) remove(id);
       events.clear();
       state.clear();

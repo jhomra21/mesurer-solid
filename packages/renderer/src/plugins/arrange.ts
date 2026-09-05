@@ -174,7 +174,8 @@ type InlineVisibility = {
 
 type AppliedPreview = {
   element: HTMLElement;
-  transform: InlineTransform;
+  beforeTransform: InlineTransform;
+  appliedTransform: InlineTransform;
 };
 
 type DragTarget = {
@@ -344,10 +345,19 @@ const publicIntent = (intent: ArrangeIntentValue): ArrangeIntent => ({
   targets: intent.targets.map(publicTarget),
 });
 
+const inlineTransform = (element: HTMLElement): InlineTransform => ({
+  value: element.style.getPropertyValue("transform"),
+  priority: element.style.getPropertyPriority("transform"),
+});
+
+const sameInlineTransform = (left: InlineTransform, right: InlineTransform) =>
+  left.value === right.value && left.priority === right.priority;
+
 const restoreTransform = (preview: AppliedPreview) => {
-  const { element, transform } = preview;
-  if (transform.value || transform.priority) {
-    element.style.setProperty("transform", transform.value, transform.priority);
+  const { element, beforeTransform, appliedTransform } = preview;
+  if (!sameInlineTransform(inlineTransform(element), appliedTransform)) return;
+  if (beforeTransform.value || beforeTransform.priority) {
+    element.style.setProperty("transform", beforeTransform.value, beforeTransform.priority);
   } else {
     element.style.removeProperty("transform");
   }
@@ -597,10 +607,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       for (const [element, offset] of offsets) {
         if (!element.isConnected || !isPageElement(element)) continue;
         if (offset.x === 0 && offset.y === 0) continue;
-        const transform = {
-          value: element.style.getPropertyValue("transform"),
-          priority: element.style.getPropertyPriority("transform"),
-        };
+        const beforeTransform = inlineTransform(element);
         const computed = ownerWindow.getComputedStyle(element).transform;
         const base = computed && computed !== "none" ? ` ${computed}` : "";
         element.style.setProperty(
@@ -608,7 +615,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           `translate3d(${offset.x}px, ${offset.y}px, 0)${base}`,
           "important",
         );
-        previews.set(element, { element, transform });
+        previews.set(element, {
+          element,
+          beforeTransform,
+          appliedTransform: inlineTransform(element),
+        });
       }
     };
 

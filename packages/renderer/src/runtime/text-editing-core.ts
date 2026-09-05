@@ -389,15 +389,43 @@ export function installTextEditing(
   const applyStyleChanges = (
     element: HTMLElement,
     changes: TextStyleChangeValue[],
-    ownedProperties: Set<MesurerTextStyleProperty>,
-  ) => changes.filter((change) => {
-    const current = element.style.getPropertyValue(change.property);
-    const priority = element.style.getPropertyPriority(change.property);
-    if (current === change.desired && !priority) return ownedProperties.has(change.property);
-    if (current !== change.beforeInline || priority !== change.beforePriority) return false;
-    element.style.setProperty(change.property, change.desired);
-    return true;
-  });
+    previouslyOwnedChanges: TextStyleChangeValue[],
+  ) => {
+    const nextByProperty = new Map(changes.map((change) => [change.property, change] as const));
+    const previousByProperty = new Map(
+      previouslyOwnedChanges.map((change) => [change.property, change] as const),
+    );
+    const owned = new Map<MesurerTextStyleProperty, TextStyleChangeValue>();
+
+    for (const [property, previous] of previousByProperty) {
+      const current = element.style.getPropertyValue(property);
+      const priority = element.style.getPropertyPriority(property);
+      if (current !== previous.desired || priority) continue;
+
+      const next = nextByProperty.get(property);
+      if (!next) {
+        if (previous.beforeInline) {
+          element.style.setProperty(property, previous.beforeInline, previous.beforePriority);
+        } else {
+          element.style.removeProperty(property);
+        }
+        continue;
+      }
+      if (current !== next.desired) element.style.setProperty(property, next.desired);
+      owned.set(property, next);
+    }
+
+    for (const change of changes) {
+      if (owned.has(change.property) || previousByProperty.has(change.property)) continue;
+      const current = element.style.getPropertyValue(change.property);
+      const priority = element.style.getPropertyPriority(change.property);
+      if (current !== change.beforeInline || priority !== change.beforePriority) continue;
+      element.style.setProperty(change.property, change.desired);
+      owned.set(change.property, change);
+    }
+
+    return changes.filter((change) => owned.has(change.property));
+  };
 
   const restoreApplied = () => {
     for (const value of applied.values()) {
@@ -429,18 +457,18 @@ export function installTextEditing(
       const owned = applied.get(edit.id);
       let ownsText = false;
       if (owned?.node === target.node && current === owned.desiredText) {
+        if (current !== edit.desiredText) setNodeText(target.node, edit.desiredText);
         ownsText = true;
       } else if (current === edit.beforeText) {
         setNodeText(target.node, edit.desiredText);
         ownsText = true;
       }
 
-      const ownedProperties = new Set(
-        owned?.element === target.element
-          ? owned.styleChanges.map((change) => change.property)
-          : [],
+      const ownedStyleChanges = applyStyleChanges(
+        target.element,
+        edit.styleChanges,
+        owned?.element === target.element ? owned.styleChanges : [],
       );
-      const ownedStyleChanges = applyStyleChanges(target.element, edit.styleChanges, ownedProperties);
       if (!ownsText && ownedStyleChanges.length === 0) {
         applied.delete(edit.id);
         continue;
@@ -1231,7 +1259,7 @@ export function installTextEditing(
     for (const candidate of ownerDocument.elementsFromPoint(x, y)) {
       if (!(candidate instanceof realm.HTMLElement)) continue;
       if (!isPageElement(candidate) || SKIP_TAGS.has(candidate.tagName)) continue;
-      if (candidate.hasAttribute("contenteditable")) continue;
+      if (candidate.isContentEditable) continue;
       const nodes = Array.from(candidate.childNodes)
         .map((node, index) => ({ node, index }))
         .filter(({ node }) => node.nodeType === realm.Node.TEXT_NODE && Boolean(node.nodeValue?.trim()));
@@ -1285,7 +1313,7 @@ export function installTextEditing(
       initialText = existing.desiredText;
       styleChanges = cloneStyleChanges(existing.styleChanges);
       setNodeText(target.node, initialText);
-      const ownedStyleChanges = applyStyleChanges(target.element, styleChanges, new Set());
+      const ownedStyleChanges = applyStyleChanges(target.element, styleChanges, []);
       applied.set(existing.id, {
         ...target,
         beforeText,

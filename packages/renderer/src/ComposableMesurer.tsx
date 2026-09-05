@@ -339,6 +339,7 @@ export default function ComposableMesurer(props: MesurerProps) {
     let persistTimer = 0;
     let availabilityWriteSuspended = false;
     let lifecycleQueue: Promise<void> = Promise.resolve();
+    const pendingOwnedLoads = new Set<MesurerPlugin>();
     const runtimeHost: MesurerPluginHost = host;
     const input: MesurerProps = props;
     const target = input.portalTarget ?? document.body;
@@ -449,14 +450,25 @@ export default function ComposableMesurer(props: MesurerProps) {
 
     input.onPluginHost?.(runtimeHost);
 
-    const loadPlugin = async (plugin: MesurerPlugin) => {
-      if (!active) return;
+    const loadRuntimePlugin = async (plugin: MesurerPlugin, errorId = plugin.id) => {
+      if (!active) return false;
+      pendingOwnedLoads.add(plugin);
       try {
         await runtimeHost.load(plugin);
       } catch (error) {
-        input.onPluginError?.(error, plugin.id);
+        if (active) input.onPluginError?.(error, errorId);
+        return false;
+      } finally {
+        pendingOwnedLoads.delete(plugin);
       }
+      if (!active) {
+        if (runtimeHost.plugin(plugin.id) === plugin) runtimeHost.remove(plugin.id);
+        return false;
+      }
+      return true;
     };
+
+    const loadPlugin = (plugin: MesurerPlugin) => loadRuntimePlugin(plugin);
 
     const rememberPluginDefaults = (sectionIds: Set<string>) => {
       for (const section of runtimeHost.settings()) {
@@ -473,10 +485,11 @@ export default function ComposableMesurer(props: MesurerProps) {
       const beforeState = new Set(runtimeHost.describe().state.map((definition) => definition.id));
       try {
         const plugin = versionPlugin(await entry.create());
+        if (!active) return false;
         if (plugin.id !== entry.id) {
           throw new Error(`Available plugin ${entry.id} created mismatched plugin ${plugin.id}.`);
         }
-        await runtimeHost.load(plugin);
+        if (!await loadRuntimePlugin(plugin, entry.id)) return false;
         const settingsIds = new Set(managedSettingsIds.get(entry.id) ?? entry.settingsIds ?? []);
         for (const section of runtimeHost.settings()) {
           if (!beforeSettings.has(section.id)) settingsIds.add(section.id);
@@ -495,7 +508,7 @@ export default function ComposableMesurer(props: MesurerProps) {
         }
         return true;
       } catch (error) {
-        input.onPluginError?.(error, entry.id);
+        if (active) input.onPluginError?.(error, entry.id);
         return false;
       }
     };
@@ -726,6 +739,8 @@ export default function ComposableMesurer(props: MesurerProps) {
 
     return () => {
       active = false;
+      for (const plugin of pendingOwnedLoads) runtimeHost.cancelLoad(plugin);
+      pendingOwnedLoads.clear();
       if (persistTimer) {
         ownerWindow.clearTimeout(persistTimer);
         writePluginState();
