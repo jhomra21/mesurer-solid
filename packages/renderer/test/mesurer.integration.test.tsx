@@ -17,6 +17,7 @@ afterEach(async () => {
   await settle();
   Reflect.deleteProperty(window, "EyeDropper");
   Reflect.deleteProperty(window, "isSecureContext");
+  localStorage.clear();
   document.body.replaceChildren();
   document.head.querySelectorAll("#mesurer-solid-styles, #mesurer-solid-xray-styles").forEach((node) => node.remove());
   vi.restoreAllMocks();
@@ -104,6 +105,59 @@ describe("Mesurer host integration", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "m" }));
     await settle();
     expect(selectButton.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("disables global shortcuts from General settings while keeping Escape available", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    const dispose = render(() => <Mesurer persistKey="integration-shortcuts-setting" />, host);
+    mounted.push(dispose);
+    await settle();
+
+    const settingsButton = document.querySelector<HTMLButtonElement>('button[aria-label="Settings"]')!;
+    const selectButton = document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')!;
+    expect(selectButton.getAttribute("aria-pressed")).toBe("false");
+
+    settingsButton.click();
+    await settle();
+    const generalTab = [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      .find((tab) => tab.textContent === "General")!;
+    generalTab.click();
+    await settle();
+    const shortcutsSwitch = [...document.querySelectorAll<HTMLButtonElement>('button[role="switch"]')]
+      .find((button) => button.textContent?.includes("Shortcuts"))!;
+    expect(shortcutsSwitch.getAttribute("aria-checked")).toBe("true");
+
+    shortcutsSwitch.click();
+    await settle();
+    expect(shortcutsSwitch.getAttribute("aria-checked")).toBe("false");
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    await settle();
+    expect(document.querySelector('[role="dialog"][aria-label="Settings"]')).toBeNull();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "s", bubbles: true, cancelable: true }));
+    await settle();
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')?.getAttribute("aria-pressed")).toBe("false");
+
+    settingsButton.click();
+    await settle();
+    const generalTabAgain = [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      .find((tab) => tab.textContent === "General")!;
+    generalTabAgain.click();
+    await settle();
+    const shortcutsSwitchAgain = [...document.querySelectorAll<HTMLButtonElement>('button[role="switch"]')]
+      .find((button) => button.textContent?.includes("Shortcuts"))!;
+    expect(shortcutsSwitchAgain.getAttribute("aria-checked")).toBe("false");
+
+    shortcutsSwitchAgain.click();
+    await settle();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    await settle();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "s", bubbles: true, cancelable: true }));
+    await settle();
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')?.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("does not emit Solid strict untracked-read diagnostics", async () => {
