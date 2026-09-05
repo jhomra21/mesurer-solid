@@ -1,6 +1,5 @@
 const explicitEditableState = (element: HTMLElement): boolean | null => {
-  const raw = element.getAttribute("contenteditable");
-  if (raw === null) return null;
+  const raw = element.getAttribute("contenteditable") ?? element.contentEditable ?? "inherit";
   const value = raw.trim().toLowerCase();
   if (value === "false") return false;
   if (value === "" || value === "true" || value === "plaintext-only") return true;
