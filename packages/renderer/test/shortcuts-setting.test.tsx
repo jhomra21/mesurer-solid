@@ -43,12 +43,12 @@ describe("Shortcuts setting", () => {
     );
     mounted.push(dispose);
 
-    const arrangeButton = await vi.waitFor(() => {
-      const button = document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]');
-      expect(button).toBeTruthy();
-      return button!;
+    const arrangeButton = () => document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]');
+    const screenshotButton = () => document.querySelector<HTMLButtonElement>('button[aria-label="Screenshot (Shift+S)"]');
+    await vi.waitFor(() => {
+      expect(arrangeButton()).toBeTruthy();
+      expect(screenshotButton()).toBeTruthy();
     });
-    const screenshotButton = document.querySelector<HTMLButtonElement>('button[aria-label="Screenshot (Shift+S)"]')!;
 
     const arrangeShortcut = new KeyboardEvent("keydown", {
       key: "A",
@@ -59,7 +59,7 @@ describe("Shortcuts setting", () => {
     window.dispatchEvent(arrangeShortcut);
     await settle();
     expect(arrangeShortcut.defaultPrevented).toBe(false);
-    expect(arrangeButton.getAttribute("aria-pressed")).toBe("false");
+    expect(arrangeButton()?.getAttribute("aria-pressed")).toBe("false");
 
     const screenshotShortcut = new KeyboardEvent("keydown", {
       key: "S",
@@ -72,12 +72,12 @@ describe("Shortcuts setting", () => {
     expect(screenshotShortcut.defaultPrevented).toBe(false);
     expect(document.querySelector<HTMLElement>("[data-mesurer-screenshot-select='true']")?.style.display ?? "none").not.toBe("block");
 
-    arrangeButton.click();
-    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));
+    arrangeButton()!.click();
+    await vi.waitFor(() => expect(arrangeButton()?.getAttribute("aria-pressed")).toBe("true"));
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
-    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("false"));
+    await vi.waitFor(() => expect(arrangeButton()?.getAttribute("aria-pressed")).toBe("false"));
 
-    screenshotButton.click();
+    screenshotButton()!.click();
     const screenshotOverlay = await vi.waitFor(() => {
       const overlay = document.querySelector<HTMLElement>("[data-mesurer-screenshot-select='true']");
       expect(overlay?.style.display).toBe("block");
