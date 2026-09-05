@@ -20,6 +20,34 @@ contract_keys = ("toolbarIconContract", "settingsContract")
 non_design_contract_suffixes = (".style.minWidth", ".style.minHeight")
 version_token = re.compile(r"Version[0-9A-Za-z.+-]+")
 
+# This visual suite is intentionally pinned to the pre-compact v0.0.11 toolbar.
+# Mesurer Solid now adopts the newer toolbar chrome/compact treatment under a
+# dedicated current-browser contract. Keep this historical gate authoritative
+# for page results and Settings, but do not make the old toolbar shell veto the
+# explicitly adopted newer shell. The masked region contains only toolbar chrome
+# plus its measured drop-shadow fringe in these fixtures; page targets begin
+# much farther down the viewport.
+def is_historical_toolbar_pixel(state: str, x: int, y: int) -> bool:
+    if 0 <= x < 340 and 0 <= y < 64:
+        return True
+    if state == "orientation-menu" and 0 <= x < 280 and 64 <= y < 150:
+        return True
+    return False
+
+
+def is_historical_toolbar_metric_difference(difference):
+    path = difference["path"]
+    return (
+        path == "toolbar"
+        or path.startswith("toolbar.")
+        or path.startswith("toolbarButtons")
+        or path in {"guideMenu.rect.left", "guideMenu.rect.right", "guideMenu.rect.x"}
+    )
+
+
+def is_historical_toolbar_contract_difference(difference):
+    return difference["path"].startswith("uiContract.toolbarIconContract")
+
 
 def round_numbers(value):
     if isinstance(value, float):
@@ -109,13 +137,21 @@ for state in states:
     sp = solid.load()
     exact = 0
     thresholded = 0
+    ignored_toolbar_exact = 0
+    ignored_toolbar_thresholded = 0
     max_delta = 0
     for y in range(height):
         for x in range(width):
             delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
-            if delta:
-                exact += 1
-                max_delta = max(max_delta, delta)
+            if not delta:
+                continue
+            if is_historical_toolbar_pixel(state, x, y):
+                ignored_toolbar_exact += 1
+                if delta > threshold:
+                    ignored_toolbar_thresholded += 1
+                continue
+            exact += 1
+            max_delta = max(max_delta, delta)
             if delta > threshold:
                 thresholded += 1
 
@@ -143,7 +179,8 @@ for state in states:
     metric_diffs = [
         difference
         for difference in raw_metric_diffs
-        if not is_intentional_typography_label_difference(difference)
+        if not is_historical_toolbar_metric_difference(difference)
+        and not is_intentional_typography_label_difference(difference)
     ]
     raw_contract_diffs = metric_differences(
         react_contract,
@@ -154,7 +191,8 @@ for state in states:
     contract_diffs = [
         difference
         for difference in raw_contract_diffs
-        if not is_environmental_contract_difference(difference)
+        if not is_historical_toolbar_contract_difference(difference)
+        and not is_environmental_contract_difference(difference)
         and not is_intentional_typography_label_difference(difference)
     ]
 
@@ -166,11 +204,19 @@ for state in states:
         "exact_diff_ratio": exact / (width * height),
         "threshold_diff_pixels": thresholded,
         "threshold_diff_ratio": thresholded / (width * height),
+        "ignored_historical_toolbar_exact_pixels": ignored_toolbar_exact,
+        "ignored_historical_toolbar_threshold_pixels": ignored_toolbar_thresholded,
         "max_channel_delta": max_delta,
         "metric_difference_count": len(metric_diffs),
         "metric_differences": metric_diffs[:100],
         "contract_difference_count": len(contract_diffs),
         "contract_differences": contract_diffs[:200],
+        "ignored_historical_toolbar_metric_difference_count": sum(
+            is_historical_toolbar_metric_difference(item) for item in raw_metric_diffs
+        ),
+        "ignored_historical_toolbar_contract_difference_count": sum(
+            is_historical_toolbar_contract_difference(item) for item in raw_contract_diffs
+        ),
         "ignored_environmental_contract_difference_count": sum(
             is_environmental_contract_difference(item) for item in raw_contract_diffs
         ),
@@ -183,13 +229,11 @@ for state in states:
 (out / "report.json").write_text(json.dumps(report, indent=2))
 print(json.dumps(report, indent=2))
 
-# Treat the pinned React implementation as the UI contract. Every captured
-# state must have zero semantic/control/icon contract drift except the explicitly
-# documented Solid product-label rename from Text Inspector to Typography.
-# Pixel, computed layout, and style drift remain zero-tolerance, except Settings
-# > General where upstream and the port intentionally display their own version token.
+# The pinned React implementation remains the contract for the shared historical
+# page/result/Settings surface. Toolbar chrome is now validated against the
+# current Mesurer-inspired compact contract instead of this old v0.0.11 shell.
 failures = []
-expected_general_metric_paths = {"settings.text", "toolbar.text"}
+expected_general_metric_paths = {"settings.text"}
 for state, result in report["states"].items():
     if result["contract_difference_count"] != 0:
         paths = [item["path"] for item in result["contract_differences"][:10]]
@@ -212,11 +256,11 @@ for state, result in report["states"].items():
                 )
     else:
         if result["threshold_diff_pixels"] != 0:
-            failures.append(f"{state}: {result['threshold_diff_pixels']} perceptible pixels differ")
+            failures.append(f"{state}: {result['threshold_diff_pixels']} perceptible pixels differ outside intentional toolbar chrome")
         if result["metric_difference_count"] != 0:
-            failures.append(f"{state}: {result['metric_difference_count']} computed layout/style metrics differ")
+            failures.append(f"{state}: {result['metric_difference_count']} computed layout/style metrics differ outside intentional toolbar chrome")
 
 if failures:
     raise SystemExit("React → Solid visual/UI contract parity gate failed:\n- " + "\n- ".join(failures))
 
-print("React → Solid visual/UI contract parity gate: PASS")
+print("React → Solid historical page/result/Settings parity gate: PASS")

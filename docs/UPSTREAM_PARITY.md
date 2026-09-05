@@ -12,12 +12,12 @@ Mesurer Solid-specific architecture and workflows remain local where they serve 
 
 ## Current audit
 
-- Previous pinned visual baseline: `ibelick/mesurer@605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`)
-- Previous audited upstream main: `ibelick/mesurer@005f9fab396abd75b3f5324e4b0ce90cfa82d55b`
-- Current audited upstream main: `ibelick/mesurer@74936ac1420d3cb214a6b78fc93e5058be1ef9f7` (`0.1.1` release commit, audited 2026-09-02)
-- Upstream commits after the previous audit point: 1 large product commit (`feat: add annotate (#22)`)
+- Historical pinned visual baseline: `ibelick/mesurer@605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`)
+- Previous audited upstream main: `ibelick/mesurer@74936ac1420d3cb214a6b78fc93e5058be1ef9f7` (`0.1.1` release commit)
+- Current audited upstream main: `ibelick/mesurer@91ca55768f1f9e7d6afe72e046a582e424967b91` (`0.1.4`, audited 2026-09-04)
+- Upstream commits since the previous audit point: 16
 
-The `74936ac` audit supersedes the earlier conclusion that arrow/text annotation work had been reverted. Upstream `0.1.1` now ships those drawing tools. Mesurer Solid intentionally does not adopt that annotation/tool-group workflow for the current product.
+The current upstream toolbar work adds compact/minimize motion, full-height separators, tighter group spacing, and animated Inspect/Annotate group switching. Mesurer Solid adopts the useful toolbar presentation ideas without adopting the Inspect/Annotate product model: this product keeps one stable toolbar and keeps Arrange as an ordinary optional plugin tool.
 
 ## Product capability delta
 
@@ -29,39 +29,54 @@ The `74936ac` audit supersedes the earlier conclusion that arrow/text annotation
 | Chrome visible-tab capture | Implemented | Extension-only capture bridge; no new broad host permission |
 | Screenshot copy/download settings | Implemented as persistent plugin state and service options | Keep feature-local instead of adding fields to the core measurement model |
 | Screenshot preview | Implemented and extended beyond upstream | Persistent draggable thumbnail, bottom-right 8px default placement, viewport clamping, native image context menu, dismiss control, click-to-open viewer, Copy/Save/Close controls, and capture-status toast |
-| Canonical `Mesurer` product naming | Implemented | Public APIs and examples use `Mesurer` / `mountMesurer()`; the 0.1.1 `Measurer` spellings remain only as deprecated compatibility aliases |
+| Canonical `Mesurer` product naming | Implemented | Public APIs and examples use `Mesurer` / `mountMesurer()`; the old `Measurer` spellings remain only as deprecated compatibility aliases |
 | Native screen Color Picker | Implemented with host capability gating | Preserve upstream native `EyeDropper` behavior where operational; hide the tool and keep `P` inert where the native sampler is unavailable or the current Codex host cannot use it |
 | Color Picker active-button vs `P` behavior | Implemented | Active toolbar button toggles the result off without another native open; `P` starts a fresh native pick, matching upstream |
 | Text Inspector typography inspection | Adopted and extended | Preserve the inspection behavior and internal `text-inspector` compatibility id; the user-facing Solid label is intentionally **Typography** |
-| Visible Text Inspector → Typography label | Intentional Mesurer Solid divergence | Rename only the product-facing label/aria text while preserving the internal id, shortcut, icon, geometry, styles, and interaction contract |
+| Visible Text Inspector → Typography label | Intentional Mesurer Solid divergence | Rename only the product-facing label/aria text while preserving the internal id, shortcut, icon, and interaction contract |
 | Direct copy/typography editing from Select/Typography | Mesurer Solid extension | Double-click/double-tap ordinary direct text, inherit rendered typography, select all text, preview reversible copy/style intent, and expose saved `textEdit` intent to agents |
 | Direct-edit formatting toolbar | Mesurer Solid extension using adopted visual language | Reuse the canonical Mesurer white toolbar surface while keeping B/I/U, Font/Size/Weight, rendered colors, and custom color directly available |
 | Semantic Text/H1/H2/H3 preset popup | Mesurer Solid extension | Keep semantic presets separate from unrelated typography properties; derive only levels actually rendered and use the dominant rendered bundle for each level |
-| Automatic Typography context during direct edit | Mesurer Solid extension using existing inspector primitives | Activate the visible Typography context/card for the edited field without stealing Select mode or interrupting Arrange |
+| Automatic Typography context during direct edit | Mesurer Solid extension using existing inspector primitives | Activate the visible Typography context/card for the edited field without stealing Select or interrupting Arrange |
 | Page-derived font/size/weight/color suggestions | Mesurer Solid extension | Suggest styles actually rendered on the page, while keeping source implementation semantic rather than prescribing inline computed values |
-| Grouped **Select & Inspect** / **Annotate** tool switch | Intentionally not adopted | Mesurer Solid keeps its existing inspector/plugin toolbar because its primary review flow is context-first rather than drawing-tool-first |
+| Compact/minimized toolbar presentation | Adopted and adapted from current upstream | Keep one stable toolbar. Compact presentation hides inactive tools, preserves every active tool, never mutates tool/plugin state, and expands back to the same ordered tool set |
+| Full-height toolbar separators and tighter group spacing | Adopted from current upstream visual language | Group-owned padding lets separators run flush from the toolbar's top edge to bottom edge without changing tool ownership or commands |
+| Interruptible compact/expand motion | Adopted and simplified from current upstream | Use a faster 150ms version of the current upstream motion language for one simple `expanded ↔ compact` presentation state; respect reduced motion and avoid upstream group-switch state machinery |
+| Grouped **Select & Inspect** / **Annotate** tool switch | Intentionally not adopted | Mesurer Solid deliberately keeps one stable toolbar; buttons do not change/disappear because the user entered a conceptual mode |
+| Arrange as a toolbar mode | Intentionally not adopted | Arrange remains `mesurer.arrange`, an optional plugin tool with its own active state, `Shift+A`, Select coordination, settings, quick menu, Desired/Live behavior, and lifecycle |
 | Arrow annotations | Intentionally not adopted | Freeform arrows are not required for the current agent workflow |
 | Freehand pen annotations | Intentionally not adopted | Freeform drawing is outside the current stable product scope |
 | Upstream text drawing annotations | Intentionally not adopted | Mesurer Solid uses target-bound context notes plus Typography / direct Desired-text editing instead |
 | Annotation selection, move/resize/rotate, multi-select, delete | Intentionally not adopted | Those transforms belong to the upstream drawing-canvas model, which Mesurer Solid does not use |
 | Drawing-annotation persistence and undo/redo | Intentionally not adopted | Mesurer Solid persists semantic annotations and review baselines through `mesurer.context` instead |
 | Arrow/text drawing configuration and annotation settings | Intentionally not adopted | No drawing-tool configuration surface is needed without the drawing tools |
-| Upstream `0.1.1` shortcut/group switching and layered Escape behavior | Intentionally not adopted as a group contract | Keep Mesurer Solid shortcuts coherent with its own toolbar/plugin workflow; source-match individual adopted tools where applicable |
-| Other `0.1.1` inspection refinements (for example SVG targeting, layout details, click cycling, remembered tool state) | Requires focused behavior audit | Evaluate individually; adopt source-first when they improve the Mesurer Solid inspection contract |
+| Upstream group switching and layered Escape behavior | Intentionally not adopted as a group contract | Keep Mesurer Solid shortcuts coherent with its own stable toolbar/plugin workflow; source-match individual adopted tools where applicable |
+| Other current inspection/keyboard refinements | Requires focused behavior audit | Evaluate individually; adopt source-first when they improve the Mesurer Solid inspection contract |
 | Site/analytics/footer/build changes | Not library parity | Do not port |
+
+## Current toolbar parity boundary
+
+The `605d202` visual suite remains useful as a historical contract for the shared page results and Settings surface, but it predates upstream's current compact toolbar shell. It therefore no longer owns toolbar-chrome geometry.
+
+Mesurer Solid now treats toolbar validation in two layers:
+
+- the historical React → Solid gate continues to compare page/result/Settings behavior while explicitly excluding the evolved toolbar chrome and its direct menu-anchor offset;
+- a dedicated current Chromium toolbar contract validates the shipping toolbar itself: stable tool ownership/order, compact width, active-tool retention, full-height separators, Arrange as a normal plugin, quick-menu usability, rapid transition reversal, and `prefers-reduced-motion`.
+
+This is not a general visual-parity exception. Changes outside the explicitly evolved toolbar chrome remain subject to the historical gate, and current toolbar behavior has its own stricter product contract rather than being left untested.
 
 ## Typography is an intentional product-label divergence
 
-The pinned upstream baseline calls the inspection tool **Text inspector**. Mesurer Solid now presents that same user-facing inspection concept as **Typography** because the tool also participates in direct copy/type editing and the broader name better matches its role.
+The historical upstream baseline calls the inspection tool **Text inspector**. Mesurer Solid presents that same user-facing inspection concept as **Typography** because the tool also participates in direct copy/type editing and the broader name better matches its role.
 
 This rename does not change the compatibility contract:
 
 - internal built-in id remains `text-inspector`;
 - shortcut remains `A`;
-- icon, toolbar position, dimensions, active-state styling, and interaction behavior stay unchanged;
+- icon and active-state semantics remain the same inspection concept;
 - plugin/tool coordination continues to use the existing internal id.
 
-The visual-parity gate therefore normalizes only the exact upstream `Text inspector (A)` → Solid `Typography (A)` product-label difference. Pixel, geometry, style, icon, and all other semantic contract drift remain zero-tolerance. In Settings > General, the comparison additionally normalizes the already-existing React/Solid version-token difference. No broad text or UI parity exception is permitted.
+The historical parity gate normalizes the exact `Text inspector` → `Typography` label difference where that old shared contract is still authoritative. Toolbar-shell geometry is now validated by the current compact-toolbar contract described above. In Settings > General, the historical comparison additionally normalizes the existing React/Solid version-token difference. No broad text or non-toolbar UI parity exception is permitted.
 
 ## Direct text editing is an explicit Mesurer Solid extension
 
@@ -97,7 +112,7 @@ See [`TEXT_EDITING.md`](./TEXT_EDITING.md) for the shipped contract.
 
 ## Why annotations intentionally differ
 
-Upstream `0.1.1` treats annotation as a visual drawing surface: a person can add arrows, pen strokes, and freeform text, then manipulate those drawing objects.
+Current upstream treats annotation as a visual drawing surface: a person can add arrows, pen strokes, and freeform text, then manipulate those drawing objects.
 
 Mesurer Solid uses annotation for a different job. A context annotation is attached to the rendered target or region the person selected and stores structured evidence with the note: target identity, geometry, measurements, distances, guides, computed styles, layout information, and an immutable review baseline.
 

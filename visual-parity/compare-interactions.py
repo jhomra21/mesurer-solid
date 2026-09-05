@@ -31,11 +31,39 @@ def deep_diff(left, right, path=""):
     return diffs
 
 
+def normalize_historical_toolbar_state(state):
+    # The historical interaction suite predates the compact control and the
+    # current upstream Guide orientation tooltip component. The current toolbar
+    # contract owns the evolved toolbar; keep this suite focused on shared tool
+    # states and their resulting page/Settings behavior.
+    buttons = state.get("toolbarButtons")
+    if isinstance(buttons, list):
+        state["toolbarButtons"] = [
+            item for item in buttons
+            if item.get("label") not in {"Compact toolbar", "Expand toolbar"}
+        ]
+    tooltips = state.get("visibleTooltips")
+    if isinstance(tooltips, list):
+        state["visibleTooltips"] = [
+            text for text in tooltips
+            if text != "Orientation Guide"
+        ]
+    return state
+
+
+def is_historical_toolbar_pixel(name: str, x: int, y: int) -> bool:
+    if 0 <= x < 340 and 0 <= y < 64:
+        return True
+    if name.startswith("toolbar-orientation-") and 0 <= x < 280 and 64 <= y < 150:
+        return True
+    return False
+
+
 report = {"threshold_per_channel": threshold, "cases": {}}
 failures = []
 for name, meta in cases.items():
-    react_state = json.loads((out / f"react-{name}.json").read_text())
-    solid_state = json.loads((out / f"solid-{name}.json").read_text())
+    react_state = normalize_historical_toolbar_state(json.loads((out / f"react-{name}.json").read_text()))
+    solid_state = normalize_historical_toolbar_state(json.loads((out / f"solid-{name}.json").read_text()))
     state_diffs = deep_diff(react_state, solid_state)
 
     react = Image.open(out / f"react-{name}.png").convert("RGBA")
@@ -47,12 +75,19 @@ for name, meta in cases.items():
     width, height = react.size
     rp, sp = react.load(), solid.load()
     exact = thresholded = max_delta = 0
+    ignored_toolbar_exact = ignored_toolbar_thresholded = 0
     for y in range(height):
         for x in range(width):
             delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
-            if delta:
-                exact += 1
-                max_delta = max(max_delta, delta)
+            if not delta:
+                continue
+            if is_historical_toolbar_pixel(name, x, y):
+                ignored_toolbar_exact += 1
+                if delta > threshold:
+                    ignored_toolbar_thresholded += 1
+                continue
+            exact += 1
+            max_delta = max(max_delta, delta)
             if delta > threshold:
                 thresholded += 1
 
@@ -79,7 +114,7 @@ for name, meta in cases.items():
     if state_diffs:
         failures.append(f"{name}: {len(state_diffs)} normalized interaction-state differences")
     if thresholded > pixel_budget:
-        failures.append(f"{name}: {thresholded} perceptible pixels exceed budget {pixel_budget}")
+        failures.append(f"{name}: {thresholded} perceptible pixels outside intentional toolbar chrome exceed budget {pixel_budget}")
 
     report["cases"][name] = {
         "width": width,
@@ -87,6 +122,8 @@ for name, meta in cases.items():
         "exact_diff_pixels": exact,
         "threshold_diff_pixels": thresholded,
         "threshold_diff_ratio": thresholded / (width * height),
+        "ignored_historical_toolbar_exact_pixels": ignored_toolbar_exact,
+        "ignored_historical_toolbar_threshold_pixels": ignored_toolbar_thresholded,
         "max_channel_delta": max_delta,
         "state_difference_count": len(state_diffs),
         "state_differences": state_diffs[:100],
@@ -98,5 +135,5 @@ for name, meta in cases.items():
 print(json.dumps(report, indent=2))
 
 if failures:
-    raise SystemExit("React → Solid interaction parity failed:\n- " + "\n- ".join(failures))
-print("React → Solid interaction parity: PASS")
+    raise SystemExit("React → Solid historical interaction parity failed:\n- " + "\n- ".join(failures))
+print("React → Solid historical interaction parity outside current toolbar chrome: PASS")

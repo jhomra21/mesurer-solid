@@ -46,7 +46,8 @@ describe("Mesurer host integration", () => {
     expect(toolbar).toBeTruthy();
     expect(toolbar!.className).toContain("mesurer-toolbar-surface");
     expect(toolbar!.className).toContain("msr:rounded-[12px]");
-    expect(toolbar!.className).toContain("msr:p-1");
+    expect(toolbar!.dataset.mesurerToolbarCompact).toBe("false");
+    expect(toolbar!.querySelector('button[aria-label="Compact toolbar"]')).toBeTruthy();
     await vi.waitFor(() => {
       expect(toolbar!.querySelector('button[aria-label="Color picker (P)"]')).toBeTruthy();
     });
