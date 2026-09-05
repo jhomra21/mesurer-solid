@@ -37,6 +37,7 @@ export const DEFAULT_MESURER_SETTINGS: MesurerSettings = {
   guideColor: "oklch(0.63 0.26 29.23)",
   hoverHighlightEnabled: true,
   persistOnReload: false,
+  shortcutsEnabled: true,
   colorPickerFormats: ["hex", "rgb", "oklch"],
   colorPickerClickFormat: "hex",
   snapEnabled: true,
@@ -393,6 +394,7 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
     if (stored.guideColor !== undefined) patch.guideColor = stored.guideColor;
     if (stored.hoverHighlightEnabled !== undefined) patch.hoverHighlightEnabled = stored.hoverHighlightEnabled;
     if (stored.persistOnReload !== undefined) patch.persistOnReload = stored.persistOnReload;
+    if (stored.shortcutsEnabled !== undefined) patch.shortcutsEnabled = stored.shortcutsEnabled;
     if (stored.colorPickerFormats !== undefined) patch.colorPickerFormats = stored.colorPickerFormats;
     if (stored.colorPickerClickFormat !== undefined) patch.colorPickerClickFormat = stored.colorPickerClickFormat;
     if (stored.snapEnabled !== undefined) patch.snapEnabled = stored.snapEnabled;
@@ -428,6 +430,7 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
     selectNewGuideEnabled: current.settings.selectNewGuideEnabled,
     multiMeasureEnabled: current.settings.multiMeasureEnabled,
     persistOnReload: current.settings.persistOnReload,
+    shortcutsEnabled: current.settings.shortcutsEnabled,
     guideStyle: { ...current.settings.guideStyle },
     rulerSettings: { ...current.settings.rulerSettings },
   });
