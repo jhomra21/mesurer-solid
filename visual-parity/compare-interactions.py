@@ -32,14 +32,21 @@ def deep_diff(left, right, path=""):
 
 
 def normalize_historical_toolbar_state(state):
-    # The historical interaction suite predates the compact control. The current
-    # toolbar contract validates that control directly; keep this suite focused
-    # on the shared tool states and their resulting page/Settings behavior.
+    # The historical interaction suite predates the compact control and the
+    # current upstream Guide orientation tooltip component. The current toolbar
+    # contract owns the evolved toolbar; keep this suite focused on shared tool
+    # states and their resulting page/Settings behavior.
     buttons = state.get("toolbarButtons")
     if isinstance(buttons, list):
         state["toolbarButtons"] = [
             item for item in buttons
             if item.get("label") not in {"Compact toolbar", "Expand toolbar"}
+        ]
+    tooltips = state.get("visibleTooltips")
+    if isinstance(tooltips, list):
+        state["visibleTooltips"] = [
+            text for text in tooltips
+            if text != "Orientation Guide"
         ]
     return state
 
