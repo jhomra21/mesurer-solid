@@ -429,6 +429,7 @@ export function installTextEditing(
       const owned = applied.get(edit.id);
       let ownsText = false;
       if (owned?.node === target.node && current === owned.desiredText) {
+        if (current !== edit.desiredText) setNodeText(target.node, edit.desiredText);
         ownsText = true;
       } else if (current === edit.beforeText) {
         setNodeText(target.node, edit.desiredText);
@@ -1231,7 +1232,7 @@ export function installTextEditing(
     for (const candidate of ownerDocument.elementsFromPoint(x, y)) {
       if (!(candidate instanceof realm.HTMLElement)) continue;
       if (!isPageElement(candidate) || SKIP_TAGS.has(candidate.tagName)) continue;
-      if (candidate.hasAttribute("contenteditable")) continue;
+      if (candidate.isContentEditable) continue;
       const nodes = Array.from(candidate.childNodes)
         .map((node, index) => ({ node, index }))
         .filter(({ node }) => node.nodeType === realm.Node.TEXT_NODE && Boolean(node.nodeValue?.trim()));
