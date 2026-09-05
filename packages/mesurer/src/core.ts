@@ -117,6 +117,7 @@ export type MesurerPluginChange = {
 
 export type MesurerPluginHost = {
   load(plugin: MesurerPlugin): Promise<void>;
+  cancelLoad(plugin: MesurerPlugin): boolean;
   remove(id: string): boolean;
   replace(plugin: MesurerPlugin): Promise<void>;
   has(id: string): boolean;
