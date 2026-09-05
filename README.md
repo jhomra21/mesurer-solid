@@ -87,6 +87,8 @@ Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a 
 
 ## Shortcuts
 
+Global shortcuts are enabled by default. Turn them off from **Settings → General → Shortcuts** or mount with `shortcutsEnabled: false`. Disabling global shortcuts does not disable toolbar controls, editor-local keyboard behavior, or Escape/cancel handling.
+
 | Shortcut | Action |
 | --- | --- |
 | `M` | Toggle Mesurer |
