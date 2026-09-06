@@ -9,11 +9,10 @@ page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text());
 });
 
-const island = () => page.locator("[data-mesurer-island='true']");
-const settingsButton = () => island().locator("[data-mesurer-builtin='settings'] button").first();
-const selectButton = () => island().locator("[data-mesurer-builtin='select'] button").first();
-const arrangeButton = () => island().locator("[data-mesurer-tool-id='arrange'] button").first();
-const settingsDialog = () => island().getByRole("dialog", { name: "Settings" });
+const settingsButton = () => page.locator("button[data-mesurer-builtin='settings']").first();
+const selectButton = () => page.locator("[data-mesurer-builtin='select'] button").first();
+const arrangeButton = () => page.locator("button[data-mesurer-tool-id='arrange']").first();
+const settingsDialog = () => page.getByRole("dialog", { name: "Settings" });
 
 const openSettingsTab = async (name) => {
   await settingsButton().waitFor({ state: "visible" });
