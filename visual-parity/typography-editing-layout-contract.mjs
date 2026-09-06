@@ -56,6 +56,35 @@ try {
   await inspector.waitFor({ state: "visible" });
   await menu.waitFor({ state: "hidden" });
 
+  const directEditorVisual = await editor.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return {
+      rows: element.rows,
+      height: rect.height,
+      backgroundImage: style.backgroundImage,
+      boxShadow: style.boxShadow,
+    };
+  });
+  assert.equal(directEditorVisual.rows, 1, "A one-line direct editor must not reserve textarea's default second row");
+  assert(
+    directEditorVisual.height <= Math.max(34, targetBox.height + 4),
+    `A one-line direct editor should stay close to selected-target height; target=${targetBox.height}px editor=${directEditorVisual.height}px`,
+  );
+  assert.notEqual(directEditorVisual.backgroundImage, "none", "Direct editing should retain the selected-target highlight tint instead of switching to a flat page background");
+  assert(directEditorVisual.boxShadow.includes("1.5px"), `Direct editing should use a subtle 1.5px focus ring; got ${directEditorVisual.boxShadow}`);
+  assert(!directEditorVisual.boxShadow.includes("24px"), `Direct editing should not add the previous heavy drop shadow; got ${directEditorVisual.boxShadow}`);
+
+  await editor.evaluate((element) => element.dispatchEvent(new Event("input", { bubbles: true })));
+  const visualAfterInput = await editor.evaluate((element) => ({
+    rows: element.rows,
+    backgroundImage: getComputedStyle(element).backgroundImage,
+    boxShadow: getComputedStyle(element).boxShadow,
+  }));
+  assert.equal(visualAfterInput.rows, 1, "Input updates must keep the direct editor single-row when content remains single-line");
+  assert.notEqual(visualAfterInput.backgroundImage, "none", "Input updates must preserve the selection-like editor tint");
+  assert(visualAfterInput.boxShadow.includes("1.5px"), "Input updates must preserve the subtle direct-edit focus ring");
+
   const contextualState = await page.evaluate(() => {
     const root = document.querySelector("[data-mesurer-root='true']");
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
@@ -200,7 +229,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Typography layout browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Typography layout browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Direct typography controls + semantic-only presets + contextual/explicit Typography without duplicate cards: PASS");
+  console.log("Direct typography controls + single-row selection-like editor + semantic-only presets + contextual/explicit Typography without duplicate cards: PASS");
 } finally {
   await browser.close();
 }
