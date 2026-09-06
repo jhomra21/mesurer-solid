@@ -1,4 +1,7 @@
-const realmFor = (ownerWindow: Window) => ownerWindow as Window & typeof globalThis;
+const realmFor = (ownerWindow: Window) => {
+  // SAFETY: ownerWindow is the document realm for these events and owns the DOM constructors used below.
+  return ownerWindow as Window & typeof globalThis;
+};
 
 export function getDeepActiveElement(ownerWindow: Window): Element | null {
   let active: Element | null = ownerWindow.document.activeElement;
@@ -8,12 +11,11 @@ export function getDeepActiveElement(ownerWindow: Window): Element | null {
 
 export function isEditableElement(node: EventTarget | null, ownerWindow: Window): boolean {
   const realm = realmFor(ownerWindow);
-  if (!(node instanceof realm.Element)) return false;
-  const element = node as HTMLElement;
-  const tagName = element.tagName;
+  if (!(node instanceof realm.HTMLElement)) return false;
+  const tagName = node.tagName;
   if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") return true;
-  if (element.isContentEditable) return true;
-  const editable = element.getAttribute("contenteditable");
+  if (node.isContentEditable) return true;
+  const editable = node.getAttribute("contenteditable");
   return editable !== null && editable !== "false";
 }
 
