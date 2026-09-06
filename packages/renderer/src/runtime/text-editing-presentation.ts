@@ -18,6 +18,11 @@ type InspectorSurfaceSnapshot = {
   ariaHidden: string | null;
 };
 
+type EditorVisualState = {
+  baseBackground: string;
+  appliedBackground: string;
+};
+
 /**
  * Keeps the field-local direct editor aligned with Mesurer's established
  * toolbar language without coupling Typography's hover/pin runtime to the
@@ -39,7 +44,9 @@ export function installTextEditingPresentation(
   const root = runtimeMount.closest<HTMLElement>("[data-mesurer-root='true']");
   let typographyButtonSnapshot: TypographyButtonSnapshot | null = null;
   const suppressedInspectorSurfaces = new Map<HTMLElement, InspectorSurfaceSnapshot>();
+  const editorVisualStates = new WeakMap<HTMLTextAreaElement, EditorVisualState>();
   let typographyContextActive = false;
+  let editorVisualFrame = 0;
   let disposed = false;
   let refining = false;
 
@@ -107,6 +114,44 @@ export function installTextEditingPresentation(
     button.style.backgroundColor = typographyButtonSnapshot.background;
     button.style.color = typographyButtonSnapshot.color;
     typographyButtonSnapshot = null;
+  };
+
+  const refineEditorVisual = (editor: HTMLTextAreaElement) => {
+    const currentBackground = editor.style.background || editor.style.backgroundColor || "Canvas";
+    let state = editorVisualStates.get(editor);
+    if (!state) {
+      state = { baseBackground: currentBackground, appliedBackground: "" };
+      editorVisualStates.set(editor, state);
+    } else if (currentBackground !== state.appliedBackground) {
+      state.baseBackground = currentBackground;
+    }
+
+    const tint = `color-mix(in oklch, ${TOOLBAR_BLUE} 8%, transparent)`;
+    const background = `linear-gradient(${tint}, ${tint}), ${state.baseBackground}`;
+    state.appliedBackground = background;
+
+    editor.rows = 1;
+    editor.style.background = background;
+    editor.style.boxShadow = `0 0 0 1.5px ${TOOLBAR_BLUE}`;
+    editor.style.height = "auto";
+    const minHeight = Number.parseFloat(editor.style.minHeight) || 0;
+    editor.style.height = `${Math.max(minHeight, editor.scrollHeight)}px`;
+
+    if (editor.dataset.mesurerTextEditorVisualBound !== "true") {
+      editor.dataset.mesurerTextEditorVisualBound = "true";
+      editor.addEventListener("input", () => {
+        if (!disposed && editor.isConnected) refineEditorVisual(editor);
+      });
+    }
+  };
+
+  const scheduleEditorVisualRefine = () => {
+    if (disposed || editorVisualFrame) return;
+    editorVisualFrame = ownerWindow.requestAnimationFrame(() => {
+      editorVisualFrame = 0;
+      const editor = runtimeMount.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
+      if (editor) refineEditorVisual(editor);
+    });
   };
 
   const styleDirectSelect = (select: HTMLSelectElement) => {
@@ -231,6 +276,7 @@ export function installTextEditingPresentation(
         return;
       }
 
+      refineEditorVisual(editor);
       setTypographyContext(true);
       suppressTypographyInspectorSurfaces();
       if (inspectorCard) inspectorCard.setAttribute("aria-label", "Typography details");
@@ -291,11 +337,16 @@ export function installTextEditingPresentation(
 
   const observer = new realm.MutationObserver(() => refine());
   observer.observe(runtimeMount, { childList: true, subtree: true });
+  ownerWindow.addEventListener("resize", scheduleEditorVisualRefine);
+  ownerWindow.addEventListener("scroll", scheduleEditorVisualRefine, true);
   refine();
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
+    ownerWindow.removeEventListener("resize", scheduleEditorVisualRefine);
+    ownerWindow.removeEventListener("scroll", scheduleEditorVisualRefine, true);
+    if (editorVisualFrame) ownerWindow.cancelAnimationFrame(editorVisualFrame);
     restoreTypographyInspectorSurfaces();
     setTypographyContext(false);
   });
