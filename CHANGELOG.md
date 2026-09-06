@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Keep direct text editing visually aligned with selection by removing the textarea's extra default row, preserving a subtle selection tint, and using a lighter focus ring without the previous drop shadow.
 
 ## 0.1.7-beta.0 - 2026-09-06
 
