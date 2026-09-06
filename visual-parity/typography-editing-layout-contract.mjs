@@ -11,6 +11,11 @@ page.on("console", (message) => {
   if (message.type() === "error") consoleErrors.push(message.text());
 });
 
+const rgbChannels = (value) => {
+  const match = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(value);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+};
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
 
@@ -29,6 +34,15 @@ try {
 
   const targetBox = await target.boundingBox();
   assert(targetBox, "Typography layout target must have rendered geometry");
+  const targetBackgroundColor = await target.evaluate((element) => {
+    let current = element;
+    while (current instanceof HTMLElement) {
+      const color = getComputedStyle(current).backgroundColor;
+      if (color !== "transparent" && color !== "rgba(0, 0, 0, 0)") return color;
+      current = current.parentElement;
+    }
+    return getComputedStyle(document.documentElement).backgroundColor;
+  });
   const x = targetBox.x + targetBox.width / 2;
   const y = targetBox.y + targetBox.height / 2;
 
@@ -62,7 +76,7 @@ try {
     return {
       rows: element.rows,
       height: rect.height,
-      backgroundImage: style.backgroundImage,
+      backgroundColor: style.backgroundColor,
       boxShadow: style.boxShadow,
     };
   });
@@ -71,18 +85,24 @@ try {
     directEditorVisual.height <= Math.max(34, targetBox.height + 4),
     `A one-line direct editor should stay close to selected-target height; target=${targetBox.height}px editor=${directEditorVisual.height}px`,
   );
-  assert.notEqual(directEditorVisual.backgroundImage, "none", "Direct editing should retain the selected-target highlight tint instead of switching to a flat page background");
+
+  const baseRgb = rgbChannels(targetBackgroundColor);
+  const editorRgb = rgbChannels(directEditorVisual.backgroundColor);
+  assert(baseRgb && editorRgb, `Expected RGB editor/base backgrounds; base=${targetBackgroundColor} editor=${directEditorVisual.backgroundColor}`);
+  const tintDelta = editorRgb.map((channel, index) => Math.abs(channel - baseRgb[index]));
+  assert(tintDelta.some((delta) => delta >= 2), `Direct editing should retain a visible selection tint; base=${targetBackgroundColor} editor=${directEditorVisual.backgroundColor}`);
+  assert(Math.max(...tintDelta) <= 24, `Direct editing selection tint should stay subtle; deltas=${tintDelta.join(",")}`);
   assert(directEditorVisual.boxShadow.includes("1.5px"), `Direct editing should use a subtle 1.5px focus ring; got ${directEditorVisual.boxShadow}`);
   assert(!directEditorVisual.boxShadow.includes("24px"), `Direct editing should not add the previous heavy drop shadow; got ${directEditorVisual.boxShadow}`);
 
   await editor.evaluate((element) => element.dispatchEvent(new Event("input", { bubbles: true })));
   const visualAfterInput = await editor.evaluate((element) => ({
     rows: element.rows,
-    backgroundImage: getComputedStyle(element).backgroundImage,
+    backgroundColor: getComputedStyle(element).backgroundColor,
     boxShadow: getComputedStyle(element).boxShadow,
   }));
   assert.equal(visualAfterInput.rows, 1, "Input updates must keep the direct editor single-row when content remains single-line");
-  assert.notEqual(visualAfterInput.backgroundImage, "none", "Input updates must preserve the selection-like editor tint");
+  assert.equal(visualAfterInput.backgroundColor, directEditorVisual.backgroundColor, "Input updates must preserve the selection-like editor tint");
   assert(visualAfterInput.boxShadow.includes("1.5px"), "Input updates must preserve the subtle direct-edit focus ring");
 
   const contextualState = await page.evaluate(() => {
