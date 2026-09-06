@@ -49,6 +49,7 @@ type ToolbarButtonProps = {
   toolId?: string;
   label: string;
   shortcut?: string;
+  shortcutsEnabled: boolean;
   onClick: () => void;
   tooltipVisible: boolean;
   tooltipInstant: boolean;
@@ -62,6 +63,7 @@ function ToolbarButton(props: ToolbarButtonProps) {
   const inactiveClass = () => props.disabled
     ? "msr:bg-transparent msr:text-black/30 msr:cursor-default"
     : "msr:bg-transparent msr:text-black msr:hover:bg-black/4";
+  const visibleShortcut = () => props.shortcutsEnabled ? props.shortcut : undefined;
   return (
     <div
       class="msr:relative"
@@ -75,14 +77,14 @@ function ToolbarButton(props: ToolbarButtonProps) {
         data-mesurer-builtin={props.builtin}
         data-mesurer-tool-id={props.toolId}
         aria-pressed={props.active ? "true" : "false"}
-        aria-label={`${props.label}${props.shortcut ? ` (${props.shortcut})` : ""}`}
+        aria-label={`${props.label}${visibleShortcut() ? ` (${visibleShortcut()})` : ""}`}
         disabled={props.disabled ?? false}
         class={`msr:flex msr:size-8 msr:select-none msr:items-center msr:justify-center msr:rounded-[8px] msr:outline-none ${props.active ? "msr:bg-[#0d99ff] msr:text-white" : inactiveClass()}`}
         onClick={() => props.onClick()}
       >
         {props.children}
       </button>
-      <Tooltip label={props.label} shortcut={props.shortcut} visible={props.tooltipVisible} instant={props.tooltipInstant} side={props.tooltipSide} />
+      <Tooltip label={props.label} shortcut={visibleShortcut()} visible={props.tooltipVisible} instant={props.tooltipInstant} side={props.tooltipSide} />
     </div>
   );
 }
@@ -321,7 +323,7 @@ export function Toolbar(props: ToolbarProps) {
               <CheckIcon size={12} class={item.checked?.() ? "msr:opacity-100" : "msr:opacity-0"} />
             </span>
             <span class="msr:flex-1 msr:whitespace-nowrap">{item.label}</span>
-            <Show when={item.shortcut}><span class="msr:shrink-0 msr:text-[10px] msr:opacity-60">{item.shortcut}</span></Show>
+            <Show when={props.model.state.settings.shortcutsEnabled && item.shortcut}><span class="msr:shrink-0 msr:text-[10px] msr:opacity-60">{item.shortcut}</span></Show>
           </button>
         )}</For>
       </div>
@@ -381,6 +383,7 @@ export function Toolbar(props: ToolbarProps) {
   });
 
   const buttonProps = (id: string) => ({
+    shortcutsEnabled: props.model.state.settings.shortcutsEnabled,
     tooltipVisible: tooltipsEnabled() && tooltip.visibleTooltipId() === id,
     tooltipInstant: tooltip.tooltipInstant(),
     tooltipSide: tooltipSide(),
