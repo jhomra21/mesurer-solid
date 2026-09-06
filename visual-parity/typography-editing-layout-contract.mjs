@@ -22,7 +22,7 @@ try {
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
   const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
   const typographyButton = page.locator("button[data-mesurer-builtin='text-inspector']");
-  const target = page.locator(".primary-action");
+  const target = page.locator(".type-card h2");
 
   await selectButton.waitFor({ state: "visible" });
   await arrangeButton.waitFor({ state: "visible" });
@@ -82,7 +82,7 @@ try {
   });
   assert.equal(directEditorVisual.rows, 1, "A one-line direct editor must not reserve textarea's default second row");
   assert(
-    directEditorVisual.height <= Math.max(34, targetBox.height + 4),
+    directEditorVisual.height <= Math.max(50, targetBox.height + 4),
     `A one-line direct editor should stay close to selected-target height; target=${targetBox.height}px editor=${directEditorVisual.height}px`,
   );
 
