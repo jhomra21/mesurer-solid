@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
 import sys
@@ -117,6 +118,82 @@ def is_environmental_contract_difference(difference):
     return difference["path"].endswith(non_design_contract_suffixes)
 
 
+def historical_shortcuts_delta(state, react_metrics, solid_metrics):
+    """Describe only the adopted current-upstream Shortcuts row missing from v0.0.11."""
+    if state != "settings-general":
+        return None
+    react_settings = react_metrics.get("settings", {})
+    solid_settings = solid_metrics.get("settings", {})
+    react_contract = react_metrics.get("settingsContract", {})
+    solid_contract = solid_metrics.get("settingsContract", {})
+    react_controls = react_contract.get("controls", [])
+    solid_controls = solid_contract.get("controls", [])
+    if any(control.get("name") == "Shortcuts" for control in react_controls):
+        return None
+    shortcuts = [control for control in solid_controls if control.get("name") == "Shortcuts"]
+    if len(shortcuts) != 1:
+        return None
+    shortcuts = shortcuts[0]
+    persist = next((control for control in solid_controls if control.get("name") == "Persist"), None)
+    if persist is None or shortcuts.get("role") != "switch" or shortcuts.get("ariaChecked") != "true":
+        return None
+    shortcut_rect = shortcuts.get("rect", {})
+    persist_rect = persist.get("rect", {})
+    shift = shortcut_rect.get("y", 0) - persist_rect.get("y", 0)
+    if shift <= 0 or shortcut_rect.get("height") != persist_rect.get("height"):
+        return None
+    if abs(shift - (shortcut_rect.get("height", 0) + 4)) > 0.01:
+        return None
+    if shortcut_rect.get("x") != persist_rect.get("x") or shortcut_rect.get("width") != persist_rect.get("width"):
+        return None
+    react_rect = react_settings.get("rect", {})
+    solid_rect = solid_settings.get("rect", {})
+    if abs((solid_rect.get("height", 0) - react_rect.get("height", 0)) - shift) > 0.01:
+        return None
+    return {
+        "shift": shift,
+        "panel_left": solid_rect.get("left", solid_rect.get("x", 0)),
+        "panel_right": solid_rect.get("right", solid_rect.get("x", 0) + solid_rect.get("width", 0)),
+        "react_bottom": react_rect.get("bottom", react_rect.get("y", 0) + react_rect.get("height", 0)),
+        "solid_bottom": solid_rect.get("bottom", solid_rect.get("y", 0) + solid_rect.get("height", 0)),
+        "persist_bottom": persist_rect.get("y", 0) + persist_rect.get("height", 0),
+        "shortcut_y": shortcut_rect.get("y", 0),
+    }
+
+
+def normalize_historical_shortcuts_metrics(solid_metrics, feature):
+    if feature is None:
+        return solid_metrics
+    normalized = copy.deepcopy(solid_metrics)
+    shift = feature["shift"]
+    settings = normalized.get("settings", {})
+    settings["text"] = str(settings.get("text", "")).replace("Shortcuts", "", 1)
+    settings_rect = settings.get("rect", {})
+    if "height" in settings_rect:
+        settings_rect["height"] -= shift
+    if "bottom" in settings_rect:
+        settings_rect["bottom"] -= shift
+    style = settings.get("style", {})
+    height = style.get("height")
+    if isinstance(height, str) and height.endswith("px"):
+        style["height"] = f"{float(height[:-2]) - shift:g}px"
+
+    settings_contract = normalized.get("settingsContract", {})
+    if "rect" in settings_contract and "height" in settings_contract["rect"]:
+        settings_contract["rect"]["height"] -= shift
+    controls = []
+    for control in settings_contract.get("controls", []):
+        if control.get("name") == "Shortcuts":
+            continue
+        control = copy.deepcopy(control)
+        control["index"] = len(controls)
+        if control.get("rect", {}).get("y", 0) > feature["shortcut_y"]:
+            control["rect"]["y"] -= shift
+        controls.append(control)
+    settings_contract["controls"] = controls
+    return normalized
+
+
 report = {
     "threshold_per_channel": threshold,
     "react_version": react_version,
@@ -132,6 +209,11 @@ for state in states:
     if react.size != solid.size:
         raise SystemExit(f"size mismatch for {state}: {react.size} vs {solid.size}")
 
+    react_metrics = round_numbers(json.loads((out / f"react-{state}.json").read_text()))
+    solid_metrics = round_numbers(json.loads((out / f"solid-{state}.json").read_text()))
+    shortcuts_feature = historical_shortcuts_delta(state, react_metrics, solid_metrics)
+    solid_metrics = normalize_historical_shortcuts_metrics(solid_metrics, shortcuts_feature)
+
     width, height = react.size
     rp = react.load()
     sp = solid.load()
@@ -139,10 +221,36 @@ for state in states:
     thresholded = 0
     ignored_toolbar_exact = 0
     ignored_toolbar_thresholded = 0
+    ignored_shortcuts_exact = 0
+    ignored_shortcuts_thresholded = 0
     max_delta = 0
     for y in range(height):
         for x in range(width):
-            delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
+            solid_y = y
+            ignore_shortcuts_pixel = False
+            if shortcuts_feature is not None:
+                # The current-upstream row adds exactly one 28px Settings row. Compare the
+                # historical panel contents after that insertion at their shifted position,
+                # then ignore only the extra panel/shadow tail that has no v0.0.11 counterpart.
+                left = max(0, int(shortcuts_feature["panel_left"] - 16))
+                right = min(width, int(shortcuts_feature["panel_right"] + 16))
+                react_shadow_bottom = int(shortcuts_feature["react_bottom"] + 12)
+                solid_shadow_bottom = int(shortcuts_feature["solid_bottom"] + 12)
+                if left <= x < right and y >= shortcuts_feature["persist_bottom"]:
+                    if y < react_shadow_bottom and y + shortcuts_feature["shift"] < height:
+                        solid_y = int(y + shortcuts_feature["shift"])
+                    elif y < solid_shadow_bottom:
+                        ignore_shortcuts_pixel = True
+
+            raw_delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
+            if ignore_shortcuts_pixel:
+                if raw_delta:
+                    ignored_shortcuts_exact += 1
+                    if raw_delta > threshold:
+                        ignored_shortcuts_thresholded += 1
+                continue
+
+            delta = max(abs(rp[x, y][i] - sp[x, solid_y][i]) for i in range(4))
             if not delta:
                 continue
             if is_historical_toolbar_pixel(state, x, y):
@@ -171,8 +279,6 @@ for state in states:
     draw.text((width * 2 + gap * 2 + 8, 8), "Amplified pixel diff", fill="black")
     canvas.save(out / f"comparison-{state}.png")
 
-    react_metrics = round_numbers(json.loads((out / f"react-{state}.json").read_text()))
-    solid_metrics = round_numbers(json.loads((out / f"solid-{state}.json").read_text()))
     react_contract = {key: react_metrics.pop(key, None) for key in contract_keys}
     solid_contract = {key: solid_metrics.pop(key, None) for key in contract_keys}
     raw_metric_diffs = metric_differences(react_metrics, solid_metrics)
@@ -206,6 +312,9 @@ for state in states:
         "threshold_diff_ratio": thresholded / (width * height),
         "ignored_historical_toolbar_exact_pixels": ignored_toolbar_exact,
         "ignored_historical_toolbar_threshold_pixels": ignored_toolbar_thresholded,
+        "ignored_current_shortcuts_exact_pixels": ignored_shortcuts_exact,
+        "ignored_current_shortcuts_threshold_pixels": ignored_shortcuts_thresholded,
+        "normalized_current_shortcuts_setting": shortcuts_feature is not None,
         "max_channel_delta": max_delta,
         "metric_difference_count": len(metric_diffs),
         "metric_differences": metric_diffs[:100],
@@ -230,8 +339,9 @@ for state in states:
 print(json.dumps(report, indent=2))
 
 # The pinned React implementation remains the contract for the shared historical
-# page/result/Settings surface. Toolbar chrome is now validated against the
-# current Mesurer-inspired compact contract instead of this old v0.0.11 shell.
+# page/result/Settings surface. Toolbar chrome and the current-upstream Shortcuts
+# row are validated by dedicated current Chromium contracts instead of being
+# vetoed by the older v0.0.11 fixture.
 failures = []
 expected_general_metric_paths = {"settings.text"}
 for state, result in report["states"].items():
