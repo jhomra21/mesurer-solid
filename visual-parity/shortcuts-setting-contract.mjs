@@ -38,6 +38,10 @@ const expectChecked = async (control, expected, label) => {
     throw new Error(`${label} expected aria-checked=${expected}, got ${actual}`);
   }
 };
+const expectLabel = async (control, expected, label) => {
+  const actual = await control.getAttribute("aria-label");
+  if (actual !== expected) throw new Error(`${label} expected aria-label=${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+};
 
 try {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
@@ -89,6 +93,21 @@ try {
   await page.keyboard.press("Escape");
   await dialog.waitFor({ state: "hidden" });
 
+  // Disabled global shortcuts are not advertised in toolbar hints or accessible labels.
+  await expectLabel(selectButton(), "Select", "Select label while shortcuts disabled");
+  await expectLabel(arrangeButton(), "Arrange", "Arrange label while shortcuts disabled");
+  await selectButton().hover();
+  await page.waitForTimeout(850);
+  const selectTooltip = selectButton().locator("xpath=..").getByRole("tooltip");
+  const disabledTooltipText = (await selectTooltip.textContent())?.trim() ?? "";
+  if (disabledTooltipText !== "Select") {
+    throw new Error(`Disabled Select tooltip should omit the shortcut hint, got ${JSON.stringify(disabledTooltipText)}`);
+  }
+  if ((await selectTooltip.locator("kbd").count()) !== 0) {
+    throw new Error("Disabled Select tooltip still renders a keyboard shortcut badge");
+  }
+  await page.mouse.move(640, 450);
+
   await page.keyboard.press("s");
   await page.waitForTimeout(50);
   await expectPressed(selectButton(), false, "Select while shortcuts disabled");
@@ -111,6 +130,7 @@ try {
   await page.keyboard.press("s");
   await page.waitForTimeout(50);
   await expectPressed(selectButton(), false, "Select after reload with shortcuts disabled");
+  await expectLabel(selectButton(), "Select", "Persisted disabled Select label");
 
   dialog = await openGeneralSettings();
   shortcuts = dialog.getByRole("switch", { name: "Shortcuts", exact: true });
@@ -121,12 +141,14 @@ try {
   await expectChecked(shortcuts, true, "Re-enabled Shortcuts setting");
   await page.keyboard.press("Escape");
   await dialog.waitFor({ state: "hidden" });
+  await expectLabel(selectButton(), "Select (S)", "Select label after shortcuts re-enabled");
+  await expectLabel(arrangeButton(), "Arrange (Shift+A)", "Arrange label after shortcuts re-enabled");
 
   await page.keyboard.press("s");
   await expectPressed(selectButton(), true, "Select after shortcuts re-enabled");
 
   if (errors.length) throw new Error(`Browser diagnostics were not clean: ${errors.join("\n")}`);
-  console.log("Global Shortcuts setting contract passed: host/Mesurer keyboard ownership, Shadow DOM focus, persisted on/off gate, toolbar independence, plugin gate, and Escape lifecycle behavior.");
+  console.log("Global Shortcuts setting contract passed: host/Mesurer keyboard ownership, Shadow DOM focus, persisted on/off gate, shortcut-hint visibility, toolbar independence, plugin gate, and Escape lifecycle behavior.");
 } finally {
   await browser.close();
 }
