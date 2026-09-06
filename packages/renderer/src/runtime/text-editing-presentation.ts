@@ -4,6 +4,8 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 const TOOLBAR_BLUE = "#0d99ff";
 const TOOLBAR_MUTED = "#8a8a8a";
 const PRESET_MENU_WIDTH = 288;
+const EDITOR_TINT_AMOUNT = 0.08;
+const EDITOR_TINT_RGB = [13, 153, 255] as const;
 
 type TypographyButtonSnapshot = {
   ariaPressed: string | null;
@@ -19,8 +21,23 @@ type InspectorSurfaceSnapshot = {
 };
 
 type EditorVisualState = {
-  baseBackground: string;
-  appliedBackground: string;
+  baseBackgroundColor: string;
+  appliedBackgroundColor: string;
+};
+
+const parseRgb = (value: string) => {
+  const match = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(value);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])] as const;
+};
+
+const tintedEditorBackground = (base: string) => {
+  const rgb = parseRgb(base);
+  if (!rgb) return base;
+  const mixed = rgb.map((channel, index) => Math.round(
+    channel * (1 - EDITOR_TINT_AMOUNT) + EDITOR_TINT_RGB[index] * EDITOR_TINT_AMOUNT,
+  ));
+  return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
 };
 
 /**
@@ -117,21 +134,23 @@ export function installTextEditingPresentation(
   };
 
   const refineEditorVisual = (editor: HTMLTextAreaElement) => {
-    const currentBackground = editor.style.background || editor.style.backgroundColor || "Canvas";
+    const currentBackgroundColor = ownerWindow.getComputedStyle(editor).backgroundColor;
     let state = editorVisualStates.get(editor);
     if (!state) {
-      state = { baseBackground: currentBackground, appliedBackground: "" };
+      state = {
+        baseBackgroundColor: currentBackgroundColor,
+        appliedBackgroundColor: "",
+      };
       editorVisualStates.set(editor, state);
-    } else if (currentBackground !== state.appliedBackground) {
-      state.baseBackground = currentBackground;
+    } else if (currentBackgroundColor !== state.appliedBackgroundColor) {
+      state.baseBackgroundColor = currentBackgroundColor;
     }
 
-    const tint = `color-mix(in oklch, ${TOOLBAR_BLUE} 8%, transparent)`;
-    const background = `linear-gradient(${tint}, ${tint}), ${state.baseBackground}`;
-    state.appliedBackground = background;
+    const backgroundColor = tintedEditorBackground(state.baseBackgroundColor);
+    state.appliedBackgroundColor = backgroundColor;
 
     editor.rows = 1;
-    editor.style.background = background;
+    editor.style.backgroundColor = backgroundColor;
     editor.style.boxShadow = `0 0 0 1.5px ${TOOLBAR_BLUE}`;
     editor.style.height = "auto";
     const minHeight = Number.parseFloat(editor.style.minHeight) || 0;
