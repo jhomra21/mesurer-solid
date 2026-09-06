@@ -92,6 +92,8 @@ Mesurer previews text, styles, and Arrange transforms only while it still owns t
 
 ## Shortcuts
 
+Global shortcuts are enabled by default. Turn them off from **Settings → General → Shortcuts** or pass `shortcutsEnabled: false` to `mountMesurer()`. Toolbar controls, editor-local keys, and Escape/cancel behavior remain available.
+
 | Shortcut | Action |
 | --- | --- |
 | `M` | Toggle Mesurer |

@@ -51,6 +51,24 @@ def normalize_historical_toolbar_state(state):
     return state
 
 
+def normalize_current_shortcuts_state(react_state, solid_state):
+    """Normalize only the exact current-upstream Shortcuts switch missing from v0.0.11."""
+    react_switches = react_state.get("switches")
+    solid_switches = solid_state.get("switches")
+    if not isinstance(react_switches, list) or not isinstance(solid_switches, list):
+        return False
+    if any(item.get("text") == "Shortcuts" for item in react_switches):
+        return False
+    shortcuts = [item for item in solid_switches if item.get("text") == "Shortcuts"]
+    if shortcuts != [{"text": "Shortcuts", "checked": "true"}]:
+        return False
+    without_shortcuts = [item for item in solid_switches if item.get("text") != "Shortcuts"]
+    if without_shortcuts != react_switches:
+        return False
+    solid_state["switches"] = without_shortcuts
+    return True
+
+
 def is_historical_toolbar_pixel(name: str, x: int, y: int) -> bool:
     if 0 <= x < 340 and 0 <= y < 64:
         return True
@@ -59,11 +77,42 @@ def is_historical_toolbar_pixel(name: str, x: int, y: int) -> bool:
     return False
 
 
+def current_shortcuts_pixel(name: str, x: int, y: int, enabled: bool, height: int):
+    if not enabled:
+        return y, False
+    # The shared parity fixture's General panel is x=16..288. Current upstream
+    # inserts one 24px Shortcuts row plus the existing 4px row gap after Persist,
+    # shifting the historical remainder by exactly 28px. Include only the known
+    # 16px horizontal / 12px vertical shadow fringe already measured by this
+    # fixture. The feature-specific Chromium contract owns the inserted row.
+    if not (
+        name in {
+            "toolbar-settings-open",
+            "settings-tab-general",
+            "settings-general-persist-toggle",
+            "settings-general-use-defaults",
+            "settings-general-clear-workspace",
+        }
+        and 0 <= x < 304
+        and y >= 129
+    ):
+        return y, False
+    shift = 28
+    historical_shadow_bottom = 244
+    current_shadow_bottom = 272
+    if y < historical_shadow_bottom and y + shift < height:
+        return y + shift, False
+    if y < current_shadow_bottom:
+        return y, True
+    return y, False
+
+
 report = {"threshold_per_channel": threshold, "cases": {}}
 failures = []
 for name, meta in cases.items():
     react_state = normalize_historical_toolbar_state(json.loads((out / f"react-{name}.json").read_text()))
     solid_state = normalize_historical_toolbar_state(json.loads((out / f"solid-{name}.json").read_text()))
+    normalized_shortcuts = normalize_current_shortcuts_state(react_state, solid_state)
     state_diffs = deep_diff(react_state, solid_state)
 
     react = Image.open(out / f"react-{name}.png").convert("RGBA")
@@ -76,9 +125,18 @@ for name, meta in cases.items():
     rp, sp = react.load(), solid.load()
     exact = thresholded = max_delta = 0
     ignored_toolbar_exact = ignored_toolbar_thresholded = 0
+    ignored_shortcuts_exact = ignored_shortcuts_thresholded = 0
     for y in range(height):
         for x in range(width):
-            delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
+            solid_y, ignore_shortcuts = current_shortcuts_pixel(name, x, y, normalized_shortcuts, height)
+            raw_delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
+            if ignore_shortcuts:
+                if raw_delta:
+                    ignored_shortcuts_exact += 1
+                    if raw_delta > threshold:
+                        ignored_shortcuts_thresholded += 1
+                continue
+            delta = max(abs(rp[x, y][i] - sp[x, solid_y][i]) for i in range(4))
             if not delta:
                 continue
             if is_historical_toolbar_pixel(name, x, y):
@@ -124,6 +182,9 @@ for name, meta in cases.items():
         "threshold_diff_ratio": thresholded / (width * height),
         "ignored_historical_toolbar_exact_pixels": ignored_toolbar_exact,
         "ignored_historical_toolbar_threshold_pixels": ignored_toolbar_thresholded,
+        "ignored_current_shortcuts_exact_pixels": ignored_shortcuts_exact,
+        "ignored_current_shortcuts_threshold_pixels": ignored_shortcuts_thresholded,
+        "normalized_current_shortcuts_setting": normalized_shortcuts,
         "max_channel_delta": max_delta,
         "state_difference_count": len(state_diffs),
         "state_differences": state_diffs[:100],

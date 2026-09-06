@@ -96,6 +96,7 @@ export type MesurerStoredSettings = {
   selectNewGuideEnabled?: boolean;
   multiMeasureEnabled?: boolean;
   persistOnReload?: boolean;
+  shortcutsEnabled?: boolean;
   guideStyle?: Partial<GuideStyle>;
   selectionSpacingStyle?: Partial<SelectionSpacingStyle>;
   rulerSettings?: Partial<RulerSettings>;
@@ -129,6 +130,7 @@ export type MesurerOptions = {
   guideColor?: string;
   hoverHighlightEnabled?: boolean;
   persistOnReload?: boolean;
+  shortcutsEnabled?: boolean;
   persistKey?: string;
   persistence?: MesurerPersistence;
   onPersistenceError?: (cause: unknown) => void;

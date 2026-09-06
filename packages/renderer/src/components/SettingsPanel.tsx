@@ -381,6 +381,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
       <Show when={props.model.state.settingsTab === "general"}>
         <section class="msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1" aria-label="General settings">
           <SettingsSwitch label="Persist" checked={settings().persistOnReload} onChange={(persistOnReload) => props.model.updateSettings({ persistOnReload })} />
+          <SettingsSwitch label="Shortcuts" checked={settings().shortcutsEnabled} onChange={(shortcutsEnabled) => props.model.updateSettings({ shortcutsEnabled })} />
           <Show when={pluginEntries().length > 0}>
             <div
               class="msr:col-span-2 msr:mt-1 msr:overflow-hidden msr:rounded-[6px] msr:bg-ink-50/40"

@@ -22,6 +22,7 @@ For each meaningful upstream change, decide whether Mesurer Solid should **adopt
 | Native Color Picker | Adopt where `EyeDropper` is operational; hide in unsupported hosts |
 | Text Inspector | Adopt inspection behavior; visible label is **Typography**, internal id stays `text-inspector` |
 | Screenshot region selection | Adopt as optional `screenshotPlugin()` and extend with preview/viewer and extension capture |
+| Global Shortcuts setting | Adopt the persisted master on/off switch; no per-command remapping UI is added |
 | Compact toolbar | Adopt presentation: one stable toolbar, full-height separators, active-tool retention, 150ms motion, reduced-motion support |
 | Inspect/Annotate group switching | Intentionally not adopted |
 | Arrange as a toolbar mode | Intentionally not adopted; Arrange remains an optional plugin tool |
@@ -37,6 +38,14 @@ Current upstream introduced compact/minimize motion, full-height separators, tig
 The shipping toolbar keeps one stable tool order. Compact presentation hides inactive controls, preserves every active control and its state, and expands back to the same toolbar. Motion uses a 150ms interruptible transition and respects reduced motion. Arrange remains a normal plugin contribution.
 
 The historical `605d202` parity suite still owns shared page/result and Settings behavior, but it predates the current toolbar shell. Toolbar chrome is excluded only from that historical geometry comparison and is covered by a dedicated current Chromium toolbar contract instead.
+
+## Keyboard boundary
+
+Current upstream exposes `shortcutsEnabled`, defaults it to `true`, persists it with General settings, and presents a **Shortcuts** switch beside Persist. The switch gates global Mesurer shortcuts without disabling toolbar controls or Escape/cancel behavior.
+
+Mesurer Solid adopts that product contract across both built-in and plugin-contributed shortcuts. Keyboard ownership is resolved before the shortcut gate: deep active-element lookup follows open Shadow DOM focus, host-page inputs/selects/textareas/contenteditable retain normal typing, Mesurer-owned editable controls retain their local keyboard behavior, and Escape is left to lifecycle/cancel handling instead of being swallowed by the configurable shortcut gate.
+
+Upstream does not currently provide per-command key rebinding, shortcut profiles, or a conflict editor, so Mesurer Solid does not invent those features.
 
 ## Mesurer Solid extensions
 

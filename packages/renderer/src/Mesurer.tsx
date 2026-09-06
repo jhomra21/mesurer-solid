@@ -60,6 +60,7 @@ export type MesurerProps = {
   guideColor?: string;
   hoverHighlightEnabled?: boolean;
   persistOnReload?: boolean;
+  shortcutsEnabled?: boolean;
   portalTarget?: HTMLElement | ShadowRoot;
   /** Host-page scope for page-facing visual effects such as X-ray. Defaults to document.body. */
   pageTarget?: HTMLElement | ShadowRoot;
@@ -515,6 +516,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     () => [
       model.state.settings.highlightColor, model.state.settings.guideColor,
       model.state.settings.hoverHighlightEnabled, model.state.settings.persistOnReload,
+      model.state.settings.shortcutsEnabled,
       model.state.settings.colorPickerClickFormat, model.state.settings.snapEnabled,
       model.state.settings.snapGuidesEnabled, model.state.settings.selectNewGuideEnabled,
       model.state.settings.multiMeasureEnabled, model.state.settings.colorPickerFormats.join("|"),
@@ -582,6 +584,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         model.clearAll();
         return;
       }
+      if (!model.current.settings.shortcutsEnabled) return;
       if (event.key === "Alt") { model.setTransient({ altPressed: true }); return; }
       if (mod && key === ",") { event.preventDefault(); runBuiltinAction("settings"); return; }
       if (mod && key === "z") {
@@ -742,6 +745,7 @@ export default function Mesurer(props: MesurerProps) {
     guideColor: props.guideColor ?? "oklch(0.63 0.26 29.23)",
     hoverHighlightEnabled: props.hoverHighlightEnabled ?? true,
     persistOnReload: props.persistOnReload ?? false,
+    shortcutsEnabled: props.shortcutsEnabled ?? true,
     colorPickerFormats: props.colorPickerFormats ?? ["hex", "rgb", "oklch"],
     colorPickerClickFormat: props.colorPickerClickFormat ?? "hex",
     snapEnabled: props.snapEnabled ?? true,
