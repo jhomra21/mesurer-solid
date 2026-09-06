@@ -43,8 +43,8 @@ describe("Shortcuts setting", () => {
     );
     mounted.push(dispose);
 
-    const arrangeButton = () => document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]');
-    const screenshotButton = () => document.querySelector<HTMLButtonElement>('button[aria-label="Screenshot (Shift+S)"]');
+    const arrangeButton = () => document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="arrange"]');
+    const screenshotButton = () => document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="screenshot"]');
     await vi.waitFor(() => {
       expect(arrangeButton()).toBeTruthy();
       expect(screenshotButton()).toBeTruthy();
