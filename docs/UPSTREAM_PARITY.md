@@ -43,7 +43,9 @@ The historical `605d202` parity suite still owns shared page/result and Settings
 
 Current upstream exposes `shortcutsEnabled`, defaults it to `true`, persists it with General settings, and presents a **Shortcuts** switch beside Persist. The switch gates global Mesurer shortcuts without disabling toolbar controls or Escape/cancel behavior.
 
-Mesurer Solid adopts that product contract across both built-in and plugin-contributed shortcuts. Editor-local keyboard handling remains separate. Upstream does not currently provide per-command key rebinding, shortcut profiles, or a conflict editor, so Mesurer Solid does not invent those features.
+Mesurer Solid adopts that product contract across both built-in and plugin-contributed shortcuts. Keyboard ownership is resolved before the shortcut gate: deep active-element lookup follows open Shadow DOM focus, host-page inputs/selects/textareas/contenteditable retain normal typing, Mesurer-owned editable controls retain their local keyboard behavior, and Escape is left to lifecycle/cancel handling instead of being swallowed by the configurable shortcut gate.
+
+Upstream does not currently provide per-command key rebinding, shortcut profiles, or a conflict editor, so Mesurer Solid does not invent those features.
 
 ## Mesurer Solid extensions
 
