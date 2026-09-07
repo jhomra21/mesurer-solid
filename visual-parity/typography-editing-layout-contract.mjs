@@ -49,6 +49,31 @@ const assertInspectorDoesNotBlock = async (hostBox, stage) => {
   assert.notEqual(visibility, "hidden", `${stage}: unified inspector should stay visible`);
   assertNoOverlap(await box(inspector()), hostBox, stage);
 };
+const assertInspectorStableAfterPointerMoves = async (stage) => {
+  await page.waitForTimeout(60);
+  const initial = await box(inspector());
+  const initialPlacement = await inspector().getAttribute("data-mesurer-text-inspector-placement");
+  const viewport = page.viewportSize();
+  assert(viewport, `${stage}: expected fixed viewport`);
+  const points = [
+    [12, 12],
+    [Math.max(12, viewport.width - 12), 12],
+    [Math.max(12, viewport.width - 12), Math.max(12, viewport.height - 12)],
+    [12, Math.max(12, viewport.height - 12)],
+  ];
+  for (const [x, y] of points) {
+    await page.mouse.move(x, y);
+    await page.waitForTimeout(40);
+    const current = await box(inspector());
+    assert(Math.abs(current.x - initial.x) <= 1.5, `${stage}: pointer movement changed inspector x from ${initial.x} to ${current.x}`);
+    assert(Math.abs(current.y - initial.y) <= 1.5, `${stage}: pointer movement changed inspector y from ${initial.y} to ${current.y}`);
+    assert.equal(
+      await inspector().getAttribute("data-mesurer-text-inspector-placement"),
+      initialPlacement,
+      `${stage}: pointer movement changed inspector placement lane`,
+    );
+  }
+};
 const assertUnifiedInspector = async (stage) => {
   assert.equal(await inspector().getAttribute("data-mesurer-text-inspector-unified"), "true", `${stage}: expected unified typography editor`);
   const sourceToolbar = page.locator("[data-mesurer-text-style-toolbar='true']");
@@ -67,6 +92,18 @@ const assertUnifiedInspector = async (stage) => {
   ]) {
     assert.equal(await inspector().locator(selector).count(), 1, `${stage}: missing unified control ${selector}`);
   }
+  const family = inspector().locator("[data-mesurer-text-style-select='font']");
+  assert.equal(await family.evaluate((element) => getComputedStyle(element).appearance), "none", `${stage}: Family should use Mesurer select chrome rather than native browser chrome`);
+  assert.equal(
+    await family.locator("..").getAttribute("data-mesurer-unified-select-shell"),
+    "true",
+    `${stage}: Family should be wrapped by the Mesurer select shell`,
+  );
+  assert.equal(
+    await family.locator("..").locator("[data-mesurer-unified-select-chevron='true']").count(),
+    1,
+    `${stage}: custom select shell should render one Mesurer chevron`,
+  );
 };
 const assertInitialSelection = async (stage) => {
   assert(await selection().count() > 0, `${stage}: expected selected-text highlight on entry`);
@@ -116,6 +153,7 @@ try {
   assertSameBox(await box(ring()), slimBox, "slim");
   await assertInitialSelection("slim");
   await assertUnifiedInspector("slim");
+  await assertInspectorStableAfterPointerMoves("slim");
   const initialLineHeight = await slim.evaluate((element) => getComputedStyle(element).lineHeight);
   const initialTracking = await slim.evaluate((element) => getComputedStyle(element).letterSpacing);
   const lineInput = inspector().locator("[data-mesurer-text-style-input='line']");
@@ -246,13 +284,14 @@ try {
   await assertUnifiedInspector("edge");
   const edgeInspectorBox = await box(inspector());
   assert(edgeInspectorBox.y >= 0 && edgeInspectorBox.y + edgeInspectorBox.height <= 220, "edge: unified inspector should stay inside viewport");
+  await assertInspectorStableAfterPointerMoves("edge");
   await replaceSelection("Updated edge copy");
   await assertSelectionCleared("edge");
   await assertCaretVisible("edge");
   await closeEditor();
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Host-anchored editing + unified interactive Typography inspector + visible caret + mixed-inline text runs: PASS");
+  console.log("Host-anchored editing + Mesurer-styled stable Typography inspector + visible caret + mixed-inline text runs: PASS");
 } finally {
   await browser.close();
 }
