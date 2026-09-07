@@ -1,9 +1,11 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 
+const INK_50 = "#f8fafc";
 const INK_100 = "#f1f5f9";
 const INK_200 = "#e2e8f0";
 const INK_500 = "#64748b";
+const INK_700 = "#334155";
 const INK_900 = "#0f172a";
 const ACCENT = "#0d99ff";
 const VIEWPORT_PADDING = 8;
@@ -115,15 +117,18 @@ export function installUnifiedTextInspector(
     if (full) {
       card.style.left = `${full.left}px`;
       card.style.top = `${full.top}px`;
+      card.dataset.mesurerTextInspectorPlacement = full.top < host.top ? "above" : full.top > host.bottom ? "below" : "side";
       return;
     }
 
     const lanes = [
       {
+        name: "above",
         top: VIEWPORT_PADDING,
         height: Math.max(0, host.top - SURFACE_GAP - VIEWPORT_PADDING),
       },
       {
+        name: "below",
         top: host.bottom + SURFACE_GAP,
         height: Math.max(0, viewportBottom - host.bottom - SURFACE_GAP),
       },
@@ -133,11 +138,13 @@ export function installUnifiedTextInspector(
       card.style.maxHeight = `${lane.height}px`;
       card.style.left = `${centeredLeft}px`;
       card.style.top = `${lane.top}px`;
+      card.dataset.mesurerTextInspectorPlacement = lane.name;
       return;
     }
 
     card.style.left = `${centeredLeft}px`;
     card.style.top = `${VIEWPORT_PADDING}px`;
+    card.dataset.mesurerTextInspectorPlacement = "viewport";
   };
 
   const schedulePosition = () => {
@@ -148,19 +155,96 @@ export function installUnifiedTextInspector(
     });
   };
 
-  const styleSelect = (select: HTMLSelectElement) => {
-    Object.assign(select.style, {
+  const styleInteractiveShell = (element: HTMLElement) => {
+    Object.assign(element.style, {
+      boxSizing: "border-box",
+      border: "1px solid transparent",
+      borderRadius: "5px",
+      background: INK_50,
+      color: INK_700,
+      outline: "none",
+      transition: "border-color 120ms ease, box-shadow 120ms ease, background 120ms ease",
+    });
+    element.addEventListener("mouseenter", () => {
+      element.style.borderColor = INK_200;
+    });
+    element.addEventListener("mouseleave", () => {
+      if (ownerDocument.activeElement !== element) element.style.borderColor = "transparent";
+    });
+    element.addEventListener("focus", () => {
+      element.style.borderColor = "transparent";
+      element.style.boxShadow = `inset 0 0 0 1px ${ACCENT}`;
+    });
+    element.addEventListener("blur", () => {
+      element.style.boxShadow = "none";
+      element.style.borderColor = "transparent";
+    });
+  };
+
+  const makeSelectShell = (select: HTMLSelectElement) => {
+    const shell = ownerDocument.createElement("div");
+    shell.dataset.mesurerUnifiedSelectShell = "true";
+    Object.assign(shell.style, {
+      position: "relative",
       width: "100%",
       minWidth: "0",
       height: "28px",
-      border: `1px solid ${INK_200}`,
-      borderRadius: "7px",
-      background: "#ffffff",
-      color: INK_900,
-      font: "500 11px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-      padding: "0 7px",
-      outline: "none",
+      border: "1px solid transparent",
+      borderRadius: "5px",
+      background: INK_50,
+      transition: "border-color 120ms ease, box-shadow 120ms ease, background 120ms ease",
     });
+
+    Object.assign(select.style, {
+      appearance: "none",
+      WebkitAppearance: "none",
+      width: "100%",
+      minWidth: "0",
+      height: "100%",
+      boxSizing: "border-box",
+      border: "0",
+      borderRadius: "5px",
+      background: "transparent",
+      color: INK_700,
+      font: "500 11px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+      padding: "0 27px 0 8px",
+      outline: "none",
+      cursor: "pointer",
+    });
+
+    const chevron = ownerDocument.createElement("span");
+    chevron.dataset.mesurerUnifiedSelectChevron = "true";
+    chevron.setAttribute("aria-hidden", "true");
+    Object.assign(chevron.style, {
+      position: "absolute",
+      right: "9px",
+      top: "8px",
+      width: "7px",
+      height: "7px",
+      borderRight: `1.5px solid ${INK_500}`,
+      borderBottom: `1.5px solid ${INK_500}`,
+      transform: "rotate(45deg)",
+      transformOrigin: "center",
+      pointerEvents: "none",
+    });
+
+    shell.addEventListener("mouseenter", () => {
+      shell.style.borderColor = INK_200;
+    });
+    shell.addEventListener("mouseleave", () => {
+      if (ownerDocument.activeElement !== select) shell.style.borderColor = "transparent";
+    });
+    select.addEventListener("focus", () => {
+      shell.style.borderColor = "transparent";
+      shell.style.boxShadow = `inset 0 0 0 1px ${ACCENT}`;
+    });
+    select.addEventListener("blur", () => {
+      shell.style.boxShadow = "none";
+      shell.style.borderColor = "transparent";
+    });
+
+    shell.append(select, chevron);
+    return shell;
   };
 
   const styleInput = (input: HTMLInputElement) => {
@@ -168,15 +252,10 @@ export function installUnifiedTextInspector(
       width: "100%",
       minWidth: "0",
       height: "28px",
-      boxSizing: "border-box",
-      border: `1px solid ${INK_200}`,
-      borderRadius: "7px",
-      background: "#ffffff",
-      color: INK_900,
       font: "500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace",
-      padding: "0 7px",
-      outline: "none",
+      padding: "0 8px",
     });
+    styleInteractiveShell(input);
   };
 
   const styleFormatButton = (button: HTMLButtonElement) => {
@@ -184,13 +263,20 @@ export function installUnifiedTextInspector(
     Object.assign(button.style, {
       width: "28px",
       height: "28px",
-      border: `1px solid ${active ? ACCENT : INK_200}`,
-      borderRadius: "7px",
-      background: active ? "rgba(13, 153, 255, 0.10)" : "#ffffff",
+      border: `1px solid ${active ? ACCENT : "transparent"}`,
+      borderRadius: "5px",
+      background: active ? "rgba(13, 153, 255, 0.10)" : INK_50,
       color: INK_900,
       padding: "0",
       fontSize: "12px",
       cursor: "pointer",
+      transition: "border-color 120ms ease, background 120ms ease",
+    });
+    button.addEventListener("mouseenter", () => {
+      if (!active) button.style.borderColor = INK_200;
+    });
+    button.addEventListener("mouseleave", () => {
+      button.style.borderColor = active ? ACCENT : "transparent";
     });
   };
 
@@ -219,11 +305,13 @@ export function installUnifiedTextInspector(
         display: "block",
         width: "28px",
         height: "28px",
-        border: `1px solid ${INK_200}`,
-        borderRadius: "7px",
-        background: "#ffffff",
+        border: "1px solid transparent",
+        borderRadius: "5px",
+        background: INK_50,
         padding: "3px",
       });
+      custom.addEventListener("mouseenter", () => { custom.style.borderColor = INK_200; });
+      custom.addEventListener("mouseleave", () => { custom.style.borderColor = "transparent"; });
     }
   };
 
@@ -232,13 +320,18 @@ export function installUnifiedTextInspector(
       width: "100%",
       minWidth: "0",
       height: "28px",
-      border: `1px solid ${INK_200}`,
-      borderRadius: "7px",
-      background: "#ffffff",
-      color: INK_900,
+      border: "1px solid transparent",
+      borderRadius: "5px",
+      background: INK_50,
+      color: INK_700,
       padding: "0 8px",
       font: "500 11px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+      transition: "border-color 120ms ease, box-shadow 120ms ease, background 120ms ease",
     });
+    button.addEventListener("mouseenter", () => { button.style.borderColor = INK_200; });
+    button.addEventListener("mouseleave", () => { button.style.borderColor = "transparent"; });
+    button.addEventListener("focus", () => { button.style.boxShadow = `inset 0 0 0 1px ${ACCENT}`; });
+    button.addEventListener("blur", () => { button.style.boxShadow = "none"; });
   };
 
   const makeValue = (control: HTMLElement, variable: string | null) => {
@@ -399,11 +492,13 @@ export function installUnifiedTextInspector(
       const weight = toolbar.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='weight']");
       const line = toolbar.querySelector<HTMLInputElement>("[data-mesurer-text-style-input='line']");
       const tracking = toolbar.querySelector<HTMLInputElement>("[data-mesurer-text-style-input='tracking']");
-      for (const select of [font, size, weight]) if (select) styleSelect(select);
+      const fontShell = font ? makeSelectShell(font) : null;
+      const sizeShell = size ? makeSelectShell(size) : null;
+      const weightShell = weight ? makeSelectShell(weight) : null;
       for (const input of [line, tracking]) if (input) styleInput(input);
-      installRowControl(rows, "Family", font);
-      installRowControl(rows, "Size", size);
-      installRowControl(rows, "Weight", weight);
+      installRowControl(rows, "Family", fontShell);
+      installRowControl(rows, "Size", sizeShell);
+      installRowControl(rows, "Weight", weightShell);
       installRowControl(rows, "Line", line);
       installRowControl(rows, "Tracking", tracking);
 
@@ -462,6 +557,7 @@ export function installUnifiedTextInspector(
   runtimeMount.addEventListener("keydown", onInspectorKeyDown, true);
   ownerWindow.addEventListener("resize", schedulePosition);
   ownerWindow.addEventListener("scroll", schedulePosition, true);
+  ownerWindow.addEventListener("pointermove", schedulePosition, true);
 
   const observer = new realm.MutationObserver(refine);
   observer.observe(runtimeMount, { childList: true, subtree: true });
@@ -476,5 +572,6 @@ export function installUnifiedTextInspector(
     runtimeMount.removeEventListener("keydown", onInspectorKeyDown, true);
     ownerWindow.removeEventListener("resize", schedulePosition);
     ownerWindow.removeEventListener("scroll", schedulePosition, true);
+    ownerWindow.removeEventListener("pointermove", schedulePosition, true);
   });
 }
