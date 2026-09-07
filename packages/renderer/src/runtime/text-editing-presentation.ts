@@ -4,8 +4,6 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 const TOOLBAR_BLUE = "#0d99ff";
 const TOOLBAR_MUTED = "#8a8a8a";
 const PRESET_MENU_WIDTH = 288;
-const EDITOR_TINT_AMOUNT = 0.08;
-const EDITOR_TINT_RGB = [13, 153, 255] as const;
 
 type TypographyButtonSnapshot = {
   ariaPressed: string | null;
@@ -20,31 +18,11 @@ type InspectorSurfaceSnapshot = {
   ariaHidden: string | null;
 };
 
-type EditorVisualState = {
-  baseBackgroundColor: string;
-  appliedBackgroundColor: string;
-};
-
-const parseRgb = (value: string) => {
-  const match = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(value);
-  if (!match) return null;
-  return [Number(match[1]), Number(match[2]), Number(match[3])] as const;
-};
-
-const tintedEditorBackground = (base: string) => {
-  const rgb = parseRgb(base);
-  if (!rgb) return base;
-  const mixed = rgb.map((channel, index) => Math.round(
-    channel * (1 - EDITOR_TINT_AMOUNT) + EDITOR_TINT_RGB[index] * EDITOR_TINT_AMOUNT,
-  ));
-  return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
-};
-
 /**
  * Keeps the field-local direct editor aligned with Mesurer's established
  * toolbar language without coupling Typography's hover/pin runtime to the
  * editing lifecycle. The text-edit core owns targeting, geometry, intent,
- * and history; this adapter owns only transient visual presentation.
+ * and history; this adapter owns only transient typography controls.
  */
 export function installTextEditingPresentation(
   ctx: MesurerPluginContext,
@@ -60,9 +38,7 @@ export function installTextEditingPresentation(
   const root = runtimeMount.closest<HTMLElement>("[data-mesurer-root='true']");
   let typographyButtonSnapshot: TypographyButtonSnapshot | null = null;
   const suppressedInspectorSurfaces = new Map<HTMLElement, InspectorSurfaceSnapshot>();
-  const editorVisualStates = new WeakMap<HTMLTextAreaElement, EditorVisualState>();
   let typographyContextActive = false;
-  let editorVisualFrame = 0;
   let disposed = false;
   let refining = false;
 
@@ -130,43 +106,6 @@ export function installTextEditingPresentation(
     button.style.backgroundColor = typographyButtonSnapshot.background;
     button.style.color = typographyButtonSnapshot.color;
     typographyButtonSnapshot = null;
-  };
-
-  const refineEditorVisual = (editor: HTMLTextAreaElement) => {
-    const currentBackgroundColor = ownerWindow.getComputedStyle(editor).backgroundColor;
-    let state = editorVisualStates.get(editor);
-    if (!state) {
-      state = {
-        baseBackgroundColor: currentBackgroundColor,
-        appliedBackgroundColor: "",
-      };
-      editorVisualStates.set(editor, state);
-    } else if (currentBackgroundColor !== state.appliedBackgroundColor) {
-      state.baseBackgroundColor = currentBackgroundColor;
-    }
-
-    const backgroundColor = tintedEditorBackground(state.baseBackgroundColor);
-    state.appliedBackgroundColor = backgroundColor;
-
-    editor.rows = 1;
-    editor.style.backgroundColor = backgroundColor;
-    editor.style.boxShadow = `0 0 0 1.5px ${TOOLBAR_BLUE}`;
-
-    if (editor.dataset.mesurerTextEditorVisualBound !== "true") {
-      editor.dataset.mesurerTextEditorVisualBound = "true";
-      editor.addEventListener("input", () => {
-        if (!disposed && editor.isConnected) refineEditorVisual(editor);
-      });
-    }
-  };
-
-  const scheduleEditorVisualRefine = () => {
-    if (disposed || editorVisualFrame) return;
-    editorVisualFrame = ownerWindow.requestAnimationFrame(() => {
-      editorVisualFrame = 0;
-      const editor = runtimeMount.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
-      if (editor) refineEditorVisual(editor);
-    });
   };
 
   const styleDirectSelect = (select: HTMLSelectElement) => {
@@ -291,7 +230,6 @@ export function installTextEditingPresentation(
         return;
       }
 
-      refineEditorVisual(editor);
       setTypographyContext(true);
       suppressTypographyInspectorSurfaces();
       if (inspectorCard) inspectorCard.setAttribute("aria-label", "Typography details");
@@ -352,16 +290,11 @@ export function installTextEditingPresentation(
 
   const observer = new realm.MutationObserver(() => refine());
   observer.observe(runtimeMount, { childList: true, subtree: true });
-  ownerWindow.addEventListener("resize", scheduleEditorVisualRefine);
-  ownerWindow.addEventListener("scroll", scheduleEditorVisualRefine, true);
   refine();
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
-    ownerWindow.removeEventListener("resize", scheduleEditorVisualRefine);
-    ownerWindow.removeEventListener("scroll", scheduleEditorVisualRefine, true);
-    if (editorVisualFrame) ownerWindow.cancelAnimationFrame(editorVisualFrame);
     restoreTypographyInspectorSurfaces();
     setTypographyContext(false);
   });
