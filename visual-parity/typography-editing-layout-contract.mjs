@@ -69,8 +69,8 @@ try {
   });
   assert.equal(directEditorVisual.rows, 1, "A one-line direct editor must not reserve textarea's default second row");
   assert(
-    directEditorVisual.height <= Math.max(34, targetBox.height + 4),
-    `A one-line direct editor should stay close to selected-target height; target=${targetBox.height}px editor=${directEditorVisual.height}px`,
+    Math.abs(directEditorVisual.height - targetBox.height) <= 1.5,
+    `Direct editing should preserve the selected target height; target=${targetBox.height}px editor=${directEditorVisual.height}px`,
   );
   assert.equal(
     directEditorVisual.backgroundColor,
@@ -183,6 +183,25 @@ try {
       && typography?.getAttribute("aria-pressed") === "false";
   });
 
+  // A slim text label should not turn into a taller textarea on direct edit.
+  const slimTarget = page.locator(".feature-copy .kicker");
+  const slimTargetBox = await slimTarget.boundingBox();
+  assert(slimTargetBox, "Slim direct-edit target must have rendered geometry");
+  const slimX = slimTargetBox.x + slimTargetBox.width / 2;
+  const slimY = slimTargetBox.y + slimTargetBox.height / 2;
+  await page.mouse.dblclick(slimX, slimY);
+  const slimEditor = page.locator("[data-mesurer-text-editor='true']");
+  await slimEditor.waitFor({ state: "visible" });
+  const slimEditorBox = await slimEditor.boundingBox();
+  assert(slimEditorBox, "Slim direct editor must have rendered geometry");
+  assert(
+    Math.abs(slimEditorBox.height - slimTargetBox.height) <= 1.5,
+    `Slim direct editing must preserve target height; target=${slimTargetBox.height}px editor=${slimEditorBox.height}px`,
+  );
+  await slimEditor.focus();
+  await page.keyboard.press("Escape");
+  await slimEditor.waitFor({ state: "detached" });
+
   // Regression: when Typography itself is selected, its hover/pinned inspector
   // must not remain visible underneath the direct-edit Typography details card.
   await arrangeButton.click();
@@ -234,7 +253,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Typography layout browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Typography layout browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Direct typography controls + single-row selection-preserving editor + semantic-only presets + contextual/explicit Typography without duplicate cards: PASS");
+  console.log("Direct typography controls + exact-height editor geometry + semantic-only presets + contextual/explicit Typography without duplicate cards: PASS");
 } finally {
   await browser.close();
 }
