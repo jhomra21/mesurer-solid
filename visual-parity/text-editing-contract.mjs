@@ -175,7 +175,7 @@ try {
   });
   assert.equal(buttonChrome.width, "28px", "In-card formatting controls should use the compact inspector size");
   assert.equal(buttonChrome.height, "28px", "In-card formatting controls should use the compact inspector size");
-  assert.equal(buttonChrome.borderRadius, "7px", "In-card formatting controls should use inspector rounding");
+  assert.equal(buttonChrome.borderRadius, "5px", "In-card formatting controls should use Mesurer control rounding");
   assert(["true", "false"].includes(buttonChrome.pressed), "Formatting buttons should expose pressed state");
 
   const families = await familySelect.locator("option").evaluateAll((options) => options.map((option) => option.value));
