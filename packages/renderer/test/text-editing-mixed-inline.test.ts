@@ -5,9 +5,14 @@ import { createMesurerModel } from "../src/model/create-mesurer-model";
 import { installTextEditing } from "../src/runtime/text-editing";
 import { createMesurerWorkspaceRuntime } from "../src/runtime/workspace-context";
 
+type CaretDocument = Document & {
+  caretRangeFromPoint?: (x: number, y: number) => Range | null;
+};
+
+const caretDocument: CaretDocument = document;
 const mountedHosts: Array<ReturnType<typeof createMesurerPluginHost>> = [];
 const originalElementsFromPoint = document.elementsFromPoint?.bind(document);
-const originalCaretRangeFromPoint = Reflect.get(document, "caretRangeFromPoint");
+const originalCaretRangeFromPoint = caretDocument.caretRangeFromPoint;
 
 afterEach(() => {
   while (mountedHosts.length) mountedHosts.pop()?.dispose();
