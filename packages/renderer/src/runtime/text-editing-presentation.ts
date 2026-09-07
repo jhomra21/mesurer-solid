@@ -4,6 +4,7 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 const TOOLBAR_BLUE = "#0d99ff";
 const TOOLBAR_MUTED = "#8a8a8a";
 const PRESET_MENU_WIDTH = 288;
+const CARET_WIDTH = 1.5;
 
 type TypographyButtonSnapshot = {
   ariaPressed: string | null;
@@ -18,17 +19,48 @@ type InspectorSurfaceSnapshot = {
   ariaHidden: string | null;
 };
 
+type OccludedInspectorSnapshot = {
+  element: HTMLElement;
+  visibility: string;
+  visibilityPriority: string;
+  pointerEvents: string;
+  pointerEventsPriority: string;
+  ariaHidden: string | null;
+};
+
+type ActiveTextTarget = {
+  element: HTMLElement;
+  node: Text;
+  leadingLength: number;
+};
+
+const overlapArea = (left: DOMRect, right: DOMRect) => {
+  const width = Math.max(0, Math.min(left.right, right.right) - Math.max(left.left, right.left));
+  const height = Math.max(0, Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top));
+  return width * height;
+};
+
+const sameRect = (left: DOMRect, right: DOMRect, tolerance = 2) => (
+  Math.abs(left.left - right.left) <= tolerance
+  && Math.abs(left.top - right.top) <= tolerance
+  && Math.abs(left.width - right.width) <= tolerance
+  && Math.abs(left.height - right.height) <= tolerance
+);
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
 /**
  * Keeps the field-local direct editor aligned with Mesurer's established
  * toolbar language without coupling Typography's hover/pin runtime to the
  * editing lifecycle. The text-edit core owns targeting, geometry, intent,
- * and history; this adapter owns only transient typography controls.
+ * and history; this adapter owns transient typography controls and interaction
+ * feedback that must track the rendered host rather than the transparent input.
  */
 export function installTextEditingPresentation(
   ctx: MesurerPluginContext,
   runtime: MesurerSolidRuntimeService,
 ) {
-  const { ownerDocument, ownerWindow, portalTarget } = runtime;
+  const { ownerDocument, ownerWindow, pageTarget, portalTarget } = runtime;
   // SAFETY: ownerWindow owns portalTarget and therefore supplies the matching DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
   const runtimeMounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
@@ -38,7 +70,12 @@ export function installTextEditingPresentation(
   const root = runtimeMount.closest<HTMLElement>("[data-mesurer-root='true']");
   let typographyButtonSnapshot: TypographyButtonSnapshot | null = null;
   const suppressedInspectorSurfaces = new Map<HTMLElement, InspectorSurfaceSnapshot>();
+  let occludedInspectorSnapshot: OccludedInspectorSnapshot | null = null;
   let typographyContextActive = false;
+  let boundEditor: HTMLTextAreaElement | null = null;
+  let activeTextTarget: ActiveTextTarget | null = null;
+  let caret: HTMLDivElement | null = null;
+  let feedbackFrame = 0;
   let disposed = false;
   let refining = false;
 
@@ -73,6 +110,49 @@ export function installTextEditingPresentation(
       else element.setAttribute("aria-hidden", snapshot.ariaHidden);
     }
     suppressedInspectorSurfaces.clear();
+  };
+
+  const restoreOccludedInspector = () => {
+    const snapshot = occludedInspectorSnapshot;
+    if (!snapshot) return;
+    const { element } = snapshot;
+    if (element.isConnected) {
+      if (snapshot.visibility || snapshot.visibilityPriority) {
+        element.style.setProperty("visibility", snapshot.visibility, snapshot.visibilityPriority);
+      } else {
+        element.style.removeProperty("visibility");
+      }
+      if (snapshot.pointerEvents || snapshot.pointerEventsPriority) {
+        element.style.setProperty("pointer-events", snapshot.pointerEvents, snapshot.pointerEventsPriority);
+      } else {
+        element.style.removeProperty("pointer-events");
+      }
+      if (snapshot.ariaHidden === null) element.removeAttribute("aria-hidden");
+      else element.setAttribute("aria-hidden", snapshot.ariaHidden);
+      delete element.dataset.mesurerTextInspectorAutoHidden;
+    }
+    occludedInspectorSnapshot = null;
+  };
+
+  const setInspectorOccluded = (element: HTMLElement, occluded: boolean) => {
+    if (!occluded) {
+      if (occludedInspectorSnapshot?.element === element) restoreOccludedInspector();
+      return;
+    }
+    if (occludedInspectorSnapshot?.element === element) return;
+    restoreOccludedInspector();
+    occludedInspectorSnapshot = {
+      element,
+      visibility: element.style.getPropertyValue("visibility"),
+      visibilityPriority: element.style.getPropertyPriority("visibility"),
+      pointerEvents: element.style.getPropertyValue("pointer-events"),
+      pointerEventsPriority: element.style.getPropertyPriority("pointer-events"),
+      ariaHidden: element.getAttribute("aria-hidden"),
+    };
+    element.dataset.mesurerTextInspectorAutoHidden = "true";
+    element.style.setProperty("visibility", "hidden", "important");
+    element.style.setProperty("pointer-events", "none", "important");
+    element.setAttribute("aria-hidden", "true");
   };
 
   const setTypographyContext = (active: boolean) => {
@@ -186,7 +266,6 @@ export function installTextEditingPresentation(
   const positionRefinedSurfaces = (
     toolbar: HTMLElement,
     menu: HTMLElement,
-    inspectorCard: HTMLElement | null,
   ) => {
     const toolbarRect = toolbar.getBoundingClientRect();
     const left = Math.min(
@@ -203,16 +282,216 @@ export function installTextEditingPresentation(
       );
       menu.style.left = `${menuLeft}px`;
     }
+  };
+
+  const removeCaret = () => {
+    caret?.remove();
+    caret = null;
+  };
+
+  const ensureCaret = () => {
+    if (caret?.isConnected) return caret;
+    caret = ownerDocument.createElement("div");
+    caret.dataset.mesurerTextCaret = "true";
+    caret.dataset.mesurerInspectorUi = "true";
+    caret.setAttribute("aria-hidden", "true");
+    Object.assign(caret.style, {
+      position: "fixed",
+      zIndex: "2147483647",
+      width: `${CARET_WIDTH}px`,
+      pointerEvents: "none",
+      transform: `translateX(-${CARET_WIDTH / 2}px)`,
+      transformOrigin: "center",
+    });
+    portalTarget.append(caret);
+    if (typeof caret.animate === "function") {
+      caret.animate([
+        { opacity: "1", offset: 0 },
+        { opacity: "1", offset: 0.49 },
+        { opacity: "0", offset: 0.5 },
+        { opacity: "0", offset: 1 },
+      ], {
+        duration: 1000,
+        iterations: Infinity,
+      });
+    }
+    return caret;
+  };
+
+  const textFrame = (node: Text, value: string) => {
+    const raw = node.nodeValue ?? "";
+    const index = raw.indexOf(value);
+    if (index >= 0 && !raw.slice(0, index).trim() && !raw.slice(index + value.length).trim()) {
+      return { leadingLength: index };
+    }
+    if (raw.trim() === value.trim()) {
+      return { leadingLength: raw.length - raw.trimStart().length };
+    }
+    return null;
+  };
+
+  const resolveActiveTextTarget = (
+    editor: HTMLTextAreaElement,
+    ring: HTMLElement,
+  ): ActiveTextTarget | null => {
+    if (activeTextTarget?.node.isConnected && activeTextTarget.node.parentNode === activeTextTarget.element) {
+      const frame = textFrame(activeTextTarget.node, editor.value);
+      if (frame) {
+        activeTextTarget.leadingLength = frame.leadingLength;
+        return activeTextTarget;
+      }
+    }
+
+    const ringRect = ring.getBoundingClientRect();
+    const points = [
+      [ringRect.left + ringRect.width / 2, ringRect.top + ringRect.height / 2],
+      [ringRect.left + 2, ringRect.top + 2],
+      [ringRect.right - 2, ringRect.bottom - 2],
+    ] as const;
+    const candidates: HTMLElement[] = [];
+    for (const [x, y] of points) {
+      for (const candidate of ownerDocument.elementsFromPoint(x, y)) {
+        if (!(candidate instanceof realm.HTMLElement) || candidates.includes(candidate)) continue;
+        if (!pageTarget.contains(candidate)) continue;
+        if (candidate.closest("[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']")) continue;
+        candidates.push(candidate);
+      }
+    }
+
+    for (const candidate of candidates) {
+      if (!sameRect(candidate.getBoundingClientRect(), ringRect)) continue;
+      const matches = Array.from(candidate.childNodes)
+        .filter((node): node is Text => node.nodeType === realm.Node.TEXT_NODE)
+        .flatMap((node) => {
+          const frame = textFrame(node, editor.value);
+          return frame ? [{ node, leadingLength: frame.leadingLength }] : [];
+        });
+      if (matches.length !== 1) continue;
+      activeTextTarget = {
+        element: candidate,
+        node: matches[0].node,
+        leadingLength: matches[0].leadingLength,
+      };
+      return activeTextTarget;
+    }
+
+    return null;
+  };
+
+  const caretRect = (node: Text, offset: number) => {
+    const collapsed = ownerDocument.createRange();
+    try {
+      collapsed.setStart(node, offset);
+      collapsed.collapse(true);
+      const rect = collapsed.getClientRects()[0] ?? collapsed.getBoundingClientRect();
+      if (rect && rect.height > 0) {
+        return { left: rect.left, top: rect.top, height: rect.height };
+      }
+    } catch {
+      return null;
+    }
+
+    const length = node.nodeValue?.length ?? 0;
+    const probe = ownerDocument.createRange();
+    try {
+      if (offset < length) {
+        probe.setStart(node, offset);
+        probe.setEnd(node, offset + 1);
+        const rect = probe.getClientRects()[0] ?? probe.getBoundingClientRect();
+        if (rect && rect.height > 0) return { left: rect.left, top: rect.top, height: rect.height };
+      }
+      if (offset > 0) {
+        probe.setStart(node, offset - 1);
+        probe.setEnd(node, offset);
+        const rects = Array.from(probe.getClientRects());
+        const rect = rects[rects.length - 1] ?? probe.getBoundingClientRect();
+        if (rect && rect.height > 0) return { left: rect.right, top: rect.top, height: rect.height };
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  const renderCaret = (
+    editor: HTMLTextAreaElement,
+    ring: HTMLElement,
+  ) => {
+    const start = editor.selectionStart ?? 0;
+    const end = editor.selectionEnd ?? start;
+    if (start !== end || ownerDocument.activeElement !== editor) {
+      removeCaret();
+      return;
+    }
+    const target = resolveActiveTextTarget(editor, ring);
+    if (!target) {
+      removeCaret();
+      return;
+    }
+    const offset = target.leadingLength + clamp(start, 0, editor.value.length);
+    const rect = caretRect(target.node, offset);
+    if (!rect || rect.left < 0 || rect.top < 0 || rect.left > ownerWindow.innerWidth || rect.top > ownerWindow.innerHeight) {
+      removeCaret();
+      return;
+    }
+    const style = ownerWindow.getComputedStyle(target.element);
+    const cursor = ensureCaret();
+    Object.assign(cursor.style, {
+      left: `${rect.left}px`,
+      top: `${rect.top}px`,
+      height: `${Math.max(1, rect.height)}px`,
+      background: style.color && style.color !== "transparent" ? style.color : TOOLBAR_BLUE,
+    });
+  };
+
+  const updateInteractionFeedback = () => {
+    feedbackFrame = 0;
+    if (disposed) return;
+    const editor = runtimeMount.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
+    const ring = portalTarget.querySelector<HTMLElement>("[data-mesurer-text-edit-ring='true']");
+    const inspectorCard = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
+    if (!editor || !ring) {
+      restoreOccludedInspector();
+      removeCaret();
+      return;
+    }
 
     if (inspectorCard) {
-      const cardRect = inspectorCard.getBoundingClientRect();
-      const half = Math.max(320, cardRect.width) / 2;
-      const center = Math.min(
-        Math.max(left + toolbarRect.width / 2, 8 + half),
-        ownerWindow.innerWidth - 8 - half,
-      );
-      inspectorCard.style.left = `${center}px`;
+      const blocked = overlapArea(inspectorCard.getBoundingClientRect(), ring.getBoundingClientRect()) > 0;
+      setInspectorOccluded(inspectorCard, blocked);
+    } else {
+      restoreOccludedInspector();
     }
+    renderCaret(editor, ring);
+  };
+
+  const scheduleInteractionFeedback = () => {
+    if (disposed || feedbackFrame) return;
+    feedbackFrame = ownerWindow.requestAnimationFrame(updateInteractionFeedback);
+  };
+
+  const unbindEditor = () => {
+    if (!boundEditor) return;
+    boundEditor.removeEventListener("input", scheduleInteractionFeedback);
+    boundEditor.removeEventListener("select", scheduleInteractionFeedback);
+    boundEditor.removeEventListener("keyup", scheduleInteractionFeedback);
+    boundEditor.removeEventListener("pointerup", scheduleInteractionFeedback);
+    boundEditor.removeEventListener("focus", scheduleInteractionFeedback);
+    boundEditor.removeEventListener("blur", scheduleInteractionFeedback);
+    boundEditor = null;
+    activeTextTarget = null;
+  };
+
+  const bindEditor = (editor: HTMLTextAreaElement) => {
+    if (boundEditor === editor) return;
+    unbindEditor();
+    boundEditor = editor;
+    editor.addEventListener("input", scheduleInteractionFeedback);
+    editor.addEventListener("select", scheduleInteractionFeedback);
+    editor.addEventListener("keyup", scheduleInteractionFeedback);
+    editor.addEventListener("pointerup", scheduleInteractionFeedback);
+    editor.addEventListener("focus", scheduleInteractionFeedback);
+    editor.addEventListener("blur", scheduleInteractionFeedback);
   };
 
   const refine = () => {
@@ -225,11 +504,15 @@ export function installTextEditingPresentation(
       const inspectorCard = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
 
       if (!editor || !toolbar || !menu) {
+        unbindEditor();
+        restoreOccludedInspector();
+        removeCaret();
         restoreTypographyInspectorSurfaces();
         setTypographyContext(false);
         return;
       }
 
+      bindEditor(editor);
       setTypographyContext(true);
       suppressTypographyInspectorSurfaces();
       if (inspectorCard) inspectorCard.setAttribute("aria-label", "Typography details");
@@ -282,7 +565,8 @@ export function installTextEditingPresentation(
       }
       if (toolbar.lastElementChild !== presetButton) toolbar.append(presetButton);
       refinePresetButton(presetButton);
-      positionRefinedSurfaces(toolbar, menu, inspectorCard);
+      positionRefinedSurfaces(toolbar, menu);
+      scheduleInteractionFeedback();
     } finally {
       refining = false;
     }
@@ -290,11 +574,20 @@ export function installTextEditingPresentation(
 
   const observer = new realm.MutationObserver(() => refine());
   observer.observe(runtimeMount, { childList: true, subtree: true });
+  ownerWindow.addEventListener("resize", scheduleInteractionFeedback);
+  ownerWindow.addEventListener("scroll", scheduleInteractionFeedback, true);
   refine();
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
+    ownerWindow.removeEventListener("resize", scheduleInteractionFeedback);
+    ownerWindow.removeEventListener("scroll", scheduleInteractionFeedback, true);
+    if (feedbackFrame) ownerWindow.cancelAnimationFrame(feedbackFrame);
+    feedbackFrame = 0;
+    unbindEditor();
+    restoreOccludedInspector();
+    removeCaret();
     restoreTypographyInspectorSurfaces();
     setTypographyContext(false);
   });
