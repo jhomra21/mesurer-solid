@@ -17,12 +17,13 @@ const renderMeasurement = (measurement: Measurement | InspectMeasurement) => {
     host,
   ));
   const root = host.querySelector<HTMLElement>("[data-mesurer-measurement='true']");
-  expect(root).toBeTruthy();
-  const chrome = root!.children.item(0) as HTMLElement | null;
-  const label = root!.children.item(root!.children.length - 1) as HTMLElement | null;
-  expect(chrome).toBeTruthy();
-  expect(label).toBeTruthy();
-  return { root: root!, chrome: chrome!, label: label! };
+  if (!root) throw new Error(`Expected measurement root: ${host.innerHTML}`);
+  const chrome = root.children.item(0);
+  const label = root.children.item(root.children.length - 1);
+  if (!(chrome instanceof HTMLElement) || !(label instanceof HTMLElement)) {
+    throw new Error(`Expected measurement chrome and label: ${host.innerHTML}`);
+  }
+  return { root, chrome, label };
 };
 
 describe("measurement scroll geometry", () => {
