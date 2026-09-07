@@ -7,6 +7,7 @@ const SKIP_TAGS = new Set([
   "HTML", "BODY", "SCRIPT", "STYLE", "META", "LINK", "NOSCRIPT",
   "IMG", "VIDEO", "AUDIO", "IFRAME", "INPUT", "TEXTAREA", "SELECT", "OPTION",
 ]);
+const activeHostByRuntime = new WeakMap<MesurerSolidRuntimeService, HTMLElement>();
 
 type DirectTextNode = {
   node: Text;
@@ -89,6 +90,7 @@ export function installMixedInlineTextTargeting(
     && !element.closest("[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']");
 
   const prepareAt = (x: number, y: number) => {
+    activeHostByRuntime.delete(runtime);
     if (!directEditingMode()) return;
 
     for (const candidate of ownerDocument.elementsFromPoint(x, y)) {
@@ -98,11 +100,15 @@ export function installMixedInlineTextTargeting(
 
       const nodes = directTextNodes(candidate, realm);
       if (nodes.length === 0) continue;
+
+      activeHostByRuntime.set(runtime, candidate);
       if (nodes.length === 1) return;
 
       const target = directTextNodeAtPoint(ownerDocument, realm, nodes, x, y);
-      if (!target) return;
-      if (Object.prototype.hasOwnProperty.call(candidate, "childNodes")) return;
+      if (!target || Object.prototype.hasOwnProperty.call(candidate, "childNodes")) {
+        activeHostByRuntime.delete(runtime);
+        return;
+      }
 
       const actualChildren = Array.from(candidate.childNodes);
       const singleTargetView = actualChildren.map((node, index) => {
@@ -140,6 +146,7 @@ export function installMixedInlineTextTargeting(
   ownerWindow.addEventListener("pointerup", onTouchPointerUp, true);
 
   ctx.lifecycle.onDispose(() => {
+    activeHostByRuntime.delete(runtime);
     ownerWindow.removeEventListener("dblclick", onDoubleClick, true);
     ownerWindow.removeEventListener("pointerup", onTouchPointerUp, true);
   });
@@ -155,7 +162,7 @@ export function installRenderInPlaceTextEditing(
   ctx: MesurerPluginContext,
   runtime: MesurerSolidRuntimeService,
 ) {
-  const { ownerDocument, ownerWindow, portalTarget } = runtime;
+  const { ownerDocument, ownerWindow, pageTarget, portalTarget } = runtime;
   // SAFETY: ownerWindow owns portalTarget and supplies the matching MutationObserver constructor.
   const realm = ownerWindow as Window & typeof globalThis;
   const runtimeMounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
@@ -184,7 +191,7 @@ export function installRenderInPlaceTextEditing(
       pointerEvents: "none",
       boxSizing: "border-box",
       background: "transparent",
-      boxShadow: `inset 0 0 0 1px ${TOOLBAR_BLUE}`,
+      boxShadow: `inset 0 0 0 1.5px ${TOOLBAR_BLUE}`,
     });
     runtimeMount.append(ring);
     return ring;
@@ -204,6 +211,7 @@ export function installRenderInPlaceTextEditing(
     const editor = runtimeMount.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
     if (!editor) {
       boundEditor = null;
+      activeHostByRuntime.delete(runtime);
       removeRing();
       return;
     }
@@ -212,14 +220,22 @@ export function installRenderInPlaceTextEditing(
     // core session. Hiding the textarea leaves the real rendered background,
     // inline children, wrapping, and selected geometry untouched.
     editor.style.opacity = "0";
+    editor.style.background = "transparent";
+    editor.style.boxShadow = "none";
 
     if (boundEditor !== editor) {
       boundEditor = editor;
       editor.addEventListener("input", schedule);
     }
 
-    const rect = editor.getBoundingClientRect();
-    const style = ownerWindow.getComputedStyle(editor);
+    const host = activeHostByRuntime.get(runtime);
+    const hostIsUsable = Boolean(
+      host?.isConnected
+      && isElementWithinDomTarget(host, pageTarget)
+      && !host.closest("[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']"),
+    );
+    const rect = hostIsUsable ? host!.getBoundingClientRect() : editor.getBoundingClientRect();
+    const style = ownerWindow.getComputedStyle(hostIsUsable ? host! : editor);
     const editRing = ensureRing();
     Object.assign(editRing.style, {
       left: `${rect.left}px`,
@@ -238,6 +254,7 @@ export function installRenderInPlaceTextEditing(
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
+    activeHostByRuntime.delete(runtime);
     observer.disconnect();
     ownerWindow.removeEventListener("resize", schedule);
     ownerWindow.removeEventListener("scroll", schedule, true);
