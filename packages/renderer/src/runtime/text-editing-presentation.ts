@@ -304,17 +304,15 @@ export function installTextEditingPresentation(
       transformOrigin: "center",
     });
     portalTarget.append(caret);
-    if (typeof caret.animate === "function") {
-      caret.animate([
-        { opacity: "1", offset: 0 },
-        { opacity: "1", offset: 0.49 },
-        { opacity: "0", offset: 0.5 },
-        { opacity: "0", offset: 1 },
-      ], {
-        duration: 1000,
-        iterations: Infinity,
-      });
-    }
+    caret.animate?.([
+      { opacity: "1", offset: 0 },
+      { opacity: "1", offset: 0.49 },
+      { opacity: "0", offset: 0.5 },
+      { opacity: "0", offset: 1 },
+    ], {
+      duration: 1000,
+      iterations: Infinity,
+    });
     return caret;
   };
 
