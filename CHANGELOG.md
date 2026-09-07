@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Keep direct text editing visually anchored to the rendered host element: the keyboard textarea stays transparent at the host's exact bounds, a subtle inset ring marks edit state, the initially selected text is visibly highlighted for immediate replacement, Typography details avoid the edited field and toolbar when viewport space permits, and text runs around inline markup such as shortcut badges remain editable without flattening those children.
+- Keep direct text editing visually anchored to the rendered host element: the keyboard textarea stays transparent at the host's exact bounds, a subtle inset ring marks edit state, the initially selected text is visibly highlighted for immediate replacement, Typography details avoid the edited field and editing controls when viewport space permits, and text runs around inline markup such as shortcut badges remain editable without flattening those children.
 
 ## 0.1.7-beta.0 - 2026-09-06
 
