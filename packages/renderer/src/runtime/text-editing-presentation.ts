@@ -133,6 +133,26 @@ export function installTextEditingPresentation(
     typographyButtonSnapshot = null;
   };
 
+  const targetRectUnderEditor = (editor: HTMLTextAreaElement) => {
+    const editorRect = editor.getBoundingClientRect();
+    if (editorRect.width <= 0 || editorRect.height <= 0) return null;
+    const previousPointerEvents = editor.style.pointerEvents;
+    editor.style.pointerEvents = "none";
+    try {
+      const x = Math.min(ownerWindow.innerWidth - 1, Math.max(0, editorRect.left + Math.min(2, editorRect.width / 2)));
+      const y = Math.min(ownerWindow.innerHeight - 1, Math.max(0, editorRect.top + Math.min(2, editorRect.height / 2)));
+      for (const candidate of ownerDocument.elementsFromPoint(x, y)) {
+        if (!(candidate instanceof realm.HTMLElement)) continue;
+        if (runtimeMount.contains(candidate) || candidate.closest("[data-mesurer-inspector-ui='true']")) continue;
+        const rect = candidate.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) return rect;
+      }
+      return null;
+    } finally {
+      editor.style.pointerEvents = previousPointerEvents;
+    }
+  };
+
   const refineEditorVisual = (editor: HTMLTextAreaElement) => {
     const currentBackgroundColor = ownerWindow.getComputedStyle(editor).backgroundColor;
     let state = editorVisualStates.get(editor);
@@ -152,9 +172,15 @@ export function installTextEditingPresentation(
     editor.rows = 1;
     editor.style.backgroundColor = backgroundColor;
     editor.style.boxShadow = `0 0 0 1.5px ${TOOLBAR_BLUE}`;
-    editor.style.height = "auto";
-    const minHeight = Number.parseFloat(editor.style.minHeight) || 0;
-    editor.style.height = `${Math.max(minHeight, editor.scrollHeight)}px`;
+
+    // The editor is a fixed overlay, not a replacement control. Keep its box
+    // aligned to the page element underneath instead of letting textarea
+    // rows/scrollHeight invent extra vertical space for short labels or copy.
+    const targetRect = targetRectUnderEditor(editor);
+    if (targetRect) {
+      editor.style.minHeight = "0px";
+      editor.style.height = `${targetRect.height}px`;
+    }
 
     if (editor.dataset.mesurerTextEditorVisualBound !== "true") {
       editor.dataset.mesurerTextEditorVisualBound = "true";
