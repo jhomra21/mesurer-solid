@@ -15,7 +15,6 @@ const ring = () => page.locator("[data-mesurer-text-edit-ring='true']");
 const selection = () => page.locator("[data-mesurer-text-selection-highlight='true']");
 const caret = () => page.locator("[data-mesurer-text-caret='true']");
 const inspector = () => page.locator("[data-mesurer-text-inspector-info='true']");
-const toolbar = () => page.locator("[data-mesurer-text-style-toolbar='true']");
 const waitForEditor = async (stage) => {
   await page.waitForTimeout(100);
   assert.equal(await editor().count(), 1, `${stage}: expected one direct text editor`);
@@ -47,8 +46,27 @@ const assertNoOverlap = (left, right, stage) => {
 const assertInspectorDoesNotBlock = async (hostBox, stage) => {
   await page.waitForTimeout(50);
   const visibility = await inspector().evaluate((element) => getComputedStyle(element).visibility);
-  if (visibility === "hidden") return;
+  assert.notEqual(visibility, "hidden", `${stage}: unified inspector should stay visible`);
   assertNoOverlap(await box(inspector()), hostBox, stage);
+};
+const assertUnifiedInspector = async (stage) => {
+  assert.equal(await inspector().getAttribute("data-mesurer-text-inspector-unified"), "true", `${stage}: expected unified typography editor`);
+  const sourceToolbar = page.locator("[data-mesurer-text-style-toolbar='true']");
+  assert.equal(await sourceToolbar.evaluate((element) => getComputedStyle(element).display), "none", `${stage}: legacy text toolbar should not render`);
+  for (const selector of [
+    "[data-mesurer-text-style-select='font']",
+    "[data-mesurer-text-style-select='size']",
+    "[data-mesurer-text-style-select='weight']",
+    "[data-mesurer-text-style-input='line']",
+    "[data-mesurer-text-style-input='tracking']",
+    "[data-mesurer-text-style-button='bold']",
+    "[data-mesurer-text-style-button='italic']",
+    "[data-mesurer-text-style-button='underline']",
+    "[data-mesurer-text-color-swatches='true']",
+    "[data-mesurer-text-style-menu-button='true']",
+  ]) {
+    assert.equal(await inspector().locator(selector).count(), 1, `${stage}: missing unified control ${selector}`);
+  }
 };
 const assertInitialSelection = async (stage) => {
   assert(await selection().count() > 0, `${stage}: expected selected-text highlight on entry`);
@@ -97,10 +115,28 @@ try {
   assert.equal(await slim.evaluate((element) => getComputedStyle(element).backgroundColor), slimBackground, "slim: host background changed on edit");
   assertSameBox(await box(ring()), slimBox, "slim");
   await assertInitialSelection("slim");
+  await assertUnifiedInspector("slim");
+  const initialLineHeight = await slim.evaluate((element) => getComputedStyle(element).lineHeight);
+  const initialTracking = await slim.evaluate((element) => getComputedStyle(element).letterSpacing);
+  const lineInput = inspector().locator("[data-mesurer-text-style-input='line']");
+  await lineInput.fill("30px");
+  await lineInput.press("Enter");
+  await page.waitForFunction(() => getComputedStyle(document.querySelector(".feature-copy .kicker")).lineHeight === "30px");
+  const trackingInput = inspector().locator("[data-mesurer-text-style-input='tracking']");
+  await trackingInput.fill("1px");
+  await trackingInput.press("Enter");
+  await page.waitForFunction(() => getComputedStyle(document.querySelector(".feature-copy .kicker")).letterSpacing === "1px");
+  const presetButton = inspector().locator("[data-mesurer-text-style-menu-button='true']");
+  await presetButton.click();
+  await page.waitForFunction(() => document.querySelectorAll("[data-mesurer-unified-text-presets='true']").length === 1);
+  assert(await inspector().locator("[data-mesurer-unified-text-presets='true'] [data-mesurer-text-style-preset]").count() > 0, "slim: expected in-card text presets");
+  await inspector().locator("[data-mesurer-text-style-menu-button='true']").click();
   await replaceSelection("Selection target updated");
   await assertSelectionCleared("slim");
   await assertCaretVisible("slim");
   await closeEditor();
+  assert.equal(await slim.evaluate((element) => getComputedStyle(element).lineHeight), initialLineHeight, "slim: Escape should restore line height");
+  assert.equal(await slim.evaluate((element) => getComputedStyle(element).letterSpacing), initialTracking, "slim: Escape should restore tracking");
 
   await page.setViewportSize({ width: 1280, height: 520 });
   const mixed = page.locator(".feature-copy > p:not(.kicker)").first();
@@ -144,7 +180,6 @@ try {
   assertSameBox(await box(ring()), mixedState.box, "mixed-leading");
   await assertInitialSelection("mixed-leading");
   await assertInspectorDoesNotBlock(mixedState.box, "mixed-leading inspector/field");
-  assertNoOverlap(await box(inspector()), await box(toolbar()), "mixed-leading inspector/toolbar");
   assert.equal(await mixed.locator("kbd").textContent(), "Shift+A", "mixed-leading: shortcut badge changed");
   await replaceSelection("Updated leading copy");
   await assertSelectionCleared("mixed-leading");
@@ -182,9 +217,9 @@ try {
   await closeEditor();
   assert.equal(await mixed.evaluate((element) => element.innerHTML), mixedState.html, "mixed-trailing: Escape did not restore mixed inline content");
 
-  // Reproduce the edge-of-page card from the manual acceptance screenshot. If
-  // the details card cannot fit anywhere without covering the active field,
-  // it must get out of the way instead of choosing a least-bad overlap.
+  // Reproduce the edge-of-page card from the manual acceptance screenshot.
+  // The unified editor must remain visible and use an available lane instead
+  // of covering the text or disappearing below the viewport.
   await page.setViewportSize({ width: 700, height: 220 });
   const edge = page.locator(".warm-card p");
   await edge.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
@@ -208,17 +243,16 @@ try {
   await page.mouse.dblclick(edgeState.point.x, edgeState.point.y);
   await waitForEditor("edge");
   await assertInspectorDoesNotBlock(edgeState.box, "edge inspector/field");
-  const edgeInspectorVisibility = await inspector().evaluate((element) => getComputedStyle(element).visibility);
-  if (edgeInspectorVisibility !== "hidden") {
-    assertNoOverlap(await box(inspector()), edgeState.box, "edge visible inspector/field");
-  }
+  await assertUnifiedInspector("edge");
+  const edgeInspectorBox = await box(inspector());
+  assert(edgeInspectorBox.y >= 0 && edgeInspectorBox.y + edgeInspectorBox.height <= 220, "edge: unified inspector should stay inside viewport");
   await replaceSelection("Updated edge copy");
   await assertSelectionCleared("edge");
   await assertCaretVisible("edge");
   await closeEditor();
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Host-anchored editing + restored select-all highlight + visible caret + non-blocking inspector + mixed-inline text runs: PASS");
+  console.log("Host-anchored editing + unified interactive Typography inspector + visible caret + mixed-inline text runs: PASS");
 } finally {
   await browser.close();
 }

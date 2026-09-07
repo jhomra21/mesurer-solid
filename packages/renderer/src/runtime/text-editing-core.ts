@@ -815,6 +815,75 @@ export function installTextEditing(
     return wrapper;
   };
 
+
+  const makeMenuTextInput = (
+    session: EditorSession,
+    label: string,
+    property: "line-height" | "letter-spacing",
+    current: string,
+  ) => {
+    const wrapper = ownerDocument.createElement("label");
+    Object.assign(wrapper.style, {
+      display: "grid",
+      gridTemplateColumns: "72px minmax(0, 1fr)",
+      alignItems: "center",
+      gap: "8px",
+      minHeight: "38px",
+      padding: "0 8px",
+      color: TOOLBAR_INK,
+      font: "500 12px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    });
+    const caption = ownerDocument.createElement("span");
+    caption.textContent = label;
+    caption.style.color = TOOLBAR_MUTED;
+
+    const input = ownerDocument.createElement("input");
+    input.type = "text";
+    input.value = current;
+    input.setAttribute("aria-label", label);
+    input.dataset.mesurerTextStyleInput = label.toLowerCase().replace(/\s+/g, "-");
+    Object.assign(input.style, {
+      width: "100%",
+      height: "32px",
+      boxSizing: "border-box",
+      border: "0",
+      borderRadius: "8px",
+      background: "rgba(0, 0, 0, 0.035)",
+      color: TOOLBAR_INK,
+      font: "500 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace",
+      padding: "0 8px",
+      outline: "none",
+    });
+
+    const commit = () => {
+      if (editorSession !== session) return;
+      const desired = input.value.trim();
+      if (!desired) {
+        input.value = current;
+        return;
+      }
+      const probe = ownerDocument.createElement("span");
+      probe.style.setProperty(property, desired);
+      if (!probe.style.getPropertyValue(property)) {
+        input.setCustomValidity(`Invalid ${label.toLowerCase()} value`);
+        input.reportValidity();
+        return;
+      }
+      input.setCustomValidity("");
+      setSessionStyle(session, property, desired);
+    };
+    input.addEventListener("change", commit);
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      event.stopPropagation();
+      commit();
+      session.editor.focus({ preventScroll: true });
+    });
+    wrapper.append(caption, input);
+    return wrapper;
+  };
+
   const shortcutLabel = (shortcut: TextStylePreset["shortcut"]) => {
     const apple = /Mac|iPhone|iPad|iPod/i.test(ownerWindow.navigator.platform || ownerWindow.navigator.userAgent);
     return apple ? `⌥⌘${shortcut}` : `Alt+Ctrl+${shortcut}`;
@@ -893,6 +962,8 @@ export function installTextEditing(
     const family = currentSessionStyle(session, "font-family");
     const size = currentSessionStyle(session, "font-size");
     const weight = currentSessionStyle(session, "font-weight");
+    const line = currentSessionStyle(session, "line-height");
+    const tracking = currentSessionStyle(session, "letter-spacing");
     const color = currentSessionStyle(session, "color");
     menu.append(
       makeMenuSelect(
@@ -919,6 +990,8 @@ export function installTextEditing(
         (value) => value,
         (value) => setSessionStyle(session, "font-weight", value),
       ),
+      makeMenuTextInput(session, "Line", "line-height", line),
+      makeMenuTextInput(session, "Tracking", "letter-spacing", tracking),
     );
 
     menu.append(makeDivider());
@@ -1397,7 +1470,7 @@ export function installTextEditing(
     inspectorCard.setAttribute("aria-label", "Text inspector");
     Object.assign(inspectorCard.style, {
       zIndex: "2147483647",
-      pointerEvents: "none",
+      pointerEvents: "auto",
       transform: "translateX(-50%)",
       opacity: "1",
     });
@@ -1493,7 +1566,10 @@ export function installTextEditing(
     const session = editorSession;
     if (!session) return;
     const path = event.composedPath();
-    if (path.includes(session.editor) || path.includes(session.toolbar) || path.includes(session.menu)) return;
+    if (path.includes(session.editor)
+      || path.includes(session.toolbar)
+      || path.includes(session.menu)
+      || path.includes(session.inspectorCard)) return;
     commitEditor();
   };
 

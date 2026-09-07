@@ -34,11 +34,6 @@ type ActiveTextTarget = {
   leadingLength: number;
 };
 
-const overlapArea = (left: DOMRect, right: DOMRect) => {
-  const width = Math.max(0, Math.min(left.right, right.right) - Math.max(left.left, right.left));
-  const height = Math.max(0, Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top));
-  return width * height;
-};
 
 const sameRect = (left: DOMRect, right: DOMRect, tolerance = 2) => (
   Math.abs(left.left - right.left) <= tolerance
@@ -454,12 +449,8 @@ export function installTextEditingPresentation(
       return;
     }
 
-    if (inspectorCard) {
-      const blocked = overlapArea(inspectorCard.getBoundingClientRect(), ring.getBoundingClientRect()) > 0;
-      setInspectorOccluded(inspectorCard, blocked);
-    } else {
-      restoreOccludedInspector();
-    }
+    if (inspectorCard) setInspectorOccluded(inspectorCard, false);
+    else restoreOccludedInspector();
     renderCaret(editor, ring);
   };
 
@@ -523,6 +514,13 @@ export function installTextEditingPresentation(
         const wrapper = select.parentElement;
         styleDirectSelect(select);
         toolbar.insertBefore(select, presetButton);
+        if (wrapper?.isConnected && wrapper !== toolbar) wrapper.remove();
+      }
+
+      const directInputs = Array.from(menu.querySelectorAll<HTMLInputElement>("[data-mesurer-text-style-input]"));
+      for (const input of directInputs) {
+        const wrapper = input.parentElement;
+        toolbar.insertBefore(input, presetButton);
         if (wrapper?.isConnected && wrapper !== toolbar) wrapper.remove();
       }
 

@@ -395,12 +395,54 @@ export function installRenderInPlaceTextEditing(
         || leftCandidate.priority - rightCandidate.priority
       ));
 
-    const best = candidates[0];
-    if (!best) return;
+    const best = candidates.find((candidate) => candidate.overlap === 0);
+    if (best) {
+      Object.assign(card.style, {
+        transform: "none",
+        maxHeight: "calc(100vh - 16px)",
+        overflowY: "auto",
+        left: `${best.rect.left}px`,
+        top: `${best.rect.top}px`,
+      });
+      return;
+    }
+
+    const viewportBottom = ownerWindow.innerHeight - VIEWPORT_PADDING;
+    const verticalLanes = [
+      {
+        top: VIEWPORT_PADDING,
+        height: Math.max(0, hostRect.top - SURFACE_GAP - VIEWPORT_PADDING),
+      },
+      {
+        top: hostRect.bottom + SURFACE_GAP,
+        height: Math.max(0, viewportBottom - hostRect.bottom - SURFACE_GAP),
+      },
+    ].sort((leftLane, rightLane) => rightLane.height - leftLane.height);
+    const verticalLane = verticalLanes[0];
+    if (verticalLane && verticalLane.height > 0) {
+      card.style.maxHeight = `${verticalLane.height}px`;
+      card.style.overflowY = "auto";
+      const resized = card.getBoundingClientRect();
+      const resizedWidth = Math.min(resized.width || width, ownerWindow.innerWidth - VIEWPORT_PADDING * 2);
+      const resizedLeft = clamp(
+        hostRect.left + hostRect.width / 2 - resizedWidth / 2,
+        VIEWPORT_PADDING,
+        Math.max(VIEWPORT_PADDING, ownerWindow.innerWidth - VIEWPORT_PADDING - resizedWidth),
+      );
+      Object.assign(card.style, {
+        transform: "none",
+        left: `${resizedLeft}px`,
+        top: `${verticalLane.top}px`,
+      });
+      return;
+    }
+
+    const fallback = candidates[0];
+    if (!fallback) return;
     Object.assign(card.style, {
       transform: "none",
-      left: `${best.rect.left}px`,
-      top: `${best.rect.top}px`,
+      left: `${fallback.rect.left}px`,
+      top: `${fallback.rect.top}px`,
     });
   };
 
