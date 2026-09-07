@@ -1075,16 +1075,17 @@ export function installTextEditing(
       Math.max(8, rect.left),
       Math.max(8, ownerWindow.innerWidth - width - 8),
     );
-    const minHeight = Math.max(30, rect.height);
+    const targetHeight = Math.max(1, rect.height);
     const top = Math.min(
       Math.max(8, rect.top),
-      Math.max(8, ownerWindow.innerHeight - minHeight - 8),
+      Math.max(8, ownerWindow.innerHeight - targetHeight - 8),
     );
     Object.assign(session.editor.style, {
       left: `${left}px`,
       top: `${top}px`,
       width: `${width}px`,
-      minHeight: `${minHeight}px`,
+      minHeight: "0px",
+      height: `${targetHeight}px`,
       fontFamily: style.fontFamily,
       fontSize: style.fontSize,
       fontWeight: style.fontWeight,
@@ -1099,12 +1100,10 @@ export function installTextEditing(
       borderRadius: style.borderRadius,
       background: effectiveBackgroundColor(session.element),
     });
-    session.editor.style.height = "auto";
-    session.editor.style.height = `${Math.max(minHeight, session.editor.scrollHeight)}px`;
 
     const toolbarRect = session.toolbar.getBoundingClientRect();
     const toolbarHeight = Math.max(40, toolbarRect.height);
-    const editorHeight = Math.max(minHeight, session.editor.getBoundingClientRect().height);
+    const editorHeight = Math.max(1, session.editor.getBoundingClientRect().height);
     const below = top + editorHeight + 8;
     const toolbarTop = below + toolbarHeight <= ownerWindow.innerHeight - 8
       ? below
@@ -1333,6 +1332,7 @@ export function installTextEditing(
     editor.dataset.mesurerTextEditor = "true";
     editor.dataset.mesurerInspectorUi = "true";
     editor.setAttribute("aria-label", "Edit text");
+    editor.rows = 1;
     editor.value = frameValue.value;
     Object.assign(editor.style, {
       position: "fixed",
