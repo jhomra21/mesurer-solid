@@ -336,7 +336,7 @@ export function installRenderInPlaceTextEditing(
 
   const positionInspectorCard = (hostRect: SurfaceRect) => {
     const card = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
-    if (!card) return;
+    if (!card || card.dataset.mesurerTextInspectorUnified === "true") return;
 
     const measured = card.getBoundingClientRect();
     const width = Math.min(measured.width || 320, Math.max(1, ownerWindow.innerWidth - VIEWPORT_PADDING * 2));
