@@ -68,9 +68,9 @@ const directTextNodeAtPoint = (
 /**
  * The core text editor historically required exactly one non-empty direct text
  * node. For mixed inline copy such as `text <kbd>key</kbd> text`, expose only
- * the direct text node under the pointer for the core's single synchronous
- * childNodes read. The real DOM is never reparented or rewritten, and the
- * one-shot view removes itself as soon as the core consumes it.
+ * the direct text node under the pointer for the duration of the current event
+ * dispatch. The real DOM is never reparented or rewritten; the temporary view
+ * is removed in the next microtask after all same-event listeners can read it.
  */
 export function installMixedInlineTextTargeting(
   ctx: MesurerPluginContext,
@@ -117,20 +117,15 @@ export function installMixedInlineTextTargeting(
         return ownerDocument.createComment("mesurer-non-target-text");
       });
 
-      const oneShotGetter = () => {
-        const descriptor = Object.getOwnPropertyDescriptor(candidate, "childNodes");
-        if (descriptor?.get === oneShotGetter) Reflect.deleteProperty(candidate, "childNodes");
-        return singleTargetView;
-      };
-
+      const eventScopedGetter = () => singleTargetView;
       Object.defineProperty(candidate, "childNodes", {
         configurable: true,
-        get: oneShotGetter,
+        get: eventScopedGetter,
       });
 
       ownerWindow.queueMicrotask(() => {
         const descriptor = Object.getOwnPropertyDescriptor(candidate, "childNodes");
-        if (descriptor?.get === oneShotGetter) Reflect.deleteProperty(candidate, "childNodes");
+        if (descriptor?.get === eventScopedGetter) Reflect.deleteProperty(candidate, "childNodes");
       });
       return;
     }
