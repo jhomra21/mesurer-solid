@@ -1,0 +1,47 @@
+name: temp-unified-typography-runner
+
+on:
+  push:
+    branches:
+      - fix/text-editor-selection-visual
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: fix/text-editor-selection-visual
+          fetch-depth: 0
+      - name: Check whether patch already landed
+        shell: bash
+        run: |
+          if git log -1 --pretty=%B | grep -q "finish unified typography editor"; then
+            echo "skip_patch=true" >> "$GITHUB_ENV"
+          fi
+      - name: Extract and apply focused source patch
+        if: env.skip_patch != 'true'
+        shell: bash
+        run: |
+          sed -n "/^          python <<'PY'$/,/^          PY$/p" .github/workflows/temp-unified-typography-patch.yml \
+            | sed '1d;$d;s/^          //' > /tmp/unified-typography-patch.py
+          python /tmp/unified-typography-patch.py
+      - name: Commit focused patch
+        if: env.skip_patch != 'true'
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No patch needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/renderer/src/runtime/text-editing-core.ts \
+                  packages/renderer/src/runtime/text-editing-presentation.ts \
+                  packages/renderer/src/runtime/text-editing-render-in-place.ts \
+                  visual-parity/typography-editing-layout-contract.mjs
+          git commit -m "refactor: finish unified typography editor"
+          git push origin HEAD:fix/text-editor-selection-visual
