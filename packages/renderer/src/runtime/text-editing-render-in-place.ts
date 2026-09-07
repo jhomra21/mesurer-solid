@@ -53,6 +53,7 @@ const directTextNodeAtPoint = (
   for (const candidate of candidates) {
     const range = ownerDocument.createRange();
     range.selectNodeContents(candidate.node);
+    if (typeof range.getClientRects !== "function") continue;
     const hit = Array.from(range.getClientRects()).some((rect) => (
       x >= rect.left - 1
       && x <= rect.right + 1
