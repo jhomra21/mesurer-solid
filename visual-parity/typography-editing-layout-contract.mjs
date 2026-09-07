@@ -20,8 +20,10 @@ const waitForEditor = async (stage) => {
     mode: document.querySelector("[data-mesurer-builtin='select'] button")?.getAttribute("aria-pressed"),
     arrange: document.querySelector("button[data-mesurer-tool-id='arrange']")?.getAttribute("aria-pressed"),
     active: document.activeElement?.tagName,
+    postCore: window.__MESURER_MIXED_POST_CORE__ ?? null,
   }));
   console.log(`${stage}: editor=${count} ring=${ringCount} mode=${diagnostic.mode} arrange=${diagnostic.arrange} active=${diagnostic.active}`);
+  if (stage.startsWith("mixed")) console.log(`mixed post-core: ${JSON.stringify(diagnostic.postCore)}`);
   assert.equal(count, 1, `${stage}: expected one direct text editor`);
   assert.equal(ringCount, 1, `${stage}: expected one host-anchored edit ring`);
 };
@@ -101,6 +103,21 @@ try {
   console.log(`mixed direct nodes: ${JSON.stringify(mixedState.directTextNodes)}`);
   console.log(`mixed hit stack: ${mixedState.hit.join(" > ")}`);
   console.log(`mixed caret: ${mixedState.caret}@${mixedState.caretOffset}; legacy=${mixedState.legacyCaret}@${mixedState.legacyOffset}`);
+
+  await page.evaluate(() => {
+    window.__MESURER_MIXED_POST_CORE__ = null;
+    window.addEventListener("dblclick", () => {
+      const element = document.querySelector(".feature-copy > p:not(.kicker)");
+      if (!(element instanceof HTMLElement)) return;
+      const descriptor = Object.getOwnPropertyDescriptor(element, "childNodes");
+      window.__MESURER_MIXED_POST_CORE__ = {
+        hasOwnChildNodes: Boolean(descriptor),
+        childNodeCount: Array.from(element.childNodes).length,
+        nonEmptyDirectTextCount: Array.from(element.childNodes).filter((node) => node instanceof Text && Boolean(node.nodeValue?.trim())).length,
+      };
+    }, true);
+  });
+
   await page.mouse.dblclick(mixedState.point.x, mixedState.point.y);
   await waitForEditor("mixed-leading");
   assert.equal(await editor().inputValue(), "Select one or more elements, then use Arrange or", "mixed-leading: wrong direct text run selected");
