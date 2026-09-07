@@ -46,6 +46,17 @@ export function installUnifiedTextInspector(
   let disposed = false;
   let refining = false;
 
+  const focusEditor = () => {
+    if (disposed) return;
+    const editor = runtimeMount.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
+    if (!editor?.isConnected) return;
+    editor.focus({ preventScroll: true });
+  };
+
+  const focusEditorSoon = () => {
+    ownerWindow.setTimeout(focusEditor, 0);
+  };
+
   const styleSelect = (select: HTMLSelectElement) => {
     Object.assign(select.style, {
       width: "100%",
@@ -206,6 +217,40 @@ export function installUnifiedTextInspector(
     grid.append(label, value);
   };
 
+  const onInspectorClick = (event: MouseEvent) => {
+    const target = event.target instanceof realm.HTMLElement ? event.target : null;
+    if (!target || !runtimeMount.contains(target)) return;
+
+    const presetToggle = target.closest<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']");
+    if (presetToggle) {
+      ownerWindow.setTimeout(() => {
+        if (disposed) return;
+        const current = runtimeMount.querySelector<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']");
+        if (current?.getAttribute("aria-expanded") === "false") focusEditor();
+      }, 0);
+      return;
+    }
+
+    if (target.closest(
+      "[data-mesurer-text-style-button], [data-mesurer-text-color], [data-mesurer-text-style-preset]",
+    )) focusEditorSoon();
+  };
+
+  const onInspectorChange = (event: Event) => {
+    const target = event.target instanceof realm.HTMLElement ? event.target : null;
+    if (!target || !runtimeMount.contains(target)) return;
+    if (target.matches(
+      "[data-mesurer-text-style-select], [data-mesurer-text-custom-color='true']",
+    )) focusEditorSoon();
+  };
+
+  const onInspectorKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Enter") return;
+    const target = event.target instanceof realm.HTMLElement ? event.target : null;
+    if (!target || !runtimeMount.contains(target)) return;
+    if (target.matches("[data-mesurer-text-style-input]")) focusEditorSoon();
+  };
+
   const refine = () => {
     if (disposed || refining) return;
     refining = true;
@@ -309,6 +354,10 @@ export function installUnifiedTextInspector(
     }
   };
 
+  runtimeMount.addEventListener("click", onInspectorClick);
+  runtimeMount.addEventListener("change", onInspectorChange);
+  runtimeMount.addEventListener("keydown", onInspectorKeyDown);
+
   const observer = new realm.MutationObserver(refine);
   observer.observe(runtimeMount, { childList: true, subtree: true });
   refine();
@@ -316,5 +365,8 @@ export function installUnifiedTextInspector(
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
+    runtimeMount.removeEventListener("click", onInspectorClick);
+    runtimeMount.removeEventListener("change", onInspectorChange);
+    runtimeMount.removeEventListener("keydown", onInspectorKeyDown);
   });
 }
