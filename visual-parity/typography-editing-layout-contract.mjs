@@ -74,15 +74,33 @@ try {
     range.selectNodeContents(first);
     const rect = range.getClientRects()[0];
     if (!rect) throw new Error("Expected leading text geometry");
+    const point = { x: rect.left + Math.min(24, rect.width / 2), y: rect.top + rect.height / 2 };
     const host = element.getBoundingClientRect();
+    const caretPosition = document.caretPositionFromPoint?.(point.x, point.y) ?? null;
+    const legacyRange = document.caretRangeFromPoint?.(point.x, point.y) ?? null;
+    const describeNode = (node) => {
+      if (!node) return null;
+      if (node instanceof Text) return `#text:${JSON.stringify(node.nodeValue)}`;
+      if (node instanceof HTMLElement) return `${node.tagName}.${node.className}`;
+      return node.nodeName;
+    };
     return {
       html: element.innerHTML,
-      point: { x: rect.left + Math.min(24, rect.width / 2), y: rect.top + rect.height / 2 },
+      directTextNodes: Array.from(element.childNodes)
+        .map((node, index) => ({ index, node: describeNode(node), text: node.nodeValue }))
+        .filter((entry) => entry.text?.trim()),
+      point,
       box: { x: host.x, y: host.y, width: host.width, height: host.height },
-      hit: document.elementsFromPoint(rect.left + Math.min(24, rect.width / 2), rect.top + rect.height / 2).map((candidate) => `${candidate.tagName}.${candidate.className}`),
+      hit: document.elementsFromPoint(point.x, point.y).map((candidate) => `${candidate.tagName}.${candidate.className}`),
+      caret: describeNode(caretPosition?.offsetNode ?? null),
+      caretOffset: caretPosition?.offset ?? null,
+      legacyCaret: describeNode(legacyRange?.startContainer ?? null),
+      legacyOffset: legacyRange?.startOffset ?? null,
     };
   });
+  console.log(`mixed direct nodes: ${JSON.stringify(mixedState.directTextNodes)}`);
   console.log(`mixed hit stack: ${mixedState.hit.join(" > ")}`);
+  console.log(`mixed caret: ${mixedState.caret}@${mixedState.caretOffset}; legacy=${mixedState.legacyCaret}@${mixedState.legacyOffset}`);
   await page.mouse.dblclick(mixedState.point.x, mixedState.point.y);
   await waitForEditor("mixed-leading");
   assert.equal(await editor().inputValue(), "Select one or more elements, then use Arrange or", "mixed-leading: wrong direct text run selected");
