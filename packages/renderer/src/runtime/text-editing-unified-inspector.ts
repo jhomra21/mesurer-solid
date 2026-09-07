@@ -287,6 +287,7 @@ export function installUnifiedTextInspector(
       card.style.removeProperty("visibility");
       Object.assign(card.style, {
         pointerEvents: "auto",
+        boxSizing: "border-box",
         width: "min(360px, calc(100vw - 16px))",
         minWidth: "0",
         maxWidth: "calc(100vw - 16px)",
