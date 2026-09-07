@@ -1,0 +1,217 @@
+name: temp-unified-typography-patch
+
+on:
+  push:
+    branches:
+      - fix/text-editor-selection-visual
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, 'refactor: finish unified typography editor') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: fix/text-editor-selection-visual
+          fetch-depth: 0
+      - name: Apply focused source patch
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly one match, found {count}")
+              return text.replace(old, new, 1)
+
+          core_path = Path("packages/renderer/src/runtime/text-editing-core.ts")
+          core = core_path.read_text()
+          marker = '''\n  const shortcutLabel = (shortcut: TextStylePreset["shortcut"]) => {'''
+          helper = r'''
+
+  const makeMenuTextInput = (
+    session: EditorSession,
+    label: string,
+    property: "line-height" | "letter-spacing",
+    current: string,
+  ) => {
+    const wrapper = ownerDocument.createElement("label");
+    Object.assign(wrapper.style, {
+      display: "grid",
+      gridTemplateColumns: "72px minmax(0, 1fr)",
+      alignItems: "center",
+      gap: "8px",
+      minHeight: "38px",
+      padding: "0 8px",
+      color: TOOLBAR_INK,
+      font: "500 12px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    });
+    const caption = ownerDocument.createElement("span");
+    caption.textContent = label;
+    caption.style.color = TOOLBAR_MUTED;
+
+    const input = ownerDocument.createElement("input");
+    input.type = "text";
+    input.value = current;
+    input.setAttribute("aria-label", label);
+    input.dataset.mesurerTextStyleInput = label.toLowerCase().replace(/\s+/g, "-");
+    Object.assign(input.style, {
+      width: "100%",
+      height: "32px",
+      boxSizing: "border-box",
+      border: "0",
+      borderRadius: "8px",
+      background: "rgba(0, 0, 0, 0.035)",
+      color: TOOLBAR_INK,
+      font: "500 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace",
+      padding: "0 8px",
+      outline: "none",
+    });
+
+    const commit = () => {
+      if (editorSession !== session) return;
+      const desired = input.value.trim();
+      if (!desired) {
+        input.value = current;
+        return;
+      }
+      const probe = ownerDocument.createElement("span");
+      probe.style.setProperty(property, desired);
+      if (!probe.style.getPropertyValue(property)) {
+        input.setCustomValidity(`Invalid ${label.toLowerCase()} value`);
+        input.reportValidity();
+        return;
+      }
+      input.setCustomValidity("");
+      setSessionStyle(session, property, desired);
+    };
+    input.addEventListener("change", commit);
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      event.stopPropagation();
+      commit();
+      session.editor.focus({ preventScroll: true });
+    });
+    wrapper.append(caption, input);
+    return wrapper;
+  };
+'''
+          if "const makeMenuTextInput" not in core:
+              core = replace_once(core, marker, helper + marker, "insert line/tracking input helper")
+
+          core = replace_once(
+              core,
+              '''    const weight = currentSessionStyle(session, "font-weight");\n    const color = currentSessionStyle(session, "color");''',
+              '''    const weight = currentSessionStyle(session, "font-weight");\n    const line = currentSessionStyle(session, "line-height");\n    const tracking = currentSessionStyle(session, "letter-spacing");\n    const color = currentSessionStyle(session, "color");''',
+              "collect line/tracking style values",
+          )
+          core = replace_once(
+              core,
+              '''      makeMenuSelect(\n        session,\n        "Weight",\n        session.catalog.fontWeights,\n        weight,\n        (value) => value,\n        (value) => setSessionStyle(session, "font-weight", value),\n      ),\n    );''',
+              '''      makeMenuSelect(\n        session,\n        "Weight",\n        session.catalog.fontWeights,\n        weight,\n        (value) => value,\n        (value) => setSessionStyle(session, "font-weight", value),\n      ),\n      makeMenuTextInput(session, "Line", "line-height", line),\n      makeMenuTextInput(session, "Tracking", "letter-spacing", tracking),\n    );''',
+              "add line/tracking controls",
+          )
+          core = replace_once(
+              core,
+              '''    Object.assign(inspectorCard.style, {\n      zIndex: "2147483647",\n      pointerEvents: "none",''',
+              '''    Object.assign(inspectorCard.style, {\n      zIndex: "2147483647",\n      pointerEvents: "auto",''',
+              "make inspector interactive",
+          )
+          core = replace_once(
+              core,
+              '''    if (path.includes(session.editor) || path.includes(session.toolbar) || path.includes(session.menu)) return;''',
+              '''    if (path.includes(session.editor)\n      || path.includes(session.toolbar)\n      || path.includes(session.menu)\n      || path.includes(session.inspectorCard)) return;''',
+              "keep inspector interaction inside editor session",
+          )
+          core_path.write_text(core)
+
+          presentation_path = Path("packages/renderer/src/runtime/text-editing-presentation.ts")
+          presentation = presentation_path.read_text()
+          presentation = replace_once(
+              presentation,
+              '''      const directSelects = Array.from(menu.querySelectorAll<HTMLSelectElement>("[data-mesurer-text-style-select]"));\n      for (const select of directSelects) {\n        const wrapper = select.parentElement;\n        styleDirectSelect(select);\n        toolbar.insertBefore(select, presetButton);\n        if (wrapper?.isConnected && wrapper !== toolbar) wrapper.remove();\n      }\n\n      const swatches = menu.querySelector<HTMLElement>("[data-mesurer-text-color-swatches='true']");''',
+              '''      const directSelects = Array.from(menu.querySelectorAll<HTMLSelectElement>("[data-mesurer-text-style-select]"));\n      for (const select of directSelects) {\n        const wrapper = select.parentElement;\n        styleDirectSelect(select);\n        toolbar.insertBefore(select, presetButton);\n        if (wrapper?.isConnected && wrapper !== toolbar) wrapper.remove();\n      }\n\n      const directInputs = Array.from(menu.querySelectorAll<HTMLInputElement>("[data-mesurer-text-style-input]"));\n      for (const input of directInputs) {\n        const wrapper = input.parentElement;\n        toolbar.insertBefore(input, presetButton);\n        if (wrapper?.isConnected && wrapper !== toolbar) wrapper.remove();\n      }\n\n      const swatches = menu.querySelector<HTMLElement>("[data-mesurer-text-color-swatches='true']");''',
+              "surface line/tracking controls for unified inspector",
+          )
+          presentation = replace_once(
+              presentation,
+              '''    if (inspectorCard) {\n      const blocked = overlapArea(inspectorCard.getBoundingClientRect(), ring.getBoundingClientRect()) > 0;\n      setInspectorOccluded(inspectorCard, blocked);\n    } else {\n      restoreOccludedInspector();\n    }''',
+              '''    if (inspectorCard) setInspectorOccluded(inspectorCard, false);\n    else restoreOccludedInspector();''',
+              "keep unified inspector visible",
+          )
+          overlap = '''\nconst overlapArea = (left: DOMRect, right: DOMRect) => {\n  const width = Math.max(0, Math.min(left.right, right.right) - Math.max(left.left, right.left));\n  const height = Math.max(0, Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top));\n  return width * height;\n};\n'''
+          if overlap in presentation:
+              presentation = presentation.replace(overlap, "\n", 1)
+          presentation_path.write_text(presentation)
+
+          render_path = Path("packages/renderer/src/runtime/text-editing-render-in-place.ts")
+          render = render_path.read_text()
+          render = replace_once(
+              render,
+              '''    const best = candidates[0];\n    if (!best) return;\n    Object.assign(card.style, {\n      transform: "none",\n      left: `${best.rect.left}px`,\n      top: `${best.rect.top}px`,\n    });''',
+              '''    const best = candidates.find((candidate) => candidate.overlap === 0);\n    if (best) {\n      Object.assign(card.style, {\n        transform: "none",\n        maxHeight: "calc(100vh - 16px)",\n        overflowY: "auto",\n        left: `${best.rect.left}px`,\n        top: `${best.rect.top}px`,\n      });\n      return;\n    }\n\n    const viewportBottom = ownerWindow.innerHeight - VIEWPORT_PADDING;\n    const verticalLanes = [\n      {\n        top: VIEWPORT_PADDING,\n        height: Math.max(0, hostRect.top - SURFACE_GAP - VIEWPORT_PADDING),\n      },\n      {\n        top: hostRect.bottom + SURFACE_GAP,\n        height: Math.max(0, viewportBottom - hostRect.bottom - SURFACE_GAP),\n      },\n    ].sort((leftLane, rightLane) => rightLane.height - leftLane.height);\n    const verticalLane = verticalLanes[0];\n    if (verticalLane && verticalLane.height > 0) {\n      card.style.maxHeight = `${verticalLane.height}px`;\n      card.style.overflowY = "auto";\n      const resized = card.getBoundingClientRect();\n      const resizedWidth = Math.min(resized.width || width, ownerWindow.innerWidth - VIEWPORT_PADDING * 2);\n      const resizedLeft = clamp(\n        hostRect.left + hostRect.width / 2 - resizedWidth / 2,\n        VIEWPORT_PADDING,\n        Math.max(VIEWPORT_PADDING, ownerWindow.innerWidth - VIEWPORT_PADDING - resizedWidth),\n      );\n      Object.assign(card.style, {\n        transform: "none",\n        left: `${resizedLeft}px`,\n        top: `${verticalLane.top}px`,\n      });\n      return;\n    }\n\n    const fallback = candidates[0];\n    if (!fallback) return;\n    Object.assign(card.style, {\n      transform: "none",\n      left: `${fallback.rect.left}px`,\n      top: `${fallback.rect.top}px`,\n    });''',
+              "adapt unified inspector into a non-overlapping vertical lane",
+          )
+          render_path.write_text(render)
+
+          test_path = Path("visual-parity/typography-editing-layout-contract.mjs")
+          test = test_path.read_text()
+          test = test.replace('const toolbar = () => page.locator("[data-mesurer-text-style-toolbar=\'true\']");\n', '')
+          test = replace_once(
+              test,
+              '''const assertInspectorDoesNotBlock = async (hostBox, stage) => {\n  await page.waitForTimeout(50);\n  const visibility = await inspector().evaluate((element) => getComputedStyle(element).visibility);\n  if (visibility === "hidden") return;\n  assertNoOverlap(await box(inspector()), hostBox, stage);\n};''',
+              '''const assertInspectorDoesNotBlock = async (hostBox, stage) => {\n  await page.waitForTimeout(50);\n  const visibility = await inspector().evaluate((element) => getComputedStyle(element).visibility);\n  assert.notEqual(visibility, "hidden", `${stage}: unified inspector should stay visible`);\n  assertNoOverlap(await box(inspector()), hostBox, stage);\n};\nconst assertUnifiedInspector = async (stage) => {\n  assert.equal(await inspector().getAttribute("data-mesurer-text-inspector-unified"), "true", `${stage}: expected unified typography editor`);\n  const sourceToolbar = page.locator("[data-mesurer-text-style-toolbar='true']");\n  assert.equal(await sourceToolbar.evaluate((element) => getComputedStyle(element).display), "none", `${stage}: legacy text toolbar should not render`);\n  for (const selector of [\n    "[data-mesurer-text-style-select='font']",\n    "[data-mesurer-text-style-select='size']",\n    "[data-mesurer-text-style-select='weight']",\n    "[data-mesurer-text-style-input='line']",\n    "[data-mesurer-text-style-input='tracking']",\n    "[data-mesurer-text-style-button='bold']",\n    "[data-mesurer-text-style-button='italic']",\n    "[data-mesurer-text-style-button='underline']",\n    "[data-mesurer-text-color-swatches='true']",\n    "[data-mesurer-text-style-menu-button='true']",\n  ]) {\n    assert.equal(await inspector().locator(selector).count(), 1, `${stage}: missing unified control ${selector}`);\n  }\n};''',
+              "strengthen unified inspector assertion",
+          )
+          test = replace_once(
+              test,
+              '''  await assertInitialSelection("slim");\n  await replaceSelection("Selection target updated");''',
+              '''  await assertInitialSelection("slim");\n  await assertUnifiedInspector("slim");\n  const initialLineHeight = await slim.evaluate((element) => getComputedStyle(element).lineHeight);\n  const initialTracking = await slim.evaluate((element) => getComputedStyle(element).letterSpacing);\n  const lineInput = inspector().locator("[data-mesurer-text-style-input='line']");\n  await lineInput.fill("30px");\n  await lineInput.press("Enter");\n  await page.waitForFunction(() => getComputedStyle(document.querySelector(".feature-copy .kicker")).lineHeight === "30px");\n  const trackingInput = inspector().locator("[data-mesurer-text-style-input='tracking']");\n  await trackingInput.fill("1px");\n  await trackingInput.press("Enter");\n  await page.waitForFunction(() => getComputedStyle(document.querySelector(".feature-copy .kicker")).letterSpacing === "1px");\n  const presetButton = inspector().locator("[data-mesurer-text-style-menu-button='true']");\n  await presetButton.click();\n  await page.waitForFunction(() => document.querySelectorAll("[data-mesurer-unified-text-presets='true']").length === 1);\n  assert(await inspector().locator("[data-mesurer-unified-text-presets='true'] [data-mesurer-text-style-preset]").count() > 0, "slim: expected in-card text presets");\n  await inspector().locator("[data-mesurer-text-style-menu-button='true']").click();\n  await replaceSelection("Selection target updated");''',
+              "exercise unified editable typography rows",
+          )
+          test = replace_once(
+              test,
+              '''  await closeEditor();\n\n  await page.setViewportSize({ width: 1280, height: 520 });''',
+              '''  await closeEditor();\n  assert.equal(await slim.evaluate((element) => getComputedStyle(element).lineHeight), initialLineHeight, "slim: Escape should restore line height");\n  assert.equal(await slim.evaluate((element) => getComputedStyle(element).letterSpacing), initialTracking, "slim: Escape should restore tracking");\n\n  await page.setViewportSize({ width: 1280, height: 520 });''',
+              "verify unified style cancellation",
+          )
+          test = test.replace('  assertNoOverlap(await box(inspector()), await box(toolbar()), "mixed-leading inspector/toolbar");\n', '')
+          test = replace_once(
+              test,
+              '''  // Reproduce the edge-of-page card from the manual acceptance screenshot. If\n  // the details card cannot fit anywhere without covering the active field,\n  // it must get out of the way instead of choosing a least-bad overlap.\n  await page.setViewportSize({ width: 700, height: 220 });''',
+              '''  // Reproduce the edge-of-page card from the manual acceptance screenshot.\n  // The unified editor must remain visible and use an available lane instead\n  // of covering the text or disappearing below the viewport.\n  await page.setViewportSize({ width: 700, height: 220 });''',
+              "update edge acceptance intent",
+          )
+          test = replace_once(
+              test,
+              '''  await assertInspectorDoesNotBlock(edgeState.box, "edge inspector/field");\n  const edgeInspectorVisibility = await inspector().evaluate((element) => getComputedStyle(element).visibility);\n  if (edgeInspectorVisibility !== "hidden") {\n    assertNoOverlap(await box(inspector()), edgeState.box, "edge visible inspector/field");\n  }''',
+              '''  await assertInspectorDoesNotBlock(edgeState.box, "edge inspector/field");\n  await assertUnifiedInspector("edge");\n  const edgeInspectorBox = await box(inspector());\n  assert(edgeInspectorBox.y >= 0 && edgeInspectorBox.y + edgeInspectorBox.height <= 220, "edge: unified inspector should stay inside viewport");''',
+              "require visible edge inspector",
+          )
+          test = test.replace(
+              'console.log("Host-anchored editing + restored select-all highlight + visible caret + non-blocking inspector + mixed-inline text runs: PASS");',
+              'console.log("Host-anchored editing + unified interactive Typography inspector + visible caret + mixed-inline text runs: PASS");',
+          )
+          test_path.write_text(test)
+          PY
+      - name: Commit focused patch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No patch needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/renderer/src/runtime/text-editing-core.ts \
+                  packages/renderer/src/runtime/text-editing-presentation.ts \
+                  packages/renderer/src/runtime/text-editing-render-in-place.ts \
+                  visual-parity/typography-editing-layout-contract.mjs
+          git commit -m "refactor: finish unified typography editor"
+          git push origin HEAD:fix/text-editor-selection-visual
