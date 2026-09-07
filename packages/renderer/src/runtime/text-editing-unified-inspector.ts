@@ -51,6 +51,7 @@ export function installUnifiedTextInspector(
   let refining = false;
   let positionFrame = 0;
   let positionTimer = 0;
+  let placementShell: HTMLDivElement | null = null;
 
   const focusEditor = () => {
     if (disposed) return;
@@ -63,6 +64,41 @@ export function installUnifiedTextInspector(
     ownerWindow.setTimeout(focusEditor, 0);
   };
 
+  const ensurePlacementShell = (card: HTMLElement) => {
+    if (placementShell?.isConnected && placementShell.contains(card)) return placementShell;
+    placementShell?.remove();
+
+    const shell = ownerDocument.createElement("div");
+    shell.dataset.mesurerTextInspectorPlacementShell = "true";
+    shell.dataset.mesurerInspectorUi = "true";
+    Object.assign(shell.style, {
+      position: "fixed",
+      left: "0px",
+      top: "0px",
+      zIndex: "2147483647",
+      width: "max-content",
+      maxWidth: `calc(100vw - ${VIEWPORT_PADDING * 2}px)`,
+      overflow: "visible",
+      pointerEvents: "auto",
+    });
+    card.before(shell);
+    shell.append(card);
+    Object.assign(card.style, {
+      position: "static",
+      left: "auto",
+      top: "auto",
+      transform: "none",
+      zIndex: "auto",
+    });
+    placementShell = shell;
+    return shell;
+  };
+
+  const removePlacementShell = () => {
+    placementShell?.remove();
+    placementShell = null;
+  };
+
   const positionCard = () => {
     if (disposed) return;
     const card = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
@@ -70,7 +106,11 @@ export function installUnifiedTextInspector(
     const ring = rings.item(rings.length - 1);
     if (!card?.isConnected || !ring?.isConnected) return;
 
+    const shell = ensurePlacementShell(card);
     Object.assign(card.style, {
+      position: "static",
+      left: "auto",
+      top: "auto",
       transform: "none",
       boxSizing: "border-box",
       maxHeight: `calc(100vh - ${VIEWPORT_PADDING * 2}px)`,
@@ -97,10 +137,10 @@ export function installUnifiedTextInspector(
     );
 
     const candidates = [
-      { left: centeredLeft, top: host.top - SURFACE_GAP - height },
-      { left: centeredLeft, top: host.bottom + SURFACE_GAP },
-      { left: host.right + SURFACE_GAP, top: centeredTop },
-      { left: host.left - SURFACE_GAP - width, top: centeredTop },
+      { left: centeredLeft, top: host.top - SURFACE_GAP - height, placement: "above" },
+      { left: centeredLeft, top: host.bottom + SURFACE_GAP, placement: "below" },
+      { left: host.right + SURFACE_GAP, top: centeredTop, placement: "side" },
+      { left: host.left - SURFACE_GAP - width, top: centeredTop, placement: "side" },
     ];
 
     const fits = (left: number, top: number) => left >= VIEWPORT_PADDING
@@ -116,9 +156,9 @@ export function installUnifiedTextInspector(
     const full = candidates.find((candidate) => fits(candidate.left, candidate.top)
       && !overlapsHost(candidate.left, candidate.top));
     if (full) {
-      card.style.left = `${full.left}px`;
-      card.style.top = `${full.top}px`;
-      card.dataset.mesurerTextInspectorPlacement = full.top < host.top ? "above" : full.top > host.bottom ? "below" : "side";
+      shell.style.left = `${full.left}px`;
+      shell.style.top = `${full.top}px`;
+      card.dataset.mesurerTextInspectorPlacement = full.placement;
       return;
     }
 
@@ -137,14 +177,14 @@ export function installUnifiedTextInspector(
     const lane = lanes[0];
     if (lane && lane.height > 0) {
       card.style.maxHeight = `${lane.height}px`;
-      card.style.left = `${centeredLeft}px`;
-      card.style.top = `${lane.top}px`;
+      shell.style.left = `${centeredLeft}px`;
+      shell.style.top = `${lane.top}px`;
       card.dataset.mesurerTextInspectorPlacement = lane.name;
       return;
     }
 
-    card.style.left = `${centeredLeft}px`;
-    card.style.top = `${VIEWPORT_PADDING}px`;
+    shell.style.left = `${centeredLeft}px`;
+    shell.style.top = `${VIEWPORT_PADDING}px`;
     card.dataset.mesurerTextInspectorPlacement = "viewport";
   };
 
@@ -465,7 +505,11 @@ export function installUnifiedTextInspector(
       const toolbar = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-style-toolbar='true']");
       const menu = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-style-menu='true']");
       const card = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
-      if (!editor || !toolbar || !menu || !card) return;
+      if (!card) {
+        removePlacementShell();
+        return;
+      }
+      if (!editor || !toolbar || !menu) return;
 
       const grid = card.children.item(1);
       if (!(grid instanceof realm.HTMLElement)) return;
@@ -483,6 +527,11 @@ export function installUnifiedTextInspector(
       card.style.removeProperty("visibility");
       Object.assign(card.style, {
         pointerEvents: "auto",
+        position: "static",
+        left: "auto",
+        top: "auto",
+        transform: "none",
+        zIndex: "auto",
         boxSizing: "border-box",
         width: "min(360px, calc(100vw - 16px))",
         minWidth: "0",
@@ -492,6 +541,7 @@ export function installUnifiedTextInspector(
         padding: "11px 12px 12px",
         whiteSpace: "normal",
       });
+      ensurePlacementShell(card);
       Object.assign(grid.style, {
         gridTemplateColumns: "72px minmax(0, 1fr)",
         columnGap: "10px",
@@ -569,7 +619,6 @@ export function installUnifiedTextInspector(
   runtimeMount.addEventListener("keydown", onInspectorKeyDown, true);
   ownerWindow.addEventListener("resize", schedulePosition);
   ownerWindow.addEventListener("scroll", schedulePosition, true);
-  ownerWindow.addEventListener("pointermove", schedulePosition, true);
 
   const observer = new realm.MutationObserver(refine);
   observer.observe(runtimeMount, { childList: true, subtree: true });
@@ -585,6 +634,6 @@ export function installUnifiedTextInspector(
     runtimeMount.removeEventListener("keydown", onInspectorKeyDown, true);
     ownerWindow.removeEventListener("resize", schedulePosition);
     ownerWindow.removeEventListener("scroll", schedulePosition, true);
-    ownerWindow.removeEventListener("pointermove", schedulePosition, true);
+    removePlacementShell();
   });
 }
