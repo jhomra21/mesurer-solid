@@ -316,7 +316,7 @@ export function installRenderInPlaceTextEditing(
         borderRadius: "2px",
         background: SELECTION_FILL,
       });
-      runtimeMount.append(highlight);
+      portalTarget.append(highlight);
       selectionRects.push(highlight);
     }
   };
@@ -462,17 +462,7 @@ export function installRenderInPlaceTextEditing(
     positionInspectorCard(domSurfaceRect(rect));
   };
 
-  const selectionOnlyMutation = (record: MutationRecord) => {
-    const nodes = [...Array.from(record.addedNodes), ...Array.from(record.removedNodes)];
-    return nodes.length > 0 && nodes.every((node) => (
-      node instanceof realm.HTMLElement
-      && node.dataset.mesurerTextSelectionHighlight === "true"
-    ));
-  };
-  const observer = new realm.MutationObserver((records) => {
-    if (records.length > 0 && records.every(selectionOnlyMutation)) return;
-    schedule();
-  });
+  const observer = new realm.MutationObserver(schedule);
   observer.observe(runtimeMount, { childList: true, subtree: true });
   ownerWindow.addEventListener("resize", schedule);
   ownerWindow.addEventListener("scroll", schedule, true);
