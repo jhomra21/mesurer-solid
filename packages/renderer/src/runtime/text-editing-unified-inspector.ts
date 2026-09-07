@@ -12,9 +12,13 @@ type InspectorRow = {
   value: HTMLElement;
 };
 
-const rowMap = (grid: HTMLElement) => {
+const rowMap = (
+  grid: HTMLElement,
+  realm: Window & typeof globalThis,
+) => {
   const rows = new Map<string, InspectorRow>();
-  const children = Array.from(grid.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+  const children = Array.from(grid.children)
+    .filter((child): child is HTMLElement => child instanceof realm.HTMLElement);
   for (let index = 0; index + 1 < children.length; index += 2) {
     const label = children[index];
     const value = children[index + 1];
@@ -33,6 +37,7 @@ export function installUnifiedTextInspector(
   runtime: MesurerSolidRuntimeService,
 ) {
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
+  // SAFETY: ownerWindow owns portalTarget and supplies the DOM constructors for this runtime realm.
   const realm = ownerWindow as Window & typeof globalThis;
   const runtimeMounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
   const runtimeMount = runtimeMounts.item(runtimeMounts.length - 1);
@@ -211,7 +216,7 @@ export function installUnifiedTextInspector(
 
       const grid = card.children.item(1);
       if (!(grid instanceof realm.HTMLElement)) return;
-      const rows = rowMap(grid);
+      const rows = rowMap(grid, realm);
 
       card.dataset.mesurerTextInspectorUnified = "true";
       card.setAttribute("aria-label", "Typography editor");
