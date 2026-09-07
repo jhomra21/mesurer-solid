@@ -35,6 +35,7 @@ const directTextNodeAtPoint = (
   x: number,
   y: number,
 ) => {
+  // SAFETY: This only exposes optional browser caret APIs on the same ownerDocument object.
   const caretDocument = ownerDocument as CaretDocument;
   const caretPosition = caretDocument.caretPositionFromPoint?.(x, y);
   if (caretPosition?.offsetNode instanceof realm.Text) {
@@ -75,6 +76,7 @@ export function installMixedInlineTextTargeting(
   runtime: MesurerSolidRuntimeService,
 ) {
   const { ownerDocument, ownerWindow, pageTarget } = runtime;
+  // SAFETY: ownerWindow owns ownerDocument/pageTarget and supplies their matching DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
 
   const directEditingMode = () => {
@@ -154,6 +156,8 @@ export function installRenderInPlaceTextEditing(
   runtime: MesurerSolidRuntimeService,
 ) {
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
+  // SAFETY: ownerWindow owns portalTarget and supplies the matching MutationObserver constructor.
+  const realm = ownerWindow as Window & typeof globalThis;
   const runtimeMounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
   const runtimeMount = runtimeMounts.item(runtimeMounts.length - 1);
   if (!runtimeMount) return;
@@ -184,6 +188,15 @@ export function installRenderInPlaceTextEditing(
     });
     runtimeMount.append(ring);
     return ring;
+  };
+
+  const schedule = () => {
+    if (disposed || queued) return;
+    queued = true;
+    ownerWindow.queueMicrotask(() => {
+      queued = false;
+      refine();
+    });
   };
 
   const refine = () => {
@@ -217,16 +230,7 @@ export function installRenderInPlaceTextEditing(
     });
   };
 
-  const schedule = () => {
-    if (disposed || queued) return;
-    queued = true;
-    ownerWindow.queueMicrotask(() => {
-      queued = false;
-      refine();
-    });
-  };
-
-  const observer = new MutationObserver(schedule);
+  const observer = new realm.MutationObserver(schedule);
   observer.observe(runtimeMount, { childList: true, subtree: true });
   ownerWindow.addEventListener("resize", schedule);
   ownerWindow.addEventListener("scroll", schedule, true);
