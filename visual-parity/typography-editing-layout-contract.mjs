@@ -13,6 +13,7 @@ page.on("console", (message) => {
 const editor = () => page.locator("[data-mesurer-text-editor='true']");
 const ring = () => page.locator("[data-mesurer-text-edit-ring='true']");
 const selection = () => page.locator("[data-mesurer-text-selection-highlight='true']");
+const caret = () => page.locator("[data-mesurer-text-caret='true']");
 const inspector = () => page.locator("[data-mesurer-text-inspector-info='true']");
 const toolbar = () => page.locator("[data-mesurer-text-style-toolbar='true']");
 const waitForEditor = async (stage) => {
@@ -43,12 +44,32 @@ const overlapArea = (left, right) => {
 const assertNoOverlap = (left, right, stage) => {
   assert.equal(overlapArea(left, right), 0, `${stage}: surfaces overlap`);
 };
+const assertInspectorDoesNotBlock = async (hostBox, stage) => {
+  await page.waitForTimeout(50);
+  const visibility = await inspector().evaluate((element) => getComputedStyle(element).visibility);
+  if (visibility === "hidden") return;
+  assertNoOverlap(await box(inspector()), hostBox, stage);
+};
 const assertInitialSelection = async (stage) => {
   assert(await selection().count() > 0, `${stage}: expected selected-text highlight on entry`);
+  assert.equal(await caret().count(), 0, `${stage}: caret should not render while text is selected`);
 };
 const assertSelectionCleared = async (stage) => {
   await page.waitForFunction(() => document.querySelectorAll("[data-mesurer-text-selection-highlight='true']").length === 0);
   assert.equal(await selection().count(), 0, `${stage}: selection highlight should clear after replacement input`);
+};
+const assertCaretVisible = async (stage) => {
+  await page.waitForFunction(() => document.querySelectorAll("[data-mesurer-text-caret='true']").length === 1);
+  const caretBox = await box(caret());
+  assert(caretBox.width > 0 && caretBox.height > 0, `${stage}: expected visible caret geometry`);
+  assert(await caret().evaluate((element) => element.getAnimations().length > 0), `${stage}: expected blinking caret animation`);
+};
+const replaceSelection = async (value) => {
+  await editor().evaluate((element, nextValue) => {
+    element.value = nextValue;
+    element.setSelectionRange(nextValue.length, nextValue.length);
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  }, value);
 };
 
 try {
@@ -76,6 +97,9 @@ try {
   assert.equal(await slim.evaluate((element) => getComputedStyle(element).backgroundColor), slimBackground, "slim: host background changed on edit");
   assertSameBox(await box(ring()), slimBox, "slim");
   await assertInitialSelection("slim");
+  await replaceSelection("Selection target updated");
+  await assertSelectionCleared("slim");
+  await assertCaretVisible("slim");
   await closeEditor();
 
   await page.setViewportSize({ width: 1280, height: 520 });
@@ -119,14 +143,12 @@ try {
   assert.equal(await editor().inputValue(), "Select one or more elements, then use Arrange or", "mixed-leading: wrong direct text run selected");
   assertSameBox(await box(ring()), mixedState.box, "mixed-leading");
   await assertInitialSelection("mixed-leading");
-  assertNoOverlap(await box(inspector()), mixedState.box, "mixed-leading inspector/field");
+  await assertInspectorDoesNotBlock(mixedState.box, "mixed-leading inspector/field");
   assertNoOverlap(await box(inspector()), await box(toolbar()), "mixed-leading inspector/toolbar");
   assert.equal(await mixed.locator("kbd").textContent(), "Shift+A", "mixed-leading: shortcut badge changed");
-  await editor().evaluate((element) => {
-    element.value = "Updated leading copy";
-    element.dispatchEvent(new Event("input", { bubbles: true }));
-  });
+  await replaceSelection("Updated leading copy");
   await assertSelectionCleared("mixed-leading");
+  await assertCaretVisible("mixed-leading");
   assert.equal(await mixed.locator("kbd").textContent(), "Shift+A", "mixed-leading: typing flattened shortcut badge");
   await closeEditor();
   assert.equal(await mixed.evaluate((element) => element.innerHTML), mixedState.html, "mixed-leading: Escape did not restore mixed inline content");
@@ -151,19 +173,52 @@ try {
   assert.equal(await editor().inputValue(), "to drag them into the layout you want.", "mixed-trailing: wrong direct text run selected");
   assertSameBox(await box(ring()), trailingState.box, "mixed-trailing");
   await assertInitialSelection("mixed-trailing");
-  assertNoOverlap(await box(inspector()), trailingState.box, "mixed-trailing inspector/field");
+  await assertInspectorDoesNotBlock(trailingState.box, "mixed-trailing inspector/field");
   assert.equal(await mixed.locator("kbd").textContent(), "Shift+A", "mixed-trailing: shortcut badge changed");
-  await editor().evaluate((element) => {
-    element.value = "Updated trailing copy";
-    element.dispatchEvent(new Event("input", { bubbles: true }));
-  });
+  await replaceSelection("Updated trailing copy");
   await assertSelectionCleared("mixed-trailing");
+  await assertCaretVisible("mixed-trailing");
   assert.equal(await mixed.locator("kbd").textContent(), "Shift+A", "mixed-trailing: typing flattened shortcut badge");
   await closeEditor();
   assert.equal(await mixed.evaluate((element) => element.innerHTML), mixedState.html, "mixed-trailing: Escape did not restore mixed inline content");
 
+  // Reproduce the edge-of-page card from the manual acceptance screenshot. If
+  // the details card cannot fit anywhere without covering the active field,
+  // it must get out of the way instead of choosing a least-bad overlap.
+  await page.setViewportSize({ width: 700, height: 220 });
+  const edge = page.locator(".warm-card p");
+  await edge.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await page.waitForTimeout(50);
+  const edgeState = await edge.evaluate((element) => {
+    const runs = Array.from(element.childNodes)
+      .filter((node) => node instanceof Text && Boolean(node.nodeValue?.trim()));
+    const trailing = runs[runs.length - 1];
+    if (!(trailing instanceof Text)) throw new Error("Expected trailing Guides + rulers text run");
+    const range = document.createRange();
+    range.selectNodeContents(trailing);
+    const rects = Array.from(range.getClientRects());
+    const rect = rects[rects.length - 1];
+    const host = element.getBoundingClientRect();
+    if (!rect) throw new Error("Expected edge text geometry");
+    return {
+      point: { x: rect.left + Math.min(18, rect.width / 2), y: rect.top + rect.height / 2 },
+      box: { x: host.x, y: host.y, width: host.width, height: host.height },
+    };
+  });
+  await page.mouse.dblclick(edgeState.point.x, edgeState.point.y);
+  await waitForEditor("edge");
+  await assertInspectorDoesNotBlock(edgeState.box, "edge inspector/field");
+  const edgeInspectorVisibility = await inspector().evaluate((element) => getComputedStyle(element).visibility);
+  if (edgeInspectorVisibility !== "hidden") {
+    assertNoOverlap(await box(inspector()), edgeState.box, "edge visible inspector/field");
+  }
+  await replaceSelection("Updated edge copy");
+  await assertSelectionCleared("edge");
+  await assertCaretVisible("edge");
+  await closeEditor();
+
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Host-anchored editing + restored select-all highlight + collision-safe inspector + mixed-inline text runs: PASS");
+  console.log("Host-anchored editing + restored select-all highlight + visible caret + non-blocking inspector + mixed-inline text runs: PASS");
 } finally {
   await browser.close();
 }
