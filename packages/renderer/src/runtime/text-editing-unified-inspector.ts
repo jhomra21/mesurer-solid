@@ -6,6 +6,8 @@ const INK_200 = "#e2e8f0";
 const INK_500 = "#64748b";
 const INK_900 = "#0f172a";
 const ACCENT = "#0d99ff";
+const VIEWPORT_PADDING = 8;
+const SURFACE_GAP = 8;
 
 type InspectorRow = {
   label: HTMLElement;
@@ -45,6 +47,7 @@ export function installUnifiedTextInspector(
 
   let disposed = false;
   let refining = false;
+  let positionFrame = 0;
 
   const focusEditor = () => {
     if (disposed) return;
@@ -55,6 +58,94 @@ export function installUnifiedTextInspector(
 
   const focusEditorSoon = () => {
     ownerWindow.setTimeout(focusEditor, 0);
+  };
+
+  const positionCard = () => {
+    if (disposed) return;
+    const card = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
+    const rings = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-ring='true']");
+    const ring = rings.item(rings.length - 1);
+    if (!card?.isConnected || !ring?.isConnected) return;
+
+    Object.assign(card.style, {
+      transform: "none",
+      boxSizing: "border-box",
+      maxHeight: `calc(100vh - ${VIEWPORT_PADDING * 2}px)`,
+      overflowY: "auto",
+    });
+
+    const host = ring.getBoundingClientRect();
+    const measured = card.getBoundingClientRect();
+    if (measured.width <= 0 || measured.height <= 0) return;
+
+    const width = measured.width;
+    const height = measured.height;
+    const viewportRight = ownerWindow.innerWidth - VIEWPORT_PADDING;
+    const viewportBottom = ownerWindow.innerHeight - VIEWPORT_PADDING;
+    const maxLeft = Math.max(VIEWPORT_PADDING, viewportRight - width);
+    const maxTop = Math.max(VIEWPORT_PADDING, viewportBottom - height);
+    const centeredLeft = Math.min(
+      Math.max(host.left + host.width / 2 - width / 2, VIEWPORT_PADDING),
+      maxLeft,
+    );
+    const centeredTop = Math.min(
+      Math.max(host.top + host.height / 2 - height / 2, VIEWPORT_PADDING),
+      maxTop,
+    );
+
+    const candidates = [
+      { left: centeredLeft, top: host.top - SURFACE_GAP - height },
+      { left: centeredLeft, top: host.bottom + SURFACE_GAP },
+      { left: host.right + SURFACE_GAP, top: centeredTop },
+      { left: host.left - SURFACE_GAP - width, top: centeredTop },
+    ];
+
+    const fits = (left: number, top: number) => left >= VIEWPORT_PADDING
+      && top >= VIEWPORT_PADDING
+      && left + width <= viewportRight
+      && top + height <= viewportBottom;
+    const overlapsHost = (left: number, top: number) => {
+      const overlapWidth = Math.max(0, Math.min(left + width, host.right) - Math.max(left, host.left));
+      const overlapHeight = Math.max(0, Math.min(top + height, host.bottom) - Math.max(top, host.top));
+      return overlapWidth > 0 && overlapHeight > 0;
+    };
+
+    const full = candidates.find((candidate) => fits(candidate.left, candidate.top)
+      && !overlapsHost(candidate.left, candidate.top));
+    if (full) {
+      card.style.left = `${full.left}px`;
+      card.style.top = `${full.top}px`;
+      return;
+    }
+
+    const lanes = [
+      {
+        top: VIEWPORT_PADDING,
+        height: Math.max(0, host.top - SURFACE_GAP - VIEWPORT_PADDING),
+      },
+      {
+        top: host.bottom + SURFACE_GAP,
+        height: Math.max(0, viewportBottom - host.bottom - SURFACE_GAP),
+      },
+    ].sort((leftLane, rightLane) => rightLane.height - leftLane.height);
+    const lane = lanes[0];
+    if (lane && lane.height > 0) {
+      card.style.maxHeight = `${lane.height}px`;
+      card.style.left = `${centeredLeft}px`;
+      card.style.top = `${lane.top}px`;
+      return;
+    }
+
+    card.style.left = `${centeredLeft}px`;
+    card.style.top = `${VIEWPORT_PADDING}px`;
+  };
+
+  const schedulePosition = () => {
+    if (disposed || positionFrame) return;
+    positionFrame = ownerWindow.requestAnimationFrame(() => {
+      positionFrame = 0;
+      positionCard();
+    });
   };
 
   const styleSelect = (select: HTMLSelectElement) => {
@@ -360,6 +451,7 @@ export function installUnifiedTextInspector(
       toolbar.setAttribute("aria-hidden", "true");
       menu.style.display = "none";
       menu.setAttribute("aria-hidden", "true");
+      schedulePosition();
     } finally {
       refining = false;
     }
@@ -368,6 +460,8 @@ export function installUnifiedTextInspector(
   runtimeMount.addEventListener("click", onInspectorClick, true);
   runtimeMount.addEventListener("change", onInspectorChange, true);
   runtimeMount.addEventListener("keydown", onInspectorKeyDown, true);
+  ownerWindow.addEventListener("resize", schedulePosition);
+  ownerWindow.addEventListener("scroll", schedulePosition, true);
 
   const observer = new realm.MutationObserver(refine);
   observer.observe(runtimeMount, { childList: true, subtree: true });
@@ -376,8 +470,11 @@ export function installUnifiedTextInspector(
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
+    if (positionFrame) ownerWindow.cancelAnimationFrame(positionFrame);
     runtimeMount.removeEventListener("click", onInspectorClick, true);
     runtimeMount.removeEventListener("change", onInspectorChange, true);
     runtimeMount.removeEventListener("keydown", onInspectorKeyDown, true);
+    ownerWindow.removeEventListener("resize", schedulePosition);
+    ownerWindow.removeEventListener("scroll", schedulePosition, true);
   });
 }
