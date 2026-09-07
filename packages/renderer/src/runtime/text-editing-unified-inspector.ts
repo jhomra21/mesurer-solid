@@ -50,8 +50,7 @@ export function installUnifiedTextInspector(
   let disposed = false;
   let refining = false;
   let positionFrame = 0;
-  let observedCard: HTMLElement | null = null;
-  let observedRing: HTMLElement | null = null;
+  let positionTimer = 0;
 
   const focusEditor = () => {
     if (disposed) return;
@@ -157,24 +156,15 @@ export function installUnifiedTextInspector(
     });
   };
 
-  const ResizeObserverCtor = realm.ResizeObserver;
-  const geometryObserver = typeof ResizeObserverCtor === "function"
-    ? new ResizeObserverCtor(schedulePosition)
-    : null;
-
-  const observePlacementGeometry = (card: HTMLElement) => {
-    const rings = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-ring='true']");
-    const ring = rings.item(rings.length - 1);
-    if (observedCard !== card) {
-      if (observedCard) geometryObserver?.unobserve(observedCard);
-      observedCard = card;
-      geometryObserver?.observe(card);
-    }
-    if (observedRing !== ring) {
-      if (observedRing) geometryObserver?.unobserve(observedRing);
-      observedRing = ring;
-      if (ring) geometryObserver?.observe(ring);
-    }
+  const settlePosition = () => {
+    positionCard();
+    schedulePosition();
+    if (positionTimer) ownerWindow.clearTimeout(positionTimer);
+    positionTimer = ownerWindow.setTimeout(() => {
+      positionTimer = 0;
+      positionCard();
+      schedulePosition();
+    }, 0);
   };
 
   const styleInteractiveShell = (element: HTMLElement) => {
@@ -568,9 +558,7 @@ export function installUnifiedTextInspector(
       toolbar.setAttribute("aria-hidden", "true");
       menu.style.display = "none";
       menu.setAttribute("aria-hidden", "true");
-      observePlacementGeometry(card);
-      positionCard();
-      schedulePosition();
+      settlePosition();
     } finally {
       refining = false;
     }
@@ -590,8 +578,8 @@ export function installUnifiedTextInspector(
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
-    geometryObserver?.disconnect();
     if (positionFrame) ownerWindow.cancelAnimationFrame(positionFrame);
+    if (positionTimer) ownerWindow.clearTimeout(positionTimer);
     runtimeMount.removeEventListener("click", onInspectorClick, true);
     runtimeMount.removeEventListener("change", onInspectorChange, true);
     runtimeMount.removeEventListener("keydown", onInspectorKeyDown, true);
