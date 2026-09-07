@@ -11,6 +11,15 @@ page.on("console", (message) => {
   if (message.type() === "error") consoleErrors.push(message.text());
 });
 
+const closeEnough = (left, right, tolerance = 1.5) => Math.abs(left - right) <= tolerance;
+const assertSameBox = (actual, expected, label) => {
+  assert(actual, `${label} must have rendered geometry`);
+  assert(closeEnough(actual.x, expected.x), `${label} x must match host; host=${expected.x}px actual=${actual.x}px`);
+  assert(closeEnough(actual.y, expected.y), `${label} y must match host; host=${expected.y}px actual=${actual.y}px`);
+  assert(closeEnough(actual.width, expected.width), `${label} width must match host; host=${expected.width}px actual=${actual.width}px`);
+  assert(closeEnough(actual.height, expected.height), `${label} height must match host; host=${expected.height}px actual=${actual.height}px`);
+};
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
 
@@ -47,11 +56,13 @@ try {
   await page.mouse.dblclick(x, y);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
+  const editRing = page.locator("[data-mesurer-text-edit-ring='true']");
   const toolbar = page.locator("[data-mesurer-text-style-toolbar='true']");
   const menuButton = page.locator("[data-mesurer-text-style-menu-button='true']");
   const menu = page.locator("[data-mesurer-text-style-menu='true']");
   const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
-  await editor.waitFor({ state: "visible" });
+  await editor.waitFor({ state: "attached" });
+  await editRing.waitFor({ state: "visible" });
   await toolbar.waitFor({ state: "visible" });
   await menuButton.waitFor({ state: "visible" });
   await inspector.waitFor({ state: "visible" });
@@ -59,36 +70,34 @@ try {
 
   const directEditorVisual = await editor.evaluate((element) => {
     const style = getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
     return {
       rows: element.rows,
-      height: rect.height,
+      opacity: style.opacity,
       backgroundColor: style.backgroundColor,
       boxShadow: style.boxShadow,
     };
   });
   assert.equal(directEditorVisual.rows, 1, "A one-line direct editor must not reserve textarea's default second row");
-  assert(
-    Math.abs(directEditorVisual.height - targetBox.height) <= 1.5,
-    `Direct editing should preserve the selected target height; target=${targetBox.height}px editor=${directEditorVisual.height}px`,
-  );
+  assert.equal(directEditorVisual.opacity, "0", "The textarea must not repaint the host while it owns keyboard input");
+  assert.equal(directEditorVisual.boxShadow, "none", "The invisible textarea must not add its own edit ring");
   assert.equal(
-    directEditorVisual.backgroundColor,
+    await target.evaluate((element) => getComputedStyle(element).backgroundColor),
     selectedTargetBackground,
-    "Direct editing should preserve the selected target's background instead of introducing a new edit-state fill",
+    "Entering direct edit must not change the host target background",
   );
-  assert(directEditorVisual.boxShadow.includes("1.5px"), `Direct editing should use a subtle 1.5px focus ring; got ${directEditorVisual.boxShadow}`);
-  assert(!directEditorVisual.boxShadow.includes("24px"), `Direct editing should not add the previous heavy drop shadow; got ${directEditorVisual.boxShadow}`);
+
+  const ringBox = await editRing.boundingBox();
+  assertSameBox(ringBox, targetBox, "Direct edit ring");
+  const ringShadow = await editRing.evaluate((element) => getComputedStyle(element).boxShadow);
+  assert(ringShadow.includes("1.5px"), `Direct editing should use a subtle 1.5px inset ring; got ${ringShadow}`);
 
   await editor.evaluate((element) => element.dispatchEvent(new Event("input", { bubbles: true })));
-  const visualAfterInput = await editor.evaluate((element) => ({
-    rows: element.rows,
-    backgroundColor: getComputedStyle(element).backgroundColor,
-    boxShadow: getComputedStyle(element).boxShadow,
-  }));
-  assert.equal(visualAfterInput.rows, 1, "Input updates must keep the direct editor single-row when content remains single-line");
-  assert.equal(visualAfterInput.backgroundColor, directEditorVisual.backgroundColor, "Input updates must preserve the direct-editor background");
-  assert(visualAfterInput.boxShadow.includes("1.5px"), "Input updates must preserve the subtle direct-edit focus ring");
+  assert.equal(
+    await target.evaluate((element) => getComputedStyle(element).backgroundColor),
+    selectedTargetBackground,
+    "Input updates must not repaint the host target background",
+  );
+  assertSameBox(await editRing.boundingBox(), targetBox, "Direct edit ring after input");
 
   const contextualState = await page.evaluate(() => {
     const root = document.querySelector("[data-mesurer-root='true']");
@@ -183,24 +192,68 @@ try {
       && typography?.getAttribute("aria-pressed") === "false";
   });
 
-  // A slim text label should not turn into a taller textarea on direct edit.
+  // A slim text label should keep the host as the visible geometry source.
   const slimTarget = page.locator(".feature-copy .kicker");
   const slimTargetBox = await slimTarget.boundingBox();
   assert(slimTargetBox, "Slim direct-edit target must have rendered geometry");
+  const slimBackground = await slimTarget.evaluate((element) => getComputedStyle(element).backgroundColor);
   const slimX = slimTargetBox.x + slimTargetBox.width / 2;
   const slimY = slimTargetBox.y + slimTargetBox.height / 2;
   await page.mouse.dblclick(slimX, slimY);
   const slimEditor = page.locator("[data-mesurer-text-editor='true']");
-  await slimEditor.waitFor({ state: "visible" });
-  const slimEditorBox = await slimEditor.boundingBox();
-  assert(slimEditorBox, "Slim direct editor must have rendered geometry");
-  assert(
-    Math.abs(slimEditorBox.height - slimTargetBox.height) <= 1.5,
-    `Slim direct editing must preserve target height; target=${slimTargetBox.height}px editor=${slimEditorBox.height}px`,
-  );
+  const slimRing = page.locator("[data-mesurer-text-edit-ring='true']");
+  await slimEditor.waitFor({ state: "attached" });
+  await slimRing.waitFor({ state: "visible" });
+  assert.equal(await slimEditor.evaluate((element) => getComputedStyle(element).opacity), "0", "Slim editing must not repaint through the textarea");
+  assert.equal(await slimTarget.evaluate((element) => getComputedStyle(element).backgroundColor), slimBackground, "Slim editing must preserve the host background");
+  assertSameBox(await slimRing.boundingBox(), slimTargetBox, "Slim direct edit ring");
   await slimEditor.focus();
   await page.keyboard.press("Escape");
   await slimEditor.waitFor({ state: "detached" });
+
+  // Real regression: shortcut badges split a paragraph into multiple direct
+  // text nodes. Editing either surrounding run must preserve the <kbd> node.
+  const mixedTarget = page.locator(".feature-copy > p:not(.kicker)").first();
+  await mixedTarget.waitFor({ state: "visible" });
+  const mixedBefore = await mixedTarget.evaluate((element) => {
+    const first = element.childNodes.item(0);
+    const key = element.querySelector("kbd");
+    if (!(first instanceof Text) || !(key instanceof HTMLElement)) throw new Error("Expected text + kbd mixed-inline fixture");
+    const range = document.createRange();
+    range.selectNodeContents(first);
+    const rect = range.getClientRects().item(0);
+    if (!rect) throw new Error("Expected rendered leading text range");
+    const host = element.getBoundingClientRect();
+    return {
+      html: element.innerHTML,
+      trailing: element.childNodes.item(2)?.nodeValue,
+      keyText: key.textContent,
+      point: { x: rect.left + Math.min(24, rect.width / 2), y: rect.top + rect.height / 2 },
+      box: { x: host.x, y: host.y, width: host.width, height: host.height },
+      backgroundColor: getComputedStyle(element).backgroundColor,
+    };
+  });
+  await page.mouse.dblclick(mixedBefore.point.x, mixedBefore.point.y);
+  const mixedEditor = page.locator("[data-mesurer-text-editor='true']");
+  const mixedRing = page.locator("[data-mesurer-text-edit-ring='true']");
+  await mixedEditor.waitFor({ state: "attached" });
+  await mixedRing.waitFor({ state: "visible" });
+  assert.equal(await mixedEditor.inputValue(), "Select one or more elements, then use Arrange or", "Leading mixed-inline text should be directly editable");
+  assertSameBox(await mixedRing.boundingBox(), mixedBefore.box, "Mixed-inline direct edit ring");
+  assert.equal(await mixedTarget.locator("kbd").textContent(), mixedBefore.keyText, "Entering mixed-inline edit must preserve the shortcut badge");
+  assert.equal(await mixedTarget.evaluate((element) => element.childNodes.item(2)?.nodeValue), mixedBefore.trailing, "Entering leading edit must preserve trailing text");
+  assert.equal(await mixedTarget.evaluate((element) => getComputedStyle(element).backgroundColor), mixedBefore.backgroundColor, "Mixed-inline editing must preserve host background");
+
+  await mixedEditor.evaluate((element) => {
+    element.value = "Updated leading copy";
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  assert.equal(await mixedTarget.locator("kbd").textContent(), mixedBefore.keyText, "Typing around a shortcut badge must not flatten or replace it");
+  assert.equal(await mixedTarget.evaluate((element) => element.childNodes.item(2)?.nodeValue), mixedBefore.trailing, "Typing leading text must preserve the trailing run");
+  await mixedEditor.focus();
+  await page.keyboard.press("Escape");
+  await mixedEditor.waitFor({ state: "detached" });
+  assert.equal(await mixedTarget.evaluate((element) => element.innerHTML), mixedBefore.html, "Escape must restore the full mixed-inline paragraph structure and copy");
 
   // Regression: when Typography itself is selected, its hover/pinned inspector
   // must not remain visible underneath the direct-edit Typography details card.
@@ -222,7 +275,7 @@ try {
   await page.mouse.dblclick(x, y);
   const typographyEditor = page.locator("[data-mesurer-text-editor='true']");
   const directTypographyCard = page.locator("[data-mesurer-text-inspector-info='true']");
-  await typographyEditor.waitFor({ state: "visible" });
+  await typographyEditor.waitFor({ state: "attached" });
   await directTypographyCard.waitFor({ state: "visible" });
 
   assert.equal(
@@ -253,7 +306,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Typography layout browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Typography layout browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Direct typography controls + exact-height editor geometry + semantic-only presets + contextual/explicit Typography without duplicate cards: PASS");
+  console.log("Host-anchored direct editing + mixed-inline shortcut preservation + Typography controls/context: PASS");
 } finally {
   await browser.close();
 }
