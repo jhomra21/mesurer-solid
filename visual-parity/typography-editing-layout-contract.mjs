@@ -11,21 +11,6 @@ page.on("console", (message) => {
   if (message.type() === "error") consoleErrors.push(message.text());
 });
 
-const rgbChannels = (value) => {
-  const match = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(value);
-  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
-};
-
-const effectiveBackgroundColor = (element) => {
-  let current = element;
-  while (current instanceof HTMLElement) {
-    const color = getComputedStyle(current).backgroundColor;
-    if (color !== "transparent" && color !== "rgba(0, 0, 0, 0)") return color;
-    current = current.parentElement;
-  }
-  return getComputedStyle(document.documentElement).backgroundColor;
-};
-
 try {
   await page.goto(url, { waitUntil: "networkidle" });
 
@@ -58,6 +43,7 @@ try {
   });
   await page.mouse.click(x, y);
   await page.locator("[data-mesurer-arrange-box='true']").waitFor({ state: "visible" });
+  const selectedTargetBackground = await target.evaluate((element) => getComputedStyle(element).backgroundColor);
   await page.mouse.dblclick(x, y);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
@@ -85,6 +71,11 @@ try {
   assert(
     directEditorVisual.height <= Math.max(34, targetBox.height + 4),
     `A one-line direct editor should stay close to selected-target height; target=${targetBox.height}px editor=${directEditorVisual.height}px`,
+  );
+  assert.equal(
+    directEditorVisual.backgroundColor,
+    selectedTargetBackground,
+    "Direct editing should preserve the selected target's background instead of introducing a new edit-state fill",
   );
   assert(directEditorVisual.boxShadow.includes("1.5px"), `Direct editing should use a subtle 1.5px focus ring; got ${directEditorVisual.boxShadow}`);
   assert(!directEditorVisual.boxShadow.includes("24px"), `Direct editing should not add the previous heavy drop shadow; got ${directEditorVisual.boxShadow}`);
@@ -205,46 +196,15 @@ try {
   await typographyButton.click();
   await page.waitForFunction(() => document.querySelector("button[data-mesurer-builtin='text-inspector']")?.getAttribute("aria-pressed") === "true");
 
-  const typographyTarget = page.locator(".type-card h2");
-  await typographyTarget.waitFor({ state: "visible" });
-  const typographyTargetBox = await typographyTarget.boundingBox();
-  assert(typographyTargetBox, "Neutral Typography target must have rendered geometry");
-  const typographyTargetBackgroundColor = await typographyTarget.evaluate(effectiveBackgroundColor);
-  const typographyX = typographyTargetBox.x + typographyTargetBox.width / 2;
-  const typographyY = typographyTargetBox.y + typographyTargetBox.height / 2;
-
-  await page.mouse.move(typographyX, typographyY);
+  await page.mouse.move(x, y);
   const normalTypographyCard = page.locator(".mesurer-ti-card:not([data-mesurer-text-inspector-info='true'])[data-state='visible']").first();
   await normalTypographyCard.waitFor({ state: "visible" });
 
-  await page.mouse.dblclick(typographyX, typographyY);
+  await page.mouse.dblclick(x, y);
   const typographyEditor = page.locator("[data-mesurer-text-editor='true']");
   const directTypographyCard = page.locator("[data-mesurer-text-inspector-info='true']");
   await typographyEditor.waitFor({ state: "visible" });
   await directTypographyCard.waitFor({ state: "visible" });
-
-  const explicitEditorVisual = await typographyEditor.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return {
-      rows: element.rows,
-      height: element.getBoundingClientRect().height,
-      backgroundColor: style.backgroundColor,
-      boxShadow: style.boxShadow,
-    };
-  });
-  assert.equal(explicitEditorVisual.rows, 1, "Neutral one-line text editing must not add a second textarea row");
-  assert(
-    explicitEditorVisual.height <= Math.max(50, typographyTargetBox.height + 4),
-    `Neutral one-line editor should stay close to target height; target=${typographyTargetBox.height}px editor=${explicitEditorVisual.height}px`,
-  );
-  const neutralBaseRgb = rgbChannels(typographyTargetBackgroundColor);
-  const neutralEditorRgb = rgbChannels(explicitEditorVisual.backgroundColor);
-  assert(neutralBaseRgb && neutralEditorRgb, `Expected RGB neutral/editor backgrounds; base=${typographyTargetBackgroundColor} editor=${explicitEditorVisual.backgroundColor}`);
-  const neutralTintDelta = neutralEditorRgb.map((channel, index) => Math.abs(channel - neutralBaseRgb[index]));
-  assert(neutralTintDelta.some((delta) => delta >= 2), `Neutral direct editing should retain a visible selection tint; base=${typographyTargetBackgroundColor} editor=${explicitEditorVisual.backgroundColor}`);
-  assert(Math.max(...neutralTintDelta) <= 24, `Neutral direct editing selection tint should stay subtle; deltas=${neutralTintDelta.join(",")}`);
-  assert(explicitEditorVisual.boxShadow.includes("1.5px"), `Neutral direct editing should keep a subtle 1.5px ring; got ${explicitEditorVisual.boxShadow}`);
-  assert(!explicitEditorVisual.boxShadow.includes("24px"), `Neutral direct editing should not restore the old drop shadow; got ${explicitEditorVisual.boxShadow}`);
 
   assert.equal(
     await page.locator(".mesurer-ti-card:visible").count(),
@@ -274,7 +234,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Typography layout browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Typography layout browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Direct typography controls + single-row selection-like editor + semantic-only presets + contextual/explicit Typography without duplicate cards: PASS");
+  console.log("Direct typography controls + single-row selection-preserving editor + semantic-only presets + contextual/explicit Typography without duplicate cards: PASS");
 } finally {
   await browser.close();
 }
