@@ -27,6 +27,7 @@ on:
       - "packages/renderer/src/runtime/text-editing-presentation.ts"
       - "packages/renderer/test/arrange-plugin.test.ts"
       - "packages/renderer/test/distances.test.ts"
+      - "packages/renderer/test/measurement-box-scroll.test.tsx"
       - "packages/renderer/test/text-editing.test.ts"
       - "packages/mesurer/src/context-plugin.tsx"
       - "examples/basic/index.html"
@@ -39,6 +40,7 @@ on:
       - "examples/basic/src/plugin-settings.ts"
       - "visual-parity/arrange-contract.mjs"
       - "visual-parity/color-picker-contract.mjs"
+      - "visual-parity/selection-scroll-contract.mjs"
       - "visual-parity/shortcuts-setting-contract.mjs"
       - "visual-parity/text-editing-contract.mjs"
       - "visual-parity/typography-editing-layout-contract.mjs"
@@ -73,7 +75,7 @@ jobs:
         run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
       - name: Run rendered-contract unit tests
-        run: bun run --filter '@jhomra21/mesurer-solid-renderer' test -- distances.test.ts text-editing.test.ts
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' test -- distances.test.ts measurement-box-scroll.test.tsx text-editing.test.ts
 
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
@@ -122,6 +124,11 @@ jobs:
         env:
           TYPOGRAPHY_EDITING_URL: http://127.0.0.1:4174/
         run: bun visual-parity/typography-editing-layout-contract.mjs
+
+      - name: Exercise selection scroll anchoring
+        env:
+          SELECTION_SCROLL_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/selection-scroll-contract.mjs
 
       - name: Exercise Color Picker capability
         env:
@@ -176,6 +183,7 @@ jobs:
           print("- Direct typography controls, semantic-only preset popup, and centered chevron exercised in Chromium")
           print("- Contextual Typography activation without stealing Select/Arrange exercised in Chromium")
           print("- Text/style Desired state and Live restoration exercised in Chromium")
+          print("- Selected measurement chrome and direct-edit ring remain frame-locked to host geometry while scrolling")
 
           print("")
           print("### Color Picker")
