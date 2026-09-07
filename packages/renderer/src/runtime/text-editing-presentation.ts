@@ -143,7 +143,7 @@ export function installTextEditingPresentation(
       const y = Math.min(ownerWindow.innerHeight - 1, Math.max(0, editorRect.top + Math.min(2, editorRect.height / 2)));
       for (const candidate of ownerDocument.elementsFromPoint(x, y)) {
         if (!(candidate instanceof realm.HTMLElement)) continue;
-        if (runtimeMount.contains(candidate) || candidate.closest("[data-mesurer-inspector-ui='true']")) continue;
+        if (root?.contains(candidate) || runtimeMount.contains(candidate) || candidate.closest("[data-mesurer-inspector-ui='true']")) continue;
         const rect = candidate.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) return rect;
       }
