@@ -43,15 +43,14 @@ const tintedEditorBackground = (base: string) => {
 /**
  * Keeps the field-local direct editor aligned with Mesurer's established
  * toolbar language without coupling Typography's hover/pin runtime to the
- * editing lifecycle. The text-edit core owns targeting, intent, and history;
- * this adapter owns only the transient control arrangement and contextual
- * Typography presentation.
+ * editing lifecycle. The text-edit core owns targeting, geometry, intent,
+ * and history; this adapter owns only transient visual presentation.
  */
 export function installTextEditingPresentation(
   ctx: MesurerPluginContext,
   runtime: MesurerSolidRuntimeService,
 ) {
-  const { ownerDocument, ownerWindow, pageTarget, portalTarget } = runtime;
+  const { ownerDocument, ownerWindow, portalTarget } = runtime;
   // SAFETY: ownerWindow owns portalTarget and therefore supplies the matching DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
   const runtimeMounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
@@ -133,43 +132,6 @@ export function installTextEditingPresentation(
     typographyButtonSnapshot = null;
   };
 
-  const targetRectUnderEditor = (editor: HTMLTextAreaElement) => {
-    const editorRect = editor.getBoundingClientRect();
-    if (editorRect.width <= 0 || editorRect.height <= 0) return null;
-
-    const candidates: HTMLElement[] = [];
-    if (pageTarget instanceof realm.HTMLElement) candidates.push(pageTarget);
-    for (const candidate of pageTarget.querySelectorAll("*")) {
-      if (candidate instanceof realm.HTMLElement) candidates.push(candidate);
-    }
-
-    const editorText = editor.value.trim();
-    let best: { rect: DOMRect; score: number } | null = null;
-    for (const candidate of candidates) {
-      if (candidate.closest("[data-mesurer-inspector-ui='true']")) continue;
-      const directText = Array.from(candidate.childNodes)
-        .filter((node) => node.nodeType === realm.Node.TEXT_NODE)
-        .map((node) => node.nodeValue?.trim() ?? "")
-        .filter(Boolean);
-      if (directText.length !== 1 || directText[0] !== editorText) continue;
-
-      const rect = candidate.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) continue;
-      const expectedWidth = Math.max(120, rect.width);
-      const expectedLeft = Math.min(
-        Math.max(8, rect.left),
-        Math.max(8, ownerWindow.innerWidth - expectedWidth - 8),
-      );
-      const expectedTop = Math.max(8, rect.top);
-      const score = Math.abs(editorRect.left - expectedLeft)
-        + Math.abs(editorRect.top - expectedTop)
-        + Math.abs(editorRect.width - expectedWidth);
-      if (score > 3 || (best && best.score <= score)) continue;
-      best = { rect, score };
-    }
-    return best?.rect ?? null;
-  };
-
   const refineEditorVisual = (editor: HTMLTextAreaElement) => {
     const currentBackgroundColor = ownerWindow.getComputedStyle(editor).backgroundColor;
     let state = editorVisualStates.get(editor);
@@ -189,14 +151,6 @@ export function installTextEditingPresentation(
     editor.rows = 1;
     editor.style.backgroundColor = backgroundColor;
     editor.style.boxShadow = `0 0 0 1.5px ${TOOLBAR_BLUE}`;
-
-    // The editor is a fixed overlay, not a replacement control. Match the
-    // host text element's rendered box instead of textarea rows/scrollHeight.
-    const targetRect = targetRectUnderEditor(editor);
-    if (targetRect) {
-      editor.style.minHeight = "0px";
-      editor.style.height = `${targetRect.height}px`;
-    }
 
     if (editor.dataset.mesurerTextEditorVisualBound !== "true") {
       editor.dataset.mesurerTextEditorVisualBound = "true";
