@@ -50,6 +50,8 @@ export function installUnifiedTextInspector(
   let disposed = false;
   let refining = false;
   let positionFrame = 0;
+  let observedCard: HTMLElement | null = null;
+  let observedRing: HTMLElement | null = null;
 
   const focusEditor = () => {
     if (disposed) return;
@@ -153,6 +155,26 @@ export function installUnifiedTextInspector(
       positionFrame = 0;
       positionCard();
     });
+  };
+
+  const ResizeObserverCtor = realm.ResizeObserver;
+  const geometryObserver = typeof ResizeObserverCtor === "function"
+    ? new ResizeObserverCtor(schedulePosition)
+    : null;
+
+  const observePlacementGeometry = (card: HTMLElement) => {
+    const rings = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-ring='true']");
+    const ring = rings.item(rings.length - 1);
+    if (observedCard !== card) {
+      if (observedCard) geometryObserver?.unobserve(observedCard);
+      observedCard = card;
+      geometryObserver?.observe(card);
+    }
+    if (observedRing !== ring) {
+      if (observedRing) geometryObserver?.unobserve(observedRing);
+      observedRing = ring;
+      if (ring) geometryObserver?.observe(ring);
+    }
   };
 
   const styleInteractiveShell = (element: HTMLElement) => {
@@ -546,6 +568,8 @@ export function installUnifiedTextInspector(
       toolbar.setAttribute("aria-hidden", "true");
       menu.style.display = "none";
       menu.setAttribute("aria-hidden", "true");
+      observePlacementGeometry(card);
+      positionCard();
       schedulePosition();
     } finally {
       refining = false;
@@ -566,6 +590,7 @@ export function installUnifiedTextInspector(
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
+    geometryObserver?.disconnect();
     if (positionFrame) ownerWindow.cancelAnimationFrame(positionFrame);
     runtimeMount.removeEventListener("click", onInspectorClick, true);
     runtimeMount.removeEventListener("change", onInspectorChange, true);
