@@ -223,6 +223,7 @@ export function installUnifiedTextInspector(
 
     const presetToggle = target.closest<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']");
     if (presetToggle) {
+      if (presetToggle.getAttribute("aria-expanded") === "true") focusEditor();
       ownerWindow.setTimeout(() => {
         if (disposed) return;
         const current = runtimeMount.querySelector<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']");
@@ -233,7 +234,10 @@ export function installUnifiedTextInspector(
 
     if (target.closest(
       "[data-mesurer-text-style-button], [data-mesurer-text-color], [data-mesurer-text-style-preset]",
-    )) focusEditorSoon();
+    )) {
+      focusEditor();
+      focusEditorSoon();
+    }
   };
 
   const onInspectorChange = (event: Event) => {
@@ -241,14 +245,20 @@ export function installUnifiedTextInspector(
     if (!target || !runtimeMount.contains(target)) return;
     if (target.matches(
       "[data-mesurer-text-style-select], [data-mesurer-text-custom-color='true']",
-    )) focusEditorSoon();
+    )) {
+      focusEditor();
+      focusEditorSoon();
+    }
   };
 
   const onInspectorKeyDown = (event: KeyboardEvent) => {
     if (event.key !== "Enter") return;
     const target = event.target instanceof realm.HTMLElement ? event.target : null;
     if (!target || !runtimeMount.contains(target)) return;
-    if (target.matches("[data-mesurer-text-style-input]")) focusEditorSoon();
+    if (target.matches("[data-mesurer-text-style-input]")) {
+      focusEditor();
+      focusEditorSoon();
+    }
   };
 
   const refine = () => {
