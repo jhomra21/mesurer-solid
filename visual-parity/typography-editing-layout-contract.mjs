@@ -14,18 +14,8 @@ const editor = () => page.locator("[data-mesurer-text-editor='true']");
 const ring = () => page.locator("[data-mesurer-text-edit-ring='true']");
 const waitForEditor = async (stage) => {
   await page.waitForTimeout(100);
-  const count = await editor().count();
-  const ringCount = await ring().count();
-  const diagnostic = await page.evaluate(() => ({
-    mode: document.querySelector("[data-mesurer-builtin='select'] button")?.getAttribute("aria-pressed"),
-    arrange: document.querySelector("button[data-mesurer-tool-id='arrange']")?.getAttribute("aria-pressed"),
-    active: document.activeElement?.tagName,
-    postCore: window.__MESURER_MIXED_POST_CORE__ ?? null,
-  }));
-  console.log(`${stage}: editor=${count} ring=${ringCount} mode=${diagnostic.mode} arrange=${diagnostic.arrange} active=${diagnostic.active}`);
-  if (stage.startsWith("mixed")) console.log(`mixed post-core: ${JSON.stringify(diagnostic.postCore)}`);
-  assert.equal(count, 1, `${stage}: expected one direct text editor`);
-  assert.equal(ringCount, 1, `${stage}: expected one host-anchored edit ring`);
+  assert.equal(await editor().count(), 1, `${stage}: expected one direct text editor`);
+  assert.equal(await ring().count(), 1, `${stage}: expected one host-anchored edit ring`);
 };
 const closeEditor = async () => {
   await editor().focus();
@@ -70,55 +60,31 @@ try {
 
   const mixed = page.locator(".feature-copy > p:not(.kicker)").first();
   const mixedState = await mixed.evaluate((element) => {
-    const first = element.childNodes.item(0);
-    if (!(first instanceof Text)) throw new Error("Expected leading direct text node");
-    const range = document.createRange();
-    range.selectNodeContents(first);
-    const rect = range.getClientRects()[0];
-    if (!rect) throw new Error("Expected leading text geometry");
-    const point = { x: rect.left + Math.min(24, rect.width / 2), y: rect.top + rect.height / 2 };
-    const host = element.getBoundingClientRect();
-    const caretPosition = document.caretPositionFromPoint?.(point.x, point.y) ?? null;
-    const legacyRange = document.caretRangeFromPoint?.(point.x, point.y) ?? null;
-    const describeNode = (node) => {
-      if (!node) return null;
-      if (node instanceof Text) return `#text:${JSON.stringify(node.nodeValue)}`;
-      if (node instanceof HTMLElement) return `${node.tagName}.${node.className}`;
-      return node.nodeName;
+    const directTextNodes = Array.from(element.childNodes)
+      .filter((node) => node instanceof Text && Boolean(node.nodeValue?.trim()));
+    if (directTextNodes.length !== 2) throw new Error("Expected two direct text runs around the shortcut badge");
+
+    const pointFor = (node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const rect = range.getClientRects()[0];
+      if (!rect) throw new Error("Expected direct text geometry");
+      return {
+        x: rect.left + Math.min(24, rect.width / 2),
+        y: rect.top + rect.height / 2,
+      };
     };
+
+    const host = element.getBoundingClientRect();
     return {
       html: element.innerHTML,
-      directTextNodes: Array.from(element.childNodes)
-        .map((node, index) => ({ index, node: describeNode(node), text: node.nodeValue }))
-        .filter((entry) => entry.text?.trim()),
-      point,
+      leadingPoint: pointFor(directTextNodes[0]),
+      trailingPoint: pointFor(directTextNodes[1]),
       box: { x: host.x, y: host.y, width: host.width, height: host.height },
-      hit: document.elementsFromPoint(point.x, point.y).map((candidate) => `${candidate.tagName}.${candidate.className}`),
-      caret: describeNode(caretPosition?.offsetNode ?? null),
-      caretOffset: caretPosition?.offset ?? null,
-      legacyCaret: describeNode(legacyRange?.startContainer ?? null),
-      legacyOffset: legacyRange?.startOffset ?? null,
     };
   });
-  console.log(`mixed direct nodes: ${JSON.stringify(mixedState.directTextNodes)}`);
-  console.log(`mixed hit stack: ${mixedState.hit.join(" > ")}`);
-  console.log(`mixed caret: ${mixedState.caret}@${mixedState.caretOffset}; legacy=${mixedState.legacyCaret}@${mixedState.legacyOffset}`);
 
-  await page.evaluate(() => {
-    window.__MESURER_MIXED_POST_CORE__ = null;
-    window.addEventListener("dblclick", () => {
-      const element = document.querySelector(".feature-copy > p:not(.kicker)");
-      if (!(element instanceof HTMLElement)) return;
-      const descriptor = Object.getOwnPropertyDescriptor(element, "childNodes");
-      window.__MESURER_MIXED_POST_CORE__ = {
-        hasOwnChildNodes: Boolean(descriptor),
-        childNodeCount: Array.from(element.childNodes).length,
-        nonEmptyDirectTextCount: Array.from(element.childNodes).filter((node) => node instanceof Text && Boolean(node.nodeValue?.trim())).length,
-      };
-    }, true);
-  });
-
-  await page.mouse.dblclick(mixedState.point.x, mixedState.point.y);
+  await page.mouse.dblclick(mixedState.leadingPoint.x, mixedState.leadingPoint.y);
   await waitForEditor("mixed-leading");
   assert.equal(await editor().inputValue(), "Select one or more elements, then use Arrange or", "mixed-leading: wrong direct text run selected");
   assertSameBox(await box(ring()), mixedState.box, "mixed-leading");
@@ -131,8 +97,21 @@ try {
   await closeEditor();
   assert.equal(await mixed.evaluate((element) => element.innerHTML), mixedState.html, "mixed-leading: Escape did not restore mixed inline content");
 
+  await page.mouse.dblclick(mixedState.trailingPoint.x, mixedState.trailingPoint.y);
+  await waitForEditor("mixed-trailing");
+  assert.equal(await editor().inputValue(), "to drag them into the layout you want.", "mixed-trailing: wrong direct text run selected");
+  assertSameBox(await box(ring()), mixedState.box, "mixed-trailing");
+  assert.equal(await mixed.locator("kbd").textContent(), "Shift+A", "mixed-trailing: shortcut badge changed");
+  await editor().evaluate((element) => {
+    element.value = "Updated trailing copy";
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  assert.equal(await mixed.locator("kbd").textContent(), "Shift+A", "mixed-trailing: typing flattened shortcut badge");
+  await closeEditor();
+  assert.equal(await mixed.evaluate((element) => element.innerHTML), mixedState.html, "mixed-trailing: Escape did not restore mixed inline content");
+
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Focused host-anchored + slim + mixed-inline direct text regression: PASS");
+  console.log("Host-anchored ordinary/slim editing + both mixed-inline text runs: PASS");
 } finally {
   await browser.close();
 }
