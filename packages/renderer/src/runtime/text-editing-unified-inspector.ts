@@ -189,12 +189,14 @@ export function installUnifiedTextInspector(
     if (!control) return;
     const label = ownerDocument.createElement("span");
     label.textContent = labelText;
+    label.dataset.mesurerUnifiedTextRow = "true";
     Object.assign(label.style, {
       color: INK_500,
       fontSize: "11px",
       alignSelf: "center",
     });
     const value = ownerDocument.createElement("div");
+    value.dataset.mesurerUnifiedTextRow = "true";
     value.append(control);
     Object.assign(value.style, {
       minWidth: "0",
@@ -216,6 +218,12 @@ export function installUnifiedTextInspector(
 
       const grid = card.children.item(1);
       if (!(grid instanceof realm.HTMLElement)) return;
+      const freshControls = Boolean(toolbar.querySelector("[data-mesurer-text-style-menu-button='true']"));
+      if (freshControls) {
+        for (const element of card.querySelectorAll<HTMLElement>(
+          "[data-mesurer-unified-text-row='true'], [data-mesurer-unified-text-presets='true']",
+        )) element.remove();
+      }
       const rows = rowMap(grid, realm);
 
       card.dataset.mesurerTextInspectorUnified = "true";
