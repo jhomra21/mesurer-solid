@@ -96,18 +96,23 @@ export function installMixedInlineTextTargeting(
     for (const candidate of ownerDocument.elementsFromPoint(x, y)) {
       if (!(candidate instanceof realm.HTMLElement)) continue;
       if (!isPageElement(candidate) || SKIP_TAGS.has(candidate.tagName)) continue;
-      if (candidate.isContentEditable) return;
+      if (candidate.isContentEditable) continue;
 
       const nodes = directTextNodes(candidate, realm);
       if (nodes.length === 0) continue;
 
+      // A hit-stack ancestor may contain direct text somewhere else while an
+      // Arrange/select overlay sits above the actual clicked line. Only let a
+      // candidate win when this pointer intersects one of its own direct text
+      // runs; otherwise keep scanning down to the real host element.
+      const target = directTextNodeAtPoint(ownerDocument, realm, nodes, x, y);
+      if (!target) continue;
+
       activeHostByRuntime.set(runtime, candidate);
       if (nodes.length === 1) return;
-
-      const target = directTextNodeAtPoint(ownerDocument, realm, nodes, x, y);
-      if (!target || Object.prototype.hasOwnProperty.call(candidate, "childNodes")) {
+      if (Object.prototype.hasOwnProperty.call(candidate, "childNodes")) {
         activeHostByRuntime.delete(runtime);
-        return;
+        continue;
       }
 
       const actualChildren = Array.from(candidate.childNodes);
