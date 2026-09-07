@@ -354,9 +354,9 @@ export function installUnifiedTextInspector(
     }
   };
 
-  runtimeMount.addEventListener("click", onInspectorClick);
-  runtimeMount.addEventListener("change", onInspectorChange);
-  runtimeMount.addEventListener("keydown", onInspectorKeyDown);
+  runtimeMount.addEventListener("click", onInspectorClick, true);
+  runtimeMount.addEventListener("change", onInspectorChange, true);
+  runtimeMount.addEventListener("keydown", onInspectorKeyDown, true);
 
   const observer = new realm.MutationObserver(refine);
   observer.observe(runtimeMount, { childList: true, subtree: true });
@@ -365,8 +365,8 @@ export function installUnifiedTextInspector(
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
-    runtimeMount.removeEventListener("click", onInspectorClick);
-    runtimeMount.removeEventListener("change", onInspectorChange);
-    runtimeMount.removeEventListener("keydown", onInspectorKeyDown);
+    runtimeMount.removeEventListener("click", onInspectorClick, true);
+    runtimeMount.removeEventListener("change", onInspectorChange, true);
+    runtimeMount.removeEventListener("keydown", onInspectorKeyDown, true);
   });
 }
