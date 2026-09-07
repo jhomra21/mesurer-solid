@@ -75,8 +75,9 @@ const directTextNodeAtPoint = (
  * The core text editor historically required exactly one non-empty direct text
  * node. For mixed inline copy such as `text <kbd>key</kbd> text`, expose only
  * the direct text node under the pointer for the duration of the current event
- * dispatch. The real DOM is never reparented or rewritten; the temporary view
- * is removed in the next microtask after all same-event listeners can read it.
+ * dispatch. The real DOM is never reparented or rewritten. Cleanup runs in the
+ * next task so the temporary view survives browser microtask checkpoints that
+ * can occur between same-event listeners.
  */
 export function installMixedInlineTextTargeting(
   ctx: MesurerPluginContext,
@@ -134,10 +135,10 @@ export function installMixedInlineTextTargeting(
         get: eventScopedGetter,
       });
 
-      ownerWindow.queueMicrotask(() => {
+      ownerWindow.setTimeout(() => {
         const descriptor = Object.getOwnPropertyDescriptor(candidate, "childNodes");
         if (descriptor?.get === eventScopedGetter) Reflect.deleteProperty(candidate, "childNodes");
-      });
+      }, 0);
       return;
     }
   };
