@@ -150,15 +150,20 @@ export function installMixedInlineTextTargeting(
       const nodes = directTextNodes(candidate, realm);
       if (nodes.length === 0) continue;
 
-      // A hit-stack ancestor may contain direct text somewhere else while an
-      // Arrange/select overlay sits above the actual clicked line. Only let a
-      // candidate win when this pointer intersects one of its own direct text
-      // runs; otherwise keep scanning down to the real host element.
+      // Match the core editor's broad single-node contract. A lone direct text
+      // node is unambiguous even when the pointer lands in empty inline space
+      // inside a wide text element, so it does not need glyph-level hit testing.
+      if (nodes.length === 1) {
+        activeTargetByRuntime.set(runtime, { element: candidate, node: nodes[0].node });
+        return;
+      }
+
+      // Mixed inline elements need the exact direct text run under the pointer
+      // so surrounding markup such as <kbd> remains untouched.
       const target = directTextNodeAtPoint(ownerDocument, realm, nodes, x, y);
       if (!target) continue;
 
       activeTargetByRuntime.set(runtime, { element: candidate, node: target.node });
-      if (nodes.length === 1) return;
       if (Object.prototype.hasOwnProperty.call(candidate, "childNodes")) {
         activeTargetByRuntime.delete(runtime);
         continue;
