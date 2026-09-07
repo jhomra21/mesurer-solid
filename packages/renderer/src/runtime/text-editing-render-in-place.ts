@@ -425,7 +425,6 @@ export function installRenderInPlaceTextEditing(
         boundEditor.removeEventListener("pointerup", schedule);
       }
       boundEditor = null;
-      activeTargetByRuntime.delete(runtime);
       clearSelectionRects();
       removeRing();
       return;
