@@ -52,13 +52,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     });
   };
 
-  const configurePortalRoot = (root: HTMLDivElement) => {
-    root.className = "msr:pointer-events-none";
-    root.dataset.mesurerMeasurement = "true";
-    root.dataset.mesurerSelectedMeasurement = "true";
-    root.dataset.mesurerInspectorUi = "true";
-    delete root.dataset.mesurerSelectionGroup;
-
+  const configureSelectionRoot = (root: HTMLDivElement) => {
     portalObserver?.disconnect();
     const ownerWindow = root.ownerDocument.defaultView;
     if (!ownerWindow) return;
@@ -133,8 +127,16 @@ export function MeasurementBox(props: MeasurementBoxProps) {
           {surfaces(measurement)}
         </div>}
       >
-        {(mount) => <Portal mount={mount()} ref={configurePortalRoot}>
-          {surfaces(measurement)}
+        {(mount) => <Portal mount={mount()}>
+          <div
+            ref={configureSelectionRoot}
+            class="msr:pointer-events-none"
+            data-mesurer-measurement="true"
+            data-mesurer-selected-measurement="true"
+            data-mesurer-inspector-ui="true"
+          >
+            {surfaces(measurement)}
+          </div>
         </Portal>}
       </Show>}
     </Show>
