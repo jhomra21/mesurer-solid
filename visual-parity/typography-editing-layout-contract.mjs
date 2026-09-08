@@ -162,10 +162,17 @@ try {
 
   const slim = page.locator(".feature-copy .kicker");
   const slimBox = await box(slim);
-  const slimBackground = await slim.evaluate((element) => getComputedStyle(element).backgroundColor);
+  const slimBaseline = await slim.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      background: style.backgroundColor,
+      lineHeight: style.lineHeight,
+      letterSpacing: style.letterSpacing,
+    };
+  });
   await page.mouse.dblclick(slimBox.x + slimBox.width / 2, slimBox.y + slimBox.height / 2);
   await waitForEditor("slim");
-  assert.equal(await slim.evaluate((element) => getComputedStyle(element).backgroundColor), slimBackground, "slim: host background changed on edit");
+  assert.equal(await slim.evaluate((element) => getComputedStyle(element).backgroundColor), slimBaseline.background, "slim: host background changed on edit");
   assertSameBox(await box(ring()), slimBox, "slim");
   await assertInitialSelection("slim");
   await assertUnifiedInspector("slim");
@@ -192,8 +199,6 @@ try {
     await stylePopup.waitFor({ state: "detached" });
   }
 
-  const initialLineHeight = await slim.evaluate((element) => getComputedStyle(element).lineHeight);
-  const initialTracking = await slim.evaluate((element) => getComputedStyle(element).letterSpacing);
   const lineInput = inspector().locator("[data-mesurer-text-style-input='line']");
   await lineInput.fill("30px");
   await lineInput.press("Enter");
@@ -206,8 +211,8 @@ try {
   await assertSelectionCleared("slim");
   await assertCaretVisible("slim");
   await closeEditor();
-  assert.equal(await slim.evaluate((element) => getComputedStyle(element).lineHeight), initialLineHeight, "slim: Escape should restore line height");
-  assert.equal(await slim.evaluate((element) => getComputedStyle(element).letterSpacing), initialTracking, "slim: Escape should restore tracking");
+  assert.equal(await slim.evaluate((element) => getComputedStyle(element).lineHeight), slimBaseline.lineHeight, "slim: Escape should restore the pre-edit line height");
+  assert.equal(await slim.evaluate((element) => getComputedStyle(element).letterSpacing), slimBaseline.letterSpacing, "slim: Escape should restore the pre-edit tracking");
 
   await page.setViewportSize({ width: 1280, height: 520 });
   const mixed = page.locator(".feature-copy > p:not(.kicker)").first();
