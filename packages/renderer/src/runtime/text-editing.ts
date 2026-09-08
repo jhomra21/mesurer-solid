@@ -1,6 +1,7 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { installNativeScrollAnchoring } from "./native-scroll-anchoring";
+import { stabilizeNativeScrollRuntimeLayer } from "./native-scroll-runtime-layer";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
 import { installTextEditingPresentation } from "./text-editing-presentation";
 import {
@@ -50,4 +51,5 @@ export function installTextEditing(
   // with CSS Anchor Positioning, bind selection/edit/hover chrome directly to
   // its page element so the browser owns scroll movement instead of JS timers.
   installNativeScrollAnchoring(ctx, runtime);
+  stabilizeNativeScrollRuntimeLayer(ctx, runtime);
 }
