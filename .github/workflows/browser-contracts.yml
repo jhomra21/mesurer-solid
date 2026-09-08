@@ -42,6 +42,7 @@ on:
       - "visual-parity/color-picker-contract.mjs"
       - "visual-parity/selection-scroll-contract.mjs"
       - "visual-parity/shortcuts-setting-contract.mjs"
+      - "visual-parity/text-editing-hit-test-debug.mjs"
       - "visual-parity/text-editing-contract.mjs"
       - "visual-parity/typography-editing-layout-contract.mjs"
       - "visual-parity/self-hosting-context.mjs"
@@ -114,6 +115,11 @@ jobs:
         env:
           SHORTCUTS_SETTING_URL: http://127.0.0.1:4174/
         run: bun visual-parity/shortcuts-setting-contract.mjs
+
+      - name: Diagnose Typography dropdown hit testing
+        env:
+          TEXT_EDITING_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/text-editing-hit-test-debug.mjs
 
       - name: Exercise direct text editing and page style suggestions
         env:
