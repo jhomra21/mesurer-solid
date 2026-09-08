@@ -5,41 +5,6 @@ const url = process.env.TEXT_EDITING_URL ?? "http://127.0.0.1:4174/";
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
-const describeElement = (element) => {
-  if (!(element instanceof Element)) return null;
-  const rect = element.getBoundingClientRect();
-  const style = getComputedStyle(element);
-  return {
-    tag: element.tagName,
-    id: element.id || null,
-    className: typeof element.className === "string" ? element.className : null,
-    data: Object.fromEntries(
-      [...element.attributes]
-        .filter((attribute) => attribute.name.startsWith("data-mesurer"))
-        .map((attribute) => [attribute.name, attribute.value]),
-    ),
-    rect: {
-      left: rect.left,
-      top: rect.top,
-      right: rect.right,
-      bottom: rect.bottom,
-      width: rect.width,
-      height: rect.height,
-    },
-    display: style.display,
-    visibility: style.visibility,
-    opacity: style.opacity,
-    pointerEvents: style.pointerEvents,
-    position: style.position,
-    zIndex: style.zIndex,
-    overflow: style.overflow,
-    overflowX: style.overflowX,
-    overflowY: style.overflowY,
-    contain: style.contain,
-    transform: style.transform,
-  };
-};
-
 try {
   await page.goto(url, { waitUntil: "networkidle" });
 
@@ -81,8 +46,42 @@ try {
   await popup.waitFor({ state: "visible" });
   await option.waitFor({ state: "visible" });
 
-  const evidence = await option.evaluate((element, describe) => {
-    const describeElementInPage = new Function("element", `return (${describe})(element);`);
+  const evidence = await option.evaluate((element) => {
+    const describeElement = (candidate) => {
+      if (!(candidate instanceof Element)) return null;
+      const rect = candidate.getBoundingClientRect();
+      const style = getComputedStyle(candidate);
+      return {
+        tag: candidate.tagName,
+        id: candidate.id || null,
+        className: typeof candidate.className === "string" ? candidate.className : null,
+        data: Object.fromEntries(
+          [...candidate.attributes]
+            .filter((attribute) => attribute.name.startsWith("data-mesurer"))
+            .map((attribute) => [attribute.name, attribute.value]),
+        ),
+        rect: {
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+        },
+        display: style.display,
+        visibility: style.visibility,
+        opacity: style.opacity,
+        pointerEvents: style.pointerEvents,
+        position: style.position,
+        zIndex: style.zIndex,
+        overflow: style.overflow,
+        overflowX: style.overflowX,
+        overflowY: style.overflowY,
+        contain: style.contain,
+        transform: style.transform,
+      };
+    };
+
     const optionRect = element.getBoundingClientRect();
     const point = {
       x: optionRect.left + optionRect.width / 2,
@@ -92,7 +91,7 @@ try {
     const ancestors = [];
     let current = element;
     while (current) {
-      if (current instanceof Element) ancestors.push(describeElementInPage(current));
+      if (current instanceof Element) ancestors.push(describeElement(current));
       const root = current.getRootNode();
       if (current.parentElement) {
         current = current.parentElement;
@@ -115,7 +114,7 @@ try {
         root: root instanceof Document
           ? "document"
           : `shadow:${root.host?.tagName ?? "unknown"}`,
-        hits: hits.map((hit) => describeElementInPage(hit)),
+        hits: hits.map((hit) => describeElement(hit)),
       });
       const top = hits[0];
       root = top?.shadowRoot ?? null;
@@ -124,23 +123,22 @@ try {
     const ownerRoot = element.getRootNode();
     return {
       point,
-      option: describeElementInPage(element),
-      popup: describeElementInPage(element.closest("[data-mesurer-unified-select-popup='true']")),
-      inspector: describeElementInPage(ownerRoot.querySelector?.("[data-mesurer-text-inspector-info='true']") ?? null),
-      runtimeMount: describeElementInPage(ownerRoot.querySelector?.("[data-mesurer-text-edit-runtime='true']") ?? null),
-      rendererRoot: describeElementInPage(ownerRoot.querySelector?.("[data-mesurer-root='true']") ?? null),
+      option: describeElement(element),
+      popup: describeElement(element.closest("[data-mesurer-unified-select-popup='true']")),
+      inspector: describeElement(ownerRoot.querySelector?.("[data-mesurer-text-inspector-info='true']") ?? null),
+      runtimeMount: describeElement(ownerRoot.querySelector?.("[data-mesurer-text-edit-runtime='true']") ?? null),
+      rendererRoot: describeElement(ownerRoot.querySelector?.("[data-mesurer-root='true']") ?? null),
       rootType: ownerRoot instanceof ShadowRoot ? "shadow" : ownerRoot instanceof Document ? "document" : ownerRoot.constructor.name,
-      rootHost: ownerRoot instanceof ShadowRoot ? describeElementInPage(ownerRoot.host) : null,
+      rootHost: ownerRoot instanceof ShadowRoot ? describeElement(ownerRoot.host) : null,
       ancestors,
       deepHitStack,
     };
-  }, describeElement.toString());
+  });
 
   console.log(`[hit-test-debug] ${JSON.stringify(evidence, null, 2)}`);
 
-  const center = evidence.point;
   const beforeExpanded = await styleButton.getAttribute("aria-expanded");
-  await page.mouse.click(center.x, center.y);
+  await page.mouse.click(evidence.point.x, evidence.point.y);
   await page.waitForTimeout(100);
   const after = {
     popupCount: await popup.count(),
