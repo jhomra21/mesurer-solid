@@ -12,8 +12,8 @@ const HOST_STYLES = {
   display: "block",
   position: "fixed",
   inset: "0",
-  width: "100vw",
-  height: "100vh",
+  width: "0",
+  height: "0",
   "min-width": "0",
   "min-height": "0",
   "max-width": "none",
@@ -24,7 +24,7 @@ const HOST_STYLES = {
   overflow: "visible",
   background: "transparent",
   "box-sizing": "border-box",
-  "pointer-events": "none",
+  "pointer-events": "auto",
   "z-index": "2147483647",
   opacity: "1",
   visibility: "visible",
@@ -91,11 +91,9 @@ export type MesurerHostLayer = {
  * author styles. A manual popover escapes ordinary document stacking and
  * ancestor clipping. The fixed/max-z-index host is the compatibility fallback.
  *
- * The protected host spans the viewport but is pointer-transparent. Mesurer's
- * interactive descendants explicitly opt back into pointer input, while empty
- * overlay space continues to pass input through to the app. Keeping a real
- * viewport-sized host is important for browser hit testing of floating menus
- * and other interactive descendants that may sit away from the toolbar itself.
+ * The protected host itself is intentionally zero-sized with visible overflow.
+ * This lets Mesurer's fixed-position descendants receive pointer input without
+ * turning the protection layer into a viewport-sized click blocker for the app.
  *
  * Modal dialogs are special: the platform makes every node outside the active
  * modal inert. When an observable modal opens, Mesurer temporarily reparents
@@ -194,12 +192,6 @@ export function mountMesurerHost(
     });
   };
 
-  const belongsToMesurerHost = (element: Element) => {
-    if (container.contains(element)) return true;
-    const root = element.getRootNode();
-    return root instanceof ownerWindow.ShadowRoot && container.contains(root.host);
-  };
-
   const handleToggle = (event: Event) => {
     if (!topLayer || event.target === container) return;
     const newState = hasToggleState(event) ? event.newState : undefined;
@@ -219,10 +211,7 @@ export function mountMesurerHost(
     }
 
     if (newState === "open" && element.hasAttribute("popover")) {
-      // Internal Mesurer popovers intentionally sit above the protected host.
-      // Reopening the host here would make it the newest top-layer entry and
-      // put the protection surface back above its own popup.
-      if (!belongsToMesurerHost(element)) scheduleBringToFront();
+      scheduleBringToFront();
     }
   };
 
