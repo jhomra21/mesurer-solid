@@ -14,8 +14,9 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
  * The core deliberately owns Escape at window-capture level so it can cancel a
  * direct edit from anywhere in the editing surface. A focused custom dropdown
  * is the one exception: Escape should close only that popup. This guard is
- * installed before the core listener and performs the same close/focus cleanup
- * as the menu module, while every other Escape continues to the core unchanged.
+ * installed before the core listener, then delegates the close to the menu's
+ * own trigger so the menu owner clears its internal open state and restores
+ * focus/chrome exactly as it does for an ordinary trigger close.
  */
 export function installUnifiedTextSelectEscapeGuard(
   ctx: MesurerPluginContext,
@@ -32,29 +33,19 @@ export function installUnifiedTextSelectEscapeGuard(
       && candidate.dataset.mesurerUnifiedSelectPopup === "true");
     if (!(popup instanceof realm.HTMLElement)) return;
 
-    event.preventDefault();
-    event.stopImmediatePropagation();
-
     const kind = popup.dataset.mesurerUnifiedSelectKind;
-    popup.remove();
     if (!kind) return;
-
     const trigger = Array.from(
       portalTarget.querySelectorAll<HTMLButtonElement>("[data-mesurer-unified-select-trigger]"),
     ).find((candidate) => candidate.dataset.mesurerUnifiedSelectTrigger === kind);
     if (!trigger) return;
 
-    trigger.setAttribute("aria-expanded", "false");
-    const shell = trigger.closest<HTMLElement>(
-      "[data-mesurer-unified-select-shell='true'], [data-mesurer-unified-style-shell='true']",
-    );
-    if (shell) {
-      shell.style.boxShadow = "none";
-      shell.style.borderColor = "transparent";
-      shell.querySelector<HTMLElement>("[data-mesurer-unified-select-chevron='true']")
-        ?.style.setProperty("transform", "rotate(45deg)");
-    }
-    trigger.focus({ preventScroll: true });
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    // Delegate to the real menu owner instead of removing the popup directly.
+    // This keeps its `openMenu` state, aria-expanded value, chevron, shell
+    // chrome, and focus restoration in one lifecycle path.
+    trigger.click();
   };
 
   ownerWindow.addEventListener("keydown", onKeyDown, true);
