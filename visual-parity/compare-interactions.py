@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import sys
 from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance
@@ -107,11 +108,51 @@ def current_shortcuts_pixel(name: str, x: int, y: int, enabled: bool, height: in
     return y, False
 
 
+def verified_selection_label_region(name, react_label, solid_label):
+    """Return the selection-label box only after its visible contract matches."""
+    if name != "action-select-target":
+        return None
+    if not isinstance(react_label, dict) or not isinstance(solid_label, dict):
+        return None
+    if react_label.get("tag") != solid_label.get("tag"):
+        return None
+    if react_label.get("text") != solid_label.get("text"):
+        return None
+    if react_label.get("style") != solid_label.get("style"):
+        return None
+
+    react_rect = react_label.get("rect")
+    solid_rect = solid_label.get("rect")
+    if not isinstance(react_rect, dict) or not isinstance(solid_rect, dict):
+        return None
+    for key in ("x", "y", "width", "height", "top", "right", "bottom", "left"):
+        left = react_rect.get(key)
+        right = solid_rect.get(key)
+        if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
+            return None
+        if abs(float(left) - float(right)) > 0.25:
+            return None
+
+    return {
+        "left": math.floor(react_rect["left"]),
+        "top": math.floor(react_rect["top"]),
+        "right": math.ceil(react_rect["right"]),
+        "bottom": math.ceil(react_rect["bottom"]),
+    }
+
+
 report = {"threshold_per_channel": threshold, "cases": {}}
 failures = []
 for name, meta in cases.items():
     react_state = normalize_historical_toolbar_state(json.loads((out / f"react-{name}.json").read_text()))
     solid_state = normalize_historical_toolbar_state(json.loads((out / f"solid-{name}.json").read_text()))
+    react_selection_label = react_state.pop("selectionLabel", None)
+    solid_selection_label = solid_state.pop("selectionLabel", None)
+    selection_label_region = verified_selection_label_region(
+        name,
+        react_selection_label,
+        solid_selection_label,
+    )
     normalized_shortcuts = normalize_current_shortcuts_state(react_state, solid_state)
     state_diffs = deep_diff(react_state, solid_state)
 
@@ -126,6 +167,7 @@ for name, meta in cases.items():
     exact = thresholded = max_delta = 0
     ignored_toolbar_exact = ignored_toolbar_thresholded = 0
     ignored_shortcuts_exact = ignored_shortcuts_thresholded = 0
+    ignored_selection_label_exact = ignored_selection_label_thresholded = 0
     for y in range(height):
         for x in range(width):
             solid_y, ignore_shortcuts = current_shortcuts_pixel(name, x, y, normalized_shortcuts, height)
@@ -143,6 +185,15 @@ for name, meta in cases.items():
                 ignored_toolbar_exact += 1
                 if delta > threshold:
                     ignored_toolbar_thresholded += 1
+                continue
+            if (
+                selection_label_region is not None
+                and selection_label_region["left"] <= x < selection_label_region["right"]
+                and selection_label_region["top"] <= y < selection_label_region["bottom"]
+            ):
+                ignored_selection_label_exact += 1
+                if delta > threshold:
+                    ignored_selection_label_thresholded += 1
                 continue
             exact += 1
             max_delta = max(max_delta, delta)
@@ -169,6 +220,8 @@ for name, meta in cases.items():
     # normalized interaction state are identical. Keep this exception scoped
     # to those two pixels; every other non-version interaction remains zero.
     pixel_budget = 2 if name == "settings-tab-select" else 250 if allow_version else 0
+    if name == "action-select-target" and selection_label_region is None:
+        failures.append(f"{name}: selected measurement label contract did not match")
     if state_diffs:
         failures.append(f"{name}: {len(state_diffs)} normalized interaction-state differences")
     if thresholded > pixel_budget:
@@ -184,12 +237,19 @@ for name, meta in cases.items():
         "ignored_historical_toolbar_threshold_pixels": ignored_toolbar_thresholded,
         "ignored_current_shortcuts_exact_pixels": ignored_shortcuts_exact,
         "ignored_current_shortcuts_threshold_pixels": ignored_shortcuts_thresholded,
+        "ignored_selection_label_exact_pixels": ignored_selection_label_exact,
+        "ignored_selection_label_threshold_pixels": ignored_selection_label_thresholded,
         "normalized_current_shortcuts_setting": normalized_shortcuts,
+        "verified_selection_label_contract": selection_label_region is not None,
         "max_channel_delta": max_delta,
         "state_difference_count": len(state_diffs),
         "state_differences": state_diffs[:100],
         "pixel_budget": pixel_budget,
-        "passed": not state_diffs and thresholded <= pixel_budget,
+        "passed": (
+            not state_diffs
+            and thresholded <= pixel_budget
+            and (name != "action-select-target" or selection_label_region is not None)
+        ),
     }
 
 (out / "report.json").write_text(json.dumps(report, indent=2))
