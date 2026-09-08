@@ -40,15 +40,31 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     const target = liveSelectedTarget();
     if (!target || !chromeElement || !labelElement) return;
     const rect = target.getBoundingClientRect();
+    const ownerWindow = target.ownerDocument.defaultView;
+    const selectionRoot = chromeElement.parentElement;
+    // A selected measurement is portaled to <body> for the document native-
+    // anchor path. Its absolute fallback therefore uses document coordinates,
+    // not viewport coordinates. Keeping this fallback correct prevents a
+    // transient native-anchor handoff during direct edit from subtracting the
+    // page scroll offset a second time. Local/Shadow DOM overlays keep the
+    // original viewport-coordinate behavior.
+    const documentLayer = Boolean(
+      ownerWindow
+      && selectionRoot?.parentNode === target.ownerDocument.body,
+    );
+    const offsetX = documentLayer ? ownerWindow!.scrollX : 0;
+    const offsetY = documentLayer ? ownerWindow!.scrollY : 0;
+    const left = rect.left + offsetX;
+    const top = rect.top + offsetY;
     Object.assign(chromeElement.style, {
-      left: `${rect.left}px`,
-      top: `${rect.top}px`,
+      left: `${left}px`,
+      top: `${top}px`,
       width: `${rect.width}px`,
       height: `${rect.height}px`,
     });
     Object.assign(labelElement.style, {
-      left: `${rect.left + rect.width / 2}px`,
-      top: `${rect.top + rect.height + MEASURE_LABEL_OFFSET}px`,
+      left: `${left + rect.width / 2}px`,
+      top: `${top + rect.height + MEASURE_LABEL_OFFSET}px`,
     });
   };
 
