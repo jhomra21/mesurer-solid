@@ -9,6 +9,61 @@ const MENU_MIN_HEIGHT = 60;
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 /**
+ * Let an open custom Typography menu consume Escape before the text-edit core.
+ *
+ * The core deliberately owns Escape at window-capture level so it can cancel a
+ * direct edit from anywhere in the editing surface. A focused custom dropdown
+ * is the one exception: Escape should close only that popup. This guard is
+ * installed before the core listener and performs the same close/focus cleanup
+ * as the menu module, while every other Escape continues to the core unchanged.
+ */
+export function installUnifiedTextSelectEscapeGuard(
+  ctx: MesurerPluginContext,
+  runtime: MesurerSolidRuntimeService,
+) {
+  const { ownerWindow, portalTarget } = runtime;
+  // SAFETY: ownerWindow owns portalTarget and supplies the matching DOM constructors/events.
+  const realm = ownerWindow as Window & typeof globalThis;
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    const popup = event.composedPath().find((candidate) =>
+      candidate instanceof realm.HTMLElement
+      && candidate.dataset.mesurerUnifiedSelectPopup === "true");
+    if (!(popup instanceof realm.HTMLElement)) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    const kind = popup.dataset.mesurerUnifiedSelectKind;
+    popup.remove();
+    if (!kind) return;
+
+    const trigger = Array.from(
+      portalTarget.querySelectorAll<HTMLButtonElement>("[data-mesurer-unified-select-trigger]"),
+    ).find((candidate) => candidate.dataset.mesurerUnifiedSelectTrigger === kind);
+    if (!trigger) return;
+
+    trigger.setAttribute("aria-expanded", "false");
+    const shell = trigger.closest<HTMLElement>(
+      "[data-mesurer-unified-select-shell='true'], [data-mesurer-unified-style-shell='true']",
+    );
+    if (shell) {
+      shell.style.boxShadow = "none";
+      shell.style.borderColor = "transparent";
+      shell.querySelector<HTMLElement>("[data-mesurer-unified-select-chevron='true']")
+        ?.style.setProperty("transform", "rotate(45deg)");
+    }
+    trigger.focus({ preventScroll: true });
+  };
+
+  ownerWindow.addEventListener("keydown", onKeyDown, true);
+  ctx.lifecycle.onDispose(() => {
+    ownerWindow.removeEventListener("keydown", onKeyDown, true);
+  });
+}
+
+/**
  * Keep Typography dropdowns inside the active inspector card.
  *
  * The text-edit core treats pointer input inside its inspector card as part of
