@@ -36,6 +36,7 @@ const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any 
 
 export function MesurerOverlay(props: MesurerOverlayProps) {
   let overlayElement: HTMLDivElement | undefined;
+  let hoverChromeElement: HTMLDivElement | undefined;
   let passiveGuideDrag: {
     id: string;
     orientation: Guide["orientation"];
@@ -82,13 +83,6 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       setPinnedSpacingGroup(null);
     },
   );
-  const hoverMatchesSelection = () => {
-    const hoverElement = props.model.state.hoverElement;
-    return Boolean(
-      hoverElement
-      && selectedMeasurements().some((measurement) => measurement.elementRef === hoverElement),
-    );
-  };
   const hoverEdges = () => {
     const hoverRect = props.model.state.hoverRect;
     if (!hoverRect) return null;
@@ -158,6 +152,18 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     if (!overlay || !ownerWindow || !ownerDocument) return;
 
     const handleOverlayPointerMove = (event: PointerEvent) => props.onPointerMove(event);
+    const syncHoverGeometry = () => {
+      const target = props.model.current.hoverElement;
+      const chrome = hoverChromeElement;
+      if (!target?.isConnected || !chrome?.isConnected) return;
+      const rect = target.getBoundingClientRect();
+      Object.assign(chrome.style, {
+        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+      });
+    };
     const handlePassiveGuideDown = (event: PointerEvent) => {
       if (!props.model.current.enabled || props.model.current.settingsOpen || props.model.current.toolMode !== "none") return;
       const toolbarTarget = event.composedPath().some((target) =>
@@ -219,13 +225,18 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       passiveGuideDrag = null;
     };
 
+    syncHoverGeometry();
     overlay.addEventListener("pointermove", handleOverlayPointerMove);
+    ownerWindow.addEventListener("scroll", syncHoverGeometry, true);
+    ownerWindow.addEventListener("resize", syncHoverGeometry, true);
     ownerWindow.addEventListener("pointerdown", handlePassiveGuideDown, true);
     ownerWindow.addEventListener("pointermove", handlePassiveGuideMove, true);
     ownerWindow.addEventListener("pointerup", handlePassiveGuideEnd, true);
     ownerWindow.addEventListener("pointercancel", handlePassiveGuideEnd, true);
     return () => {
       overlay.removeEventListener("pointermove", handleOverlayPointerMove);
+      ownerWindow.removeEventListener("scroll", syncHoverGeometry, true);
+      ownerWindow.removeEventListener("resize", syncHoverGeometry, true);
       ownerWindow.removeEventListener("pointerdown", handlePassiveGuideDown, true);
       ownerWindow.removeEventListener("pointermove", handlePassiveGuideMove, true);
       ownerWindow.removeEventListener("pointerup", handlePassiveGuideEnd, true);
@@ -260,8 +271,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           <Tag axis="x" left={props.activeRect!.left + props.activeRect!.width / 2} top={props.activeRect!.top + props.activeRect!.height + MEASURE_LABEL_OFFSET}>{formatValue(props.activeRect!.width)} x {formatValue(props.activeRect!.height)}</Tag>
         </></Show>
 
-        <Show when={props.model.state.hoverRect && props.model.state.settings.hoverHighlightEnabled && selectedMeasurements().length <= 1 && !hoverMatchesSelection()}>
-          <div data-mesurer-hover-measurement="true" class="msr:pointer-events-none msr:absolute" style={{ left: `${props.model.state.hoverRect!.left}px`, top: `${props.model.state.hoverRect!.top}px`, width: `${props.model.state.hoverRect!.width}px`, height: `${props.model.state.hoverRect!.height}px`, "background-color": fill() }}>
+        <Show when={props.model.state.hoverRect && props.model.state.settings.hoverHighlightEnabled && selectedMeasurements().length <= 1}>
+          <div ref={(element) => { hoverChromeElement = element; }} data-mesurer-hover-measurement="true" class="msr:pointer-events-none msr:absolute" style={{ left: `${props.model.state.hoverRect!.left}px`, top: `${props.model.state.hoverRect!.top}px`, width: `${props.model.state.hoverRect!.width}px`, height: `${props.model.state.hoverRect!.height}px`, "background-color": fill(), transition: "none", animation: "none" }}>
             <Show when={hoverEdges()?.top}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ "background-color": outline() }} /></Show>
             <Show when={hoverEdges()?.right}><div class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": outline() }} /></Show>
             <Show when={hoverEdges()?.bottom}><div class="msr:absolute msr:bottom-0 msr:left-0 msr:h-px msr:w-full" style={{ "background-color": outline() }} /></Show>
