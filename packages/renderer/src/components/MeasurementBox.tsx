@@ -56,6 +56,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     root.className = "msr:pointer-events-none";
     root.dataset.mesurerMeasurement = "true";
     root.dataset.mesurerSelectedMeasurement = "true";
+    root.dataset.mesurerInspectorUi = "true";
     delete root.dataset.mesurerSelectionGroup;
 
     portalObserver?.disconnect();
