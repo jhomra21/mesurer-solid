@@ -355,7 +355,11 @@ export function installDocumentScrollAnchoring(
     const previous = selectionBindings.get(root);
     if (previous) releaseSelection(previous);
     const anchor = makeBinding(target, "selection");
-    const placement = moveToBody(ownerDocument, root, "selection-root");
+    const placement = moveToBody(
+      ownerDocument,
+      root,
+      root.parentNode === ownerDocument.body ? "none" : "selection-root",
+    );
     const binding: SelectionBinding = { ...anchor, root, chrome, label, placement };
     selectionBindings.set(root, binding);
     applyAnchor(chrome, binding, "box");
@@ -554,6 +558,7 @@ export function installDocumentScrollAnchoring(
     const shell = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-placement-shell='true']");
     const card = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
     if (shell?.isConnected && card?.isConnected) {
+      shell.dataset.mesurerNativeScrollOwner = "typography";
       applyAnchor(shell, editBinding, "offset");
       if (!scrolling) inspectorPlacement(shell, card, targetRect);
     }
