@@ -57,7 +57,7 @@ const rectDistance = (left: RectLike, right: RectLike) => Math.max(
 const sameRect = (left: RectLike, right: RectLike, tolerance = MATCH_TOLERANCE) =>
   rectDistance(left, right) <= tolerance;
 
-const anchorSupported = (ownerWindow: Window) => Boolean(
+const anchorSupported = (ownerWindow: Window & typeof globalThis) => Boolean(
   ownerWindow.CSS?.supports?.("anchor-name: --mesurer-native-anchor")
   && ownerWindow.CSS.supports("position-anchor: --mesurer-native-anchor")
   && ownerWindow.CSS.supports("left: anchor(left)")
@@ -136,7 +136,7 @@ export function installNativeScrollAnchoring(
   // SAFETY: ownerWindow is the browsing-context global for ownerDocument, so its DOM constructors
   // are the correct realm for portalTarget/pageTarget instanceof checks in this runtime.
   const realm = ownerWindow as Window & typeof globalThis;
-  if (!anchorSupported(ownerWindow)) return;
+  if (!anchorSupported(realm)) return;
 
   const targetAnchors = new Map<HTMLElement, TargetAnchorState>();
   const selectionBindings = new Map<HTMLElement, AnchorBinding>();
