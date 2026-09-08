@@ -177,7 +177,6 @@ try {
   await assertInitialSelection("slim");
   await assertUnifiedInspector("slim");
   await assertInspectorStableAfterPointerMoves("slim");
-
   for (const kind of ["font", "size", "weight"]) {
     const popup = await openDropdownFromChevronEdge(kind, `slim ${kind}`);
     const popupChrome = await popup.evaluate((element) => {
@@ -321,7 +320,36 @@ try {
   await assertInspectorDoesNotBlock(edgeState.box, "edge inspector/field");
   await assertUnifiedInspector("edge");
   const edgeInspectorBox = await box(inspector());
-  assert(edgeInspectorBox.y >= 0 && edgeInspectorBox.y + edgeInspectorBox.height <= 220, "edge: unified inspector should stay inside viewport");
+  const edgeInspectorDebug = await inspector().evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    const shell = element.parentElement;
+    const shellRect = shell?.getBoundingClientRect();
+    const shellStyle = shell ? getComputedStyle(shell) : null;
+    return {
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height, bottom: rect.bottom },
+      placement: element.getAttribute("data-mesurer-text-inspector-placement"),
+      maxHeight: style.maxHeight,
+      overflowY: style.overflowY,
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      shell: shellRect ? {
+        x: shellRect.x,
+        y: shellRect.y,
+        width: shellRect.width,
+        height: shellRect.height,
+        position: shellStyle?.position ?? null,
+        anchor: shell?.getAttribute("data-mesurer-native-scroll-anchor") ?? null,
+        owner: shell?.getAttribute("data-mesurer-native-scroll-owner") ?? null,
+        anchorX: shell?.style.getPropertyValue("--mesurer-native-anchor-x") ?? "",
+        anchorY: shell?.style.getPropertyValue("--mesurer-native-anchor-y") ?? "",
+      } : null,
+    };
+  });
+  assert(
+    edgeInspectorBox.y >= 0 && edgeInspectorBox.y + edgeInspectorBox.height <= 220,
+    `edge: unified inspector should stay inside viewport: ${JSON.stringify(edgeInspectorDebug)}`,
+  );
   await assertInspectorStableAfterPointerMoves("edge");
   await replaceSelection("Updated edge copy");
   await assertSelectionCleared("edge");
