@@ -111,6 +111,16 @@ export function installUnifiedTextInspector(
     if (!card?.isConnected || !ring?.isConnected) return;
 
     const shell = ensurePlacementShell(card);
+    // The document scroll anchoring layer owns both placement and viewport
+    // sizing once it claims this shell. Continuing to run the legacy JS placer
+    // would race that CSS-anchor path on scroll/resize and can restore a stale
+    // lane or max-height after native placement has already settled. Keep this
+    // function as the fallback for Shadow DOM and browsers without anchors.
+    if (
+      shell.dataset.mesurerNativeScrollOwner === "typography"
+      && shell.dataset.mesurerNativeScrollAnchor === "offset"
+    ) return;
+
     Object.assign(card.style, {
       position: "static",
       left: "auto",
