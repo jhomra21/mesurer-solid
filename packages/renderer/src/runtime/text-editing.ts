@@ -7,6 +7,7 @@ import {
   installRenderInPlaceTextEditing,
 } from "./text-editing-render-in-place";
 import { installUnifiedTextInspector } from "./text-editing-unified-inspector";
+import { installUnifiedTextSelectLayer } from "./text-editing-unified-select-layer";
 import { installUnifiedTextSelectMenus } from "./text-editing-unified-selects";
 
 export {
@@ -33,5 +34,6 @@ export function installTextEditing(
   installTextEditingPresentation(ctx, runtime);
   installUnifiedTextInspector(ctx, runtime);
   installUnifiedTextSelectMenus(ctx, runtime);
+  installUnifiedTextSelectLayer(ctx, runtime);
   installRenderInPlaceTextEditing(ctx, runtime);
 }
