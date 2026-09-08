@@ -7,6 +7,7 @@ import {
   installRenderInPlaceTextEditing,
 } from "./text-editing-render-in-place";
 import { installUnifiedTextInspector } from "./text-editing-unified-inspector";
+import { installUnifiedTextSelectMenus } from "./text-editing-unified-selects";
 
 export {
   MESURER_TEXT_EDIT_SERVICE_ID,
@@ -31,5 +32,6 @@ export function installTextEditing(
   installTextEditingCore(ctx, runtime);
   installTextEditingPresentation(ctx, runtime);
   installUnifiedTextInspector(ctx, runtime);
+  installUnifiedTextSelectMenus(ctx, runtime);
   installRenderInPlaceTextEditing(ctx, runtime);
 }
