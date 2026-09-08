@@ -57,7 +57,7 @@ A heading shortcut does nothing when that level is unavailable.
 
 - **Enter** in the text editor keeps the current copy/style as Desired intent.
 - **Shift+Enter** inserts a newline in the text editor.
-- **Escape** closes the in-card semantic preset section first when it is open; Escape again cancels the edit.
+- **Escape** closes the currently open Typography dropdown first; Escape again cancels the edit.
 - Clicking outside the editor and the interactive Typography card commits the session.
 
 Normal Mesurer tool shortcuts are suppressed while the editor owns keyboard focus. Interacting with a control inside the Typography card keeps the same edit session active.
