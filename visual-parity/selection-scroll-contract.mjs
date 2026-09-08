@@ -5,6 +5,7 @@ const url = process.env.SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/";
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
+
 page.on("pageerror", (error) => errors.push(String(error)));
 page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text());
@@ -15,14 +16,16 @@ const box = async (locator, stage) => {
   assert(value, `${stage}: expected rendered geometry`);
   return value;
 };
+
 const assertSameBox = (actual, expected, stage) => {
   for (const key of ["x", "y", "width", "height"]) {
     assert(
       Math.abs(actual[key] - expected[key]) <= 1.5,
-      `${stage}: ${key} drifted; target=${expected[key]} chrome=${actual[key]}`,
+      `${stage}: ${key} drifted; target=${expected[key]} surface=${actual[key]}`,
     );
   }
 };
+
 const assertRelativeOffset = (before, after, stage) => {
   for (const key of ["x", "y"]) {
     const beforeOffset = before.surface[key] - before.target[key];
@@ -33,11 +36,11 @@ const assertRelativeOffset = (before, after, stage) => {
     );
   }
 };
-const settleScroll = async () => {
-  await page.evaluate(() => new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(resolve));
-  }));
-};
+
+const settleScroll = () => page.evaluate(() => new Promise((resolve) => {
+  requestAnimationFrame(() => requestAnimationFrame(resolve));
+}));
+
 const assertMotionFree = async (locator, stage) => {
   const motion = await locator.evaluate((element) => {
     const style = getComputedStyle(element);
@@ -49,69 +52,53 @@ const assertMotionFree = async (locator, stage) => {
   assert.equal(motion.transitionDuration, "0s", `${stage}: geometry surface must not transition`);
   assert.equal(motion.animationName, "none", `${stage}: geometry surface must not animate`);
 };
-const assertNativeAnchor = async (locator, expectedMode, stage) => {
+
+const assertNativeAnchor = async (locator, mode, stage) => {
   const native = await locator.evaluate((element) => ({
     mode: element.dataset.mesurerNativeScrollAnchor ?? null,
     anchor: getComputedStyle(element).getPropertyValue("position-anchor").trim(),
   }));
-  assert.equal(native.mode, expectedMode, `${stage}: native anchor mode`);
+  assert.equal(native.mode, mode, `${stage}: native anchor mode`);
   assert(native.anchor && native.anchor !== "none", `${stage}: expected a resolved CSS position-anchor`);
 };
 
-// Intentionally sample inside the scroll event itself. The contract listener is
-// registered after Mesurer's listeners, so this sees the geometry Mesurer made
-// available during the event, before any queued microtask or animation frame.
+// Sample inside the scroll event itself. This catches compositor-visible drift
+// before any queued microtask or animation frame can repair it.
 const sampleScrollEvent = async (
   deltaY,
-  { includeRing = false, includeInspector = false, includeTextInspector = false, includeNativeProbe = false } = {},
+  { ring = false, inspector = false, typography = false, probe = false } = {},
 ) => page.evaluate(
-  ({ deltaY: scrollDelta, includeRing: shouldIncludeRing, includeInspector: shouldIncludeInspector, includeTextInspector: shouldIncludeTextInspector, includeNativeProbe: shouldIncludeNativeProbe }) => new Promise((resolve, reject) => {
+  ({ deltaY: scrollDelta, ring: includeRing, inspector: includeInspector, typography: includeTypography, probe: includeProbe }) => new Promise((resolve, reject) => {
     const target = document.querySelector(".feature-copy .kicker");
     const selectedRoot = document.querySelector("[data-mesurer-selected-measurement='true']");
-    const selectedChrome = selectedRoot?.children.item(0);
-    const editRing = shouldIncludeRing
-      ? document.querySelector("[data-mesurer-text-edit-ring='true']")
-      : null;
-    const inspectorShell = shouldIncludeInspector
+    const selected = selectedRoot?.children.item(0);
+    const editRing = includeRing ? document.querySelector("[data-mesurer-text-edit-ring='true']") : null;
+    const inspectorShell = includeInspector
       ? document.querySelector("[data-mesurer-text-inspector-placement-shell='true']")
       : null;
-    const inspectorCard = shouldIncludeInspector
+    const inspectorCard = includeInspector
       ? document.querySelector("[data-mesurer-text-inspector-info='true']")
       : null;
-    const typographyBox = shouldIncludeTextInspector
+    const typographyBox = includeTypography
       ? document.querySelector(".mesurer-ti-box[data-state='visible']")
       : null;
-    const typographyCard = shouldIncludeTextInspector
+    const typographyCard = includeTypography
       ? document.querySelector(".mesurer-ti-card[data-state='visible']")
       : null;
-    const nativeProbe = shouldIncludeNativeProbe
+    const nativeProbe = includeProbe
       ? document.querySelector("[data-mesurer-native-scroll-probe='true']")
       : null;
 
-    if (!(target instanceof HTMLElement)) {
-      reject(new Error("Expected target before scroll"));
-      return;
+    if (!(target instanceof HTMLElement)) return reject(new Error("Expected target before scroll"));
+    if (!includeTypography && !(selected instanceof HTMLElement)) return reject(new Error("Expected selected chrome before scroll"));
+    if (includeRing && !(editRing instanceof HTMLElement)) return reject(new Error("Expected direct-edit ring before scroll"));
+    if (includeInspector && (!(inspectorShell instanceof HTMLElement) || !(inspectorCard instanceof HTMLElement))) {
+      return reject(new Error("Expected unified Typography inspector before scroll"));
     }
-    if (!shouldIncludeTextInspector && !(selectedChrome instanceof HTMLElement)) {
-      reject(new Error("Expected selected chrome before scroll"));
-      return;
+    if (includeTypography && (!(typographyBox instanceof HTMLElement) || !(typographyCard instanceof HTMLElement))) {
+      return reject(new Error("Expected standalone Typography surfaces before scroll"));
     }
-    if (shouldIncludeRing && !(editRing instanceof HTMLElement)) {
-      reject(new Error("Expected direct-edit ring before scroll"));
-      return;
-    }
-    if (shouldIncludeInspector && (!(inspectorShell instanceof HTMLElement) || !(inspectorCard instanceof HTMLElement))) {
-      reject(new Error("Expected unified Typography inspector before scroll"));
-      return;
-    }
-    if (shouldIncludeTextInspector && (!(typographyBox instanceof HTMLElement) || !(typographyCard instanceof HTMLElement))) {
-      reject(new Error("Expected Typography inspection chrome before scroll"));
-      return;
-    }
-    if (shouldIncludeNativeProbe && !(nativeProbe instanceof HTMLElement)) {
-      reject(new Error("Expected native anchor diagnostic probe before scroll"));
-      return;
-    }
+    if (includeProbe && !(nativeProbe instanceof HTMLElement)) return reject(new Error("Expected native anchor probe before scroll"));
 
     const snapshot = (element) => {
       const rect = element.getBoundingClientRect();
@@ -119,7 +106,7 @@ const sampleScrollEvent = async (
     };
     const state = () => ({
       target: snapshot(target),
-      selected: selectedChrome instanceof HTMLElement ? snapshot(selectedChrome) : null,
+      selected: selected instanceof HTMLElement ? snapshot(selected) : null,
       ring: editRing instanceof HTMLElement ? snapshot(editRing) : null,
       inspector: inspectorShell instanceof HTMLElement ? snapshot(inspectorShell) : null,
       inspectorPlacement: inspectorCard instanceof HTMLElement
@@ -127,14 +114,14 @@ const sampleScrollEvent = async (
         : null,
       typographyBox: typographyBox instanceof HTMLElement ? snapshot(typographyBox) : null,
       typographyCard: typographyCard instanceof HTMLElement ? snapshot(typographyCard) : null,
-      nativeProbe: nativeProbe instanceof HTMLElement ? snapshot(nativeProbe) : null,
+      probe: nativeProbe instanceof HTMLElement ? snapshot(nativeProbe) : null,
     });
+
     const before = state();
-    const onScroll = () => resolve({ before, after: state() });
-    window.addEventListener("scroll", onScroll, { capture: true, once: true });
+    window.addEventListener("scroll", () => resolve({ before, after: state() }), { capture: true, once: true });
     window.scrollBy({ top: scrollDelta, behavior: "instant" });
   }),
-  { deltaY, includeRing, includeInspector, includeTextInspector, includeNativeProbe },
+  { deltaY, ring, inspector, typography, probe },
 );
 
 try {
@@ -169,21 +156,23 @@ try {
   await assertMotionFree(selectedLabel, "selected measurement label");
   await assertNativeAnchor(selectedChrome, "box", "selected measurement chrome");
   await assertNativeAnchor(selectedLabel, "label", "selected measurement label");
-  const targetAnchorName = await target.evaluate((element) => getComputedStyle(element).getPropertyValue("anchor-name").trim());
-  assert.match(targetAnchorName, /--mesurer-selection-/, "selected page element should own the native anchor name");
   assertSameBox(await box(selectedChrome, "selected before scroll"), targetBox, "selected before scroll");
 
+  // Mirror the production document-layer surface: absolute positioned against
+  // the same CSS anchor. A fixed probe exercises different Chromium behavior
+  // and is not representative of Mesurer's selected measurement chrome.
   const probeState = await page.evaluate(() => {
     const targetElement = document.querySelector(".feature-copy .kicker");
-    if (!(targetElement instanceof HTMLElement)) throw new Error("Expected target for native anchor diagnostic probe");
+    if (!(targetElement instanceof HTMLElement)) throw new Error("Expected target for native anchor probe");
     const anchorName = getComputedStyle(targetElement).getPropertyValue("anchor-name").split(",")
       .map((value) => value.trim())
       .find((value) => value.startsWith("--mesurer-selection-"));
-    if (!anchorName) throw new Error("Expected selection anchor name for native anchor diagnostic probe");
+    if (!anchorName) throw new Error("Expected selection anchor name for native anchor probe");
+
     const probe = document.createElement("div");
     probe.dataset.mesurerNativeScrollProbe = "true";
     Object.assign(probe.style, {
-      position: "fixed",
+      position: "absolute",
       positionAnchor: anchorName,
       left: "anchor(left)",
       top: "anchor(top)",
@@ -191,25 +180,21 @@ try {
       height: "anchor-size(height)",
       pointerEvents: "none",
       zIndex: "2147483647",
-      outline: "1px solid transparent",
     });
     document.body.append(probe);
+
     const rect = probe.getBoundingClientRect();
     const targetRect = targetElement.getBoundingClientRect();
     return {
-      anchorName,
       probe: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
       target: { x: targetRect.x, y: targetRect.y, width: targetRect.width, height: targetRect.height },
-      positionAnchor: getComputedStyle(probe).getPropertyValue("position-anchor").trim(),
     };
   });
-  console.log(`NATIVE_ANCHOR_PROBE_INITIAL ${JSON.stringify(probeState)}`);
-  assertSameBox(probeState.probe, probeState.target, "body-level native anchor probe before scroll");
+  assertSameBox(probeState.probe, probeState.target, "production-mode native anchor probe before scroll");
 
-  const immediateSelection = await sampleScrollEvent(80, { includeNativeProbe: true });
-  console.log(`NATIVE_ANCHOR_PROBE_SCROLL ${JSON.stringify(immediateSelection)}`);
-  assert(immediateSelection.after.nativeProbe, "selected scroll event: expected native diagnostic probe geometry");
-  assertSameBox(immediateSelection.after.nativeProbe, immediateSelection.after.target, "body-level native anchor probe in scroll event");
+  const immediateSelection = await sampleScrollEvent(80, { probe: true });
+  assert(immediateSelection.after.probe, "selected scroll event: expected native probe geometry");
+  assertSameBox(immediateSelection.after.probe, immediateSelection.after.target, "production-mode native anchor probe in scroll event");
   assert(immediateSelection.after.selected, "selected scroll event: expected selected chrome geometry");
   assertSameBox(immediateSelection.after.selected, immediateSelection.after.target, "selected in scroll event");
   targetBox = immediateSelection.after.target;
@@ -221,6 +206,7 @@ try {
     document.querySelector("[data-mesurer-text-edit-ring='true']")?.getAttribute("data-mesurer-native-scroll-anchor") === "box"
     && document.querySelector("[data-mesurer-text-inspector-placement-shell='true']")?.getAttribute("data-mesurer-native-scroll-anchor") === "offset"
   ));
+
   const editRing = page.locator("[data-mesurer-text-edit-ring='true']");
   const inspectorShell = page.locator("[data-mesurer-text-inspector-placement-shell='true']");
   const inspectorCard = page.locator("[data-mesurer-text-inspector-info='true']");
@@ -231,13 +217,9 @@ try {
   await assertNativeAnchor(inspectorShell, "offset", "unified Typography placement shell");
   assertSameBox(await box(editRing, "edit ring before scroll"), targetBox, "edit ring before scroll");
 
-  // Re-center while the editor is open, then sample a small scroll that keeps
-  // the same placement lane. CSS anchors own the visible movement while the JS
-  // positioning paths remain a fallback and an idle-time placement source.
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settleScroll();
-  targetBox = await box(target, "target before direct-edit scroll event");
-  const immediateEdit = await sampleScrollEvent(40, { includeRing: true, includeInspector: true });
+  const immediateEdit = await sampleScrollEvent(40, { ring: true, inspector: true });
   assert(immediateEdit.after.selected, "edit scroll event: expected selected chrome geometry");
   assert(immediateEdit.after.ring, "edit scroll event: expected ring geometry");
   assert(immediateEdit.before.inspector && immediateEdit.after.inspector, "edit scroll event: expected inspector geometry");
@@ -254,28 +236,25 @@ try {
     "unified Typography inspector in scroll event",
   );
 
-  // Let the canonical reactive state converge too; it must not move any of the
-  // already-synchronized geometry to a different position afterward.
   await settleScroll();
   targetBox = await box(target, "target after settled edit scroll");
   assertSameBox(await box(selectedChrome, "selected after settled edit scroll"), targetBox, "selected after settled edit scroll");
   assertSameBox(await box(editRing, "edit ring after settled edit scroll"), targetBox, "edit ring after settled edit scroll");
 
-  // Exercise the standalone Typography inspection surface as well. It remains
-  // on the compatibility scroll path because it can pin arbitrary inspected
-  // nodes, but must still expose no transition/animation or event-time drift.
   const editor = page.locator("[data-mesurer-text-editor='true']");
   await editor.focus();
   await page.keyboard.press("Escape");
   await editor.waitFor({ state: "detached" });
   await arrange.click();
   await page.waitForFunction(() => document.querySelector("button[data-mesurer-tool-id='arrange']")?.getAttribute("aria-pressed") === "false");
+
   const typography = page.locator("button[data-mesurer-builtin='text-inspector']");
   await typography.click();
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settleScroll();
   targetBox = await box(target, "target before standalone Typography scroll");
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+
   const typographyBox = page.locator(".mesurer-ti-box[data-state='visible']");
   const typographyCard = page.locator(".mesurer-ti-card[data-state='visible']");
   await typographyBox.waitFor({ state: "visible" });
@@ -284,7 +263,7 @@ try {
   await assertMotionFree(typographyCard, "standalone Typography card");
   assertSameBox(await box(typographyBox, "Typography box before scroll"), targetBox, "Typography box before scroll");
 
-  const immediateTypography = await sampleScrollEvent(32, { includeTextInspector: true });
+  const immediateTypography = await sampleScrollEvent(32, { typography: true });
   assert(immediateTypography.before.typographyBox && immediateTypography.after.typographyBox, "Typography scroll event: expected box geometry");
   assert(immediateTypography.before.typographyCard && immediateTypography.after.typographyCard, "Typography scroll event: expected card geometry");
   assertSameBox(immediateTypography.after.typographyBox, immediateTypography.after.target, "Typography box in scroll event");
