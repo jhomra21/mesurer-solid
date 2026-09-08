@@ -137,15 +137,22 @@ try {
 
   console.log(`[hit-test-debug] ${JSON.stringify(evidence, null, 2)}`);
 
-  const beforeExpanded = await styleButton.getAttribute("aria-expanded");
+  // Use the same native pointer sequence as a user. If the popup is still
+  // classified as outside the edit session, pointerdown will tear the editor
+  // down before click. A correct ownership path lets the option activate first.
   await page.mouse.click(evidence.point.x, evidence.point.y);
   await page.waitForTimeout(100);
   const after = {
     popupCount: await popup.count(),
-    styleExpanded: await styleButton.getAttribute("aria-expanded"),
+    inspectorCount: await inspector.count(),
+    editorCount: await page.locator("[data-mesurer-text-editor='true']").count(),
     targetTag: await target.evaluate((element) => element.tagName),
   };
-  console.log(`[hit-test-debug-click] ${JSON.stringify({ beforeExpanded, ...after }, null, 2)}`);
+  console.log(`[hit-test-debug-click] ${JSON.stringify(after, null, 2)}`);
+
+  assert.equal(after.popupCount, 0, "Native Heading 2 press should close the custom popup after activation");
+  assert.equal(after.inspectorCount, 1, "Native popup pointerdown should keep the text edit session alive");
+  assert.equal(after.editorCount, 1, "Native popup pointerdown should keep the editor alive");
 } finally {
   await browser.close();
 }
