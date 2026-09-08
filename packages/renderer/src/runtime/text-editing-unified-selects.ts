@@ -424,12 +424,14 @@ export function installUnifiedTextSelectMenus(
 
   const onPointerDown = (event: PointerEvent) => {
     if (!openMenu) return;
-    const target = event.target instanceof realm.Node ? event.target : null;
-    if (!target) return;
-    if (openMenu.popup.contains(target) || openMenu.trigger.contains(target)) return;
+    const path = event.composedPath();
+    if (path.includes(openMenu.popup) || path.includes(openMenu.trigger)) return;
     closeMenu();
   };
-  const onViewportChange = () => closeMenu();
+  const onViewportChange = (event: Event) => {
+    if (event.type === "scroll" && openMenu && event.composedPath().includes(openMenu.popup)) return;
+    closeMenu();
+  };
 
   ownerWindow.addEventListener("pointerdown", onPointerDown, true);
   ownerWindow.addEventListener("resize", onViewportChange);
