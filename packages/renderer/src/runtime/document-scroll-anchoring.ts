@@ -104,6 +104,7 @@ const setImportant = (element: HTMLElement, property: string, value: string) => 
 const clearAnchorSurface = (element: HTMLElement | null | undefined) => {
   if (!element) return;
   delete element.dataset.mesurerNativeScrollAnchor;
+  delete element.dataset.mesurerNativeScrollOwner;
   element.style.removeProperty("position-anchor");
   element.style.removeProperty("--mesurer-native-anchor-x");
   element.style.removeProperty("--mesurer-native-anchor-y");
@@ -176,7 +177,10 @@ const moveToBody = (
     ? ownerDocument.createComment("mesurer-document-scroll-layer")
     : null;
   if (marker && parent) parent.insertBefore(marker, element);
-  if (element.parentNode !== body) body.append(element);
+  if (element.parentNode !== body) {
+    if (normalize === "selection-root") body.insertBefore(element, body.firstChild);
+    else body.append(element);
+  }
 
   const properties = normalize === "selection-root"
     ? ["display", "width", "height"] as const
@@ -217,6 +221,7 @@ export function installDocumentScrollAnchoring(
   runtime: MesurerSolidRuntimeService,
 ) {
   const { ownerDocument, ownerWindow, pageTarget, portalTarget } = runtime;
+  // SAFETY: ownerWindow owns pageTarget/portalTarget and supplies this runtime's DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
   if (!supportsAnchors(realm)) return;
   if (portalTarget instanceof realm.ShadowRoot || pageTarget instanceof realm.ShadowRoot) return;
@@ -275,6 +280,10 @@ export function installDocumentScrollAnchoring(
   bottom: auto !important;
   transition: none !important;
   animation: none !important;
+}
+[data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="box"],
+[data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="offset"] {
+  position: fixed !important;
 }
 `;
   ownerDocument.head.append(style);
@@ -591,8 +600,10 @@ export function installDocumentScrollAnchoring(
           binding = { ...makeBinding(target, "typography"), box, card };
           inspectorPairBindings.set(box, binding);
         }
+        box.dataset.mesurerNativeScrollOwner = "typography";
         applyAnchor(box, binding, "box");
         if (card?.isConnected && !card.classList.contains("mesurer-ti-card--pinned")) {
+          card.dataset.mesurerNativeScrollOwner = "typography";
           applyAnchor(card, binding, "offset");
           if (!scrolling) {
             const targetRect = rectFromDom(binding.target.getBoundingClientRect());
