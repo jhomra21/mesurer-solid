@@ -80,6 +80,8 @@ export function installUnifiedTextInspector(
       maxWidth: `calc(100vw - ${VIEWPORT_PADDING * 2}px)`,
       overflow: "visible",
       pointerEvents: "auto",
+      transition: "none",
+      animation: "none",
     });
     card.before(shell);
     shell.append(card);
@@ -89,6 +91,8 @@ export function installUnifiedTextInspector(
       top: "auto",
       transform: "none",
       zIndex: "auto",
+      transition: "none",
+      animation: "none",
     });
     placementShell = shell;
     return shell;
@@ -115,6 +119,8 @@ export function installUnifiedTextInspector(
       boxSizing: "border-box",
       maxHeight: `calc(100vh - ${VIEWPORT_PADDING * 2}px)`,
       overflowY: "auto",
+      transition: "none",
+      animation: "none",
     });
 
     const host = ring.getBoundingClientRect();
@@ -194,6 +200,12 @@ export function installUnifiedTextInspector(
       positionFrame = 0;
       positionCard();
     });
+  };
+
+  const syncPositionOnScroll = () => {
+    // Scroll can be compositor-driven. Position the inspector in the scroll
+    // event itself so it never waits one animation frame behind the host.
+    positionCard();
   };
 
   const settlePosition = () => {
@@ -540,6 +552,8 @@ export function installUnifiedTextInspector(
         overflowY: "auto",
         padding: "11px 12px 12px",
         whiteSpace: "normal",
+        transition: "none",
+        animation: "none",
       });
       ensurePlacementShell(card);
       Object.assign(grid.style, {
@@ -618,7 +632,7 @@ export function installUnifiedTextInspector(
   runtimeMount.addEventListener("change", onInspectorChange, true);
   runtimeMount.addEventListener("keydown", onInspectorKeyDown, true);
   ownerWindow.addEventListener("resize", schedulePosition);
-  ownerWindow.addEventListener("scroll", schedulePosition, true);
+  ownerWindow.addEventListener("scroll", syncPositionOnScroll, true);
 
   const observer = new realm.MutationObserver(refine);
   observer.observe(runtimeMount, { childList: true, subtree: true });
@@ -633,7 +647,7 @@ export function installUnifiedTextInspector(
     runtimeMount.removeEventListener("change", onInspectorChange, true);
     runtimeMount.removeEventListener("keydown", onInspectorKeyDown, true);
     ownerWindow.removeEventListener("resize", schedulePosition);
-    ownerWindow.removeEventListener("scroll", schedulePosition, true);
+    ownerWindow.removeEventListener("scroll", syncPositionOnScroll, true);
     removePlacementShell();
   });
 }
