@@ -200,16 +200,13 @@ body.mesurer-solid-xray .mesurer-ti-close {
   padding-inline: 0;
 }
 
-/* Native document anchors resolve against viewport geometry. These surfaces
-   are deliberately hoisted into the document layer, so keep their positioned
-   box fixed to the viewport just like the diagnostic/native Typography path.
-   The attributes only exist when document-scroll anchoring is active; Shadow
-   DOM and non-anchor fallbacks therefore retain their original positioning. */
-[data-mesurer-selected-measurement="true"] > [data-mesurer-native-scroll-anchor="box"],
-[data-mesurer-selected-measurement="true"] > [data-mesurer-native-scroll-anchor="label"],
-[data-mesurer-text-edit-ring="true"][data-mesurer-native-scroll-anchor="box"],
-[data-mesurer-text-selection-highlight="true"][data-mesurer-native-scroll-anchor="offset"] {
-  position: fixed !important;
+/* Keep Solid ownership without giving the portaled selection wrapper its own
+   layout/containing-block box. Native-anchor children then participate in the
+   document layer as if they were direct body children, while the wrapper stays
+   in the DOM for reconciliation. The :has() gate limits this to the native
+   document-anchor path; Shadow DOM and JS fallbacks keep their normal wrapper. */
+[data-mesurer-selected-measurement="true"]:has(> [data-mesurer-native-scroll-anchor="box"]) {
+  display: contents !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
