@@ -176,6 +176,7 @@ export function installUnifiedTextSelectMenus(
 
     const popup = ownerDocument.createElement("div");
     popup.dataset.mesurerUnifiedSelectPopup = "true";
+    popup.dataset.mesurerUnifiedSelectKind = trigger.dataset.mesurerUnifiedSelectTrigger ?? "select";
     popup.dataset.mesurerInspectorUi = "true";
     popup.setAttribute("role", "listbox");
     Object.assign(popup.style, {
@@ -245,7 +246,14 @@ export function installUnifiedTextSelectMenus(
     const shell = select.closest<HTMLElement>("[data-mesurer-unified-select-shell='true']");
     if (!shell || shell.dataset.mesurerUnifiedCustomSelect === "true") return;
     shell.dataset.mesurerUnifiedCustomSelect = "true";
-    select.style.display = "none";
+    Object.assign(select.style, {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      opacity: "0",
+      pointerEvents: "none",
+    });
     select.tabIndex = -1;
     select.setAttribute("aria-hidden", "true");
 
@@ -303,6 +311,7 @@ export function installUnifiedTextSelectMenus(
     const original = card.querySelector<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']");
     if (!original || original.dataset.mesurerUnifiedCustomStyle === "true") return;
     original.dataset.mesurerUnifiedCustomStyle = "true";
+    delete original.dataset.mesurerTextStyleMenuButton;
     original.style.display = "none";
     original.tabIndex = -1;
     original.setAttribute("aria-hidden", "true");
@@ -323,18 +332,19 @@ export function installUnifiedTextSelectMenus(
       background: INK_50,
       transition: "border-color 120ms ease, box-shadow 120ms ease, background 120ms ease",
     });
-    shell.addEventListener("mouseenter", () => { shell.style.borderColor = INK_200; });
-    shell.addEventListener("mouseleave", () => {
-      if (openMenu?.trigger !== trigger && ownerDocument.activeElement !== trigger) shell.style.borderColor = "transparent";
-    });
 
     const trigger = ownerDocument.createElement("button");
     trigger.type = "button";
     trigger.dataset.mesurerUnifiedSelectTrigger = "style";
+    trigger.dataset.mesurerTextStyleMenuButton = "true";
     trigger.setAttribute("aria-haspopup", "listbox");
     trigger.setAttribute("aria-expanded", "false");
     trigger.setAttribute("aria-label", "Text style");
     styleTrigger(trigger, shell);
+    shell.addEventListener("mouseenter", () => { shell.style.borderColor = INK_200; });
+    shell.addEventListener("mouseleave", () => {
+      if (openMenu?.trigger !== trigger && ownerDocument.activeElement !== trigger) shell.style.borderColor = "transparent";
+    });
 
     const chevron = ownerDocument.createElement("span");
     chevron.dataset.mesurerUnifiedSelectChevron = "true";
