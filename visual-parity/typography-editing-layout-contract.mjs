@@ -93,7 +93,8 @@ const assertUnifiedInspector = async (stage) => {
     assert.equal(await inspector().locator(selector).count(), 1, `${stage}: missing unified control ${selector}`);
   }
   const family = inspector().locator("[data-mesurer-text-style-select='font']");
-  assert.equal(await family.evaluate((element) => getComputedStyle(element).appearance), "none", `${stage}: Family should use Mesurer select chrome rather than native browser chrome`);
+  assert.equal(await family.evaluate((element) => getComputedStyle(element).appearance), "none", `${stage}: Family source control should keep native chrome disabled`);
+  assert.equal(await family.evaluate((element) => getComputedStyle(element).opacity), "0", `${stage}: native Family select should be an invisible state bridge`);
   assert.equal(
     await family.locator("..").getAttribute("data-mesurer-unified-select-shell"),
     "true",
@@ -104,6 +105,21 @@ const assertUnifiedInspector = async (stage) => {
     1,
     `${stage}: custom select shell should render one Mesurer chevron`,
   );
+  for (const kind of ["font", "size", "weight", "style"]) {
+    const trigger = inspector().locator(`[data-mesurer-unified-select-trigger='${kind}']`);
+    assert.equal(await trigger.count(), 1, `${stage}: missing full-width Mesurer ${kind} dropdown trigger`);
+    assert.equal(await trigger.getAttribute("aria-haspopup"), "listbox", `${stage}: ${kind} dropdown should expose listbox semantics`);
+  }
+};
+const openDropdownFromChevronEdge = async (kind, stage) => {
+  const trigger = inspector().locator(`[data-mesurer-unified-select-trigger='${kind}']`);
+  const triggerBox = await box(trigger);
+  await page.mouse.click(triggerBox.x + triggerBox.width - 4, triggerBox.y + triggerBox.height / 2);
+  const popup = page.locator(`[data-mesurer-unified-select-popup='true'][data-mesurer-unified-select-kind='${kind}']`);
+  await popup.waitFor({ state: "visible" });
+  assert(await popup.locator("[data-mesurer-unified-select-option]").count() > 0, `${stage}: expected custom ${kind} options`);
+  assert.equal(await trigger.getAttribute("aria-expanded"), "true", `${stage}: ${kind} trigger should expose open state`);
+  return popup;
 };
 const assertInitialSelection = async (stage) => {
   assert(await selection().count() > 0, `${stage}: expected selected-text highlight on entry`);
@@ -154,6 +170,28 @@ try {
   await assertInitialSelection("slim");
   await assertUnifiedInspector("slim");
   await assertInspectorStableAfterPointerMoves("slim");
+
+  for (const kind of ["font", "size", "weight"]) {
+    const popup = await openDropdownFromChevronEdge(kind, `slim ${kind}`);
+    const popupChrome = await popup.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { radius: style.borderRadius, background: style.backgroundColor, role: element.getAttribute("role") };
+    });
+    assert.equal(popupChrome.radius, "8px", `slim ${kind}: custom menu should use Mesurer rounding`);
+    assert.equal(popupChrome.role, "listbox", `slim ${kind}: custom menu should use listbox semantics`);
+    await page.keyboard.press("Escape");
+    await popup.waitFor({ state: "detached" });
+  }
+
+  const stylePopup = await openDropdownFromChevronEdge("style", "slim style");
+  assert.equal(await inspector().locator("[data-mesurer-unified-text-presets='true']").count(), 0, "slim style: old expanding preset panel should be gone");
+  const heading2 = stylePopup.locator("[data-mesurer-unified-select-option='heading-2']");
+  if (await heading2.count()) await heading2.click();
+  else {
+    await page.keyboard.press("Escape");
+    await stylePopup.waitFor({ state: "detached" });
+  }
+
   const initialLineHeight = await slim.evaluate((element) => getComputedStyle(element).lineHeight);
   const initialTracking = await slim.evaluate((element) => getComputedStyle(element).letterSpacing);
   const lineInput = inspector().locator("[data-mesurer-text-style-input='line']");
@@ -164,11 +202,6 @@ try {
   await trackingInput.fill("1px");
   await trackingInput.press("Enter");
   await page.waitForFunction(() => getComputedStyle(document.querySelector(".feature-copy .kicker")).letterSpacing === "1px");
-  const presetButton = inspector().locator("[data-mesurer-text-style-menu-button='true']");
-  await presetButton.click();
-  await page.waitForFunction(() => document.querySelectorAll("[data-mesurer-unified-text-presets='true']").length === 1);
-  assert(await inspector().locator("[data-mesurer-unified-text-presets='true'] [data-mesurer-text-style-preset]").count() > 0, "slim: expected in-card text presets");
-  await inspector().locator("[data-mesurer-text-style-menu-button='true']").click();
   await replaceSelection("Selection target updated");
   await assertSelectionCleared("slim");
   await assertCaretVisible("slim");
@@ -291,7 +324,7 @@ try {
   await closeEditor();
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Host-anchored editing + Mesurer-styled stable Typography inspector + visible caret + mixed-inline text runs: PASS");
+  console.log("Host-anchored editing + full-hit Mesurer dropdowns + stable Typography inspector + visible caret + mixed-inline text runs: PASS");
 } finally {
   await browser.close();
 }
