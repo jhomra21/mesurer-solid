@@ -31,7 +31,7 @@ type SelectionBinding = AnchorBinding & {
   root: HTMLElement;
   chrome: HTMLElement;
   label: HTMLElement | null;
-  placement: Placement;
+  placements: Placement[];
 };
 
 type HoverBinding = AnchorBinding & {
@@ -98,6 +98,10 @@ const supportsAnchors = (ownerWindow: Window & typeof globalThis) => Boolean(
 );
 
 const setImportant = (element: HTMLElement, property: string, value: string) => {
+  if (
+    element.style.getPropertyValue(property) === value
+    && element.style.getPropertyPriority(property) === "important"
+  ) return;
   element.style.setProperty(property, value, "important");
 };
 
@@ -169,7 +173,7 @@ const restoreStyles = (
 const moveToBody = (
   ownerDocument: Document,
   element: HTMLElement,
-  normalize: "none" | "selection-root" | "runtime" | "inspector-overlay" = "none",
+  normalize: "none" | "runtime" | "inspector-overlay" = "none",
 ): Placement => {
   const body = ownerDocument.body;
   const parent = element.parentNode;
@@ -177,23 +181,14 @@ const moveToBody = (
     ? ownerDocument.createComment("mesurer-document-scroll-layer")
     : null;
   if (marker && parent) parent.insertBefore(marker, element);
-  if (element.parentNode !== body) {
-    if (normalize === "selection-root") body.insertBefore(element, body.firstChild);
-    else body.append(element);
-  }
+  if (element.parentNode !== body) body.append(element);
 
-  const properties = normalize === "selection-root"
-    ? ["display", "width", "height"] as const
-    : normalize === "runtime" || normalize === "inspector-overlay"
-      ? ["display", "position", "inset", "width", "height"] as const
-      : [] as const;
+  const properties = normalize === "runtime" || normalize === "inspector-overlay"
+    ? ["display", "position", "inset", "width", "height"] as const
+    : [] as const;
   const previous = snapshotStyles(element, properties);
 
-  if (normalize === "selection-root") {
-    setImportant(element, "display", "block");
-    setImportant(element, "width", "100vw");
-    setImportant(element, "height", "0px");
-  } else if (normalize === "runtime" || normalize === "inspector-overlay") {
+  if (normalize === "runtime" || normalize === "inspector-overlay") {
     setImportant(element, "display", "block");
     setImportant(element, "position", "static");
     setImportant(element, "inset", "auto");
@@ -339,7 +334,7 @@ export function installDocumentScrollAnchoring(
     clearAnchorSurface(binding.chrome);
     clearAnchorSurface(binding.label);
     binding.release();
-    binding.placement.release();
+    for (const placement of [...binding.placements].reverse()) placement.release();
   };
 
   const bindSelection = (
@@ -351,8 +346,9 @@ export function installDocumentScrollAnchoring(
     const previous = selectionBindings.get(root);
     if (previous) releaseSelection(previous);
     const anchor = makeBinding(target, "selection");
-    const placement = moveToBody(ownerDocument, root, "selection-root");
-    const binding: SelectionBinding = { ...anchor, root, chrome, label, placement };
+    const placements = [moveToBody(ownerDocument, chrome)];
+    if (label) placements.push(moveToBody(ownerDocument, label));
+    const binding: SelectionBinding = { ...anchor, root, chrome, label, placements };
     selectionBindings.set(root, binding);
     applyAnchor(chrome, binding, "box");
     if (label) applyAnchor(label, binding, "label");
@@ -661,15 +657,11 @@ export function installDocumentScrollAnchoring(
   observer.observe(portalTarget, {
     subtree: true,
     childList: true,
-    attributes: true,
-    attributeFilter: ["style", "data-state"],
   });
   if (runtimeMount) {
     observer.observe(runtimeMount, {
       subtree: true,
       childList: true,
-      attributes: true,
-      attributeFilter: ["style", "data-state"],
     });
   }
 
