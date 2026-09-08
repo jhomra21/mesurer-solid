@@ -1,5 +1,6 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
+import { installNativeScrollAnchoring } from "./native-scroll-anchoring";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
 import { installTextEditingPresentation } from "./text-editing-presentation";
 import {
@@ -45,4 +46,8 @@ export function installTextEditing(
   installUnifiedTextInspector(ctx, runtime);
   installUnifiedTextSelectMenus(ctx, runtime);
   installUnifiedTextSelectLayer(ctx, runtime);
+  // Root scrolling can be compositor-driven ahead of JavaScript. On browsers
+  // with CSS Anchor Positioning, bind selection/edit/hover chrome directly to
+  // its page element so the browser owns scroll movement instead of JS timers.
+  installNativeScrollAnchoring(ctx, runtime);
 }
