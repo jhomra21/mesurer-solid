@@ -203,9 +203,33 @@ try {
   assert(copyBox, "Copy context button must have a bounding box");
   await page.mouse.click(copyBox.x + 3, copyBox.y + copyBox.height / 2);
 
-  await page.waitForFunction(() => {
+  // Selected measurement chrome is intentionally portaled to the document
+  // layer for compositor-owned anchoring. Prove self-hosting through the
+  // observer's canonical selection context, then require matching body-level
+  // chrome instead of assuming the visual surface remains a descendant of the
+  // observer's framework root.
+  await page.waitForFunction(async () => {
     const observer = window.__MESURER_SELF_HOSTING__?.observer;
-    return Boolean(observer?.element.querySelector('[data-mesurer-selected-measurement="true"]'));
+    const copy = document.querySelector("button[data-mesurer-tool-id='context.copy']");
+    if (!observer || !(copy instanceof HTMLElement)) return false;
+    try {
+      const context = await observer.context({ scope: "selection" });
+      const region = context.regions[0];
+      if (!region) return false;
+      const copyRect = copy.getBoundingClientRect();
+      const sameRect = (rect) => Math.max(
+        Math.abs(rect.left - copyRect.left),
+        Math.abs(rect.top - copyRect.top),
+        Math.abs(rect.width - copyRect.width),
+        Math.abs(rect.height - copyRect.height),
+      ) <= 1.5;
+      if (!sameRect(region)) return false;
+      return Array.from(document.querySelectorAll("[data-mesurer-selected-measurement='true']"))
+        .map((root) => root.children.item(0))
+        .some((chrome) => chrome instanceof HTMLElement && sameRect(chrome.getBoundingClientRect()));
+    } catch {
+      return false;
+    }
   });
 
   const summaryLines = [
@@ -231,6 +255,7 @@ try {
       annotationTrigger: "24x24px, ≤8.5px from selection",
       annotationComposer: "≤272.5px wide, ≤8.5px from selection",
       annotationPanel: "marker ≤8.5px from target; panel ≤8.5px from marker",
+      observerSelection: "canonical selection context + matching body-level portaled chrome",
     },
     maxOpticalOffset,
     annotation: {
