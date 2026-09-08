@@ -36,6 +36,14 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     return target?.isConnected ? target : null;
   };
 
+  const selectedPortalOffset = () => {
+    const target = liveSelectedTarget();
+    const mount = selectionPortalTarget();
+    const ownerWindow = target?.ownerDocument.defaultView;
+    if (!target || !ownerWindow || mount !== target.ownerDocument.body) return { x: 0, y: 0 };
+    return { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
+  };
+
   const syncSelectedGeometry = () => {
     const target = liveSelectedTarget();
     if (!target || !chromeElement || !labelElement) return;
@@ -114,7 +122,10 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   const surfaces = (measurement: () => Measurement | InspectMeasurement) => <>
     <Show when={!isSelectionGroup()}>
       <div ref={chromeElement} class="msr:absolute" style={{
-        left: `${measurement().rect.left}px`, top: `${measurement().rect.top}px`, width: `${measurement().rect.width}px`, height: `${measurement().rect.height}px`,
+        left: `${measurement().rect.left + selectedPortalOffset().x}px`,
+        top: `${measurement().rect.top + selectedPortalOffset().y}px`,
+        width: `${measurement().rect.width}px`,
+        height: `${measurement().rect.height}px`,
         "background-color": props.fillColor,
         transition: transition(),
         animation: "none",
@@ -126,8 +137,8 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       </div>
     </Show>
     <div ref={labelElement} class="msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:-translate-x-1/2 msr:bg-ink-900/90" style={{
-      left: `${measurement().rect.left + measurement().rect.width / 2}px`,
-      top: `${measurement().rect.top + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
+      left: `${measurement().rect.left + selectedPortalOffset().x + measurement().rect.width / 2}px`,
+      top: `${measurement().rect.top + selectedPortalOffset().y + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
       transition: labelTransition(),
       animation: "none",
     }}>
