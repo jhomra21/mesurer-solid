@@ -113,7 +113,7 @@ const findTargetForRect = (
 ) => {
   let best: { element: HTMLElement; distance: number } | null = null;
   for (const [x, y] of samplePoints(rect, ownerWindow)) {
-    const elements = pageTarget instanceof ownerWindow.ShadowRoot && typeof pageTarget.elementsFromPoint === "function"
+    const elements = pageTarget instanceof ownerWindow.ShadowRoot
       ? pageTarget.elementsFromPoint(x, y)
       : ownerDocument.elementsFromPoint(x, y);
     for (const candidate of elements) {
@@ -133,6 +133,8 @@ export function installNativeScrollAnchoring(
   runtime: MesurerSolidRuntimeService,
 ) {
   const { ownerDocument, ownerWindow, pageTarget, portalTarget } = runtime;
+  // SAFETY: ownerWindow is the browsing-context global for ownerDocument, so its DOM constructors
+  // are the correct realm for portalTarget/pageTarget instanceof checks in this runtime.
   const realm = ownerWindow as Window & typeof globalThis;
   if (!anchorSupported(ownerWindow)) return;
 
@@ -266,7 +268,7 @@ export function installNativeScrollAnchoring(
       bindSelection(root, target);
     }
 
-    for (const [root, binding] of [...selectionBindings]) {
+    for (const [root, binding] of selectionBindings) {
       if (liveRoots.has(root) && root.isConnected) continue;
       binding.release();
       selectionBindings.delete(root);
