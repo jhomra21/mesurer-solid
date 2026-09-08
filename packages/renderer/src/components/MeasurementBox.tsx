@@ -33,26 +33,19 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     return target?.isConnected ? target : null;
   };
 
-  const selectedChromeTransform = (rect: { left: number; top: number }) =>
-    `translate3d(${rect.left}px, ${rect.top}px, 0)`;
-  const selectedLabelTransform = (rect: { left: number; top: number; width: number; height: number }) =>
-    `translate3d(${rect.left + rect.width / 2}px, ${rect.top + rect.height + MEASURE_LABEL_OFFSET}px, 0) translateX(-50%)`;
-
   const syncSelectedGeometry = () => {
     const target = liveSelectedTarget();
     if (!target || !chromeElement || !labelElement) return;
     const rect = target.getBoundingClientRect();
     Object.assign(chromeElement.style, {
-      left: "0px",
-      top: "0px",
+      left: `${rect.left}px`,
+      top: `${rect.top}px`,
       width: `${rect.width}px`,
       height: `${rect.height}px`,
-      transform: selectedChromeTransform(rect),
     });
     Object.assign(labelElement.style, {
-      left: "0px",
-      top: "0px",
-      transform: selectedLabelTransform(rect),
+      left: `${rect.left + rect.width / 2}px`,
+      top: `${rect.top + rect.height + MEASURE_LABEL_OFFSET}px`,
     });
   };
 
@@ -74,12 +67,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       {(measurement) => <div class="msr:pointer-events-none" data-mesurer-measurement="true" data-mesurer-selected-measurement={"paddingRect" in measurement() ? "true" : undefined} data-mesurer-selection-group={isSelectionGroup() ? "true" : undefined}>
         <Show when={!isSelectionGroup()}>
           <div ref={chromeElement} class="msr:absolute" style={{
-            left: isSelectedMeasurement() ? "0px" : `${measurement().rect.left}px`,
-            top: isSelectedMeasurement() ? "0px" : `${measurement().rect.top}px`,
-            width: `${measurement().rect.width}px`,
-            height: `${measurement().rect.height}px`,
-            transform: isSelectedMeasurement() ? selectedChromeTransform(measurement().rect) : undefined,
-            "will-change": isSelectedMeasurement() ? "transform" : undefined,
+            left: `${measurement().rect.left}px`, top: `${measurement().rect.top}px`, width: `${measurement().rect.width}px`, height: `${measurement().rect.height}px`,
             "background-color": props.fillColor,
             transition: transition(),
             animation: "none",
@@ -91,10 +79,8 @@ export function MeasurementBox(props: MeasurementBoxProps) {
           </div>
         </Show>
         <div ref={labelElement} class="msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:-translate-x-1/2 msr:bg-ink-900/90" style={{
-          left: isSelectedMeasurement() ? "0px" : `${measurement().rect.left + measurement().rect.width / 2}px`,
-          top: isSelectedMeasurement() ? "0px" : `${measurement().rect.top + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
-          transform: isSelectedMeasurement() ? selectedLabelTransform(measurement().rect) : undefined,
-          "will-change": isSelectedMeasurement() ? "transform" : undefined,
+          left: `${measurement().rect.left + measurement().rect.width / 2}px`,
+          top: `${measurement().rect.top + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
           transition: labelTransition(),
           animation: "none",
         }}>
