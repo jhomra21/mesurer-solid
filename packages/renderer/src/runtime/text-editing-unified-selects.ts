@@ -197,7 +197,7 @@ export function installUnifiedTextSelectMenus(
     });
 
     for (const option of options) popup.append(makeOptionButton(option, trigger));
-    portalTarget.append(popup);
+    runtimeMount.append(popup);
     trigger.setAttribute("aria-expanded", "true");
     chevron?.style.setProperty("transform", "rotate(225deg)");
     const shell = trigger.closest<HTMLElement>("[data-mesurer-unified-select-shell='true'], [data-mesurer-unified-style-shell='true']");
@@ -428,10 +428,7 @@ export function installUnifiedTextSelectMenus(
     if (path.includes(openMenu.popup) || path.includes(openMenu.trigger)) return;
     closeMenu();
   };
-  const onViewportChange = (event: Event) => {
-    if (event.type === "scroll" && openMenu && event.composedPath().includes(openMenu.popup)) return;
-    closeMenu();
-  };
+  const onViewportChange = () => positionMenu();
 
   ownerWindow.addEventListener("pointerdown", onPointerDown, true);
   ownerWindow.addEventListener("resize", onViewportChange);
