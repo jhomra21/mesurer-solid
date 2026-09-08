@@ -110,9 +110,18 @@ export function installUnifiedTextSelectLayer(
     if (disposed || moving) return;
     moving = true;
     try {
-      for (const popup of Array.from(
+      const popups = Array.from(
         runtimeMount.querySelectorAll<HTMLElement>("[data-mesurer-unified-select-popup='true']"),
-      )) {
+      );
+
+      // The inspector placement shell uses the same maximum z-index. Keep the
+      // active menu layer after it in DOM order so menu options paint and hit-test
+      // above inspector controls such as color swatches.
+      if (popups.length > 0 && runtimeMount.lastElementChild !== interactionLayer) {
+        runtimeMount.append(interactionLayer);
+      }
+
+      for (const popup of popups) {
         if (popup.parentElement !== interactionLayer) interactionLayer.append(popup);
         positionPopup(popup);
       }
