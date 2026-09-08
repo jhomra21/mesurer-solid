@@ -200,6 +200,18 @@ body.mesurer-solid-xray .mesurer-ti-close {
   padding-inline: 0;
 }
 
+/* Native document anchors resolve against viewport geometry. These surfaces
+   are deliberately hoisted into the document layer, so keep their positioned
+   box fixed to the viewport just like the diagnostic/native Typography path.
+   The attributes only exist when document-scroll anchoring is active; Shadow
+   DOM and non-anchor fallbacks therefore retain their original positioning. */
+[data-mesurer-selected-measurement="true"] > [data-mesurer-native-scroll-anchor="box"],
+[data-mesurer-selected-measurement="true"] > [data-mesurer-native-scroll-anchor="label"],
+[data-mesurer-text-edit-ring="true"][data-mesurer-native-scroll-anchor="box"],
+[data-mesurer-text-selection-highlight="true"][data-mesurer-native-scroll-anchor="offset"] {
+  position: fixed !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-mesurer-toolbar="true"] > div:has(> [data-mesurer-toolbar-compact-item]) {
     transition: none;
