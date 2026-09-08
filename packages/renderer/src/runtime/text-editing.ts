@@ -38,8 +38,11 @@ export function installTextEditing(
   installUnifiedTextSelectEscapeGuard(ctx, runtime);
   installTextEditingCore(ctx, runtime);
   installTextEditingPresentation(ctx, runtime);
+  // Geometry-following edit chrome must register before the Typography shell.
+  // During scroll this keeps the ring on the host before inspector placement
+  // reads it, so both surfaces are resolved in the same scroll event.
+  installRenderInPlaceTextEditing(ctx, runtime);
   installUnifiedTextInspector(ctx, runtime);
   installUnifiedTextSelectMenus(ctx, runtime);
   installUnifiedTextSelectLayer(ctx, runtime);
-  installRenderInPlaceTextEditing(ctx, runtime);
 }
