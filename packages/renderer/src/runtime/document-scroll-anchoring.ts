@@ -31,7 +31,7 @@ type SelectionBinding = AnchorBinding & {
   root: HTMLElement;
   chrome: HTMLElement;
   label: HTMLElement | null;
-  placements: Placement[];
+  placement: Placement;
 };
 
 type HoverBinding = AnchorBinding & {
@@ -173,7 +173,7 @@ const restoreStyles = (
 const moveToBody = (
   ownerDocument: Document,
   element: HTMLElement,
-  normalize: "none" | "runtime" | "inspector-overlay" = "none",
+  normalize: "none" | "selection-root" | "runtime" | "inspector-overlay" = "none",
 ): Placement => {
   const body = ownerDocument.body;
   const parent = element.parentNode;
@@ -183,12 +183,21 @@ const moveToBody = (
   if (marker && parent) parent.insertBefore(marker, element);
   if (element.parentNode !== body) body.append(element);
 
-  const properties = normalize === "runtime" || normalize === "inspector-overlay"
-    ? ["display", "position", "inset", "width", "height"] as const
-    : [] as const;
+  const properties = normalize === "selection-root"
+    ? ["display", "position", "left", "top", "width", "height"] as const
+    : normalize === "runtime" || normalize === "inspector-overlay"
+      ? ["display", "position", "inset", "width", "height"] as const
+      : [] as const;
   const previous = snapshotStyles(element, properties);
 
-  if (normalize === "runtime" || normalize === "inspector-overlay") {
+  if (normalize === "selection-root") {
+    setImportant(element, "display", "block");
+    setImportant(element, "position", "absolute");
+    setImportant(element, "left", "0px");
+    setImportant(element, "top", "0px");
+    setImportant(element, "width", "100vw");
+    setImportant(element, "height", "0px");
+  } else if (normalize === "runtime" || normalize === "inspector-overlay") {
     setImportant(element, "display", "block");
     setImportant(element, "position", "static");
     setImportant(element, "inset", "auto");
@@ -334,7 +343,7 @@ export function installDocumentScrollAnchoring(
     clearAnchorSurface(binding.chrome);
     clearAnchorSurface(binding.label);
     binding.release();
-    for (const placement of [...binding.placements].reverse()) placement.release();
+    binding.placement.release();
   };
 
   const bindSelection = (
@@ -346,9 +355,8 @@ export function installDocumentScrollAnchoring(
     const previous = selectionBindings.get(root);
     if (previous) releaseSelection(previous);
     const anchor = makeBinding(target, "selection");
-    const placements = [moveToBody(ownerDocument, chrome)];
-    if (label) placements.push(moveToBody(ownerDocument, label));
-    const binding: SelectionBinding = { ...anchor, root, chrome, label, placements };
+    const placement = moveToBody(ownerDocument, root, "selection-root");
+    const binding: SelectionBinding = { ...anchor, root, chrome, label, placement };
     selectionBindings.set(root, binding);
     applyAnchor(chrome, binding, "box");
     if (label) applyAnchor(label, binding, "label");
