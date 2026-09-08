@@ -7,7 +7,10 @@ import {
   installRenderInPlaceTextEditing,
 } from "./text-editing-render-in-place";
 import { installUnifiedTextInspector } from "./text-editing-unified-inspector";
-import { installUnifiedTextSelectLayer } from "./text-editing-unified-select-layer";
+import {
+  installUnifiedTextSelectEscapeGuard,
+  installUnifiedTextSelectLayer,
+} from "./text-editing-unified-select-layer";
 import { installUnifiedTextSelectMenus } from "./text-editing-unified-selects";
 
 export {
@@ -30,6 +33,9 @@ export function installTextEditing(
   runtime: MesurerSolidRuntimeService,
 ) {
   installMixedInlineTextTargeting(ctx, runtime);
+  // The custom dropdown owns Escape only while one of its options has focus.
+  // Install that narrow guard before the core's global Escape cancellation.
+  installUnifiedTextSelectEscapeGuard(ctx, runtime);
   installTextEditingCore(ctx, runtime);
   installTextEditingPresentation(ctx, runtime);
   installUnifiedTextInspector(ctx, runtime);
