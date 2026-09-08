@@ -240,6 +240,31 @@ export function installRenderInPlaceTextEditing(
     selectionRects = [];
   };
 
+  const ensureSelectionRect = (index: number) => {
+    const existing = selectionRects[index];
+    if (existing?.isConnected) return existing;
+    const highlight = ownerDocument.createElement("div");
+    highlight.dataset.mesurerTextSelectionHighlight = "true";
+    highlight.dataset.mesurerInspectorUi = "true";
+    highlight.setAttribute("aria-hidden", "true");
+    Object.assign(highlight.style, {
+      position: "fixed",
+      zIndex: "2147483646",
+      pointerEvents: "none",
+      borderRadius: "2px",
+      background: SELECTION_FILL,
+      transition: "none",
+      animation: "none",
+    });
+    portalTarget.append(highlight);
+    selectionRects[index] = highlight;
+    return highlight;
+  };
+
+  const trimSelectionRects = (count: number) => {
+    while (selectionRects.length > count) selectionRects.pop()?.remove();
+  };
+
   const ensureRing = () => {
     if (ring?.isConnected) return ring;
     ring = ownerDocument.createElement("div");
@@ -253,6 +278,8 @@ export function installRenderInPlaceTextEditing(
       boxSizing: "border-box",
       background: "transparent",
       boxShadow: `inset 0 0 0 1.5px ${TOOLBAR_BLUE}`,
+      transition: "none",
+      animation: "none",
     });
     runtimeMount.append(ring);
     return ring;
@@ -271,12 +298,17 @@ export function installRenderInPlaceTextEditing(
     editor: HTMLTextAreaElement,
     target: ActiveTextTarget | null,
   ) => {
-    clearSelectionRects();
-    if (!target?.node.isConnected || target.node.parentNode !== target.element) return;
+    if (!target?.node.isConnected || target.node.parentNode !== target.element) {
+      clearSelectionRects();
+      return;
+    }
 
     const start = editor.selectionStart ?? 0;
     const end = editor.selectionEnd ?? start;
-    if (start === end) return;
+    if (start === end) {
+      clearSelectionRects();
+      return;
+    }
 
     const text = target.node.nodeValue ?? "";
     const leadingLength = text.length - text.trimStart().length;
@@ -284,46 +316,45 @@ export function installRenderInPlaceTextEditing(
     const editableLength = Math.max(0, text.length - leadingLength - trailingLength);
     const rangeStart = leadingLength + clamp(Math.min(start, end), 0, editableLength);
     const rangeEnd = leadingLength + clamp(Math.max(start, end), 0, editableLength);
-    if (rangeStart === rangeEnd) return;
+    if (rangeStart === rangeEnd) {
+      clearSelectionRects();
+      return;
+    }
 
     const range = ownerDocument.createRange();
     try {
       range.setStart(target.node, rangeStart);
       range.setEnd(target.node, rangeEnd);
     } catch {
+      clearSelectionRects();
       return;
     }
 
     let rects: DOMRect[];
     try {
-      rects = Array.from(range.getClientRects());
+      rects = Array.from(range.getClientRects()).filter((rect) => (
+        rect.width > 0
+        && rect.height > 0
+        && rect.right > 0
+        && rect.bottom > 0
+        && rect.left < ownerWindow.innerWidth
+        && rect.top < ownerWindow.innerHeight
+      ));
     } catch {
+      clearSelectionRects();
       return;
     }
 
-    for (const rect of rects) {
-      if (rect.width <= 0 || rect.height <= 0) continue;
-      if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= ownerWindow.innerWidth || rect.top >= ownerWindow.innerHeight) {
-        continue;
-      }
-      const highlight = ownerDocument.createElement("div");
-      highlight.dataset.mesurerTextSelectionHighlight = "true";
-      highlight.dataset.mesurerInspectorUi = "true";
-      highlight.setAttribute("aria-hidden", "true");
+    for (const [index, rect] of rects.entries()) {
+      const highlight = ensureSelectionRect(index);
       Object.assign(highlight.style, {
-        position: "fixed",
-        zIndex: "2147483646",
-        pointerEvents: "none",
         left: `${rect.left}px`,
         top: `${rect.top}px`,
         width: `${rect.width}px`,
         height: `${rect.height}px`,
-        borderRadius: "2px",
-        background: SELECTION_FILL,
       });
-      portalTarget.append(highlight);
-      selectionRects.push(highlight);
     }
+    trimSelectionRects(rects.length);
   };
 
   const visibleRect = (element: HTMLElement | null) => {
@@ -403,6 +434,8 @@ export function installRenderInPlaceTextEditing(
         overflowY: "auto",
         left: `${best.rect.left}px`,
         top: `${best.rect.top}px`,
+        transition: "none",
+        animation: "none",
       });
       return;
     }
@@ -433,6 +466,8 @@ export function installRenderInPlaceTextEditing(
         transform: "none",
         left: `${resizedLeft}px`,
         top: `${verticalLane.top}px`,
+        transition: "none",
+        animation: "none",
       });
       return;
     }
@@ -443,6 +478,8 @@ export function installRenderInPlaceTextEditing(
       transform: "none",
       left: `${fallback.rect.left}px`,
       top: `${fallback.rect.top}px`,
+      transition: "none",
+      animation: "none",
     });
   };
 
@@ -508,10 +545,16 @@ export function installRenderInPlaceTextEditing(
     positionInspectorCard(domSurfaceRect(rect));
   };
 
+  const syncOnScroll = () => {
+    // Do not defer scroll geometry through a microtask or animation frame. The
+    // host, edit ring, and selected text overlay must update in this event.
+    refine();
+  };
+
   const observer = new realm.MutationObserver(schedule);
   observer.observe(runtimeMount, { childList: true, subtree: true });
   ownerWindow.addEventListener("resize", schedule);
-  ownerWindow.addEventListener("scroll", schedule, true);
+  ownerWindow.addEventListener("scroll", syncOnScroll, true);
   refine();
 
   ctx.lifecycle.onDispose(() => {
@@ -519,7 +562,7 @@ export function installRenderInPlaceTextEditing(
     activeTargetByRuntime.delete(runtime);
     observer.disconnect();
     ownerWindow.removeEventListener("resize", schedule);
-    ownerWindow.removeEventListener("scroll", schedule, true);
+    ownerWindow.removeEventListener("scroll", syncOnScroll, true);
     if (boundEditor) {
       boundEditor.removeEventListener("input", schedule);
       boundEditor.removeEventListener("select", schedule);
