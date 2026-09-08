@@ -232,6 +232,7 @@ export function installDocumentScrollAnchoring(
   if (portalTarget.getRootNode() !== ownerDocument || pageTarget.getRootNode() !== ownerDocument) return;
   if (!ownerDocument.body) return;
 
+  const workspace = runtime.createWorkspaceRuntime();
   const targetAnchors = new Map<HTMLElement, TargetAnchorState>();
   const selectionBindings = new Map<HTMLElement, SelectionBinding>();
   const highlightPlacements = new Map<HTMLElement, Placement>();
@@ -366,6 +367,12 @@ export function installDocumentScrollAnchoring(
     if (label) applyAnchor(label, binding, "label");
   };
 
+  const selectedTargetForRect = (intended: Rect, selectedTargets: HTMLElement[]) => {
+    const exact = selectedTargets.find((target) => sameRect(rectFromDom(target.getBoundingClientRect()), intended));
+    if (exact) return exact;
+    return selectedTargets.length === 1 ? selectedTargets[0] : null;
+  };
+
   const stabilizeSelections = () => {
     const roots = new Set<HTMLElement>();
     for (const root of selectionBindings.keys()) if (root.isConnected) roots.add(root);
@@ -373,15 +380,19 @@ export function installDocumentScrollAnchoring(
       if (root.dataset.mesurerSelectionGroup !== "true") roots.add(root);
     }
 
+    const selectedTargets = workspace.currentSelection().elements;
     for (const root of roots) {
       const existing = selectionBindings.get(root);
       if (existing?.target.isConnected && existing.chrome.isConnected) {
         applyAnchor(existing.chrome, existing, "box");
         if (existing.label?.isConnected) applyAnchor(existing.label, existing, "label");
-        if (scrolling) continue;
+        // The model already owns selection identity. Preserve the existing CSS
+        // anchor while that same connected element remains selected instead of
+        // rediscovering it from transient inline coordinates during edit/scroll.
+        if (selectedTargets.includes(existing.target) || scrolling) continue;
         const intended = inlineRect(existing.chrome);
-        if (sameRect(rectFromDom(existing.target.getBoundingClientRect()), intended)) continue;
-        const target = findTargetForRect(intended, ownerDocument, realm, pageTarget);
+        const target = selectedTargetForRect(intended, selectedTargets)
+          ?? findTargetForRect(intended, ownerDocument, realm, pageTarget);
         if (target) bindSelection(root, target, existing.chrome, existing.label);
         continue;
       }
@@ -396,7 +407,9 @@ export function installDocumentScrollAnchoring(
       const label = labelCandidate instanceof realm.HTMLElement && labelCandidate !== chrome
         ? labelCandidate
         : null;
-      const target = findTargetForRect(inlineRect(chrome), ownerDocument, realm, pageTarget);
+      const intended = inlineRect(chrome);
+      const target = selectedTargetForRect(intended, selectedTargets)
+        ?? findTargetForRect(intended, ownerDocument, realm, pageTarget);
       if (target) bindSelection(root, target, chrome, label);
     }
 
@@ -722,6 +735,7 @@ export function installDocumentScrollAnchoring(
     inspectorOverlayPlacements.clear();
     if (runtimeMount) delete runtimeMount.dataset.mesurerNativeScrollRuntimeLayer;
     runtimePlacement?.release();
+    workspace.dispose();
     for (const [target, state] of targetAnchors) {
       if (state.original) target.style.setProperty("anchor-name", state.original, state.originalPriority);
       else target.style.removeProperty("anchor-name");
