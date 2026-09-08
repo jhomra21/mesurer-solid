@@ -248,10 +248,23 @@ try {
   assert(Math.abs(afterDeactivate.x - before.x) <= 1, "Deactivating Arrange should return the page to its Live X position");
   assert(Math.abs(afterDeactivate.y - before.y) <= 1, "Deactivating Arrange should return the page to its Live Y position");
 
-  const restoredMeasurements = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>
-    elements.some((element) => getComputedStyle(element).visibility !== "hidden"),
+  const restoredMeasurementState = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>
+    elements.map((element) => ({
+      connected: element.isConnected,
+      selected: element.getAttribute("data-mesurer-selected-measurement"),
+      inspectorUi: element.getAttribute("data-mesurer-inspector-ui"),
+      inlineVisibility: element.style.getPropertyValue("visibility"),
+      inlinePriority: element.style.getPropertyPriority("visibility"),
+      computedVisibility: getComputedStyle(element).visibility,
+      parentTag: element.parentElement?.tagName ?? null,
+      parentMesurerRoot: element.parentElement?.getAttribute("data-mesurer-root") ?? null,
+      parentInspectorUi: element.parentElement?.getAttribute("data-mesurer-inspector-ui") ?? null,
+    })),
   );
-  assert.equal(restoredMeasurements, true, "Mesurer measurement overlays should be restored after Arrange deactivates");
+  assert(
+    restoredMeasurementState.some((element) => element.computedVisibility !== "hidden"),
+    `Mesurer measurement overlays should be restored after Arrange deactivates: ${JSON.stringify(restoredMeasurementState)}`,
+  );
 
   assert.equal(pageErrors.length, 0, `Arrange browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Arrange browser contract console errors: ${consoleErrors.join("\n")}`);
