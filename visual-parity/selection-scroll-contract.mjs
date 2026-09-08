@@ -49,6 +49,14 @@ const assertMotionFree = async (locator, stage) => {
   assert.equal(motion.transitionDuration, "0s", `${stage}: geometry surface must not transition`);
   assert.equal(motion.animationName, "none", `${stage}: geometry surface must not animate`);
 };
+const assertNativeAnchor = async (locator, expectedMode, stage) => {
+  const native = await locator.evaluate((element) => ({
+    mode: element.dataset.mesurerNativeScrollAnchor ?? null,
+    anchor: getComputedStyle(element).getPropertyValue("position-anchor").trim(),
+  }));
+  assert.equal(native.mode, expectedMode, `${stage}: native anchor mode`);
+  assert(native.anchor && native.anchor !== "none", `${stage}: expected a resolved CSS position-anchor`);
+};
 
 // Intentionally sample inside the scroll event itself. The contract listener is
 // registered after Mesurer's listeners, so this sees the geometry Mesurer made
@@ -124,6 +132,14 @@ const sampleScrollEvent = async (
 try {
   await page.goto(url, { waitUntil: "networkidle" });
 
+  const nativeAnchorSupported = await page.evaluate(() => Boolean(
+    CSS.supports("anchor-name: --mesurer-native-anchor")
+    && CSS.supports("position-anchor: --mesurer-native-anchor")
+    && CSS.supports("left: anchor(left)")
+    && CSS.supports("width: anchor-size(width)"),
+  ));
+  assert.equal(nativeAnchorSupported, true, "Chromium scroll contract requires CSS Anchor Positioning");
+
   const arrange = page.locator("button[data-mesurer-tool-id='arrange']");
   await arrange.waitFor({ state: "visible" });
   await arrange.click();
@@ -136,12 +152,17 @@ try {
   let targetBox = await box(target, "target before selection");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
   await page.waitForFunction(() => document.querySelectorAll("[data-mesurer-selected-measurement='true']").length === 1);
+  await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true'] > [data-mesurer-native-scroll-anchor='box']"));
 
   const selected = page.locator("[data-mesurer-selected-measurement='true']");
   const selectedChrome = selected.locator(":scope > div").first();
   const selectedLabel = selected.locator(":scope > div").last();
   await assertMotionFree(selectedChrome, "selected measurement chrome");
   await assertMotionFree(selectedLabel, "selected measurement label");
+  await assertNativeAnchor(selectedChrome, "box", "selected measurement chrome");
+  await assertNativeAnchor(selectedLabel, "label", "selected measurement label");
+  const targetAnchorName = await target.evaluate((element) => getComputedStyle(element).getPropertyValue("anchor-name").trim());
+  assert.match(targetAnchorName, /--mesurer-selection-/, "selected page element should own the native anchor name");
   assertSameBox(await box(selectedChrome, "selected before scroll"), targetBox, "selected before scroll");
 
   const immediateSelection = await sampleScrollEvent(80);
@@ -152,17 +173,23 @@ try {
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
   await page.waitForFunction(() => document.querySelectorAll("[data-mesurer-text-edit-ring='true']").length === 1);
   await page.waitForFunction(() => document.querySelectorAll("[data-mesurer-text-inspector-placement-shell='true']").length === 1);
+  await page.waitForFunction(() => (
+    document.querySelector("[data-mesurer-text-edit-ring='true']")?.getAttribute("data-mesurer-native-scroll-anchor") === "box"
+    && document.querySelector("[data-mesurer-text-inspector-placement-shell='true']")?.getAttribute("data-mesurer-native-scroll-anchor") === "offset"
+  ));
   const editRing = page.locator("[data-mesurer-text-edit-ring='true']");
   const inspectorShell = page.locator("[data-mesurer-text-inspector-placement-shell='true']");
   const inspectorCard = page.locator("[data-mesurer-text-inspector-info='true']");
   await assertMotionFree(editRing, "direct-edit ring");
   await assertMotionFree(inspectorShell, "unified Typography placement shell");
   await assertMotionFree(inspectorCard, "unified Typography card");
+  await assertNativeAnchor(editRing, "box", "direct-edit ring");
+  await assertNativeAnchor(inspectorShell, "offset", "unified Typography placement shell");
   assertSameBox(await box(editRing, "edit ring before scroll"), targetBox, "edit ring before scroll");
 
   // Re-center while the editor is open, then sample a small scroll that keeps
-  // the same placement lane. The ring must already be on the host before the
-  // inspector reads it during this same event.
+  // the same placement lane. CSS anchors own the visible movement while the JS
+  // positioning paths remain a fallback and an idle-time placement source.
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settleScroll();
   targetBox = await box(target, "target before direct-edit scroll event");
@@ -190,9 +217,9 @@ try {
   assertSameBox(await box(selectedChrome, "selected after settled edit scroll"), targetBox, "selected after settled edit scroll");
   assertSameBox(await box(editRing, "edit ring after settled edit scroll"), targetBox, "edit ring after settled edit scroll");
 
-  // Exercise the standalone Typography inspection surface as well. It used to
-  // defer scroll geometry through requestAnimationFrame independently of the
-  // direct-editing inspector.
+  // Exercise the standalone Typography inspection surface as well. It remains
+  // on the compatibility scroll path because it can pin arbitrary inspected
+  // nodes, but must still expose no transition/animation or event-time drift.
   const editor = page.locator("[data-mesurer-text-editor='true']");
   await editor.focus();
   await page.keyboard.press("Escape");
@@ -224,7 +251,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Selection, direct-edit, and Typography geometry stay animation-free and host-locked inside the scroll event: PASS");
+  console.log("Native anchors keep selection/direct-edit/Typography geometry compositor-owned and motion-free during scroll: PASS");
 } finally {
   await browser.close();
 }
