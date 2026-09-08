@@ -63,9 +63,9 @@ const assertNativeAnchor = async (locator, expectedMode, stage) => {
 // available during the event, before any queued microtask or animation frame.
 const sampleScrollEvent = async (
   deltaY,
-  { includeRing = false, includeInspector = false, includeTextInspector = false } = {},
+  { includeRing = false, includeInspector = false, includeTextInspector = false, includeNativeProbe = false } = {},
 ) => page.evaluate(
-  ({ deltaY: scrollDelta, includeRing: shouldIncludeRing, includeInspector: shouldIncludeInspector, includeTextInspector: shouldIncludeTextInspector }) => new Promise((resolve, reject) => {
+  ({ deltaY: scrollDelta, includeRing: shouldIncludeRing, includeInspector: shouldIncludeInspector, includeTextInspector: shouldIncludeTextInspector, includeNativeProbe: shouldIncludeNativeProbe }) => new Promise((resolve, reject) => {
     const target = document.querySelector(".feature-copy .kicker");
     const selectedRoot = document.querySelector("[data-mesurer-selected-measurement='true']");
     const selectedChrome = selectedRoot?.children.item(0);
@@ -83,6 +83,9 @@ const sampleScrollEvent = async (
       : null;
     const typographyCard = shouldIncludeTextInspector
       ? document.querySelector(".mesurer-ti-card[data-state='visible']")
+      : null;
+    const nativeProbe = shouldIncludeNativeProbe
+      ? document.querySelector("[data-mesurer-native-scroll-probe='true']")
       : null;
 
     if (!(target instanceof HTMLElement)) {
@@ -105,6 +108,10 @@ const sampleScrollEvent = async (
       reject(new Error("Expected Typography inspection chrome before scroll"));
       return;
     }
+    if (shouldIncludeNativeProbe && !(nativeProbe instanceof HTMLElement)) {
+      reject(new Error("Expected native anchor diagnostic probe before scroll"));
+      return;
+    }
 
     const snapshot = (element) => {
       const rect = element.getBoundingClientRect();
@@ -120,13 +127,14 @@ const sampleScrollEvent = async (
         : null,
       typographyBox: typographyBox instanceof HTMLElement ? snapshot(typographyBox) : null,
       typographyCard: typographyCard instanceof HTMLElement ? snapshot(typographyCard) : null,
+      nativeProbe: nativeProbe instanceof HTMLElement ? snapshot(nativeProbe) : null,
     });
     const before = state();
     const onScroll = () => resolve({ before, after: state() });
     window.addEventListener("scroll", onScroll, { capture: true, once: true });
     window.scrollBy({ top: scrollDelta, behavior: "instant" });
   }),
-  { deltaY, includeRing, includeInspector, includeTextInspector },
+  { deltaY, includeRing, includeInspector, includeTextInspector, includeNativeProbe },
 );
 
 try {
@@ -165,7 +173,43 @@ try {
   assert.match(targetAnchorName, /--mesurer-selection-/, "selected page element should own the native anchor name");
   assertSameBox(await box(selectedChrome, "selected before scroll"), targetBox, "selected before scroll");
 
-  const immediateSelection = await sampleScrollEvent(80);
+  const probeState = await page.evaluate(() => {
+    const targetElement = document.querySelector(".feature-copy .kicker");
+    if (!(targetElement instanceof HTMLElement)) throw new Error("Expected target for native anchor diagnostic probe");
+    const anchorName = getComputedStyle(targetElement).getPropertyValue("anchor-name").split(",")
+      .map((value) => value.trim())
+      .find((value) => value.startsWith("--mesurer-selection-"));
+    if (!anchorName) throw new Error("Expected selection anchor name for native anchor diagnostic probe");
+    const probe = document.createElement("div");
+    probe.dataset.mesurerNativeScrollProbe = "true";
+    Object.assign(probe.style, {
+      position: "fixed",
+      positionAnchor: anchorName,
+      left: "anchor(left)",
+      top: "anchor(top)",
+      width: "anchor-size(width)",
+      height: "anchor-size(height)",
+      pointerEvents: "none",
+      zIndex: "2147483647",
+      outline: "1px solid transparent",
+    });
+    document.body.append(probe);
+    const rect = probe.getBoundingClientRect();
+    const targetRect = targetElement.getBoundingClientRect();
+    return {
+      anchorName,
+      probe: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      target: { x: targetRect.x, y: targetRect.y, width: targetRect.width, height: targetRect.height },
+      positionAnchor: getComputedStyle(probe).getPropertyValue("position-anchor").trim(),
+    };
+  });
+  console.log(`NATIVE_ANCHOR_PROBE_INITIAL ${JSON.stringify(probeState)}`);
+  assertSameBox(probeState.probe, probeState.target, "body-level native anchor probe before scroll");
+
+  const immediateSelection = await sampleScrollEvent(80, { includeNativeProbe: true });
+  console.log(`NATIVE_ANCHOR_PROBE_SCROLL ${JSON.stringify(immediateSelection)}`);
+  assert(immediateSelection.after.nativeProbe, "selected scroll event: expected native diagnostic probe geometry");
+  assertSameBox(immediateSelection.after.nativeProbe, immediateSelection.after.target, "body-level native anchor probe in scroll event");
   assert(immediateSelection.after.selected, "selected scroll event: expected selected chrome geometry");
   assertSameBox(immediateSelection.after.selected, immediateSelection.after.target, "selected in scroll event");
   targetBox = immediateSelection.after.target;
