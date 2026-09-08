@@ -13,6 +13,8 @@ export function stabilizeNativeScrollRuntimeLayer(
   runtime: MesurerSolidRuntimeService,
 ) {
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
+  // SAFETY: ownerWindow owns portalTarget and supplies this runtime's DOM constructors.
+  const realm = ownerWindow as Window & typeof globalThis;
   const mounts = ownerDocument.querySelectorAll<HTMLElement>(
     "[data-mesurer-text-edit-runtime='true'][data-mesurer-native-scroll-runtime-layer='true']",
   );
@@ -51,7 +53,7 @@ export function stabilizeNativeScrollRuntimeLayer(
     });
   };
 
-  const observer = new ownerWindow.MutationObserver(schedule);
+  const observer = new realm.MutationObserver(schedule);
   observer.observe(mount, { subtree: true, childList: true });
   ownerWindow.addEventListener("dblclick", schedule, true);
   ownerWindow.addEventListener("pointerup", schedule, true);
