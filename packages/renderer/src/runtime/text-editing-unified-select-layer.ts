@@ -39,6 +39,14 @@ export function installUnifiedTextSelectLayer(
     ).find((candidate) => candidate.dataset.mesurerUnifiedSelectTrigger === kind) ?? null;
   };
 
+  const refineOptionSemantics = (popup: HTMLElement) => {
+    if (popup.dataset.mesurerUnifiedSelectKind !== "font") return;
+    for (const option of popup.querySelectorAll<HTMLButtonElement>("[data-mesurer-unified-select-option]")) {
+      const value = option.dataset.mesurerUnifiedSelectOption;
+      if (value) option.setAttribute("aria-label", value);
+    }
+  };
+
   const positionInsideCard = (
     popup: HTMLElement,
     shell: HTMLElement,
@@ -122,6 +130,7 @@ export function installUnifiedTextSelectLayer(
         // native pointerdown cannot be mistaken for an outside-editor click.
         // Append it last so it paints above equal-z-index inspector controls.
         if (popup.parentElement !== card || card.lastElementChild !== popup) card.append(popup);
+        refineOptionSemantics(popup);
         positionInsideCard(popup, shell, card);
       }
     } finally {
