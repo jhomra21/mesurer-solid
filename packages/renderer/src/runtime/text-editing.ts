@@ -1,6 +1,7 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { installDocumentScrollAnchoring } from "./document-scroll-anchoring";
+import { stabilizeNativeScrollRuntimeLayer } from "./native-scroll-runtime-layer";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
 import { installTextEditingPresentation } from "./text-editing-presentation";
 import {
@@ -44,8 +45,12 @@ export function installTextEditing(
   installUnifiedTextSelectMenus(ctx, runtime);
   installUnifiedTextSelectLayer(ctx, runtime);
   // Chromium can move the page in the compositor before JavaScript receives a
-  // scroll event. Put only scroll-following owners in the document anchor tree
-  // so their visible movement is resolved by CSS Anchor Positioning instead of
+  // scroll event. Put scroll-following owners in the document anchor tree so
+  // their visible movement is resolved by CSS Anchor Positioning instead of
   // having fixed overlay geometry chase the page from JS.
   installDocumentScrollAnchoring(ctx, runtime);
+  // The Typography shell itself must first be created in Mesurer's normal
+  // portal. Move the intact text runtime into the document layer only for the
+  // active edit, then restore it so subsequent edits initialize normally.
+  stabilizeNativeScrollRuntimeLayer(ctx, runtime);
 }
