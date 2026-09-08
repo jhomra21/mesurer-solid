@@ -308,7 +308,9 @@ export function installUnifiedTextSelectMenus(
   };
 
   const enhanceStylePreset = (card: HTMLElement) => {
-    const original = card.querySelector<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']");
+    const original = card.querySelector<HTMLButtonElement>(
+      "[data-mesurer-text-style-menu-button='true']:not([data-mesurer-unified-select-trigger='style'])",
+    );
     if (!original || original.dataset.mesurerUnifiedCustomStyle === "true") return;
     original.dataset.mesurerUnifiedCustomStyle = "true";
     delete original.dataset.mesurerTextStyleMenuButton;
