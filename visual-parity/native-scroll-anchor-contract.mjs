@@ -41,7 +41,7 @@ try {
     && CSS.supports("position-anchor: --mesurer-native-anchor")
     && CSS.supports("left: anchor(left)")
     && CSS.supports("width: anchor-size(width)"),
-  );
+  ));
   assert.equal(supported, true, "Chromium contract requires CSS Anchor Positioning support");
 
   const arrange = page.locator("button[data-mesurer-tool-id='arrange']");
