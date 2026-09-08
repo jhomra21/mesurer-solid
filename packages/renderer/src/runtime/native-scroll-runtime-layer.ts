@@ -5,8 +5,9 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
  * The unified Typography inspector has to create its placement shell while the
  * edit ring is still inside Mesurer's normal portal. Once that structure
  * exists, move the intact runtime into the document layer so CSS anchors can
- * follow compositor scrolling. Restore it when editing ends so the next edit
- * starts from the normal portal again.
+ * follow compositor scrolling. Keep it there for the lifetime of that edit so
+ * transient inspector rebuilds cannot reparent the pointer target between
+ * pointerup and click; restore it only after the editor itself is gone.
  */
 export function stabilizeNativeScrollRuntimeLayer(
   ctx: MesurerPluginContext,
@@ -31,17 +32,23 @@ export function stabilizeNativeScrollRuntimeLayer(
 
   const sync = () => {
     if (disposed || !mount.isConnected) return;
-    const ring = mount.querySelector<HTMLElement>("[data-mesurer-text-edit-ring='true']");
-    const shell = mount.querySelector<HTMLElement>("[data-mesurer-text-inspector-placement-shell='true']");
-    const card = mount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
-    const readyForDocumentLayer = Boolean(ring?.isConnected && shell?.isConnected && card?.isConnected);
-
-    if (readyForDocumentLayer) {
-      if (mount.parentNode !== ownerDocument.body) ownerDocument.body.append(mount);
+    const editor = mount.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
+    if (!editor?.isConnected) {
+      if (mount.parentNode !== portalTarget) portalTarget.append(mount);
       return;
     }
 
-    if (mount.parentNode !== portalTarget) portalTarget.append(mount);
+    // Once an active edit has entered the document layer, do not move it back
+    // just because the inspector temporarily rebuilds a child. Reparenting the
+    // pointer target during a native click sequence can suppress the click.
+    if (mount.parentNode === ownerDocument.body) return;
+
+    const ring = mount.querySelector<HTMLElement>("[data-mesurer-text-edit-ring='true']");
+    const shell = mount.querySelector<HTMLElement>("[data-mesurer-text-inspector-placement-shell='true']");
+    const card = mount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
+    if (ring?.isConnected && shell?.isConnected && card?.isConnected) {
+      ownerDocument.body.append(mount);
+    }
   };
 
   const schedule = () => {
@@ -55,14 +62,10 @@ export function stabilizeNativeScrollRuntimeLayer(
 
   const observer = new realm.MutationObserver(schedule);
   observer.observe(mount, { subtree: true, childList: true });
-  ownerWindow.addEventListener("dblclick", schedule, true);
-  ownerWindow.addEventListener("pointerup", schedule, true);
   schedule();
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
-    ownerWindow.removeEventListener("dblclick", schedule, true);
-    ownerWindow.removeEventListener("pointerup", schedule, true);
   });
 }
