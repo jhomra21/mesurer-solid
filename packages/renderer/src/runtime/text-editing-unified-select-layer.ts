@@ -13,10 +13,11 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
  *
  * The core deliberately owns Escape at window-capture level so it can cancel a
  * direct edit from anywhere in the editing surface. A focused custom dropdown
- * is the one exception: Escape should close only that popup. This guard is
- * installed before the core listener, then delegates the close to the menu's
- * own trigger so the menu owner clears its internal open state and restores
- * focus/chrome exactly as it does for an ordinary trigger close.
+ * is the one exception: Escape should close only that popup. The popup is
+ * reparented into the core-owned inspector card after it opens, and browsers
+ * may temporarily drop focus while moving that subtree. Treat the one open
+ * Typography popup as authoritative even when it is absent from the keyboard
+ * event's composed path, then delegate closing to the menu's real trigger.
  */
 export function installUnifiedTextSelectEscapeGuard(
   ctx: MesurerPluginContext,
@@ -28,16 +29,21 @@ export function installUnifiedTextSelectEscapeGuard(
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== "Escape") return;
-    const popup = event.composedPath().find((candidate) =>
+    const pathPopup = event.composedPath().find((candidate) =>
       candidate instanceof realm.HTMLElement
       && candidate.dataset.mesurerUnifiedSelectPopup === "true");
-    if (!(popup instanceof realm.HTMLElement)) return;
+    const popup = pathPopup instanceof realm.HTMLElement
+      ? pathPopup
+      : portalTarget.querySelector<HTMLElement>("[data-mesurer-unified-select-popup='true']");
+    if (!popup) return;
 
     const kind = popup.dataset.mesurerUnifiedSelectKind;
     if (!kind) return;
-    const trigger = Array.from(
-      portalTarget.querySelectorAll<HTMLButtonElement>("[data-mesurer-unified-select-trigger]"),
-    ).find((candidate) => candidate.dataset.mesurerUnifiedSelectTrigger === kind);
+    const card = popup.closest<HTMLElement>("[data-mesurer-text-inspector-info='true']");
+    const candidates = card?.querySelectorAll<HTMLButtonElement>("[data-mesurer-unified-select-trigger]")
+      ?? portalTarget.querySelectorAll<HTMLButtonElement>("[data-mesurer-unified-select-trigger]");
+    const trigger = Array.from(candidates)
+      .find((candidate) => candidate.dataset.mesurerUnifiedSelectTrigger === kind);
     if (!trigger) return;
 
     event.preventDefault();
@@ -66,8 +72,8 @@ export function installUnifiedTextSelectLayer(
   ctx: MesurerPluginContext,
   runtime: MesurerSolidRuntimeService,
 ) {
-  const { ownerWindow, portalTarget } = runtime;
-  // SAFETY: ownerWindow owns portalTarget and supplies the matching DOM constructors.
+  const { ownerDocument, ownerWindow, portalTarget } = runtime;
+  // SAFETY: ownerWindow owns ownerDocument/portalTarget and supplies their matching DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
   const mounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
   const runtimeMount = mounts.item(mounts.length - 1);
@@ -172,10 +178,21 @@ export function installUnifiedTextSelectLayer(
       for (const popup of Array.from(
         runtimeMount.querySelectorAll<HTMLElement>("[data-mesurer-unified-select-popup='true']"),
       )) {
+        // Reparenting a focused subtree can drop document.activeElement in
+        // browsers. Remember the active option and restore it after the move so
+        // arrow/Escape keyboard ownership remains with the open listbox.
+        const activeElement = ownerDocument.activeElement;
+        const focusedDescendant = activeElement instanceof realm.HTMLElement && popup.contains(activeElement)
+          ? activeElement
+          : null;
+
         // The popup remains a descendant of the core-owned inspector card so a
         // native pointerdown cannot be mistaken for an outside-editor click.
         // Append it last so it paints above equal-z-index inspector controls.
-        if (popup.parentElement !== card || card.lastElementChild !== popup) card.append(popup);
+        if (popup.parentElement !== card || card.lastElementChild !== popup) {
+          card.append(popup);
+          if (focusedDescendant?.isConnected) focusedDescendant.focus({ preventScroll: true });
+        }
         refineOptionSemantics(popup);
         positionInsideCard(popup, shell, card);
       }
