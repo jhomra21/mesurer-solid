@@ -151,6 +151,9 @@ try {
   const familySelect = inspector.locator("[data-mesurer-text-style-select='font']");
   const sizeSelect = inspector.locator("[data-mesurer-text-style-select='size']");
   const weightSelect = inspector.locator("[data-mesurer-text-style-select='weight']");
+  const familyTrigger = inspector.locator("[data-mesurer-unified-select-trigger='font']");
+  const sizeTrigger = inspector.locator("[data-mesurer-unified-select-trigger='size']");
+  const weightTrigger = inspector.locator("[data-mesurer-unified-select-trigger='weight']");
   const lineInput = inspector.locator("[data-mesurer-text-style-input='line']");
   const trackingInput = inspector.locator("[data-mesurer-text-style-input='tracking']");
   const boldButton = inspector.locator("[data-mesurer-text-style-button='bold']");
@@ -160,12 +163,12 @@ try {
   const customColor = inspector.locator("[data-mesurer-text-custom-color='true']");
   const styleButton = inspector.locator("[data-mesurer-text-style-menu-button='true']");
 
-  for (const control of [familySelect, sizeSelect, weightSelect, lineInput, trackingInput, boldButton, italicButton, underlineButton, customColor, styleButton]) {
+  for (const control of [familySelect, sizeSelect, weightSelect, familyTrigger, sizeTrigger, weightTrigger, lineInput, trackingInput, boldButton, italicButton, underlineButton, customColor, styleButton]) {
     assert.equal(await control.count(), 1, "Unified Typography editor should contain each editing control exactly once");
   }
-  assert.equal(await familySelect.inputValue(), before.fontFamily, "Family row should become the live font-family select");
-  assert.equal(await sizeSelect.inputValue(), before.fontSize, "Size row should become the live font-size select");
-  assert.equal(await weightSelect.inputValue(), before.fontWeight, "Weight row should become the live font-weight select");
+  assert.equal(await familySelect.inputValue(), before.fontFamily, "Family source select should mirror the live font family");
+  assert.equal(await sizeSelect.inputValue(), before.fontSize, "Size source select should mirror the live font size");
+  assert.equal(await weightSelect.inputValue(), before.fontWeight, "Weight source select should mirror the live font weight");
   assert.equal(await lineInput.inputValue(), before.lineHeight, "Line row should become the live line-height input");
   assert.equal(await trackingInput.inputValue(), before.letterSpacing, "Tracking row should become the live letter-spacing input");
 
@@ -185,31 +188,48 @@ try {
   assert(sizes.includes(variantStyle.fontSize), `Page size variant should remain available: ${variantStyle.fontSize}`);
   assert(weights.includes(variantStyle.fontWeight), `Page weight variant should remain available: ${variantStyle.fontWeight}`);
 
-  // Presets/headings now expand inside the same card rather than opening a second surface.
-  await styleButton.click();
-  const presetPanel = inspector.locator("[data-mesurer-unified-text-presets='true']");
-  await presetPanel.waitFor({ state: "visible" });
-  assert.equal(await sourceMenu.evaluate((element) => getComputedStyle(element).display), "none", "Preset expansion should not restore the legacy menu");
+  const chooseDropdownValue = async (kind, label) => {
+    const trigger = inspector.locator(`[data-mesurer-unified-select-trigger='${kind}']`);
+    const triggerBox = await trigger.boundingBox();
+    assert(triggerBox, `${kind}: expected custom dropdown geometry`);
+    // Click the chevron-side edge rather than the text. The whole field must be interactive.
+    await page.mouse.click(triggerBox.x + triggerBox.width - 4, triggerBox.y + triggerBox.height / 2);
+    const popup = page.locator(`[data-mesurer-unified-select-popup='true'][data-mesurer-unified-select-kind='${kind}']`);
+    await popup.waitFor({ state: "visible" });
+    const option = popup.getByRole("option", { name: label, exact: true });
+    await option.waitFor({ state: "visible" });
+    await option.click();
+    await popup.waitFor({ state: "detached" });
+  };
+
+  // Semantic presets use the same Mesurer dropdown primitive instead of expanding
+  // a second layout inside the Typography card.
+  const styleBox = await styleButton.boundingBox();
+  assert(styleBox, "Style: expected custom dropdown geometry");
+  await page.mouse.click(styleBox.x + styleBox.width - 4, styleBox.y + styleBox.height / 2);
+  const presetPopup = page.locator("[data-mesurer-unified-select-popup='true'][data-mesurer-unified-select-kind='style']");
+  await presetPopup.waitFor({ state: "visible" });
+  assert.equal(await sourceMenu.evaluate((element) => getComputedStyle(element).display), "none", "Custom Style dropdown should not restore the legacy menu");
+  assert.equal(await inspector.locator("[data-mesurer-unified-text-presets='true']").count(), 0, "Style should not expand a second panel inside the inspector");
   for (const level of [1, 2, 3]) {
     const expected = renderedHeadingTags.includes(`H${level}`) ? 1 : 0;
-    const count = await presetPanel.locator(`[data-mesurer-text-style-preset='heading-${level}']`).count();
+    const count = await presetPopup.locator(`[data-mesurer-unified-select-option='heading-${level}']`).count();
     assert.equal(count, expected, `Heading ${level} preset availability should match rendered H${level} usage`);
   }
-  const heading2Preset = presetPanel.locator("[data-mesurer-text-style-preset='heading-2']");
+  const heading2Preset = presetPopup.locator("[data-mesurer-unified-select-option='heading-2']");
   await heading2Preset.waitFor({ state: "visible" });
   await heading2Preset.click();
-  await presetPanel.waitFor({ state: "detached" });
+  await presetPopup.waitFor({ state: "detached" });
 
   const presetApplied = await target.evaluate(computedTypography);
   for (const property of ["fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textTransform", "color"]) {
     assert.equal(presetApplied[property], dominantHeading2Style[property], `Heading 2 preset should apply dominant rendered ${property}`);
   }
 
-  // Locators deliberately re-resolve after each core rerender. All controls stay
-  // in the same Typography card while the underlying intent state changes.
-  await familySelect.selectOption(variantStyle.fontFamily);
-  await sizeSelect.selectOption(variantStyle.fontSize);
-  await weightSelect.selectOption(variantStyle.fontWeight);
+  // Exercise the actual user-facing dropdowns; native selects remain only as state bridges.
+  await chooseDropdownValue("font", variantStyle.fontFamily);
+  await chooseDropdownValue("size", variantStyle.fontSize);
+  await chooseDropdownValue("weight", variantStyle.fontWeight);
 
   const desiredLineHeight = "31px";
   const desiredTracking = "1px";
@@ -316,7 +336,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Text editing browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Text editing browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log(`Arrange-compatible direct text editing + one interactive Typography inspector + editable Family/Size/Weight/Line/Tracking + in-card presets + B/I/U + color + reversible Desired state: PASS (${firstFamily(before.fontFamily)})`);
+  console.log(`Arrange-compatible direct text editing + one interactive Typography inspector + full-hit Mesurer dropdowns + editable Line/Tracking + B/I/U + color + reversible Desired state: PASS (${firstFamily(before.fontFamily)})`);
 } finally {
   await browser.close();
 }
