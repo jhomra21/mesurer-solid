@@ -192,6 +192,12 @@ export function mountMesurerHost(
     });
   };
 
+  const belongsToMesurerHost = (element: Element) => {
+    if (container.contains(element)) return true;
+    const root = element.getRootNode();
+    return root instanceof ownerWindow.ShadowRoot && container.contains(root.host);
+  };
+
   const handleToggle = (event: Event) => {
     if (!topLayer || event.target === container) return;
     const newState = hasToggleState(event) ? event.newState : undefined;
@@ -211,7 +217,10 @@ export function mountMesurerHost(
     }
 
     if (newState === "open" && element.hasAttribute("popover")) {
-      scheduleBringToFront();
+      // Internal Mesurer popovers intentionally sit above the protected host.
+      // Reopening the host here would make it the newest top-layer entry and
+      // put the zero-sized protection surface back above its own popup.
+      if (!belongsToMesurerHost(element)) scheduleBringToFront();
     }
   };
 
