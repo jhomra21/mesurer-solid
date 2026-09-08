@@ -32,9 +32,9 @@ export function installUnifiedTextSelectLayer(
   const positionPopup = (popup: HTMLElement, shell: HTMLElement) => {
     const kind = popup.dataset.mesurerUnifiedSelectKind;
     if (!kind) return;
-    const trigger = shell.querySelector<HTMLElement>(
-      `[data-mesurer-unified-select-trigger='${CSS.escape(kind)}']`,
-    );
+    const trigger = Array.from(
+      shell.querySelectorAll<HTMLElement>("[data-mesurer-unified-select-trigger]"),
+    ).find((candidate) => candidate.dataset.mesurerUnifiedSelectTrigger === kind);
     if (!trigger) return;
 
     const shellRect = shell.getBoundingClientRect();
