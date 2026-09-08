@@ -200,6 +200,14 @@ body.mesurer-solid-xray .mesurer-ti-close {
   padding-inline: 0;
 }
 
+/* The contextual direct-edit Typography shell follows the edited host. Keep
+   it on the document absolute-anchor path so compositor scrolling moves host,
+   selection, ring, and inspector together. Standalone Typography surfaces keep
+   their fixed viewport-owned rule from document-scroll-anchoring. */
+[data-mesurer-text-inspector-placement-shell="true"][data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="offset"] {
+  position: absolute !important;
+}
+
 /* Keep Solid ownership without giving the portaled selection wrapper its own
    layout/containing-block box. Native-anchor children then participate in the
    document layer as if they were direct body children, while the wrapper stays
