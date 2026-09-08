@@ -107,6 +107,7 @@ export function installUnifiedTextSelectMenus(
       font: `${option.selected ? "600" : "500"} 11px/1.2 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif`,
       cursor: option.disabled ? "default" : "pointer",
       opacity: option.disabled ? "0.55" : "1",
+      pointerEvents: "auto",
     });
 
     const label = ownerDocument.createElement("span");
@@ -196,7 +197,7 @@ export function installUnifiedTextSelectMenus(
     });
 
     for (const option of options) popup.append(makeOptionButton(option, trigger));
-    runtimeMount.append(popup);
+    portalTarget.append(popup);
     trigger.setAttribute("aria-expanded", "true");
     chevron?.style.setProperty("transform", "rotate(225deg)");
     const shell = trigger.closest<HTMLElement>("[data-mesurer-unified-select-shell='true'], [data-mesurer-unified-style-shell='true']");
