@@ -52,9 +52,14 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   onSettled(() => {
     const ownerWindow = liveSelectedTarget()?.ownerDocument.defaultView;
     if (!ownerWindow) return;
-    const syncOnScroll = () => syncSelectedGeometry();
-    ownerWindow.addEventListener("scroll", syncOnScroll, true);
-    return () => ownerWindow.removeEventListener("scroll", syncOnScroll, true);
+    const syncGeometry = () => syncSelectedGeometry();
+    syncGeometry();
+    ownerWindow.addEventListener("scroll", syncGeometry, true);
+    ownerWindow.addEventListener("resize", syncGeometry, true);
+    return () => {
+      ownerWindow.removeEventListener("scroll", syncGeometry, true);
+      ownerWindow.removeEventListener("resize", syncGeometry, true);
+    };
   });
 
   return (
@@ -65,6 +70,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
             left: `${measurement().rect.left}px`, top: `${measurement().rect.top}px`, width: `${measurement().rect.width}px`, height: `${measurement().rect.height}px`,
             "background-color": props.fillColor,
             transition: transition(),
+            animation: "none",
           }}>
             <Show when={edges().top}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ "background-color": props.outlineColor }} /></Show>
             <Show when={edges().right}><div class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
@@ -76,6 +82,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
           left: `${measurement().rect.left + measurement().rect.width / 2}px`,
           top: `${measurement().rect.top + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
           transition: labelTransition(),
+          animation: "none",
         }}>
           {formatValue(measurement().rect.width)} x {formatValue(measurement().rect.height)}
         </div>
