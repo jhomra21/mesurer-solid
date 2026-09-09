@@ -29,6 +29,7 @@ const errors = [];
 page.on("pageerror", (error) => errors.push(String(error)));
 page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text());
+  else if (message.text().startsWith("[native-scroll-settle:page]")) console.log(message.text());
 });
 
 const box = async (locator, name) => {
@@ -131,10 +132,17 @@ try {
   stage("open standalone Typography");
   const typography = page.locator("button[data-mesurer-builtin='text-inspector']");
   await typography.waitFor({ state: "visible", timeout: WAIT_TIMEOUT_MS });
-  // Other browser contracts exercise real pointer actionability. This probe is
-  // specifically about scroll ownership, so activate Typography without
-  // allowing Playwright's pre-click scrolling to become part of the test.
-  await withTimeout(typography.evaluate((button) => button.click()), "Typography activation");
+  // Diagnose whether the activation handler itself blocks or whether the
+  // browser gets stuck only at the microtask checkpoint after click dispatch.
+  await withTimeout(typography.evaluate((button) => {
+    const log = (value) => console.log(`[native-scroll-settle:page] ${value}`);
+    button.addEventListener("click", () => log("button capture reached"), { capture: true, once: true });
+    button.addEventListener("click", () => log("button bubble tail reached"), { once: true });
+    queueMicrotask(() => log("pre-click queued microtask reached"));
+    log("before button.click");
+    button.click();
+    log("after button.click");
+  }), "Typography activation");
   await page.waitForFunction(
     () => window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root
       ?.querySelector("button[data-mesurer-builtin='text-inspector']")
