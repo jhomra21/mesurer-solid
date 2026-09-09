@@ -127,7 +127,7 @@ try {
   const cardBefore = await box(typographyCard, "Typography card before scroll");
   const cardOffsetBefore = relativeOffset(targetBox, cardBefore);
 
-  const immediate = await page.evaluate(() => new Promise((resolve, reject) => {
+  const immediate = await page.evaluate(({ timeoutMs }) => new Promise((resolve, reject) => {
     const targetElement = document.querySelector("#isolated-scroll-target");
     const typographySurface = document.querySelector(".mesurer-ti-box[data-state='visible']");
     const typographyPanel = document.querySelector(".mesurer-ti-card[data-state='visible']");
@@ -138,13 +138,23 @@ try {
       const rect = element.getBoundingClientRect();
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
     };
-    window.addEventListener("scroll", () => resolve({
-      target: snapshot(targetElement),
-      typographyBox: snapshot(typographySurface),
-      typographyCard: snapshot(typographyPanel),
-    }), { capture: true, once: true });
-    window.scrollBy({ top: 32, behavior: "instant" });
-  }));
+    const maxScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const deltaY = window.scrollY + 32 <= maxScrollY ? 32 : window.scrollY >= 32 ? -32 : 0;
+    if (!deltaY) return reject(new Error("Expected available document scroll range for Typography probe"));
+
+    const timer = window.setTimeout(() => {
+      reject(new Error(`Typography scroll probe did not receive a scroll event within ${timeoutMs}ms`));
+    }, timeoutMs);
+    window.addEventListener("scroll", () => {
+      window.clearTimeout(timer);
+      resolve({
+        target: snapshot(targetElement),
+        typographyBox: snapshot(typographySurface),
+        typographyCard: snapshot(typographyPanel),
+      });
+    }, { capture: true, once: true });
+    window.scrollBy({ top: deltaY, behavior: "instant" });
+  }), { timeoutMs: WAIT_TIMEOUT_MS });
 
   assertSameBox(immediate.typographyBox, immediate.target, "standalone Typography box in scroll event");
   assertSameOffset(
