@@ -467,7 +467,11 @@ export function installDocumentScrollAnchoring(
     const measured = card.getBoundingClientRect();
     if (measured.width <= 0 || measured.height <= 0) return;
     const width = measured.width;
-    const height = measured.height;
+    // Use the natural content height for fit decisions. The card may already
+    // be viewport-clamped while its unified controls finish rendering; using
+    // only the current box can falsely classify a below/above lane as a full fit
+    // and then overflow the viewport when the remaining rows settle.
+    const height = Math.max(measured.height, card.scrollHeight);
     const viewportRight = ownerWindow.innerWidth - VIEWPORT_PADDING;
     const viewportBottom = ownerWindow.innerHeight - VIEWPORT_PADDING;
     const maxLeft = Math.max(VIEWPORT_PADDING, viewportRight - width);
