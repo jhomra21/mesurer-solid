@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.7-beta.1 - 2026-09-09
+
 - Keep direct text editing visually anchored to the rendered host element: the keyboard textarea stays transparent at the host's exact bounds, a subtle inset ring marks edit state, the initially selected text is visibly highlighted for immediate replacement, a blinking caret follows collapsed selections, and text runs around inline markup such as shortcut badges remain editable without flattening those children.
 - Unify contextual Typography information and direct formatting into one always-visible interactive inspector. Family, Size, Weight, Line, and Tracking become live controls alongside Bold/Italic/Underline, rendered-page and custom colors, and Text/Heading presets; the old second floating text toolbar/menu no longer renders as a competing surface, and the unified inspector repositions or constrains itself within available viewport space rather than covering the active edit field.
 - Keep selected and inspected element chrome locked to its host while scrolling instead of easing or catching up after the page moves; direct-edit rings follow the same frame-locked geometry.
