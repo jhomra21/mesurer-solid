@@ -20,6 +20,10 @@ export function installNativeScrollStability(
   style.dataset.mesurerNativeScrollStability = "true";
   style.dataset.mesurerInspectorUi = "true";
   style.textContent = `
+[data-mesurer-selected-measurement="true"] > div {
+  transition: none !important;
+  animation: none !important;
+}
 [data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="box"],
 [data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="offset"] {
   position: absolute !important;
