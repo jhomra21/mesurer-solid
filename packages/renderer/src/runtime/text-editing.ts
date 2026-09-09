@@ -1,6 +1,11 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { installDocumentScrollAnchoring } from "./document-scroll-anchoring";
+import {
+  createDocumentTextRuntime,
+  installIsolatedSelectionPortal,
+  installToolbarTargetAvoidance,
+} from "./isolated-document-portal";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
 import { installTextEditingPresentation } from "./text-editing-presentation";
 import {
@@ -33,24 +38,32 @@ export function installTextEditing(
   ctx: MesurerPluginContext,
   runtime: MesurerSolidRuntimeService,
 ) {
-  installMixedInlineTextTargeting(ctx, runtime);
+  // The public package defaults to a ShadowRoot island. Keep the canonical
+  // toolbar isolated there, but give scroll-following selection/text chrome a
+  // document-backed runtime so it can participate in the page's native anchor
+  // tree rather than chasing compositor scroll from fixed Shadow DOM geometry.
+  installIsolatedSelectionPortal(ctx, runtime);
+  installToolbarTargetAvoidance(ctx, runtime);
+  const { runtime: textRuntime } = createDocumentTextRuntime(runtime);
+
+  installMixedInlineTextTargeting(ctx, textRuntime);
   // The custom dropdown owns Escape only while one of its options has focus.
   // Install that narrow guard before the core's global Escape cancellation.
-  installUnifiedTextSelectEscapeGuard(ctx, runtime);
-  installTextEditingCore(ctx, runtime);
-  installTextEditingPresentation(ctx, runtime);
+  installUnifiedTextSelectEscapeGuard(ctx, textRuntime);
+  installTextEditingCore(ctx, textRuntime);
+  installTextEditingPresentation(ctx, textRuntime);
   // Typography is the only inspector placement owner. It can observe the
   // editor/ring as those surfaces appear, so install it before render-in-place
   // rather than keeping a second fallback placement algorithm there.
-  installUnifiedTextInspector(ctx, runtime);
-  installRenderInPlaceTextEditing(ctx, runtime);
-  installUnifiedTextSelectMenus(ctx, runtime);
-  installUnifiedTextSelectLayer(ctx, runtime);
+  installUnifiedTextInspector(ctx, textRuntime);
+  installRenderInPlaceTextEditing(ctx, textRuntime);
+  installUnifiedTextSelectMenus(ctx, textRuntime);
+  installUnifiedTextSelectLayer(ctx, textRuntime);
   // Chromium can move the page in the compositor before JavaScript receives a
   // scroll event. Keep scroll-following owners in the document anchor tree so
   // their visible movement is resolved by CSS Anchor Positioning instead of
   // having fixed overlay geometry chase the page from JS. The text runtime is
   // moved once and stays intact there; all of its existing event/DOM ownership
   // relationships remain unchanged.
-  installDocumentScrollAnchoring(ctx, runtime);
+  installDocumentScrollAnchoring(ctx, textRuntime);
 }

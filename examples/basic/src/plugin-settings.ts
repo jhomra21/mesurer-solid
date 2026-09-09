@@ -29,15 +29,33 @@ type CapturePresentation = {
 };
 
 const captures: CapturePresentation[] = [];
-let captureRoot: ParentNode = document;
+let captureRoots: ParentNode[] = [document];
 
-const visibleInLayout = (element: Element | null) =>
-  element !== null && element.getClientRects().length > 0;
+const visibleInLayout = (element: Element) => element.getClientRects().length > 0;
+const visibleMeasurement = (element: HTMLElement) => {
+  if (visibleInLayout(element)) return true;
+  // Selected measurement roots in the document-native anchor layer are
+  // intentionally zero-height containers. Their absolutely positioned chrome
+  // and label are the rendered presentation, so inspect those direct surfaces
+  // rather than treating the ownership wrapper's empty box as hidden.
+  return Array.from(element.children).some((child) => (
+    child instanceof HTMLElement
+    && visibleInLayout(child)
+    && getComputedStyle(child).display !== "none"
+    && getComputedStyle(child).visibility !== "hidden"
+  ));
+};
+const presentationVisible = (
+  selector: string,
+  isVisible: (element: HTMLElement) => boolean = visibleInLayout,
+) => captureRoots.some((root) =>
+  Array.from(root.querySelectorAll<HTMLElement>(selector)).some(isVisible),
+);
 
 const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, ownerWindow }) => {
   captures.push({
-    measurementVisible: visibleInLayout(captureRoot.querySelector("[data-mesurer-measurement='true']")),
-    screenshotSelectionVisible: visibleInLayout(captureRoot.querySelector("[data-mesurer-screenshot-select='true']")),
+    measurementVisible: presentationVisible("[data-mesurer-measurement='true']", visibleMeasurement),
+    screenshotSelectionVisible: presentationVisible("[data-mesurer-screenshot-select='true']"),
   });
 
   const canvas = ownerDocument.createElement("canvas");
@@ -73,7 +91,7 @@ const subject = mountMesurer({
 });
 
 await subject.ready;
-captureRoot = subject.root;
+captureRoots = [subject.root, document];
 const screenshot = () => subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
 
 type PluginSettingsHarness = {

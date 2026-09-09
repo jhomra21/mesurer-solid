@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mesurer isolated scroll contract</title>
+    <style>
+      html, body { margin: 0; min-height: 100%; font-family: ui-sans-serif, system-ui, sans-serif; background: #f8fafc; color: #0f172a; }
+      body { min-height: 2600px; }
+      main { padding: 520px 72px 900px; }
+      #isolated-scroll-target { width: 620px; margin: 0; padding: 12px 16px; border-radius: 8px; font-size: 22px; line-height: 1.35; background: white; }
+      .after { margin-top: 760px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p id="isolated-scroll-target">Public isolated selection target</p>
+      <p class="after">Scroll runway</p>
+    </main>
+    <script type="module" src="/src/isolated-scroll.ts"></script>
+  </body>
+</html>
