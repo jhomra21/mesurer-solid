@@ -131,18 +131,11 @@ try {
   stage("open standalone Typography");
   const typography = page.locator("button[data-mesurer-builtin='text-inspector']");
   await typography.waitFor({ state: "visible", timeout: WAIT_TIMEOUT_MS });
-  // Other browser contracts exercise real pointer actionability. This probe is
-  // specifically about scroll ownership, so activate Typography without
-  // allowing Playwright's pre-click scrolling to become part of the test. Use
-  // a page-level lookup rather than Locator.evaluate(): activating the tool can
-  // reconcile the Solid toolbar subtree, and Locator.evaluate needlessly keeps
-  // the old element handle alive across that reconciliation.
-  await withTimeout(page.evaluate(() => {
-    const root = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root;
-    const button = root?.querySelector("button[data-mesurer-builtin='text-inspector']");
-    if (!(button instanceof HTMLButtonElement)) throw new Error("Expected Typography toolbar button");
-    button.click();
-  }), "Typography activation");
+  // Pointer actionability is covered by the browser interaction contracts. Use
+  // the product shortcut here so this detector measures scroll ownership only;
+  // synthetic DOM click evaluation can retain a stale automation handle while
+  // Solid reconciles the toolbar after the mode switch.
+  await withTimeout(page.keyboard.press("a"), "Typography shortcut activation");
   await page.waitForFunction(
     () => window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root
       ?.querySelector("button[data-mesurer-builtin='text-inspector']")
