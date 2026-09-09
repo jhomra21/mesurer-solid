@@ -89,7 +89,14 @@ try {
   await editor.waitFor({ state: "detached" });
 
   const typography = page.locator("button[data-mesurer-builtin='text-inspector']");
-  await typography.click();
+  await typography.waitFor({ state: "visible" });
+  // Other browser contracts exercise real pointer actionability. This probe is
+  // specifically about scroll ownership, so activate Typography without
+  // allowing Playwright's pre-click scrolling to become part of the test.
+  await typography.evaluate((button) => button.click());
+  await page.waitForFunction(() => (
+    document.querySelector("button[data-mesurer-builtin='text-inspector']")?.getAttribute("aria-pressed") === "true"
+  ));
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settle();
   targetBox = await box(target, "target before standalone Typography probe");
