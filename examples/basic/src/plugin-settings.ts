@@ -45,7 +45,10 @@ const visibleMeasurement = (element: HTMLElement) => {
     && getComputedStyle(child).visibility !== "hidden"
   ));
 };
-const presentationVisible = (selector: string, isVisible = visibleInLayout) => captureRoots.some((root) =>
+const presentationVisible = (
+  selector: string,
+  isVisible: (element: HTMLElement) => boolean = visibleInLayout,
+) => captureRoots.some((root) =>
   Array.from(root.querySelectorAll<HTMLElement>(selector)).some(isVisible),
 );
 
