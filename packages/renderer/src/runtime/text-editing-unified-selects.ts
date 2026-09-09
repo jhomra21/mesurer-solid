@@ -8,12 +8,8 @@ const INK_500 = "#64748b";
 const INK_700 = "#334155";
 const INK_900 = "#0f172a";
 const ACCENT = "#0d99ff";
+const VIEWPORT_PADDING = 8;
 const MENU_GAP = 4;
-const MENU_PADDING = 4;
-const MENU_MAX_HEIGHT = 220;
-const MENU_MIN_HEIGHT = 60;
-
-const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 type MenuOption = {
   key: string;
@@ -28,50 +24,7 @@ type OpenMenu = {
   popup: HTMLDivElement;
   trigger: HTMLButtonElement;
   chevron: HTMLElement | null;
-  shell: HTMLElement;
-  card: HTMLElement;
 };
-
-/**
- * Let an open custom Typography menu consume Escape before the text-edit core.
- * The core deliberately owns Escape at window-capture level so it can cancel a
- * direct edit from anywhere in the editing surface; an open dropdown is the
- * one exception and owns the first Escape.
- */
-export function installUnifiedTextSelectEscapeGuard(
-  ctx: MesurerPluginContext,
-  runtime: MesurerSolidRuntimeService,
-) {
-  const { ownerDocument, ownerWindow } = runtime;
-  // SAFETY: ownerWindow owns ownerDocument and supplies the matching DOM constructors/events.
-  const realm = ownerWindow as Window & typeof globalThis;
-
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Escape") return;
-    const popup = event.composedPath().find((candidate) =>
-      candidate instanceof realm.HTMLElement
-      && candidate.dataset.mesurerUnifiedSelectPopup === "true")
-      ?? ownerDocument.querySelector<HTMLElement>("[data-mesurer-unified-select-popup='true']");
-    if (!(popup instanceof realm.HTMLElement)) return;
-
-    const kind = popup.dataset.mesurerUnifiedSelectKind;
-    if (!kind) return;
-    const card = popup.closest<HTMLElement>("[data-mesurer-text-inspector-info='true']");
-    const trigger = Array.from(
-      card?.querySelectorAll<HTMLButtonElement>("[data-mesurer-unified-select-trigger]") ?? [],
-    ).find((candidate) => candidate.dataset.mesurerUnifiedSelectTrigger === kind);
-    if (!trigger) return;
-
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    trigger.click();
-  };
-
-  ownerWindow.addEventListener("keydown", onKeyDown, true);
-  ctx.lifecycle.onDispose(() => {
-    ownerWindow.removeEventListener("keydown", onKeyDown, true);
-  });
-}
 
 export function installUnifiedTextSelectMenus(
   ctx: MesurerPluginContext,
@@ -94,77 +47,47 @@ export function installUnifiedTextSelectMenus(
     current.popup.remove();
     current.trigger.setAttribute("aria-expanded", "false");
     current.chevron?.style.setProperty("transform", "rotate(45deg)");
-    const controlShell = current.trigger.closest<HTMLElement>(
-      "[data-mesurer-unified-select-shell='true'], [data-mesurer-unified-style-shell='true']",
-    );
-    if (controlShell) {
-      controlShell.style.boxShadow = "none";
-      controlShell.style.borderColor = "transparent";
+    const shell = current.trigger.closest<HTMLElement>("[data-mesurer-unified-select-shell='true'], [data-mesurer-unified-style-shell='true']");
+    if (shell) {
+      shell.style.boxShadow = "none";
+      shell.style.borderColor = "transparent";
     }
     openMenu = null;
     if (restoreFocus && current.trigger.isConnected) current.trigger.focus({ preventScroll: true });
   };
 
   const positionMenu = () => {
-    const current = openMenu;
-    if (!current?.trigger.isConnected || !current.popup.isConnected
-      || !current.shell.isConnected || !current.card.isConnected) {
+    if (!openMenu?.trigger.isConnected || !openMenu.popup.isConnected) {
       closeMenu();
       return;
     }
+    const triggerRect = openMenu.trigger.getBoundingClientRect();
+    const popupRect = openMenu.popup.getBoundingClientRect();
+    const width = Math.max(triggerRect.width, Math.min(260, popupRect.width || triggerRect.width));
+    openMenu.popup.style.width = `${width}px`;
 
-    const triggerRect = current.trigger.getBoundingClientRect();
-    const shellRect = current.shell.getBoundingClientRect();
-    const cardRect = current.card.getBoundingClientRect();
-    if (
-      triggerRect.width <= 0
-      || triggerRect.height <= 0
-      || shellRect.width <= 0
-      || shellRect.height <= 0
-      || cardRect.width <= 0
-      || cardRect.height <= 0
-    ) return;
-
-    const usableWidth = Math.max(1, cardRect.width - MENU_PADDING * 2);
-    const width = Math.min(Math.max(triggerRect.width, 120), usableWidth);
-    current.popup.style.width = `${width}px`;
-    current.popup.style.maxWidth = `${usableWidth}px`;
-
-    const cardMaxHeight = Math.max(1, cardRect.height - MENU_PADDING * 2);
-    const naturalHeight = Math.min(
-      MENU_MAX_HEIGHT,
-      Math.max(MENU_MIN_HEIGHT, current.popup.scrollHeight),
-    );
-    const height = Math.min(naturalHeight, cardMaxHeight);
-    current.popup.style.maxHeight = `${height}px`;
-
-    const cardLeft = cardRect.left - shellRect.left;
-    const cardTop = cardRect.top - shellRect.top;
-    const triggerLeft = triggerRect.left - shellRect.left;
-    const triggerTop = triggerRect.top - shellRect.top;
-    const triggerBottom = triggerRect.bottom - shellRect.top;
-    const cardBottom = cardRect.bottom - shellRect.top;
-    const spaceAbove = Math.max(0, triggerTop - cardTop - MENU_GAP - MENU_PADDING);
-    const spaceBelow = Math.max(0, cardBottom - triggerBottom - MENU_GAP - MENU_PADDING);
-    const openBelow = spaceBelow >= height || spaceBelow >= spaceAbove;
-    const desiredTop = openBelow
-      ? triggerBottom + MENU_GAP
-      : triggerTop - MENU_GAP - height;
-
-    const minLeft = cardLeft + MENU_PADDING;
-    const maxLeft = Math.max(minLeft, cardLeft + cardRect.width - MENU_PADDING - width);
-    const minTop = cardTop + MENU_PADDING;
-    const maxTop = Math.max(minTop, cardTop + cardRect.height - MENU_PADDING - height);
-    current.popup.style.left = `${clamp(triggerLeft, minLeft, maxLeft)}px`;
-    current.popup.style.top = `${clamp(desiredTop, minTop, maxTop)}px`;
+    const measured = openMenu.popup.getBoundingClientRect();
+    const viewportRight = ownerWindow.innerWidth - VIEWPORT_PADDING;
+    const viewportBottom = ownerWindow.innerHeight - VIEWPORT_PADDING;
+    const maxLeft = Math.max(VIEWPORT_PADDING, viewportRight - measured.width);
+    const left = Math.min(Math.max(triggerRect.left, VIEWPORT_PADDING), maxLeft);
+    const below = triggerRect.bottom + MENU_GAP;
+    const above = triggerRect.top - MENU_GAP - measured.height;
+    const top = below + measured.height <= viewportBottom || above < VIEWPORT_PADDING
+      ? Math.min(below, Math.max(VIEWPORT_PADDING, viewportBottom - measured.height))
+      : above;
+    openMenu.popup.style.left = `${left}px`;
+    openMenu.popup.style.top = `${Math.max(VIEWPORT_PADDING, top)}px`;
   };
 
-  const makeOptionButton = (option: MenuOption) => {
+  const makeOptionButton = (
+    option: MenuOption,
+    trigger: HTMLButtonElement,
+  ) => {
     const button = ownerDocument.createElement("button");
     button.type = "button";
     button.dataset.mesurerUnifiedSelectOption = option.key;
     button.setAttribute("role", "option");
-    button.setAttribute("aria-label", option.label);
     button.setAttribute("aria-selected", option.selected ? "true" : "false");
     button.disabled = option.disabled;
     Object.assign(button.style, {
@@ -252,48 +175,37 @@ export function installUnifiedTextSelectMenus(
     }
     closeMenu();
 
-    const card = trigger.closest<HTMLElement>(
-      "[data-mesurer-text-inspector-info='true'][data-mesurer-text-inspector-unified='true']",
-    );
-    const shell = card?.parentElement?.dataset.mesurerTextInspectorPlacementShell === "true"
-      ? card.parentElement
-      : null;
-    if (!card || !shell) return;
-
     const popup = ownerDocument.createElement("div");
     popup.dataset.mesurerUnifiedSelectPopup = "true";
     popup.dataset.mesurerUnifiedSelectKind = trigger.dataset.mesurerUnifiedSelectTrigger ?? "select";
     popup.dataset.mesurerInspectorUi = "true";
     popup.setAttribute("role", "listbox");
     Object.assign(popup.style, {
-      position: "absolute",
-      inset: "auto",
-      margin: "0",
+      position: "fixed",
       zIndex: "2147483647",
       minWidth: "120px",
-      maxHeight: `${MENU_MAX_HEIGHT}px`,
+      maxWidth: "min(260px, calc(100vw - 16px))",
+      maxHeight: "220px",
       overflowY: "auto",
       boxSizing: "border-box",
       border: `1px solid ${INK_200}`,
       borderRadius: "8px",
       background: "#ffffff",
-      padding: `${MENU_PADDING}px`,
+      padding: "4px",
       boxShadow: "0 8px 24px rgba(15, 23, 42, 0.14), 0 2px 6px rgba(15, 23, 42, 0.08)",
       pointerEvents: "auto",
     });
 
-    for (const option of options) popup.append(makeOptionButton(option));
-    card.append(popup);
+    for (const option of options) popup.append(makeOptionButton(option, trigger));
+    runtimeMount.append(popup);
     trigger.setAttribute("aria-expanded", "true");
     chevron?.style.setProperty("transform", "rotate(225deg)");
-    const controlShell = trigger.closest<HTMLElement>(
-      "[data-mesurer-unified-select-shell='true'], [data-mesurer-unified-style-shell='true']",
-    );
-    if (controlShell) {
-      controlShell.style.borderColor = "transparent";
-      controlShell.style.boxShadow = `inset 0 0 0 1px ${ACCENT}`;
+    const shell = trigger.closest<HTMLElement>("[data-mesurer-unified-select-shell='true'], [data-mesurer-unified-style-shell='true']");
+    if (shell) {
+      shell.style.borderColor = "transparent";
+      shell.style.boxShadow = `inset 0 0 0 1px ${ACCENT}`;
     }
-    openMenu = { popup, trigger, chevron, shell, card };
+    openMenu = { popup, trigger, chevron };
     positionMenu();
 
     const selected = popup.querySelector<HTMLButtonElement>("[aria-selected='true']:not(:disabled)")
@@ -496,9 +408,7 @@ export function installUnifiedTextSelectMenus(
     if (disposed || transforming) return;
     transforming = true;
     try {
-      const card = runtimeMount.querySelector<HTMLElement>(
-        "[data-mesurer-text-inspector-info='true'][data-mesurer-text-inspector-unified='true']",
-      );
+      const card = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true'][data-mesurer-text-inspector-unified='true']");
       if (!card) {
         closeMenu();
         return;
@@ -518,9 +428,11 @@ export function installUnifiedTextSelectMenus(
     if (path.includes(openMenu.popup) || path.includes(openMenu.trigger)) return;
     closeMenu();
   };
+  const onViewportChange = () => positionMenu();
 
   ownerWindow.addEventListener("pointerdown", onPointerDown, true);
-  ownerWindow.addEventListener("resize", positionMenu);
+  ownerWindow.addEventListener("resize", onViewportChange);
+  ownerWindow.addEventListener("scroll", onViewportChange, true);
 
   const observer = new realm.MutationObserver(transform);
   observer.observe(runtimeMount, { childList: true, subtree: true });
@@ -531,6 +443,7 @@ export function installUnifiedTextSelectMenus(
     observer.disconnect();
     closeMenu();
     ownerWindow.removeEventListener("pointerdown", onPointerDown, true);
-    ownerWindow.removeEventListener("resize", positionMenu);
+    ownerWindow.removeEventListener("resize", onViewportChange);
+    ownerWindow.removeEventListener("scroll", onViewportChange, true);
   });
 }
