@@ -286,10 +286,6 @@ export function installDocumentScrollAnchoring(
   transition: none !important;
   animation: none !important;
 }
-[data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="box"],
-[data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="offset"] {
-  position: fixed !important;
-}
 `;
   ownerDocument.head.append(style);
 
@@ -692,11 +688,15 @@ export function installDocumentScrollAnchoring(
   observer.observe(portalTarget, {
     subtree: true,
     childList: true,
+    attributes: true,
+    attributeFilter: ["data-state"],
   });
   if (runtimeMount) {
     observer.observe(runtimeMount, {
       subtree: true,
       childList: true,
+      attributes: true,
+      attributeFilter: ["data-state"],
     });
   }
 
