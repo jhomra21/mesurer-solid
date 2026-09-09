@@ -48,6 +48,11 @@ const settle = () => page.evaluate(() => new Promise((resolve) => {
   requestAnimationFrame(() => requestAnimationFrame(resolve));
 }));
 
+const waitForScrollIdle = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await settle();
+};
+
 const assertNativeAnchor = async (locator, mode, stage) => {
   const native = await locator.evaluate((element) => ({
     mode: element.dataset.mesurerNativeScrollAnchor ?? null,
@@ -172,6 +177,10 @@ try {
 
   const immediateSelection = await sampleScrollEvent(80);
   assertSameBox(immediateSelection.after.selected, immediateSelection.after.target, "isolated selected chrome in scroll event");
+  // The previous scroll's 80ms settle pass is allowed to remeasure after the
+  // hot event. Let it finish before instrumenting a second, independent scroll
+  // so this probe counts work caused by that scroll only.
+  await waitForScrollIdle();
   const selectedScrollWork = await measureNativeScrollWork(20);
   assert.deepEqual(
     selectedScrollWork,
@@ -206,6 +215,7 @@ try {
     { target: immediateEdit.after.target, surface: immediateEdit.after.highlight },
     "isolated selected-text highlight in scroll event",
   );
+  await waitForScrollIdle();
   const editScrollWork = await measureNativeScrollWork(20, { ranges: true });
   assert.deepEqual(
     editScrollWork,
