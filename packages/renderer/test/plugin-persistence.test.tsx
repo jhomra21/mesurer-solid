@@ -41,6 +41,7 @@ describe("plugin persistence", () => {
     expect(screenshot?.settings().copy).toBe(false);
 
     screenshot?.setSettings({ copy: true });
+    await Promise.resolve();
 
     const beforePageHide = JSON.parse(localStorage.getItem("mesurer-plugin-settings") ?? "{}");
     expect(beforePageHide["mesurer.screenshot.settings"]?.copy).not.toBe(true);
