@@ -2,13 +2,13 @@ import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 
 /**
- * Keep native anchor surfaces in the same document-space positioning model and
- * advance only their hidden fallback coordinates during compositor scrolling.
+ * Keep native anchor fallbacks stable while compositor scrolling owns the
+ * visible geometry.
  *
- * CSS Anchor Positioning owns the visible geometry. The inline left/top values
- * on selected-text highlights remain as a fallback for re-binding after scroll;
- * keeping those values in viewport coordinates without reading layout prevents
- * the settle pass from turning scroll distance into a new selection offset.
+ * The inline left/top values on selected-text highlights remain as a fallback
+ * for re-binding after scroll. Keeping those values in viewport coordinates
+ * without reading layout prevents the settle pass from turning scroll distance
+ * into a new selection offset.
  */
 export function installNativeScrollStability(
   ctx: MesurerPluginContext,
@@ -23,10 +23,6 @@ export function installNativeScrollStability(
 [data-mesurer-selected-measurement="true"] > div {
   transition: none !important;
   animation: none !important;
-}
-[data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="box"],
-[data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="offset"] {
-  position: absolute !important;
 }
 `;
   ownerDocument.head.append(style);
