@@ -21,6 +21,7 @@ const FILL_HOVER = "color-mix(in oklch, oklch(0.62 0.18 255) 8%, transparent)";
 const OUTLINE_HOVER = "color-mix(in oklch, oklch(0.62 0.18 255) 80%, transparent)";
 const FILL_PINNED = "color-mix(in oklch, oklch(0.62 0.18 255) 4%, transparent)";
 const OUTLINE_PINNED = "color-mix(in oklch, oklch(0.62 0.18 255) 35%, transparent)";
+const NATIVE_SCROLL_SETTLE_MS = 80;
 let instanceCount = 0;
 
 type PinSnapshot = {
@@ -103,6 +104,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   let pointer = { x: 0, y: 0 };
   let raf = 0;
   let enrichmentTimer = 0;
+  let scrollIdleTimer = 0;
   const pins: Pin[] = [];
   const history: PinSnapshot[][] = [];
   const future: PinSnapshot[][] = [];
@@ -328,9 +330,20 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   };
   const onMove = (event: MouseEvent) => { pointer = { x: event.clientX, y: event.clientY }; schedule(); };
   const onScroll = () => {
-    // Keep already-visible inspection chrome on the source element during the
-    // scroll event. A scheduled pass may still repick the element beneath a
-    // stationary pointer, but it no longer owns the first visual movement.
+    const nativeDocumentScroll = portal === doc.body
+      && Boolean(doc.querySelector("style[data-mesurer-native-scroll-anchoring='true']"));
+    if (nativeDocumentScroll) {
+      if (scrollIdleTimer) win.clearTimeout(scrollIdleTimer);
+      scrollIdleTimer = win.setTimeout(() => {
+        scrollIdleTimer = 0;
+        syncCurrentGeometry();
+        schedule();
+      }, NATIVE_SCROLL_SETTLE_MS);
+      return;
+    }
+
+    // Fallback environments without document CSS anchoring still need the
+    // legacy event-time geometry path.
     syncCurrentGeometry();
     schedule();
   };
@@ -367,7 +380,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const disable = () => {
     if (!enabled) return;
     enabled = false;
-    win.cancelAnimationFrame(raf); raf = 0; win.clearTimeout(enrichmentTimer);
+    win.cancelAnimationFrame(raf); raf = 0; win.clearTimeout(enrichmentTimer); win.clearTimeout(scrollIdleTimer); scrollIdleTimer = 0;
     win.removeEventListener("mousemove", onMove, true);
     win.removeEventListener("mouseout", onOut, true);
     win.removeEventListener("click", onClick, true);
