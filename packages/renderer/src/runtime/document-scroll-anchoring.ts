@@ -571,9 +571,14 @@ export function installDocumentScrollAnchoring(
     const shell = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-placement-shell='true']");
     const card = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
     if (shell?.isConnected && card?.isConnected) {
+      const alreadyAnchored = shell.dataset.mesurerNativeScrollOwner === "typography"
+        && shell.dataset.mesurerNativeScrollAnchor === "offset";
       shell.dataset.mesurerNativeScrollOwner = "typography";
       applyAnchor(shell, editBinding, "offset");
-      if (!scrolling) inspectorPlacement(shell, card, targetRect);
+      // A newly claimed shell still carries its fallback fixed-position lane.
+      // Resolve its native offset immediately even if a prior scrollIntoView is
+      // still settling; established anchors remain compositor-only on scroll.
+      if (!scrolling || !alreadyAnchored) inspectorPlacement(shell, card, targetRect);
     }
   };
 
