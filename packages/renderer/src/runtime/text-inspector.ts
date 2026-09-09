@@ -62,8 +62,8 @@ export type TextInspectorOptions = {
 const styles = (mode: string, overlayId: string) => `
 .${mode},.${mode} *{cursor:help!important}
 .${mode} [data-mesurer-root],.${mode} [data-mesurer-root] *{cursor:auto!important}
-#${overlayId} .mesurer-ti-card{transform:translateX(-50%);opacity:1}
-#${overlayId} .mesurer-ti-box{opacity:1}
+#${overlayId} .mesurer-ti-card{transform:translateX(-50%);opacity:1;transition:none!important;animation:none!important}
+#${overlayId} .mesurer-ti-box{opacity:1;transition:none!important;animation:none!important}
 #${overlayId} [data-state="hidden"]{opacity:0!important}
 #${overlayId} .mesurer-ti-card--pinned{cursor:grab}
 #${overlayId} .mesurer-ti-card--pinned:active{cursor:grabbing}
@@ -282,15 +282,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const redo = () => { const next = future.pop(); if (!next) return false; history.push(snapshot()); restore(next); return true; };
   const clear = () => { if (!pins.length) return; record(); clearPins(true); };
 
-  const sync = () => {
-    if (!enabled) return;
-    const target = pick(pointer.x, pointer.y);
-    if (!target) hideHover();
-    else if (target !== hoveredEl) inspect(target);
-    else if (hoverBox && hoverCard) {
-      const rect = target.getBoundingClientRect();
-      positionBox(hoverBox, rect); positionCard(win, hoverCard, rect);
-    }
+  const syncPins = () => {
     for (const pin of pins.slice()) {
       if (!pin.sourceEl.isConnected) { removePin(pin, false, false); continue; }
       const rect = pin.sourceEl.getBoundingClientRect();
@@ -301,11 +293,47 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       pin.card.style.pointerEvents = isVisible ? "auto" : "none";
     }
   };
+
+  const syncCurrentGeometry = () => {
+    if (!enabled) return;
+    if (hoveredEl && hoverBox && hoverCard) {
+      if (!hoveredEl.isConnected) {
+        hideHover();
+      } else {
+        const rect = hoveredEl.getBoundingClientRect();
+        positionBox(hoverBox, rect);
+        positionCard(win, hoverCard, rect);
+        const isVisible = rect.bottom >= 0 && rect.right >= 0 && rect.left <= win.innerWidth && rect.top <= win.innerHeight;
+        visible(hoverBox, isVisible);
+        visible(hoverCard, isVisible);
+      }
+    }
+    syncPins();
+  };
+
+  const sync = () => {
+    if (!enabled) return;
+    const target = pick(pointer.x, pointer.y);
+    if (!target) hideHover();
+    else if (target !== hoveredEl) inspect(target);
+    else if (hoverBox && hoverCard) {
+      const rect = target.getBoundingClientRect();
+      positionBox(hoverBox, rect); positionCard(win, hoverCard, rect);
+    }
+    syncPins();
+  };
   const schedule = () => {
     if (raf) return;
     raf = win.requestAnimationFrame(() => { raf = 0; sync(); });
   };
   const onMove = (event: MouseEvent) => { pointer = { x: event.clientX, y: event.clientY }; schedule(); };
+  const onScroll = () => {
+    // Keep already-visible inspection chrome on the source element during the
+    // scroll event. A scheduled pass may still repick the element beneath a
+    // stationary pointer, but it no longer owns the first visual movement.
+    syncCurrentGeometry();
+    schedule();
+  };
   const onOut = (event: MouseEvent) => { if (!event.relatedTarget) hideHover(); };
   const uiEvent = (event: Event) => event.composedPath().some((node) =>
     node instanceof HTMLElementCtor && (
@@ -333,7 +361,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     win.addEventListener("mouseout", onOut, true);
     win.addEventListener("click", onClick, true);
     win.addEventListener("auxclick", onAux, true);
-    win.addEventListener("scroll", schedule, true);
+    win.addEventListener("scroll", onScroll, true);
     win.addEventListener("resize", schedule, true);
   };
   const disable = () => {
@@ -344,7 +372,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     win.removeEventListener("mouseout", onOut, true);
     win.removeEventListener("click", onClick, true);
     win.removeEventListener("auxclick", onAux, true);
-    win.removeEventListener("scroll", schedule, true);
+    win.removeEventListener("scroll", onScroll, true);
     win.removeEventListener("resize", schedule, true);
     hideHover(); clearPins();
     hoverBox?.remove(); hoverCard?.remove(); hoverBox = null; hoverCard = null;

@@ -8,35 +8,38 @@ The visible inspection tool is **Typography**. Its internal built-in id remains 
 
 Direct editing works while Select or Typography is active. Arrange keeps Select active, so the same interaction also works while arranging.
 
-Double-click ordinary direct text on desktop, or double-tap with touch or pen. Mesurer places an editor over the rendered target, matches its current typography, and selects the existing text so typing replaces it immediately.
+Double-click ordinary direct text on desktop, or double-tap with touch or pen. Mesurer keeps the rendered host element as the visible editing surface, selects the existing text so typing replaces it immediately, and shows a blinking caret at the host text position once the selection collapses.
 
 When editing begins from Select or Arrange, Typography becomes contextually active for that field without replacing Select. If Typography was already explicitly selected, the normal hover/pinned Typography surface is temporarily suppressed so the field has one live card. Ending the edit restores the normal Typography surface and keeps the explicitly selected tool active.
 
-The contextual card reports Family, Size, Weight, Line, Tracking, target/text information, and CSS-variable references when available.
+That one contextual card is also the direct formatting surface. Family, Size, Weight, Line, and Tracking are live controls; Format contains Bold, Italic, and Underline; Color contains rendered-page swatches plus a custom color; and Style opens the available Text/Heading presets inside the same card. The card stays visible during the edit and is positioned around the active text without covering it. When full-height placement is impossible in a constrained viewport, the card uses the available lane and scrolls internally rather than disappearing below the viewport or obscuring the field.
 
 ## What can be edited
 
-Mesurer targets an ordinary element with one unambiguous, non-empty direct text node. It leaves these under browser/application control:
+Mesurer edits one unambiguous non-empty **direct text run** at a time. A simple element with one direct text node is editable as before. For mixed inline copy such as `text <kbd>Shift+A</kbd> text`, Mesurer can target the direct text run under the pointer while preserving the inline child and the other text runs unchanged.
+
+It leaves these under browser/application control:
 
 - `<input>`, `<textarea>`, `<select>`, and `<option>`;
 - media and embedded elements;
-- ambiguous mixed or nested rich text;
+- structural or ambiguous rich-text editing that would require changing nested markup rather than one direct text run;
 - content that is natively editable through `contenteditable` inheritance.
 
-Editability follows browser semantics. Descendants of `contenteditable="true"`, `contenteditable=""`, or `contenteditable="plaintext-only"` stay native even when the descendant has no attribute. A nested `contenteditable="false"` boundary ends that inherited editable region; text inside that boundary can use Mesurer editing when the normal direct-text rules pass.
+Editability follows browser semantics. Descendants of `contenteditable="true"`, `contenteditable=""`, or `contenteditable="plaintext-only"` stay native even when the descendant has no attribute. A nested `contenteditable="false"` boundary ends that inherited editable region; text inside that boundary can use Mesurer editing when the normal direct-text-run rules pass.
 
-Mesurer does not expose link creation, lists, or other structural rich-text controls until there is a real structural intent model for them.
+Mesurer does not expose link creation, lists, node insertion/removal, or other structural rich-text controls until there is a real structural intent model for them. Editing text around an existing inline child does not flatten, remove, or recreate that child.
 
 ## Formatting
 
-The editor exposes direct controls for:
+The interactive Typography card exposes:
 
 - Bold, Italic, and Underline;
-- page-derived Font, Size, and Weight values;
+- page-derived Family, Size, and Weight values;
+- editable Line height and Tracking / letter spacing values;
 - common rendered-page text colors plus a custom color;
-- a separate Text/Heading semantic preset.
+- Text and the available H1/H2/H3 semantic presets inside the Style section.
 
-The semantic popup contains Text and only the H1/H2/H3 levels actually rendered on the page. Each preset uses the dominant rendered typography bundle for that semantic level. Less common variants stay available through the direct Font, Size, Weight, and Color controls.
+The semantic preset section contains Text and only the H1/H2/H3 levels actually rendered on the page. Each preset uses the dominant rendered typography bundle for that semantic level. Less common variants stay available through the direct Family, Size, Weight, and Color controls. Line and Tracking accept valid CSS values and preview them on the real target using the same reversible style-intent ownership as the other controls.
 
 | Action | Shortcut |
 | --- | --- |
@@ -52,12 +55,12 @@ A heading shortcut does nothing when that level is unavailable.
 
 ## Keep or cancel an edit
 
-- **Enter** keeps the current copy/style as Desired intent.
-- **Shift+Enter** inserts a newline.
-- **Escape** closes the semantic popup first when it is open; Escape again cancels the edit.
-- Clicking outside the editor and its formatting surfaces commits the session.
+- **Enter** in the text editor keeps the current copy/style as Desired intent.
+- **Shift+Enter** inserts a newline in the text editor.
+- **Escape** closes the currently open Typography dropdown first; Escape again cancels the edit.
+- Clicking outside the editor and the interactive Typography card commits the session.
 
-Normal Mesurer tool shortcuts are suppressed while the editor owns keyboard focus.
+Normal Mesurer tool shortcuts are suppressed while the editor owns keyboard focus. Interacting with a control inside the Typography card keeps the same edit session active.
 
 ## Desired preview and ownership
 

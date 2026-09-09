@@ -12,6 +12,12 @@ if (!reactUrl || !solidUrl || !outputDir) {
 await fs.mkdir(outputDir, { recursive: true });
 
 const sleep = (page, ms = 140) => page.waitForTimeout(ms);
+const selectionLabelStyleKeys = [
+  "display", "position", "left", "top", "width", "height", "padding",
+  "gap", "border", "borderRadius", "backgroundColor", "color", "boxShadow",
+  "fontFamily", "fontSize", "fontWeight", "lineHeight", "letterSpacing",
+  "opacity", "transform", "pointerEvents", "zIndex",
+];
 
 async function realClick(locator) {
   await locator.waitFor({ state: "visible" });
@@ -108,6 +114,28 @@ async function stateSnapshot(page, implementation) {
   const guideIconTransform = await button(page, /^Guides/).locator("svg").first().evaluate((node) => getComputedStyle(node).transform);
   const visibleTooltips = (await page.locator('[role="tooltip"]:visible').allTextContents())
     .map((text) => canonicalTooltipText(text, implementation));
+  const selectionLabel = await page.evaluate((styleKeys) => {
+    const root = document.querySelector('[data-mesurer-selected-measurement="true"]');
+    const element = root?.children.item((root?.children.length ?? 0) - 1);
+    if (!(element instanceof HTMLElement)) return null;
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      tag: element.tagName,
+      text: element.textContent?.trim() ?? "",
+      rect: {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        left: rect.left,
+      },
+      style: Object.fromEntries(styleKeys.map((key) => [key, style[key]])),
+    };
+  }, selectionLabelStyleKeys);
   return {
     toolbarButtons,
     settingsOpen: await page.getByRole("dialog", { name: "Settings" }).count() > 0,
@@ -123,6 +151,7 @@ async function stateSnapshot(page, implementation) {
     guideMenuVisible: await page.getByRole("menu").count() > 0,
     textInspectorCards: await page.locator(".mesurer-ti-card").count(),
     selectedMeasurements: await page.locator('[data-mesurer-selected-measurement="true"]').count(),
+    selectionLabel,
     guides: await page.locator('[data-mesurer-guide="true"]').count(),
     copiedTooltip: await page.getByRole("tooltip", { name: "Copied!" }).count() > 0,
     visibleTooltips,
