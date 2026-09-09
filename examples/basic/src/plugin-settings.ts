@@ -75,7 +75,7 @@ const subject = mountMesurer({
 });
 
 await subject.ready;
-captureRoots = subject.root === document ? [document] : [subject.root, document];
+captureRoots = [subject.root, document];
 const screenshot = () => subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
 
 type PluginSettingsHarness = {
