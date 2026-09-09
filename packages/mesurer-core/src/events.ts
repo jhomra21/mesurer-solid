@@ -25,12 +25,7 @@ export function createEventBus<Events extends object>(): EventBus<Events> {
     },
     async emit(type, event) {
       const queue = Array.from(listeners.get(type) ?? []);
-      const pending: Promise<void>[] = [];
-      for (const listener of queue) {
-        const result = listener(event);
-        if (result) pending.push(result);
-      }
-      for (const result of pending) await result;
+      for (const listener of queue) await listener(event);
     },
     clear() {
       listeners.clear();
