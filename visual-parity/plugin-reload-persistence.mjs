@@ -55,19 +55,6 @@ try {
       nativeClearTimeout(timerId);
     };
 
-    window.addEventListener("beforeunload", () => {
-      window.localStorage.setItem("mesurer-plugin-reload:beforeunload", JSON.stringify({
-        copy: screenshot.settings().copy,
-        pluginState: window.localStorage.getItem("mesurer-plugin-settings"),
-      }));
-    }, { once: true });
-    window.addEventListener("pagehide", () => {
-      window.localStorage.setItem("mesurer-plugin-reload:pagehide", JSON.stringify({
-        copy: screenshot.settings().copy,
-        pluginState: window.localStorage.getItem("mesurer-plugin-settings"),
-      }));
-    }, { once: true });
-
     screenshot.setSettings({ copy: true });
     return {
       liveCopy: screenshot.settings().copy,
@@ -96,13 +83,9 @@ try {
     const screenshot = harness?.screenshot();
     if (!harness || !screenshot) throw new Error("Screenshot service unavailable after reload");
     const stored = window.localStorage.getItem("mesurer-plugin-settings");
-    const beforeunload = window.localStorage.getItem("mesurer-plugin-reload:beforeunload");
-    const pagehide = window.localStorage.getItem("mesurer-plugin-reload:pagehide");
     return {
       liveCopy: screenshot.settings().copy,
       stored: stored ? JSON.parse(stored) : null,
-      beforeunload: beforeunload ? JSON.parse(beforeunload) : null,
-      pagehide: pagehide ? JSON.parse(pagehide) : null,
     };
   });
 
@@ -110,7 +93,7 @@ try {
     throw new Error(`Screenshot Auto-copy reverted after immediate reload: ${JSON.stringify(afterReload)}`);
   }
   if (afterReload.stored?.["mesurer.screenshot.settings"]?.copy !== true) {
-    throw new Error(`Default plugin storage missed Screenshot Auto-copy: ${JSON.stringify(afterReload)}`);
+    throw new Error(`Default plugin storage missed Screenshot Auto-copy: ${JSON.stringify(afterReload.stored)}`);
   }
   if (errors.length) throw new Error(`Browser diagnostics were not clean:\n${errors.join("\n")}`);
 
