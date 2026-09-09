@@ -34,6 +34,10 @@ try {
       throw new Error(`Expected fixture Auto-copy default to be off, got ${screenshot.settings().copy}`);
     }
 
+    // reset=1 is a one-time fixture cleanup switch. Remove it before the real reload
+    // so the next document does not deliberately erase the persistence we are testing.
+    window.history.replaceState(null, "", window.location.pathname);
+
     const nativeSetTimeout = window.setTimeout.bind(window);
     const nativeClearTimeout = window.clearTimeout.bind(window);
     const blockedTimerId = 2_147_483_000;
