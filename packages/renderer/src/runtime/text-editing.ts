@@ -39,8 +39,11 @@ export function installTextEditing(
   installUnifiedTextSelectEscapeGuard(ctx, runtime);
   installTextEditingCore(ctx, runtime);
   installTextEditingPresentation(ctx, runtime);
-  installRenderInPlaceTextEditing(ctx, runtime);
+  // Typography is the only inspector placement owner. It can observe the
+  // editor/ring as those surfaces appear, so install it before render-in-place
+  // rather than keeping a second fallback placement algorithm there.
   installUnifiedTextInspector(ctx, runtime);
+  installRenderInPlaceTextEditing(ctx, runtime);
   installUnifiedTextSelectMenus(ctx, runtime);
   installUnifiedTextSelectLayer(ctx, runtime);
   // Chromium can move the page in the compositor before JavaScript receives a
