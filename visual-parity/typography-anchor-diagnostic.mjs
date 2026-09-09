@@ -1,8 +1,32 @@
+import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const url = process.env.TYPOGRAPHY_ANCHOR_URL ?? "http://127.0.0.1:4174/";
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+
+const assertSameBox = (actual, expected, stage) => {
+  for (const key of ["x", "y", "width", "height"]) {
+    assert(
+      Math.abs(actual[key] - expected[key]) <= 1.5,
+      `${stage}: ${key} drifted; target=${expected[key]} surface=${actual[key]}`,
+    );
+  }
+};
+
+const relativeOffset = (target, surface) => ({
+  x: surface.x - target.x,
+  y: surface.y - target.y,
+});
+
+const assertSameOffset = (before, after, stage) => {
+  for (const key of ["x", "y"]) {
+    assert(
+      Math.abs(after[key] - before[key]) <= 1.5,
+      `${stage}: ${key} offset changed; before=${before[key]} after=${after[key]}`,
+    );
+  }
+};
 
 const snapshot = () => page.evaluate(() => {
   const target = document.querySelector(".feature-copy .kicker");
@@ -71,6 +95,9 @@ try {
   await page.locator(".mesurer-ti-card[data-state='visible']").waitFor({ state: "visible" });
 
   const before = await snapshot();
+  assertSameBox(before.box.rect, before.target.rect, "Typography before scroll");
+  const cardOffsetBefore = relativeOffset(before.target.rect, before.card.rect);
+
   const immediate = await page.evaluate(() => new Promise((resolve) => {
     const state = () => {
       const target = document.querySelector(".feature-copy .kicker");
@@ -105,9 +132,29 @@ try {
     window.scrollBy({ top: 32, behavior: "instant" });
   }));
 
+  assert(immediate.target && immediate.box && immediate.card, "Typography immediate scroll state must be complete");
+  assertSameBox(immediate.box.rect, immediate.target.rect, "Typography in scroll event");
+  assertSameOffset(
+    cardOffsetBefore,
+    relativeOffset(immediate.target.rect, immediate.card.rect),
+    "Typography card in scroll event",
+  );
+
   await new Promise((resolve) => setTimeout(resolve, 140));
   const settled = await snapshot();
+  assertSameBox(settled.box.rect, settled.target.rect, "Typography after scroll settle");
+  assertSameOffset(
+    cardOffsetBefore,
+    relativeOffset(settled.target.rect, settled.card.rect),
+    "Typography card after scroll settle",
+  );
+  assert.equal(settled.box.nativeAnchor, "box", "Typography box must settle onto native box anchoring");
+  assert.equal(settled.card.nativeAnchor, "offset", "Typography card must settle onto native offset anchoring");
+  assert.equal(settled.box.nativeOwner, "typography", "Typography box native owner");
+  assert.equal(settled.card.nativeOwner, "typography", "Typography card native owner");
+
   console.log(JSON.stringify({ before, immediate, settled }, null, 2));
+  console.log("Standalone Typography stays target-locked during scroll and after native-anchor settle: PASS");
 } finally {
   await browser.close();
 }
