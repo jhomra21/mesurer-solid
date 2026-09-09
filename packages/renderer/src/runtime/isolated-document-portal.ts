@@ -28,8 +28,17 @@ type RectLike = {
   height: number;
 };
 
+type CachedTarget = RectLike & {
+  element: HTMLElement;
+};
+
+type CachedToolbar = RectLike & {
+  element: HTMLElement;
+};
+
 const TOOLBAR_TARGET_GAP = 6;
 const VIEWPORT_PADDING = 8;
+const SCROLL_IDLE_MS = 80;
 
 const isDocumentBackedShadow = (
   runtime: MesurerSolidRuntimeService,
@@ -132,6 +141,7 @@ export function installIsolatedSelectionPortal(
   const placements = new Map<HTMLElement, RootPlacement>();
   let disposed = false;
   let queued = false;
+  let lastSelection: HTMLElement[] = [];
 
   const moveRoot = (root: HTMLElement) => {
     if (placements.has(root) || root.dataset.mesurerSelectionGroup === "true") return;
@@ -194,7 +204,8 @@ export function installIsolatedSelectionPortal(
       moveRoot(root);
     }
 
-    const selectedElements = new Set(workspace.currentSelection().elements);
+    const selectedElements = workspace.currentSelection().elements;
+    lastSelection = selectedElements;
     for (const placement of Array.from(placements.values())) {
       const { root } = placement;
       if (!root.isConnected) {
@@ -202,18 +213,11 @@ export function installIsolatedSelectionPortal(
         continue;
       }
       syncSourceVisibility(placement);
-      const selectedRootTarget = selectedElements.size === 1
-        || Array.from(selectedElements).some((element) => {
-          const target = element.getBoundingClientRect();
-          const chrome = root.children.item(0);
-          if (!(chrome instanceof realm.HTMLElement)) return false;
-          const rect = chrome.getBoundingClientRect();
-          return Math.abs(target.left - rect.left) <= 5
-            && Math.abs(target.top - rect.top) <= 5
-            && Math.abs(target.width - rect.width) <= 5
-            && Math.abs(target.height - rect.height) <= 5;
-        });
-      if (!selectedRootTarget && selectedElements.size === 0) releaseRoot(placement, true);
+      // Solid removes selection roots when their measurement leaves the model.
+      // The only explicit release needed here is the empty-selection case. Do
+      // not compare page/root DOMRects on workspace notifications; that turns
+      // compositor scrolling back into forced main-thread layout work.
+      if (selectedElements.length === 0) releaseRoot(placement, true);
     }
   };
 
@@ -233,7 +237,12 @@ export function installIsolatedSelectionPortal(
     attributes: true,
     attributeFilter: ["style"],
   });
-  const unsubscribeWorkspace = workspace.subscribe(schedule);
+  const unsubscribeWorkspace = workspace.subscribe(() => {
+    const next = workspace.currentSelection().elements;
+    const changed = next.length !== lastSelection.length
+      || next.some((element, index) => element !== lastSelection[index]);
+    if (changed) schedule();
+  });
   ownerWindow.addEventListener("pointerup", schedule, true);
   ownerWindow.addEventListener("dblclick", schedule, true);
   ownerWindow.addEventListener("resize", schedule, true);
@@ -253,9 +262,10 @@ export function installIsolatedSelectionPortal(
 
 /**
  * The canonical toolbar is viewport UI, so it should not chase the selected
- * element. When scrolling puts the active target under the toolbar, move the
- * toolbar to the opposite viewport lane until its original position is clear.
- * The toolbar's own left/top state remains untouched, including user dragging.
+ * element. Its collision response is computed from cached document geometry:
+ * scroll events do arithmetic plus a compositor `translate` write only. DOM
+ * geometry is sampled when selection/layout changes and once after scrolling
+ * settles, never in the hot trackpad path.
  */
 export function installToolbarTargetAvoidance(
   ctx: MesurerPluginContext,
@@ -264,45 +274,31 @@ export function installToolbarTargetAvoidance(
   const { ownerWindow, portalTarget } = runtime;
   const workspace = runtime.createWorkspaceRuntime();
   let disposed = false;
-  let queued = false;
+  let captureQueued = false;
+  let scrolling = false;
+  let scrollIdleTimer = 0;
+  let target: CachedTarget | null = null;
+  let toolbar: CachedToolbar | null = null;
 
-  const clearAvoidance = (toolbar: HTMLElement) => {
-    toolbar.style.removeProperty("translate");
-    delete toolbar.dataset.mesurerToolbarAvoidingTarget;
-    delete toolbar.dataset.mesurerToolbarAvoidX;
-    delete toolbar.dataset.mesurerToolbarAvoidY;
+  const clearAvoidance = (element: HTMLElement) => {
+    element.style.removeProperty("translate");
+    delete element.dataset.mesurerToolbarAvoidingTarget;
+    delete element.dataset.mesurerToolbarAvoidX;
+    delete element.dataset.mesurerToolbarAvoidY;
   };
 
-  const sync = () => {
-    if (disposed) return;
-    const toolbar = portalTarget.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
-    if (!toolbar?.isConnected) return;
-
-    const target = workspace.currentSelection().elements.at(-1);
-    if (!target?.isConnected) {
-      clearAvoidance(toolbar);
-      return;
-    }
-
-    const rendered = toolbar.getBoundingClientRect();
-    const priorX = Number(toolbar.dataset.mesurerToolbarAvoidX ?? 0);
-    const priorY = Number(toolbar.dataset.mesurerToolbarAvoidY ?? 0);
-    const base: RectLike = {
-      left: rendered.left - priorX,
-      top: rendered.top - priorY,
-      width: rendered.width,
-      height: rendered.height,
-    };
-    const targetRect = target.getBoundingClientRect();
+  const applyCached = () => {
+    if (disposed || !toolbar?.element.isConnected || !target?.element.isConnected) return;
+    const base = toolbar;
     const targetBox: RectLike = {
-      left: targetRect.left,
-      top: targetRect.top,
-      width: targetRect.width,
-      height: targetRect.height,
+      left: target.left - ownerWindow.scrollX,
+      top: target.top - ownerWindow.scrollY,
+      width: target.width,
+      height: target.height,
     };
 
     if (!intersects(base, targetBox, TOOLBAR_TARGET_GAP)) {
-      clearAvoidance(toolbar);
+      clearAvoidance(base.element);
       return;
     }
 
@@ -332,35 +328,82 @@ export function installToolbarTargetAvoidance(
 
     const offsetX = next.left - base.left;
     const offsetY = next.top - base.top;
-    toolbar.style.setProperty("translate", `${offsetX}px ${offsetY}px`, "important");
-    toolbar.dataset.mesurerToolbarAvoidingTarget = "true";
-    toolbar.dataset.mesurerToolbarAvoidX = String(offsetX);
-    toolbar.dataset.mesurerToolbarAvoidY = String(offsetY);
+    base.element.style.setProperty("translate", `${offsetX}px ${offsetY}px`, "important");
+    base.element.dataset.mesurerToolbarAvoidingTarget = "true";
+    base.element.dataset.mesurerToolbarAvoidX = String(offsetX);
+    base.element.dataset.mesurerToolbarAvoidY = String(offsetY);
   };
 
-  const schedule = () => {
-    if (disposed || queued) return;
-    queued = true;
-    ownerWindow.queueMicrotask(() => {
-      queued = false;
-      sync();
-    });
+  const capture = () => {
+    captureQueued = false;
+    if (disposed) return;
+    const nextToolbar = portalTarget.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
+    const nextTarget = workspace.currentSelection().elements.at(-1) ?? null;
+    if (!nextToolbar?.isConnected || !nextTarget?.isConnected) {
+      if (toolbar?.element.isConnected) clearAvoidance(toolbar.element);
+      toolbar = null;
+      target = null;
+      return;
+    }
+
+    const rendered = nextToolbar.getBoundingClientRect();
+    const priorX = Number(nextToolbar.dataset.mesurerToolbarAvoidX ?? 0);
+    const priorY = Number(nextToolbar.dataset.mesurerToolbarAvoidY ?? 0);
+    toolbar = {
+      element: nextToolbar,
+      left: rendered.left - priorX,
+      top: rendered.top - priorY,
+      width: rendered.width,
+      height: rendered.height,
+    };
+
+    const targetRect = nextTarget.getBoundingClientRect();
+    target = {
+      element: nextTarget,
+      left: targetRect.left + ownerWindow.scrollX,
+      top: targetRect.top + ownerWindow.scrollY,
+      width: targetRect.width,
+      height: targetRect.height,
+    };
+    applyCached();
   };
 
-  const unsubscribeWorkspace = workspace.subscribe(schedule);
-  ownerWindow.addEventListener("scroll", sync, true);
-  ownerWindow.addEventListener("resize", sync, true);
-  ownerWindow.addEventListener("pointerup", schedule, true);
-  schedule();
+  const scheduleCapture = () => {
+    if (disposed || captureQueued) return;
+    captureQueued = true;
+    ownerWindow.queueMicrotask(capture);
+  };
+
+  const unsubscribeWorkspace = workspace.subscribe(() => {
+    const nextTarget = workspace.currentSelection().elements.at(-1) ?? null;
+    if (nextTarget !== target?.element || !scrolling) scheduleCapture();
+  });
+  const onScroll = () => {
+    scrolling = true;
+    applyCached();
+    if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
+    scrollIdleTimer = ownerWindow.setTimeout(() => {
+      scrollIdleTimer = 0;
+      scrolling = false;
+      scheduleCapture();
+    }, SCROLL_IDLE_MS);
+  };
+  const onResize = () => scheduleCapture();
+  const onPointerUp = () => scheduleCapture();
+
+  ownerWindow.addEventListener("scroll", onScroll, true);
+  ownerWindow.addEventListener("resize", onResize, true);
+  ownerWindow.addEventListener("pointerup", onPointerUp, true);
+  scheduleCapture();
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     unsubscribeWorkspace();
-    ownerWindow.removeEventListener("scroll", sync, true);
-    ownerWindow.removeEventListener("resize", sync, true);
-    ownerWindow.removeEventListener("pointerup", schedule, true);
-    const toolbar = portalTarget.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
-    if (toolbar) clearAvoidance(toolbar);
+    if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
+    ownerWindow.removeEventListener("scroll", onScroll, true);
+    ownerWindow.removeEventListener("resize", onResize, true);
+    ownerWindow.removeEventListener("pointerup", onPointerUp, true);
+    if (toolbar?.element.isConnected) clearAvoidance(toolbar.element);
     workspace.dispose();
   });
 }
