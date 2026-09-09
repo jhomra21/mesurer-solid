@@ -3,10 +3,17 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { MESURER_STYLES } from "../styles.generated";
 import { ensureMesurerStyles } from "./style-inject";
 
+type InlineDisplay = {
+  value: string;
+  priority: string;
+};
+
 type RootPlacement = {
   root: HTMLElement;
   marker: Comment | null;
+  proxy: HTMLElement | null;
   parent: Node | null;
+  mirroredDisplay: InlineDisplay | null;
 };
 
 type DocumentRuntime = {
@@ -37,6 +44,19 @@ const intersects = (left: RectLike, right: RectLike, gap = 0) => !(
   || left.top + left.height + gap <= right.top
   || right.top + right.height + gap <= left.top
 );
+
+const captureDisplay = (element: HTMLElement): InlineDisplay => ({
+  value: element.style.getPropertyValue("display"),
+  priority: element.style.getPropertyPriority("display"),
+});
+
+const restoreDisplay = (element: HTMLElement, display: InlineDisplay) => {
+  if (display.value || display.priority) {
+    element.style.setProperty("display", display.value, display.priority);
+  } else {
+    element.style.removeProperty("display");
+  }
+};
 
 /**
  * Direct text editing is transient UI, but its geometry needs to participate in
@@ -92,6 +112,11 @@ export function createDocumentTextRuntime(
  * each complete root, never its children, into the document layer while it is
  * selected. This preserves Solid ownership/reconciliation and lets the normal
  * document scroll-anchor coordinator claim the chrome and label as a unit.
+ *
+ * A non-rendering marker stays in the original renderer tree. Capture plugins
+ * can therefore keep using their normal measurement-discovery path; when that
+ * source presentation is hidden, the document-layer root mirrors the same
+ * visibility for the capture frame.
  */
 export function installIsolatedSelectionPortal(
   ctx: MesurerPluginContext,
@@ -112,18 +137,53 @@ export function installIsolatedSelectionPortal(
     if (placements.has(root) || root.dataset.mesurerSelectionGroup === "true") return;
     const parent = root.parentNode;
     const marker = parent ? ownerDocument.createComment("mesurer-isolated-selection-portal") : null;
+    const proxy = parent ? ownerDocument.createElement("span") : null;
     if (marker && parent) parent.insertBefore(marker, root);
-    placements.set(root, { root, marker, parent });
+    if (proxy && parent) {
+      proxy.dataset.mesurerMeasurement = "true";
+      proxy.dataset.mesurerIsolatedSelectionProxy = "true";
+      proxy.setAttribute("aria-hidden", "true");
+      proxy.style.display = "none";
+      parent.insertBefore(proxy, root);
+    }
+    placements.set(root, { root, marker, proxy, parent, mirroredDisplay: null });
     root.dataset.mesurerIsolatedDocumentLayer = "true";
     ownerDocument.body.append(root);
   };
 
+  const sourcePresentationHidden = (placement: RootPlacement) => {
+    let current = placement.proxy?.parentElement ?? null;
+    while (current) {
+      if (current.style.getPropertyValue("display") === "none") return true;
+      current = current.parentElement;
+    }
+    return false;
+  };
+
+  const syncSourceVisibility = (placement: RootPlacement) => {
+    const hidden = sourcePresentationHidden(placement);
+    if (hidden && placement.mirroredDisplay === null) {
+      placement.mirroredDisplay = captureDisplay(placement.root);
+      placement.root.style.setProperty("display", "none", "important");
+      return;
+    }
+    if (!hidden && placement.mirroredDisplay !== null) {
+      restoreDisplay(placement.root, placement.mirroredDisplay);
+      placement.mirroredDisplay = null;
+    }
+  };
+
   const releaseRoot = (placement: RootPlacement, restore: boolean) => {
-    const { root, marker, parent } = placement;
+    const { root, marker, proxy, parent } = placement;
+    if (placement.mirroredDisplay !== null) {
+      restoreDisplay(root, placement.mirroredDisplay);
+      placement.mirroredDisplay = null;
+    }
     delete root.dataset.mesurerIsolatedDocumentLayer;
     if (restore && root.isConnected && marker?.parentNode === parent && parent) {
       parent.insertBefore(root, marker);
     }
+    proxy?.remove();
     marker?.remove();
     placements.delete(root);
   };
@@ -141,6 +201,7 @@ export function installIsolatedSelectionPortal(
         releaseRoot(placement, false);
         continue;
       }
+      syncSourceVisibility(placement);
       const selectedRootTarget = selectedElements.size === 1
         || Array.from(selectedElements).some((element) => {
           const target = element.getBoundingClientRect();
@@ -166,7 +227,12 @@ export function installIsolatedSelectionPortal(
   };
 
   const observer = new realm.MutationObserver(schedule);
-  observer.observe(portalTarget, { subtree: true, childList: true });
+  observer.observe(portalTarget, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ["style"],
+  });
   const unsubscribeWorkspace = workspace.subscribe(schedule);
   ownerWindow.addEventListener("pointerup", schedule, true);
   ownerWindow.addEventListener("dblclick", schedule, true);
