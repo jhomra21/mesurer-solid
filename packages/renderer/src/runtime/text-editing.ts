@@ -4,6 +4,7 @@ import { installDocumentScrollAnchoring } from "./document-scroll-anchoring";
 import {
   createDocumentTextRuntime,
   installIsolatedSelectionPortal,
+  installToolbarTargetAvoidance,
 } from "./isolated-document-portal";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
 import { installTextEditingPresentation } from "./text-editing-presentation";
@@ -42,6 +43,7 @@ export function installTextEditing(
   // document-backed runtime so it can participate in the page's native anchor
   // tree rather than chasing compositor scroll from fixed Shadow DOM geometry.
   installIsolatedSelectionPortal(ctx, runtime);
+  installToolbarTargetAvoidance(ctx, runtime);
   const { runtime: textRuntime } = createDocumentTextRuntime(runtime);
 
   installMixedInlineTextTargeting(ctx, textRuntime);
