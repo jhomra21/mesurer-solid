@@ -12,30 +12,34 @@ try {
 
   const result = await page.evaluate(() => new Promise((resolve, reject) => {
     const target = document.querySelector("#isolated-scroll-target");
+    const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
     if (!(target instanceof HTMLElement)) return reject(new Error("Missing target"));
+    if (!subject || !(subject.root instanceof ShadowRoot)) return reject(new Error("Missing isolated Mesurer root"));
 
     const originalAnchorName = target.style.getPropertyValue("anchor-name");
     target.style.setProperty("anchor-name", "--mesurer-shadow-probe");
+    const previousId = subject.element.id;
+    subject.element.id = "mesurer-shadow-anchor-probe-host";
 
-    const host = document.createElement("div");
-    host.dataset.mesurerShadowAnchorProbe = "true";
-    host.style.display = "contents";
-    const shadow = host.attachShadow({ mode: "open" });
     const style = document.createElement("style");
+    style.dataset.mesurerShadowAnchorProbe = "true";
     style.textContent = `
-      #probe {
-        position: absolute;
-        position-anchor: --mesurer-shadow-probe;
-        left: anchor(left);
-        top: anchor(top);
-        width: anchor-size(width);
-        height: anchor-size(height);
+      #mesurer-shadow-anchor-probe-host::part(mesurer-shadow-anchor-probe) {
+        position: absolute !important;
+        position-anchor: --mesurer-shadow-probe !important;
+        left: anchor(left) !important;
+        top: anchor(top) !important;
+        width: anchor-size(width) !important;
+        height: anchor-size(height) !important;
+        transition: none !important;
+        animation: none !important;
       }
     `;
+    document.head.append(style);
+
     const probe = document.createElement("div");
-    probe.id = "probe";
-    shadow.append(style, probe);
-    document.body.append(host);
+    probe.setAttribute("part", "mesurer-shadow-anchor-probe");
+    subject.root.append(probe);
 
     const snapshot = (element) => {
       const rect = element.getBoundingClientRect();
@@ -44,7 +48,9 @@ try {
     const before = { target: snapshot(target), probe: snapshot(probe) };
     const finish = () => {
       const after = { target: snapshot(target), probe: snapshot(probe) };
-      host.remove();
+      probe.remove();
+      style.remove();
+      subject.element.id = previousId;
       if (originalAnchorName) target.style.setProperty("anchor-name", originalAnchorName);
       else target.style.removeProperty("anchor-name");
       resolve({ before, after });
@@ -58,9 +64,9 @@ try {
       assert(Math.abs(left[key] - right[key]) <= 1.5, `${stage}: ${key} target=${right[key]} probe=${left[key]}`);
     }
   };
-  same(result.before.probe, result.before.target, "cross-shadow probe before scroll");
-  same(result.after.probe, result.after.target, "cross-shadow probe in scroll event");
-  console.log("Cross-shadow CSS anchor bridge follows the host page in the scroll event: PASS");
+  same(result.before.probe, result.before.target, "document ::part probe before scroll");
+  same(result.after.probe, result.after.target, "document ::part probe in scroll event");
+  console.log("Document ::part CSS anchor rule follows the host page in the isolated mount: PASS");
 } finally {
   await browser.close();
 }
