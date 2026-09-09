@@ -30,6 +30,7 @@ const MAX_EDITS = 100;
 const MAX_STYLE_CANDIDATES = 600;
 const DOUBLE_TAP_MS = 360;
 const DOUBLE_TAP_DISTANCE = 24;
+const SCROLL_IDLE_MS = 80;
 const TOOLBAR_BLUE = "#0d99ff";
 const TOOLBAR_INK = "#0f172a";
 const TOOLBAR_MUTED = "#8a8a8a";
@@ -299,6 +300,7 @@ export function installTextEditing(
   let lastTap: TapState | null = null;
   let disposed = false;
   let frame = 0;
+  let scrollIdleTimer = 0;
   const currentToolMode = () => runtime.currentToolMode?.() ?? "none";
   const directEditingMode = () => {
     const mode = currentToolMode();
@@ -1562,6 +1564,26 @@ export function installTextEditing(
     frame = ownerWindow.requestAnimationFrame(syncPresentation);
   };
 
+  const onScroll = () => {
+    if (inspectorMount.element.dataset.mesurerNativeScrollRuntimeLayer !== "true") {
+      schedulePresentation();
+      return;
+    }
+
+    // CSS Anchor Positioning owns all visible direct-edit movement on this
+    // path. Cancel any pending layout pass and resample only after compositor
+    // scrolling settles; the transparent editor can safely catch up then.
+    if (frame) {
+      ownerWindow.cancelAnimationFrame(frame);
+      frame = 0;
+    }
+    if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
+    scrollIdleTimer = ownerWindow.setTimeout(() => {
+      scrollIdleTimer = 0;
+      schedulePresentation();
+    }, SCROLL_IDLE_MS);
+  };
+
   const onPointerDown = (event: PointerEvent) => {
     const session = editorSession;
     if (!session) return;
@@ -1692,13 +1714,15 @@ export function installTextEditing(
   ownerWindow.addEventListener("pointerdown", onPointerDown, true);
   ownerWindow.addEventListener("keydown", onKeyDown, true);
   ownerWindow.addEventListener("resize", schedulePresentation);
-  ownerWindow.addEventListener("scroll", schedulePresentation, true);
+  ownerWindow.addEventListener("scroll", onScroll, true);
   schedulePresentation();
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     if (frame) ownerWindow.cancelAnimationFrame(frame);
     frame = 0;
+    if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
+    scrollIdleTimer = 0;
     cancelEditor();
     restoreApplied();
     observer.disconnect();
@@ -1708,7 +1732,7 @@ export function installTextEditing(
     ownerWindow.removeEventListener("pointerdown", onPointerDown, true);
     ownerWindow.removeEventListener("keydown", onKeyDown, true);
     ownerWindow.removeEventListener("resize", schedulePresentation);
-    ownerWindow.removeEventListener("scroll", schedulePresentation, true);
+    ownerWindow.removeEventListener("scroll", onScroll, true);
     liveNodes.clear();
     workspace.dispose();
     inspectorMount.dispose();
