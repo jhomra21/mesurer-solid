@@ -16,6 +16,7 @@ on:
       - "packages/renderer/src/styles.css"
       - "examples/basic/isolated-scroll.html"
       - "examples/basic/src/isolated-scroll.ts"
+      - "visual-parity/shadow-anchor-probe.mjs"
       - "visual-parity/isolated-selection-scroll-contract.mjs"
       - ".github/workflows/isolated-scroll-contract.yml"
   workflow_dispatch:
@@ -67,6 +68,11 @@ jobs:
             cat isolated-scroll-vite.log || true
             exit 1
           fi
+
+      - name: Prove cross-shadow CSS anchor bridge
+        env:
+          ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
+        run: bun visual-parity/shadow-anchor-probe.mjs
 
       - name: Exercise public isolated compositor scroll and toolbar avoidance
         env:
