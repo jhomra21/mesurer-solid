@@ -386,8 +386,11 @@ export function installRenderInPlaceTextEditing(
   };
 
   const syncOnScroll = () => {
-    // Do not defer scroll geometry through a microtask or animation frame. The
-    // host, edit ring, and selected text overlay must update in this event.
+    // Native CSS anchors already move the ring and selected-text paint in the
+    // same compositor scroll. Re-reading DOM/Range geometry here forces layout
+    // and is the visible source of trackpad catch-up. Keep the synchronous path
+    // only until the native ring binding exists for fallback browsers.
+    if (ring?.dataset.mesurerNativeScrollAnchor === "box") return;
     refine();
   };
 
