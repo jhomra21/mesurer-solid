@@ -111,7 +111,7 @@ export const populateCard = (
     fontSize: "10px",
     fontWeight: "500",
   });
-  tag.textContent = info.tagName;
+  tag.textContent = info.tagName.toLowerCase();
   header.appendChild(tag);
 
   if (info.textSnippet) {
@@ -201,6 +201,13 @@ export const positionCard = (
   offsetX = 0,
   offsetY = 0,
 ) => {
+  const previousScrollX = Number.parseFloat(card.dataset.mesurerPositionedScrollX ?? "");
+  const previousScrollY = Number.parseFloat(card.dataset.mesurerPositionedScrollY ?? "");
+  const repositionedAfterScroll = (
+    (Number.isFinite(previousScrollX) && previousScrollX !== window.scrollX)
+    || (Number.isFinite(previousScrollY) && previousScrollY !== window.scrollY)
+  );
+
   const center = rect.left + rect.width / 2 + offsetX;
   card.style.left = `${center}px`;
   const size = card.getBoundingClientRect();
@@ -215,4 +222,15 @@ export const positionCard = (
     Math.max(center, 8 + half),
     window.innerWidth - 8 - half,
   )}px`;
+
+  card.dataset.mesurerPositionedScrollX = String(window.scrollX);
+  card.dataset.mesurerPositionedScrollY = String(window.scrollY);
+  if (repositionedAfterScroll && !card.dataset.mesurerNativeScrollAnchor) {
+    // The deferred typography-enrichment pass can position the card for the
+    // new scroll offset before the scroll listener's fallback delta runs. Mark
+    // that one-turn handoff so the fallback does not apply the same delta twice.
+    // The document anchor coordinator replaces "pending" with "offset" when it
+    // claims the card on the settle pass.
+    card.dataset.mesurerNativeScrollAnchor = "pending";
+  }
 };
