@@ -147,7 +147,14 @@ try {
   let targetBox = await box(target, "target before selection");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
   await page.waitForFunction(() => document.querySelectorAll("[data-mesurer-selected-measurement='true']").length === 1);
-  await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true'] > [data-mesurer-native-scroll-anchor='box']"));
+  // Selection chrome and its measurement label are portaled/re-anchored in the
+  // same stabilization pass but are separate DOM nodes. Wait for both sides of
+  // that handoff before inspecting computed motion state; otherwise Chromium
+  // can expose the transient pre-anchor label node with an empty style value.
+  await page.waitForFunction(() => (
+    document.querySelector("[data-mesurer-selected-measurement='true'] > [data-mesurer-native-scroll-anchor='box']")
+    && document.querySelector("[data-mesurer-selected-measurement='true'] > [data-mesurer-native-scroll-anchor='label']")
+  ));
 
   const selected = page.locator("[data-mesurer-selected-measurement='true']");
   const selectedChrome = selected.locator(":scope > div").first();
