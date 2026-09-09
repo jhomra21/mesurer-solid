@@ -38,11 +38,6 @@ export const makeBox = (
     backgroundColor: fill,
     boxSizing: "border-box",
   });
-  // CSS Anchor Positioning works with fixed positioned elements. Keep the
-  // upstream fixed painting mode even after native anchor ownership is applied;
-  // this avoids a text-rasterization/compositing change without reintroducing
-  // JavaScript geometry chasing during scroll.
-  box.style.setProperty("position", "fixed", "important");
   box.className = "mesurer-ti-box";
   box.dataset.state = "hidden";
   for (const side of ["top", "right", "bottom", "left"] as const) {
@@ -83,7 +78,6 @@ export const makeCard = (document: Document, pinned: boolean): InspectorCard => 
     boxShadow:
       "0px 0px 0.5px rgba(0, 0, 0, 0.18), 0px 3px 8px rgba(0, 0, 0, 0.1), 0px 1px 3px rgba(0, 0, 0, 0.1)",
   });
-  card.style.setProperty("position", "fixed", "important");
   card.className = pinned
     ? "mesurer-ti-card mesurer-ti-card--pinned"
     : "mesurer-ti-card";
