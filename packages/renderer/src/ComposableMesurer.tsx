@@ -432,6 +432,13 @@ export default function ComposableMesurer(props: MesurerProps) {
       ownerWindow.clearTimeout(persistTimer);
       persistTimer = ownerWindow.setTimeout(writePluginState, 50);
     };
+    const flushPluginState = () => {
+      if (!persistTimer) return;
+      ownerWindow.clearTimeout(persistTimer);
+      writePluginState();
+    };
+    const onPageHide = () => flushPluginState();
+    ownerWindow.addEventListener("pagehide", onPageHide);
 
     const unsubscribe = runtimeHost.subscribe((event) => {
       setRevision((value) => value + 1);
@@ -742,10 +749,8 @@ export default function ComposableMesurer(props: MesurerProps) {
       active = false;
       for (const plugin of pendingOwnedLoads) runtimeHost.cancelLoad(plugin);
       pendingOwnedLoads.clear();
-      if (persistTimer) {
-        ownerWindow.clearTimeout(persistTimer);
-        writePluginState();
-      }
+      flushPluginState();
+      ownerWindow.removeEventListener("pagehide", onPageHide);
       ownerWindow.removeEventListener("keydown", captureShortcut, true);
       unsubscribe();
       visibilityStyle.remove();
