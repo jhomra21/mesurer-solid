@@ -96,6 +96,7 @@ let instanceCount = 0;
 const TAB_ID_KEY = "mesurer:tab-id";
 const SETTINGS_STORAGE_KEY = "mesurer-settings";
 const LEGACY_STORAGE_KEY = "mesurer-state";
+const NATIVE_SCROLL_SETTLE_MS = 80;
 
 const getTabId = (ownerWindow: Window) => {
   try {
@@ -546,7 +547,18 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   onSettled(() => {
     ensureMesurerStyles(MESURER_STYLES, env.portalTarget);
-    textInspector = createTextInspector({ portalTarget: env.portalTarget });
+    const nativeDocumentInspector = Boolean(
+      ownerDocument.body
+      && env.portalTarget instanceof ownerWindow.ShadowRoot
+      && !(pageTarget instanceof ownerWindow.ShadowRoot)
+      && pageTarget.getRootNode() === ownerDocument
+      && ownerWindow.CSS?.supports("anchor-name: --mesurer-native-anchor")
+      && ownerWindow.CSS.supports("position-anchor: --mesurer-native-anchor")
+      && ownerWindow.CSS.supports("left: anchor(left)"),
+    );
+    const textInspectorPortalTarget = nativeDocumentInspector ? ownerDocument.body : env.portalTarget;
+    if (textInspectorPortalTarget !== env.portalTarget) ensureMesurerStyles(MESURER_STYLES, textInspectorPortalTarget);
+    textInspector = createTextInspector({ portalTarget: textInspectorPortalTarget });
     const persistence = input.persistence ?? createLocalStoragePersistence(
       ownerWindow, storageKey, SETTINGS_STORAGE_KEY, input.persistKey ? undefined : LEGACY_STORAGE_KEY,
     );
@@ -615,6 +627,10 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     ownerWindow.addEventListener("keyup", keyup);
 
     let syncFrame = 0;
+    let scrollSettleTimer = 0;
+    const nativeScrollAnchoringActive = () => Boolean(
+      ownerDocument.querySelector("style[data-mesurer-native-scroll-anchoring='true']"),
+    );
     const syncLive = () => {
       if (syncFrame) return;
       syncFrame = ownerWindow.requestAnimationFrame(() => {
@@ -637,6 +653,15 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         }
       });
     };
+    const scheduleSettledLiveSync = () => {
+      if (scrollSettleTimer) ownerWindow.clearTimeout(scrollSettleTimer);
+      scrollSettleTimer = ownerWindow.setTimeout(() => {
+        scrollSettleTimer = 0;
+        syncLive();
+        const latest = hoverPoint;
+        if (latest && model.current.toolMode === "select" && !model.current.draggingGuideId) updateHover(latest);
+      }, NATIVE_SCROLL_SETTLE_MS);
+    };
     const scroll = () => {
       const next = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
       const dx = next.x - scrollPosition.x, dy = next.y - scrollPosition.y;
@@ -644,7 +669,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       if (dx || dy) model.setGuides(model.current.guides.map((guide) => ({
         ...guide, position: guide.position - (guide.orientation === "vertical" ? dx : dy),
       })));
-      syncLive();
+      if (nativeScrollAnchoringActive()) scheduleSettledLiveSync();
+      else syncLive();
     };
     ownerWindow.addEventListener("scroll", scroll, true);
     ownerWindow.addEventListener("resize", syncLive, true);
@@ -665,6 +691,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       ownerWindow.cancelAnimationFrame(syncFrame);
       ownerWindow.cancelAnimationFrame(hoverFrame);
       clearGuideDragHold();
+      ownerWindow.clearTimeout(scrollSettleTimer);
       ownerWindow.clearTimeout(persistTimer);
       if (model.current.settings.persistOnReload) persistence.saveWorkspace(model.serializeWorkspace());
       unsubscribe?.();
