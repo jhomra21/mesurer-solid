@@ -86,13 +86,20 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       setSelectionPortalTarget(target.ownerDocument.body);
     }
 
-    const syncGeometry = () => syncSelectedGeometry();
-    syncGeometry();
-    ownerWindow.addEventListener("scroll", syncGeometry, true);
-    ownerWindow.addEventListener("resize", syncGeometry, true);
+    const syncOnScroll = () => {
+      // Once CSS Anchor Positioning owns the selected box, reading the target
+      // rect and writing the same geometry on every trackpad event only forces
+      // layout underneath the native scroll path. Keep the JavaScript path as
+      // a fallback until the native binding is actually present.
+      if (chromeElement?.dataset.mesurerNativeScrollAnchor === "box") return;
+      syncSelectedGeometry();
+    };
+    syncSelectedGeometry();
+    ownerWindow.addEventListener("scroll", syncOnScroll, true);
+    ownerWindow.addEventListener("resize", syncSelectedGeometry, true);
     return () => {
-      ownerWindow.removeEventListener("scroll", syncGeometry, true);
-      ownerWindow.removeEventListener("resize", syncGeometry, true);
+      ownerWindow.removeEventListener("scroll", syncOnScroll, true);
+      ownerWindow.removeEventListener("resize", syncSelectedGeometry, true);
     };
   });
 
