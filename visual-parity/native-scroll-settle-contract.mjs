@@ -5,6 +5,7 @@ const url = process.env.ISOLATED_SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
+const WAIT_TIMEOUT_MS = 5_000;
 
 page.on("pageerror", (error) => errors.push(String(error)));
 page.on("console", (message) => {
@@ -51,7 +52,11 @@ const waitForScrollIdle = async () => {
 
 try {
   await page.goto(url, { waitUntil: "networkidle" });
-  await page.waitForFunction(() => Boolean(window.__MESURER_ISOLATED_SCROLL_TEST__?.subject));
+  await page.waitForFunction(
+    () => Boolean(window.__MESURER_ISOLATED_SCROLL_TEST__?.subject),
+    undefined,
+    { timeout: WAIT_TIMEOUT_MS },
+  );
 
   const select = page.locator("button[data-mesurer-builtin='select']");
   await select.waitFor({ state: "visible" });
@@ -68,9 +73,11 @@ try {
   const highlight = page.locator("[data-mesurer-text-selection-highlight='true']").first();
   await editor.waitFor({ state: "attached" });
   await highlight.waitFor({ state: "visible" });
-  await page.waitForFunction(() => (
-    document.querySelector("[data-mesurer-text-selection-highlight='true']")?.getAttribute("data-mesurer-native-scroll-anchor") === "offset"
-  ));
+  await page.waitForFunction(
+    () => document.querySelector("[data-mesurer-text-selection-highlight='true']")?.getAttribute("data-mesurer-native-scroll-anchor") === "offset",
+    undefined,
+    { timeout: WAIT_TIMEOUT_MS },
+  );
 
   targetBox = await box(target, "target before selected-text settle probe");
   const highlightBefore = await box(highlight, "selected-text highlight before scroll");
@@ -94,9 +101,13 @@ try {
   // specifically about scroll ownership, so activate Typography without
   // allowing Playwright's pre-click scrolling to become part of the test.
   await typography.evaluate((button) => button.click());
-  await page.waitForFunction(() => (
-    document.querySelector("button[data-mesurer-builtin='text-inspector']")?.getAttribute("aria-pressed") === "true"
-  ));
+  await page.waitForFunction(
+    () => window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root
+      ?.querySelector("button[data-mesurer-builtin='text-inspector']")
+      ?.getAttribute("aria-pressed") === "true",
+    undefined,
+    { timeout: WAIT_TIMEOUT_MS },
+  );
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settle();
   targetBox = await box(target, "target before standalone Typography probe");
@@ -106,9 +117,11 @@ try {
   const typographyCard = page.locator(".mesurer-ti-card[data-state='visible']");
   await typographyBox.waitFor({ state: "visible" });
   await typographyCard.waitFor({ state: "visible" });
-  await page.waitForFunction(() => (
-    document.querySelector(".mesurer-ti-box[data-state='visible']")?.getAttribute("data-mesurer-native-scroll-anchor") === "box"
-  ));
+  await page.waitForFunction(
+    () => document.querySelector(".mesurer-ti-box[data-state='visible']")?.getAttribute("data-mesurer-native-scroll-anchor") === "box",
+    undefined,
+    { timeout: WAIT_TIMEOUT_MS },
+  );
 
   assertSameBox(await box(typographyBox, "Typography box before scroll"), targetBox, "Typography box before scroll");
   const cardBefore = await box(typographyCard, "Typography card before scroll");
