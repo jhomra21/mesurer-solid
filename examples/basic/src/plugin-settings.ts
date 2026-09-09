@@ -26,40 +26,33 @@ Reflect.deleteProperty(window, "EyeDropper");
 type CapturePresentation = {
   measurementVisible: boolean;
   screenshotSelectionVisible: boolean;
-  measurements: Array<{
-    layer: "shadow" | "document";
-    display: string;
-    priority: string;
-    rects: number;
-    selected: boolean;
-    isolatedDocumentLayer: boolean;
-    isolatedProxy: boolean;
-  }>;
 };
 
 const captures: CapturePresentation[] = [];
-let captureRoots: Array<{ layer: "shadow" | "document"; root: ParentNode }> = [{ layer: "document", root: document }];
+let captureRoots: ParentNode[] = [document];
 
 const visibleInLayout = (element: Element) => element.getClientRects().length > 0;
-const matchingElements = (selector: string) => captureRoots.flatMap(({ layer, root }) =>
-  Array.from(root.querySelectorAll<HTMLElement>(selector)).map((element) => ({ layer, element })),
+const visibleMeasurement = (element: HTMLElement) => {
+  if (visibleInLayout(element)) return true;
+  // Selected measurement roots in the document-native anchor layer are
+  // intentionally zero-height containers. Their absolutely positioned chrome
+  // and label are the rendered presentation, so inspect those direct surfaces
+  // rather than treating the ownership wrapper's empty box as hidden.
+  return Array.from(element.children).some((child) => (
+    child instanceof HTMLElement
+    && visibleInLayout(child)
+    && getComputedStyle(child).display !== "none"
+    && getComputedStyle(child).visibility !== "hidden"
+  ));
+};
+const presentationVisible = (selector: string, isVisible = visibleInLayout) => captureRoots.some((root) =>
+  Array.from(root.querySelectorAll<HTMLElement>(selector)).some(isVisible),
 );
-const presentationVisible = (selector: string) => matchingElements(selector)
-  .some(({ element }) => visibleInLayout(element));
 
 const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, ownerWindow }) => {
   captures.push({
-    measurementVisible: presentationVisible("[data-mesurer-measurement='true']"),
+    measurementVisible: presentationVisible("[data-mesurer-measurement='true']", visibleMeasurement),
     screenshotSelectionVisible: presentationVisible("[data-mesurer-screenshot-select='true']"),
-    measurements: matchingElements("[data-mesurer-measurement='true']").map(({ layer, element }) => ({
-      layer,
-      display: element.style.getPropertyValue("display"),
-      priority: element.style.getPropertyPriority("display"),
-      rects: element.getClientRects().length,
-      selected: element.dataset.mesurerSelectedMeasurement === "true",
-      isolatedDocumentLayer: element.dataset.mesurerIsolatedDocumentLayer === "true",
-      isolatedProxy: element.dataset.mesurerIsolatedSelectionProxy === "true",
-    })),
   });
 
   const canvas = ownerDocument.createElement("canvas");
@@ -95,10 +88,7 @@ const subject = mountMesurer({
 });
 
 await subject.ready;
-captureRoots = [
-  { layer: "shadow", root: subject.root },
-  { layer: "document", root: document },
-];
+captureRoots = [subject.root, document];
 const screenshot = () => subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
 
 type PluginSettingsHarness = {
