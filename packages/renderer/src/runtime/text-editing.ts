@@ -10,9 +10,8 @@ import {
 import { installUnifiedTextInspector } from "./text-editing-unified-inspector";
 import {
   installUnifiedTextSelectEscapeGuard,
-  installUnifiedTextSelectLayer,
-} from "./text-editing-unified-select-layer";
-import { installUnifiedTextSelectMenus } from "./text-editing-unified-selects";
+  installUnifiedTextSelectMenus,
+} from "./text-editing-unified-selects";
 
 export {
   MESURER_TEXT_EDIT_SERVICE_ID,
@@ -45,7 +44,6 @@ export function installTextEditing(
   installUnifiedTextInspector(ctx, runtime);
   installRenderInPlaceTextEditing(ctx, runtime);
   installUnifiedTextSelectMenus(ctx, runtime);
-  installUnifiedTextSelectLayer(ctx, runtime);
   // Chromium can move the page in the compositor before JavaScript receives a
   // scroll event. Keep scroll-following owners in the document anchor tree so
   // their visible movement is resolved by CSS Anchor Positioning instead of
