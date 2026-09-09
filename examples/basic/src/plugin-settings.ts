@@ -26,20 +26,40 @@ Reflect.deleteProperty(window, "EyeDropper");
 type CapturePresentation = {
   measurementVisible: boolean;
   screenshotSelectionVisible: boolean;
+  measurements: Array<{
+    layer: "shadow" | "document";
+    display: string;
+    priority: string;
+    rects: number;
+    selected: boolean;
+    isolatedDocumentLayer: boolean;
+    isolatedProxy: boolean;
+  }>;
 };
 
 const captures: CapturePresentation[] = [];
-let captureRoots: ParentNode[] = [document];
+let captureRoots: Array<{ layer: "shadow" | "document"; root: ParentNode }> = [{ layer: "document", root: document }];
 
 const visibleInLayout = (element: Element) => element.getClientRects().length > 0;
-const presentationVisible = (selector: string) => captureRoots.some((root) =>
-  Array.from(root.querySelectorAll(selector)).some(visibleInLayout),
+const matchingElements = (selector: string) => captureRoots.flatMap(({ layer, root }) =>
+  Array.from(root.querySelectorAll<HTMLElement>(selector)).map((element) => ({ layer, element })),
 );
+const presentationVisible = (selector: string) => matchingElements(selector)
+  .some(({ element }) => visibleInLayout(element));
 
 const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, ownerWindow }) => {
   captures.push({
     measurementVisible: presentationVisible("[data-mesurer-measurement='true']"),
     screenshotSelectionVisible: presentationVisible("[data-mesurer-screenshot-select='true']"),
+    measurements: matchingElements("[data-mesurer-measurement='true']").map(({ layer, element }) => ({
+      layer,
+      display: element.style.getPropertyValue("display"),
+      priority: element.style.getPropertyPriority("display"),
+      rects: element.getClientRects().length,
+      selected: element.dataset.mesurerSelectedMeasurement === "true",
+      isolatedDocumentLayer: element.dataset.mesurerIsolatedDocumentLayer === "true",
+      isolatedProxy: element.dataset.mesurerIsolatedSelectionProxy === "true",
+    })),
   });
 
   const canvas = ownerDocument.createElement("canvas");
@@ -75,7 +95,10 @@ const subject = mountMesurer({
 });
 
 await subject.ready;
-captureRoots = [subject.root, document];
+captureRoots = [
+  { layer: "shadow", root: subject.root },
+  { layer: "document", root: document },
+];
 const screenshot = () => subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
 
 type PluginSettingsHarness = {
