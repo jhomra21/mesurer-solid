@@ -17,7 +17,6 @@ const formatValue = (value: number) => Math.round(value);
 export function MeasurementBox(props: MeasurementBoxProps) {
   let chromeElement: HTMLDivElement | undefined;
   let labelElement: HTMLDivElement | undefined;
-  let portalObserver: MutationObserver | null = null;
   const [selectionPortalTarget, setSelectionPortalTarget] = createSignal<HTMLElement | null>(null);
   const edges = () => props.edgeVisibility ?? allEdges;
   const isSelectionGroup = () => Boolean(props.measurement?.id.startsWith("group-"));
@@ -76,26 +75,6 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     });
   };
 
-  const configureSelectionRoot = (root: HTMLDivElement) => {
-    portalObserver?.disconnect();
-    const ownerWindow = root.ownerDocument.defaultView;
-    if (!ownerWindow) return;
-    // SAFETY: ownerWindow owns root and therefore provides the matching DOM observer constructor.
-    const realm = ownerWindow as Window & typeof globalThis;
-    const preserveAnchorContainingBlock = () => {
-      // document-scroll-anchoring may normalize a legacy selection wrapper to
-      // absolute (0,0). A Solid Portal is already in the document layer, so
-      // that normalization is unnecessary and would hide the page anchor from
-      // its descendants. Keep only the harmless display/size normalization.
-      root.style.removeProperty("position");
-      root.style.removeProperty("left");
-      root.style.removeProperty("top");
-    };
-    portalObserver = new realm.MutationObserver(preserveAnchorContainingBlock);
-    portalObserver.observe(root, { attributes: true, attributeFilter: ["style"] });
-    preserveAnchorContainingBlock();
-  };
-
   onSettled(() => {
     const target = liveSelectedTarget();
     const ownerWindow = target?.ownerDocument.defaultView;
@@ -112,8 +91,6 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     ownerWindow.addEventListener("scroll", syncGeometry, true);
     ownerWindow.addEventListener("resize", syncGeometry, true);
     return () => {
-      portalObserver?.disconnect();
-      portalObserver = null;
       ownerWindow.removeEventListener("scroll", syncGeometry, true);
       ownerWindow.removeEventListener("resize", syncGeometry, true);
     };
@@ -156,7 +133,6 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       >
         {(mount) => <Portal mount={mount()}>
           <div
-            ref={configureSelectionRoot}
             class="msr:pointer-events-none"
             data-mesurer-measurement="true"
             data-mesurer-selected-measurement="true"
