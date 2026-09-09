@@ -29,15 +29,17 @@ type CapturePresentation = {
 };
 
 const captures: CapturePresentation[] = [];
-let captureRoot: ParentNode = document;
+let captureRoots: ParentNode[] = [document];
 
-const visibleInLayout = (element: Element | null) =>
-  element !== null && element.getClientRects().length > 0;
+const visibleInLayout = (element: Element) => element.getClientRects().length > 0;
+const presentationVisible = (selector: string) => captureRoots.some((root) =>
+  Array.from(root.querySelectorAll(selector)).some(visibleInLayout),
+);
 
 const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, ownerWindow }) => {
   captures.push({
-    measurementVisible: visibleInLayout(captureRoot.querySelector("[data-mesurer-measurement='true']")),
-    screenshotSelectionVisible: visibleInLayout(captureRoot.querySelector("[data-mesurer-screenshot-select='true']")),
+    measurementVisible: presentationVisible("[data-mesurer-measurement='true']"),
+    screenshotSelectionVisible: presentationVisible("[data-mesurer-screenshot-select='true']"),
   });
 
   const canvas = ownerDocument.createElement("canvas");
@@ -73,7 +75,7 @@ const subject = mountMesurer({
 });
 
 await subject.ready;
-captureRoot = subject.root;
+captureRoots = subject.root === document ? [document] : [subject.root, document];
 const screenshot = () => subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
 
 type PluginSettingsHarness = {
