@@ -1,7 +1,7 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
-import { ensureMesurerStyles } from "./style-inject";
 import { MESURER_STYLES } from "../styles.generated";
+import { ensureMesurerStyles } from "./style-inject";
 
 type RootPlacement = {
   root: HTMLElement;
@@ -14,12 +14,29 @@ type DocumentRuntime = {
   isolated: boolean;
 };
 
+type RectLike = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+const TOOLBAR_TARGET_GAP = 6;
+const VIEWPORT_PADDING = 8;
+
 const isDocumentBackedShadow = (
   runtime: MesurerSolidRuntimeService,
   realm: Window & typeof globalThis,
 ) => runtime.portalTarget instanceof realm.ShadowRoot
   && !(runtime.pageTarget instanceof realm.ShadowRoot)
   && runtime.pageTarget.getRootNode() === runtime.ownerDocument;
+
+const intersects = (left: RectLike, right: RectLike, gap = 0) => !(
+  left.left + left.width + gap <= right.left
+  || right.left + right.width + gap <= left.left
+  || left.top + left.height + gap <= right.top
+  || right.top + right.height + gap <= left.top
+);
 
 /**
  * Direct text editing is transient UI, but its geometry needs to participate in
@@ -33,6 +50,7 @@ export function createDocumentTextRuntime(
   runtime: MesurerSolidRuntimeService,
 ): DocumentRuntime {
   const { ownerDocument, ownerWindow } = runtime;
+  // SAFETY: ownerWindow is the browsing-context global for ownerDocument and portalTarget, so its DOM constructors match this runtime.
   const realm = ownerWindow as Window & typeof globalThis;
   if (!ownerDocument.body || !isDocumentBackedShadow(runtime, realm)) {
     return { runtime, isolated: false };
@@ -80,6 +98,7 @@ export function installIsolatedSelectionPortal(
   runtime: MesurerSolidRuntimeService,
 ) {
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
+  // SAFETY: ownerWindow is the browsing-context global for ownerDocument and portalTarget, so its DOM constructors match this runtime.
   const realm = ownerWindow as Window & typeof globalThis;
   if (!ownerDocument.body || !isDocumentBackedShadow(runtime, realm)) return;
 
@@ -162,6 +181,120 @@ export function installIsolatedSelectionPortal(
     ownerWindow.removeEventListener("dblclick", schedule, true);
     ownerWindow.removeEventListener("resize", schedule, true);
     for (const placement of Array.from(placements.values())) releaseRoot(placement, true);
+    workspace.dispose();
+  });
+}
+
+/**
+ * The canonical toolbar is viewport UI, so it should not chase the selected
+ * element. When scrolling puts the active target under the toolbar, move the
+ * toolbar to the opposite viewport lane until its original position is clear.
+ * The toolbar's own left/top state remains untouched, including user dragging.
+ */
+export function installToolbarTargetAvoidance(
+  ctx: MesurerPluginContext,
+  runtime: MesurerSolidRuntimeService,
+) {
+  const { ownerWindow, portalTarget } = runtime;
+  const workspace = runtime.createWorkspaceRuntime();
+  let disposed = false;
+  let queued = false;
+
+  const clearAvoidance = (toolbar: HTMLElement) => {
+    toolbar.style.removeProperty("translate");
+    delete toolbar.dataset.mesurerToolbarAvoidingTarget;
+    delete toolbar.dataset.mesurerToolbarAvoidX;
+    delete toolbar.dataset.mesurerToolbarAvoidY;
+  };
+
+  const sync = () => {
+    if (disposed) return;
+    const toolbar = portalTarget.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
+    if (!toolbar?.isConnected) return;
+
+    const target = workspace.currentSelection().elements.at(-1);
+    if (!target?.isConnected) {
+      clearAvoidance(toolbar);
+      return;
+    }
+
+    const rendered = toolbar.getBoundingClientRect();
+    const priorX = Number(toolbar.dataset.mesurerToolbarAvoidX ?? 0);
+    const priorY = Number(toolbar.dataset.mesurerToolbarAvoidY ?? 0);
+    const base: RectLike = {
+      left: rendered.left - priorX,
+      top: rendered.top - priorY,
+      width: rendered.width,
+      height: rendered.height,
+    };
+    const targetRect = target.getBoundingClientRect();
+    const targetBox: RectLike = {
+      left: targetRect.left,
+      top: targetRect.top,
+      width: targetRect.width,
+      height: targetRect.height,
+    };
+
+    if (!intersects(base, targetBox, TOOLBAR_TARGET_GAP)) {
+      clearAvoidance(toolbar);
+      return;
+    }
+
+    const maxLeft = Math.max(VIEWPORT_PADDING, ownerWindow.innerWidth - base.width - VIEWPORT_PADDING);
+    const maxTop = Math.max(VIEWPORT_PADDING, ownerWindow.innerHeight - base.height - VIEWPORT_PADDING);
+    const left = Math.min(maxLeft, Math.max(VIEWPORT_PADDING, base.left));
+    const targetCenterY = targetBox.top + targetBox.height / 2;
+    const verticalCandidates = targetCenterY < ownerWindow.innerHeight / 2
+      ? [maxTop, VIEWPORT_PADDING]
+      : [VIEWPORT_PADDING, maxTop];
+    const horizontalCandidates = [
+      Math.min(maxLeft, Math.max(VIEWPORT_PADDING, targetBox.left - base.width - TOOLBAR_TARGET_GAP)),
+      Math.min(maxLeft, Math.max(VIEWPORT_PADDING, targetBox.left + targetBox.width + TOOLBAR_TARGET_GAP)),
+    ];
+
+    const candidates: RectLike[] = [
+      ...verticalCandidates.map((top) => ({ left, top, width: base.width, height: base.height })),
+      ...horizontalCandidates.map((candidateLeft) => ({
+        left: candidateLeft,
+        top: Math.min(maxTop, Math.max(VIEWPORT_PADDING, base.top)),
+        width: base.width,
+        height: base.height,
+      })),
+    ];
+    const next = candidates.find((candidate) => !intersects(candidate, targetBox, TOOLBAR_TARGET_GAP));
+    if (!next) return;
+
+    const offsetX = next.left - base.left;
+    const offsetY = next.top - base.top;
+    toolbar.style.setProperty("translate", `${offsetX}px ${offsetY}px`, "important");
+    toolbar.dataset.mesurerToolbarAvoidingTarget = "true";
+    toolbar.dataset.mesurerToolbarAvoidX = String(offsetX);
+    toolbar.dataset.mesurerToolbarAvoidY = String(offsetY);
+  };
+
+  const schedule = () => {
+    if (disposed || queued) return;
+    queued = true;
+    ownerWindow.queueMicrotask(() => {
+      queued = false;
+      sync();
+    });
+  };
+
+  const unsubscribeWorkspace = workspace.subscribe(schedule);
+  ownerWindow.addEventListener("scroll", sync, true);
+  ownerWindow.addEventListener("resize", sync, true);
+  ownerWindow.addEventListener("pointerup", schedule, true);
+  schedule();
+
+  ctx.lifecycle.onDispose(() => {
+    disposed = true;
+    unsubscribeWorkspace();
+    ownerWindow.removeEventListener("scroll", sync, true);
+    ownerWindow.removeEventListener("resize", sync, true);
+    ownerWindow.removeEventListener("pointerup", schedule, true);
+    const toolbar = portalTarget.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
+    if (toolbar) clearAvoidance(toolbar);
     workspace.dispose();
   });
 }
