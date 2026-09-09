@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.1.7-beta.2 - 2026-09-09
+
 - Keep plugin-owned persisted settings durable across immediate page reload/navigation, including the default `mesurer-plugin-settings` namespace used when no `persistKey` is provided.
 
 ## 0.1.7-beta.1 - 2026-09-09
