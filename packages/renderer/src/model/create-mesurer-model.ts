@@ -35,9 +35,25 @@ export function createMesurerModel(options: MesurerModelOptions = {}): MesurerMo
   const activeSelection = createMemo(
     () => state.selectedMeasurement ?? state.selectedMeasurements.at(-1) ?? null,
   );
+  const setGuides: typeof core.setGuides = (guides) => {
+    const current = core.current.guides;
+    const unchanged = current.length === guides.length
+      && current.every((guide, index) => {
+        const next = guides[index];
+        return Boolean(
+          next
+          && next.id === guide.id
+          && next.orientation === guide.orientation
+          && next.position === guide.position,
+        );
+      });
+    if (unchanged) return;
+    core.setGuides(guides);
+  };
 
   const model: MesurerModel = {
     ...core,
+    setGuides,
     dispose,
     state,
     activeSelection,
