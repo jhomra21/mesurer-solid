@@ -29,6 +29,7 @@ permissions:
 jobs:
   isolated-scroll:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Mesurer Solid
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -77,6 +78,7 @@ jobs:
         run: bun visual-parity/isolated-selection-scroll-contract.mjs
 
       - name: Exercise native scroll settle stability
+        timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun visual-parity/native-scroll-settle-contract.mjs
