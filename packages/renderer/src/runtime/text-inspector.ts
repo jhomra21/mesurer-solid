@@ -105,6 +105,8 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   let raf = 0;
   let enrichmentTimer = 0;
   let scrollIdleTimer = 0;
+  let scrollX = win.scrollX;
+  let scrollY = win.scrollY;
   const pins: Pin[] = [];
   const history: PinSnapshot[][] = [];
   const future: PinSnapshot[][] = [];
@@ -329,15 +331,42 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     raf = win.requestAnimationFrame(() => { raf = 0; sync(); });
   };
   const onMove = (event: MouseEvent) => { pointer = { x: event.clientX, y: event.clientY }; schedule(); };
+  const shiftFallback = (element: HTMLElement | null, dx: number, dy: number) => {
+    if (!element || element.dataset.mesurerNativeScrollAnchor) return;
+    const left = Number.parseFloat(element.style.left);
+    const top = Number.parseFloat(element.style.top);
+    if (Number.isFinite(left)) element.style.left = `${left - dx}px`;
+    if (Number.isFinite(top)) element.style.top = `${top - dy}px`;
+  };
   const onScroll = () => {
+    const nextX = win.scrollX;
+    const nextY = win.scrollY;
+    const dx = nextX - scrollX;
+    const dy = nextY - scrollY;
+    scrollX = nextX;
+    scrollY = nextY;
     const nativeDocumentScroll = portal === doc.body
       && Boolean(doc.querySelector("style[data-mesurer-native-scroll-anchoring='true']"));
     if (nativeDocumentScroll) {
+      // A newly shown Typography surface can exist for one task before the
+      // document anchor coordinator claims it. Keep that fallback glued to its
+      // current target with scroll-delta arithmetic only; never read layout in
+      // the hot scroll path. Once CSS anchoring is present these writes stop.
+      if (dx || dy) {
+        shiftFallback(hoverBox, dx, dy);
+        shiftFallback(hoverCard, dx, dy);
+        for (const pin of pins) {
+          shiftFallback(pin.box, dx, dy);
+          if (!pin.userPlaced) shiftFallback(pin.card, dx, dy);
+        }
+      }
       if (scrollIdleTimer) win.clearTimeout(scrollIdleTimer);
       scrollIdleTimer = win.setTimeout(() => {
         scrollIdleTimer = 0;
+        // Keep the inspected element stable through scroll settle. A stationary
+        // pointer must not retarget Typography to whatever scrolled underneath
+        // it; the next real pointer move is what chooses a new target.
         syncCurrentGeometry();
-        schedule();
       }, NATIVE_SCROLL_SETTLE_MS);
       return;
     }
@@ -370,6 +399,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const enable = () => {
     if (enabled) return;
     enabled = true; ensureStyles(); ensureOverlay(); doc.body.classList.add(modeClass);
+    scrollX = win.scrollX; scrollY = win.scrollY;
     win.addEventListener("mousemove", onMove, true);
     win.addEventListener("mouseout", onOut, true);
     win.addEventListener("click", onClick, true);
