@@ -4,8 +4,6 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 
 const TOOLBAR_BLUE = "#0d99ff";
 const SELECTION_FILL = "rgba(13, 153, 255, 0.22)";
-const VIEWPORT_PADDING = 8;
-const SURFACE_GAP = 8;
 const SKIP_TAGS = new Set([
   "HTML", "BODY", "SCRIPT", "STYLE", "META", "LINK", "NOSCRIPT",
   "IMG", "VIDEO", "AUDIO", "IFRAME", "INPUT", "TEXTAREA", "SELECT", "OPTION",
@@ -24,15 +22,6 @@ type ActiveTextTarget = {
 type CaretDocument = Document & {
   caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
   caretRangeFromPoint?: (x: number, y: number) => Range | null;
-};
-
-type SurfaceRect = {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-  width: number;
-  height: number;
 };
 
 const activeTargetByRuntime = new WeakMap<MesurerSolidRuntimeService, ActiveTextTarget>();
@@ -87,28 +76,6 @@ const directTextNodeAtPoint = (
   }
 
   return null;
-};
-
-const surfaceRect = (left: number, top: number, width: number, height: number): SurfaceRect => ({
-  left,
-  top,
-  right: left + width,
-  bottom: top + height,
-  width,
-  height,
-});
-
-const domSurfaceRect = (rect: DOMRect): SurfaceRect => surfaceRect(
-  rect.left,
-  rect.top,
-  rect.width,
-  rect.height,
-);
-
-const overlapArea = (left: SurfaceRect, right: SurfaceRect) => {
-  const width = Math.max(0, Math.min(left.right, right.right) - Math.max(left.left, right.left));
-  const height = Math.max(0, Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top));
-  return width * height;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -357,132 +324,6 @@ export function installRenderInPlaceTextEditing(
     trimSelectionRects(rects.length);
   };
 
-  const visibleRect = (element: HTMLElement | null) => {
-    if (!element?.isConnected) return null;
-    const style = ownerWindow.getComputedStyle(element);
-    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") return null;
-    const rect = element.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0 ? domSurfaceRect(rect) : null;
-  };
-
-  const positionInspectorCard = (hostRect: SurfaceRect) => {
-    const card = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
-    if (!card || card.dataset.mesurerTextInspectorUnified === "true") return;
-
-    const measured = card.getBoundingClientRect();
-    const width = Math.min(measured.width || 320, Math.max(1, ownerWindow.innerWidth - VIEWPORT_PADDING * 2));
-    const height = measured.height;
-    if (height <= 0) return;
-
-    const toolbar = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-style-toolbar='true']");
-    const menu = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-style-menu='true']");
-    const toolbarRect = visibleRect(toolbar);
-    const menuRect = visibleRect(menu);
-    const obstacles = [hostRect, toolbarRect, menuRect].filter((rect): rect is SurfaceRect => Boolean(rect));
-    const maxLeft = Math.max(VIEWPORT_PADDING, ownerWindow.innerWidth - VIEWPORT_PADDING - width);
-    const maxTop = Math.max(VIEWPORT_PADDING, ownerWindow.innerHeight - VIEWPORT_PADDING - height);
-    const centeredLeft = clamp(hostRect.left + hostRect.width / 2 - width / 2, VIEWPORT_PADDING, maxLeft);
-    const centeredTop = clamp(hostRect.top + hostRect.height / 2 - height / 2, VIEWPORT_PADDING, maxTop);
-    const right = hostRect.right + SURFACE_GAP;
-    const left = hostRect.left - SURFACE_GAP - width;
-    const above = hostRect.top - SURFACE_GAP - height;
-    const below = hostRect.bottom + SURFACE_GAP;
-
-    const rawCandidates = [
-      [centeredLeft, above],
-      [centeredLeft, below],
-      [right, centeredTop],
-      [right, VIEWPORT_PADDING],
-      [right, maxTop],
-      [left, centeredTop],
-      [left, VIEWPORT_PADDING],
-      [left, maxTop],
-      [VIEWPORT_PADDING, VIEWPORT_PADDING],
-      [maxLeft, VIEWPORT_PADDING],
-      [VIEWPORT_PADDING, maxTop],
-      [maxLeft, maxTop],
-    ] as const;
-
-    const hostCenterX = hostRect.left + hostRect.width / 2;
-    const hostCenterY = hostRect.top + hostRect.height / 2;
-    const candidates = rawCandidates
-      .map(([candidateLeft, candidateTop], priority) => {
-        const rect = surfaceRect(candidateLeft, candidateTop, width, height);
-        const fitsViewport = rect.left >= VIEWPORT_PADDING
-          && rect.top >= VIEWPORT_PADDING
-          && rect.right <= ownerWindow.innerWidth - VIEWPORT_PADDING
-          && rect.bottom <= ownerWindow.innerHeight - VIEWPORT_PADDING;
-        if (!fitsViewport) return null;
-        const overlap = obstacles.reduce((total, obstacle) => total + overlapArea(rect, obstacle), 0);
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const distance = Math.hypot(centerX - hostCenterX, centerY - hostCenterY);
-        return { rect, overlap, distance, priority };
-      })
-      .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
-      .sort((leftCandidate, rightCandidate) => (
-        leftCandidate.overlap - rightCandidate.overlap
-        || leftCandidate.distance - rightCandidate.distance
-        || leftCandidate.priority - rightCandidate.priority
-      ));
-
-    const best = candidates.find((candidate) => candidate.overlap === 0);
-    if (best) {
-      Object.assign(card.style, {
-        transform: "none",
-        maxHeight: "calc(100vh - 16px)",
-        overflowY: "auto",
-        left: `${best.rect.left}px`,
-        top: `${best.rect.top}px`,
-        transition: "none",
-        animation: "none",
-      });
-      return;
-    }
-
-    const viewportBottom = ownerWindow.innerHeight - VIEWPORT_PADDING;
-    const verticalLanes = [
-      {
-        top: VIEWPORT_PADDING,
-        height: Math.max(0, hostRect.top - SURFACE_GAP - VIEWPORT_PADDING),
-      },
-      {
-        top: hostRect.bottom + SURFACE_GAP,
-        height: Math.max(0, viewportBottom - hostRect.bottom - SURFACE_GAP),
-      },
-    ].sort((leftLane, rightLane) => rightLane.height - leftLane.height);
-    const verticalLane = verticalLanes[0];
-    if (verticalLane && verticalLane.height > 0) {
-      card.style.maxHeight = `${verticalLane.height}px`;
-      card.style.overflowY = "auto";
-      const resized = card.getBoundingClientRect();
-      const resizedWidth = Math.min(resized.width || width, ownerWindow.innerWidth - VIEWPORT_PADDING * 2);
-      const resizedLeft = clamp(
-        hostRect.left + hostRect.width / 2 - resizedWidth / 2,
-        VIEWPORT_PADDING,
-        Math.max(VIEWPORT_PADDING, ownerWindow.innerWidth - VIEWPORT_PADDING - resizedWidth),
-      );
-      Object.assign(card.style, {
-        transform: "none",
-        left: `${resizedLeft}px`,
-        top: `${verticalLane.top}px`,
-        transition: "none",
-        animation: "none",
-      });
-      return;
-    }
-
-    const fallback = candidates[0];
-    if (!fallback) return;
-    Object.assign(card.style, {
-      transform: "none",
-      left: `${fallback.rect.left}px`,
-      top: `${fallback.rect.top}px`,
-      transition: "none",
-      animation: "none",
-    });
-  };
-
   const bindEditor = (editor: HTMLTextAreaElement) => {
     if (boundEditor === editor) return;
     if (boundEditor) {
@@ -542,7 +383,6 @@ export function installRenderInPlaceTextEditing(
     });
 
     renderSelection(editor, hostElement ? target : null);
-    positionInspectorCard(domSurfaceRect(rect));
   };
 
   const syncOnScroll = () => {
