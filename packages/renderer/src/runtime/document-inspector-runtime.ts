@@ -68,7 +68,7 @@ const createBridgedClick = (
   metaKey: event.metaKey,
 });
 
-const installIsolatedInputBridge = (
+const installHostedInputBridge = (
   mount: HTMLElement,
   ownerWindow: Window & typeof globalThis,
 ) => {
@@ -95,7 +95,7 @@ const installIsolatedInputBridge = (
     // Keep Select from seeing a pointer that belongs to document-backed Mesurer
     // UI, but preserve the browser's pointer lifecycle. The bridged click is
     // emitted deterministically on primary pointerup instead of depending on a
-    // compatibility click from the protected top layer.
+    // compatibility click from the Mesurer-owned host layer.
     event.stopImmediatePropagation();
     const focusTarget = target.closest<HTMLElement>(
       "button, input, select, textarea, [contenteditable='true'], [tabindex]",
@@ -163,15 +163,16 @@ const installIsolatedInputBridge = (
 
 /**
  * Give page-following plugin UI the same document positioning tree as the page
- * while keeping the canonical Mesurer toolbar in its hardened host/ShadowRoot.
+ * while keeping the canonical Mesurer toolbar in its hardened host boundary.
  *
  * CSS Anchor Positioning cannot resolve a page element from inside Mesurer's
  * top-layer ShadowRoot, so transient page-following surfaces stay in the page
- * document. In the isolated-host topology, the Select interaction plane is
- * intentionally above the document. A capture bridge forwards only pointer
- * input that geometrically belongs to this document-backed inspector mount;
- * ordinary page input still reaches Select, while canonical top-layer controls
- * retain precedence. This preserves native compositor anchoring without making
+ * document. Within a Mesurer-owned island, whether isolated by ShadowRoot or
+ * rendered directly into its island host, the interaction plane can sit above
+ * the document-backed inspector. A capture bridge forwards only pointer input
+ * that geometrically belongs to this document-backed inspector mount; ordinary
+ * page input still reaches Select, while canonical Mesurer controls retain
+ * precedence. This preserves native compositor anchoring without making
  * inspected application controls live.
  */
 export function createDocumentInspectorRuntime(
@@ -186,15 +187,19 @@ export function createDocumentInspectorRuntime(
   }
 
   ensureMesurerStyles(MESURER_STYLES, ownerDocument.body);
-  const isolatedHost = runtime.portalTarget instanceof realm.ShadowRoot;
+  const hostedIsland = runtime.portalTarget instanceof realm.ShadowRoot
+    || (
+      runtime.portalTarget instanceof realm.HTMLElement
+      && runtime.portalTarget.dataset.mesurerIsland === "true"
+    );
 
   const createInspectorMount = () => {
     const element = ownerDocument.createElement("div");
     element.dataset.mesurerInspectorUi = "true";
     element.dataset.mesurerDocumentInspectorRuntime = "true";
     ownerDocument.body.append(element);
-    const disposeInputBridge = isolatedHost
-      ? installIsolatedInputBridge(element, realm)
+    const disposeInputBridge = hostedIsland
+      ? installHostedInputBridge(element, realm)
       : null;
     let disposed = false;
     return {
