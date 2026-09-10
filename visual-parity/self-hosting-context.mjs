@@ -57,17 +57,17 @@ try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_SELF_HOSTING__?.subject));
 
-  await page.evaluate(async () => {
-    const harness = window.__MESURER_SELF_HOSTING__;
-    await harness.subject.agent.command("builtin.select");
-  });
-
   const target = page.locator("[data-self-host-target]");
   const targetBox = await target.boundingBox();
   assert(targetBox, "Self-host selection target must have a bounding box");
-  // Hit the button's own padding instead of nested copy so the annotation evidence
-  // is anchored to the actual control being selected.
-  await page.mouse.click(targetBox.x + 10, targetBox.y + 10);
+
+  // Selection mechanics have their own browser contracts. Establish this
+  // annotation fixture through the public API so this test can concentrate on
+  // the document-backed annotation input bridge and compositor anchoring.
+  await page.evaluate(async () => {
+    const harness = window.__MESURER_SELF_HOSTING__;
+    await harness.subject.select("[data-self-host-target]");
+  });
 
   await page.waitForFunction(() => {
     const button = document.querySelector("button[data-mesurer-tool-id='context.copy-selection']");
@@ -133,10 +133,9 @@ try {
     }));
   }));
 
-  // In isolated hosts the canonical Select plane is intentionally above the
-  // document-backed inspector. Exercise the same physical-pointer path a user
-  // does so the capture bridge, rather than Playwright actionability bypasses,
-  // is responsible for routing the click into the native-anchored document UI.
+  // The Mesurer host interaction plane can sit above document-backed inspector
+  // UI. Exercise the same physical-pointer path a user does so the capture
+  // bridge, rather than Playwright actionability bypasses, routes the click.
   await clickByCoordinates(annotationTrigger, "Annotation trigger");
   const composer = page.locator("[data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
