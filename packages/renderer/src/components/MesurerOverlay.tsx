@@ -45,6 +45,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   } | null = null;
   let guideHoldTimer = 0;
   let guideHoldId: string | null = null;
+  let hoverScrollIdleTimer = 0;
   const [expandedSpacingGroup, setExpandedSpacingGroup] = createSignal<string | null>(null);
   const [pinnedSpacingGroup, setPinnedSpacingGroup] = createSignal<string | null>(null);
   const spacingInteraction: SelectionSpacingInteraction = {
@@ -164,6 +165,28 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         height: `${rect.height}px`,
       });
     };
+    const handleScroll = () => {
+      const chrome = hoverChromeElement;
+      if (!chrome?.isConnected) return;
+      if (chrome.dataset.mesurerNativeScrollAnchor === "box") return;
+      const nativeDocumentScroll = Boolean(ownerDocument.querySelector("style[data-mesurer-native-scroll-anchoring='true']"));
+      if (!nativeDocumentScroll) {
+        syncHoverGeometry();
+        return;
+      }
+
+      // The isolated hover surface cannot share the page's CSS anchor tree.
+      // Hiding it during compositor scroll avoids rendering a second blue box
+      // that trails the native selected chrome. Resolve the new hover geometry
+      // once scrolling settles instead of forcing layout on every wheel event.
+      chrome.style.visibility = "hidden";
+      if (hoverScrollIdleTimer) ownerWindow.clearTimeout(hoverScrollIdleTimer);
+      hoverScrollIdleTimer = ownerWindow.setTimeout(() => {
+        hoverScrollIdleTimer = 0;
+        syncHoverGeometry();
+        if (chrome.isConnected) chrome.style.removeProperty("visibility");
+      }, 80);
+    };
     const handlePassiveGuideDown = (event: PointerEvent) => {
       if (!props.model.current.enabled || props.model.current.settingsOpen || props.model.current.toolMode !== "none") return;
       const toolbarTarget = event.composedPath().some((target) =>
@@ -227,7 +250,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     syncHoverGeometry();
     overlay.addEventListener("pointermove", handleOverlayPointerMove);
-    ownerWindow.addEventListener("scroll", syncHoverGeometry, true);
+    ownerWindow.addEventListener("scroll", handleScroll, true);
     ownerWindow.addEventListener("resize", syncHoverGeometry, true);
     ownerWindow.addEventListener("pointerdown", handlePassiveGuideDown, true);
     ownerWindow.addEventListener("pointermove", handlePassiveGuideMove, true);
@@ -235,12 +258,15 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     ownerWindow.addEventListener("pointercancel", handlePassiveGuideEnd, true);
     return () => {
       overlay.removeEventListener("pointermove", handleOverlayPointerMove);
-      ownerWindow.removeEventListener("scroll", syncHoverGeometry, true);
+      ownerWindow.removeEventListener("scroll", handleScroll, true);
       ownerWindow.removeEventListener("resize", syncHoverGeometry, true);
       ownerWindow.removeEventListener("pointerdown", handlePassiveGuideDown, true);
       ownerWindow.removeEventListener("pointermove", handlePassiveGuideMove, true);
       ownerWindow.removeEventListener("pointerup", handlePassiveGuideEnd, true);
       ownerWindow.removeEventListener("pointercancel", handlePassiveGuideEnd, true);
+      if (hoverScrollIdleTimer) ownerWindow.clearTimeout(hoverScrollIdleTimer);
+      hoverScrollIdleTimer = 0;
+      hoverChromeElement?.style.removeProperty("visibility");
       clearGuideHold();
       if (passiveGuideDrag?.previousUserSelect !== null && passiveGuideDrag) {
         ownerDocument.documentElement.style.userSelect = passiveGuideDrag.previousUserSelect;

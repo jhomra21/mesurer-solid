@@ -48,6 +48,11 @@ const settle = () => page.evaluate(() => new Promise((resolve) => {
   requestAnimationFrame(() => requestAnimationFrame(resolve));
 }));
 
+const waitForScrollIdle = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await settle();
+};
+
 const assertNativeAnchor = async (locator, mode, stage) => {
   const native = await locator.evaluate((element) => ({
     mode: element.dataset.mesurerNativeScrollAnchor ?? null,
@@ -98,6 +103,38 @@ const sampleScrollEvent = async (deltaY, { ring = false, inspector = false, high
   { deltaY, includeRing: ring, includeInspector: inspector, includeHighlight: highlight },
 );
 
+const measureNativeScrollWork = async (deltaY, { ranges = false } = {}) => page.evaluate(
+  ({ deltaY: scrollDelta, includeRanges }) => new Promise((resolve, reject) => {
+    const target = document.querySelector("#isolated-scroll-target");
+    if (!(target instanceof HTMLElement)) return reject(new Error("Expected target for native scroll work probe"));
+
+    const originalRect = target.getBoundingClientRect;
+    const originalRangeRects = Range.prototype.getClientRects;
+    let targetRectReads = 0;
+    let rangeRectReads = 0;
+    target.getBoundingClientRect = function mesurerTargetRectProbe() {
+      targetRectReads += 1;
+      return originalRect.call(this);
+    };
+    if (includeRanges) {
+      Range.prototype.getClientRects = function mesurerRangeRectProbe() {
+        rangeRectReads += 1;
+        return originalRangeRects.call(this);
+      };
+    }
+
+    const finish = () => {
+      delete target.getBoundingClientRect;
+      if (includeRanges) Range.prototype.getClientRects = originalRangeRects;
+      resolve({ targetRectReads, rangeRectReads });
+    };
+
+    window.scrollBy({ top: scrollDelta, behavior: "instant" });
+    requestAnimationFrame(() => requestAnimationFrame(finish));
+  }),
+  { deltaY, includeRanges: ranges },
+);
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_ISOLATED_SCROLL_TEST__?.subject));
@@ -105,8 +142,15 @@ try {
   const mountState = await page.evaluate(() => ({
     isolated: window.__MESURER_ISOLATED_SCROLL_TEST__?.subject.root instanceof ShadowRoot,
     hostLayer: window.__MESURER_ISOLATED_SCROLL_TEST__?.subject.hostLayer ?? null,
+    globalAgent: Boolean(window.__MESURER__),
   }));
   assert.equal(mountState.isolated, true, "contract must exercise the public isolated ShadowRoot mount");
+  assert.equal(mountState.globalAgent, true, "contract must exercise the public window.__MESURER__ agent bridge");
+  assert.deepEqual(
+    await page.evaluate(() => window.__MESURER__.textEdits()),
+    [],
+    "public window.__MESURER__.textEdits() must not recurse",
+  );
 
   const nativeAnchorSupported = await page.evaluate(() => Boolean(
     CSS.supports("anchor-name: --mesurer-native-anchor")
@@ -133,7 +177,17 @@ try {
 
   const immediateSelection = await sampleScrollEvent(80);
   assertSameBox(immediateSelection.after.selected, immediateSelection.after.target, "isolated selected chrome in scroll event");
-  targetBox = immediateSelection.after.target;
+  // The previous scroll's 80ms settle pass is allowed to remeasure after the
+  // hot event. Let it finish before instrumenting a second, independent scroll
+  // so this probe counts work caused by that scroll only.
+  await waitForScrollIdle();
+  const selectedScrollWork = await measureNativeScrollWork(20);
+  assert.deepEqual(
+    selectedScrollWork,
+    { targetRectReads: 0, rangeRectReads: 0 },
+    `native selected scroll must not chase geometry from JavaScript: ${JSON.stringify(selectedScrollWork)}`,
+  );
+  targetBox = await box(target, "isolated target after native work probe");
 
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
   const editRing = page.locator("[data-mesurer-text-edit-ring='true']");
@@ -161,6 +215,13 @@ try {
     { target: immediateEdit.after.target, surface: immediateEdit.after.highlight },
     "isolated selected-text highlight in scroll event",
   );
+  await waitForScrollIdle();
+  const editScrollWork = await measureNativeScrollWork(20, { ranges: true });
+  assert.deepEqual(
+    editScrollWork,
+    { targetRectReads: 0, rangeRectReads: 0 },
+    `native direct-edit scroll must not remeasure host text from JavaScript: ${JSON.stringify(editScrollWork)}`,
+  );
 
   // Reproduce the reported toolbar overlap: scroll the active edit target into
   // the toolbar's viewport band. Mesurer may relocate the toolbar, but the two
@@ -171,6 +232,7 @@ try {
     const top = targetElement.getBoundingClientRect().top + window.scrollY;
     window.scrollTo({ top: Math.max(0, top - 18), behavior: "instant" });
   });
+  await new Promise((resolve) => setTimeout(resolve, 100));
   await settle();
   const toolbar = page.locator("[data-mesurer-toolbar='true']");
   const toolbarBox = await box(toolbar, "toolbar near active edit target");
@@ -178,7 +240,7 @@ try {
   assert.equal(intersects(toolbarBox, targetBox, 6), false, `toolbar must avoid active selected/edit target; toolbar=${JSON.stringify(toolbarBox)} target=${JSON.stringify(targetBox)}`);
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated mount keeps selected/edit/Typography chrome compositor-locked and toolbar collision-free: PASS");
+  console.log("Public isolated mount keeps native scroll layout-free, public agent callable, and toolbar collision-free: PASS");
 } finally {
   await browser.close();
 }

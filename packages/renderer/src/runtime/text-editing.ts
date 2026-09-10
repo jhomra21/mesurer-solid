@@ -6,6 +6,7 @@ import {
   installIsolatedSelectionPortal,
   installToolbarTargetAvoidance,
 } from "./isolated-document-portal";
+import { installNativeScrollStability } from "./native-scroll-stability";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
 import { installTextEditingPresentation } from "./text-editing-presentation";
 import {
@@ -66,4 +67,9 @@ export function installTextEditing(
   // moved once and stays intact there; all of its existing event/DOM ownership
   // relationships remain unchanged.
   installDocumentScrollAnchoring(ctx, textRuntime);
+  // Keep every native anchor in document space and advance only the hidden
+  // fallback coordinates needed for post-scroll re-binding. This prevents the
+  // standalone Typography surface from staying viewport-fixed and prevents a
+  // selected-text highlight from jumping after scrolling settles.
+  installNativeScrollStability(ctx, textRuntime);
 }

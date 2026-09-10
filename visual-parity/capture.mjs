@@ -257,12 +257,34 @@ const openSettings = async (page) => {
 // the extension itself in a real browser.
 const normalizeSharedParitySurface = async (page, implementation) => {
   if (implementation !== "solid") return;
+  let changed = false;
+
   const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"]');
-  if ((await extensions.count()) === 0) return;
-  await extensions.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
-  // Removing Solid-only extensions changes panel layout. Give the shared surface
-  // the same settle window used by interaction parity before a zero-tolerance capture.
-  await page.waitForTimeout(240);
+  if ((await extensions.count()) > 0) {
+    await extensions.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
+    changed = true;
+  }
+
+  // Static visual parity compares the shared upstream presentation, while the
+  // browser/isolated scroll contracts separately prove Solid's document anchor
+  // ownership. Temporarily release only the visible Typography surfaces from
+  // native scroll anchoring so Chromium rasterizes their original fixed fallback
+  // exactly like upstream; production keeps the scroll-correct absolute anchor.
+  const nativeTypography = page.locator(".mesurer-ti-box[data-mesurer-native-scroll-owner='typography'], .mesurer-ti-card[data-mesurer-native-scroll-owner='typography']");
+  if ((await nativeTypography.count()) > 0) {
+    await nativeTypography.evaluateAll((nodes) => nodes.forEach((node) => {
+      node.removeAttribute("data-mesurer-native-scroll-anchor");
+      node.style.removeProperty("position-anchor");
+    }));
+    changed = true;
+  }
+
+  if (changed) {
+    // Normalization can change panel layout or compositor ownership. Give the
+    // shared surface the same settle window used by interaction parity before
+    // a zero-tolerance capture.
+    await page.waitForTimeout(240);
+  }
 };
 
 const states = [

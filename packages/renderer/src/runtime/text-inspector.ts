@@ -21,6 +21,7 @@ const FILL_HOVER = "color-mix(in oklch, oklch(0.62 0.18 255) 8%, transparent)";
 const OUTLINE_HOVER = "color-mix(in oklch, oklch(0.62 0.18 255) 80%, transparent)";
 const FILL_PINNED = "color-mix(in oklch, oklch(0.62 0.18 255) 4%, transparent)";
 const OUTLINE_PINNED = "color-mix(in oklch, oklch(0.62 0.18 255) 35%, transparent)";
+const NATIVE_SCROLL_SETTLE_MS = 80;
 let instanceCount = 0;
 
 type PinSnapshot = {
@@ -65,8 +66,8 @@ const styles = (mode: string, overlayId: string) => `
 #${overlayId} .mesurer-ti-card{transform:translateX(-50%);opacity:1;transition:none!important;animation:none!important}
 #${overlayId} .mesurer-ti-box{opacity:1;transition:none!important;animation:none!important}
 #${overlayId} [data-state="hidden"]{opacity:0!important}
-#${overlayId} .mesurer-ti-card--pinned{cursor:grab}
-#${overlayId} .mesurer-ti-card--pinned:active{cursor:grabbing}
+#${overlayId} .mesurer-ti-card--draggable{cursor:grab}
+#${overlayId} .mesurer-ti-card--draggable:active{cursor:grabbing}
 #${overlayId} .mesurer-ti-close{cursor:pointer}
 #${overlayId} .mesurer-ti-close:hover{background:rgba(15,23,42,.06)!important;color:#0f172a!important}
 `;
@@ -103,6 +104,9 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   let pointer = { x: 0, y: 0 };
   let raf = 0;
   let enrichmentTimer = 0;
+  let scrollIdleTimer = 0;
+  let scrollX = win.scrollX;
+  let scrollY = win.scrollY;
   const pins: Pin[] = [];
   const history: PinSnapshot[][] = [];
   const future: PinSnapshot[][] = [];
@@ -209,7 +213,15 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       if (event.pointerId !== pointerId) return;
       const dx = event.clientX - sx, dy = event.clientY - sy;
       if (!active && Math.abs(dx) <= 6 && Math.abs(dy) <= 6) return;
-      active = true;
+      if (!active) {
+        active = true;
+        // A click-pinned card should remain compositor-anchored to its source.
+        // Only an intentional drag detaches it into a viewport-placed card.
+        pin.card.classList.add("mesurer-ti-card--pinned");
+        delete pin.card.dataset.mesurerNativeScrollAnchor;
+        delete pin.card.dataset.mesurerNativeScrollOwner;
+        pin.card.style.removeProperty("position-anchor");
+      }
       if (!recorded) { record(); recorded = true; }
       pin.userPlaced = true;
       pin.card.style.left = `${Math.min(win.innerWidth - 8, Math.max(8, ox + dx))}px`;
@@ -248,6 +260,11 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     const root = ensureOverlay();
     const box = makeBox(doc, FILL_PINNED, OUTLINE_PINNED);
     const card = makeCard(doc, true);
+    // The scroll-anchor coordinator historically used this modifier as a signal
+    // to keep a card viewport-fixed. New click pins stay draggable but do not
+    // opt out of native anchoring until the user actually drags them.
+    card.classList.add("mesurer-ti-card--draggable");
+    card.classList.remove("mesurer-ti-card--pinned");
     const info = typography.getFull(sourceEl);
     populateCard(doc, card, info, true);
     root.append(box, card);
@@ -255,6 +272,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     positionBox(box, rect);
     positionCard(win, card, rect);
     if (state?.userPlaced) {
+      card.classList.add("mesurer-ti-card--pinned");
       card.style.left = `${state.left}px`;
       card.style.top = `${state.top}px`;
     }
@@ -327,10 +345,48 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     raf = win.requestAnimationFrame(() => { raf = 0; sync(); });
   };
   const onMove = (event: MouseEvent) => { pointer = { x: event.clientX, y: event.clientY }; schedule(); };
+  const shiftFallback = (element: HTMLElement | null, dx: number, dy: number) => {
+    if (!element || element.dataset.mesurerNativeScrollAnchor) return;
+    const left = Number.parseFloat(element.style.left);
+    const top = Number.parseFloat(element.style.top);
+    if (Number.isFinite(left)) element.style.left = `${left - dx}px`;
+    if (Number.isFinite(top)) element.style.top = `${top - dy}px`;
+  };
   const onScroll = () => {
-    // Keep already-visible inspection chrome on the source element during the
-    // scroll event. A scheduled pass may still repick the element beneath a
-    // stationary pointer, but it no longer owns the first visual movement.
+    const nextX = win.scrollX;
+    const nextY = win.scrollY;
+    const dx = nextX - scrollX;
+    const dy = nextY - scrollY;
+    scrollX = nextX;
+    scrollY = nextY;
+    const nativeDocumentScroll = portal === doc.body
+      && Boolean(doc.querySelector("style[data-mesurer-native-scroll-anchoring='true']"));
+    if (nativeDocumentScroll) {
+      // A newly shown Typography surface can exist for one task before the
+      // document anchor coordinator claims it. Keep that fallback glued to its
+      // current target with scroll-delta arithmetic only; never read layout in
+      // the hot scroll path. Once CSS anchoring is present these writes stop.
+      if (dx || dy) {
+        shiftFallback(hoverBox, dx, dy);
+        shiftFallback(hoverCard, dx, dy);
+        for (const pin of pins) {
+          shiftFallback(pin.box, dx, dy);
+          if (!pin.userPlaced) shiftFallback(pin.card, dx, dy);
+        }
+      }
+      if (scrollIdleTimer) win.clearTimeout(scrollIdleTimer);
+      scrollIdleTimer = win.setTimeout(() => {
+        scrollIdleTimer = 0;
+        // Keep the inspected element stable through scroll settle. A stationary
+        // pointer must not retarget Typography to whatever scrolled underneath
+        // it; the next real pointer move is what chooses a new target.
+        syncCurrentGeometry();
+      }, NATIVE_SCROLL_SETTLE_MS);
+      return;
+    }
+
+    // Fallback environments without document CSS anchoring still need the
+    // legacy event-time geometry path.
     syncCurrentGeometry();
     schedule();
   };
@@ -357,6 +413,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const enable = () => {
     if (enabled) return;
     enabled = true; ensureStyles(); ensureOverlay(); doc.body.classList.add(modeClass);
+    scrollX = win.scrollX; scrollY = win.scrollY;
     win.addEventListener("mousemove", onMove, true);
     win.addEventListener("mouseout", onOut, true);
     win.addEventListener("click", onClick, true);
@@ -367,7 +424,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const disable = () => {
     if (!enabled) return;
     enabled = false;
-    win.cancelAnimationFrame(raf); raf = 0; win.clearTimeout(enrichmentTimer);
+    win.cancelAnimationFrame(raf); raf = 0; win.clearTimeout(enrichmentTimer); win.clearTimeout(scrollIdleTimer); scrollIdleTimer = 0;
     win.removeEventListener("mousemove", onMove, true);
     win.removeEventListener("mouseout", onOut, true);
     win.removeEventListener("click", onClick, true);

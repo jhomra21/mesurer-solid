@@ -5,6 +5,7 @@ const subject = mountMesurer({
   target: document.body,
   isolate: true,
   topLayer: true,
+  agent: true,
   plugins: [arrangePlugin()],
 });
 

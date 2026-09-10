@@ -86,13 +86,20 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       setSelectionPortalTarget(target.ownerDocument.body);
     }
 
-    const syncGeometry = () => syncSelectedGeometry();
-    syncGeometry();
-    ownerWindow.addEventListener("scroll", syncGeometry, true);
-    ownerWindow.addEventListener("resize", syncGeometry, true);
+    const syncOnScroll = () => {
+      // Once CSS Anchor Positioning owns the selected box, reading the target
+      // rect and writing the same geometry on every trackpad event only forces
+      // layout underneath the native scroll path. Keep the JavaScript path as
+      // a fallback until the native binding is actually present.
+      if (chromeElement?.dataset.mesurerNativeScrollAnchor === "box") return;
+      syncSelectedGeometry();
+    };
+    syncSelectedGeometry();
+    ownerWindow.addEventListener("scroll", syncOnScroll, true);
+    ownerWindow.addEventListener("resize", syncSelectedGeometry, true);
     return () => {
-      ownerWindow.removeEventListener("scroll", syncGeometry, true);
-      ownerWindow.removeEventListener("resize", syncGeometry, true);
+      ownerWindow.removeEventListener("scroll", syncOnScroll, true);
+      ownerWindow.removeEventListener("resize", syncSelectedGeometry, true);
     };
   });
 
@@ -105,7 +112,10 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         height: `${measurement().rect.height}px`,
         "background-color": props.fillColor,
         transition: transition(),
+        "transition-property": isSelectedMeasurement() ? "none" : "left, top, width, height",
+        "transition-duration": isSelectedMeasurement() ? "0s" : `${MEASURE_TRANSITION_MS}ms`,
         animation: "none",
+        "animation-name": "none",
       }}>
         <Show when={edges().top}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ "background-color": props.outlineColor }} /></Show>
         <Show when={edges().right}><div class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
@@ -117,7 +127,10 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       left: `${measurement().rect.left + selectedPortalOffset().x + measurement().rect.width / 2}px`,
       top: `${measurement().rect.top + selectedPortalOffset().y + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
       transition: labelTransition(),
+      "transition-property": isSelectedMeasurement() ? "none" : "left, top",
+      "transition-duration": isSelectedMeasurement() ? "0s" : `${MEASURE_TRANSITION_MS}ms`,
       animation: "none",
+      "animation-name": "none",
     }}>
       {formatValue(measurement().rect.width)} x {formatValue(measurement().rect.height)}
     </div>

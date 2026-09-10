@@ -320,8 +320,11 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     (await getArrangeService()).capturePlan(id, state);
   const reviewArrange = async (id: string, tolerance?: number) =>
     (await getArrangeService()).review(id, tolerance);
-  const textEdits = async () => baseAgent.textEdits();
-  const textEdit = async (id: string) => baseAgent.textEdit(id);
+  // Keep the base harness implementations intact. Object.assign mutates
+  // baseAgent, so replacing these methods with wrappers that call
+  // baseAgent.textEdits()/textEdit() would make each wrapper call itself.
+  const textEdits = () => baseAgent.textEdits();
+  const textEdit = (id: string) => baseAgent.textEdit(id);
   const capabilities = (): MesurerAgentCapabilities => {
     const contextAvailable = Boolean(pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID));
     const arrangeAvailable = Boolean(pluginHost?.service.get<MesurerArrangeService>(ARRANGE_SERVICE_ID));
@@ -355,8 +358,6 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     showArrange,
     arrangeCapturePlan,
     reviewArrange,
-    textEdits,
-    textEdit,
   });
 
   const rendererProps: RendererMesurerProps = {

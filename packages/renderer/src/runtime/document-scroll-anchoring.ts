@@ -286,10 +286,6 @@ export function installDocumentScrollAnchoring(
   transition: none !important;
   animation: none !important;
 }
-[data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="box"],
-[data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="offset"] {
-  position: fixed !important;
-}
 `;
   ownerDocument.head.append(style);
 
@@ -467,7 +463,11 @@ export function installDocumentScrollAnchoring(
     const measured = card.getBoundingClientRect();
     if (measured.width <= 0 || measured.height <= 0) return;
     const width = measured.width;
-    const height = measured.height;
+    // Use the natural content height for fit decisions. The card may already
+    // be viewport-clamped while its unified controls finish rendering; using
+    // only the current box can falsely classify a below/above lane as a full fit
+    // and then overflow the viewport when the remaining rows settle.
+    const height = Math.max(measured.height, card.scrollHeight);
     const viewportRight = ownerWindow.innerWidth - VIEWPORT_PADDING;
     const viewportBottom = ownerWindow.innerHeight - VIEWPORT_PADDING;
     const maxLeft = Math.max(VIEWPORT_PADDING, viewportRight - width);
@@ -571,9 +571,14 @@ export function installDocumentScrollAnchoring(
     const shell = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-placement-shell='true']");
     const card = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
     if (shell?.isConnected && card?.isConnected) {
+      const alreadyAnchored = shell.dataset.mesurerNativeScrollOwner === "typography"
+        && shell.dataset.mesurerNativeScrollAnchor === "offset";
       shell.dataset.mesurerNativeScrollOwner = "typography";
       applyAnchor(shell, editBinding, "offset");
-      if (!scrolling) inspectorPlacement(shell, card, targetRect);
+      // A newly claimed shell still carries its fallback fixed-position lane.
+      // Resolve its native offset immediately even if a prior scrollIntoView is
+      // still settling; established anchors remain compositor-only on scroll.
+      if (!scrolling || !alreadyAnchored) inspectorPlacement(shell, card, targetRect);
     }
   };
 
@@ -683,11 +688,15 @@ export function installDocumentScrollAnchoring(
   observer.observe(portalTarget, {
     subtree: true,
     childList: true,
+    attributes: true,
+    attributeFilter: ["data-state"],
   });
   if (runtimeMount) {
     observer.observe(runtimeMount, {
       subtree: true,
       childList: true,
+      attributes: true,
+      attributeFilter: ["data-state"],
     });
   }
 

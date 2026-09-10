@@ -11,6 +11,7 @@ on:
       - "packages/renderer/src/components/Toolbar.tsx"
       - "packages/renderer/src/runtime/document-scroll-anchoring.ts"
       - "packages/renderer/src/runtime/isolated-document-portal.ts"
+      - "packages/renderer/src/runtime/native-scroll-stability.ts"
       - "packages/renderer/src/runtime/text-editing.ts"
       - "packages/renderer/src/runtime/text-editing-render-in-place.ts"
       - "packages/renderer/src/runtime/text-editing-unified-inspector.ts"
@@ -18,15 +19,21 @@ on:
       - "examples/basic/isolated-scroll.html"
       - "examples/basic/src/isolated-scroll.ts"
       - "visual-parity/isolated-selection-scroll-contract.mjs"
+      - "visual-parity/native-scroll-settle-contract.mjs"
       - ".github/workflows/isolated-scroll-contract.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: isolated-scroll-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   isolated-scroll:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Mesurer Solid
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -73,6 +80,12 @@ jobs:
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun visual-parity/isolated-selection-scroll-contract.mjs
+
+      - name: Exercise native scroll settle stability
+        timeout-minutes: 2
+        env:
+          ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
+        run: bun visual-parity/native-scroll-settle-contract.mjs
 
       - name: Stop fixture host
         if: always()
