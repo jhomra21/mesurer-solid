@@ -222,6 +222,63 @@ const verifyStandaloneTypography = async () => {
       targetBox,
       "standalone Typography box after scroll settles",
     );
+
+    stage("Typography: click once to pin inspector card");
+    await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+    const pinnedCard = page.locator(".mesurer-ti-card:has(.mesurer-ti-close)").first();
+    await pinnedCard.waitFor({ state: "visible", timeout: WAIT_TIMEOUT_MS });
+    await page.waitForFunction(
+      () => document.querySelector(".mesurer-ti-card:has(.mesurer-ti-close)")?.getAttribute("data-mesurer-native-scroll-anchor") === "offset",
+      undefined,
+      { timeout: WAIT_TIMEOUT_MS },
+    );
+
+    targetBox = await box(target, "target before click-pinned Typography scroll");
+    const pinnedBefore = await box(pinnedCard, "click-pinned Typography card before scroll");
+    const pinnedOffsetBefore = relativeOffset(targetBox, pinnedBefore);
+
+    stage("Typography: verify click-pinned card immediate scroll stability");
+    const pinnedImmediate = await withTimeout(page.evaluate(({ timeoutMs }) => new Promise((resolve, reject) => {
+      const targetElement = document.querySelector("#isolated-scroll-target");
+      const pinnedPanel = document.querySelector(".mesurer-ti-card:has(.mesurer-ti-close)");
+      if (!(targetElement instanceof HTMLElement)) return reject(new Error("Expected target for click-pinned Typography scroll probe"));
+      if (!(pinnedPanel instanceof HTMLElement)) return reject(new Error("Expected click-pinned Typography card for scroll probe"));
+      const snapshot = (element) => {
+        const rect = element.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      };
+      const maxScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const deltaY = window.scrollY + 32 <= maxScrollY ? 32 : window.scrollY >= 32 ? -32 : 0;
+      if (!deltaY) return reject(new Error("Expected available document scroll range for click-pinned Typography probe"));
+
+      const timer = window.setTimeout(() => {
+        reject(new Error(`Click-pinned Typography scroll probe did not receive a scroll event within ${timeoutMs}ms`));
+      }, timeoutMs);
+      window.addEventListener("scroll", () => {
+        window.clearTimeout(timer);
+        resolve({
+          target: snapshot(targetElement),
+          pinnedCard: snapshot(pinnedPanel),
+        });
+      }, { capture: true, once: true });
+      window.scrollBy({ top: deltaY, behavior: "instant" });
+    }), { timeoutMs: WAIT_TIMEOUT_MS }), "click-pinned Typography immediate scroll probe");
+
+    assertSameOffset(
+      pinnedOffsetBefore,
+      relativeOffset(pinnedImmediate.target, pinnedImmediate.pinnedCard),
+      "click-pinned Typography card in scroll event",
+    );
+
+    stage("Typography: verify click-pinned card post-settle stability");
+    await waitForScrollIdle(page, "click-pinned Typography");
+    targetBox = await box(target, "target after click-pinned Typography scroll settles");
+    const pinnedAfter = await box(pinnedCard, "click-pinned Typography card after scroll settles");
+    assertSameOffset(
+      pinnedOffsetBefore,
+      relativeOffset(targetBox, pinnedAfter),
+      "click-pinned Typography card after scroll settle",
+    );
   } finally {
     await closeContext(context, "Typography");
   }
