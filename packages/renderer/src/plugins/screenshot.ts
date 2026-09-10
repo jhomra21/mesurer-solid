@@ -37,6 +37,7 @@ const MEASUREMENT_MARKER_SELECTOR = [
   "[data-mesurer-guide='true']",
   "[data-mesurer-distance='true']",
 ].join(",");
+const MEASUREMENT_PRESENTATION_SELECTOR = `${MEASUREMENT_MARKER_SELECTOR},[data-mesurer-rulers='true']`;
 
 export type MesurerScreenshotSettings = {
   toolEnabled: boolean;
@@ -175,6 +176,20 @@ const hideMeasurementPresentation = (
   return () => {
     for (const item of hidden) restoreDisplay(item.element, item.display);
   };
+};
+
+const snapshotIncludedMeasurementPresentation = (
+  ownerDocument: Document,
+): HiddenCaptureElement[] => Array.from(
+  ownerDocument.querySelectorAll<HTMLElement>(MEASUREMENT_PRESENTATION_SELECTOR),
+)
+  .filter((element) => element.dataset.mesurerInspectorUi === "true")
+  .map((element) => ({ element, display: captureDisplay(element) }));
+
+const restoreIncludedMeasurementPresentation = (items: HiddenCaptureElement[]) => {
+  for (const item of items) {
+    if (item.element.isConnected) restoreDisplay(item.element, item.display);
+  }
 };
 
 export const screenshotPlugin = (
@@ -452,10 +467,21 @@ export const screenshotPlugin = (
       capturing = true;
       const operationId = ++operation;
       const captureSettings = settings();
+      const includedMeasurementPresentation = captureSettings.includeMeasurements
+        ? snapshotIncludedMeasurementPresentation(ownerDocument)
+        : [];
       const restoreMeasurements = captureSettings.includeMeasurements
         ? () => undefined
         : hideMeasurementPresentation(runtime.portalTarget);
       workspace.prepareCapture();
+      if (captureSettings.includeMeasurements) {
+        // Generic capture cleanup hides document-level inspector UI, including
+        // Solid-owned selected measurement roots that are safely portaled out
+        // of the isolated renderer tree. Restore only those measurement/ruler
+        // surfaces to their exact pre-capture display state when the user has
+        // explicitly requested measurement evidence in the PNG.
+        restoreIncludedMeasurementPresentation(includedMeasurementPresentation);
+      }
       try {
         // The selection chrome is part of the inspector UI, not the captured page.
         // Hide it before waiting for the browser capture frame so the blue outline,
