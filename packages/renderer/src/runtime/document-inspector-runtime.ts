@@ -7,42 +7,121 @@ export type MesurerDocumentInspectorRuntime = {
   documentBacked: boolean;
 };
 
-type PopoverInspectorMount = HTMLDivElement & {
-  popover: string | null;
-  showPopover(): void;
-  hidePopover(): void;
-};
-
 const isDocumentBackedTarget = (
   runtime: MesurerSolidRuntimeService,
   realm: Window & typeof globalThis,
 ) => !(runtime.pageTarget instanceof realm.ShadowRoot)
   && runtime.pageTarget.getRootNode() === runtime.ownerDocument;
 
-const supportsPopover = (element: HTMLDivElement): element is PopoverInspectorMount =>
-  "popover" in element
-  && "showPopover" in element
-  && typeof element.showPopover === "function"
-  && "hidePopover" in element
-  && typeof element.hidePopover === "function";
+const rectContainsPoint = (rect: DOMRect, x: number, y: number) =>
+  rect.width > 0
+  && rect.height > 0
+  && x >= rect.left
+  && x <= rect.right
+  && y >= rect.top
+  && y <= rect.bottom;
 
-const hardenInspectorMount = (element: HTMLDivElement) => {
-  const properties = {
-    position: "fixed",
-    inset: "0",
-    width: "100vw",
-    height: "100vh",
-    margin: "0",
-    padding: "0",
-    border: "0",
-    overflow: "visible",
-    background: "transparent",
-    "pointer-events": "none",
-    "z-index": "2147483647",
-  } satisfies Record<string, string>;
-  for (const [property, value] of Object.entries(properties)) {
-    element.style.setProperty(property, value, "important");
+const isProtectedTopLayerControl = (
+  event: Event,
+  mount: HTMLElement,
+  realm: Window & typeof globalThis,
+) => event.composedPath().some((node) => {
+  if (!(node instanceof realm.Element) || mount.contains(node)) return false;
+  return node.matches("button, input, select, textarea, [role='button'], [role='switch'], [role='slider']")
+    || node.hasAttribute("data-mesurer-toolbar")
+    || node.hasAttribute("data-mesurer-settings");
+});
+
+const deepestMountHit = (
+  mount: HTMLElement,
+  x: number,
+  y: number,
+  realm: Window & typeof globalThis,
+) => {
+  const candidates = Array.from(mount.querySelectorAll<HTMLElement>("*"));
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const candidate = candidates[index];
+    if (!candidate.isConnected) continue;
+    const style = realm.getComputedStyle(candidate);
+    if (style.display === "none" || style.visibility === "hidden" || style.pointerEvents === "none") continue;
+    if (rectContainsPoint(candidate.getBoundingClientRect(), x, y)) return candidate;
   }
+  return null;
+};
+
+const installIsolatedInputBridge = (
+  mount: HTMLElement,
+  ownerWindow: Window & typeof globalThis,
+) => {
+  const routePointer = (event: PointerEvent) => {
+    if (mount.contains(event.target as Node)) return;
+    if (isProtectedTopLayerControl(event, mount, ownerWindow)) return;
+    const target = deepestMountHit(mount, event.clientX, event.clientY, ownerWindow);
+    if (!target) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const focusTarget = target.closest<HTMLElement>(
+      "button, input, select, textarea, [contenteditable='true'], [tabindex]",
+    );
+    focusTarget?.focus({ preventScroll: true });
+    target.dispatchEvent(new ownerWindow.PointerEvent(event.type, {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      isPrimary: event.isPrimary,
+      button: event.button,
+      buttons: event.buttons,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      screenX: event.screenX,
+      screenY: event.screenY,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+    }));
+  };
+
+  const routeClick = (event: MouseEvent) => {
+    if (mount.contains(event.target as Node)) return;
+    if (isProtectedTopLayerControl(event, mount, ownerWindow)) return;
+    const target = deepestMountHit(mount, event.clientX, event.clientY, ownerWindow);
+    if (!target) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const focusTarget = target.closest<HTMLElement>(
+      "button, input, select, textarea, [contenteditable='true'], [tabindex]",
+    );
+    focusTarget?.focus({ preventScroll: true });
+    target.dispatchEvent(new ownerWindow.MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      button: event.button,
+      buttons: event.buttons,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      screenX: event.screenX,
+      screenY: event.screenY,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+    }));
+  };
+
+  ownerWindow.addEventListener("pointerdown", routePointer, true);
+  ownerWindow.addEventListener("pointerup", routePointer, true);
+  ownerWindow.addEventListener("click", routeClick, true);
+  return () => {
+    ownerWindow.removeEventListener("pointerdown", routePointer, true);
+    ownerWindow.removeEventListener("pointerup", routePointer, true);
+    ownerWindow.removeEventListener("click", routeClick, true);
+  };
 };
 
 /**
@@ -50,13 +129,13 @@ const hardenInspectorMount = (element: HTMLDivElement) => {
  * while keeping the canonical Mesurer toolbar in its hardened host/ShadowRoot.
  *
  * CSS Anchor Positioning cannot resolve a page element from inside Mesurer's
- * ShadowRoot. A document-backed inspector mount keeps transient plugin surfaces
- * in the page document so native anchors resolve. When the Popover API exists,
- * promote only that document-backed mount to the top layer so the isolated
- * Select interaction plane cannot steal input from those surfaces. The mount
- * itself remains pointer-transparent; only explicit inspector controls receive
- * pointer input. The equal max-z fallback is appended after the isolated host,
- * preserving the same ordering in browsers without Popover support.
+ * top-layer ShadowRoot, so transient page-following surfaces stay in the page
+ * document. In the isolated-host topology, the Select interaction plane is
+ * intentionally above the document. A capture bridge forwards only pointer
+ * input that geometrically belongs to this document-backed inspector mount;
+ * ordinary page input still reaches Select, while canonical top-layer controls
+ * retain precedence. This preserves native compositor anchoring without making
+ * inspected application controls live.
  */
 export function createDocumentInspectorRuntime(
   runtime: MesurerSolidRuntimeService,
@@ -70,37 +149,23 @@ export function createDocumentInspectorRuntime(
   }
 
   ensureMesurerStyles(MESURER_STYLES, ownerDocument.body);
+  const isolatedHost = runtime.portalTarget instanceof realm.ShadowRoot;
 
   const createInspectorMount = () => {
     const element = ownerDocument.createElement("div");
     element.dataset.mesurerInspectorUi = "true";
     element.dataset.mesurerDocumentInspectorRuntime = "true";
-    hardenInspectorMount(element);
-
-    const popover = supportsPopover(element);
-    if (popover) element.popover = "manual";
     ownerDocument.body.append(element);
-    if (popover) {
-      try {
-        element.showPopover();
-      } catch {
-        element.removeAttribute("popover");
-      }
-    }
-
+    const disposeInputBridge = isolatedHost
+      ? installIsolatedInputBridge(element, realm)
+      : null;
     let disposed = false;
     return {
       element,
       dispose() {
         if (disposed) return;
         disposed = true;
-        if (supportsPopover(element) && element.matches(":popover-open")) {
-          try {
-            element.hidePopover();
-          } catch {
-            // Removing the mount below also removes it from the top layer.
-          }
-        }
+        disposeInputBridge?.();
         element.remove();
       },
     };
