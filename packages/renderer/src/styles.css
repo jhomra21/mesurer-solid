@@ -75,13 +75,6 @@
     0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* Selection-adjacent annotation chrome is contextual UI, not a second global
-   toolbar. If it reaches the canonical toolbar band while the page scrolls,
-   keep the persistent toolbar visually and interactively on top. */
-[data-mesurer-annotation-trigger="true"] {
-  z-index: 80 !important;
-}
-
 .mesurer-menu-surface {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
 }
@@ -125,6 +118,13 @@
 
 .mesurer-root {
   --msr-spacing: 4px;
+}
+
+/* Selection-adjacent annotation chrome is contextual UI, not a second global
+   toolbar. If it reaches the canonical toolbar band while the page scrolls,
+   keep the persistent toolbar visually and interactively on top. */
+[data-mesurer-annotation-trigger="true"] {
+  z-index: 80 !important;
 }
 
 /* Plugin-contributed toggles share the compact 24px switch row, but unlike
