@@ -12,9 +12,15 @@ page.on("console", (message) => {
 });
 
 const box = async (locator, stage) => {
-  const value = await locator.boundingBox();
-  assert(value, `${stage}: expected rendered geometry`);
-  return value;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const value = await locator.boundingBox();
+    if (value) return value;
+    // Solid can replace a portaled selection node during the native-anchor
+    // handoff after the locator has already matched it. Retry only the brief
+    // no-geometry window; a surface that stays unrendered still fails below.
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  }
+  assert.fail(`${stage}: expected rendered geometry`);
 };
 
 const assertSameBox = (actual, expected, stage) => {
