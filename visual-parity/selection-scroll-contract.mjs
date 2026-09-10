@@ -156,9 +156,11 @@ try {
     && document.querySelector("[data-mesurer-selected-measurement='true'] > [data-mesurer-native-scroll-anchor='label']")
   ));
 
-  const selected = page.locator("[data-mesurer-selected-measurement='true']");
-  const selectedChrome = selected.locator(":scope > div").first();
-  const selectedLabel = selected.locator(":scope > div").last();
+  // Bind directly to the nodes whose native-anchor handoff was just proven.
+  // Deriving first/last children from the portal root can retain a detached
+  // transient node while Solid reconciles the selected measurement subtree.
+  const selectedChrome = page.locator("[data-mesurer-selected-measurement='true'] > [data-mesurer-native-scroll-anchor='box']").first();
+  const selectedLabel = page.locator("[data-mesurer-selected-measurement='true'] > [data-mesurer-native-scroll-anchor='label']").first();
   await assertMotionFree(selectedChrome, "selected measurement chrome");
   await assertMotionFree(selectedLabel, "selected measurement label");
   await assertNativeAnchor(selectedChrome, "box", "selected measurement chrome");
