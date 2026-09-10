@@ -21,11 +21,7 @@ const isInteractionPlane = (
 ): element is HTMLElement => element instanceof realm.HTMLElement
   && element.classList.contains("msr:absolute")
   && element.classList.contains("msr:inset-0")
-  && element.classList.contains("msr:select-none")
-  && (
-    element.classList.contains("msr:pointer-events-auto")
-    || element.classList.contains("msr:pointer-events-none")
-  );
+  && element.classList.contains("msr:select-none");
 
 const findIsolatedInteractionPlane = (
   portalTarget: ShadowRoot,
@@ -98,8 +94,11 @@ const installIsolatedInputProxy = (
       blocker.style.pointerEvents = "none";
       return;
     }
-    const active = plane.classList.contains("msr:pointer-events-auto")
-      || plane.style.pointerEvents === "auto";
+    // MesurerOverlay's inline pointer-events value is the exact
+    // overlayInteractive() result. Its Tailwind pointer-events class only
+    // tracks enabled/visible presentation and remains "auto" while toolMode is
+    // none, Text Inspector owns input, or Settings disables interaction.
+    const active = plane.style.pointerEvents === "auto";
     blocker.style.pointerEvents = active ? "auto" : "none";
     blocker.style.cursor = runtime.currentToolMode?.() === "guides" ? "crosshair" : "default";
   };
@@ -137,7 +136,12 @@ const installIsolatedInputProxy = (
   }
 
   const portalObserver = new realm.MutationObserver(bindInteractionPlane);
-  portalObserver.observe(portalTarget, { childList: true, subtree: true });
+  portalObserver.observe(portalTarget, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "style"],
+  });
   bindInteractionPlane();
 
   return () => {
@@ -164,8 +168,8 @@ const installIsolatedInputProxy = (
  * inspector UI proxies its pointer stream back to that same plane. Inspector
  * controls therefore receive native browser input, page controls remain blocked,
  * and Select/Guides keep their existing pointer handlers and hit-testing logic.
- * The proxy observes the ShadowRoot so plugin setup does not depend on whether
- * Solid has mounted or replaced the renderer interaction plane yet.
+ * The proxy observes mount and attribute lifecycle so plugin setup does not
+ * depend on when Solid creates or updates the renderer interaction plane.
  */
 export function createDocumentInspectorRuntime(
   runtime: MesurerSolidRuntimeService,
