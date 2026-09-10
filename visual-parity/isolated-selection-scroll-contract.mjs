@@ -223,24 +223,37 @@ try {
     `native direct-edit scroll must not remeasure host text from JavaScript: ${JSON.stringify(editScrollWork)}`,
   );
 
-  // Reproduce the reported toolbar overlap: scroll the active edit target into
-  // the toolbar's viewport band. Mesurer may relocate the toolbar, but the two
-  // interactive surfaces must not occupy the same pixels after layout settles.
+  // The toolbar is persistent viewport UI. Scroll the active edit target into
+  // its viewport band and prove the toolbar itself does not move to another
+  // edge. Local selection/context chrome owns collision behavior instead.
+  const toolbar = page.locator("[data-mesurer-toolbar='true']");
+  const toolbarBefore = await box(toolbar, "toolbar before active target overlap");
   await page.evaluate(() => {
     const targetElement = document.querySelector("#isolated-scroll-target");
-    if (!(targetElement instanceof HTMLElement)) throw new Error("Expected target for toolbar collision check");
+    if (!(targetElement instanceof HTMLElement)) throw new Error("Expected target for toolbar stability check");
     const top = targetElement.getBoundingClientRect().top + window.scrollY;
     window.scrollTo({ top: Math.max(0, top - 18), behavior: "instant" });
   });
-  await new Promise((resolve) => setTimeout(resolve, 100));
-  await settle();
-  const toolbar = page.locator("[data-mesurer-toolbar='true']");
-  const toolbarBox = await box(toolbar, "toolbar near active edit target");
-  targetBox = await box(target, "target near toolbar");
-  assert.equal(intersects(toolbarBox, targetBox, 6), false, `toolbar must avoid active selected/edit target; toolbar=${JSON.stringify(toolbarBox)} target=${JSON.stringify(targetBox)}`);
+  await new Promise((resolve) => setTimeout(resolve, 24));
+  const toolbarDuring = await box(toolbar, "toolbar during active target overlap");
+  await waitForScrollIdle();
+  const toolbarAfter = await box(toolbar, "toolbar after active target overlap");
+  targetBox = await box(target, "target near stationary toolbar");
+  assertSameBox(toolbarDuring, toolbarBefore, "toolbar during selected/edit target scroll");
+  assertSameBox(toolbarAfter, toolbarBefore, "toolbar after selected/edit target scroll");
+  assert.equal(
+    await toolbar.getAttribute("data-mesurer-toolbar-avoiding-target"),
+    null,
+    "viewport toolbar must not enable target-avoidance translation",
+  );
+  assert.equal(
+    intersects(toolbarAfter, targetBox, 0),
+    true,
+    `stability probe must actually bring the target into the toolbar band; toolbar=${JSON.stringify(toolbarAfter)} target=${JSON.stringify(targetBox)}`,
+  );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated mount keeps native scroll layout-free, public agent callable, and toolbar collision-free: PASS");
+  console.log("Public isolated mount keeps native scroll layout-free, public agent callable, and viewport toolbar stationary: PASS");
 } finally {
   await browser.close();
 }

@@ -120,6 +120,13 @@
   --msr-spacing: 4px;
 }
 
+/* Selection-adjacent annotation chrome is contextual UI, not a second global
+   toolbar. If it reaches the canonical toolbar band while the page scrolls,
+   keep the persistent toolbar visually and interactively on top. */
+[data-mesurer-annotation-trigger="true"] {
+  z-index: 80 !important;
+}
+
 /* Plugin-contributed toggles share the compact 24px switch row, but unlike
    upstream's fixed settings columns their labels may be longer. Give only
    plugin rows the remaining width and never let a label increase row height. */

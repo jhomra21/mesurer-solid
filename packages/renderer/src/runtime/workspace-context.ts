@@ -479,7 +479,6 @@ export function createMesurerWorkspaceRuntime(options: {
       return () => listeners.delete(listener);
     },
     prepareCapture() {
-      if (!uiRoot) return;
       const selector = [
         "[data-mesurer-layer='chrome']",
         "[data-mesurer-toolbar='true']",
@@ -487,13 +486,24 @@ export function createMesurerWorkspaceRuntime(options: {
         "[data-mesurer-inspector-ui='true']:not([data-mesurer-layer='evidence'])",
         ".mesurer-color-picker",
       ].join(",");
-      for (const element of uiRoot.querySelectorAll<HTMLElement>(selector)) {
-        if (hidden.has(element)) continue;
-        hidden.set(element, {
-          value: element.style.getPropertyValue("display"),
-          priority: element.style.getPropertyPriority("display"),
-        });
-        element.style.setProperty("display", "none", "important");
+      // Isolated public mounts can safely Portal selected measurement chrome
+      // into the document layer so Solid keeps ownership while CSS Anchor
+      // Positioning follows page scroll. Capture cleanup therefore has two UI
+      // roots: the isolated renderer tree and document-level portaled chrome.
+      // Hide both without moving either tree; finishCapture restores the exact
+      // previous inline display state.
+      const captureRoots = new Set<ParentNode>();
+      if (uiRoot) captureRoots.add(uiRoot);
+      captureRoots.add(ownerDocument);
+      for (const captureRoot of captureRoots) {
+        for (const element of captureRoot.querySelectorAll<HTMLElement>(selector)) {
+          if (hidden.has(element)) continue;
+          hidden.set(element, {
+            value: element.style.getPropertyValue("display"),
+            priority: element.style.getPropertyPriority("display"),
+          });
+          element.style.setProperty("display", "none", "important");
+        }
       }
     },
     finishCapture() {

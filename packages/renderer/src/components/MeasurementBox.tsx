@@ -80,9 +80,12 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     const ownerWindow = target?.ownerDocument.defaultView;
     if (!target || !ownerWindow) return;
 
-    // Only escape a document-root overlay. Shadow-root consumers keep their
-    // existing local overlay ownership and skip document-level CSS anchoring.
-    if (chromeElement?.getRootNode() === target.ownerDocument && target.ownerDocument.body) {
+    // A selected page element can start inside Mesurer's isolated ShadowRoot,
+    // while its source target still belongs to the document. Let Solid own the
+    // move into <body> through <Portal>; imperatively reparenting this rendered
+    // root breaks the reconciler when direct editing changes reactive state.
+    // Targets that genuinely live in a ShadowRoot keep local overlay ownership.
+    if (target.getRootNode() === target.ownerDocument && target.ownerDocument.body) {
       setSelectionPortalTarget(target.ownerDocument.body);
     }
 
