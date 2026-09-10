@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import { CloseIcon, CopyIcon, NoteIcon, TrashIcon } from "./Icons";
 
@@ -94,7 +94,6 @@ export function ContextActions(props: ContextActionsProps) {
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
-  const [nativeTriggerTarget, setNativeTriggerTarget] = createSignal<HTMLElement | null>(null);
   const selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
   let surfaceDrag: {
     surfaceId: string;
@@ -108,10 +107,53 @@ export function ContextActions(props: ContextActionsProps) {
   } | null = null;
   let surfaceDragCleanup: (() => void) | null = null;
   let anchorElement: HTMLSpanElement | undefined;
+  let anchoredTriggerElement: HTMLElement | null = null;
+  let releaseTriggerAnchor: (() => void) | null = null;
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
-  const unsubscribe = props.runtime.subscribe(() => setRevision((value) => value + 1));
-  onCleanup(unsubscribe);
+
+  const supportsSelectionTriggerAnchor = () => {
+    const currentWindow = ownerWindow();
+    return Boolean(
+      currentWindow.CSS?.supports("anchor-name: --mesurer-annotation-trigger")
+      && currentWindow.CSS.supports("position-anchor: --mesurer-annotation-trigger")
+      && currentWindow.CSS.supports("left: anchor(left)"),
+    );
+  };
+
+  const currentSelectionTriggerElement = () => {
+    const elements = props.runtime.currentSelection().elements;
+    if (!elements.length) return null;
+    const hovered = props.runtime.hoveredElement();
+    return elements.find((element) => element === hovered)
+      ?? elements.find((element) => hovered && element.contains(hovered))
+      ?? elements[0];
+  };
+
+  const syncSelectionTriggerAnchor = () => {
+    const element = currentSelectionTriggerElement();
+    if (element === anchoredTriggerElement && element?.isConnected) return;
+
+    releaseTriggerAnchor?.();
+    releaseTriggerAnchor = null;
+    anchoredTriggerElement = null;
+
+    if (!element?.isConnected || !supportsSelectionTriggerAnchor()) return;
+    releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName);
+    anchoredTriggerElement = element;
+  };
+
+  const unsubscribe = props.runtime.subscribe(() => {
+    syncSelectionTriggerAnchor();
+    setRevision((value) => value + 1);
+  });
+  syncSelectionTriggerAnchor();
+  onCleanup(() => {
+    releaseTriggerAnchor?.();
+    releaseTriggerAnchor = null;
+    anchoredTriggerElement = null;
+    unsubscribe();
+  });
 
   const selection = createMemo(() => {
     revision();
@@ -158,29 +200,6 @@ export function ContextActions(props: ContextActionsProps) {
       ?? elements[0];
   });
 
-  const supportsSelectionTriggerAnchor = () => {
-    const currentWindow = ownerWindow();
-    return Boolean(
-      currentWindow.CSS?.supports("anchor-name: --mesurer-annotation-trigger")
-      && currentWindow.CSS.supports("position-anchor: --mesurer-annotation-trigger")
-      && currentWindow.CSS.supports("left: anchor(left)"),
-    );
-  };
-
-  createEffect(() => {
-    const element = selectionTriggerElement();
-    if (!element?.isConnected || !supportsSelectionTriggerAnchor()) {
-      setNativeTriggerTarget(null);
-      return;
-    }
-    const release = addAnchorName(element, selectionTriggerAnchorName);
-    setNativeTriggerTarget(element);
-    onCleanup(() => {
-      release();
-      setNativeTriggerTarget(null);
-    });
-  });
-
   const selectionTriggerPosition = () => {
     const element = selectionTriggerElement();
     if (!element?.isConnected) return null;
@@ -223,7 +242,7 @@ export function ContextActions(props: ContextActionsProps) {
       top,
       anchorX: left - value.left,
       anchorY: top - value.top,
-      nativeAnchor: nativeTriggerTarget() === element,
+      nativeAnchor: anchoredTriggerElement === element,
     };
   };
 
