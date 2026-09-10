@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  getSelectionEntries,
   getSnappedClickTarget,
   getTargetElement,
 } from "../src/core/selection";
@@ -57,5 +58,36 @@ describe("root-aware point selection", () => {
     Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => target });
 
     expect(getSnappedClickTarget(point, null, true)).toBe(target);
+  });
+
+  it("never exposes Mesurer-owned inspector UI as a page selection target", () => {
+    const pageTarget = document.createElement("main");
+    const pageButton = document.createElement("button");
+    const inspector = document.createElement("div");
+    const typographyCard = document.createElement("div");
+    const point = { x: 40, y: 40 };
+
+    inspector.dataset.mesurerInspectorUi = "true";
+    typographyCard.className = "mesurer-ti-card";
+    setRect(pageTarget, { left: 0, top: 0, width: 300, height: 200 });
+    setRect(pageButton, { left: 20, top: 20, width: 120, height: 40 });
+    setRect(inspector, { left: 10, top: 10, width: 200, height: 120 });
+    setRect(typographyCard, { left: 20, top: 20, width: 160, height: 80 });
+    pageTarget.append(pageButton, inspector);
+    inspector.append(typographyCard);
+    document.body.append(pageTarget);
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => typographyCard });
+
+    expect(getTargetElement(point, null, document, pageTarget)).toBeNull();
+    expect(getSnappedClickTarget(point, null, true, document, pageTarget)).toBeNull();
+
+    const entries = getSelectionEntries(
+      { left: 0, top: 0, width: 240, height: 160 },
+      null,
+      document,
+      pageTarget,
+    );
+    expect(entries.some(({ element }) => element === inspector || element === typographyCard)).toBe(false);
+    expect(entries.some(({ element }) => element === pageButton)).toBe(true);
   });
 });
