@@ -127,6 +127,21 @@
   z-index: 80 !important;
 }
 
+/* Page-following Context UI is intentionally outside the hardened fixed host so
+   native CSS anchors share the selected page element's document positioning
+   tree. Only the native trigger changes from viewport-fixed to document-absolute;
+   the composer, saved markers, and panels keep their existing viewport semantics. */
+[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-trigger="true"],
+[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-composer="true"],
+[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-marker="true"],
+[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-panel="true"] {
+  z-index: 2147483000 !important;
+}
+
+[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-trigger="true"][data-mesurer-native-scroll-owner="annotation"][data-mesurer-native-scroll-anchor="offset"] {
+  position: absolute !important;
+}
+
 /* Plugin-contributed toggles share the compact 24px switch row, but unlike
    upstream's fixed settings columns their labels may be longer. Give only
    plugin rows the remaining width and never let a label increase row height. */
