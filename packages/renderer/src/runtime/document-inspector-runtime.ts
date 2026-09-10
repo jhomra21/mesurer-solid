@@ -26,6 +26,8 @@ export function createDocumentInspectorRuntime(
   runtime: MesurerSolidRuntimeService,
 ): MesurerDocumentInspectorRuntime {
   const { ownerDocument, ownerWindow } = runtime;
+  // SAFETY: ownerWindow is the browsing-context global for ownerDocument/pageTarget,
+  // so its DOM constructors are the correct realm for this runtime.
   const realm = ownerWindow as Window & typeof globalThis;
   if (!ownerDocument.body || !isDocumentBackedTarget(runtime, realm)) {
     return { runtime, documentBacked: false };
