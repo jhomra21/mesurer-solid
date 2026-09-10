@@ -70,12 +70,30 @@ const assertMotionFree = async (locator, stage) => {
 };
 
 const assertNativeAnchor = async (locator, mode, stage) => {
-  const native = await locator.evaluate((element) => ({
-    mode: element.dataset.mesurerNativeScrollAnchor ?? null,
-    anchor: getComputedStyle(element).getPropertyValue("position-anchor").trim(),
-  }));
-  assert.equal(native.mode, mode, `${stage}: native anchor mode`);
-  assert(native.anchor && native.anchor !== "none", `${stage}: expected a resolved CSS position-anchor`);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const native = await locator.evaluate((element) => {
+      if (!element.isConnected) return null;
+      const sample = {
+        mode: element.dataset.mesurerNativeScrollAnchor ?? null,
+        anchor: getComputedStyle(element).getPropertyValue("position-anchor").trim(),
+      };
+      // The same portal handoff can remove the old node's anchor metadata after
+      // locator resolution. Retry only missing/disconnected samples; a stable
+      // non-null but incorrect mode is returned and fails below immediately.
+      if (!element.isConnected || sample.mode === null || !sample.anchor || sample.anchor === "none") return null;
+      return sample;
+    });
+
+    if (native) {
+      assert.equal(native.mode, mode, `${stage}: native anchor mode`);
+      assert(native.anchor && native.anchor !== "none", `${stage}: expected a resolved CSS position-anchor`);
+      return;
+    }
+
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  }
+
+  assert.fail(`${stage}: expected a connected geometry surface with resolved native anchor`);
 };
 
 // Sample inside the scroll event itself. This catches compositor-visible drift
