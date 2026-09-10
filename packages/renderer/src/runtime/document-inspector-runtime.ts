@@ -7,7 +7,6 @@ export type MesurerDocumentInspectorRuntime = {
   documentBacked: boolean;
 };
 
-const DOCUMENT_INSPECTOR_Z_INDEX = "2147483000";
 const DOCUMENT_INPUT_Z_INDEX = "2147482999";
 
 const isDocumentBackedTarget = (
@@ -16,17 +15,23 @@ const isDocumentBackedTarget = (
 ) => !(runtime.pageTarget instanceof realm.ShadowRoot)
   && runtime.pageTarget.getRootNode() === runtime.ownerDocument;
 
+const isInteractionPlane = (
+  element: Element,
+  realm: Window & typeof globalThis,
+): element is HTMLElement => element instanceof realm.HTMLElement
+  && element.classList.contains("msr:absolute")
+  && element.classList.contains("msr:inset-0")
+  && element.classList.contains("msr:select-none")
+  && (element.style.pointerEvents === "auto" || element.style.pointerEvents === "none");
+
 const findIsolatedInteractionPlane = (
   portalTarget: ShadowRoot,
   realm: Window & typeof globalThis,
 ) => {
   const root = portalTarget.querySelector<HTMLElement>("[data-mesurer-root='true']");
   if (!root) return null;
-  return Array.from(root.children).find((child): child is HTMLElement =>
-    child instanceof realm.HTMLElement
-      && child.classList.contains("msr:absolute")
-      && child.classList.contains("msr:inset-0")
-      && child.classList.contains("msr:select-none"),
+  return Array.from(root.querySelectorAll("div")).find((element) =>
+    isInteractionPlane(element, realm),
   ) ?? null;
 };
 
@@ -58,14 +63,12 @@ const installIsolatedInputProxy = (
   realm: Window & typeof globalThis,
 ) => {
   if (!(runtime.portalTarget instanceof realm.ShadowRoot)) return () => undefined;
-  const interactionPlane = findIsolatedInteractionPlane(runtime.portalTarget, realm);
-  if (!interactionPlane) return () => undefined;
+  const portalTarget = runtime.portalTarget;
 
-  interactionPlane.dataset.mesurerDocumentInputProxy = "true";
   const override = runtime.ownerDocument.createElement("style");
   override.dataset.mesurerDocumentInputProxyStyle = "true";
   override.textContent = "[data-mesurer-document-input-proxy='true']{pointer-events:none!important}";
-  runtime.portalTarget.append(override);
+  portalTarget.append(override);
 
   const blocker = runtime.ownerDocument.createElement("div");
   blocker.dataset.mesurerInspectorUi = "true";
@@ -83,31 +86,66 @@ const installIsolatedInputProxy = (
   });
   mount.before(blocker);
 
+  let interactionPlane: HTMLElement | null = null;
+  let planeObserver: MutationObserver | null = null;
+
   const syncBlocker = () => {
-    const active = interactionPlane.style.pointerEvents === "auto";
+    const plane = interactionPlane;
+    if (!plane?.isConnected) {
+      blocker.style.pointerEvents = "none";
+      return;
+    }
+    const active = plane.style.pointerEvents === "auto";
     blocker.style.pointerEvents = active ? "auto" : "none";
     blocker.style.cursor = runtime.currentToolMode?.() === "guides" ? "crosshair" : "default";
   };
+
+  const bindInteractionPlane = () => {
+    const next = findIsolatedInteractionPlane(portalTarget, realm);
+    if (next === interactionPlane) {
+      syncBlocker();
+      return;
+    }
+
+    planeObserver?.disconnect();
+    planeObserver = null;
+    if (interactionPlane) delete interactionPlane.dataset.mesurerDocumentInputProxy;
+    interactionPlane = next;
+    if (!interactionPlane) {
+      syncBlocker();
+      return;
+    }
+
+    interactionPlane.dataset.mesurerDocumentInputProxy = "true";
+    planeObserver = new realm.MutationObserver(syncBlocker);
+    planeObserver.observe(interactionPlane, { attributes: true, attributeFilter: ["style", "class"] });
+    syncBlocker();
+  };
+
   const forward = (event: PointerEvent) => {
+    const plane = interactionPlane;
+    if (!plane?.isConnected) return;
     event.preventDefault();
-    interactionPlane.dispatchEvent(clonePointerEvent(event, realm));
+    plane.dispatchEvent(clonePointerEvent(event, realm));
   };
   for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel", "pointerleave"] as const) {
     blocker.addEventListener(type, forward);
   }
 
-  const observer = new realm.MutationObserver(syncBlocker);
-  observer.observe(interactionPlane, { attributes: true, attributeFilter: ["style", "class"] });
-  syncBlocker();
+  const portalObserver = new realm.MutationObserver(bindInteractionPlane);
+  portalObserver.observe(portalTarget, { childList: true, subtree: true });
+  bindInteractionPlane();
 
   return () => {
-    observer.disconnect();
+    portalObserver.disconnect();
+    planeObserver?.disconnect();
     for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel", "pointerleave"] as const) {
       blocker.removeEventListener(type, forward);
     }
     blocker.remove();
     override.remove();
-    delete interactionPlane.dataset.mesurerDocumentInputProxy;
+    if (interactionPlane) delete interactionPlane.dataset.mesurerDocumentInputProxy;
+    interactionPlane = null;
   };
 };
 
@@ -122,6 +160,8 @@ const installIsolatedInputProxy = (
  * inspector UI proxies its pointer stream back to that same plane. Inspector
  * controls therefore receive native browser input, page controls remain blocked,
  * and Select/Guides keep their existing pointer handlers and hit-testing logic.
+ * The proxy observes the ShadowRoot so plugin setup does not depend on whether
+ * Solid has mounted or replaced the renderer interaction plane yet.
  */
 export function createDocumentInspectorRuntime(
   runtime: MesurerSolidRuntimeService,
@@ -140,7 +180,6 @@ export function createDocumentInspectorRuntime(
     const element = ownerDocument.createElement("div");
     element.dataset.mesurerInspectorUi = "true";
     element.dataset.mesurerDocumentInspectorRuntime = "true";
-    element.style.zIndex = DOCUMENT_INSPECTOR_Z_INDEX;
     ownerDocument.body.append(element);
     const disposeInputProxy = installIsolatedInputProxy(runtime, element, realm);
     let disposed = false;
