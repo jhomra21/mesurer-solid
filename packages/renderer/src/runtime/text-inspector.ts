@@ -66,8 +66,8 @@ const styles = (mode: string, overlayId: string) => `
 #${overlayId} .mesurer-ti-card{transform:translateX(-50%);opacity:1;transition:none!important;animation:none!important}
 #${overlayId} .mesurer-ti-box{opacity:1;transition:none!important;animation:none!important}
 #${overlayId} [data-state="hidden"]{opacity:0!important}
-#${overlayId} .mesurer-ti-card--pinned{cursor:grab}
-#${overlayId} .mesurer-ti-card--pinned:active{cursor:grabbing}
+#${overlayId} .mesurer-ti-card--draggable{cursor:grab}
+#${overlayId} .mesurer-ti-card--draggable:active{cursor:grabbing}
 #${overlayId} .mesurer-ti-close{cursor:pointer}
 #${overlayId} .mesurer-ti-close:hover{background:rgba(15,23,42,.06)!important;color:#0f172a!important}
 `;
@@ -213,7 +213,15 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       if (event.pointerId !== pointerId) return;
       const dx = event.clientX - sx, dy = event.clientY - sy;
       if (!active && Math.abs(dx) <= 6 && Math.abs(dy) <= 6) return;
-      active = true;
+      if (!active) {
+        active = true;
+        // A click-pinned card should remain compositor-anchored to its source.
+        // Only an intentional drag detaches it into a viewport-placed card.
+        pin.card.classList.add("mesurer-ti-card--pinned");
+        delete pin.card.dataset.mesurerNativeScrollAnchor;
+        delete pin.card.dataset.mesurerNativeScrollOwner;
+        pin.card.style.removeProperty("position-anchor");
+      }
       if (!recorded) { record(); recorded = true; }
       pin.userPlaced = true;
       pin.card.style.left = `${Math.min(win.innerWidth - 8, Math.max(8, ox + dx))}px`;
@@ -252,6 +260,11 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     const root = ensureOverlay();
     const box = makeBox(doc, FILL_PINNED, OUTLINE_PINNED);
     const card = makeCard(doc, true);
+    // The scroll-anchor coordinator historically used this modifier as a signal
+    // to keep a card viewport-fixed. New click pins stay draggable but do not
+    // opt out of native anchoring until the user actually drags them.
+    card.classList.add("mesurer-ti-card--draggable");
+    card.classList.remove("mesurer-ti-card--pinned");
     const info = typography.getFull(sourceEl);
     populateCard(doc, card, info, true);
     root.append(box, card);
@@ -259,6 +272,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     positionBox(box, rect);
     positionCard(win, card, rect);
     if (state?.userPlaced) {
+      card.classList.add("mesurer-ti-card--pinned");
       card.style.left = `${state.left}px`;
       card.style.top = `${state.top}px`;
     }
