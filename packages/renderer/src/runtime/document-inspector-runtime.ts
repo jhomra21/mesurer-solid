@@ -62,7 +62,10 @@ const installIsolatedInputBridge = (
     const target = deepestMountHit(mount, event.clientX, event.clientY, ownerWindow);
     if (!target) return;
 
-    event.preventDefault();
+    // Do not cancel pointerdown: Chromium suppresses its compatibility click
+    // when pointerdown is default-prevented. Stopping propagation still keeps
+    // Select from handling the intercepted pointer, and routeClick cancels the
+    // eventual top-layer click before redispatching it to inspector UI.
     event.stopImmediatePropagation();
     const focusTarget = target.closest<HTMLElement>(
       "button, input, select, textarea, [contenteditable='true'], [tabindex]",
