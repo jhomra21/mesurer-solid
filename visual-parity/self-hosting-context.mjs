@@ -47,6 +47,12 @@ const captureAround = async (boxes, name, padding = 24) => {
   });
 };
 
+const clickByCoordinates = async (locator, label) => {
+  const box = await locator.boundingBox();
+  assert(box, `${label} must have a bounding box`);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+};
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_SELF_HOSTING__?.subject));
@@ -127,7 +133,11 @@ try {
     }));
   }));
 
-  await annotationTrigger.click();
+  // In isolated hosts the canonical Select plane is intentionally above the
+  // document-backed inspector. Exercise the same physical-pointer path a user
+  // does so the capture bridge, rather than Playwright actionability bypasses,
+  // is responsible for routing the click into the native-anchored document UI.
+  await clickByCoordinates(annotationTrigger, "Annotation trigger");
   const composer = page.locator("[data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
   const composerBox = await composer.boundingBox();
@@ -143,7 +153,7 @@ try {
   });
   await captureAround([targetBox, composerBox], "annotation-composer-detail", 28);
 
-  await composer.getByRole("button", { name: "Add note" }).click();
+  await clickByCoordinates(composer.getByRole("button", { name: "Add note" }), "Add note button");
   const annotationPanel = page.locator("[data-mesurer-annotation-panel='true']");
   const annotationMarker = page.locator("[data-mesurer-annotation-marker='true']");
   await annotationPanel.waitFor({ state: "visible" });
@@ -157,7 +167,7 @@ try {
   assert(boxGap(markerBox, panelBox) <= 8.5, `Saved annotation panel should clear the marker by one compact gap; gap was ${boxGap(markerBox, panelBox).toFixed(2)}px`);
   assert.equal((await annotationPanel.textContent())?.includes(noteText), true, "Saved annotation should render the note text");
   await captureAround([targetBox, markerBox, panelBox], "annotation-panel-detail", 28);
-  await annotationPanel.getByRole("button", { name: "Close annotation" }).click();
+  await clickByCoordinates(annotationPanel.getByRole("button", { name: "Close annotation" }), "Close annotation button");
 
   await page.evaluate(async () => {
     await window.__MESURER_SELF_HOSTING__.mountObserver();
