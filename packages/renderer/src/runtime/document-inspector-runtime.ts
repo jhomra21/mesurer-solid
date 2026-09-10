@@ -53,8 +53,11 @@ const installIsolatedInputBridge = (
   mount: HTMLElement,
   ownerWindow: Window & typeof globalThis,
 ) => {
+  const eventStartsInsideMount = (event: Event) =>
+    event.target instanceof ownerWindow.Node && mount.contains(event.target);
+
   const routePointer = (event: PointerEvent) => {
-    if (mount.contains(event.target as Node)) return;
+    if (eventStartsInsideMount(event)) return;
     if (isProtectedTopLayerControl(event, mount, ownerWindow)) return;
     const target = deepestMountHit(mount, event.clientX, event.clientY, ownerWindow);
     if (!target) return;
@@ -86,7 +89,7 @@ const installIsolatedInputBridge = (
   };
 
   const routeClick = (event: MouseEvent) => {
-    if (mount.contains(event.target as Node)) return;
+    if (eventStartsInsideMount(event)) return;
     if (isProtectedTopLayerControl(event, mount, ownerWindow)) return;
     const target = deepestMountHit(mount, event.clientX, event.clientY, ownerWindow);
     if (!target) return;
