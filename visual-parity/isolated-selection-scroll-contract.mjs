@@ -44,6 +44,12 @@ const intersects = (left, right, gap = 0) => !(
   || right.y + right.height + gap <= left.y
 );
 
+const boxGap = (a, b) => {
+  const horizontal = Math.max(0, Math.max(a.x, b.x) - Math.min(a.x + a.width, b.x + b.width));
+  const vertical = Math.max(0, Math.max(a.y, b.y) - Math.min(a.y + a.height, b.y + b.height));
+  return Math.hypot(horizontal, vertical);
+};
+
 const settle = () => page.evaluate(() => new Promise((resolve) => {
   requestAnimationFrame(() => requestAnimationFrame(resolve));
 }));
@@ -66,8 +72,11 @@ const assertNativeAnchor = async (locator, mode, stage) => {
   assert.equal(native.animation, "none", `${stage}: must not animate`);
 };
 
-const sampleScrollEvent = async (deltaY, { ring = false, inspector = false, highlight = false } = {}) => page.evaluate(
-  ({ deltaY: scrollDelta, includeRing, includeInspector, includeHighlight }) => new Promise((resolve, reject) => {
+const sampleScrollEvent = async (
+  deltaY,
+  { ring = false, inspector = false, highlight = false, annotation = false } = {},
+) => page.evaluate(
+  ({ deltaY: scrollDelta, includeRing, includeInspector, includeHighlight, includeAnnotation }) => new Promise((resolve, reject) => {
     const target = document.querySelector("#isolated-scroll-target");
     const selected = document.querySelector("[data-mesurer-selected-measurement='true'] > div");
     const editRing = includeRing ? document.querySelector("[data-mesurer-text-edit-ring='true']") : null;
@@ -77,12 +86,16 @@ const sampleScrollEvent = async (deltaY, { ring = false, inspector = false, high
     const textHighlight = includeHighlight
       ? document.querySelector("[data-mesurer-text-selection-highlight='true']")
       : null;
+    const annotationTrigger = includeAnnotation
+      ? document.querySelector("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']")
+      : null;
 
     if (!(target instanceof HTMLElement)) return reject(new Error("Expected isolated target before scroll"));
     if (!(selected instanceof HTMLElement)) return reject(new Error("Expected isolated selected chrome before scroll"));
     if (includeRing && !(editRing instanceof HTMLElement)) return reject(new Error("Expected isolated edit ring before scroll"));
     if (includeInspector && !(inspectorShell instanceof HTMLElement)) return reject(new Error("Expected isolated Typography shell before scroll"));
     if (includeHighlight && !(textHighlight instanceof HTMLElement)) return reject(new Error("Expected isolated selected-text highlight before scroll"));
+    if (includeAnnotation && !(annotationTrigger instanceof HTMLElement)) return reject(new Error("Expected isolated annotation trigger before scroll"));
 
     const snapshot = (element) => {
       const rect = element.getBoundingClientRect();
@@ -94,13 +107,20 @@ const sampleScrollEvent = async (deltaY, { ring = false, inspector = false, high
       ring: editRing instanceof HTMLElement ? snapshot(editRing) : null,
       inspector: inspectorShell instanceof HTMLElement ? snapshot(inspectorShell) : null,
       highlight: textHighlight instanceof HTMLElement ? snapshot(textHighlight) : null,
+      annotation: annotationTrigger instanceof HTMLElement ? snapshot(annotationTrigger) : null,
     });
 
     const before = state();
     window.addEventListener("scroll", () => resolve({ before, after: state() }), { capture: true, once: true });
     window.scrollBy({ top: scrollDelta, behavior: "instant" });
   }),
-  { deltaY, includeRing: ring, includeInspector: inspector, includeHighlight: highlight },
+  {
+    deltaY,
+    includeRing: ring,
+    includeInspector: inspector,
+    includeHighlight: highlight,
+    includeAnnotation: annotation,
+  },
 );
 
 const measureNativeScrollWork = async (deltaY, { ranges = false } = {}) => page.evaluate(
@@ -175,8 +195,29 @@ try {
   await assertNativeAnchor(selectedChrome, "box", "isolated selected chrome");
   assertSameBox(await box(selectedChrome, "isolated selected before scroll"), targetBox, "isolated selected before scroll");
 
-  const immediateSelection = await sampleScrollEvent(80);
+  const annotationTrigger = page.locator("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
+  await annotationTrigger.waitFor({ state: "visible" });
+  const annotationBox = await box(annotationTrigger, "isolated annotation trigger before scroll");
+  assert.equal(annotationBox.width, 24, "isolated annotation trigger width");
+  assert.equal(annotationBox.height, 24, "isolated annotation trigger height");
+  assert(
+    boxGap(targetBox, annotationBox) <= 8.5,
+    `isolated annotation trigger should hug selected element; gap=${boxGap(targetBox, annotationBox).toFixed(2)}px`,
+  );
+  assert.equal(
+    await annotationTrigger.getAttribute("data-mesurer-native-scroll-owner"),
+    "annotation",
+    "isolated annotation trigger must advertise native scroll ownership",
+  );
+  await assertNativeAnchor(annotationTrigger, "offset", "isolated annotation trigger");
+
+  const immediateSelection = await sampleScrollEvent(80, { annotation: true });
   assertSameBox(immediateSelection.after.selected, immediateSelection.after.target, "isolated selected chrome in scroll event");
+  assertRelativeOffset(
+    { target: immediateSelection.before.target, surface: immediateSelection.before.annotation },
+    { target: immediateSelection.after.target, surface: immediateSelection.after.annotation },
+    "isolated annotation trigger in first scroll event",
+  );
   // The previous scroll's 80ms settle pass is allowed to remeasure after the
   // hot event. Let it finish before instrumenting a second, independent scroll
   // so this probe counts work caused by that scroll only.
@@ -253,7 +294,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated mount keeps native scroll layout-free, public agent callable, and viewport toolbar stationary: PASS");
+  console.log("Public isolated mount keeps native selection/annotation/edit scroll layout-free, public agent callable, and viewport toolbar stationary: PASS");
 } finally {
   await browser.close();
 }
