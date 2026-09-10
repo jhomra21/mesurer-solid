@@ -4,6 +4,7 @@ import {
   getSnappedClickTarget,
   getTargetElement,
 } from "../src/core/selection";
+import { getFrameToken } from "../src/core/dom";
 import { getDeepestElementAtPoint, isElementWithinDomTarget } from "@jhomra21/mesurer-solid-dom";
 
 const originalDocumentElementFromPoint = document.elementFromPoint;
@@ -13,6 +14,13 @@ const setRect = (element: Element, rect: { left: number; top: number; width: num
     configurable: true,
     value: () => ({ ...rect, right: rect.left + rect.width, bottom: rect.top + rect.height }),
   });
+};
+
+const nextDomCacheFrame = async () => {
+  const frame = getFrameToken();
+  while (getFrameToken() === frame) {
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
 };
 
 afterEach(() => {
@@ -60,7 +68,7 @@ describe("root-aware point selection", () => {
     expect(getSnappedClickTarget(point, null, true)).toBe(target);
   });
 
-  it("never exposes Mesurer-owned inspector UI as a page selection target", () => {
+  it("never exposes Mesurer-owned inspector UI as a page selection target", async () => {
     const pageTarget = document.createElement("main");
     const pageButton = document.createElement("button");
     const inspector = document.createElement("div");
@@ -81,6 +89,13 @@ describe("root-aware point selection", () => {
     expect(getTargetElement(point, null, document, pageTarget)).toBeNull();
     expect(getSnappedClickTarget(point, null, true, document, pageTarget)).toBeNull();
 
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => pageButton });
+    expect(getTargetElement(point, null, document, pageTarget)).toBe(pageButton);
+
+    // Rectangle selection intentionally uses a per-frame candidate cache. Move
+    // into a fresh frame so this assertion owns the DOM it just installed rather
+    // than a prior test's same-frame candidate list.
+    await nextDomCacheFrame();
     const entries = getSelectionEntries(
       { left: 0, top: 0, width: 240, height: 160 },
       null,
