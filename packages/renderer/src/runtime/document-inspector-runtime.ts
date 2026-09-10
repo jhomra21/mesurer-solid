@@ -49,12 +49,42 @@ const deepestMountHit = (
   return null;
 };
 
+const createBridgedClick = (
+  event: PointerEvent | MouseEvent,
+  realm: Window & typeof globalThis,
+) => new realm.MouseEvent("click", {
+  bubbles: true,
+  cancelable: true,
+  composed: true,
+  button: event.button,
+  buttons: event.buttons,
+  clientX: event.clientX,
+  clientY: event.clientY,
+  screenX: event.screenX,
+  screenY: event.screenY,
+  ctrlKey: event.ctrlKey,
+  shiftKey: event.shiftKey,
+  altKey: event.altKey,
+  metaKey: event.metaKey,
+});
+
 const installIsolatedInputBridge = (
   mount: HTMLElement,
   ownerWindow: Window & typeof globalThis,
 ) => {
   const eventStartsInsideMount = (event: Event) =>
     event.target instanceof ownerWindow.Node && mount.contains(event.target);
+  let suppressNativeClick = false;
+  let suppressNativeClickTimer = 0;
+
+  const armNativeClickSuppression = () => {
+    suppressNativeClick = true;
+    if (suppressNativeClickTimer) ownerWindow.clearTimeout(suppressNativeClickTimer);
+    suppressNativeClickTimer = ownerWindow.setTimeout(() => {
+      suppressNativeClick = false;
+      suppressNativeClickTimer = 0;
+    }, 0);
+  };
 
   const routePointer = (event: PointerEvent) => {
     if (eventStartsInsideMount(event)) return;
@@ -62,10 +92,10 @@ const installIsolatedInputBridge = (
     const target = deepestMountHit(mount, event.clientX, event.clientY, ownerWindow);
     if (!target) return;
 
-    // Do not cancel pointerdown: Chromium suppresses its compatibility click
-    // when pointerdown is default-prevented. Stopping propagation still keeps
-    // Select from handling the intercepted pointer, and routeClick cancels the
-    // eventual top-layer click before redispatching it to inspector UI.
+    // Keep Select from seeing a pointer that belongs to document-backed Mesurer
+    // UI, but preserve the browser's pointer lifecycle. The bridged click is
+    // emitted deterministically on primary pointerup instead of depending on a
+    // compatibility click from the protected top layer.
     event.stopImmediatePropagation();
     const focusTarget = target.closest<HTMLElement>(
       "button, input, select, textarea, [contenteditable='true'], [tabindex]",
@@ -89,6 +119,11 @@ const installIsolatedInputBridge = (
       altKey: event.altKey,
       metaKey: event.metaKey,
     }));
+
+    if (event.type === "pointerup" && event.button === 0 && event.isPrimary) {
+      armNativeClickSuppression();
+      target.dispatchEvent(createBridgedClick(event, ownerWindow));
+    }
   };
 
   const routeClick = (event: MouseEvent) => {
@@ -99,25 +134,18 @@ const installIsolatedInputBridge = (
 
     event.preventDefault();
     event.stopImmediatePropagation();
+    if (suppressNativeClick) {
+      suppressNativeClick = false;
+      if (suppressNativeClickTimer) ownerWindow.clearTimeout(suppressNativeClickTimer);
+      suppressNativeClickTimer = 0;
+      return;
+    }
+
     const focusTarget = target.closest<HTMLElement>(
       "button, input, select, textarea, [contenteditable='true'], [tabindex]",
     );
     focusTarget?.focus({ preventScroll: true });
-    target.dispatchEvent(new ownerWindow.MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      button: event.button,
-      buttons: event.buttons,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      screenX: event.screenX,
-      screenY: event.screenY,
-      ctrlKey: event.ctrlKey,
-      shiftKey: event.shiftKey,
-      altKey: event.altKey,
-      metaKey: event.metaKey,
-    }));
+    target.dispatchEvent(createBridgedClick(event, ownerWindow));
   };
 
   ownerWindow.addEventListener("pointerdown", routePointer, true);
@@ -127,6 +155,9 @@ const installIsolatedInputBridge = (
     ownerWindow.removeEventListener("pointerdown", routePointer, true);
     ownerWindow.removeEventListener("pointerup", routePointer, true);
     ownerWindow.removeEventListener("click", routeClick, true);
+    if (suppressNativeClickTimer) ownerWindow.clearTimeout(suppressNativeClickTimer);
+    suppressNativeClickTimer = 0;
+    suppressNativeClick = false;
   };
 };
 
