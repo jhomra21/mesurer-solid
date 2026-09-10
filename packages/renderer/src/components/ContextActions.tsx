@@ -454,6 +454,8 @@ export function ContextActions(props: ContextActionsProps) {
                 ? `calc(anchor(top) + ${position().anchorY}px)`
                 : `${position().top}px`,
               "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
+              "--mesurer-native-anchor-x": position().nativeAnchor ? `${position().anchorX}px` : undefined,
+              "--mesurer-native-anchor-y": position().nativeAnchor ? `${position().anchorY}px` : undefined,
             }}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => { event.stopPropagation(); openNoteComposer(); }}
