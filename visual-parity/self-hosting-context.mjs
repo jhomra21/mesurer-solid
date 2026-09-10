@@ -76,6 +76,53 @@ try {
   assert.equal(triggerBox.height, 24, "Annotation trigger height");
   assert(boxGap(targetBox, triggerBox) <= 8.5, `Annotation trigger should hug the selected element; gap was ${boxGap(targetBox, triggerBox).toFixed(2)}px`);
 
+  const annotationScrollProbe = await page.evaluate(() => new Promise((resolve, reject) => {
+    const harness = window.__MESURER_SELF_HOSTING__;
+    const targetElement = document.querySelector("[data-self-host-target]");
+    const trigger = harness?.subject?.element?.querySelector("[data-mesurer-annotation-trigger='true']");
+    if (!(targetElement instanceof HTMLElement)) return reject(new Error("Missing annotation scroll target"));
+    if (!(trigger instanceof HTMLElement)) return reject(new Error("Missing subject annotation trigger"));
+
+    const snapshot = (element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    document.body.style.minHeight = "1400px";
+    const before = { target: snapshot(targetElement), trigger: snapshot(trigger) };
+    const timer = window.setTimeout(() => reject(new Error("Annotation trigger scroll probe timed out")), 3_000);
+    window.addEventListener("scroll", () => {
+      window.clearTimeout(timer);
+      resolve({
+        before,
+        immediate: { target: snapshot(targetElement), trigger: snapshot(trigger) },
+        nativeOwner: trigger.dataset.mesurerNativeScrollOwner ?? null,
+        nativeAnchor: trigger.dataset.mesurerNativeScrollAnchor ?? null,
+      });
+    }, { capture: true, once: true });
+    window.scrollBy({ top: 80, behavior: "instant" });
+  }));
+
+  const triggerOffset = (snapshot) => ({
+    x: snapshot.trigger.x - snapshot.target.x,
+    y: snapshot.trigger.y - snapshot.target.y,
+  });
+  const triggerOffsetBefore = triggerOffset(annotationScrollProbe.before);
+  const triggerOffsetImmediate = triggerOffset(annotationScrollProbe.immediate);
+  assert.equal(annotationScrollProbe.nativeOwner, "annotation", "Annotation trigger must use native scroll ownership");
+  assert.equal(annotationScrollProbe.nativeAnchor, "offset", "Annotation trigger must expose its native anchor contract");
+  assert(
+    Math.abs(triggerOffsetImmediate.x - triggerOffsetBefore.x) <= 1.5
+      && Math.abs(triggerOffsetImmediate.y - triggerOffsetBefore.y) <= 1.5,
+    `Annotation trigger must stay attached in the first scroll event; offset moved from ${JSON.stringify(triggerOffsetBefore)} to ${JSON.stringify(triggerOffsetImmediate)}`,
+  );
+  await page.evaluate(() => new Promise((resolve) => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.body.style.minHeight = "";
+      resolve();
+    }));
+  }));
+
   await annotationTrigger.click();
   const composer = page.locator("[data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
@@ -236,7 +283,7 @@ try {
     `context buttons: ${measurements.tools.length} × 32×32px`,
     "context SVG boxes: 20×20px, centered in every button",
     `max glyph optical-center offset: ${maxOpticalOffset.toFixed(2)}px`,
-    "annotation trigger: 24×24px beside selected element",
+    "annotation trigger: 24×24px beside selected element; compositor-anchored during scroll",
     "annotation composer: compact, target-anchored Mesurer surface",
     "saved marker: clear between target and note panel",
     "observer selection: Copy context button",
@@ -252,7 +299,7 @@ try {
       toolbarCenterLineDelta: "≤ 0.05px",
       glyphEnvelope: "11–18.5px per axis",
       opticalCenterOffset: "≤ 1.5px",
-      annotationTrigger: "24x24px, ≤8.5px from selection",
+      annotationTrigger: "24x24px, ≤8.5px from selection, stable in first scroll event",
       annotationComposer: "≤272.5px wide, ≤8.5px from selection",
       annotationPanel: "marker ≤8.5px from target; panel ≤8.5px from marker",
       observerSelection: "canonical selection context + matching body-level portaled chrome",
@@ -261,6 +308,7 @@ try {
     annotation: {
       target: targetBox,
       trigger: triggerBox,
+      scroll: annotationScrollProbe,
       composer: composerBox,
       marker: markerBox,
       panel: panelBox,
@@ -307,6 +355,10 @@ try {
     annotationComposerGap: boxGap(targetBox, composerBox),
     annotationMarkerGap: boxGap(targetBox, markerBox),
     annotationPanelGap: boxGap(markerBox, panelBox),
+    annotationScrollOffsetDelta: {
+      x: triggerOffsetImmediate.x - triggerOffsetBefore.x,
+      y: triggerOffsetImmediate.y - triggerOffsetBefore.y,
+    },
     outputDir,
   }, null, 2));
 } finally {
