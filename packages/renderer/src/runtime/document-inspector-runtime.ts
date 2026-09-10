@@ -22,7 +22,10 @@ const isInteractionPlane = (
   && element.classList.contains("msr:absolute")
   && element.classList.contains("msr:inset-0")
   && element.classList.contains("msr:select-none")
-  && (element.style.pointerEvents === "auto" || element.style.pointerEvents === "none");
+  && (
+    element.classList.contains("msr:pointer-events-auto")
+    || element.classList.contains("msr:pointer-events-none")
+  );
 
 const findIsolatedInteractionPlane = (
   portalTarget: ShadowRoot,
@@ -95,7 +98,8 @@ const installIsolatedInputProxy = (
       blocker.style.pointerEvents = "none";
       return;
     }
-    const active = plane.style.pointerEvents === "auto";
+    const active = plane.classList.contains("msr:pointer-events-auto")
+      || plane.style.pointerEvents === "auto";
     blocker.style.pointerEvents = active ? "auto" : "none";
     blocker.style.cursor = runtime.currentToolMode?.() === "guides" ? "crosshair" : "default";
   };
