@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import { CloseIcon, CopyIcon, NoteIcon, TrashIcon } from "./Icons";
 
@@ -18,6 +18,40 @@ const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
 const annotationButtonClass = "msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:cursor-default msr:disabled:opacity-40";
+let annotationAnchorSequence = 0;
+
+const anchorNames = (value: string) => value
+  .split(",")
+  .map((name) => name.trim())
+  .filter((name) => name.length > 0 && name !== "none");
+
+const addAnchorName = (element: HTMLElement, name: string) => {
+  const before = element.style.getPropertyValue("anchor-name");
+  const beforePriority = element.style.getPropertyPriority("anchor-name");
+  const names = anchorNames(before);
+  if (!names.includes(name)) {
+    element.style.setProperty("anchor-name", [...names, name].join(", "), beforePriority);
+  }
+
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const current = anchorNames(element.style.getPropertyValue("anchor-name"));
+    const remaining = current.filter((candidate) => candidate !== name);
+    if (remaining.length) {
+      element.style.setProperty(
+        "anchor-name",
+        remaining.join(", "),
+        element.style.getPropertyPriority("anchor-name"),
+      );
+    } else if (before.trim() === "none") {
+      element.style.setProperty("anchor-name", before, beforePriority);
+    } else {
+      element.style.removeProperty("anchor-name");
+    }
+  };
+};
 
 const unionRects = (rects: PositionedRect[]): PositionedRect | null => {
   if (!rects.length) return null;
@@ -60,6 +94,8 @@ export function ContextActions(props: ContextActionsProps) {
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
+  const [nativeTriggerTarget, setNativeTriggerTarget] = createSignal<HTMLElement | null>(null);
+  const selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
   let surfaceDrag: {
     surfaceId: string;
     pointerId: number;
@@ -113,14 +149,37 @@ export function ContextActions(props: ContextActionsProps) {
     return `${value.anchor.targets.length} selected ${value.anchor.targets.length === 1 ? "element" : "elements"}`;
   };
 
-  const selectionTriggerElement = () => {
+  const selectionTriggerElement = createMemo(() => {
     const elements = selection().elements;
     if (!elements.length) return null;
     const hovered = props.runtime.hoveredElement();
     return elements.find((element) => element === hovered)
       ?? elements.find((element) => hovered && element.contains(hovered))
       ?? elements[0];
+  });
+
+  const supportsSelectionTriggerAnchor = () => {
+    const currentWindow = ownerWindow();
+    return Boolean(
+      currentWindow.CSS?.supports("anchor-name: --mesurer-annotation-trigger")
+      && currentWindow.CSS.supports("position-anchor: --mesurer-annotation-trigger")
+      && currentWindow.CSS.supports("left: anchor(left)"),
+    );
   };
+
+  createEffect(() => {
+    const element = selectionTriggerElement();
+    if (!element?.isConnected || !supportsSelectionTriggerAnchor()) {
+      setNativeTriggerTarget(null);
+      return;
+    }
+    const release = addAnchorName(element, selectionTriggerAnchorName);
+    setNativeTriggerTarget(element);
+    onCleanup(() => {
+      release();
+      setNativeTriggerTarget(null);
+    });
+  });
 
   const selectionTriggerPosition = () => {
     const element = selectionTriggerElement();
@@ -157,9 +216,14 @@ export function ContextActions(props: ContextActionsProps) {
       && point.top + size <= currentWindow.innerHeight - padding;
     const fitted = candidates.flatMap((candidate) => candidate.points).find(fitsViewport);
     const fallback = { left: right + gap, top: value.top };
+    const left = clamp((fitted ?? fallback).left, padding, currentWindow.innerWidth - size - padding);
+    const top = clamp((fitted ?? fallback).top, padding, currentWindow.innerHeight - size - padding);
     return {
-      left: clamp((fitted ?? fallback).left, padding, currentWindow.innerWidth - size - padding),
-      top: clamp((fitted ?? fallback).top, padding, currentWindow.innerHeight - size - padding),
+      left,
+      top,
+      anchorX: left - value.left,
+      anchorY: top - value.top,
+      nativeAnchor: nativeTriggerTarget() === element,
     };
   };
 
@@ -358,10 +422,20 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-layer="chrome"
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-trigger="true"
+            data-mesurer-native-scroll-owner={position().nativeAnchor ? "annotation" : undefined}
+            data-mesurer-native-scroll-anchor={position().nativeAnchor ? "offset" : undefined}
             aria-label="Annotate selection"
             title="Annotate selection"
             class="msr:pointer-events-auto msr:fixed msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
-            style={{ left: `${position().left}px`, top: `${position().top}px` }}
+            style={{
+              left: position().nativeAnchor
+                ? `calc(anchor(left) + ${position().anchorX}px)`
+                : `${position().left}px`,
+              top: position().nativeAnchor
+                ? `calc(anchor(top) + ${position().anchorY}px)`
+                : `${position().top}px`,
+              "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
+            }}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => { event.stopPropagation(); openNoteComposer(); }}
           >
