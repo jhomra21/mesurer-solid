@@ -1,11 +1,7 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { installDocumentScrollAnchoring } from "./document-scroll-anchoring";
-import {
-  createDocumentTextRuntime,
-  installIsolatedSelectionPortal,
-  installToolbarTargetAvoidance,
-} from "./isolated-document-portal";
+import { createDocumentTextRuntime } from "./isolated-document-portal";
 import { installNativeScrollStability } from "./native-scroll-stability";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
 import { installTextEditingPresentation } from "./text-editing-presentation";
@@ -40,11 +36,9 @@ export function installTextEditing(
   runtime: MesurerSolidRuntimeService,
 ) {
   // The public package defaults to a ShadowRoot island. Keep the canonical
-  // toolbar isolated there, but give scroll-following selection/text chrome a
-  // document-backed runtime so it can participate in the page's native anchor
-  // tree rather than chasing compositor scroll from fixed Shadow DOM geometry.
-  installIsolatedSelectionPortal(ctx, runtime);
-  installToolbarTargetAvoidance(ctx, runtime);
+  // toolbar isolated and framework-owned there. Selection chrome uses the
+  // MeasurementBox component's Solid Portal when it needs the document layer;
+  // never reparent renderer-owned nodes imperatively.
   const { runtime: textRuntime } = createDocumentTextRuntime(runtime);
 
   installMixedInlineTextTargeting(ctx, textRuntime);
@@ -64,8 +58,7 @@ export function installTextEditing(
   // scroll event. Keep scroll-following owners in the document anchor tree so
   // their visible movement is resolved by CSS Anchor Positioning instead of
   // having fixed overlay geometry chase the page from JS. The text runtime is
-  // moved once and stays intact there; all of its existing event/DOM ownership
-  // relationships remain unchanged.
+  // created in the document layer for isolated public mounts and stays intact.
   installDocumentScrollAnchoring(ctx, textRuntime);
   // Keep every native anchor in document space and advance only the hidden
   // fallback coordinates needed for post-scroll re-binding. This prevents the
