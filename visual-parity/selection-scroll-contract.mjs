@@ -42,15 +42,31 @@ const settleScroll = () => page.evaluate(() => new Promise((resolve) => {
 }));
 
 const assertMotionFree = async (locator, stage) => {
-  const motion = await locator.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return {
-      transitionDuration: style.transitionDuration,
-      animationName: style.animationName,
-    };
-  });
-  assert.equal(motion.transitionDuration, "0s", `${stage}: geometry surface must not transition`);
-  assert.equal(motion.animationName, "none", `${stage}: geometry surface must not animate`);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const motion = await locator.evaluate((element) => {
+      if (!element.isConnected) return null;
+      const style = getComputedStyle(element);
+      const sample = {
+        transitionDuration: style.transitionDuration,
+        animationName: style.animationName,
+      };
+      // A portal node can detach between locator resolution and style sampling.
+      // Chromium returns empty computed values for that transient node; retry
+      // only that case so a connected surface with real motion still fails.
+      if (!element.isConnected || !sample.transitionDuration || !sample.animationName) return null;
+      return sample;
+    });
+
+    if (motion) {
+      assert.equal(motion.transitionDuration, "0s", `${stage}: geometry surface must not transition`);
+      assert.equal(motion.animationName, "none", `${stage}: geometry surface must not animate`);
+      return;
+    }
+
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  }
+
+  assert.fail(`${stage}: expected a connected geometry surface with computed motion styles`);
 };
 
 const assertNativeAnchor = async (locator, mode, stage) => {
