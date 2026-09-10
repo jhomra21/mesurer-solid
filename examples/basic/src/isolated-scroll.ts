@@ -1,4 +1,4 @@
-import { mountMesurer, type MountedMesurer } from "../../../packages/mesurer/src/index";
+import { contextPlugin, mountMesurer, type MountedMesurer } from "../../../packages/mesurer/src/index";
 import { arrangePlugin } from "../../../packages/renderer/src/plugins/arrange";
 
 const subject = mountMesurer({
@@ -6,7 +6,7 @@ const subject = mountMesurer({
   isolate: true,
   topLayer: true,
   agent: true,
-  plugins: [arrangePlugin()],
+  plugins: [contextPlugin(), arrangePlugin()],
 });
 
 await subject.ready;
