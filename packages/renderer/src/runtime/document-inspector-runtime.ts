@@ -7,153 +7,123 @@ export type MesurerDocumentInspectorRuntime = {
   documentBacked: boolean;
 };
 
-const DOCUMENT_INPUT_Z_INDEX = "2147482999";
-
 const isDocumentBackedTarget = (
   runtime: MesurerSolidRuntimeService,
   realm: Window & typeof globalThis,
 ) => !(runtime.pageTarget instanceof realm.ShadowRoot)
   && runtime.pageTarget.getRootNode() === runtime.ownerDocument;
 
-const isInteractionPlane = (
-  element: Element,
-  realm: Window & typeof globalThis,
-): element is HTMLElement => element instanceof realm.HTMLElement
-  && element.classList.contains("msr:absolute")
-  && element.classList.contains("msr:inset-0")
-  && element.classList.contains("msr:select-none");
+const rectContainsPoint = (rect: DOMRect, x: number, y: number) =>
+  rect.width > 0
+  && rect.height > 0
+  && x >= rect.left
+  && x <= rect.right
+  && y >= rect.top
+  && y <= rect.bottom;
 
-const findIsolatedInteractionPlane = (
-  portalTarget: ShadowRoot,
-  realm: Window & typeof globalThis,
-) => {
-  const root = portalTarget.querySelector<HTMLElement>("[data-mesurer-root='true']");
-  if (!root) return null;
-  return Array.from(root.querySelectorAll("div")).find((element) =>
-    isInteractionPlane(element, realm),
-  ) ?? null;
-};
-
-const clonePointerEvent = (
-  event: PointerEvent,
-  realm: Window & typeof globalThis,
-) => new realm.PointerEvent(event.type, {
-  bubbles: true,
-  cancelable: true,
-  composed: true,
-  pointerId: event.pointerId,
-  pointerType: event.pointerType,
-  isPrimary: event.isPrimary,
-  button: event.button,
-  buttons: event.buttons,
-  clientX: event.clientX,
-  clientY: event.clientY,
-  screenX: event.screenX,
-  screenY: event.screenY,
-  ctrlKey: event.ctrlKey,
-  shiftKey: event.shiftKey,
-  altKey: event.altKey,
-  metaKey: event.metaKey,
-});
-
-const installIsolatedInputProxy = (
-  runtime: MesurerSolidRuntimeService,
+const isProtectedTopLayerControl = (
+  event: Event,
   mount: HTMLElement,
   realm: Window & typeof globalThis,
+) => event.composedPath().some((node) => {
+  if (!(node instanceof realm.Element) || mount.contains(node)) return false;
+  return node.matches("button, input, select, textarea, [role='button'], [role='switch'], [role='slider']")
+    || node.hasAttribute("data-mesurer-toolbar")
+    || node.hasAttribute("data-mesurer-settings");
+});
+
+const deepestMountHit = (
+  mount: HTMLElement,
+  x: number,
+  y: number,
+  realm: Window & typeof globalThis,
 ) => {
-  if (!(runtime.portalTarget instanceof realm.ShadowRoot)) return () => undefined;
-  const portalTarget = runtime.portalTarget;
-
-  const override = runtime.ownerDocument.createElement("style");
-  override.dataset.mesurerDocumentInputProxyStyle = "true";
-  override.textContent = "[data-mesurer-document-input-proxy='true']{pointer-events:none!important}";
-  portalTarget.append(override);
-
-  const blocker = runtime.ownerDocument.createElement("div");
-  blocker.dataset.mesurerInspectorUi = "true";
-  blocker.dataset.mesurerDocumentInputBlocker = "true";
-  Object.assign(blocker.style, {
-    position: "fixed",
-    inset: "0",
-    zIndex: DOCUMENT_INPUT_Z_INDEX,
-    margin: "0",
-    padding: "0",
-    border: "0",
-    background: "transparent",
-    pointerEvents: "none",
-    userSelect: "none",
-  });
-  mount.before(blocker);
-
-  let interactionPlane: HTMLElement | null = null;
-  let planeObserver: MutationObserver | null = null;
-
-  const syncBlocker = () => {
-    const plane = interactionPlane;
-    if (!plane?.isConnected) {
-      blocker.style.pointerEvents = "none";
-      return;
-    }
-    // MesurerOverlay's inline pointer-events value is the exact
-    // overlayInteractive() result. Its Tailwind pointer-events class only
-    // tracks enabled/visible presentation and remains "auto" while toolMode is
-    // none, Text Inspector owns input, or Settings disables interaction.
-    const active = plane.style.pointerEvents === "auto";
-    blocker.style.pointerEvents = active ? "auto" : "none";
-    blocker.style.cursor = runtime.currentToolMode?.() === "guides" ? "crosshair" : "default";
-  };
-
-  const bindInteractionPlane = () => {
-    const next = findIsolatedInteractionPlane(portalTarget, realm);
-    if (next === interactionPlane) {
-      syncBlocker();
-      return;
-    }
-
-    planeObserver?.disconnect();
-    planeObserver = null;
-    if (interactionPlane) delete interactionPlane.dataset.mesurerDocumentInputProxy;
-    interactionPlane = next;
-    if (!interactionPlane) {
-      syncBlocker();
-      return;
-    }
-
-    interactionPlane.dataset.mesurerDocumentInputProxy = "true";
-    planeObserver = new realm.MutationObserver(syncBlocker);
-    planeObserver.observe(interactionPlane, { attributes: true, attributeFilter: ["style", "class"] });
-    syncBlocker();
-  };
-
-  const forward = (event: PointerEvent) => {
-    const plane = interactionPlane;
-    if (!plane?.isConnected) return;
-    event.preventDefault();
-    plane.dispatchEvent(clonePointerEvent(event, realm));
-  };
-  for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel", "pointerleave"] as const) {
-    blocker.addEventListener(type, forward);
+  const candidates = Array.from(mount.querySelectorAll<HTMLElement>("*"));
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const candidate = candidates[index];
+    if (!candidate.isConnected) continue;
+    const style = realm.getComputedStyle(candidate);
+    if (style.display === "none" || style.visibility === "hidden" || style.pointerEvents === "none") continue;
+    if (rectContainsPoint(candidate.getBoundingClientRect(), x, y)) return candidate;
   }
+  return null;
+};
 
-  const portalObserver = new realm.MutationObserver(bindInteractionPlane);
-  portalObserver.observe(portalTarget, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["class", "style"],
-  });
-  bindInteractionPlane();
+const installIsolatedInputBridge = (
+  mount: HTMLElement,
+  ownerWindow: Window & typeof globalThis,
+) => {
+  const eventStartsInsideMount = (event: Event) =>
+    event.target instanceof ownerWindow.Node && mount.contains(event.target);
 
+  const routePointer = (event: PointerEvent) => {
+    if (eventStartsInsideMount(event)) return;
+    if (isProtectedTopLayerControl(event, mount, ownerWindow)) return;
+    const target = deepestMountHit(mount, event.clientX, event.clientY, ownerWindow);
+    if (!target) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const focusTarget = target.closest<HTMLElement>(
+      "button, input, select, textarea, [contenteditable='true'], [tabindex]",
+    );
+    focusTarget?.focus({ preventScroll: true });
+    target.dispatchEvent(new ownerWindow.PointerEvent(event.type, {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      isPrimary: event.isPrimary,
+      button: event.button,
+      buttons: event.buttons,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      screenX: event.screenX,
+      screenY: event.screenY,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+    }));
+  };
+
+  const routeClick = (event: MouseEvent) => {
+    if (eventStartsInsideMount(event)) return;
+    if (isProtectedTopLayerControl(event, mount, ownerWindow)) return;
+    const target = deepestMountHit(mount, event.clientX, event.clientY, ownerWindow);
+    if (!target) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const focusTarget = target.closest<HTMLElement>(
+      "button, input, select, textarea, [contenteditable='true'], [tabindex]",
+    );
+    focusTarget?.focus({ preventScroll: true });
+    target.dispatchEvent(new ownerWindow.MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      button: event.button,
+      buttons: event.buttons,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      screenX: event.screenX,
+      screenY: event.screenY,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+    }));
+  };
+
+  ownerWindow.addEventListener("pointerdown", routePointer, true);
+  ownerWindow.addEventListener("pointerup", routePointer, true);
+  ownerWindow.addEventListener("click", routeClick, true);
   return () => {
-    portalObserver.disconnect();
-    planeObserver?.disconnect();
-    for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel", "pointerleave"] as const) {
-      blocker.removeEventListener(type, forward);
-    }
-    blocker.remove();
-    override.remove();
-    if (interactionPlane) delete interactionPlane.dataset.mesurerDocumentInputProxy;
-    interactionPlane = null;
+    ownerWindow.removeEventListener("pointerdown", routePointer, true);
+    ownerWindow.removeEventListener("pointerup", routePointer, true);
+    ownerWindow.removeEventListener("click", routeClick, true);
   };
 };
 
@@ -163,13 +133,12 @@ const installIsolatedInputProxy = (
  *
  * CSS Anchor Positioning cannot resolve a page element from inside Mesurer's
  * top-layer ShadowRoot, so transient page-following surfaces stay in the page
- * document. In the isolated-host topology, the original full-screen interaction
- * plane is made pointer-transparent and a document blocker immediately beneath
- * inspector UI proxies its pointer stream back to that same plane. Inspector
- * controls therefore receive native browser input, page controls remain blocked,
- * and Select/Guides keep their existing pointer handlers and hit-testing logic.
- * The proxy observes mount and attribute lifecycle so plugin setup does not
- * depend on when Solid creates or updates the renderer interaction plane.
+ * document. In the isolated-host topology, the Select interaction plane is
+ * intentionally above the document. A capture bridge forwards only pointer
+ * input that geometrically belongs to this document-backed inspector mount;
+ * ordinary page input still reaches Select, while canonical top-layer controls
+ * retain precedence. This preserves native compositor anchoring without making
+ * inspected application controls live.
  */
 export function createDocumentInspectorRuntime(
   runtime: MesurerSolidRuntimeService,
@@ -183,20 +152,23 @@ export function createDocumentInspectorRuntime(
   }
 
   ensureMesurerStyles(MESURER_STYLES, ownerDocument.body);
+  const isolatedHost = runtime.portalTarget instanceof realm.ShadowRoot;
 
   const createInspectorMount = () => {
     const element = ownerDocument.createElement("div");
     element.dataset.mesurerInspectorUi = "true";
     element.dataset.mesurerDocumentInspectorRuntime = "true";
     ownerDocument.body.append(element);
-    const disposeInputProxy = installIsolatedInputProxy(runtime, element, realm);
+    const disposeInputBridge = isolatedHost
+      ? installIsolatedInputBridge(element, realm)
+      : null;
     let disposed = false;
     return {
       element,
       dispose() {
         if (disposed) return;
         disposed = true;
-        disposeInputProxy();
+        disposeInputBridge?.();
         element.remove();
       },
     };
