@@ -1,6 +1,7 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
 import { MIN_MULTI_TARGET_SIZE } from "./constants";
 import { getBodyElementsCached, getFrameToken, getRectFromDomCached } from "./dom";
+import { isInsideMesurer } from "./events";
 import { rectsOverlap } from "./geometry";
 import { pickMultiTargets, pickPointTarget, pickSingleTarget } from "./targets";
 import { getDeepestElementAtPoint, getDomTreeRoot, isElementWithinDomTarget, withPointerEventsDisabled } from "@jhomra21/mesurer-solid-dom";
@@ -29,10 +30,15 @@ export const getTargetElement = (
 ) => {
   const overlayHost = getOverlayHost(overlayNode);
   const element = getSelectionTarget(point, overlayNode, ownerDocument, pageTarget);
-  const HTMLElementConstructor = ownerDocument.defaultView?.HTMLElement;
-  if (!HTMLElementConstructor || !(element instanceof HTMLElementConstructor)) return null;
+  const ownerWindow = ownerDocument.defaultView;
+  const HTMLElementConstructor = ownerWindow?.HTMLElement;
+  if (!ownerWindow || !HTMLElementConstructor || !(element instanceof HTMLElementConstructor)) return null;
   const html = element;
-  if (!isElementWithinDomTarget(html, pageTarget) || isOverlayElement(html, overlayNode, overlayHost)) return null;
+  if (
+    !isElementWithinDomTarget(html, pageTarget)
+    || isOverlayElement(html, overlayNode, overlayHost)
+    || isInsideMesurer(html, ownerWindow)
+  ) return null;
   if (html === ownerDocument.body || html === ownerDocument.documentElement) return null;
   const rect = html.getBoundingClientRect();
   return rect.width > 2 && rect.height > 2 ? html : null;
@@ -90,6 +96,8 @@ export const getSelectionEntries = (
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
 ) => {
   const overlayHost = getOverlayHost(overlayNode);
+  const ownerWindow = ownerDocument.defaultView;
+  if (!ownerWindow) return [];
   const frame = getFrameToken();
   const key = `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
   if (
@@ -109,6 +117,7 @@ export const getSelectionEntries = (
       if (
         !isElementWithinDomTarget(element, pageTarget)
         || isOverlayElement(element, overlayNode, overlayHost)
+        || isInsideMesurer(element, ownerWindow)
         || element === ownerDocument.body
         || element === ownerDocument.documentElement
       ) return false;
