@@ -18,6 +18,7 @@ const cases = [
     name: "Solid 2 (mount API)",
     url: process.env.SOLID2_PACKAGE_URL ?? "http://127.0.0.1:4192",
     mountedByApp: true,
+    exerciseDirectEditing: true,
   },
 ];
 
@@ -174,6 +175,101 @@ async function assertHostIsolation(page, testCase) {
   }
 }
 
+const waitFrames = (page, count = 2) => page.evaluate(async (frames) => {
+  for (let index = 0; index < frames; index += 1) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+}, count);
+
+async function assertPackedDirectEditing(page, testCase, errors) {
+  const target = page.locator("[data-testid='consumer-sibling']");
+  await page.evaluate(() => window.__MESURER__.command("builtin.select"));
+  const targetBox = await target.boundingBox();
+  if (!targetBox) throw new Error(`${testCase.name} direct-edit target has no bounding box`);
+  const point = {
+    x: targetBox.x + targetBox.width / 2,
+    y: targetBox.y + targetBox.height / 2,
+  };
+
+  await page.mouse.click(point.x, point.y);
+  await page.waitForFunction(() => Boolean(
+    document.body.querySelector("[data-mesurer-selected-measurement='true']"),
+  ));
+
+  await page.mouse.dblclick(point.x, point.y);
+  const editor = page.locator("[data-mesurer-text-editor='true']");
+  await editor.waitFor({ state: "visible", timeout: 5000 });
+  await page.waitForTimeout(80);
+  if (errors.length) {
+    throw new Error(`${testCase.name} direct edit emitted browser errors after opening:\n${errors.join("\n")}`);
+  }
+
+  await editor.press("Escape");
+  await editor.waitFor({ state: "detached", timeout: 5000 });
+  const cancelled = await page.evaluate(() => window.__MESURER__.textEdits());
+  if (!Array.isArray(cancelled) || cancelled.length !== 0) {
+    throw new Error(`${testCase.name} cancel left unexpected text intents: ${JSON.stringify(cancelled)}`);
+  }
+  if (errors.length) {
+    throw new Error(`${testCase.name} direct edit emitted browser errors after cancel:\n${errors.join("\n")}`);
+  }
+
+  await page.mouse.dblclick(point.x, point.y);
+  await editor.waitFor({ state: "visible", timeout: 5000 });
+  await editor.fill("Edited packed text");
+  await editor.press("Enter");
+  await editor.waitFor({ state: "detached", timeout: 5000 });
+  await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Edited packed text");
+  const committed = await page.evaluate(() => window.__MESURER__.textEdits());
+  if (!Array.isArray(committed) || committed.length !== 1 || committed[0]?.desired !== "Edited packed text") {
+    throw new Error(`${testCase.name} packed direct-edit commit was not recorded: ${JSON.stringify(committed)}`);
+  }
+  if (errors.length) {
+    throw new Error(`${testCase.name} direct edit emitted browser errors after commit:\n${errors.join("\n")}`);
+  }
+}
+
+async function assertToolbarStaysPutDuringSelectionScroll(page, testCase) {
+  const toolbar = page.locator("[data-mesurer-island='true']").locator("[data-mesurer-toolbar='true']");
+  const before = await toolbar.boundingBox();
+  if (!before) throw new Error(`${testCase.name} toolbar has no pre-scroll bounding box`);
+
+  await page.evaluate(() => {
+    const target = document.querySelector("[data-testid='consumer-sibling']");
+    if (!(target instanceof HTMLElement)) throw new Error("Missing packed scroll target");
+    document.documentElement.style.minHeight = "2400px";
+    document.body.style.minHeight = "2400px";
+    Object.assign(target.style, {
+      position: "absolute",
+      left: "16px",
+      top: "1200px",
+      width: "180px",
+    });
+    window.scrollTo(0, 0);
+    window.dispatchEvent(new Event("resize"));
+  });
+  await waitFrames(page, 3);
+
+  await page.evaluate(() => window.scrollTo({ top: 1184, behavior: "instant" }));
+  await page.waitForTimeout(24);
+  const during = await toolbar.boundingBox();
+  await page.waitForTimeout(120);
+  const after = await toolbar.boundingBox();
+  if (!during || !after) throw new Error(`${testCase.name} toolbar disappeared during selection scroll`);
+
+  const moved = (box) => Math.abs(box.x - before.x) > 0.5 || Math.abs(box.y - before.y) > 0.5;
+  if (moved(during) || moved(after)) {
+    throw new Error(`${testCase.name} viewport toolbar moved with the selected target: ${JSON.stringify({ before, during, after })}`);
+  }
+  const avoidance = await toolbar.getAttribute("data-mesurer-toolbar-avoiding-target");
+  if (avoidance !== null) {
+    throw new Error(`${testCase.name} toolbar still enabled target-avoidance translation`);
+  }
+
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await page.waitForTimeout(120);
+}
+
 async function runCase(browser, testCase) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
@@ -239,6 +335,11 @@ async function runCase(browser, testCase) {
       if (state["package-smoke"] !== 1) {
         throw new Error(`${testCase.name} public core/plugin API command failed: ${JSON.stringify(state)}`);
       }
+    }
+
+    if (testCase.exerciseDirectEditing) {
+      await assertPackedDirectEditing(page, testCase, errors);
+      await assertToolbarStaysPutDuringSelectionScroll(page, testCase);
     }
 
     if (errors.length) throw new Error(`${testCase.name} page errors:\n${errors.join("\n")}`);
