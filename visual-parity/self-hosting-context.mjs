@@ -68,18 +68,22 @@ try {
     return button instanceof HTMLButtonElement && !button.disabled;
   });
 
-  const annotationTrigger = page.locator("[data-mesurer-annotation-trigger='true']");
+  const annotationTrigger = page.locator("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
   await annotationTrigger.waitFor({ state: "visible" });
   const triggerBox = await annotationTrigger.boundingBox();
   assert(triggerBox, "Annotation trigger must have a bounding box");
   assert.equal(triggerBox.width, 24, "Annotation trigger width");
   assert.equal(triggerBox.height, 24, "Annotation trigger height");
   assert(boxGap(targetBox, triggerBox) <= 8.5, `Annotation trigger should hug the selected element; gap was ${boxGap(targetBox, triggerBox).toFixed(2)}px`);
+  assert.equal(
+    await annotationTrigger.evaluate((element) => getComputedStyle(element).position),
+    "absolute",
+    "Native annotation trigger must use the document absolute-anchor path",
+  );
 
   const annotationScrollProbe = await page.evaluate(() => new Promise((resolve, reject) => {
-    const harness = window.__MESURER_SELF_HOSTING__;
     const targetElement = document.querySelector("[data-self-host-target]");
-    const trigger = harness?.subject?.element?.querySelector("[data-mesurer-annotation-trigger='true']");
+    const trigger = document.querySelector("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
     if (!(targetElement instanceof HTMLElement)) return reject(new Error("Missing annotation scroll target"));
     if (!(trigger instanceof HTMLElement)) return reject(new Error("Missing subject annotation trigger"));
 
