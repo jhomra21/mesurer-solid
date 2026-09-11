@@ -120,15 +120,28 @@
   --msr-spacing: 4px;
 }
 
-/* Native page-following surfaces live under document.body. Fixed anchor
-   positioning is deliberate: unlike absolute anchor positioning, it follows an
-   anchor through both viewport scrolling and nested overflow scrollers without
-   a JavaScript geometry chase. The extra body selector outranks the runtime's
-   generic fallback rule while leaving Shadow DOM fallbacks untouched. */
-body [data-mesurer-native-scroll-anchor="box"],
-body [data-mesurer-native-scroll-anchor="label"],
-body [data-mesurer-native-scroll-anchor="offset"] {
-  position: fixed !important;
+/* Document-portaled native anchors stay absolute so viewport/document scrolling
+   is handled entirely by the browser. When the selected page target lives under
+   a nested overflow scroller, the small runtime compensation updates only two
+   custom properties from scrollLeft/scrollTop deltas; no geometry reads or DOM
+   scans occur in the scroll hot path. These selectors are more specific than
+   the generic runtime anchor rules and therefore add only that nested delta. */
+body [data-mesurer-native-scroll-anchor="box"][data-mesurer-nested-scroll-compensation="true"] {
+  position: absolute !important;
+  left: calc(anchor(left) + var(--mesurer-nested-scroll-x, 0px)) !important;
+  top: calc(anchor(top) + var(--mesurer-nested-scroll-y, 0px)) !important;
+}
+
+body [data-mesurer-native-scroll-anchor="label"][data-mesurer-nested-scroll-compensation="true"] {
+  position: absolute !important;
+  left: calc(anchor(center) + var(--mesurer-nested-scroll-x, 0px)) !important;
+  top: calc(anchor(bottom) + 2px + var(--mesurer-nested-scroll-y, 0px)) !important;
+}
+
+body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-compensation="true"] {
+  position: absolute !important;
+  left: calc(anchor(left) + var(--mesurer-native-anchor-x, 0px) + var(--mesurer-nested-scroll-x, 0px)) !important;
+  top: calc(anchor(top) + var(--mesurer-native-anchor-y, 0px) + var(--mesurer-nested-scroll-y, 0px)) !important;
 }
 
 /* Selection-adjacent annotation chrome is contextual UI, not a second global
@@ -140,8 +153,8 @@ body [data-mesurer-native-scroll-anchor="offset"] {
 
 /* Page-following Context UI is intentionally outside the hardened fixed host so
    native CSS anchors share the selected page element's document positioning
-   tree. The native trigger stays fixed and compositor-anchored; the composer,
-   saved markers, and panels keep their existing viewport semantics. */
+   tree. The trigger uses the same absolute native anchor path as selection;
+   composer, saved markers, and panels keep their existing viewport semantics. */
 [data-mesurer-context-document-layer="true"] [data-mesurer-annotation-trigger="true"],
 [data-mesurer-context-document-layer="true"] [data-mesurer-annotation-composer="true"],
 [data-mesurer-context-document-layer="true"] [data-mesurer-annotation-marker="true"],
@@ -150,7 +163,7 @@ body [data-mesurer-native-scroll-anchor="offset"] {
 }
 
 [data-mesurer-context-document-layer="true"] [data-mesurer-annotation-trigger="true"][data-mesurer-native-scroll-owner="annotation"][data-mesurer-native-scroll-anchor="offset"] {
-  position: fixed !important;
+  position: absolute !important;
 }
 
 /* Plugin-contributed toggles share the compact 24px switch row, but unlike
@@ -234,11 +247,11 @@ body.mesurer-solid-xray .mesurer-ti-close {
 }
 
 /* The contextual direct-edit Typography shell follows the edited host. Keep
-   it on the document fixed-anchor path so viewport and nested compositor
-   scrolling move host, selection, ring, and inspector together. Standalone
-   Typography surfaces use the same native document-anchor contract. */
+   it on the document absolute-anchor path so normal viewport scrolling stays
+   compositor-owned. Nested-scroll compensation is attached only when the
+   owning runtime binds that surface to a target under an overflow ancestor. */
 [data-mesurer-text-inspector-placement-shell="true"][data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="offset"] {
-  position: fixed !important;
+  position: absolute !important;
 }
 
 /* Keep Solid ownership without giving the portaled selection wrapper its own
