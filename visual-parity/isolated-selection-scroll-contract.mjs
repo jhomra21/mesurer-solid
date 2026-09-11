@@ -97,8 +97,6 @@ try {
     `annotation trigger should keep 6px clearance; gap=${boxGap(targetBox, annotationBox).toFixed(2)}px`,
   );
 
-  // Exercise the actual compositor path with a wheel event. Selection and the
-  // annotation trigger must move in the same frame as their page target.
   const beforeWindow = {
     target: targetBox,
     selected: await box(selectedChrome, "selected before wheel"),
@@ -120,9 +118,6 @@ try {
     "annotation after real wheel scroll",
   );
 
-  // Nested overflow is a separate topology. Select the nested target physically,
-  // put the pointer over its real scroller, wheel it, and verify the same visible
-  // relationship rather than inferring success from internal state.
   const nestedScroller = page.locator("#nested-scroll-shell");
   const nestedTarget = page.locator("#isolated-nested-scroll-target");
   await nestedScroller.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
@@ -155,7 +150,6 @@ try {
     "nested annotation after real wheel scroll",
   );
 
-  // Return to the main target and enter direct editing through the real UI.
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settle();
   targetBox = await box(target, "target before direct edit");
@@ -176,26 +170,26 @@ try {
   await assertNativeAnchor(inspectorShell, "offset", "Typography source anchor");
   await assertNativeAnchor(textHighlight, "offset", "selected-text highlight");
 
-  // Mesurer interaction ownership: a real double click on the Typography card
-  // must not create a second editor, retarget the page selection, or change the
-  // active text. This specifically covers clicking UI over inspected content.
+  // Exercise an actual interactive control, not arbitrary card background. The
+  // control must respond while keeping the same source edit and page selection.
   const editorValue = await editor.inputValue();
-  const inspectorInputBox = await box(inspector, "Typography card before input boundary check");
-  await page.mouse.dblclick(
-    inspectorInputBox.x + Math.min(110, inspectorInputBox.width / 2),
-    inspectorInputBox.y + Math.min(18, inspectorInputBox.height / 2),
-  );
+  const bold = inspector.locator("[data-mesurer-text-style-button='bold']");
+  await bold.waitFor({ state: "visible" });
+  const boldBefore = await bold.getAttribute("aria-pressed");
+  await bold.click();
+  await page.waitForTimeout(40);
+  assert.notEqual(await bold.getAttribute("aria-pressed"), boldBefore, "isolated Typography Bold control did not respond");
+  await bold.click();
   await page.waitForTimeout(60);
-  assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography card created or retargeted a page editor");
-  assert.equal(await editor.inputValue(), editorValue, "Typography card input changed the active page editor");
+  assert.equal(await bold.getAttribute("aria-pressed"), boldBefore, "isolated Typography Bold control did not restore its starting state");
+  assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography control closed or retargeted the page editor");
+  assert.equal(await editor.inputValue(), editorValue, "Typography control changed the active page editor");
   assertSameBox(
-    await box(selectedChrome, "selected chrome after Typography input"),
-    await box(target, "source target after Typography input"),
-    "Typography card input changed page selection",
+    await box(selectedChrome, "selected chrome after Typography control input"),
+    await box(target, "source target after Typography control input"),
+    "Typography control input changed page selection",
   );
 
-  // Geometry ownership: the toolbar remains viewport UI, but Typography follows
-  // its source text. One wheel event must visibly separate those ownership models.
   const toolbar = page.locator("[data-mesurer-toolbar='true']");
   const editBefore = {
     target: await box(target, "edit source before wheel"),
@@ -231,8 +225,22 @@ try {
   );
   assertSameBox(editAfter.toolbar, editBefore.toolbar, "toolbar must remain viewport-owned during page scroll");
 
+  // Continue the real wheel gesture until the source itself leaves the viewport.
+  // Typography must leave with it in the public isolated topology too.
+  await page.mouse.wheel(0, 1400);
+  await page.waitForTimeout(120);
+  const offscreenTarget = await box(target, "isolated edit source after offscreen wheel");
+  assert(offscreenTarget.y + offscreenTarget.height < 1, `isolated edit source did not leave viewport: ${JSON.stringify(offscreenTarget)}`);
+  const offscreenInspector = await inspector.boundingBox();
+  if (offscreenInspector) {
+    assert(
+      offscreenInspector.y + offscreenInspector.height < 1 || offscreenInspector.y >= 900,
+      `isolated Typography card stayed behind after its source left: ${JSON.stringify({ offscreenTarget, offscreenInspector })}`,
+    );
+  }
+
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated E2E: real window/nested scrolling keeps annotation and selection attached; Typography blocks page retargeting yet follows its source; toolbar stays viewport-owned: PASS");
+  console.log("Public isolated E2E: real window/nested scrolling keeps annotation and selection attached; real Typography controls preserve page ownership; Typography leaves with its source while toolbar stays viewport-owned: PASS");
 } finally {
   await browser.close();
 }
