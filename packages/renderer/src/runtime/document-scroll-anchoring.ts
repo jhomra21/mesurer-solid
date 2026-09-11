@@ -382,9 +382,6 @@ export function installDocumentScrollAnchoring(
       if (existing?.target.isConnected && existing.chrome.isConnected) {
         applyAnchor(existing.chrome, existing, "box");
         if (existing.label?.isConnected) applyAnchor(existing.label, existing, "label");
-        // The model already owns selection identity. Preserve the existing CSS
-        // anchor while that same connected element remains selected instead of
-        // rediscovering it from transient inline coordinates during edit/scroll.
         if (selectedTargets.includes(existing.target) || scrolling) continue;
         const intended = inlineRect(existing.chrome);
         const target = selectedTargetForRect(intended, selectedTargets)
@@ -463,10 +460,6 @@ export function installDocumentScrollAnchoring(
     const measured = card.getBoundingClientRect();
     if (measured.width <= 0 || measured.height <= 0) return;
     const width = measured.width;
-    // Use the natural content height for fit decisions. The card may already
-    // be viewport-clamped while its unified controls finish rendering; using
-    // only the current box can falsely classify a below/above lane as a full fit
-    // and then overflow the viewport when the remaining rows settle.
     const height = Math.max(measured.height, card.scrollHeight);
     const viewportRight = ownerWindow.innerWidth - VIEWPORT_PADDING;
     const viewportBottom = ownerWindow.innerHeight - VIEWPORT_PADDING;
@@ -575,10 +568,17 @@ export function installDocumentScrollAnchoring(
         && shell.dataset.mesurerNativeScrollAnchor === "offset";
       shell.dataset.mesurerNativeScrollOwner = "typography";
       applyAnchor(shell, editBinding, "offset");
-      // A newly claimed shell still carries its fallback fixed-position lane.
-      // Resolve its native offset immediately even if a prior scrollIntoView is
-      // still settling; established anchors remain compositor-only on scroll.
-      if (!scrolling || !alreadyAnchored) inspectorPlacement(shell, card, targetRect);
+      const targetIntersectsViewport = targetRect.right > 0
+        && targetRect.bottom > 0
+        && targetRect.left < ownerWindow.innerWidth
+        && targetRect.top < ownerWindow.innerHeight;
+      // While the edited source is visible we may choose a better lane after
+      // layout settles. Once the source leaves the viewport, preserve the last
+      // source-relative offset so native anchoring carries the card away with it
+      // instead of re-clamping it to an unrelated viewport edge.
+      if ((!scrolling || !alreadyAnchored) && targetIntersectsViewport) {
+        inspectorPlacement(shell, card, targetRect);
+      }
     }
   };
 
