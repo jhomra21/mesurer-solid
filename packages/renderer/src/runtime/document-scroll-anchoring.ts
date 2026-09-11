@@ -2,8 +2,6 @@ import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 
 const SCROLL_IDLE_MS = 80;
-const VIEWPORT_PADDING = 8;
-const INSPECTOR_GAP = 8;
 
 let anchorSequence = 0;
 
@@ -455,71 +453,6 @@ export function installDocumentScrollAnchoring(
     editBinding = null;
   };
 
-  const inspectorPlacement = (
-    shell: HTMLElement,
-    card: HTMLElement,
-    targetRect: Rect,
-  ) => {
-    const measured = card.getBoundingClientRect();
-    if (measured.width <= 0 || measured.height <= 0) return;
-    const width = measured.width;
-    // Use the natural content height for fit decisions. The card may already
-    // be viewport-clamped while its unified controls finish rendering; using
-    // only the current box can falsely classify a below/above lane as a full fit
-    // and then overflow the viewport when the remaining rows settle.
-    const height = Math.max(measured.height, card.scrollHeight);
-    const viewportRight = ownerWindow.innerWidth - VIEWPORT_PADDING;
-    const viewportBottom = ownerWindow.innerHeight - VIEWPORT_PADDING;
-    const maxLeft = Math.max(VIEWPORT_PADDING, viewportRight - width);
-    const maxTop = Math.max(VIEWPORT_PADDING, viewportBottom - height);
-    const centeredLeft = Math.min(
-      Math.max(targetRect.left + targetRect.width / 2 - width / 2, VIEWPORT_PADDING),
-      maxLeft,
-    );
-    const centeredTop = Math.min(
-      Math.max(targetRect.top + targetRect.height / 2 - height / 2, VIEWPORT_PADDING),
-      maxTop,
-    );
-    const candidates = [
-      { left: centeredLeft, top: targetRect.top - INSPECTOR_GAP - height, placement: "above" },
-      { left: centeredLeft, top: targetRect.bottom + INSPECTOR_GAP, placement: "below" },
-      { left: targetRect.right + INSPECTOR_GAP, top: centeredTop, placement: "side" },
-      { left: targetRect.left - INSPECTOR_GAP - width, top: centeredTop, placement: "side" },
-    ];
-    const fits = (left: number, top: number) => left >= VIEWPORT_PADDING
-      && top >= VIEWPORT_PADDING
-      && left + width <= viewportRight
-      && top + height <= viewportBottom;
-    const overlaps = (left: number, top: number) => (
-      Math.max(0, Math.min(left + width, targetRect.right) - Math.max(left, targetRect.left)) > 0
-      && Math.max(0, Math.min(top + height, targetRect.bottom) - Math.max(top, targetRect.top)) > 0
-    );
-    const full = candidates.find((candidate) => fits(candidate.left, candidate.top) && !overlaps(candidate.left, candidate.top));
-
-    let left = centeredLeft;
-    let top = VIEWPORT_PADDING;
-    let placement = "viewport";
-    if (full) {
-      ({ left, top, placement } = full);
-      card.style.maxHeight = `calc(100vh - ${VIEWPORT_PADDING * 2}px)`;
-    } else {
-      const lanes = [
-        { name: "above", top: VIEWPORT_PADDING, height: Math.max(0, targetRect.top - INSPECTOR_GAP - VIEWPORT_PADDING) },
-        { name: "below", top: targetRect.bottom + INSPECTOR_GAP, height: Math.max(0, viewportBottom - targetRect.bottom - INSPECTOR_GAP) },
-      ].sort((a, b) => b.height - a.height);
-      const lane = lanes[0];
-      if (lane && lane.height > 0) {
-        top = lane.top;
-        placement = lane.name;
-        card.style.maxHeight = `${lane.height}px`;
-      }
-    }
-
-    shell.style.setProperty("--mesurer-native-anchor-x", `${left - targetRect.left}px`);
-    shell.style.setProperty("--mesurer-native-anchor-y", `${top - targetRect.top}px`);
-    card.dataset.mesurerTextInspectorPlacement = placement;
-  };
-
   const stabilizeEdit = () => {
     if (!runtimeMount?.isConnected) {
       clearEditBinding();
@@ -568,18 +501,10 @@ export function installDocumentScrollAnchoring(
       highlightPlacements.delete(highlight);
     }
 
+    // The edit ring and range highlights are page-linked chrome. The Typography
+    // inspector itself is viewport UI and must never join the page anchor graph.
     const shell = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-placement-shell='true']");
-    const card = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
-    if (shell?.isConnected && card?.isConnected) {
-      const alreadyAnchored = shell.dataset.mesurerNativeScrollOwner === "typography"
-        && shell.dataset.mesurerNativeScrollAnchor === "offset";
-      shell.dataset.mesurerNativeScrollOwner = "typography";
-      applyAnchor(shell, editBinding, "offset");
-      // A newly claimed shell still carries its fallback fixed-position lane.
-      // Resolve its native offset immediately even if a prior scrollIntoView is
-      // still settling; established anchors remain compositor-only on scroll.
-      if (!scrolling || !alreadyAnchored) inspectorPlacement(shell, card, targetRect);
-    }
+    if (shell?.isConnected) clearAnchorSurface(shell);
   };
 
   const releaseInspectorPair = (binding: InspectorPairBinding) => {
@@ -629,19 +554,10 @@ export function installDocumentScrollAnchoring(
         }
         box.dataset.mesurerNativeScrollOwner = "typography";
         applyAnchor(box, binding, "box");
-        if (card?.isConnected && !card.classList.contains("mesurer-ti-card--pinned")) {
-          card.dataset.mesurerNativeScrollOwner = "typography";
-          applyAnchor(card, binding, "offset");
-          if (!scrolling) {
-            const targetRect = rectFromDom(binding.target.getBoundingClientRect());
-            const cardLeft = Number.parseFloat(card.style.left);
-            const cardTop = Number.parseFloat(card.style.top);
-            if (Number.isFinite(cardLeft)) card.style.setProperty("--mesurer-native-anchor-x", `${cardLeft - targetRect.left}px`);
-            if (Number.isFinite(cardTop)) card.style.setProperty("--mesurer-native-anchor-y", `${cardTop - targetRect.top}px`);
-          }
-        } else if (card) {
-          clearAnchorSurface(card);
-        }
+        // Cards are viewport-owned inspector UI. Keeping them out of the anchor
+        // graph lets them occlude page-linked blue chrome instead of scrolling
+        // through/with the inspected page target.
+        if (card?.isConnected) clearAnchorSurface(card);
       }
     }
 
