@@ -55,20 +55,20 @@ export function installTextEditing(
   installTextEditingPresentation(ctx, textRuntime);
   // Typography is the only inspector placement owner. It can observe the
   // editor/ring as those surfaces appear, so install it before render-in-place
-  // rather than keeping a second fallback placement algorithm there.
+  // rather than keeping a second fallback placement algorithm there. The card
+  // is viewport UI: page chrome may move behind it, but scrolling never drags
+  // the card with the edited element.
   installUnifiedTextInspector(ctx, textRuntime);
   installRenderInPlaceTextEditing(ctx, textRuntime);
   installUnifiedTextSelectMenus(ctx, textRuntime);
   installUnifiedTextSelectLayer(ctx, textRuntime);
   // Chromium can move the page in the compositor before JavaScript receives a
-  // scroll event. Keep scroll-following owners in the document anchor tree so
-  // their visible movement is resolved by CSS Anchor Positioning instead of
-  // having fixed overlay geometry chase the page from JS. The text runtime is
-  // created in the document layer for isolated public mounts and stays intact.
+  // scroll event. Keep only page-following chrome (selection boxes, edit ring,
+  // selected-text ranges) in the document anchor tree. Inspector cards remain
+  // viewport-owned Mesurer UI and deliberately do not receive page anchors.
   installDocumentScrollAnchoring(ctx, textRuntime);
-  // Keep every native anchor in document space and advance only the hidden
-  // fallback coordinates needed for post-scroll re-binding. This prevents the
-  // standalone Typography surface from staying viewport-fixed and prevents a
-  // selected-text highlight from jumping after scrolling settles.
+  // Keep native page anchors in document space and advance only hidden fallback
+  // coordinates needed for post-scroll re-binding. This prevents selected-text
+  // highlights from jumping after scrolling settles without moving the inspector.
   installNativeScrollStability(ctx, textRuntime);
 }
