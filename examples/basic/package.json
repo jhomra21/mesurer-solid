@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@jhomra21/mesurer-solid": "workspace:*",
     "@jhomra21/mesurer-solid-renderer": "workspace:*",
     "@solidjs/web": "^2.0.0-rc.0",
     "solid-js": "^2.0.0-rc.0"
