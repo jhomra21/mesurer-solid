@@ -1,5 +1,5 @@
 import { render } from "@solidjs/web";
-import { contextPlugin, MESURER_CONTEXT_PLUGIN_ID } from "@jhomra21/mesurer-solid";
+import { contextPlugin, MESURER_CONTEXT_PLUGIN_ID } from "../../../packages/mesurer/src/index";
 import { Mesurer, arrangePlugin } from "@jhomra21/mesurer-solid-renderer";
 import "./playground.css";
 
