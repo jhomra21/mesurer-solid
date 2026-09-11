@@ -23,7 +23,7 @@ function PresentationSwitch(props: {
       class="msr:col-span-2 msr:grid msr:h-6 msr:w-full msr:appearance-none msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45"
       onClick={() => props.onChange(!props.checked)}
     >
-      <span>{props.label}</span>
+      <span class="msr:whitespace-nowrap">{props.label}</span>
       <span
         aria-hidden="true"
         style={{ "justify-self": "end" }}
