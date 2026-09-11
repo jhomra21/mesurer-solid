@@ -19,7 +19,7 @@ const box = async (locator, message) => {
 };
 
 let page;
-let narrowPage;
+let settingsPage;
 try {
   page = await browser.newPage({ viewport: { width: 900, height: 620 } });
   watchDiagnostics(page);
@@ -29,11 +29,9 @@ try {
     document.body.style.minHeight = "3600px";
   });
 
-  // Manual regression 1: reproduce the real selected-text path. The interactive
-  // Typography card belongs to that text context. It may be viewport-clamped
-  // while the target is visible, but it must move with that target as the page
-  // scrolls and leave the viewport when the edited target leaves. It must not
-  // become persistent viewport furniture.
+  // Manual regression 1: reproduce the real selected-text path. Typography is
+  // contextual page UI: it follows the text target while scrolling and leaves
+  // the viewport with that target instead of becoming persistent viewport UI.
   const arrange = page.locator("button[data-mesurer-tool-id='arrange']");
   const target = page.locator(".primary-action");
   await arrange.waitFor({ state: "visible" });
@@ -57,12 +55,11 @@ try {
 
   const inspectorBefore = await box(inspector, "Expected Typography inspector before scroll");
   const ringBefore = await box(ring, "Expected edit ring before scroll");
-  const scrollDelta = 120;
-  const actualScroll = await page.evaluate((delta) => {
+  const actualScroll = await page.evaluate(() => {
     const before = window.scrollY;
-    window.scrollBy({ top: delta, behavior: "instant" });
+    window.scrollBy({ top: 120, behavior: "instant" });
     return window.scrollY - before;
-  }, scrollDelta);
+  });
   assert(Math.abs(actualScroll) > 1, `Expected a real scroll, got ${actualScroll}`);
   await page.waitForTimeout(40);
 
@@ -81,7 +78,7 @@ try {
   if (inspectorAfter) {
     assert(
       inspectorAfter.y + inspectorAfter.height < 1 || inspectorAfter.y > 619,
-      `Typography inspector stayed behind as viewport furniture after its target left: ${JSON.stringify(inspectorAfter)}`,
+      `Typography inspector stayed behind after its target left: ${JSON.stringify(inspectorAfter)}`,
     );
   }
 
@@ -89,30 +86,32 @@ try {
   await page.keyboard.press("Escape");
   await editor.waitFor({ state: "detached" });
 
-  // Manual regression 2: open the normal playground from the start in a narrow
-  // viewport. This matches the reported edge case without inheriting a toolbar
-  // position from a different viewport width.
-  narrowPage = await browser.newPage({ viewport: { width: 320, height: 700 } });
-  watchDiagnostics(narrowPage);
-  await narrowPage.goto(url, { waitUntil: "networkidle" });
-  const compact = narrowPage.locator("button[data-mesurer-toolbar-compact-toggle='true']");
+  // Manual regression 2: reproduce the screenshot topology directly. Compact
+  // the normal toolbar near its default left edge, open Settings, and require
+  // the whole surface to remain inside the viewport rather than extending left.
+  settingsPage = await browser.newPage({ viewport: { width: 620, height: 700 } });
+  watchDiagnostics(settingsPage);
+  await settingsPage.goto(url, { waitUntil: "networkidle" });
+  const compact = settingsPage.locator("button[data-mesurer-toolbar-compact-toggle='true']");
   await compact.waitFor({ state: "visible" });
   if ((await compact.getAttribute("aria-pressed")) !== "true") await compact.click();
-  const settings = narrowPage.locator("button[data-mesurer-builtin='settings']").first();
+  await settingsPage.waitForTimeout(180);
+
+  const settings = settingsPage.locator("button[data-mesurer-builtin='settings']").first();
   await settings.waitFor({ state: "visible" });
   await settings.click();
-  const dialog = narrowPage.getByRole("dialog", { name: "Settings" });
+  const dialog = settingsPage.getByRole("dialog", { name: "Settings" });
   await dialog.waitFor({ state: "visible" });
-  await narrowPage.waitForTimeout(180);
+  await settingsPage.waitForTimeout(60);
   const settingsBox = await box(dialog, "Expected Settings dialog geometry");
   assert(settingsBox.x >= 8 - 0.5, `Settings clipped on left viewport edge: ${JSON.stringify(settingsBox)}`);
-  assert(settingsBox.x + settingsBox.width <= 320 - 8 + 0.5, `Settings clipped on right viewport edge: ${JSON.stringify(settingsBox)}`);
+  assert(settingsBox.x + settingsBox.width <= 620 - 8 + 0.5, `Settings clipped on right viewport edge: ${JSON.stringify(settingsBox)}`);
   assert(settingsBox.y >= 8 - 0.5, `Settings clipped on top viewport edge: ${JSON.stringify(settingsBox)}`);
   assert(settingsBox.y + settingsBox.height <= 700 - 8 + 0.5, `Settings clipped on bottom viewport edge: ${JSON.stringify(settingsBox)}`);
 
-  // Manual regression 3: the normal playground must advertise every first-party
-  // optional plugin. Disabled plugins stay unloaded, but their rows remain
-  // visible so a human can discover and enable them without an agent.
+  // Manual regression 3: every first-party optional plugin must remain visible
+  // as a Settings row even when unloaded. Humans should discover and enable the
+  // capability themselves instead of needing an agent to know it exists.
   const general = dialog.getByRole("tab", { name: "General", exact: true });
   if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
   const pluginsDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
@@ -126,7 +125,7 @@ try {
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
   console.log("Manual acceptance regressions: Typography follows text, Settings stays in viewport, first-party plugins stay discoverable: PASS");
 } finally {
-  await narrowPage?.close();
+  await settingsPage?.close();
   await page?.close();
   await browser.close();
 }
