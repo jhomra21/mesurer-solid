@@ -15,18 +15,14 @@ const box = async (locator, message) => {
   assert(value, message);
   return value;
 };
-const centerY = (rect) => rect.y + rect.height / 2;
-const overlapRect = (left, right) => {
-  const x = Math.max(left.x, right.x);
-  const y = Math.max(left.y, right.y);
-  const rightEdge = Math.min(left.x + left.width, right.x + right.width);
-  const bottomEdge = Math.min(left.y + left.height, right.y + right.height);
-  return {
-    x,
-    y,
-    width: Math.max(0, rightEdge - x),
-    height: Math.max(0, bottomEdge - y),
-  };
+
+const assertSameBox = (actual, expected, message) => {
+  for (const key of ["x", "y", "width", "height"]) {
+    assert(
+      Math.abs(actual[key] - expected[key]) <= 2,
+      `${message}: ${key} expected ${expected[key]}, got ${actual[key]}`,
+    );
+  }
 };
 
 try {
@@ -44,72 +40,85 @@ try {
   const target = page.locator(".feature-copy .kicker");
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await page.waitForTimeout(60);
-  const targetBox = await box(target, "Expected Typography ownership target");
+  let targetBox = await box(target, "Expected Typography ownership target");
+  await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
   const ring = page.locator("[data-mesurer-text-edit-ring='true']");
   const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
-  const shell = page.locator("[data-mesurer-text-inspector-placement-shell='true']");
+  const selectedChrome = page.locator("[data-mesurer-selected-measurement='true'] > div").first();
+  await editor.waitFor({ state: "visible" });
   await inspector.waitFor({ state: "visible" });
   await ring.waitFor({ state: "visible" });
+  await selectedChrome.waitFor({ state: "visible" });
 
-  assert.equal(await shell.evaluate((element) => getComputedStyle(element).position), "fixed", "Typography inspector shell must remain viewport-fixed");
-  assert.equal(await shell.getAttribute("data-mesurer-native-scroll-anchor"), null, "Typography inspector shell must not join the page anchor graph");
-  assert.equal(await shell.getAttribute("data-mesurer-native-scroll-owner"), null, "Typography inspector shell must not claim a native scroll owner");
-
-  const inspectorBefore = await box(inspector, "Expected Typography inspector geometry");
-  const ringBefore = await box(ring, "Expected text edit ring geometry");
-  const scrollBefore = await page.evaluate(() => window.scrollY);
-
-  // Move the page-linked edit ring into the viewport-owned inspector card. The
-  // exact scroll direction is derived from current geometry so this exercises
-  // both above/below placement lanes without baking in one fixture layout.
-  const desiredDelta = centerY(ringBefore) - centerY(inspectorBefore);
-  const actualScroll = await page.evaluate((delta) => {
-    const before = window.scrollY;
-    window.scrollBy({ top: delta, behavior: "instant" });
-    return window.scrollY - before;
-  }, desiredDelta);
-  assert(Math.abs(actualScroll) > 1, `Expected a real scroll, got ${actualScroll}`);
-  await page.waitForTimeout(40);
-
-  const inspectorDuring = await box(inspector, "Inspector disappeared while scrolling");
-  const ringDuring = await box(ring, "Edit ring disappeared while scrolling");
-  assert(Math.abs(inspectorDuring.x - inspectorBefore.x) <= 1.5, `Inspector x moved with page: ${inspectorBefore.x} -> ${inspectorDuring.x}`);
-  assert(Math.abs(inspectorDuring.y - inspectorBefore.y) <= 1.5, `Inspector y moved with page: ${inspectorBefore.y} -> ${inspectorDuring.y}`);
-  assert(Math.abs((ringDuring.y - ringBefore.y) + actualScroll) <= 2, `Page-linked ring did not follow scroll: ${JSON.stringify({ ringBefore, ringDuring, actualScroll })}`);
-
-  const overlap = overlapRect(inspectorDuring, ringDuring);
-  assert(overlap.width > 4 && overlap.height > 4, `Expected ring to pass behind inspector: ${JSON.stringify({ inspectorDuring, ringDuring, actualScroll, scrollBefore })}`);
-  const hit = await page.evaluate(({ x, y }) => {
-    const element = document.elementFromPoint(x, y);
-    return {
-      tag: element?.tagName ?? null,
-      inspector: Boolean(element?.closest("[data-mesurer-text-inspector-placement-shell='true'], [data-mesurer-text-inspector-info='true']")),
-      ring: Boolean(element?.closest("[data-mesurer-text-edit-ring='true']")),
-    };
-  }, {
-    x: overlap.x + overlap.width / 2,
-    y: overlap.y + overlap.height / 2,
-  });
-  assert.equal(hit.inspector, true, `Typography card must occlude page chrome at overlap: ${JSON.stringify(hit)}`);
-  assert.equal(hit.ring, false, `Page ring must not paint/hit above Typography card: ${JSON.stringify(hit)}`);
-
-  // Physical input on the real inspector card must stay Mesurer UI. It must not
-  // create a second page editor or retarget the active edit to content behind it.
+  // The card is Mesurer-owned interaction UI. Exercise it with a real pointer
+  // while a page edit is active, then prove neither the selected page element
+  // nor the editor identity changed. This catches both selecting the card and
+  // clicks leaking through it to page content underneath.
+  targetBox = await box(target, "Expected edited page target before inspector input");
+  assertSameBox(
+    await box(selectedChrome, "Expected selected page chrome before inspector input"),
+    targetBox,
+    "Selected page identity before inspector input",
+  );
   const valueBefore = await editor.inputValue();
-  const cardPoint = {
-    x: inspectorDuring.x + Math.min(24, inspectorDuring.width / 2),
-    y: inspectorDuring.y + Math.min(18, inspectorDuring.height / 2),
-  };
-  await page.mouse.dblclick(cardPoint.x, cardPoint.y);
+  const inspectorBeforeInput = await box(inspector, "Expected Typography card before inspector input");
+  await page.mouse.dblclick(
+    inspectorBeforeInput.x + Math.min(110, inspectorBeforeInput.width / 2),
+    inspectorBeforeInput.y + Math.min(18, inspectorBeforeInput.height / 2),
+  );
   await page.waitForTimeout(80);
-  assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Double-clicking Typography UI must not create/retarget a page editor");
-  assert.equal(await editor.inputValue(), valueBefore, "Typography UI input retargeted the active page text editor");
+  assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography UI input created a second page editor");
+  assert.equal(await editor.inputValue(), valueBefore, "Typography UI input retargeted the active page editor");
+  assertSameBox(
+    await box(selectedChrome, "Expected selected page chrome after inspector input"),
+    await box(target, "Expected original page target after inspector input"),
+    "Typography UI input changed the selected page element",
+  );
+
+  // Geometry ownership is separate from interaction ownership. Scroll with a
+  // real wheel event while the source remains visible. The card, edit ring,
+  // selected chrome and source text must all move by the same rendered delta.
+  const inspectorBefore = await box(inspector, "Expected Typography card before wheel scroll");
+  const ringBefore = await box(ring, "Expected edit ring before wheel scroll");
+  targetBox = await box(target, "Expected page target before wheel scroll");
+  const scrollBefore = await page.evaluate(() => window.scrollY);
+  await page.mouse.move(880, 600);
+  await page.mouse.wheel(0, 120);
+  await page.waitForTimeout(80);
+  const scrollAfter = await page.evaluate(() => window.scrollY);
+  const actualScroll = scrollAfter - scrollBefore;
+  assert(Math.abs(actualScroll) > 40, `Expected a real wheel scroll, got ${actualScroll}px`);
+
+  const targetDuring = await box(target, "Expected page target after wheel scroll");
+  const inspectorDuring = await box(inspector, "Typography card disappeared while source remained visible");
+  const ringDuring = await box(ring, "Edit ring disappeared while source remained visible");
+  const selectedDuring = await box(selectedChrome, "Selected chrome disappeared while source remained visible");
+  const targetDelta = targetDuring.y - targetBox.y;
+  assert(Math.abs(targetDelta + actualScroll) <= 2, `Page target did not reflect wheel scroll: ${JSON.stringify({ targetBox, targetDuring, actualScroll })}`);
+  assert(Math.abs((ringDuring.y - ringBefore.y) - targetDelta) <= 2, `Edit ring detached from source text: ${JSON.stringify({ ringBefore, ringDuring, targetDelta })}`);
+  assert(Math.abs((inspectorDuring.y - inspectorBefore.y) - targetDelta) <= 2, `Typography card became viewport furniture: ${JSON.stringify({ inspectorBefore, inspectorDuring, targetDelta })}`);
+  assertSameBox(selectedDuring, targetDuring, "Selected chrome detached from source text after wheel scroll");
+
+  // Continue the real wheel gesture until the edited source is outside the
+  // viewport. The Typography card must leave with it rather than remaining as
+  // persistent UI unrelated to anything visible on the page.
+  await page.mouse.wheel(0, 1200);
+  await page.waitForTimeout(120);
+  const targetAfter = await box(target, "Expected source geometry after leaving viewport");
+  assert(targetAfter.y + targetAfter.height < 1, `Expected edited source to leave viewport: ${JSON.stringify(targetAfter)}`);
+  const inspectorAfter = await inspector.boundingBox();
+  if (inspectorAfter) {
+    assert(
+      inspectorAfter.y + inspectorAfter.height < 1 || inspectorAfter.y >= 620,
+      `Typography card stayed behind after its source left the viewport: ${JSON.stringify({ targetAfter, inspectorAfter })}`,
+    );
+  }
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Viewport-owned Typography inspector + hard UI occlusion + page-linked ring scrolling: PASS");
+  console.log("Typography ownership E2E: inspector blocks page retargeting, follows its source under real wheel scroll, and leaves with the source: PASS");
 } finally {
   await browser.close();
 }
