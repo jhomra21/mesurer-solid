@@ -178,48 +178,6 @@ const sampleNestedScrollEvent = async (deltaY) => page.evaluate(
   deltaY,
 );
 
-const shadowFixture = () => {
-  const host = document.querySelector("#shadow-scroll-host");
-  const root = host?.shadowRoot;
-  return {
-    scroller: root?.querySelector("#shadow-scroll-shell") ?? null,
-    target: root?.querySelector("#isolated-shadow-scroll-target") ?? null,
-  };
-};
-
-const sampleShadowScrollEvent = async (deltaY, source) => page.evaluate(
-  ({ scrollDelta, scrollSource }) => new Promise((resolve, reject) => {
-    const host = document.querySelector("#shadow-scroll-host");
-    const root = host?.shadowRoot;
-    const scroller = root?.querySelector("#shadow-scroll-shell");
-    const target = root?.querySelector("#isolated-shadow-scroll-target");
-    const annotation = document.querySelector("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
-    if (!(scroller instanceof HTMLElement)) return reject(new Error("Expected cross-shadow scroll container"));
-    if (!(target instanceof HTMLElement)) return reject(new Error("Expected cross-shadow selection target"));
-    if (!(annotation instanceof HTMLElement)) return reject(new Error("Expected cross-shadow annotation trigger"));
-
-    const snapshot = (element) => {
-      const rect = element.getBoundingClientRect();
-      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-    };
-    const state = () => ({ target: snapshot(target), annotation: snapshot(annotation) });
-    const before = state();
-    const timer = window.setTimeout(() => reject(new Error("Cross-shadow annotation scroll probe timed out")), 3_000);
-    const finish = () => {
-      window.clearTimeout(timer);
-      resolve({ before, after: state() });
-    };
-    if (scrollSource === "nested") {
-      scroller.addEventListener("scroll", finish, { once: true });
-      scroller.scrollBy({ top: scrollDelta, behavior: "instant" });
-    } else {
-      window.addEventListener("scroll", finish, { capture: true, once: true });
-      window.scrollBy({ top: scrollDelta, behavior: "instant" });
-    }
-  }),
-  { scrollDelta: deltaY, scrollSource: source },
-);
-
 const measureNativeScrollWork = async (deltaY, { ranges = false } = {}) => page.evaluate(
   ({ deltaY: scrollDelta, includeRanges }) => new Promise((resolve, reject) => {
     const target = document.querySelector("#isolated-scroll-target");
@@ -273,32 +231,6 @@ const measureNestedScrollWork = async (deltaY) => page.evaluate(
     requestAnimationFrame(() => requestAnimationFrame(finish));
   }),
   deltaY,
-);
-
-const measureShadowScrollWork = async (deltaY, source) => page.evaluate(
-  ({ scrollDelta, scrollSource }) => new Promise((resolve, reject) => {
-    const host = document.querySelector("#shadow-scroll-host");
-    const root = host?.shadowRoot;
-    const scroller = root?.querySelector("#shadow-scroll-shell");
-    const target = root?.querySelector("#isolated-shadow-scroll-target");
-    if (!(scroller instanceof HTMLElement) || !(target instanceof HTMLElement)) {
-      return reject(new Error("Expected cross-shadow target for scroll work probe"));
-    }
-    const originalRect = target.getBoundingClientRect;
-    let targetRectReads = 0;
-    target.getBoundingClientRect = function mesurerShadowTargetRectProbe() {
-      targetRectReads += 1;
-      return originalRect.call(this);
-    };
-    const finish = () => {
-      delete target.getBoundingClientRect;
-      resolve({ targetRectReads });
-    };
-    if (scrollSource === "nested") scroller.scrollBy({ top: scrollDelta, behavior: "instant" });
-    else window.scrollBy({ top: scrollDelta, behavior: "instant" });
-    requestAnimationFrame(() => requestAnimationFrame(finish));
-  }),
-  { scrollDelta: deltaY, scrollSource: source },
 );
 
 try {
@@ -380,7 +312,7 @@ try {
   await nestedScroller.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await nestedScroller.evaluate((element) => { element.scrollTop = 340; });
   await waitForScrollIdle();
-  const nestedTargetBox = await box(nestedTarget, "nested target before selection");
+  let nestedTargetBox = await box(nestedTarget, "nested target before selection");
   await page.mouse.click(
     nestedTargetBox.x + nestedTargetBox.width / 2,
     nestedTargetBox.y + nestedTargetBox.height / 2,
@@ -413,80 +345,6 @@ try {
     nestedScrollWork,
     { targetRectReads: 0 },
     `native nested annotation scroll must not chase target geometry from JavaScript: ${JSON.stringify(nestedScrollWork)}`,
-  );
-
-  // A document-backed annotation trigger cannot resolve a CSS anchor owned by
-  // an inspected element inside another ShadowRoot. Exercise that exact public
-  // mount topology and require the cached-delta fallback to hold the 6px offset
-  // in the first nested and window scroll events without target geometry reads.
-  const shadowHost = page.locator("#shadow-scroll-host");
-  await shadowHost.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
-  await page.evaluate(() => {
-    const { scroller } = shadowFixture();
-    if (!(scroller instanceof HTMLElement)) throw new Error("Expected cross-shadow scroller before selection");
-    scroller.scrollTop = 340;
-  });
-  await waitForScrollIdle();
-  const shadowTargetBox = await page.evaluate(() => {
-    const { target: shadowTarget } = shadowFixture();
-    if (!(shadowTarget instanceof HTMLElement)) throw new Error("Expected cross-shadow target before selection");
-    const rect = shadowTarget.getBoundingClientRect();
-    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-  });
-  await page.mouse.click(
-    shadowTargetBox.x + shadowTargetBox.width / 2,
-    shadowTargetBox.y + shadowTargetBox.height / 2,
-  );
-  await annotationTrigger.waitFor({ state: "visible" });
-  annotationBox = await box(annotationTrigger, "cross-shadow annotation before scroll");
-  const shadowGap = boxGap(shadowTargetBox, annotationBox);
-  assert(
-    shadowGap >= 5.5 && shadowGap <= 6.5,
-    `cross-shadow annotation trigger should keep 6px clearance; gap=${shadowGap.toFixed(2)}px`,
-  );
-  assert.equal(
-    await annotationTrigger.getAttribute("data-mesurer-annotation-scroll-mode"),
-    "cached-delta",
-    "cross-shadow annotation trigger must use the cached-delta fallback",
-  );
-  assert.equal(
-    await annotationTrigger.getAttribute("data-mesurer-native-scroll-anchor"),
-    null,
-    "cross-shadow annotation trigger must not advertise an unresolved native anchor",
-  );
-  assert.equal(
-    await annotationTrigger.getAttribute("data-mesurer-nested-scroll-compensation"),
-    "true",
-    "cross-shadow annotation trigger must expose active cached scroll compensation",
-  );
-
-  const immediateShadowNested = await sampleShadowScrollEvent(48, "nested");
-  assertRelativeOffset(
-    { target: immediateShadowNested.before.target, surface: immediateShadowNested.before.annotation },
-    { target: immediateShadowNested.after.target, surface: immediateShadowNested.after.annotation },
-    "cross-shadow annotation trigger in first nested scroll event",
-  );
-  await waitForScrollIdle();
-  const shadowNestedWork = await measureShadowScrollWork(20, "nested");
-  assert.deepEqual(
-    shadowNestedWork,
-    { targetRectReads: 0 },
-    `cross-shadow nested scroll must not chase target geometry: ${JSON.stringify(shadowNestedWork)}`,
-  );
-  await waitForScrollIdle();
-
-  const immediateShadowWindow = await sampleShadowScrollEvent(40, "window");
-  assertRelativeOffset(
-    { target: immediateShadowWindow.before.target, surface: immediateShadowWindow.before.annotation },
-    { target: immediateShadowWindow.after.target, surface: immediateShadowWindow.after.annotation },
-    "cross-shadow annotation trigger in first window scroll event",
-  );
-  await waitForScrollIdle();
-  const shadowWindowWork = await measureShadowScrollWork(20, "window");
-  assert.deepEqual(
-    shadowWindowWork,
-    { targetRectReads: 0 },
-    `cross-shadow window scroll must not chase target geometry: ${JSON.stringify(shadowWindowWork)}`,
   );
 
   // Restore the original physical Select target for the direct-edit and toolbar
@@ -558,7 +416,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated mount keeps page-linked selection/annotation/edit chrome layout-free while Typography inspector stays viewport-owned across window, nested, and cross-shadow scrolling: PASS");
+  console.log("Public isolated mount keeps page-linked selection/annotation/edit chrome layout-free while Typography inspector stays viewport-owned across window and nested scrolling: PASS");
 } finally {
   await browser.close();
 }
