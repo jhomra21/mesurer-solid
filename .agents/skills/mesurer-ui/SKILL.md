@@ -141,6 +141,25 @@ Preview ownership is also conservative. While the DOM still equals Mesurer's pre
 
 Final verification must use Live source with the Desired preview inactive. Keep the intent; do not clear history merely to expose Live.
 
+## Respect presentation controls and inspector ownership
+
+Saved intent and visible presentation are separate. By default, both human presentation switches are OFF:
+
+- **Settings → General → Keep text changes**: OFF means Typography shows saved Desired text/style while it owns presentation, but Select/other tools restore the original page. ON keeps saved text/style visible outside Typography.
+- **Settings → General → Keep Arrange changes**: OFF means Arrange shows saved Desired transforms while it owns presentation, but Select/other tools restore the original page. ON keeps saved Arrange presentation visible outside Arrange.
+
+The user can open Settings with the gear button or `Cmd/Ctrl+,`. Changing either switch changes presentation policy only; it must not delete or rewrite saved intent/history. Do not mistake an Original-looking page in Select for missing intent—read the saved Text/Arrange records first.
+
+Mesurer UI is never inspected-page content. Treat `[data-mesurer-root]`, `[data-mesurer-island]`, and `[data-mesurer-inspector-ui]` surfaces as hard selection/hit-test boundaries. Do not look through a Typography card, annotation surface, toolbar, or inspector shell to select page content underneath it.
+
+Scroll ownership is split deliberately:
+
+- page-linked selection boxes, edit rings, selected-text highlights, and target-bound annotation affordances follow page content;
+- Typography/inspector cards are viewport-owned UI and do **not** receive the page target's native anchor;
+- when page-linked blue chrome passes behind an inspector card, the inspector card visually occludes it.
+
+Do not “fix” scroll by anchoring an inspector card to the inspected element or by raising page chrome above inspector UI. Preserve this ownership/layering contract when changing selection, portals, CSS anchors, or z-index behavior.
+
 ## Acquire targets in the right order
 
 After preserving relevant Arrange/text-edit intent:
