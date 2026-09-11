@@ -161,8 +161,12 @@ export function ContextActions(props: ContextActionsProps) {
       && element?.isConnected
       && shouldUseNative === alreadyNative
     ) {
-      if (shouldUseNative) nestedTriggerScroll?.sync();
-      else nestedTriggerScroll?.rebase();
+      // The fallback owns accumulated nested/window deltas until an actual
+      // target/anchor topology change replaces it. Workspace notifications can
+      // arrive from the renderer's window-scroll bookkeeping before this
+      // helper receives the same scroll event; rebasing here would erase that
+      // pending delta and leave the fixed trigger behind the page target.
+      nestedTriggerScroll?.sync();
       return;
     }
 
