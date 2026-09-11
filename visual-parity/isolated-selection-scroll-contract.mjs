@@ -26,6 +26,15 @@ const assertSameBox = (actual, expected, stage) => {
   }
 };
 
+const assertViewportStable = (before, after, stage) => {
+  for (const key of ["x", "y", "width", "height"]) {
+    assert(
+      Math.abs(after[key] - before[key]) <= 1.5,
+      `${stage}: ${key} moved; before=${before[key]} after=${after[key]}`,
+    );
+  }
+};
+
 const assertRelativeOffset = (before, after, stage) => {
   for (const key of ["x", "y"]) {
     const beforeOffset = before.surface[key] - before.target[key];
@@ -70,6 +79,21 @@ const assertNativeAnchor = async (locator, mode, stage) => {
   assert(native.anchor && native.anchor !== "none", `${stage}: expected resolved CSS position-anchor`);
   assert.equal(native.transition, "0s", `${stage}: must not transition`);
   assert.equal(native.animation, "none", `${stage}: must not animate`);
+};
+
+const assertViewportOwned = async (locator, stage) => {
+  const state = await locator.evaluate((element) => ({
+    position: getComputedStyle(element).position,
+    mode: element.dataset.mesurerNativeScrollAnchor ?? null,
+    owner: element.dataset.mesurerNativeScrollOwner ?? null,
+    transition: getComputedStyle(element).transitionDuration,
+    animation: getComputedStyle(element).animationName,
+  }));
+  assert.equal(state.position, "fixed", `${stage}: must remain viewport-fixed`);
+  assert.equal(state.mode, null, `${stage}: must not join the page anchor graph`);
+  assert.equal(state.owner, null, `${stage}: must not claim a page scroll owner`);
+  assert.equal(state.transition, "0s", `${stage}: must not transition`);
+  assert.equal(state.animation, "none", `${stage}: must not animate`);
 };
 
 const sampleScrollEvent = async (
@@ -339,7 +363,7 @@ try {
   await inspectorShell.waitFor({ state: "visible" });
   await textHighlight.waitFor({ state: "visible" });
   await assertNativeAnchor(editRing, "box", "isolated direct-edit ring");
-  await assertNativeAnchor(inspectorShell, "offset", "isolated contextual Typography shell");
+  await assertViewportOwned(inspectorShell, "isolated contextual Typography shell");
   await assertNativeAnchor(textHighlight, "offset", "isolated selected-text highlight");
 
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
@@ -347,9 +371,9 @@ try {
   const immediateEdit = await sampleScrollEvent(40, { ring: true, inspector: true, highlight: true });
   assertSameBox(immediateEdit.after.selected, immediateEdit.after.target, "isolated selected chrome in edit scroll event");
   assertSameBox(immediateEdit.after.ring, immediateEdit.after.target, "isolated edit ring in scroll event");
-  assertRelativeOffset(
-    { target: immediateEdit.before.target, surface: immediateEdit.before.inspector },
-    { target: immediateEdit.after.target, surface: immediateEdit.after.inspector },
+  assertViewportStable(
+    immediateEdit.before.inspector,
+    immediateEdit.after.inspector,
     "isolated Typography shell in scroll event",
   );
   assertRelativeOffset(
@@ -392,7 +416,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated mount keeps native selection/annotation/edit scroll layout-free across window and nested scrolling, public agent callable, and viewport toolbar stationary: PASS");
+  console.log("Public isolated mount keeps page-linked selection/annotation/edit chrome layout-free while Typography inspector stays viewport-owned across window and nested scrolling: PASS");
 } finally {
   await browser.close();
 }
