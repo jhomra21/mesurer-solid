@@ -18,6 +18,12 @@ const box = async (locator, message) => {
   return value;
 };
 
+const assertSameBox = (actual, expected, message) => {
+  for (const key of ["x", "y", "width", "height"]) {
+    assert(Math.abs(actual[key] - expected[key]) <= 2, `${message}: ${key} expected ${expected[key]}, got ${actual[key]}`);
+  }
+};
+
 let page;
 let settingsPage;
 try {
@@ -29,66 +35,76 @@ try {
     document.body.style.minHeight = "3600px";
   });
 
-  // Manual regression 1: reproduce the real selected-text path. Typography is
-  // contextual page UI: it follows the text target while scrolling and leaves
-  // the viewport with that target instead of becoming persistent viewport UI.
+  // Reproduce the reported text-edit path with physical input. Typography must
+  // own pointer interaction without becoming viewport furniture.
   const arrange = page.locator("button[data-mesurer-tool-id='arrange']");
   const target = page.locator(".primary-action");
   await arrange.waitFor({ state: "visible" });
   await arrange.click();
   await target.scrollIntoViewIfNeeded();
   await page.waitForTimeout(60);
-  const targetBox = await box(target, "Expected direct Typography target");
-  const targetPoint = {
-    x: targetBox.x + targetBox.width / 2,
-    y: targetBox.y + targetBox.height / 2,
-  };
-  await page.mouse.click(targetPoint.x, targetPoint.y);
-  await page.mouse.dblclick(targetPoint.x, targetPoint.y);
+  let targetBox = await box(target, "Expected direct Typography target");
+  await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+  await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
   const ring = page.locator("[data-mesurer-text-edit-ring='true']");
   const editor = page.locator("[data-mesurer-text-editor='true']");
+  const selectedChrome = page.locator("[data-mesurer-selected-measurement='true'] > div").first();
   await editor.waitFor({ state: "visible" });
   await inspector.waitFor({ state: "visible" });
   await ring.waitFor({ state: "visible" });
+  await selectedChrome.waitFor({ state: "visible" });
 
-  const inspectorBefore = await box(inspector, "Expected Typography inspector before scroll");
-  const ringBefore = await box(ring, "Expected edit ring before scroll");
-  const actualScroll = await page.evaluate(() => {
-    const before = window.scrollY;
-    window.scrollBy({ top: 120, behavior: "instant" });
-    return window.scrollY - before;
-  });
-  assert(Math.abs(actualScroll) > 1, `Expected a real scroll, got ${actualScroll}`);
-  await page.waitForTimeout(40);
-
-  const inspectorDuring = await box(inspector, "Typography inspector unexpectedly disappeared while target remained visible");
-  const ringDuring = await box(ring, "Edit ring unexpectedly disappeared while target remained visible");
-  const inspectorDelta = inspectorDuring.y - inspectorBefore.y;
-  const ringDelta = ringDuring.y - ringBefore.y;
-  assert(Math.abs(ringDelta + actualScroll) <= 2, `Edit ring did not follow page scroll: ${JSON.stringify({ ringBefore, ringDuring, actualScroll })}`);
-  assert(Math.abs(inspectorDelta - ringDelta) <= 2, `Typography inspector detached from its text context: ${JSON.stringify({ inspectorBefore, inspectorDuring, ringBefore, ringDuring, actualScroll })}`);
-
-  await page.evaluate(() => window.scrollBy({ top: 900, behavior: "instant" }));
+  const editorValue = await editor.inputValue();
+  const inspectorInputBox = await box(inspector, "Expected Typography card before input boundary check");
+  await page.mouse.dblclick(
+    inspectorInputBox.x + Math.min(110, inspectorInputBox.width / 2),
+    inspectorInputBox.y + Math.min(18, inspectorInputBox.height / 2),
+  );
   await page.waitForTimeout(60);
-  const targetAfter = await target.boundingBox();
-  assert(targetAfter && targetAfter.y + targetAfter.height < 0, `Expected edited target to leave viewport: ${JSON.stringify(targetAfter)}`);
+  assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography UI created or retargeted a page editor");
+  assert.equal(await editor.inputValue(), editorValue, "Typography UI changed the active page editor");
+  assertSameBox(
+    await box(selectedChrome, "Expected page selection after Typography input"),
+    await box(target, "Expected original target after Typography input"),
+    "Typography UI input changed the selected page element",
+  );
+
+  const inspectorBefore = await box(inspector, "Expected Typography inspector before wheel scroll");
+  const ringBefore = await box(ring, "Expected edit ring before wheel scroll");
+  targetBox = await box(target, "Expected target before wheel scroll");
+  const scrollBefore = await page.evaluate(() => window.scrollY);
+  await page.mouse.move(880, 600);
+  await page.mouse.wheel(0, 120);
+  await page.waitForTimeout(80);
+  const scrollAfter = await page.evaluate(() => window.scrollY);
+  const actualScroll = scrollAfter - scrollBefore;
+  assert(Math.abs(actualScroll) > 40, `Expected a real wheel scroll, got ${actualScroll}`);
+
+  const targetDuring = await box(target, "Expected target after wheel scroll");
+  const inspectorDuring = await box(inspector, "Typography inspector disappeared while target remained visible");
+  const ringDuring = await box(ring, "Edit ring disappeared while target remained visible");
+  const targetDelta = targetDuring.y - targetBox.y;
+  assert(Math.abs(targetDelta + actualScroll) <= 2, `Target did not reflect wheel scroll: ${JSON.stringify({ targetBox, targetDuring, actualScroll })}`);
+  assert(Math.abs((ringDuring.y - ringBefore.y) - targetDelta) <= 2, `Edit ring detached from target: ${JSON.stringify({ ringBefore, ringDuring, targetDelta })}`);
+  assert(Math.abs((inspectorDuring.y - inspectorBefore.y) - targetDelta) <= 2, `Typography inspector detached from its text context: ${JSON.stringify({ inspectorBefore, inspectorDuring, targetDelta })}`);
+
+  await page.mouse.wheel(0, 1000);
+  await page.waitForTimeout(120);
+  const targetAfter = await box(target, "Expected edited target after leaving viewport");
+  assert(targetAfter.y + targetAfter.height < 1, `Expected edited target to leave viewport: ${JSON.stringify(targetAfter)}`);
   const inspectorAfter = await inspector.boundingBox();
   if (inspectorAfter) {
     assert(
-      inspectorAfter.y + inspectorAfter.height < 1 || inspectorAfter.y > 619,
+      inspectorAfter.y + inspectorAfter.height < 1 || inspectorAfter.y >= 620,
       `Typography inspector stayed behind after its target left: ${JSON.stringify(inspectorAfter)}`,
     );
   }
 
-  await editor.focus();
-  await page.keyboard.press("Escape");
-  await editor.waitFor({ state: "detached" });
-
-  // Manual regression 2: reproduce the screenshot topology directly. Compact
-  // the normal toolbar near its default left edge, open Settings, and require
-  // the whole surface to remain inside the viewport rather than extending left.
+  // Reproduce the compact-toolbar screenshot topology. Open Settings through the
+  // real global shortcut because the inactive Settings button is intentionally
+  // hidden while compact. The resulting surface must remain fully on-screen.
   settingsPage = await browser.newPage({ viewport: { width: 620, height: 700 } });
   watchDiagnostics(settingsPage);
   await settingsPage.goto(url, { waitUntil: "networkidle" });
@@ -96,10 +112,8 @@ try {
   await compact.waitFor({ state: "visible" });
   if ((await compact.getAttribute("aria-pressed")) !== "true") await compact.click();
   await settingsPage.waitForTimeout(180);
+  await settingsPage.keyboard.press("Control+,");
 
-  const settings = settingsPage.locator("button[data-mesurer-builtin='settings']").first();
-  await settings.waitFor({ state: "visible" });
-  await settings.click();
   const dialog = settingsPage.getByRole("dialog", { name: "Settings" });
   await dialog.waitFor({ state: "visible" });
   await settingsPage.waitForTimeout(60);
@@ -109,21 +123,52 @@ try {
   assert(settingsBox.y >= 8 - 0.5, `Settings clipped on top viewport edge: ${JSON.stringify(settingsBox)}`);
   assert(settingsBox.y + settingsBox.height <= 700 - 8 + 0.5, `Settings clipped on bottom viewport edge: ${JSON.stringify(settingsBox)}`);
 
-  // Manual regression 3: every first-party optional plugin must remain visible
-  // as a Settings row even when unloaded. Humans should discover and enable the
-  // capability themselves instead of needing an agent to know it exists.
+  // Humans must see all optional first-party capabilities before enabling them.
+  // Verify the actual rows and their loaded/unloaded state, then enable Context
+  // through the visible Settings toggle and prove its real toolbar contribution
+  // appears after returning to the expanded toolbar.
   const general = dialog.getByRole("tab", { name: "General", exact: true });
   if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
   const pluginsDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
   await pluginsDisclosure.waitFor({ state: "visible" });
   if ((await pluginsDisclosure.getAttribute("aria-expanded")) !== "true") await pluginsDisclosure.click();
-  const pluginList = dialog.locator("[data-mesurer-plugin-settings-list='true']");
-  for (const id of ["mesurer.context", "mesurer.arrange", "mesurer.screenshot"]) {
-    await pluginList.locator(`[data-mesurer-plugin-settings-section='${id}']`).waitFor({ state: "visible" });
+
+  const expectedPlugins = [
+    ["mesurer.context", "Context", "false"],
+    ["mesurer.arrange", "Arrange", "true"],
+    ["mesurer.screenshot", "Screenshot", "false"],
+  ];
+  for (const [id, label, checked] of expectedPlugins) {
+    const row = dialog.locator(`[data-mesurer-plugin-settings-section='${id}']`);
+    await row.waitFor({ state: "visible" });
+    assert.equal((await row.locator(`[data-mesurer-plugin-label='${id}']`).textContent())?.trim(), label, `${label} plugin row label`);
+    assert.equal(await row.getByRole("switch", { name: label, exact: true }).getAttribute("aria-checked"), checked, `${label} plugin availability state`);
   }
 
+  const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
+  await contextToggle.click();
+  await settingsPage.waitForFunction(() => document.querySelector("[data-mesurer-plugin-toggle='mesurer.context']")?.getAttribute("aria-checked") === "true");
+  await settingsPage.keyboard.press("Control+,");
+  await dialog.waitFor({ state: "hidden" });
+  if ((await compact.getAttribute("aria-pressed")) === "true") await compact.click();
+  await settingsPage.waitForTimeout(180);
+  await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "visible" });
+
+  // Disable it again through the same human-facing path and prove the actual
+  // tool disappears while the available row remains discoverable next time.
+  await settingsPage.keyboard.press("Control+,");
+  await dialog.waitFor({ state: "visible" });
+  const generalAgain = dialog.getByRole("tab", { name: "General", exact: true });
+  if ((await generalAgain.getAttribute("aria-selected")) !== "true") await generalAgain.click();
+  const disclosureAgain = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
+  if ((await disclosureAgain.getAttribute("aria-expanded")) !== "true") await disclosureAgain.click();
+  const contextToggleAgain = dialog.getByRole("switch", { name: "Context", exact: true });
+  await contextToggleAgain.click();
+  await settingsPage.waitForFunction(() => document.querySelector("[data-mesurer-plugin-toggle='mesurer.context']")?.getAttribute("aria-checked") === "false");
+  await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "hidden" });
+
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Manual acceptance regressions: Typography follows text, Settings stays in viewport, first-party plugins stay discoverable: PASS");
+  console.log("Reported UI regressions E2E: Typography owns input but follows source, compact Settings stays on-screen, and optional first-party plugins are discoverable/loadable by a human: PASS");
 } finally {
   await settingsPage?.close();
   await page?.close();
