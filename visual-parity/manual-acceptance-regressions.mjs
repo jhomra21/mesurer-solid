@@ -35,8 +35,6 @@ try {
     document.body.style.minHeight = "3600px";
   });
 
-  // Reproduce the reported text-edit path with physical input. Typography must
-  // own pointer interaction without becoming viewport furniture.
   const arrange = page.locator("button[data-mesurer-tool-id='arrange']");
   const target = page.locator(".primary-action");
   await arrange.waitFor({ state: "visible" });
@@ -56,19 +54,26 @@ try {
   await ring.waitFor({ state: "visible" });
   await selectedChrome.waitFor({ state: "visible" });
 
+  // Use a real interactive Typography control rather than clicking arbitrary
+  // empty card space. Toggle Bold twice so the UI demonstrably receives pointer
+  // input but returns the page style to its starting state. The active editor
+  // and selected page element must remain the same throughout.
   const editorValue = await editor.inputValue();
-  const inspectorInputBox = await box(inspector, "Expected Typography card before input boundary check");
-  await page.mouse.dblclick(
-    inspectorInputBox.x + Math.min(110, inspectorInputBox.width / 2),
-    inspectorInputBox.y + Math.min(18, inspectorInputBox.height / 2),
-  );
+  const bold = inspector.locator("[data-mesurer-text-style-button='bold']");
+  await bold.waitFor({ state: "visible" });
+  const boldBefore = await bold.getAttribute("aria-pressed");
+  await bold.click();
+  await page.waitForTimeout(40);
+  assert.notEqual(await bold.getAttribute("aria-pressed"), boldBefore, "Typography Bold control did not respond to real pointer input");
+  await bold.click();
   await page.waitForTimeout(60);
-  assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography UI created or retargeted a page editor");
-  assert.equal(await editor.inputValue(), editorValue, "Typography UI changed the active page editor");
+  assert.equal(await bold.getAttribute("aria-pressed"), boldBefore, "Typography Bold control did not restore its starting state");
+  assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography control closed or retargeted the page editor");
+  assert.equal(await editor.inputValue(), editorValue, "Typography control changed the active page editor");
   assertSameBox(
-    await box(selectedChrome, "Expected page selection after Typography input"),
-    await box(target, "Expected original target after Typography input"),
-    "Typography UI input changed the selected page element",
+    await box(selectedChrome, "Expected page selection after Typography control input"),
+    await box(target, "Expected original target after Typography control input"),
+    "Typography control input changed the selected page element",
   );
 
   const inspectorBefore = await box(inspector, "Expected Typography inspector before wheel scroll");
@@ -102,9 +107,6 @@ try {
     );
   }
 
-  // Reproduce the compact-toolbar screenshot topology. Open Settings through the
-  // real global shortcut because the inactive Settings button is intentionally
-  // hidden while compact. The resulting surface must remain fully on-screen.
   settingsPage = await browser.newPage({ viewport: { width: 620, height: 700 } });
   watchDiagnostics(settingsPage);
   await settingsPage.goto(url, { waitUntil: "networkidle" });
@@ -123,10 +125,6 @@ try {
   assert(settingsBox.y >= 8 - 0.5, `Settings clipped on top viewport edge: ${JSON.stringify(settingsBox)}`);
   assert(settingsBox.y + settingsBox.height <= 700 - 8 + 0.5, `Settings clipped on bottom viewport edge: ${JSON.stringify(settingsBox)}`);
 
-  // Humans must see all optional first-party capabilities before enabling them.
-  // Verify the actual rows and their loaded/unloaded state, then enable Context
-  // through the visible Settings toggle and prove its real toolbar contribution
-  // appears after returning to the expanded toolbar.
   const general = dialog.getByRole("tab", { name: "General", exact: true });
   if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
   const pluginsDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
@@ -154,8 +152,6 @@ try {
   await settingsPage.waitForTimeout(180);
   await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "visible" });
 
-  // Disable it again through the same human-facing path and prove the actual
-  // tool disappears while the available row remains discoverable next time.
   await settingsPage.keyboard.press("Control+,");
   await dialog.waitFor({ state: "visible" });
   const generalAgain = dialog.getByRole("tab", { name: "General", exact: true });
@@ -168,7 +164,7 @@ try {
   await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "hidden" });
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Reported UI regressions E2E: Typography owns input but follows source, compact Settings stays on-screen, and optional first-party plugins are discoverable/loadable by a human: PASS");
+  console.log("Reported UI regressions E2E: real Typography controls preserve page ownership while the card follows/leaves with its source; compact Settings stays on-screen; optional first-party plugins are discoverable and loadable by a human: PASS");
 } finally {
   await settingsPage?.close();
   await page?.close();
