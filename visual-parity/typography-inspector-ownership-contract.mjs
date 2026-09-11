@@ -25,6 +25,10 @@ const assertSameBox = (actual, expected, message) => {
   }
 };
 
+const settle = () => page.evaluate(() => new Promise((resolve) => {
+  requestAnimationFrame(() => requestAnimationFrame(resolve));
+}));
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.evaluate(() => {
@@ -60,21 +64,22 @@ try {
     "Selected page identity before inspector input",
   );
   const valueBefore = await editor.inputValue();
-  const weightBefore = await target.evaluate((element) => getComputedStyle(element).fontWeight);
-  const numericWeight = Number.parseInt(weightBefore, 10);
-  const toggledWeight = Number.isFinite(numericWeight) && numericWeight >= 600 ? "400" : "700";
-  const bold = inspector.locator("[data-mesurer-text-style-button='bold']");
-  await bold.waitFor({ state: "visible" });
-  await bold.click();
-  await page.waitForFunction(
-    ({ selector, expected }) => getComputedStyle(document.querySelector(selector)).fontWeight === expected,
-    { selector: ".feature-copy .kicker", expected: toggledWeight },
+  const lineBefore = await target.evaluate((element) => getComputedStyle(element).lineHeight);
+  const desiredLine = lineBefore === "36px" ? "42px" : "36px";
+  const lineInput = inspector.locator("[data-mesurer-text-style-input='line']");
+  await lineInput.waitFor({ state: "visible" });
+  const lineBox = await box(lineInput, "Expected live Line control in Typography card");
+  await page.mouse.click(lineBox.x + lineBox.width / 2, lineBox.y + lineBox.height / 2);
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type(desiredLine);
+  await page.keyboard.press("Enter");
+  await settle();
+  assert.equal(
+    await target.evaluate((element) => getComputedStyle(element).lineHeight),
+    desiredLine,
+    "Physical input in Typography Line control did not change the rendered page target",
   );
-  await bold.click();
-  await page.waitForFunction(
-    ({ selector, expected }) => getComputedStyle(document.querySelector(selector)).fontWeight === expected,
-    { selector: ".feature-copy .kicker", expected: weightBefore },
-  );
+  assert.notEqual(desiredLine, lineBefore, "Typography ownership probe must change rendered line-height");
   assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography control interaction closed or retargeted the page editor");
   assert.equal(await editor.inputValue(), valueBefore, "Typography control interaction retargeted the active page editor");
   assertSameBox(
@@ -117,7 +122,7 @@ try {
   }
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Typography ownership E2E: real Typography controls change rendered source style without retargeting page ownership; card follows real wheel scroll and leaves with its source: PASS");
+  console.log("Typography ownership E2E: physical input in a live Typography control changes the rendered source without retargeting page ownership; card follows real wheel scroll and leaves with its source: PASS");
 } finally {
   await browser.close();
 }
