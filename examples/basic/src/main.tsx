@@ -1,6 +1,16 @@
 import { render } from "@solidjs/web";
+import { contextPlugin, MESURER_CONTEXT_PLUGIN_ID } from "@jhomra21/mesurer-solid";
 import { Mesurer, arrangePlugin } from "@jhomra21/mesurer-solid-renderer";
 import "./playground.css";
+
+const contextAvailablePlugin = {
+  id: MESURER_CONTEXT_PLUGIN_ID,
+  label: "Context",
+  order: 30,
+  create: () => contextPlugin(),
+  settingsIds: ["context"],
+  hiddenSettingsControlIds: ["ui"],
+};
 
 function App() {
   return (
@@ -64,7 +74,11 @@ function App() {
         <p>Delete removes selected guides. Escape clears measurements/guides. Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z undo/redo. Cmd/Ctrl+, opens settings.</p>
       </footer>
 
-      <Mesurer persistKey="mesurer-parity-playground" plugins={[arrangePlugin()]} />
+      <Mesurer
+        persistKey="mesurer-parity-playground"
+        plugins={[arrangePlugin()]}
+        availablePlugins={[contextAvailablePlugin]}
+      />
     </main>
   );
 }
