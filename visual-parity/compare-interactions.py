@@ -14,6 +14,10 @@ current_general_switches = {
     "Keep text changes": "false",
     "Keep Arrange changes": "false",
 }
+presentation_switch_buttons = {
+    "Keep text changes",
+    "Keep Arrange changes",
+}
 
 
 def deep_diff(left, right, path=""):
@@ -24,7 +28,7 @@ def deep_diff(left, right, path=""):
         for key in sorted(set(left) | set(right)):
             child = f"{path}.{key}" if path else key
             if key not in left or key not in right:
-                diffs.append({"path": child, "react": left.get(key), "solid": right.get(key)})
+                diffs.append({"path": child, "react": left.get(key), "solid": solid.get(key)})
             else:
                 diffs.extend(deep_diff(left[key], right[key], child))
     elif isinstance(left, list):
@@ -75,7 +79,36 @@ def normalize_current_general_state(react_state, solid_state):
     without_additions = [item for item in solid_switches if item.get("text") not in names]
     if without_additions != react_switches:
         return False
+
+    # Presentation switches are buttons, so the generic interaction capture also
+    # records them in toolbarButtons. Verify those duplicate records exactly before
+    # removing them; otherwise an unexpected button can never disappear into the
+    # historical normalization.
+    react_buttons = react_state.get("toolbarButtons")
+    solid_buttons = solid_state.get("toolbarButtons")
+    if not isinstance(react_buttons, list) or not isinstance(solid_buttons, list):
+        return False
+    if any(item.get("label") in presentation_switch_buttons for item in react_buttons):
+        return False
+    button_additions = [
+        item for item in solid_buttons
+        if item.get("label") in presentation_switch_buttons
+    ]
+    if (
+        len(button_additions) != len(presentation_switch_buttons)
+        or {item.get("label") for item in button_additions} != presentation_switch_buttons
+        or any(item.get("pressed") is not None for item in button_additions)
+    ):
+        return False
+    without_button_additions = [
+        item for item in solid_buttons
+        if item.get("label") not in presentation_switch_buttons
+    ]
+    if without_button_additions != react_buttons:
+        return False
+
     solid_state["switches"] = without_additions
+    solid_state["toolbarButtons"] = without_button_additions
     return True
 
 
@@ -92,9 +125,10 @@ def current_general_pixel(name: str, x: int, y: int, enabled: bool, height: int)
         return y, False
     # The shared parity fixture's General panel is x=16..288. Solid composes two
     # 24px presentation-policy rows (plus their 4px gaps) before Persist, then
-    # current upstream adds the 24px Shortcuts row plus gap after Persist. The
-    # historical remainder therefore moves by 56px through Persist and 84px
-    # afterward. Dedicated browser contracts own all three current-only switches.
+    # current upstream adds the 24px Shortcuts row plus gap after Persist. Translate
+    # only the panel interior: the 16px right-side shadow strip overlays stationary
+    # page content and therefore must stay at its original viewport Y. The extra
+    # panel/shadow tail is still ignored only for the verified current additions.
     if not (
         name in {
             "toolbar-settings-open",
@@ -109,14 +143,15 @@ def current_general_pixel(name: str, x: int, y: int, enabled: bool, height: int)
         return y, False
     presentation_shift = 56
     total_shift = 84
+    panel_right = 288
     persist_bottom = 129
     historical_shadow_bottom = 244
     current_shadow_bottom = 328
-    if y < persist_bottom and y + presentation_shift < height:
+    if x < panel_right and y < persist_bottom and y + presentation_shift < height:
         return y + presentation_shift, False
-    if y < historical_shadow_bottom and y + total_shift < height:
+    if x < panel_right and y < historical_shadow_bottom and y + total_shift < height:
         return y + total_shift, False
-    if y < current_shadow_bottom:
+    if y >= historical_shadow_bottom and y < current_shadow_bottom:
         return y, True
     return y, False
 
