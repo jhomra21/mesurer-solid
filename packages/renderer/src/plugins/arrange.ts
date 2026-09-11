@@ -3,6 +3,7 @@ import type {
   MesurerPluginContext,
   PluginValue,
 } from "@jhomra21/mesurer-solid-core";
+import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { presentationPreferences } from "../runtime/presentation-preferences";
 import {
   MESURER_ARRANGE_ACTIVE_STATE_ID,
@@ -24,6 +25,11 @@ type ArrangeStateRef = {
   intents: ArrangeIntentRef[];
 };
 
+type PresentationSnapshot = {
+  visible: boolean;
+  intents: ArrangeIntentRef[];
+};
+
 /**
  * Keep Arrange intent separate from page presentation.
  *
@@ -33,32 +39,36 @@ type ArrangeStateRef = {
  * off. The default is the untouched page; Keep Arrange changes opts into the
  * saved Desired presentation outside the tool.
  *
- * Policy checks are O(1): state array identity, one active bit, and one setting
- * bit. O(k) target resolution is invoked only when the presentation actually
- * changes or the intent array changes, never merely because unrelated plugin
- * state changed.
+ * State notifications perform only O(1) bit/array-identity checks. They do not
+ * even schedule a frame when the relevant policy and intent array are unchanged.
+ * O(k) target resolution is invoked only when visibility policy or Arrange
+ * intent genuinely changes, never from scroll/pointer activity or unrelated
+ * plugin state.
  */
 const installArrangePresentationPolicy = (
   ctx: MesurerPluginContext,
   service: MesurerArrangeService,
+  ownerWindow: Window,
 ) => {
   let disposed = false;
   let frame = 0;
-  let previousVisible: boolean | null = null;
-  let previousIntents: ArrangeIntentRef[] | null = null;
+  let applied: PresentationSnapshot | null = null;
+  let pending: PresentationSnapshot | null = null;
 
-  const sync = () => {
-    frame = 0;
-    if (disposed) return;
-
+  const readSnapshot = (): PresentationSnapshot => {
     const active = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
-    const visible = active || presentationPreferences(ctx).keepArrangeChanges;
-    const intents = ctx.state.get<ArrangeStateRef>(MESURER_ARRANGE_STATE_ID)?.intents ?? [];
-    if (visible === previousVisible && intents === previousIntents) return;
+    return {
+      visible: active || presentationPreferences(ctx).keepArrangeChanges,
+      intents: ctx.state.get<ArrangeStateRef>(MESURER_ARRANGE_STATE_ID)?.intents ?? [],
+    };
+  };
 
-    previousVisible = visible;
-    previousIntents = intents;
-    if (visible) {
+  const sameSnapshot = (left: PresentationSnapshot | null, right: PresentationSnapshot) =>
+    left?.visible === right.visible && left.intents === right.intents;
+
+  const apply = (snapshot: PresentationSnapshot) => {
+    applied = snapshot;
+    if (snapshot.visible) {
       service.showCurrent();
       return;
     }
@@ -66,24 +76,36 @@ const installArrangePresentationPolicy = (
     // The core starts in Desired so persisted intents can be reviewed. Retire
     // that preview immediately when policy says Original. `show(..., "live")`
     // clears every Mesurer-owned preview while retaining intent/history.
-    const latest = intents.at(-1);
+    const latest = snapshot.intents.at(-1);
     if (latest) service.show(latest.id, "live");
   };
 
-  const schedule = () => {
-    if (disposed || frame) return;
-    frame = requestAnimationFrame(sync);
+  const flush = () => {
+    frame = 0;
+    if (disposed || !pending) return;
+    const snapshot = pending;
+    pending = null;
+    if (!sameSnapshot(applied, snapshot)) apply(snapshot);
   };
 
-  const subscription = ctx.state.subscribe(schedule);
+  const scheduleIfChanged = () => {
+    if (disposed) return;
+    const next = readSnapshot();
+    if (sameSnapshot(pending ?? applied, next)) return;
+    pending = next;
+    if (!frame) frame = ownerWindow.requestAnimationFrame(flush);
+  };
+
+  const subscription = ctx.state.subscribe(scheduleIfChanged);
   // Correct the core's initial Desired presentation synchronously so a saved
   // Arrange layout cannot flash for one paint when the plugin is restored.
-  sync();
+  apply(readSnapshot());
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
-    if (frame) cancelAnimationFrame(frame);
+    if (frame) ownerWindow.cancelAnimationFrame(frame);
     frame = 0;
+    pending = null;
     subscription.dispose();
   });
 };
@@ -96,7 +118,9 @@ export const arrangePlugin = (): MesurerPlugin => {
       await core.setup(ctx);
       const service = ctx.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
       if (!service) throw new Error("Arrange presentation policy requires the Arrange service.");
-      installArrangePresentationPolicy(ctx, service);
+      const runtime = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
+      if (!runtime) throw new Error("Arrange presentation policy requires the Solid renderer runtime.");
+      installArrangePresentationPolicy(ctx, service, runtime.ownerWindow);
     },
   };
 };
