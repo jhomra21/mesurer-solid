@@ -19,9 +19,11 @@ const Y_VARIABLE = "--mesurer-nested-scroll-y";
  *
  * Capture the target's composed ancestor chain once. The scroll hot path never
  * scans the DOM or reads layout geometry: it performs one cached source lookup,
- * two scalar deltas, and CSS-variable writes. Window scrolling is tracked with
- * the same delta model. `rebase()` is used when a settled layout resample has
- * supplied fresh base coordinates so accumulated deltas are not applied twice.
+ * two scalar deltas, and CSS-variable writes. Cached element sources are
+ * observed directly so non-composed ShadowRoot scroll events do not need to
+ * escape their tree. Window scrolling uses the same delta model. `rebase()` is
+ * used when a settled layout resample has supplied fresh base coordinates so
+ * accumulated deltas are not applied twice.
  */
 export const installNestedScrollCompensation = (
   ownerWindow: Window,
@@ -88,21 +90,23 @@ export const installNestedScrollCompensation = (
     return true;
   };
 
-  const onScroll = (event: Event) => {
-    if (disposed) return;
-    if (event.target instanceof realm.HTMLElement) {
-      const previous = positions.get(event.target);
-      if (!previous || !applyDelta(previous, event.target.scrollLeft, event.target.scrollTop)) return;
-      sync();
-      return;
-    }
-
-    if (event.target !== ownerDocument && event.target !== ownerWindow) return;
-    if (!applyDelta(windowPosition, ownerWindow.scrollX, ownerWindow.scrollY)) return;
+  const onElementScroll = (event: Event) => {
+    if (disposed || !(event.currentTarget instanceof realm.HTMLElement)) return;
+    const element = event.currentTarget;
+    const previous = positions.get(element);
+    if (!previous || !applyDelta(previous, element.scrollLeft, element.scrollTop)) return;
     sync();
   };
 
-  ownerWindow.addEventListener("scroll", onScroll, true);
+  const onWindowScroll = () => {
+    if (disposed || !applyDelta(windowPosition, ownerWindow.scrollX, ownerWindow.scrollY)) return;
+    sync();
+  };
+
+  for (const element of positions.keys()) {
+    element.addEventListener("scroll", onElementScroll, { passive: true });
+  }
+  ownerWindow.addEventListener("scroll", onWindowScroll, { passive: true });
   sync();
 
   return {
@@ -124,7 +128,10 @@ export const installNestedScrollCompensation = (
     release() {
       if (disposed) return;
       disposed = true;
-      ownerWindow.removeEventListener("scroll", onScroll, true);
+      ownerWindow.removeEventListener("scroll", onWindowScroll);
+      for (const element of positions.keys()) {
+        element.removeEventListener("scroll", onElementScroll);
+      }
       for (const surface of currentSurfaces()) {
         delete surface.dataset.mesurerNestedScrollCompensation;
         surface.style.removeProperty(X_VARIABLE);
