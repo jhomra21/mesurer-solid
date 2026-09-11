@@ -161,31 +161,34 @@ export function ContextActions(props: ContextActionsProps) {
       && element?.isConnected
       && shouldUseNative === alreadyNative
     ) {
-      // A workspace notification after scrolling carries a fresh target rect.
-      // Rebase the arithmetic fallback before that rect is rendered so the
-      // accumulated scroll delta is not applied a second time.
-      nestedTriggerScroll?.rebase();
+      if (shouldUseNative) nestedTriggerScroll?.sync();
+      else nestedTriggerScroll?.rebase();
       return;
     }
 
     releaseSelectionTriggerAnchor();
     if (!element?.isConnected) return;
     trackedTriggerElement = element;
+    const currentWindow = element.ownerDocument.defaultView;
+    if (!currentWindow) return;
 
     if (shouldUseNative) {
       releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName);
       anchoredTriggerElement = element;
-      return;
-    }
-
-    const currentWindow = element.ownerDocument.defaultView;
-    if (currentWindow) {
       nestedTriggerScroll = installNestedScrollCompensation(
         currentWindow,
         element,
         () => [annotationTriggerElement],
       );
+      return;
     }
+
+    nestedTriggerScroll = installNestedScrollCompensation(
+      currentWindow,
+      element,
+      () => [annotationTriggerElement],
+      { trackWindow: true },
+    );
   };
 
   const unsubscribe = props.runtime.subscribe(() => {
