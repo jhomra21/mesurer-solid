@@ -2,6 +2,7 @@ import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { installDocumentScrollAnchoring } from "./document-scroll-anchoring";
 import { createDocumentTextRuntime } from "./isolated-document-portal";
+import { installIsolatedDocumentUiPassthrough } from "./isolated-document-ui-passthrough";
 import { installNativeScrollStability } from "./native-scroll-stability";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
 import { installTextEditingPresentation } from "./text-editing-presentation";
@@ -36,6 +37,12 @@ export function installTextEditing(
   ctx: MesurerPluginContext,
   runtime: MesurerSolidRuntimeService,
 ) {
+  // Document-backed inspector controls can sit visually above the page while
+  // the public ShadowRoot island remains in the browser top layer. Let real
+  // pointer input pass through the isolated selection plane only over those
+  // cached Mesurer UI regions; do not redispatch synthetic clicks.
+  installIsolatedDocumentUiPassthrough(ctx, runtime);
+
   // The public package defaults to a ShadowRoot island. Keep the canonical
   // toolbar isolated and framework-owned there. Selection chrome uses the
   // MeasurementBox component's Solid Portal when it needs the document layer;
