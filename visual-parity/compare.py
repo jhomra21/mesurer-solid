@@ -28,6 +28,10 @@ selection_owner_metric_paths = {
     "selectedMeasurement.style.height",
     "selectedMeasurement.style.width",
 }
+presentation_preference_defaults = {
+    "Keep text changes": "false",
+    "Keep Arrange changes": "false",
+}
 
 # This visual suite is intentionally pinned to the pre-compact v0.0.11 toolbar.
 # Mesurer Solid now adopts the newer toolbar chrome/compact treatment under a
@@ -133,6 +137,113 @@ def is_intentional_typography_label_difference(difference):
 
 def is_environmental_contract_difference(difference):
     return difference["path"].endswith(non_design_contract_suffixes)
+
+
+def presentation_preferences_delta(state, react_metrics, solid_metrics):
+    """Verify the two Solid-only presentation switches before normalizing them."""
+    if state != "settings-general":
+        return None
+    react_settings = react_metrics.get("settings", {})
+    solid_settings = solid_metrics.get("settings", {})
+    react_controls = react_metrics.get("settingsContract", {}).get("controls", [])
+    solid_controls = solid_metrics.get("settingsContract", {}).get("controls", [])
+    names = set(presentation_preference_defaults)
+    if any(control.get("name") in names for control in react_controls):
+        return None
+
+    preferences = [control for control in solid_controls if control.get("name") in names]
+    if len(preferences) != len(names) or {control.get("name") for control in preferences} != names:
+        return None
+    for control in preferences:
+        if control.get("role") != "switch":
+            return None
+        if control.get("ariaChecked") != presentation_preference_defaults[control.get("name")]:
+            return None
+
+    persist = next((control for control in solid_controls if control.get("name") == "Persist"), None)
+    react_persist = next((control for control in react_controls if control.get("name") == "Persist"), None)
+    if persist is None or react_persist is None:
+        return None
+    persist_rect = persist.get("rect", {})
+    react_persist_rect = react_persist.get("rect", {})
+    ordered = sorted(preferences, key=lambda control: control.get("rect", {}).get("y", -1))
+    first_rect = ordered[0].get("rect", {})
+    second_rect = ordered[1].get("rect", {})
+    row_height = first_rect.get("height")
+    if not isinstance(row_height, (int, float)) or row_height <= 0:
+        return None
+    row_stride = row_height + 4
+    if second_rect.get("height") != row_height:
+        return None
+    if abs(second_rect.get("y", 0) - first_rect.get("y", 0) - row_stride) > 0.01:
+        return None
+    if abs(persist_rect.get("y", 0) - second_rect.get("y", 0) - row_stride) > 0.01:
+        return None
+    for rect in (first_rect, second_rect):
+        if rect.get("x") != persist_rect.get("x") or rect.get("width") != persist_rect.get("width"):
+            return None
+    shift = row_stride * len(preferences)
+    react_persist_y = react_persist_rect.get("y")
+    if not isinstance(react_persist_y, (int, float)):
+        return None
+    if abs(first_rect.get("y", 0) - react_persist_y) > 0.01:
+        return None
+    if abs(persist_rect.get("y", 0) - react_persist_y - shift) > 0.01:
+        return None
+
+    react_rect = react_settings.get("rect", {})
+    solid_rect = solid_settings.get("rect", {})
+    panel_growth = solid_rect.get("height", 0) - react_rect.get("height", 0)
+    if panel_growth < shift:
+        return None
+    return {
+        "shift": shift,
+        "preference_y": first_rect.get("y", 0),
+        "react_start_y": react_persist_y,
+        "panel_left": solid_rect.get("left", solid_rect.get("x", 0)),
+        "panel_right": solid_rect.get("right", solid_rect.get("x", 0) + solid_rect.get("width", 0)),
+        "react_bottom": react_rect.get("bottom", react_rect.get("y", 0) + react_rect.get("height", 0)),
+        "solid_bottom": solid_rect.get("bottom", solid_rect.get("y", 0) + solid_rect.get("height", 0)),
+    }
+
+
+def normalize_presentation_preferences_metrics(solid_metrics, feature):
+    if feature is None:
+        return solid_metrics
+    normalized = copy.deepcopy(solid_metrics)
+    shift = feature["shift"]
+    settings = normalized.get("settings", {})
+    text = str(settings.get("text", ""))
+    for label in presentation_preference_defaults:
+        text = text.replace(label, "", 1)
+    settings["text"] = text
+    settings_rect = settings.get("rect", {})
+    if "height" in settings_rect:
+        settings_rect["height"] -= shift
+    if "bottom" in settings_rect:
+        settings_rect["bottom"] -= shift
+    style = settings.get("style", {})
+    height = style.get("height")
+    if isinstance(height, str) and height.endswith("px"):
+        style["height"] = f"{float(height[:-2]) - shift:g}px"
+
+    settings_contract = normalized.get("settingsContract", {})
+    contract_rect = settings_contract.get("rect", {})
+    if "height" in contract_rect:
+        contract_rect["height"] -= shift
+    if "bottom" in contract_rect:
+        contract_rect["bottom"] -= shift
+    controls = []
+    for control in settings_contract.get("controls", []):
+        if control.get("name") in presentation_preference_defaults:
+            continue
+        control = copy.deepcopy(control)
+        control["index"] = len(controls)
+        if control.get("rect", {}).get("y", 0) > feature["preference_y"]:
+            control["rect"]["y"] -= shift
+        controls.append(control)
+    settings_contract["controls"] = controls
+    return normalized
 
 
 def historical_shortcuts_delta(state, react_metrics, solid_metrics):
@@ -257,6 +368,8 @@ for state in states:
 
     react_metrics = round_numbers(json.loads((out / f"react-{state}.json").read_text()))
     solid_metrics = round_numbers(json.loads((out / f"solid-{state}.json").read_text()))
+    presentation_feature = presentation_preferences_delta(state, react_metrics, solid_metrics)
+    solid_metrics = normalize_presentation_preferences_metrics(solid_metrics, presentation_feature)
     shortcuts_feature = historical_shortcuts_delta(state, react_metrics, solid_metrics)
     solid_metrics = normalize_historical_shortcuts_metrics(solid_metrics, shortcuts_feature)
     label_region = selection_label_region(state, react_metrics, solid_metrics)
@@ -276,23 +389,29 @@ for state in states:
     for y in range(height):
         for x in range(width):
             solid_y = y
-            ignore_shortcuts_pixel = False
-            if shortcuts_feature is not None:
-                # The current-upstream row adds exactly one 28px Settings row. Compare the
-                # historical panel contents after that insertion at their shifted position,
-                # then ignore only the extra panel/shadow tail that has no v0.0.11 counterpart.
-                left = max(0, int(shortcuts_feature["panel_left"] - 16))
-                right = min(width, int(shortcuts_feature["panel_right"] + 16))
-                react_shadow_bottom = int(shortcuts_feature["react_bottom"] + 12)
-                solid_shadow_bottom = int(shortcuts_feature["solid_bottom"] + 12)
-                if left <= x < right and y >= shortcuts_feature["persist_bottom"]:
-                    if y < react_shadow_bottom and y + shortcuts_feature["shift"] < height:
-                        solid_y = int(y + shortcuts_feature["shift"])
-                    elif y < solid_shadow_bottom:
-                        ignore_shortcuts_pixel = True
+            ignore_current_general_pixel = False
+            general_feature = presentation_feature or shortcuts_feature
+            if general_feature is not None:
+                left = max(0, int(general_feature["panel_left"] - 16))
+                right = min(width, int(general_feature["panel_right"] + 16))
+                react_bottom = general_feature["react_bottom"]
+                solid_bottom = (
+                    presentation_feature["solid_bottom"]
+                    if presentation_feature is not None
+                    else shortcuts_feature["solid_bottom"]
+                )
+                react_shadow_bottom = int(react_bottom + 12)
+                solid_shadow_bottom = int(solid_bottom + 12)
+                if left <= x < right:
+                    if presentation_feature is not None and y >= presentation_feature["react_start_y"]:
+                        solid_y += int(presentation_feature["shift"])
+                    if shortcuts_feature is not None and y >= shortcuts_feature["persist_bottom"]:
+                        solid_y += int(shortcuts_feature["shift"])
+                    if y >= react_shadow_bottom and y < solid_shadow_bottom:
+                        ignore_current_general_pixel = True
 
             raw_delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
-            if ignore_shortcuts_pixel:
+            if ignore_current_general_pixel:
                 if raw_delta:
                     ignored_shortcuts_exact += 1
                     if raw_delta > threshold:
@@ -375,6 +494,7 @@ for state in states:
         "ignored_current_shortcuts_threshold_pixels": ignored_shortcuts_thresholded,
         "ignored_selection_label_exact_pixels": ignored_selection_label_exact,
         "ignored_selection_label_threshold_pixels": ignored_selection_label_thresholded,
+        "normalized_presentation_preferences": presentation_feature is not None,
         "normalized_current_shortcuts_setting": shortcuts_feature is not None,
         "normalized_selection_label_rasterization": label_region is not None,
         "max_channel_delta": max_delta,
@@ -404,9 +524,9 @@ for state in states:
 print(json.dumps(report, indent=2))
 
 # The pinned React implementation remains the contract for the shared historical
-# page/result/Settings surface. Toolbar chrome and the current-upstream Shortcuts
-# row are validated by dedicated current Chromium contracts instead of being
-# vetoed by the older v0.0.11 fixture.
+# page/result/Settings surface. Toolbar chrome, the current-upstream Shortcuts
+# row, and the two Solid presentation-policy switches are validated by dedicated
+# current Chromium contracts instead of being vetoed by the older v0.0.11 fixture.
 failures = []
 expected_general_metric_paths = {"settings.text"}
 for state, result in report["states"].items():
