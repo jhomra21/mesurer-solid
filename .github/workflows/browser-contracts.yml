@@ -218,7 +218,7 @@ jobs:
           print("- Saved Text/style intent is Typography-owned by default; Select shows the original page")
           print("- General → Keep text changes explicitly persists saved Text/style presentation across tools")
           print("- Selected measurement chrome and direct-edit ring remain frame-locked to host geometry while scrolling")
-          print("- Typography inspector remains viewport-owned; page-linked ring/highlight chrome scrolls beneath and is occluded by it")
+          print("- Typography is interaction-owned by Mesurer but geometry-owned by its text target: real controls cannot retarget page selection, and the card follows/leaves with the source during scrolling")
           print("- Physical input on Typography UI cannot retarget the active page editor")
 
           print("")
