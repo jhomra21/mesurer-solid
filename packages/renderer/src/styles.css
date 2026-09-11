@@ -144,6 +144,20 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   top: calc(anchor(top) + var(--mesurer-native-anchor-y, 0px) + var(--mesurer-nested-scroll-y, 0px)) !important;
 }
 
+/* Page-linked edit/selection chrome belongs below viewport-owned inspector UI.
+   When a selected element passes behind Typography, its blue ring/highlight is
+   occluded by the white inspector card instead of painting through the card. */
+[data-mesurer-text-edit-ring="true"],
+[data-mesurer-text-selection-highlight="true"],
+[data-mesurer-text-caret="true"] {
+  z-index: 2147482900 !important;
+}
+
+[data-mesurer-text-inspector-placement-shell="true"],
+.mesurer-ti-card {
+  z-index: 2147483647 !important;
+}
+
 /* Selection-adjacent annotation chrome is contextual UI, not a second global
    toolbar. If it reaches the canonical toolbar band while the page scrolls,
    keep the persistent toolbar visually and interactively on top. */
@@ -246,12 +260,11 @@ body.mesurer-solid-xray .mesurer-ti-close {
   padding-inline: 0;
 }
 
-/* The contextual direct-edit Typography shell follows the edited host. Keep
-   it on the document absolute-anchor path so normal viewport scrolling stays
-   compositor-owned. Nested-scroll compensation is attached only when the
-   owning runtime binds that surface to a target under an overflow ancestor. */
-[data-mesurer-text-inspector-placement-shell="true"][data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="offset"] {
-  position: absolute !important;
+/* Typography cards are viewport-owned inspector UI. Page-linked rings and text
+   highlights use native document anchors, but the card itself deliberately
+   stays fixed in the viewport and is never given a position-anchor. */
+[data-mesurer-text-inspector-placement-shell="true"] {
+  position: fixed !important;
 }
 
 /* Keep Solid ownership without giving the portaled selection wrapper its own
