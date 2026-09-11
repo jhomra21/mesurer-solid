@@ -44,6 +44,7 @@ export const isSelectionPointBlockedByMesurerUi = (
 ) => {
   const ownerWindow = ownerDocument.defaultView;
   if (!ownerWindow) return false;
+  // SAFETY: ownerWindow is ownerDocument.defaultView, so these constructors own every hit from ownerDocument.
   const realm = ownerWindow as Window & typeof globalThis;
   const overlayHost = getOverlayHost(overlayNode);
 
