@@ -123,6 +123,37 @@ const sampleScrollEvent = async (
   },
 );
 
+const sampleNestedScrollEvent = async (deltaY) => page.evaluate(
+  (scrollDelta) => new Promise((resolve, reject) => {
+    const scroller = document.querySelector("#nested-scroll-shell");
+    const target = document.querySelector("#isolated-nested-scroll-target");
+    const selected = document.querySelector("[data-mesurer-selected-measurement='true'] > div");
+    const annotation = document.querySelector("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
+    if (!(scroller instanceof HTMLElement)) return reject(new Error("Expected nested scroll container"));
+    if (!(target instanceof HTMLElement)) return reject(new Error("Expected nested selection target"));
+    if (!(selected instanceof HTMLElement)) return reject(new Error("Expected nested selected chrome"));
+    if (!(annotation instanceof HTMLElement)) return reject(new Error("Expected nested annotation trigger"));
+
+    const snapshot = (element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    const state = () => ({
+      target: snapshot(target),
+      selected: snapshot(selected),
+      annotation: snapshot(annotation),
+    });
+    const before = state();
+    const timer = window.setTimeout(() => reject(new Error("Nested annotation scroll probe timed out")), 3_000);
+    scroller.addEventListener("scroll", () => {
+      window.clearTimeout(timer);
+      resolve({ before, after: state() });
+    }, { once: true });
+    scroller.scrollBy({ top: scrollDelta, behavior: "instant" });
+  }),
+  deltaY,
+);
+
 const measureNativeScrollWork = async (deltaY, { ranges = false } = {}) => page.evaluate(
   ({ deltaY: scrollDelta, includeRanges }) => new Promise((resolve, reject) => {
     const target = document.querySelector("#isolated-scroll-target");
@@ -153,6 +184,29 @@ const measureNativeScrollWork = async (deltaY, { ranges = false } = {}) => page.
     requestAnimationFrame(() => requestAnimationFrame(finish));
   }),
   { deltaY, includeRanges: ranges },
+);
+
+const measureNestedScrollWork = async (deltaY) => page.evaluate(
+  (scrollDelta) => new Promise((resolve, reject) => {
+    const scroller = document.querySelector("#nested-scroll-shell");
+    const target = document.querySelector("#isolated-nested-scroll-target");
+    if (!(scroller instanceof HTMLElement) || !(target instanceof HTMLElement)) {
+      return reject(new Error("Expected nested target for native scroll work probe"));
+    }
+    const originalRect = target.getBoundingClientRect;
+    let targetRectReads = 0;
+    target.getBoundingClientRect = function mesurerNestedTargetRectProbe() {
+      targetRectReads += 1;
+      return originalRect.call(this);
+    };
+    const finish = () => {
+      delete target.getBoundingClientRect;
+      resolve({ targetRectReads });
+    };
+    scroller.scrollBy({ top: scrollDelta, behavior: "instant" });
+    requestAnimationFrame(() => requestAnimationFrame(finish));
+  }),
+  deltaY,
 );
 
 try {
@@ -197,12 +251,12 @@ try {
 
   const annotationTrigger = page.locator("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
   await annotationTrigger.waitFor({ state: "visible" });
-  const annotationBox = await box(annotationTrigger, "isolated annotation trigger before scroll");
+  let annotationBox = await box(annotationTrigger, "isolated annotation trigger before scroll");
   assert.equal(annotationBox.width, 24, "isolated annotation trigger width");
   assert.equal(annotationBox.height, 24, "isolated annotation trigger height");
   assert(
-    boxGap(targetBox, annotationBox) <= 8.5,
-    `isolated annotation trigger should hug selected element; gap=${boxGap(targetBox, annotationBox).toFixed(2)}px`,
+    boxGap(targetBox, annotationBox) >= 5.5 && boxGap(targetBox, annotationBox) <= 6.5,
+    `isolated annotation trigger should keep 6px clearance; gap=${boxGap(targetBox, annotationBox).toFixed(2)}px`,
   );
   assert.equal(
     await annotationTrigger.getAttribute("data-mesurer-native-scroll-owner"),
@@ -218,9 +272,6 @@ try {
     { target: immediateSelection.after.target, surface: immediateSelection.after.annotation },
     "isolated annotation trigger in first scroll event",
   );
-  // The previous scroll's 80ms settle pass is allowed to remeasure after the
-  // hot event. Let it finish before instrumenting a second, independent scroll
-  // so this probe counts work caused by that scroll only.
   await waitForScrollIdle();
   const selectedScrollWork = await measureNativeScrollWork(20);
   assert.deepEqual(
@@ -228,7 +279,57 @@ try {
     { targetRectReads: 0, rangeRectReads: 0 },
     `native selected scroll must not chase geometry from JavaScript: ${JSON.stringify(selectedScrollWork)}`,
   );
-  targetBox = await box(target, "isolated target after native work probe");
+
+  // Reproduce the consumer topology that window scrolling does not cover: a
+  // page element selected inside an overflow scroller. Selection is physical,
+  // and the first scroll sample belongs to the container itself.
+  const nestedScroller = page.locator("#nested-scroll-shell");
+  const nestedTarget = page.locator("#isolated-nested-scroll-target");
+  await nestedScroller.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await nestedScroller.evaluate((element) => { element.scrollTop = 340; });
+  await waitForScrollIdle();
+  let nestedTargetBox = await box(nestedTarget, "nested target before selection");
+  await page.mouse.click(
+    nestedTargetBox.x + nestedTargetBox.width / 2,
+    nestedTargetBox.y + nestedTargetBox.height / 2,
+  );
+  await selectedChrome.waitFor({ state: "visible" });
+  assertSameBox(
+    await box(selectedChrome, "nested selected before scroll"),
+    nestedTargetBox,
+    "nested selected before scroll",
+  );
+  await annotationTrigger.waitFor({ state: "visible" });
+  annotationBox = await box(annotationTrigger, "nested annotation before scroll");
+  const nestedGap = boxGap(nestedTargetBox, annotationBox);
+  assert(
+    nestedGap >= 5.5 && nestedGap <= 6.5,
+    `nested annotation trigger should keep 6px clearance; gap=${nestedGap.toFixed(2)}px`,
+  );
+  await assertNativeAnchor(annotationTrigger, "offset", "nested annotation trigger");
+
+  const immediateNested = await sampleNestedScrollEvent(48);
+  assertSameBox(immediateNested.after.selected, immediateNested.after.target, "nested selected chrome in first container scroll event");
+  assertRelativeOffset(
+    { target: immediateNested.before.target, surface: immediateNested.before.annotation },
+    { target: immediateNested.after.target, surface: immediateNested.after.annotation },
+    "nested annotation trigger in first container scroll event",
+  );
+  await waitForScrollIdle();
+  const nestedScrollWork = await measureNestedScrollWork(20);
+  assert.deepEqual(
+    nestedScrollWork,
+    { targetRectReads: 0 },
+    `native nested annotation scroll must not chase target geometry from JavaScript: ${JSON.stringify(nestedScrollWork)}`,
+  );
+
+  // Restore the original physical Select target for the direct-edit and toolbar
+  // portions of this contract.
+  await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await waitForScrollIdle();
+  targetBox = await box(target, "isolated target before reselection");
+  await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+  assertSameBox(await box(selectedChrome, "isolated selected after reselection"), targetBox, "isolated selected after reselection");
 
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
   const editRing = page.locator("[data-mesurer-text-edit-ring='true']");
@@ -264,9 +365,6 @@ try {
     `native direct-edit scroll must not remeasure host text from JavaScript: ${JSON.stringify(editScrollWork)}`,
   );
 
-  // The toolbar is persistent viewport UI. Scroll the active edit target into
-  // its viewport band and prove the toolbar itself does not move to another
-  // edge. Local selection/context chrome owns collision behavior instead.
   const toolbar = page.locator("[data-mesurer-toolbar='true']");
   const toolbarBefore = await box(toolbar, "toolbar before active target overlap");
   await page.evaluate(() => {
@@ -294,7 +392,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated mount keeps native selection/annotation/edit scroll layout-free, public agent callable, and viewport toolbar stationary: PASS");
+  console.log("Public isolated mount keeps native selection/annotation/edit scroll layout-free across window and nested scrolling, public agent callable, and viewport toolbar stationary: PASS");
 } finally {
   await browser.close();
 }
