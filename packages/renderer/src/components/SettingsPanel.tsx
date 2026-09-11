@@ -75,7 +75,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
             class="msr:col-span-2 msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1"
             style={{ order: "-1" }}
           >
-            <For each={pluginSettings?.generalSections() ?? []}>{(section) => (
+            <For each={pluginSettings?.generalSections?.() ?? []}>{(section) => (
               <For each={section.controls ?? []}>{(control) => (
                 <PresentationSwitch
                   id={control.id}
