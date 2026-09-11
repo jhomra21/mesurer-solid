@@ -32,13 +32,11 @@ const assertSameBox = (actual, expected, stage) => {
   }
 };
 
-const assertRelativeOffset = (before, after, stage) => {
-  for (const key of ["x", "y"]) {
-    const beforeOffset = before.surface[key] - before.target[key];
-    const afterOffset = after.surface[key] - after.target[key];
+const assertViewportStable = (before, after, stage) => {
+  for (const key of ["x", "y", "width", "height"]) {
     assert(
-      Math.abs(afterOffset - beforeOffset) <= 1.5,
-      `${stage}: ${key} offset changed; before=${beforeOffset} after=${afterOffset}`,
+      Math.abs(after[key] - before[key]) <= 1.5,
+      `${stage}: ${key} moved; before=${before[key]} after=${after[key]}`,
     );
   }
 };
@@ -100,6 +98,17 @@ const assertNativeAnchor = async (locator, mode, stage) => {
   }
 
   assert.fail(`${stage}: expected a connected geometry surface with resolved native anchor`);
+};
+
+const assertViewportOwned = async (locator, stage) => {
+  const ownership = await locator.evaluate((element) => ({
+    position: getComputedStyle(element).position,
+    mode: element.dataset.mesurerNativeScrollAnchor ?? null,
+    owner: element.dataset.mesurerNativeScrollOwner ?? null,
+  }));
+  assert.equal(ownership.position, "fixed", `${stage}: must remain viewport-fixed`);
+  assert.equal(ownership.mode, null, `${stage}: must not join the page anchor graph`);
+  assert.equal(ownership.owner, null, `${stage}: must not claim a page scroll owner`);
 };
 
 // Sample inside the scroll event itself. This catches compositor-visible drift
@@ -215,7 +224,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll("[data-mesurer-text-inspector-placement-shell='true']").length === 1);
   await page.waitForFunction(() => (
     document.querySelector("[data-mesurer-text-edit-ring='true']")?.getAttribute("data-mesurer-native-scroll-anchor") === "box"
-    && document.querySelector("[data-mesurer-text-inspector-placement-shell='true']")?.getAttribute("data-mesurer-native-scroll-anchor") === "offset"
+    && getComputedStyle(document.querySelector("[data-mesurer-text-inspector-placement-shell='true']")).position === "fixed"
   ));
 
   const editRing = page.locator("[data-mesurer-text-edit-ring='true']");
@@ -225,7 +234,7 @@ try {
   await assertMotionFree(inspectorShell, "unified Typography placement shell");
   await assertMotionFree(inspectorCard, "unified Typography card");
   await assertNativeAnchor(editRing, "box", "direct-edit ring");
-  await assertNativeAnchor(inspectorShell, "offset", "unified Typography placement shell");
+  await assertViewportOwned(inspectorShell, "unified Typography placement shell");
   assertSameBox(await box(editRing, "edit ring before scroll"), targetBox, "edit ring before scroll");
 
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
@@ -241,9 +250,9 @@ try {
     immediateEdit.before.inspectorPlacement,
     "edit scroll event: small scroll should keep the Typography placement lane",
   );
-  assertRelativeOffset(
-    { target: immediateEdit.before.target, surface: immediateEdit.before.inspector },
-    { target: immediateEdit.after.target, surface: immediateEdit.after.inspector },
+  assertViewportStable(
+    immediateEdit.before.inspector,
+    immediateEdit.after.inspector,
     "unified Typography inspector in scroll event",
   );
 
@@ -272,20 +281,22 @@ try {
   await typographyCard.waitFor({ state: "visible" });
   await assertMotionFree(typographyBox, "standalone Typography box");
   await assertMotionFree(typographyCard, "standalone Typography card");
+  await assertNativeAnchor(typographyBox, "box", "standalone Typography box");
+  await assertViewportOwned(typographyCard, "standalone Typography card");
   assertSameBox(await box(typographyBox, "Typography box before scroll"), targetBox, "Typography box before scroll");
 
   const immediateTypography = await sampleScrollEvent(32, { typography: true });
   assert(immediateTypography.before.typographyBox && immediateTypography.after.typographyBox, "Typography scroll event: expected box geometry");
   assert(immediateTypography.before.typographyCard && immediateTypography.after.typographyCard, "Typography scroll event: expected card geometry");
   assertSameBox(immediateTypography.after.typographyBox, immediateTypography.after.target, "Typography box in scroll event");
-  assertRelativeOffset(
-    { target: immediateTypography.before.target, surface: immediateTypography.before.typographyCard },
-    { target: immediateTypography.after.target, surface: immediateTypography.after.typographyCard },
+  assertViewportStable(
+    immediateTypography.before.typographyCard,
+    immediateTypography.after.typographyCard,
     "Typography card in scroll event",
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Native anchors keep selection/direct-edit/Typography geometry compositor-owned and motion-free during scroll: PASS");
+  console.log("Page-linked selection/edit/Typography boxes stay compositor-owned while Typography inspector cards remain viewport-owned during scroll: PASS");
 } finally {
   await browser.close();
 }
