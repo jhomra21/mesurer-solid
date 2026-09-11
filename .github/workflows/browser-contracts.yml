@@ -17,6 +17,7 @@ on:
       - "packages/renderer/src/components/Toolbar.tsx"
       - "packages/renderer/src/core/distances.ts"
       - "packages/renderer/src/core/persistence.ts"
+      - "packages/renderer/src/core/selection-helpers.ts"
       - "packages/renderer/src/model/create-mesurer-model.ts"
       - "packages/renderer/src/plugins/arrange-core.ts"
       - "packages/renderer/src/plugins/arrange.ts"
@@ -24,12 +25,16 @@ on:
       - "packages/renderer/src/plugins/screenshot.ts"
       - "packages/renderer/src/runtime/builtin-actions.ts"
       - "packages/renderer/src/runtime/color-picker-support.ts"
+      - "packages/renderer/src/runtime/document-scroll-anchoring.ts"
       - "packages/renderer/src/runtime/nested-scroll-compensation.ts"
       - "packages/renderer/src/runtime/presentation-preferences.ts"
       - "packages/renderer/src/runtime/text-editing.ts"
       - "packages/renderer/src/runtime/text-editing-core.ts"
       - "packages/renderer/src/runtime/text-editing-presentation.ts"
+      - "packages/renderer/src/runtime/text-editing-unified-inspector.ts"
+      - "packages/renderer/src/runtime/text-inspector.ts"
       - "packages/renderer/src/runtime/text-presentation-policy-runtime.ts"
+      - "packages/renderer/src/styles.css"
       - "packages/renderer/test/arrange-plugin.test.ts"
       - "packages/renderer/test/distances.test.ts"
       - "packages/renderer/test/measurement-box-scroll.test.tsx"
@@ -50,6 +55,7 @@ on:
       - "visual-parity/shortcuts-setting-contract.mjs"
       - "visual-parity/text-editing-contract.mjs"
       - "visual-parity/typography-editing-layout-contract.mjs"
+      - "visual-parity/typography-inspector-ownership-contract.mjs"
       - "visual-parity/self-hosting-context.mjs"
       - "visual-parity/multi-spacing.mjs"
       - "visual-parity/plugin-settings-contract.mjs"
@@ -136,6 +142,11 @@ jobs:
           TYPOGRAPHY_EDITING_URL: http://127.0.0.1:4174/
         run: bun visual-parity/typography-editing-layout-contract.mjs
 
+      - name: Exercise Typography inspector ownership and occlusion
+        env:
+          TYPOGRAPHY_OWNERSHIP_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/typography-inspector-ownership-contract.mjs
+
       - name: Exercise selection scroll anchoring
         env:
           SELECTION_SCROLL_URL: http://127.0.0.1:4174/
@@ -196,6 +207,8 @@ jobs:
           print("- Saved Text/style intent is Typography-owned by default; Select shows the original page")
           print("- General → Keep text changes explicitly persists saved Text/style presentation across tools")
           print("- Selected measurement chrome and direct-edit ring remain frame-locked to host geometry while scrolling")
+          print("- Typography inspector remains viewport-owned; page-linked ring/highlight chrome scrolls beneath and is occluded by it")
+          print("- Physical input on Typography UI cannot retarget the active page editor")
 
           print("")
           print("### Color Picker")
