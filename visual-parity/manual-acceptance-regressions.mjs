@@ -23,18 +23,29 @@ try {
     document.body.style.minHeight = "3600px";
   });
 
-  // Manual regression 1: the interactive Typography card belongs to the text
-  // context. It may be viewport-clamped while the target is visible, but it
-  // must move with that target as the document scrolls and leave the viewport
-  // when the edited target leaves. It must not become persistent viewport UI.
-  const target = page.locator(".feature-copy .kicker");
-  await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  // Manual regression 1: reproduce the real selected-text path. The interactive
+  // Typography card belongs to that text context. It may be viewport-clamped
+  // while the target is visible, but it must move with that target as the page
+  // scrolls and leave the viewport when the edited target leaves. It must not
+  // become persistent viewport furniture.
+  const arrange = page.locator("button[data-mesurer-tool-id='arrange']");
+  const target = page.locator(".primary-action");
+  await arrange.waitFor({ state: "visible" });
+  await arrange.click();
+  await target.scrollIntoViewIfNeeded();
   await page.waitForTimeout(60);
   const targetBox = await box(target, "Expected direct Typography target");
-  await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+  const targetPoint = {
+    x: targetBox.x + targetBox.width / 2,
+    y: targetBox.y + targetBox.height / 2,
+  };
+  await page.mouse.click(targetPoint.x, targetPoint.y);
+  await page.mouse.dblclick(targetPoint.x, targetPoint.y);
 
   const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
   const ring = page.locator("[data-mesurer-text-edit-ring='true']");
+  const editor = page.locator("[data-mesurer-text-editor='true']");
+  await editor.waitFor({ state: "visible" });
   await inspector.waitFor({ state: "visible" });
   await ring.waitFor({ state: "visible" });
 
@@ -67,6 +78,11 @@ try {
       `Typography inspector stayed behind as viewport furniture after its target left: ${JSON.stringify(inspectorAfter)}`,
     );
   }
+
+  // Close the edit session before exercising toolbar-owned surfaces.
+  await editor.focus();
+  await page.keyboard.press("Escape");
+  await editor.waitFor({ state: "detached" });
 
   // Manual regression 2: compact toolbar Settings must be fully visible even
   // in a narrow viewport. The surface may flip or clamp, but must never render
