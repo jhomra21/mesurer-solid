@@ -55,11 +55,12 @@ export function SettingsPanel(props: SettingsPanelProps) {
 
   onSettled(() => {
     const host = hostElement;
-    if (!host) return;
+    const Observer = props.ownerWindow.document.defaultView?.MutationObserver;
+    if (!host || !Observer) return;
     const syncMount = () => {
       setGeneralMount(host.querySelector<HTMLElement>("section[aria-label='General settings']"));
     };
-    const observer = new props.ownerWindow.MutationObserver(syncMount);
+    const observer = new Observer(syncMount);
     observer.observe(host, { childList: true, subtree: true });
     syncMount();
     return () => observer.disconnect();
