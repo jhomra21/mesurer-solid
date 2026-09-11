@@ -1,6 +1,7 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import { isElementWithinDomTarget } from "@jhomra21/mesurer-solid-dom";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
+import { isMesurerInputBoundary } from "../core/events";
 
 const TOOLBAR_BLUE = "#0d99ff";
 const SELECTION_FILL = "rgba(13, 153, 255, 0.22)";
@@ -110,6 +111,7 @@ export function installMixedInlineTextTargeting(
     if (!directEditingMode()) return;
 
     for (const candidate of ownerDocument.elementsFromPoint(x, y)) {
+      if (isMesurerInputBoundary(candidate, ownerWindow)) return;
       if (!(candidate instanceof realm.HTMLElement)) continue;
       if (!isPageElement(candidate) || SKIP_TAGS.has(candidate.tagName)) continue;
       if (candidate.isContentEditable) continue;
@@ -216,7 +218,7 @@ export function installRenderInPlaceTextEditing(
     highlight.setAttribute("aria-hidden", "true");
     Object.assign(highlight.style, {
       position: "fixed",
-      zIndex: "2147483646",
+      zIndex: "2147483644",
       pointerEvents: "none",
       borderRadius: "2px",
       background: SELECTION_FILL,
@@ -240,7 +242,7 @@ export function installRenderInPlaceTextEditing(
     ring.setAttribute("aria-hidden", "true");
     Object.assign(ring.style, {
       position: "fixed",
-      zIndex: "2147483647",
+      zIndex: "2147483645",
       pointerEvents: "none",
       boxSizing: "border-box",
       background: "transparent",
