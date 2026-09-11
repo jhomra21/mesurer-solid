@@ -144,9 +144,10 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   top: calc(anchor(top) + var(--mesurer-native-anchor-y, 0px) + var(--mesurer-nested-scroll-y, 0px)) !important;
 }
 
-/* Page-linked edit/selection chrome belongs below viewport-owned inspector UI.
-   When a selected element passes behind Typography, its blue ring/highlight is
-   occluded by the white inspector card instead of painting through the card. */
+/* Page-linked edit/selection chrome and Typography surfaces stay in the same
+   source-following geometry model. Inspector cards remain above their page
+   chrome for interaction, but they leave the viewport with their text target
+   unless the user explicitly drags a pinned card into a manual viewport spot. */
 [data-mesurer-text-edit-ring="true"],
 [data-mesurer-text-selection-highlight="true"],
 [data-mesurer-text-caret="true"] {
@@ -258,13 +259,6 @@ body.mesurer-solid-xray .mesurer-ti-close {
 
 [data-mesurer-toolbar="true"][data-mesurer-toolbar-compact="true"] > div:has(> [data-mesurer-toolbar-compact-item]):not(:has(> [data-mesurer-toolbar-compact-item][data-visible="true"])) {
   padding-inline: 0;
-}
-
-/* Typography cards are viewport-owned inspector UI. Page-linked rings and text
-   highlights use native document anchors, but the card itself deliberately
-   stays fixed in the viewport and is never given a position-anchor. */
-[data-mesurer-text-inspector-placement-shell="true"] {
-  position: fixed !important;
 }
 
 /* Keep Solid ownership without giving the portaled selection wrapper its own
