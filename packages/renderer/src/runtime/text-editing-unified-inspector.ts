@@ -111,16 +111,6 @@ export function installUnifiedTextInspector(
     if (!card?.isConnected || !ring?.isConnected) return;
 
     const shell = ensurePlacementShell(card);
-    // The document scroll anchoring layer owns both placement and viewport
-    // sizing once it claims this shell. Continuing to run the legacy JS placer
-    // would race that CSS-anchor path on scroll/resize and can restore a stale
-    // lane or max-height after native placement has already settled. Keep this
-    // function as the fallback for Shadow DOM and browsers without anchors.
-    if (
-      shell.dataset.mesurerNativeScrollOwner === "typography"
-      && shell.dataset.mesurerNativeScrollAnchor === "offset"
-    ) return;
-
     Object.assign(card.style, {
       position: "static",
       left: "auto",
@@ -210,12 +200,6 @@ export function installUnifiedTextInspector(
       positionFrame = 0;
       positionCard();
     });
-  };
-
-  const syncPositionOnScroll = () => {
-    // Scroll can be compositor-driven. Position the inspector in the scroll
-    // event itself so it never waits one animation frame behind the host.
-    positionCard();
   };
 
   const settlePosition = () => {
@@ -642,7 +626,6 @@ export function installUnifiedTextInspector(
   runtimeMount.addEventListener("change", onInspectorChange, true);
   runtimeMount.addEventListener("keydown", onInspectorKeyDown, true);
   ownerWindow.addEventListener("resize", schedulePosition);
-  ownerWindow.addEventListener("scroll", syncPositionOnScroll, true);
 
   const observer = new realm.MutationObserver(refine);
   observer.observe(runtimeMount, { childList: true, subtree: true });
@@ -657,7 +640,6 @@ export function installUnifiedTextInspector(
     runtimeMount.removeEventListener("change", onInspectorChange, true);
     runtimeMount.removeEventListener("keydown", onInspectorKeyDown, true);
     ownerWindow.removeEventListener("resize", schedulePosition);
-    ownerWindow.removeEventListener("scroll", syncPositionOnScroll, true);
     removePlacementShell();
   });
 }
