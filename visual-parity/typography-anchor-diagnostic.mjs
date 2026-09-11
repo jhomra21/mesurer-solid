@@ -14,16 +14,11 @@ const assertSameBox = (actual, expected, stage) => {
   }
 };
 
-const relativeOffset = (target, surface) => ({
-  x: surface.x - target.x,
-  y: surface.y - target.y,
-});
-
-const assertSameOffset = (before, after, stage) => {
-  for (const key of ["x", "y"]) {
+const assertViewportStable = (before, after, stage) => {
+  for (const key of ["x", "y", "width", "height"]) {
     assert(
       Math.abs(after[key] - before[key]) <= 1.5,
-      `${stage}: ${key} offset changed; before=${before[key]} after=${after[key]}`,
+      `${stage}: ${key} moved; before=${before[key]} after=${after[key]}`,
     );
   }
 };
@@ -96,7 +91,10 @@ try {
 
   const before = await snapshot();
   assertSameBox(before.box.rect, before.target.rect, "Typography before scroll");
-  const cardOffsetBefore = relativeOffset(before.target.rect, before.card.rect);
+  assert.equal(before.box.nativeAnchor, "box", "Typography target box must use native box anchoring");
+  assert.equal(before.box.nativeOwner, "typography", "Typography target box native owner");
+  assert.equal(before.card.nativeAnchor, null, "Typography card must not join the page anchor graph");
+  assert.equal(before.card.nativeOwner, null, "Typography card must not claim a page scroll owner");
 
   const immediate = await page.evaluate(() => new Promise((resolve) => {
     const state = () => {
@@ -133,28 +131,22 @@ try {
   }));
 
   assert(immediate.target && immediate.box && immediate.card, "Typography immediate scroll state must be complete");
-  assertSameBox(immediate.box.rect, immediate.target.rect, "Typography in scroll event");
-  assertSameOffset(
-    cardOffsetBefore,
-    relativeOffset(immediate.target.rect, immediate.card.rect),
-    "Typography card in scroll event",
-  );
+  assertSameBox(immediate.box.rect, immediate.target.rect, "Typography target box in scroll event");
+  assertViewportStable(before.card.rect, immediate.card.rect, "Typography card in scroll event");
+  assert.equal(immediate.card.nativeAnchor, null, "Typography card gained a native anchor during scroll");
+  assert.equal(immediate.card.nativeOwner, null, "Typography card gained a native owner during scroll");
 
   await new Promise((resolve) => setTimeout(resolve, 140));
   const settled = await snapshot();
-  assertSameBox(settled.box.rect, settled.target.rect, "Typography after scroll settle");
-  assertSameOffset(
-    cardOffsetBefore,
-    relativeOffset(settled.target.rect, settled.card.rect),
-    "Typography card after scroll settle",
-  );
-  assert.equal(settled.box.nativeAnchor, "box", "Typography box must settle onto native box anchoring");
-  assert.equal(settled.card.nativeAnchor, "offset", "Typography card must settle onto native offset anchoring");
-  assert.equal(settled.box.nativeOwner, "typography", "Typography box native owner");
-  assert.equal(settled.card.nativeOwner, "typography", "Typography card native owner");
+  assertSameBox(settled.box.rect, settled.target.rect, "Typography target box after scroll settle");
+  assertViewportStable(before.card.rect, settled.card.rect, "Typography card after scroll settle");
+  assert.equal(settled.box.nativeAnchor, "box", "Typography target box must settle onto native box anchoring");
+  assert.equal(settled.box.nativeOwner, "typography", "Typography target box native owner after settle");
+  assert.equal(settled.card.nativeAnchor, null, "Typography card must remain viewport-owned after settle");
+  assert.equal(settled.card.nativeOwner, null, "Typography card must remain without a page scroll owner after settle");
 
   console.log(JSON.stringify({ before, immediate, settled }, null, 2));
-  console.log("Standalone Typography stays target-locked during scroll and after native-anchor settle: PASS");
+  console.log("Standalone Typography box stays target-locked while the inspector card remains viewport-owned: PASS");
 } finally {
   await browser.close();
 }
