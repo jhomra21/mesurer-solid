@@ -3,12 +3,14 @@ import { chromium } from "playwright";
 
 const url = process.env.MANUAL_ACCEPTANCE_URL ?? "http://127.0.0.1:4174/";
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 900, height: 620 } });
 const errors = [];
-page.on("pageerror", (error) => errors.push(String(error)));
-page.on("console", (message) => {
-  if (message.type() === "error") errors.push(message.text());
-});
+
+const watchDiagnostics = (page) => {
+  page.on("pageerror", (error) => errors.push(String(error)));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+};
 
 const box = async (locator, message) => {
   const value = await locator.boundingBox();
@@ -16,7 +18,11 @@ const box = async (locator, message) => {
   return value;
 };
 
+let page;
+let narrowPage;
 try {
+  page = await browser.newPage({ viewport: { width: 900, height: 620 } });
+  watchDiagnostics(page);
   await page.goto(url, { waitUntil: "networkidle" });
   await page.evaluate(() => {
     document.documentElement.style.minHeight = "3600px";
@@ -79,34 +85,34 @@ try {
     );
   }
 
-  // Close the edit session before exercising toolbar-owned surfaces.
   await editor.focus();
   await page.keyboard.press("Escape");
   await editor.waitFor({ state: "detached" });
 
-  // Manual regression 2: compact toolbar Settings must be fully visible even
-  // in a narrow viewport. The surface may flip or clamp, but must never render
-  // with content beyond a viewport edge.
-  await page.setViewportSize({ width: 320, height: 700 });
-  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
-  const compact = page.locator("button[data-mesurer-toolbar-compact-toggle='true']");
+  // Manual regression 2: open the normal playground from the start in a narrow
+  // viewport. This matches the reported edge case without inheriting a toolbar
+  // position from a different viewport width.
+  narrowPage = await browser.newPage({ viewport: { width: 320, height: 700 } });
+  watchDiagnostics(narrowPage);
+  await narrowPage.goto(url, { waitUntil: "networkidle" });
+  const compact = narrowPage.locator("button[data-mesurer-toolbar-compact-toggle='true']");
   await compact.waitFor({ state: "visible" });
   if ((await compact.getAttribute("aria-pressed")) !== "true") await compact.click();
-  const settings = page.locator("button[data-mesurer-builtin='settings']").first();
+  const settings = narrowPage.locator("button[data-mesurer-builtin='settings']").first();
   await settings.waitFor({ state: "visible" });
   await settings.click();
-  const dialog = page.getByRole("dialog", { name: "Settings" });
+  const dialog = narrowPage.getByRole("dialog", { name: "Settings" });
   await dialog.waitFor({ state: "visible" });
-  await page.waitForTimeout(180);
+  await narrowPage.waitForTimeout(180);
   const settingsBox = await box(dialog, "Expected Settings dialog geometry");
   assert(settingsBox.x >= 8 - 0.5, `Settings clipped on left viewport edge: ${JSON.stringify(settingsBox)}`);
   assert(settingsBox.x + settingsBox.width <= 320 - 8 + 0.5, `Settings clipped on right viewport edge: ${JSON.stringify(settingsBox)}`);
   assert(settingsBox.y >= 8 - 0.5, `Settings clipped on top viewport edge: ${JSON.stringify(settingsBox)}`);
   assert(settingsBox.y + settingsBox.height <= 700 - 8 + 0.5, `Settings clipped on bottom viewport edge: ${JSON.stringify(settingsBox)}`);
 
-  // Manual regression 3: the normal renderer playground must advertise every
-  // first-party optional plugin. Disabled plugins stay unloaded, but their rows
-  // must exist so a human can discover and enable them without an agent.
+  // Manual regression 3: the normal playground must advertise every first-party
+  // optional plugin. Disabled plugins stay unloaded, but their rows remain
+  // visible so a human can discover and enable them without an agent.
   const general = dialog.getByRole("tab", { name: "General", exact: true });
   if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
   const pluginsDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
@@ -120,6 +126,7 @@ try {
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
   console.log("Manual acceptance regressions: Typography follows text, Settings stays in viewport, first-party plugins stay discoverable: PASS");
 } finally {
-  await page.close();
+  await narrowPage?.close();
+  await page?.close();
   await browser.close();
 }
