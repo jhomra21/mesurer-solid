@@ -403,11 +403,12 @@ for state in states:
                 react_shadow_bottom = int(react_bottom + 12)
                 solid_shadow_bottom = int(solid_bottom + 12)
                 if left <= x < right:
-                    if presentation_feature is not None and y >= presentation_feature["react_start_y"]:
-                        solid_y += int(presentation_feature["shift"])
-                    if shortcuts_feature is not None and y >= shortcuts_feature["persist_bottom"]:
-                        solid_y += int(shortcuts_feature["shift"])
-                    if y >= react_shadow_bottom and y < solid_shadow_bottom:
+                    if y < react_shadow_bottom:
+                        if presentation_feature is not None and y >= presentation_feature["react_start_y"]:
+                            solid_y += int(presentation_feature["shift"])
+                        if shortcuts_feature is not None and y >= shortcuts_feature["persist_bottom"]:
+                            solid_y += int(shortcuts_feature["shift"])
+                    elif y < solid_shadow_bottom:
                         ignore_current_general_pixel = True
 
             raw_delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
