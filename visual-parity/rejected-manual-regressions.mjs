@@ -89,16 +89,17 @@ try {
   await select.click();
 
   // Reproduce the user's actual failure through the public mounted UI. Open
-  // direct Typography editing, click the visible card itself, then verify the
-  // selected page element is still the selected page element. No DOM hit-test
-  // mock or implementation attribute is accepted as proof.
+  // direct Typography editing, click where the visible card is rendered, then
+  // verify the selected page element is still the selected page element. The
+  // mouse input goes through Chromium's real hit testing; no forced DOM event or
+  // synthetic elementFromPoint result is accepted as proof.
   const target = page.locator("#isolated-scroll-target");
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settle();
   let targetRect = await box(target, "page target before Typography");
   await page.mouse.click(targetRect.x + targetRect.width / 2, targetRect.y + targetRect.height / 2);
 
-  const selectedChrome = page.locator("[data-mesurer-selected-measurement='true']").first();
+  const selectedChrome = page.locator("[data-mesurer-selected-measurement='true'] > div").first();
   await selectedChrome.waitFor({ state: "visible" });
   const selectionBeforeTypography = await selectionSnapshot();
   assert.equal(selectionBeforeTypography.scope, "selection", "expected selection-scoped context before Typography");
@@ -114,16 +115,15 @@ try {
   await editor.waitFor({ state: "visible" });
   await inspectorCard.waitFor({ state: "visible" });
 
-  // Playwright actionability is intentional here: the click must physically
-  // land on the rendered Typography surface in the real isolated ShadowRoot.
-  await inspectorCard.click({ position: { x: 8, y: 8 } });
+  const inspectorRect = await box(inspectorCard, "Typography card before physical click");
+  await page.mouse.click(inspectorRect.x + 8, inspectorRect.y + 8);
   await settle();
 
   const selectionAfterTypography = await selectionSnapshot();
   assert.deepEqual(
     selectionAfterTypography.targets,
     selectionBeforeTypography.targets,
-    "clicking the rendered Typography card must not retarget Select to Mesurer UI",
+    "clicking the rendered Typography card must not retarget Select to Mesurer UI or page content underneath it",
   );
   assert.equal(await editor.count(), 1, "Typography click must keep the active page editor open");
   targetRect = await box(target, "page target after Typography click");
