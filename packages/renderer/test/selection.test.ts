@@ -8,11 +8,23 @@ import { getFrameToken } from "../src/core/dom";
 import { getDeepestElementAtPoint, isElementWithinDomTarget } from "@jhomra21/mesurer-solid-dom";
 
 const originalDocumentElementFromPoint = document.elementFromPoint;
+const originalDocumentElementsFromPoint = document.elementsFromPoint;
 
 const setRect = (element: Element, rect: { left: number; top: number; width: number; height: number }) => {
   Object.defineProperty(element, "getBoundingClientRect", {
     configurable: true,
     value: () => ({ ...rect, right: rect.left + rect.width, bottom: rect.top + rect.height }),
+  });
+};
+
+const setHitStack = (...elements: Element[]) => {
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: () => elements[0] ?? null,
+  });
+  Object.defineProperty(document, "elementsFromPoint", {
+    configurable: true,
+    value: () => elements,
   });
 };
 
@@ -29,6 +41,10 @@ afterEach(() => {
     configurable: true,
     value: originalDocumentElementFromPoint,
   });
+  Object.defineProperty(document, "elementsFromPoint", {
+    configurable: true,
+    value: originalDocumentElementsFromPoint,
+  });
 });
 
 describe("root-aware point selection", () => {
@@ -44,7 +60,7 @@ describe("root-aware point selection", () => {
     setRect(sibling, { left: 55, top: 10, width: 100, height: 30 });
     shadow.append(inner, sibling);
     document.body.append(host);
-    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => host });
+    setHitStack(host);
     Object.defineProperty(shadow, "elementFromPoint", { configurable: true, value: () => inner });
 
     expect(getDeepestElementAtPoint(point, document.body, document)).toBe(inner);
@@ -63,7 +79,7 @@ describe("root-aware point selection", () => {
     setRect(target, { left: 10, top: 10, width: 40, height: 30 });
     container.append(target);
     document.body.append(container);
-    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => target });
+    setHitStack(target);
 
     expect(getSnappedClickTarget(point, null, true)).toBe(target);
   });
@@ -84,12 +100,12 @@ describe("root-aware point selection", () => {
     pageTarget.append(pageButton, inspector);
     inspector.append(typographyCard);
     document.body.append(pageTarget);
-    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => typographyCard });
+    setHitStack(typographyCard, pageButton);
 
     expect(getTargetElement(point, null, document, pageTarget)).toBeNull();
     expect(getSnappedClickTarget(point, null, true, document, pageTarget)).toBeNull();
 
-    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => pageButton });
+    setHitStack(pageButton);
     expect(getTargetElement(point, null, document, pageTarget)).toBe(pageButton);
 
     // Rectangle selection intentionally uses a per-frame candidate cache. Move
