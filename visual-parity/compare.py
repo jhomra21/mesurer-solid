@@ -139,6 +139,32 @@ def is_environmental_contract_difference(difference):
     return difference["path"].endswith(non_design_contract_suffixes)
 
 
+def interactive_typography_layer_delta(state, react_metrics, solid_metrics):
+    """Verify the current interactive/occluding Typography layer before normalizing it."""
+    if state != "text-inspector":
+        return None
+    react_style = react_metrics.get("textInspector", {}).get("style", {})
+    solid_style = solid_metrics.get("textInspector", {}).get("style", {})
+    expected = {
+        "pointerEvents": ("none", "auto"),
+        "zIndex": ("1", "2147483647"),
+    }
+    for key, (react_value, solid_value) in expected.items():
+        if react_style.get(key) != react_value or solid_style.get(key) != solid_value:
+            return None
+    return {key: values[0] for key, values in expected.items()}
+
+
+def normalize_interactive_typography_layer_metrics(solid_metrics, feature):
+    if feature is None:
+        return solid_metrics
+    normalized = copy.deepcopy(solid_metrics)
+    style = normalized.get("textInspector", {}).get("style", {})
+    for key, react_value in feature.items():
+        style[key] = react_value
+    return normalized
+
+
 def presentation_preferences_delta(state, react_metrics, solid_metrics):
     """Verify the two Solid-only presentation switches before normalizing them."""
     if state != "settings-general":
@@ -368,6 +394,8 @@ for state in states:
 
     react_metrics = round_numbers(json.loads((out / f"react-{state}.json").read_text()))
     solid_metrics = round_numbers(json.loads((out / f"solid-{state}.json").read_text()))
+    typography_layer_feature = interactive_typography_layer_delta(state, react_metrics, solid_metrics)
+    solid_metrics = normalize_interactive_typography_layer_metrics(solid_metrics, typography_layer_feature)
     presentation_feature = presentation_preferences_delta(state, react_metrics, solid_metrics)
     solid_metrics = normalize_presentation_preferences_metrics(solid_metrics, presentation_feature)
     shortcuts_feature = historical_shortcuts_delta(state, react_metrics, solid_metrics)
@@ -392,8 +420,10 @@ for state in states:
             ignore_current_general_pixel = False
             general_feature = presentation_feature or shortcuts_feature
             if general_feature is not None:
-                left = max(0, int(general_feature["panel_left"] - 16))
-                right = min(width, int(general_feature["panel_right"] + 16))
+                panel_left = max(0, int(general_feature["panel_left"]))
+                panel_right = min(width, int(general_feature["panel_right"]))
+                shadow_left = max(0, panel_left - 16)
+                shadow_right = min(width, panel_right + 16)
                 react_bottom = general_feature["react_bottom"]
                 solid_bottom = (
                     presentation_feature["solid_bottom"]
@@ -402,14 +432,19 @@ for state in states:
                 )
                 react_shadow_bottom = int(react_bottom + 12)
                 solid_shadow_bottom = int(solid_bottom + 12)
-                if left <= x < right:
-                    if y < react_shadow_bottom:
-                        if presentation_feature is not None and y >= presentation_feature["react_start_y"]:
-                            solid_y += int(presentation_feature["shift"])
-                        if shortcuts_feature is not None and y >= shortcuts_feature["persist_bottom"]:
-                            solid_y += int(shortcuts_feature["shift"])
-                    elif y < solid_shadow_bottom:
-                        ignore_current_general_pixel = True
+                # Only panel contents move down when current-only rows are
+                # inserted. The page and vertical shadow strips beside the
+                # panel remain stationary and must never be remapped.
+                if panel_left <= x < panel_right and y < react_shadow_bottom:
+                    if presentation_feature is not None and y >= presentation_feature["react_start_y"]:
+                        solid_y += int(presentation_feature["shift"])
+                    if shortcuts_feature is not None and y >= shortcuts_feature["persist_bottom"]:
+                        solid_y += int(shortcuts_feature["shift"])
+                elif shadow_left <= x < shadow_right and react_shadow_bottom <= y < solid_shadow_bottom:
+                    # This tail exists only because the verified current rows
+                    # make the panel taller. Ignore it only after those rows
+                    # have passed their exact semantic/geometry checks above.
+                    ignore_current_general_pixel = True
 
             raw_delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
             if ignore_current_general_pixel:
@@ -495,6 +530,7 @@ for state in states:
         "ignored_current_shortcuts_threshold_pixels": ignored_shortcuts_thresholded,
         "ignored_selection_label_exact_pixels": ignored_selection_label_exact,
         "ignored_selection_label_threshold_pixels": ignored_selection_label_thresholded,
+        "normalized_current_typography_interaction_layer": typography_layer_feature is not None,
         "normalized_presentation_preferences": presentation_feature is not None,
         "normalized_current_shortcuts_setting": shortcuts_feature is not None,
         "normalized_selection_label_rasterization": label_region is not None,
@@ -526,8 +562,9 @@ print(json.dumps(report, indent=2))
 
 # The pinned React implementation remains the contract for the shared historical
 # page/result/Settings surface. Toolbar chrome, the current-upstream Shortcuts
-# row, and the two Solid presentation-policy switches are validated by dedicated
-# current Chromium contracts instead of being vetoed by the older v0.0.11 fixture.
+# row, the two Solid presentation-policy switches, and the verified interactive
+# Typography ownership layer are validated by dedicated current Chromium
+# contracts instead of being vetoed by the older v0.0.11 fixture.
 failures = []
 expected_general_metric_paths = {"settings.text"}
 for state, result in report["states"].items():
