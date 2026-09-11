@@ -14,6 +14,7 @@ export type MesurerPluginSettingsEntry = {
 
 export type MesurerPluginSettingsRuntime = {
   plugins: Accessor<MesurerPluginSettingsEntry[]>;
+  generalSections: Accessor<SettingsContribution[]>;
   version: Accessor<string>;
   setEnabled(pluginId: string, enabled: boolean): void;
   update(sectionId: string, control: SettingsToggleContribution, value: boolean): void;
