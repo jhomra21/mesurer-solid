@@ -219,10 +219,25 @@ async function assertPackedDirectEditing(page, testCase, errors) {
   await editor.fill("Edited packed text");
   await editor.press("Enter");
   await editor.waitFor({ state: "detached", timeout: 5000 });
-  await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Edited packed text");
+
   const committed = await page.evaluate(() => window.__MESURER__.textEdits());
   if (!Array.isArray(committed) || committed.length !== 1 || committed[0]?.desired !== "Edited packed text") {
     throw new Error(`${testCase.name} packed direct-edit commit was not recorded: ${JSON.stringify(committed)}`);
+  }
+
+  // Packed consumers must obey the same presentation policy as the renderer:
+  // the edit intent remains stored, Select restores the original page by default,
+  // Typography reveals the saved edit, and returning to Select restores original
+  // presentation again without discarding the intent.
+  await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Measured sibling");
+  await page.evaluate(() => window.__MESURER__.command("builtin.text-inspector"));
+  await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Edited packed text");
+  await page.evaluate(() => window.__MESURER__.command("builtin.select"));
+  await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Measured sibling");
+
+  const retained = await page.evaluate(() => window.__MESURER__.textEdits());
+  if (!Array.isArray(retained) || retained.length !== 1 || retained[0]?.desired !== "Edited packed text") {
+    throw new Error(`${testCase.name} tool switching discarded the packed text intent: ${JSON.stringify(retained)}`);
   }
   if (errors.length) {
     throw new Error(`${testCase.name} direct edit emitted browser errors after commit:\n${errors.join("\n")}`);
