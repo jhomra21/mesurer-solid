@@ -59,6 +59,15 @@ const assertSameBox = (actual, expected, name) => {
   }
 };
 
+const assertViewportStable = (before, after, name) => {
+  for (const key of ["x", "y", "width", "height"]) {
+    assert(
+      Math.abs(after[key] - before[key]) <= 1.5,
+      `${name}: ${key} moved; before=${before[key]} after=${after[key]}`,
+    );
+  }
+};
+
 const relativeOffset = (target, surface) => ({
   x: surface.x - target.x,
   y: surface.y - target.y,
@@ -71,6 +80,17 @@ const assertSameOffset = (before, after, name) => {
       `${name}: ${key} offset changed; before=${before[key]} after=${after[key]}`,
     );
   }
+};
+
+const assertViewportOwned = async (locator, name) => {
+  const ownership = await locator.evaluate((element) => ({
+    position: getComputedStyle(element).position,
+    mode: element.dataset.mesurerNativeScrollAnchor ?? null,
+    owner: element.dataset.mesurerNativeScrollOwner ?? null,
+  }));
+  assert.equal(ownership.position, "fixed", `${name}: must remain viewport-fixed`);
+  assert.equal(ownership.mode, null, `${name}: must not join the page anchor graph`);
+  assert.equal(ownership.owner, null, `${name}: must not claim a page scroll owner`);
 };
 
 const settle = (page, name) => withTimeout(
@@ -172,10 +192,10 @@ const verifyStandaloneTypography = async () => {
       undefined,
       { timeout: WAIT_TIMEOUT_MS },
     );
+    await assertViewportOwned(typographyCard, "standalone Typography card");
 
     assertSameBox(await box(typographyBox, "Typography box before scroll"), targetBox, "Typography box before scroll");
     const cardBefore = await box(typographyCard, "Typography card before scroll");
-    const cardOffsetBefore = relativeOffset(targetBox, cardBefore);
 
     stage("Typography: verify immediate scroll stability");
     const immediate = await withTimeout(page.evaluate(({ timeoutMs }) => new Promise((resolve, reject) => {
@@ -208,11 +228,7 @@ const verifyStandaloneTypography = async () => {
     }), { timeoutMs: WAIT_TIMEOUT_MS }), "Typography immediate scroll probe");
 
     assertSameBox(immediate.typographyBox, immediate.target, "standalone Typography box in scroll event");
-    assertSameOffset(
-      cardOffsetBefore,
-      relativeOffset(immediate.target, immediate.typographyCard),
-      "standalone Typography card in scroll event",
-    );
+    assertViewportStable(cardBefore, immediate.typographyCard, "standalone Typography card in scroll event");
 
     stage("Typography: verify post-settle stability");
     await waitForScrollIdle(page, "Typography");
@@ -222,26 +238,23 @@ const verifyStandaloneTypography = async () => {
       targetBox,
       "standalone Typography box after scroll settles",
     );
+    assertViewportStable(
+      cardBefore,
+      await box(typographyCard, "Typography card after scroll settles"),
+      "standalone Typography card after scroll settle",
+    );
 
     stage("Typography: click once to pin inspector card");
     await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
     const pinnedCard = page.locator(".mesurer-ti-card:has(.mesurer-ti-close)").first();
     await pinnedCard.waitFor({ state: "visible", timeout: WAIT_TIMEOUT_MS });
-    await page.waitForFunction(
-      () => document.querySelector(".mesurer-ti-card:has(.mesurer-ti-close)")?.getAttribute("data-mesurer-native-scroll-anchor") === "offset",
-      undefined,
-      { timeout: WAIT_TIMEOUT_MS },
-    );
+    await assertViewportOwned(pinnedCard, "click-pinned Typography card");
 
-    targetBox = await box(target, "target before click-pinned Typography scroll");
     const pinnedBefore = await box(pinnedCard, "click-pinned Typography card before scroll");
-    const pinnedOffsetBefore = relativeOffset(targetBox, pinnedBefore);
 
     stage("Typography: verify click-pinned card immediate scroll stability");
     const pinnedImmediate = await withTimeout(page.evaluate(({ timeoutMs }) => new Promise((resolve, reject) => {
-      const targetElement = document.querySelector("#isolated-scroll-target");
       const pinnedPanel = document.querySelector(".mesurer-ti-card:has(.mesurer-ti-close)");
-      if (!(targetElement instanceof HTMLElement)) return reject(new Error("Expected target for click-pinned Typography scroll probe"));
       if (!(pinnedPanel instanceof HTMLElement)) return reject(new Error("Expected click-pinned Typography card for scroll probe"));
       const snapshot = (element) => {
         const rect = element.getBoundingClientRect();
@@ -256,27 +269,23 @@ const verifyStandaloneTypography = async () => {
       }, timeoutMs);
       window.addEventListener("scroll", () => {
         window.clearTimeout(timer);
-        resolve({
-          target: snapshot(targetElement),
-          pinnedCard: snapshot(pinnedPanel),
-        });
+        resolve({ pinnedCard: snapshot(pinnedPanel) });
       }, { capture: true, once: true });
       window.scrollBy({ top: deltaY, behavior: "instant" });
     }), { timeoutMs: WAIT_TIMEOUT_MS }), "click-pinned Typography immediate scroll probe");
 
-    assertSameOffset(
-      pinnedOffsetBefore,
-      relativeOffset(pinnedImmediate.target, pinnedImmediate.pinnedCard),
+    assertViewportStable(
+      pinnedBefore,
+      pinnedImmediate.pinnedCard,
       "click-pinned Typography card in scroll event",
     );
 
     stage("Typography: verify click-pinned card post-settle stability");
     await waitForScrollIdle(page, "click-pinned Typography");
-    targetBox = await box(target, "target after click-pinned Typography scroll settles");
     const pinnedAfter = await box(pinnedCard, "click-pinned Typography card after scroll settles");
-    assertSameOffset(
-      pinnedOffsetBefore,
-      relativeOffset(targetBox, pinnedAfter),
+    assertViewportStable(
+      pinnedBefore,
+      pinnedAfter,
       "click-pinned Typography card after scroll settle",
     );
   } finally {
@@ -289,7 +298,7 @@ try {
   await verifyStandaloneTypography();
   assert.deepEqual(browserErrors, [], `browser diagnostics: ${browserErrors.join("\n")}`);
   stage("PASS");
-  console.log("Native selected-text and standalone Typography surfaces stay stable through scroll settle: PASS");
+  console.log("Native selected-text surfaces stay page-linked while standalone Typography cards remain viewport-stable through scroll settle: PASS");
 } finally {
   clearTimeout(hardTimeout);
   stage("close browser");
