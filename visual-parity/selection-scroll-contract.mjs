@@ -76,6 +76,40 @@ const sampleRealWheel = async (deltaY, selectors) => {
   return samplePromise;
 };
 
+const monitorWheelContinuity = async (deltaY, selectors, durationMs = 220) => {
+  const monitor = page.evaluate(({ selectors: requested, durationMs: duration }) => new Promise((resolve, reject) => {
+    const snapshot = (element) => {
+      if (!(element instanceof HTMLElement)) return null;
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    const state = () => Object.fromEntries(
+      Object.entries(requested).map(([name, selector]) => [name, snapshot(document.querySelector(selector))]),
+    );
+    const before = state();
+    if (!before.target) return reject(new Error("continuity probe expected target geometry before wheel"));
+    const frames = [];
+    let startedAt = 0;
+    const timeout = window.setTimeout(() => reject(new Error("continuity probe did not receive a scroll event")), 3000);
+    const tick = (now) => {
+      frames.push({ at: now - startedAt, state: state() });
+      if (now - startedAt >= duration) {
+        window.clearTimeout(timeout);
+        resolve({ before, frames, after: state() });
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    window.addEventListener("scroll", () => {
+      startedAt = performance.now();
+      requestAnimationFrame(tick);
+    }, { capture: true, once: true });
+  }), { selectors, durationMs });
+
+  await page.mouse.wheel(0, deltaY);
+  return monitor;
+};
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
 
@@ -91,9 +125,6 @@ try {
   await selected.waitFor({ state: "visible" });
   assertSameBox(await box(selected, "selection before wheel"), targetBox, "selection before wheel");
 
-  // Sample the actual rendered geometry from inside Chromium's scroll event,
-  // before any queued frame can repair it. The test passes only if the visible
-  // selection is already on the page target at that instant.
   const selectedWheel = await sampleRealWheel(80, {
     target: ".feature-copy .kicker",
     selected: "[data-mesurer-selected-measurement='true'] > div",
@@ -112,39 +143,72 @@ try {
   await ring.waitFor({ state: "visible" });
   await inspector.waitFor({ state: "visible" });
 
-  // Direct-edit Typography is interaction-owned by Mesurer but geometry-owned
-  // by the source text. During the real wheel event selection/ring match the
-  // source exactly and the rendered card preserves its source-relative offset.
-  const editWheel = await sampleRealWheel(48, {
+  // Change rendered geometry through an actual Typography control before the
+  // scroll probe. This recreates the reported settle boundary where selection
+  // chrome previously appeared to disappear while measurement state refreshed.
+  const lineInput = inspector.locator("[data-mesurer-text-style-input='line']");
+  await lineInput.waitFor({ state: "visible" });
+  const lineBefore = await target.evaluate((element) => getComputedStyle(element).lineHeight);
+  const desiredLine = lineBefore === "36px" ? "42px" : "36px";
+  const lineBox = await box(lineInput, "Typography Line control before continuity probe");
+  await page.mouse.click(lineBox.x + lineBox.width / 2, lineBox.y + lineBox.height / 2);
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type(desiredLine);
+  await page.keyboard.press("Enter");
+  await settle();
+  assert.equal(
+    await target.evaluate((element) => getComputedStyle(element).lineHeight),
+    desiredLine,
+    "Typography Line control did not change target geometry before continuity probe",
+  );
+  const continuityStartTarget = await box(target, "target before continuous wheel probe");
+  const continuityStartSelected = await box(selected, "selection before continuous wheel probe");
+  const continuityStartRing = await box(ring, "edit ring before continuous wheel probe");
+  const continuityStartInspector = await box(inspector, "Typography card before continuous wheel probe");
+  assertSameBox(continuityStartSelected, continuityStartTarget, "selection before continuous wheel probe");
+  assertSameBox(continuityStartRing, continuityStartTarget, "edit ring before continuous wheel probe");
+
+  // Sample every animation frame from the physical wheel event through and past
+  // the 80ms live-measurement refresh. This catches a user-visible teardown or
+  // one-frame catch-up that start/end-only assertions would miss.
+  const continuity = await monitorWheelContinuity(48, {
     target: ".feature-copy .kicker",
     selected: "[data-mesurer-selected-measurement='true'] > div",
     ring: "[data-mesurer-text-edit-ring='true']",
     inspector: "[data-mesurer-text-inspector-info='true']",
   });
-  for (const name of ["selected", "ring", "inspector"]) {
-    assert(editWheel.before[name] && editWheel.after[name], `direct-edit wheel probe expected ${name} geometry`);
+  assert(continuity.frames.length >= 4, `expected multiple continuity frames, got ${continuity.frames.length}`);
+  let moved = false;
+  for (const [index, frame] of continuity.frames.entries()) {
+    const current = frame.state;
+    for (const name of ["target", "selected", "ring", "inspector"]) {
+      assert(current[name], `continuity frame ${index} at ${frame.at.toFixed(1)}ms lost rendered ${name}`);
+    }
+    if (Math.abs(current.target.y - continuity.before.target.y) > 15) moved = true;
+    assertSameBox(current.selected, current.target, `selection continuity frame ${index}`);
+    assertSameBox(current.ring, current.target, `edit-ring continuity frame ${index}`);
+    assertSameOffset(
+      continuity.before.target,
+      continuity.before.inspector,
+      current.target,
+      current.inspector,
+      `Typography continuity frame ${index}`,
+      2,
+    );
   }
-  assertMoved(editWheel.before.target, editWheel.after.target, "direct-edit page target under real wheel");
-  assertSameBox(editWheel.after.selected, editWheel.after.target, "selection inside direct-edit wheel event");
-  assertSameBox(editWheel.after.ring, editWheel.after.target, "edit ring inside wheel scroll event");
-  assertSameOffset(
-    editWheel.before.target,
-    editWheel.before.inspector,
-    editWheel.after.target,
-    editWheel.after.inspector,
-    "Typography card inside wheel scroll event",
-  );
+  assert(moved, "continuous wheel probe did not materially move the page target");
 
   await waitForScrollIdle();
   const settledTarget = await box(target, "direct-edit target after scroll settle");
   assertSameBox(await box(selected, "selection after scroll settle"), settledTarget, "selection after scroll settle");
   assertSameBox(await box(ring, "edit ring after scroll settle"), settledTarget, "edit ring after scroll settle");
   assertSameOffset(
-    editWheel.before.target,
-    editWheel.before.inspector,
+    continuity.before.target,
+    continuity.before.inspector,
     settledTarget,
     await box(inspector, "Typography card after scroll settle"),
     "Typography card after scroll settle",
+    2,
   );
 
   await editor.focus();
@@ -152,9 +216,6 @@ try {
   await editor.waitFor({ state: "detached" });
   await arrange.click();
 
-  // Standalone Typography uses the same geometry ownership. Hover a real page
-  // target, physically wheel the document, and require both its box and card to
-  // move with that exact source rather than remaining viewport furniture.
   const typography = page.locator("button[data-mesurer-builtin='text-inspector']");
   await typography.click();
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
@@ -201,7 +262,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Selection scroll E2E passed: physical wheel input keeps selection, edit ring, direct-edit Typography, and standalone Typography attached to their real page source both inside the scroll event and after settle.");
+  console.log("Selection scroll E2E passed: physical wheel input keeps selection, edit ring, direct-edit Typography, and standalone Typography attached to their real source; animation-frame sampling proves selected chrome does not disappear through the live-measurement settle boundary.");
 } finally {
   await browser.close();
 }
