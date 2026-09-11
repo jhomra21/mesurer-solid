@@ -170,22 +170,27 @@ try {
   await assertNativeAnchor(inspectorShell, "offset", "Typography source anchor");
   await assertNativeAnchor(textHighlight, "offset", "selected-text highlight");
 
+  // Exercise a live control through physical pointer + keyboard input. The
+  // rendered page style must change, while editor and selected page identity stay
+  // unchanged. This proves the document-backed card receives real input without
+  // relying on a button attribute or looking through to page content beneath it.
   const editorValue = await editor.inputValue();
-  const weightBefore = await target.evaluate((element) => getComputedStyle(element).fontWeight);
-  const numericWeight = Number.parseInt(weightBefore, 10);
-  const toggledWeight = Number.isFinite(numericWeight) && numericWeight >= 600 ? "400" : "700";
-  const bold = inspector.locator("[data-mesurer-text-style-button='bold']");
-  await bold.waitFor({ state: "visible" });
-  await bold.click();
-  await page.waitForFunction(
-    (expected) => getComputedStyle(document.querySelector("#isolated-scroll-target")).fontWeight === expected,
-    toggledWeight,
+  const lineBefore = await target.evaluate((element) => getComputedStyle(element).lineHeight);
+  const desiredLine = lineBefore === "36px" ? "42px" : "36px";
+  const lineInput = inspector.locator("[data-mesurer-text-style-input='line']");
+  await lineInput.waitFor({ state: "visible" });
+  const lineBox = await box(lineInput, "isolated Typography Line control");
+  await page.mouse.click(lineBox.x + lineBox.width / 2, lineBox.y + lineBox.height / 2);
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type(desiredLine);
+  await page.keyboard.press("Enter");
+  await settle();
+  assert.equal(
+    await target.evaluate((element) => getComputedStyle(element).lineHeight),
+    desiredLine,
+    "Physical input in isolated Typography Line control did not change rendered source style",
   );
-  await bold.click();
-  await page.waitForFunction(
-    (expected) => getComputedStyle(document.querySelector("#isolated-scroll-target")).fontWeight === expected,
-    weightBefore,
-  );
+  assert.notEqual(desiredLine, lineBefore, "isolated ownership probe must visibly change line-height");
   assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography control closed or retargeted the page editor");
   assert.equal(await editor.inputValue(), editorValue, "Typography control changed the active page editor");
   assertSameBox(
@@ -242,7 +247,7 @@ try {
   }
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated E2E: real window/nested scrolling keeps annotation and selection attached; Typography control changes rendered source style without retargeting page ownership; Typography leaves with its source while toolbar stays viewport-owned: PASS");
+  console.log("Public isolated E2E: real window/nested scrolling keeps annotation and selection attached; physical Typography control input changes rendered source without retargeting page ownership; Typography leaves with its source while toolbar stays viewport-owned: PASS");
 } finally {
   await browser.close();
 }
