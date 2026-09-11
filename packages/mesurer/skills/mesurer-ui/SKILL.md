@@ -154,11 +154,12 @@ Mesurer UI is never inspected-page content. Treat `[data-mesurer-root]`, `[data-
 
 Scroll ownership is split deliberately:
 
-- page-linked selection boxes, edit rings, selected-text highlights, and target-bound annotation affordances follow page content;
-- Typography/inspector cards are viewport-owned UI and do **not** receive the page target's native anchor;
-- when page-linked blue chrome passes behind an inspector card, the inspector card visually occludes it.
+- page-linked selection boxes, edit rings, selected-text highlights, target-bound annotation affordances, and ordinary Typography cards follow the page element they describe;
+- Typography remains Mesurer-owned for interaction even while its geometry follows the inspected element, so clicking the card cannot select either the card itself or page content underneath it;
+- an explicitly dragged pinned Typography card becomes a manual viewport placement and remains there until its pin lifecycle ends;
+- the global toolbar and Settings remain viewport-owned UI.
 
-Do not “fix” scroll by anchoring an inspector card to the inspected element or by raising page chrome above inspector UI. Preserve this ownership/layering contract when changing selection, portals, CSS anchors, or z-index behavior.
+Do not “fix” hit testing by making Typography viewport-fixed, and do not “fix” scrolling by allowing Select to look through Mesurer UI. Preserve the separate interaction-ownership and geometry-ownership contracts when changing selection, portals, CSS anchors, or z-index behavior.
 
 ## Acquire targets in the right order
 
