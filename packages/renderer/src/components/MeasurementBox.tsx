@@ -3,6 +3,7 @@ import { Portal } from "@solidjs/web";
 import type { InspectMeasurement, Measurement } from "../core/types";
 import type { EdgeVisibility } from "../core/edge-visibility";
 import { MEASURE_LABEL_OFFSET, MEASURE_TRANSITION_MS } from "../core/constants";
+import { installNestedScrollCompensation } from "../runtime/nested-scroll-compensation";
 
 export type MeasurementBoxProps = {
   measurement: Measurement | InspectMeasurement | null;
@@ -85,9 +86,16 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     // move into <body> through <Portal>; imperatively reparenting this rendered
     // root breaks the reconciler when direct editing changes reactive state.
     // Targets that genuinely live in a ShadowRoot keep local overlay ownership.
-    if (target.getRootNode() === target.ownerDocument && target.ownerDocument.body) {
-      setSelectionPortalTarget(target.ownerDocument.body);
-    }
+    const documentBacked = target.getRootNode() === target.ownerDocument && Boolean(target.ownerDocument.body);
+    if (documentBacked) setSelectionPortalTarget(target.ownerDocument.body);
+
+    // Native absolute anchors already follow window/document scrolling. A
+    // portaled surface does not inherit nested overflow scrolling, so compensate
+    // only that ancestor delta from scrollTop/scrollLeft. The helper performs no
+    // geometry reads and does constant work per scroll event.
+    const nestedScroll = documentBacked
+      ? installNestedScrollCompensation(ownerWindow, target, () => [chromeElement, labelElement])
+      : null;
 
     const syncOnScroll = () => {
       // Once CSS Anchor Positioning owns the selected box, reading the target
@@ -98,9 +106,11 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       syncSelectedGeometry();
     };
     syncSelectedGeometry();
+    nestedScroll?.sync();
     ownerWindow.addEventListener("scroll", syncOnScroll, true);
     ownerWindow.addEventListener("resize", syncSelectedGeometry, true);
     return () => {
+      nestedScroll?.release();
       ownerWindow.removeEventListener("scroll", syncOnScroll, true);
       ownerWindow.removeEventListener("resize", syncSelectedGeometry, true);
     };
