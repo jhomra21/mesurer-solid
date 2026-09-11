@@ -48,7 +48,7 @@ try {
 
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
   const textInspectorButton = page.locator("[data-mesurer-builtin='text-inspector'] button");
-  const settingsButton = page.locator("[data-mesurer-builtin='settings'] button");
+  const settingsButton = page.locator("button[data-mesurer-builtin='settings']");
   const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
   const target = page.locator(".primary-action");
   const variantReference = page.locator(".type-card h2");
