@@ -19,6 +19,7 @@ import {
   getRectFromDom,
   isElementFingerprintCompatible,
   isElementFingerprintRebindable,
+  isElementWithinDomTarget,
 } from "@jhomra21/mesurer-solid-dom";
 import { GUIDE_SNAP_DISTANCE } from "../core/constants";
 import type { MesurerModel } from "../model/create-mesurer-model";
@@ -152,8 +153,7 @@ export function createMesurerWorkspaceRuntime(options: {
   let watching = false;
 
   const targetKey = (annotationId: string, targetId: string) => `${annotationId}:${targetId}`;
-  const isInPageTarget = (element: HTMLElement) =>
-    pageTarget === element || pageTarget.contains(element);
+  const isInPageTarget = (element: HTMLElement) => isElementWithinDomTarget(element, pageTarget);
 
   const queryCandidates = (selector: string): HTMLElement[] => {
     const matches: HTMLElement[] = [];
