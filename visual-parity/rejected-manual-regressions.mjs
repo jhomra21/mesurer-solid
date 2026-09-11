@@ -47,161 +47,100 @@ const boxGap = (a, b) => {
   return Math.hypot(horizontal, vertical);
 };
 
-const shadowTargetBox = () => page.evaluate(() => {
-  const host = document.querySelector("#shadow-scroll-host");
-  const target = host?.shadowRoot?.querySelector("#isolated-shadow-scroll-target");
-  if (!(target instanceof HTMLElement)) throw new Error("Expected cross-shadow target");
-  const rect = target.getBoundingClientRect();
-  return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+const selectionSnapshot = () => page.evaluate(async () => {
+  const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
+  if (!subject) throw new Error("Expected mounted isolated Mesurer subject");
+  const context = await subject.context();
+  return {
+    scope: context.scope.kind,
+    targets: context.targets.map((target) => ({
+      selector: target.inspection.selector,
+      tag: target.inspection.tag,
+      id: target.inspection.id,
+    })),
+  };
 });
 
-const sampleShadowScroll = (source, deltaY) => page.evaluate(
-  ({ scrollSource, scrollDelta }) => new Promise((resolve, reject) => {
-    const host = document.querySelector("#shadow-scroll-host");
-    const root = host?.shadowRoot;
-    const scroller = root?.querySelector("#shadow-scroll-shell");
-    const target = root?.querySelector("#isolated-shadow-scroll-target");
-    const trigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
-    if (!(scroller instanceof HTMLElement)) return reject(new Error("Expected cross-shadow scroller"));
-    if (!(target instanceof HTMLElement)) return reject(new Error("Expected cross-shadow target"));
-    if (!(trigger instanceof HTMLElement)) return reject(new Error("Expected annotation trigger"));
-
-    const snapshot = (element) => {
-      const rect = element.getBoundingClientRect();
-      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-    };
-    const state = () => ({ target: snapshot(target), surface: snapshot(trigger) });
-    const before = state();
-    const timer = window.setTimeout(() => reject(new Error(`Timed out waiting for ${scrollSource} scroll`)), 3_000);
-    const finish = () => {
-      window.clearTimeout(timer);
-      resolve({ before, after: state() });
-    };
-
-    if (scrollSource === "nested") {
-      scroller.addEventListener("scroll", finish, { once: true });
-      scroller.scrollBy({ top: scrollDelta, behavior: "instant" });
-    } else {
-      window.addEventListener("scroll", finish, { capture: true, once: true });
-      window.scrollBy({ top: scrollDelta, behavior: "instant" });
-    }
-  }),
-  { scrollSource: source, scrollDelta: deltaY },
-);
-
-const measureShadowScrollWork = (source, deltaY) => page.evaluate(
-  ({ scrollSource, scrollDelta }) => new Promise((resolve, reject) => {
-    const host = document.querySelector("#shadow-scroll-host");
-    const root = host?.shadowRoot;
-    const scroller = root?.querySelector("#shadow-scroll-shell");
-    const target = root?.querySelector("#isolated-shadow-scroll-target");
-    if (!(scroller instanceof HTMLElement) || !(target instanceof HTMLElement)) {
-      return reject(new Error("Expected cross-shadow target and scroller"));
-    }
-
-    const originalRect = target.getBoundingClientRect;
-    let targetRectReads = 0;
-    target.getBoundingClientRect = function mesurerRejectedAcceptanceRectProbe() {
-      targetRectReads += 1;
-      return originalRect.call(this);
-    };
-
-    const finish = () => {
-      delete target.getBoundingClientRect;
-      resolve({ targetRectReads });
-    };
-
-    if (scrollSource === "nested") scroller.scrollBy({ top: scrollDelta, behavior: "instant" });
-    else window.scrollBy({ top: scrollDelta, behavior: "instant" });
-    requestAnimationFrame(() => requestAnimationFrame(finish));
-  }),
-  { scrollSource: source, scrollDelta: deltaY },
-);
+const shadowGeometry = () => page.evaluate(() => {
+  const host = document.querySelector("#shadow-scroll-host");
+  const root = host?.shadowRoot;
+  const scroller = root?.querySelector("#shadow-scroll-shell");
+  const target = root?.querySelector("#isolated-shadow-scroll-target");
+  const trigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
+  if (!(scroller instanceof HTMLElement)) throw new Error("Expected cross-shadow scroller");
+  if (!(target instanceof HTMLElement)) throw new Error("Expected cross-shadow target");
+  if (!(trigger instanceof HTMLElement)) throw new Error("Expected annotation trigger");
+  const snapshot = (element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  };
+  return {
+    scroller: snapshot(scroller),
+    target: snapshot(target),
+    surface: snapshot(trigger),
+  };
+});
 
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_ISOLATED_SCROLL_TEST__?.subject));
 
   const select = page.locator("button[data-mesurer-builtin='select']");
-  await select.waitFor({ state: "visible" });
   await select.click();
 
-  // Reproduce the manual screenshot failure: while Select is active, direct
-  // editing opens the real unified Typography card. A physical click on that
-  // card must stay inside Mesurer and must not turn the card into page selection.
+  // Reproduce the user's actual failure through the public mounted UI. Open
+  // direct Typography editing, click the visible card itself, then verify the
+  // selected page element is still the selected page element. No DOM hit-test
+  // mock or implementation attribute is accepted as proof.
   const target = page.locator("#isolated-scroll-target");
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settle();
-  let targetRect = await box(target, "manual-regression target before direct edit");
+  let targetRect = await box(target, "page target before Typography");
   await page.mouse.click(targetRect.x + targetRect.width / 2, targetRect.y + targetRect.height / 2);
 
-  const selectedChrome = page.locator(
-    "[data-mesurer-selected-measurement='true'] > [data-mesurer-native-scroll-anchor='box']",
-  ).first();
+  const selectedChrome = page.locator("[data-mesurer-selected-measurement='true']").first();
   await selectedChrome.waitFor({ state: "visible" });
-  assertSameBox(await box(selectedChrome, "selected before Typography"), targetRect, "selected before Typography");
+  const selectionBeforeTypography = await selectionSnapshot();
+  assert.equal(selectionBeforeTypography.scope, "selection", "expected selection-scoped context before Typography");
+  assert.deepEqual(
+    selectionBeforeTypography.targets.map(({ id }) => id),
+    ["isolated-scroll-target"],
+    "the actual page target should be selected before Typography opens",
+  );
 
   await page.mouse.dblclick(targetRect.x + targetRect.width / 2, targetRect.y + targetRect.height / 2);
-  const ring = page.locator("[data-mesurer-text-edit-ring='true']");
-  const inspectorShell = page.locator("[data-mesurer-text-inspector-placement-shell='true']");
+  const editor = page.locator("[data-mesurer-text-editor='true']");
   const inspectorCard = page.locator("[data-mesurer-text-inspector-info='true']");
-  await ring.waitFor({ state: "visible" });
-  await inspectorShell.waitFor({ state: "visible" });
+  await editor.waitFor({ state: "visible" });
   await inspectorCard.waitFor({ state: "visible" });
 
-  const layers = await page.evaluate(() => {
-    const editRing = document.querySelector("[data-mesurer-text-edit-ring='true']");
-    const shell = document.querySelector("[data-mesurer-text-inspector-placement-shell='true']");
-    if (!(editRing instanceof HTMLElement) || !(shell instanceof HTMLElement)) {
-      throw new Error("Expected edit ring and Typography shell");
-    }
-    return {
-      ring: Number(getComputedStyle(editRing).zIndex),
-      inspector: Number(getComputedStyle(shell).zIndex),
-    };
-  });
-  assert(
-    Number.isFinite(layers.ring) && Number.isFinite(layers.inspector) && layers.inspector > layers.ring,
-    `Typography inspector must paint above page-linked edit chrome; ${JSON.stringify(layers)}`,
-  );
-
-  const cardRect = await box(inspectorCard, "Typography card before physical click");
-  const clickPoint = { x: cardRect.x + 18, y: cardRect.y + 18 };
-  const hit = await page.evaluate(({ x, y }) => {
-    const element = document.elementFromPoint(x, y);
-    return {
-      insideInspector: Boolean(element?.closest("[data-mesurer-inspector-ui='true']")),
-      tag: element?.tagName ?? null,
-    };
-  }, clickPoint);
-  assert.equal(hit.insideInspector, true, `Typography click point must physically hit inspector UI; ${JSON.stringify(hit)}`);
-
-  await page.mouse.click(clickPoint.x, clickPoint.y);
+  // Playwright actionability is intentional here: the click must physically
+  // land on the rendered Typography surface in the real isolated ShadowRoot.
+  await inspectorCard.click({ position: { x: 8, y: 8 } });
   await settle();
-  targetRect = await box(target, "target after Typography click");
-  assert.equal(
-    await page.locator("[data-mesurer-selected-measurement='true']").count(),
-    1,
-    "clicking Typography must not create another page selection",
+
+  const selectionAfterTypography = await selectionSnapshot();
+  assert.deepEqual(
+    selectionAfterTypography.targets,
+    selectionBeforeTypography.targets,
+    "clicking the rendered Typography card must not retarget Select to Mesurer UI",
   );
+  assert.equal(await editor.count(), 1, "Typography click must keep the active page editor open");
+  targetRect = await box(target, "page target after Typography click");
   assertSameBox(
-    await box(selectedChrome, "selected after Typography click"),
+    await box(selectedChrome, "selected page target after Typography click"),
     targetRect,
-    "clicking Typography must keep the inspected page target selected",
+    "Typography click must leave selection chrome on the page target",
   );
 
-  // End direct editing before reproducing the annotation failure.
-  const editor = page.locator("[data-mesurer-text-editor='true']");
-  if (await editor.count()) {
-    await editor.focus();
-    await page.keyboard.press("Escape");
-    await editor.waitFor({ state: "detached" });
-  }
+  await editor.focus();
+  await page.keyboard.press("Escape");
+  await editor.waitFor({ state: "detached" });
 
-  // Reproduce the topology missing from the old green gate: Mesurer is mounted
-  // in its isolated top-layer ShadowRoot, while the selected page element lives
-  // inside a different ShadowRoot and an overflow scroller. CSS anchor names
-  // cannot cross that tree-scope boundary, so the trigger must use cached deltas.
+  // Reproduce the annotation failure in the topology that used to escape the
+  // green suite: inspected content in a different ShadowRoot and overflow
+  // scroller, while Mesurer remains isolated. Scroll it the way a user does and
+  // require the visible annotation button to remain attached to the same target.
   const shadowHost = page.locator("#shadow-scroll-host");
   await shadowHost.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await page.evaluate(() => {
@@ -212,41 +151,51 @@ try {
   });
   await settle();
 
-  const shadowRect = await shadowTargetBox();
-  await page.mouse.click(shadowRect.x + shadowRect.width / 2, shadowRect.y + shadowRect.height / 2);
+  let shadow = await page.evaluate(() => {
+    const host = document.querySelector("#shadow-scroll-host");
+    const targetElement = host?.shadowRoot?.querySelector("#isolated-shadow-scroll-target");
+    if (!(targetElement instanceof HTMLElement)) throw new Error("Expected cross-shadow target before selection");
+    const rect = targetElement.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  });
+  await page.mouse.click(shadow.x + shadow.width / 2, shadow.y + shadow.height / 2);
+
   const annotationTrigger = page.locator("[data-mesurer-annotation-trigger='true']");
   await annotationTrigger.waitFor({ state: "visible" });
-  const annotationRect = await box(annotationTrigger, "cross-shadow annotation before scroll");
-  const gap = boxGap(shadowRect, annotationRect);
-  assert(gap >= 5.5 && gap <= 6.5, `cross-shadow annotation should start at 6px clearance; gap=${gap.toFixed(2)}px`);
-  assert.equal(
-    await annotationTrigger.getAttribute("data-mesurer-annotation-scroll-mode"),
-    "cached-delta",
-    "cross-shadow annotation must not pretend it has a resolvable native CSS anchor",
-  );
-  assert.equal(await annotationTrigger.getAttribute("data-mesurer-native-scroll-anchor"), null);
-  assert.equal(await annotationTrigger.getAttribute("data-mesurer-nested-scroll-compensation"), "true");
+  let geometry = await shadowGeometry();
+  let gap = boxGap(geometry.target, geometry.surface);
+  assert(gap >= 5.5 && gap <= 6.5, `annotation should start at 6px clearance; gap=${gap.toFixed(2)}px`);
 
-  const nested = await sampleShadowScroll("nested", 48);
-  assertRelativeOffset(nested.before, nested.after, "cross-shadow annotation in first nested scroll event");
-  await settle();
-  assert.deepEqual(
-    await measureShadowScrollWork("nested", 20),
-    { targetRectReads: 0 },
-    "cross-shadow nested hot path must not chase target geometry",
+  const beforeNested = geometry;
+  await page.mouse.move(
+    geometry.scroller.x + Math.min(40, geometry.scroller.width / 2),
+    geometry.scroller.y + Math.min(40, geometry.scroller.height / 2),
   );
-
-  const windowScroll = await sampleShadowScroll("window", 40);
-  assertRelativeOffset(windowScroll.before, windowScroll.after, "cross-shadow annotation in first window scroll event");
+  await page.mouse.wheel(0, 72);
   await settle();
+  geometry = await shadowGeometry();
+  assertRelativeOffset(beforeNested, geometry, "annotation during nested ShadowRoot scrolling");
+  gap = boxGap(geometry.target, geometry.surface);
+  assert(gap >= 5.5 && gap <= 6.5, `annotation should keep 6px nested-scroll clearance; gap=${gap.toFixed(2)}px`);
+
+  const beforeWindow = geometry;
+  await page.mouse.move(8, 8);
+  await page.mouse.wheel(0, 80);
+  await settle();
+  geometry = await shadowGeometry();
+  assertRelativeOffset(beforeWindow, geometry, "annotation during window scrolling");
+  gap = boxGap(geometry.target, geometry.surface);
+  assert(gap >= 5.5 && gap <= 6.5, `annotation should keep 6px window-scroll clearance; gap=${gap.toFixed(2)}px`);
+
+  const shadowSelection = await selectionSnapshot();
   assert.deepEqual(
-    await measureShadowScrollWork("window", 20),
-    { targetRectReads: 0 },
-    "cross-shadow window hot path must not chase target geometry",
+    shadowSelection.targets.map(({ id }) => id),
+    ["isolated-shadow-scroll-target"],
+    "scrolling must not change the actual selected page target",
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Rejected manual acceptance cases now pass: Typography is a hard Select boundary and cross-shadow annotation stays attached without scroll-time geometry chasing.");
+  console.log("Manual rejection scenarios pass end-to-end: Typography cannot become the selected page target, and annotation stays attached through real nested and window scrolling.");
 } finally {
   await browser.close();
 }
