@@ -47,13 +47,8 @@ export const isSelectionPointBlockedByMesurerUi = (
   // SAFETY: ownerWindow is ownerDocument.defaultView, so these constructors own every hit from ownerDocument.
   const realm = ownerWindow as Window & typeof globalThis;
   const overlayHost = getOverlayHost(overlayNode);
-  const hits = typeof ownerDocument.elementsFromPoint === "function"
-    ? ownerDocument.elementsFromPoint(point.x, point.y)
-    : [ownerDocument.elementFromPoint(point.x, point.y)].filter(
-      (element): element is Element => element !== null,
-    );
 
-  for (const hit of hits) {
+  for (const hit of ownerDocument.elementsFromPoint(point.x, point.y)) {
     if (!(hit instanceof realm.Element)) continue;
     const deepest = deepestOpenShadowHit(hit, point);
     if (deepest instanceof realm.HTMLElement && isOverlayElement(deepest, overlayNode, overlayHost)) continue;
