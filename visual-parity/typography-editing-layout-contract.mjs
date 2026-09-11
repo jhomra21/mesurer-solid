@@ -30,6 +30,17 @@ const assertSameBox = (actual, expected, stage) => {
   }
 };
 
+const assertSameOffset = (beforeTarget, beforeSurface, afterTarget, afterSurface, stage) => {
+  for (const key of ["x", "y"]) {
+    const before = beforeSurface[key] - beforeTarget[key];
+    const after = afterSurface[key] - afterTarget[key];
+    assert(
+      Math.abs(after - before) <= 1.5,
+      `${stage}: ${key} offset changed; before=${before} after=${after}`,
+    );
+  }
+};
+
 const hostState = (locator) => locator.evaluate((element) => {
   const style = getComputedStyle(element);
   return {
@@ -111,29 +122,32 @@ try {
     () => document.querySelector(".primary-action")?.textContent?.includes("Typography acceptance copy"),
   );
 
-  // Scroll with real wheel input while editing. The page element may move in
-  // the viewport, but the visible ring must remain on that live element on the
-  // settled frame instead of retaining stale coordinates.
+  // Scroll with real wheel input while editing. Both ring and Typography card
+  // are page-context UI: the ring matches the source box, and the card preserves
+  // its rendered source-relative offset instead of merely remaining somewhere
+  // inside the viewport.
+  const hostBeforeWheel = await box(host, "host before wheel scroll");
+  const inspectorBeforeWheel = await box(inspector, "Typography inspector before wheel scroll");
   const beforeWheelY = await page.evaluate(() => window.scrollY);
   await page.mouse.move(16, 700);
   await page.mouse.wheel(0, 160);
   await page.waitForFunction((before) => Math.abs(window.scrollY - before) > 1, beforeWheelY);
   await settle();
-  assertSameBox(
-    await box(ring, "ring after wheel scroll"),
-    await box(host, "live host after wheel scroll"),
-    "Typography ring follows the page element after wheel scrolling",
-  );
 
-  const inspectorBox = await box(inspector, "Typography inspector after scroll");
-  const viewport = page.viewportSize();
-  assert(viewport, "expected fixed browser viewport");
+  const hostAfterWheel = await box(host, "live host after wheel scroll");
+  const ringAfterWheel = await box(ring, "ring after wheel scroll");
+  const inspectorAfterWheel = await box(inspector, "Typography inspector after wheel scroll");
+  assertSameBox(ringAfterWheel, hostAfterWheel, "Typography ring follows the page element after wheel scrolling");
   assert(
-    inspectorBox.x >= 0
-      && inspectorBox.y >= 0
-      && inspectorBox.x + inspectorBox.width <= viewport.width
-      && inspectorBox.y + inspectorBox.height <= viewport.height,
-    `Typography inspector left the viewport after page scrolling: ${JSON.stringify(inspectorBox)}`,
+    Math.abs(hostAfterWheel.y - hostBeforeWheel.y) > 20,
+    `wheel interaction did not materially move the page target: before=${hostBeforeWheel.y} after=${hostAfterWheel.y}`,
+  );
+  assertSameOffset(
+    hostBeforeWheel,
+    inspectorBeforeWheel,
+    hostAfterWheel,
+    inspectorAfterWheel,
+    "Typography inspector follows its source after wheel scrolling",
   );
 
   // Escape is the real cancel path. It must close the editor and restore the
@@ -150,7 +164,7 @@ try {
   assert.equal(restored.fontWeight, baseline.fontWeight, "Escape did not restore font-weight");
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Typography end-to-end acceptance passed: real edit controls affect the page, wheel scrolling keeps the live ring attached, and Escape restores the original page state.");
+  console.log("Typography end-to-end acceptance passed: real controls affect the page, the card and ring follow the live source under wheel scrolling, and Escape restores original page state.");
 } finally {
   await browser.close();
 }
