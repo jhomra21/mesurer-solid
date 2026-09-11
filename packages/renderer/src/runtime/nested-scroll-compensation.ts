@@ -9,31 +9,41 @@ type ScrollPosition = {
   top: number;
 };
 
+type CompensationOptions = {
+  trackWindow?: boolean;
+};
+
 const X_VARIABLE = "--mesurer-nested-scroll-x";
 const Y_VARIABLE = "--mesurer-nested-scroll-y";
 
 /**
- * Compensate a page-following surface that cannot share the selected target's
- * CSS anchor tree (for example, a document-backed Mesurer surface following a
- * target inside a descendant ShadowRoot).
+ * Compensate a page-following surface that has been portaled outside one or
+ * more of the selected target's scroll ancestors.
  *
  * Capture the target's composed ancestor chain once. The scroll hot path never
  * scans the DOM or reads layout geometry: it performs one cached source lookup,
  * two scalar deltas, and CSS-variable writes. Cached element sources are
  * observed directly so non-composed ShadowRoot scroll events do not need to
- * escape their tree. Window scrolling uses the same delta model. `rebase()` is
- * used when a settled layout resample has supplied fresh base coordinates so
- * accumulated deltas are not applied twice.
+ * escape their tree.
+ *
+ * Native CSS anchors already follow window/document scrolling, so their helper
+ * leaves `trackWindow` false and contributes only nested-element deltas. A
+ * surface that cannot share the target's anchor tree sets `trackWindow` true
+ * and uses the same scalar-delta mechanism for window scrolling as well.
+ * `rebase()` is used only when a fresh absolute fallback position has already
+ * been sampled, preventing accumulated deltas from being applied twice.
  */
 export const installNestedScrollCompensation = (
   ownerWindow: Window,
   target: HTMLElement,
   surfaces: () => Iterable<HTMLElement | null | undefined>,
+  options: CompensationOptions = {},
 ): MesurerNestedScrollCompensation => {
   // SAFETY: ownerWindow is the browsing-context global for target.ownerDocument.
   const realm = ownerWindow as Window & typeof globalThis;
   const positions = new Map<HTMLElement, ScrollPosition>();
   const ownerDocument = target.ownerDocument;
+  const trackWindow = options.trackWindow === true;
 
   const composedParent = (element: HTMLElement): HTMLElement | null => {
     if (element.parentElement) return element.parentElement;
@@ -99,14 +109,18 @@ export const installNestedScrollCompensation = (
   };
 
   const onWindowScroll = () => {
-    if (disposed || !applyDelta(windowPosition, ownerWindow.scrollX, ownerWindow.scrollY)) return;
+    if (
+      disposed
+      || !trackWindow
+      || !applyDelta(windowPosition, ownerWindow.scrollX, ownerWindow.scrollY)
+    ) return;
     sync();
   };
 
   for (const element of positions.keys()) {
     element.addEventListener("scroll", onElementScroll, { passive: true });
   }
-  ownerWindow.addEventListener("scroll", onWindowScroll, { passive: true });
+  if (trackWindow) ownerWindow.addEventListener("scroll", onWindowScroll, { passive: true });
   sync();
 
   return {
@@ -128,7 +142,7 @@ export const installNestedScrollCompensation = (
     release() {
       if (disposed) return;
       disposed = true;
-      ownerWindow.removeEventListener("scroll", onWindowScroll);
+      if (trackWindow) ownerWindow.removeEventListener("scroll", onWindowScroll);
       for (const element of positions.keys()) {
         element.removeEventListener("scroll", onElementScroll);
       }
