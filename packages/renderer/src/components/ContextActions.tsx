@@ -112,6 +112,7 @@ export function ContextActions(props: ContextActionsProps) {
   let surfaceDragCleanup: (() => void) | null = null;
   let anchorElement: HTMLSpanElement | undefined;
   let annotationTriggerElement: HTMLButtonElement | undefined;
+  let trackedTriggerElement: HTMLElement | null = null;
   let anchoredTriggerElement: HTMLElement | null = null;
   let releaseTriggerAnchor: (() => void) | null = null;
   let nestedTriggerScroll: MesurerNestedScrollCompensation | null = null;
@@ -141,21 +142,42 @@ export function ContextActions(props: ContextActionsProps) {
     nestedTriggerScroll = null;
     releaseTriggerAnchor?.();
     releaseTriggerAnchor = null;
+    trackedTriggerElement = null;
     anchoredTriggerElement = null;
   };
 
+  const canUseNativeTriggerAnchor = (element: HTMLElement) => Boolean(
+    anchorElement
+    && supportsSelectionTriggerAnchor()
+    && element.getRootNode() === anchorElement.getRootNode(),
+  );
+
   const syncSelectionTriggerAnchor = () => {
     const element = currentSelectionTriggerElement();
-    if (element === anchoredTriggerElement && element?.isConnected) {
-      nestedTriggerScroll?.sync();
+    const shouldUseNative = Boolean(element?.isConnected && canUseNativeTriggerAnchor(element));
+    const alreadyNative = anchoredTriggerElement === element;
+    if (
+      element === trackedTriggerElement
+      && element?.isConnected
+      && shouldUseNative === alreadyNative
+    ) {
+      // A workspace notification after scrolling carries a fresh target rect.
+      // Rebase the arithmetic fallback before that rect is rendered so the
+      // accumulated scroll delta is not applied a second time.
+      nestedTriggerScroll?.rebase();
       return;
     }
 
     releaseSelectionTriggerAnchor();
-    if (!element?.isConnected || !supportsSelectionTriggerAnchor()) return;
+    if (!element?.isConnected) return;
+    trackedTriggerElement = element;
 
-    releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName);
-    anchoredTriggerElement = element;
+    if (shouldUseNative) {
+      releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName);
+      anchoredTriggerElement = element;
+      return;
+    }
+
     const currentWindow = element.ownerDocument.defaultView;
     if (currentWindow) {
       nestedTriggerScroll = installNestedScrollCompensation(
@@ -453,7 +475,14 @@ export function ContextActions(props: ContextActionsProps) {
 
   return (
     <>
-      <span ref={(element) => { anchorElement = element; }} aria-hidden="true" style={{ display: "none" }} />
+      <span
+        ref={(element) => {
+          anchorElement = element;
+          syncSelectionTriggerAnchor();
+        }}
+        aria-hidden="true"
+        style={{ display: "none" }}
+      />
 
       <Show when={selection().elements.length > 0 && !noteComposerOpen() && !activeAnnotation()}>
         <Show when={selectionTriggerPosition()}>{(position) => (
@@ -466,6 +495,7 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-layer="chrome"
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-trigger="true"
+            data-mesurer-annotation-scroll-mode={position().nativeAnchor ? "native-anchor" : "cached-delta"}
             data-mesurer-native-scroll-owner={position().nativeAnchor ? "annotation" : undefined}
             data-mesurer-native-scroll-anchor={position().nativeAnchor ? "offset" : undefined}
             aria-label="Annotate selection"
@@ -478,6 +508,9 @@ export function ContextActions(props: ContextActionsProps) {
               top: position().nativeAnchor
                 ? `calc(anchor(top) + ${position().anchorY}px)`
                 : `${position().top}px`,
+              translate: position().nativeAnchor
+                ? undefined
+                : "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
               "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
               "--mesurer-native-anchor-x": position().nativeAnchor ? `${position().anchorX}px` : undefined,
               "--mesurer-native-anchor-y": position().nativeAnchor ? `${position().anchorY}px` : undefined,
