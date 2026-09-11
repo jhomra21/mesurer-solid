@@ -1,5 +1,9 @@
 import { For, Show, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
+import {
+  installNestedScrollCompensation,
+  type MesurerNestedScrollCompensation,
+} from "../runtime/nested-scroll-compensation";
 import { CloseIcon, CopyIcon, NoteIcon, TrashIcon } from "./Icons";
 
 export type ContextActionsController = {
@@ -107,8 +111,10 @@ export function ContextActions(props: ContextActionsProps) {
   } | null = null;
   let surfaceDragCleanup: (() => void) | null = null;
   let anchorElement: HTMLSpanElement | undefined;
+  let annotationTriggerElement: HTMLButtonElement | undefined;
   let anchoredTriggerElement: HTMLElement | null = null;
   let releaseTriggerAnchor: (() => void) | null = null;
+  let nestedTriggerScroll: MesurerNestedScrollCompensation | null = null;
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
 
@@ -130,17 +136,34 @@ export function ContextActions(props: ContextActionsProps) {
       ?? elements[0];
   };
 
-  const syncSelectionTriggerAnchor = () => {
-    const element = currentSelectionTriggerElement();
-    if (element === anchoredTriggerElement && element?.isConnected) return;
-
+  const releaseSelectionTriggerAnchor = () => {
+    nestedTriggerScroll?.release();
+    nestedTriggerScroll = null;
     releaseTriggerAnchor?.();
     releaseTriggerAnchor = null;
     anchoredTriggerElement = null;
+  };
 
+  const syncSelectionTriggerAnchor = () => {
+    const element = currentSelectionTriggerElement();
+    if (element === anchoredTriggerElement && element?.isConnected) {
+      nestedTriggerScroll?.sync();
+      return;
+    }
+
+    releaseSelectionTriggerAnchor();
     if (!element?.isConnected || !supportsSelectionTriggerAnchor()) return;
+
     releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName);
     anchoredTriggerElement = element;
+    const currentWindow = element.ownerDocument.defaultView;
+    if (currentWindow) {
+      nestedTriggerScroll = installNestedScrollCompensation(
+        currentWindow,
+        element,
+        () => [annotationTriggerElement],
+      );
+    }
   };
 
   const unsubscribe = props.runtime.subscribe(() => {
@@ -149,9 +172,7 @@ export function ContextActions(props: ContextActionsProps) {
   });
   syncSelectionTriggerAnchor();
   onCleanup(() => {
-    releaseTriggerAnchor?.();
-    releaseTriggerAnchor = null;
-    anchoredTriggerElement = null;
+    releaseSelectionTriggerAnchor();
     unsubscribe();
   });
 
@@ -437,6 +458,10 @@ export function ContextActions(props: ContextActionsProps) {
       <Show when={selection().elements.length > 0 && !noteComposerOpen() && !activeAnnotation()}>
         <Show when={selectionTriggerPosition()}>{(position) => (
           <button
+            ref={(element) => {
+              annotationTriggerElement = element;
+              nestedTriggerScroll?.sync();
+            }}
             type="button"
             data-mesurer-layer="chrome"
             data-mesurer-inspector-ui="true"
