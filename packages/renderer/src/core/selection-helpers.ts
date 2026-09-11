@@ -1,5 +1,6 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
 import { getRectFromDom } from "./dom";
+import { isMesurerUiNode } from "./events";
 import type { InspectMeasurement, Point } from "./types";
 
 const isShadowRoot = (value: Node): value is ShadowRoot => value.nodeType === 11;
@@ -23,7 +24,8 @@ export const getSelectedMeasurementHit = (params: {
   exact?: boolean;
 }) => {
   const ownerDocument = params.document ?? document;
-  const HTMLElementConstructor = ownerDocument.defaultView?.HTMLElement;
+  const ownerWindow = ownerDocument.defaultView;
+  const HTMLElementConstructor = ownerWindow?.HTMLElement;
   const overlayHost = getOverlayHost(params.overlayNode);
   const candidates = params.selectedMeasurements
     .map((measurement) => {
@@ -34,13 +36,21 @@ export const getSelectedMeasurementHit = (params: {
     })
     .filter((item): item is NonNullable<typeof item> => item !== null)
     .sort((a, b) => a.area - b.area);
-  const elements = HTMLElementConstructor
-    ? ownerDocument.elementsFromPoint(params.point.x, params.point.y).filter((element): element is HTMLElement =>
-        element instanceof HTMLElementConstructor
-        && !params.overlayNode?.contains(element)
-        && !(overlayHost && element === overlayHost),
-      )
-    : [];
+
+  const elements: HTMLElement[] = [];
+  if (HTMLElementConstructor && ownerWindow) {
+    for (const element of ownerDocument.elementsFromPoint(params.point.x, params.point.y)) {
+      if (!(element instanceof HTMLElementConstructor)) continue;
+      if (params.overlayNode?.contains(element)) continue;
+      if (overlayHost && element === overlayHost) continue;
+      // Mesurer-owned UI is a hard visual/input boundary. Never look through an
+      // inspector card, annotation surface, or Mesurer island to an already
+      // selected page element underneath it.
+      if (isMesurerUiNode(element, ownerWindow)) return null;
+      elements.push(element);
+    }
+  }
+
   if (params.exact) return candidates.find((candidate) => candidate.element === elements[0])?.measurement ?? null;
   for (const html of elements) {
     for (const candidate of candidates) {
