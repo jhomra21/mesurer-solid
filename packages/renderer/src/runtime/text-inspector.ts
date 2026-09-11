@@ -1,4 +1,5 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
+import { isMesurerUiNode } from "../core/events";
 import {
   makeBox,
   makeCard,
@@ -31,6 +32,7 @@ type PinSnapshot = {
   userPlaced: boolean;
 };
 type Pin = PinSnapshot & {
+  sourceEl: HTMLElement;
   box: InspectorBox;
   card: InspectorCard;
   detach: () => void;
@@ -62,7 +64,9 @@ export type TextInspectorOptions = {
 
 const styles = (mode: string, overlayId: string) => `
 .${mode},.${mode} *{cursor:help!important}
-.${mode} [data-mesurer-root],.${mode} [data-mesurer-root] *{cursor:auto!important}
+.${mode} [data-mesurer-root],.${mode} [data-mesurer-root] *,
+.${mode} [data-mesurer-island],.${mode} [data-mesurer-island] *,
+.${mode} [data-mesurer-inspector-ui],.${mode} [data-mesurer-inspector-ui] *{cursor:auto!important}
 #${overlayId} .mesurer-ti-card{transform:translateX(-50%);opacity:1;transition:none!important;animation:none!important}
 #${overlayId} .mesurer-ti-box{opacity:1;transition:none!important;animation:none!important}
 #${overlayId} [data-state="hidden"]{opacity:0!important}
@@ -142,6 +146,10 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     const root = ensureOverlay();
     hoverBox ??= makeBox(doc, FILL_HOVER, OUTLINE_HOVER);
     hoverCard ??= makeCard(doc, false);
+    // The visible inspector card is UI, not transparent page content. It must
+    // participate in hit testing so Typography cannot rediscover page elements
+    // through its own surface.
+    hoverCard.style.pointerEvents = "auto";
     if (!hoverBox.parentNode) root.append(hoverBox);
     if (!hoverCard.parentNode) root.append(hoverCard);
   };
@@ -150,10 +158,17 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   );
   const inspectable = (el: Element | null): el is HTMLElement =>
     !!el && el instanceof HTMLElementCtor && !(el instanceof SVGElementCtor) &&
-    !ignored.has(el.tagName) && hasDirectText(el) && !el.closest("[data-mesurer-root]");
+    !ignored.has(el.tagName) && hasDirectText(el) && !isMesurerUiNode(el, win);
 
-  const pick = (x: number, y: number) =>
-    doc.elementsFromPoint(x, y).find((el): el is HTMLElement => inspectable(el)) ?? null;
+  const pick = (x: number, y: number) => {
+    for (const element of doc.elementsFromPoint(x, y)) {
+      // Mesurer surfaces are hard occluders. Do not skip through a Typography
+      // card/toolbar to inspect whatever page element happens to be underneath.
+      if (isMesurerUiNode(element, win)) return hoveredEl?.isConnected ? hoveredEl : null;
+      if (inspectable(element)) return element;
+    }
+    return null;
+  };
 
   const hideHover = () => {
     hoveredEl = null;
@@ -168,6 +183,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     const fast = typography.getFast(element);
     hoveredEl = element;
     populateCard(doc, hoverCard!, fast, false);
+    hoverCard!.style.pointerEvents = "auto";
     positionBox(hoverBox!, rect);
     positionCard(win, hoverCard!, rect);
     visible(hoverBox, true);
@@ -177,6 +193,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       if (!enabled || hoveredEl !== element || !hoverCard) return;
       const full = typography.getFull(element, fast);
       populateCard(doc, hoverCard, full, false);
+      hoverCard.style.pointerEvents = "auto";
       positionCard(win, hoverCard, element.getBoundingClientRect());
       options.onInspect?.(element, full);
     }, 24);
@@ -215,8 +232,6 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       if (!active && Math.abs(dx) <= 6 && Math.abs(dy) <= 6) return;
       if (!active) {
         active = true;
-        // A click-pinned card should remain compositor-anchored to its source.
-        // Only an intentional drag detaches it into a viewport-placed card.
         pin.card.classList.add("mesurer-ti-card--pinned");
         delete pin.card.dataset.mesurerNativeScrollAnchor;
         delete pin.card.dataset.mesurerNativeScrollOwner;
@@ -260,11 +275,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     const root = ensureOverlay();
     const box = makeBox(doc, FILL_PINNED, OUTLINE_PINNED);
     const card = makeCard(doc, true);
-    // The scroll-anchor coordinator historically used this modifier as a signal
-    // to keep a card viewport-fixed. New click pins stay draggable but do not
-    // opt out of native anchoring until the user actually drags them.
-    card.classList.add("mesurer-ti-card--draggable");
-    card.classList.remove("mesurer-ti-card--pinned");
+    card.classList.add("mesurer-ti-card--draggable", "mesurer-ti-card--pinned");
     const info = typography.getFull(sourceEl);
     populateCard(doc, card, info, true);
     root.append(box, card);
@@ -272,7 +283,6 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     positionBox(box, rect);
     positionCard(win, card, rect);
     if (state?.userPlaced) {
-      card.classList.add("mesurer-ti-card--pinned");
       card.style.left = `${state.left}px`;
       card.style.top = `${state.top}px`;
     }
@@ -300,19 +310,19 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const redo = () => { const next = future.pop(); if (!next) return false; history.push(snapshot()); restore(next); return true; };
   const clear = () => { if (!pins.length) return; record(); clearPins(true); };
 
-  const syncPins = () => {
+  const syncPins = (repositionCards = true) => {
     for (const pin of pins.slice()) {
       if (!pin.sourceEl.isConnected) { removePin(pin, false, false); continue; }
       const rect = pin.sourceEl.getBoundingClientRect();
       positionBox(pin.box, rect);
-      if (!pin.userPlaced) positionCard(win, pin.card, rect);
+      if (repositionCards && !pin.userPlaced) positionCard(win, pin.card, rect);
       const isVisible = rect.bottom >= 0 && rect.right >= 0 && rect.left <= win.innerWidth && rect.top <= win.innerHeight;
       visible(pin.box, isVisible); visible(pin.card, isVisible);
       pin.card.style.pointerEvents = isVisible ? "auto" : "none";
     }
   };
 
-  const syncCurrentGeometry = () => {
+  const syncCurrentGeometry = (repositionCards = true) => {
     if (!enabled) return;
     if (hoveredEl && hoverBox && hoverCard) {
       if (!hoveredEl.isConnected) {
@@ -320,13 +330,13 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       } else {
         const rect = hoveredEl.getBoundingClientRect();
         positionBox(hoverBox, rect);
-        positionCard(win, hoverCard, rect);
+        if (repositionCards) positionCard(win, hoverCard, rect);
         const isVisible = rect.bottom >= 0 && rect.right >= 0 && rect.left <= win.innerWidth && rect.top <= win.innerHeight;
-        visible(hoverBox, isVisible);
-        visible(hoverCard, isVisible);
+        visible(hoverBox, isVisible); visible(hoverCard, isVisible);
+        hoverCard.style.pointerEvents = isVisible ? "auto" : "none";
       }
     }
-    syncPins();
+    syncPins(repositionCards);
   };
 
   const sync = () => {
@@ -362,41 +372,29 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     const nativeDocumentScroll = portal === doc.body
       && Boolean(doc.querySelector("style[data-mesurer-native-scroll-anchoring='true']"));
     if (nativeDocumentScroll) {
-      // A newly shown Typography surface can exist for one task before the
-      // document anchor coordinator claims it. Keep that fallback glued to its
-      // current target with scroll-delta arithmetic only; never read layout in
-      // the hot scroll path. Once CSS anchoring is present these writes stop.
+      // Page-linked boxes follow the inspected element; inspector cards remain
+      // viewport UI. A newly shown box may exist for one task before the native
+      // anchor coordinator claims it, so shift only that box as a fallback.
       if (dx || dy) {
         shiftFallback(hoverBox, dx, dy);
-        shiftFallback(hoverCard, dx, dy);
-        for (const pin of pins) {
-          shiftFallback(pin.box, dx, dy);
-          if (!pin.userPlaced) shiftFallback(pin.card, dx, dy);
-        }
+        for (const pin of pins) shiftFallback(pin.box, dx, dy);
       }
       if (scrollIdleTimer) win.clearTimeout(scrollIdleTimer);
       scrollIdleTimer = win.setTimeout(() => {
         scrollIdleTimer = 0;
-        // Keep the inspected element stable through scroll settle. A stationary
-        // pointer must not retarget Typography to whatever scrolled underneath
-        // it; the next real pointer move is what chooses a new target.
-        syncCurrentGeometry();
+        // Keep geometry/visibility current without moving viewport-owned cards.
+        // A stationary pointer also must not retarget Typography after scroll.
+        syncCurrentGeometry(false);
       }, NATIVE_SCROLL_SETTLE_MS);
       return;
     }
 
-    // Fallback environments without document CSS anchoring still need the
-    // legacy event-time geometry path.
-    syncCurrentGeometry();
-    schedule();
+    // Fallback environments still update page-linked boxes from geometry, but
+    // the card itself remains viewport-owned until the next real pointer move.
+    syncCurrentGeometry(false);
   };
   const onOut = (event: MouseEvent) => { if (!event.relatedTarget) hideHover(); };
-  const uiEvent = (event: Event) => event.composedPath().some((node) =>
-    node instanceof HTMLElementCtor && (
-      node.id === overlayId || node.hasAttribute("data-mesurer-root") ||
-      node.classList.contains("mesurer-ti-card") || node.classList.contains("mesurer-ti-close")
-    ),
-  );
+  const uiEvent = (event: Event) => event.composedPath().some((node) => isMesurerUiNode(node, win));
   const onClick = (event: MouseEvent) => {
     if (uiEvent(event)) return;
     event.preventDefault(); event.stopImmediatePropagation();
