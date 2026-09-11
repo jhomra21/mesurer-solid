@@ -120,6 +120,17 @@
   --msr-spacing: 4px;
 }
 
+/* Native page-following surfaces live under document.body. Fixed anchor
+   positioning is deliberate: unlike absolute anchor positioning, it follows an
+   anchor through both viewport scrolling and nested overflow scrollers without
+   a JavaScript geometry chase. The extra body selector outranks the runtime's
+   generic fallback rule while leaving Shadow DOM fallbacks untouched. */
+body [data-mesurer-native-scroll-anchor="box"],
+body [data-mesurer-native-scroll-anchor="label"],
+body [data-mesurer-native-scroll-anchor="offset"] {
+  position: fixed !important;
+}
+
 /* Selection-adjacent annotation chrome is contextual UI, not a second global
    toolbar. If it reaches the canonical toolbar band while the page scrolls,
    keep the persistent toolbar visually and interactively on top. */
@@ -129,8 +140,8 @@
 
 /* Page-following Context UI is intentionally outside the hardened fixed host so
    native CSS anchors share the selected page element's document positioning
-   tree. Only the native trigger changes from viewport-fixed to document-absolute;
-   the composer, saved markers, and panels keep their existing viewport semantics. */
+   tree. The native trigger stays fixed and compositor-anchored; the composer,
+   saved markers, and panels keep their existing viewport semantics. */
 [data-mesurer-context-document-layer="true"] [data-mesurer-annotation-trigger="true"],
 [data-mesurer-context-document-layer="true"] [data-mesurer-annotation-composer="true"],
 [data-mesurer-context-document-layer="true"] [data-mesurer-annotation-marker="true"],
@@ -139,7 +150,7 @@
 }
 
 [data-mesurer-context-document-layer="true"] [data-mesurer-annotation-trigger="true"][data-mesurer-native-scroll-owner="annotation"][data-mesurer-native-scroll-anchor="offset"] {
-  position: absolute !important;
+  position: fixed !important;
 }
 
 /* Plugin-contributed toggles share the compact 24px switch row, but unlike
@@ -223,11 +234,11 @@ body.mesurer-solid-xray .mesurer-ti-close {
 }
 
 /* The contextual direct-edit Typography shell follows the edited host. Keep
-   it on the document absolute-anchor path so compositor scrolling moves host,
-   selection, ring, and inspector together. Standalone Typography surfaces keep
-   their fixed viewport-owned rule from document-scroll-anchoring. */
+   it on the document fixed-anchor path so viewport and nested compositor
+   scrolling move host, selection, ring, and inspector together. Standalone
+   Typography surfaces use the same native document-anchor contract. */
 [data-mesurer-text-inspector-placement-shell="true"][data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="offset"] {
-  position: absolute !important;
+  position: fixed !important;
 }
 
 /* Keep Solid ownership without giving the portaled selection wrapper its own
