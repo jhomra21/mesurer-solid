@@ -24,7 +24,7 @@ try {
   await page.goto(url, { waitUntil: "networkidle" });
 
   const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
-  const settingsButton = page.locator("[data-mesurer-builtin='settings'] button");
+  const settingsButton = page.locator("button[data-mesurer-builtin='settings']");
   const target = page.locator(".primary-action");
   await arrangeButton.waitFor({ state: "visible" });
   await settingsButton.waitFor({ state: "visible" });
