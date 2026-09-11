@@ -54,20 +54,22 @@ try {
   await ring.waitFor({ state: "visible" });
   await selectedChrome.waitFor({ state: "visible" });
 
-  // Use a real interactive Typography control rather than clicking arbitrary
-  // empty card space. Toggle Bold twice so the UI demonstrably receives pointer
-  // input but returns the page style to its starting state. The active editor
-  // and selected page element must remain the same throughout.
   const editorValue = await editor.inputValue();
+  const weightBefore = await target.evaluate((element) => getComputedStyle(element).fontWeight);
+  const numericWeight = Number.parseInt(weightBefore, 10);
+  const toggledWeight = Number.isFinite(numericWeight) && numericWeight >= 600 ? "400" : "700";
   const bold = inspector.locator("[data-mesurer-text-style-button='bold']");
   await bold.waitFor({ state: "visible" });
-  const boldBefore = await bold.getAttribute("aria-pressed");
   await bold.click();
-  await page.waitForTimeout(40);
-  assert.notEqual(await bold.getAttribute("aria-pressed"), boldBefore, "Typography Bold control did not respond to real pointer input");
+  await page.waitForFunction(
+    (expected) => getComputedStyle(document.querySelector(".primary-action")).fontWeight === expected,
+    toggledWeight,
+  );
   await bold.click();
-  await page.waitForTimeout(60);
-  assert.equal(await bold.getAttribute("aria-pressed"), boldBefore, "Typography Bold control did not restore its starting state");
+  await page.waitForFunction(
+    (expected) => getComputedStyle(document.querySelector(".primary-action")).fontWeight === expected,
+    weightBefore,
+  );
   assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography control closed or retargeted the page editor");
   assert.equal(await editor.inputValue(), editorValue, "Typography control changed the active page editor");
   assertSameBox(
@@ -164,7 +166,7 @@ try {
   await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "hidden" });
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Reported UI regressions E2E: real Typography controls preserve page ownership while the card follows/leaves with its source; compact Settings stays on-screen; optional first-party plugins are discoverable and loadable by a human: PASS");
+  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; optional first-party plugins are discoverable and loadable by a human: PASS");
 } finally {
   await settingsPage?.close();
   await page?.close();
