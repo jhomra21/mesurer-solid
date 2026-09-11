@@ -28,7 +28,7 @@ def deep_diff(left, right, path=""):
         for key in sorted(set(left) | set(right)):
             child = f"{path}.{key}" if path else key
             if key not in left or key not in right:
-                diffs.append({"path": child, "react": left.get(key), "solid": solid.get(key)})
+                diffs.append({"path": child, "react": left.get(key), "solid": right.get(key)})
             else:
                 diffs.extend(deep_diff(left[key], right[key], child))
     elif isinstance(left, list):
@@ -126,8 +126,8 @@ def current_general_pixel(name: str, x: int, y: int, enabled: bool, height: int)
     # The shared parity fixture's General panel is x=16..288. Solid composes two
     # 24px presentation-policy rows (plus their 4px gaps) before Persist, then
     # current upstream adds the 24px Shortcuts row plus gap after Persist. Translate
-    # only the panel interior: the 16px right-side shadow strip overlays stationary
-    # page content and therefore must stay at its original viewport Y. The extra
+    # only the panel interior: the 16px side-shadow strips overlay stationary page
+    # content and therefore must stay at their original viewport Y. The extra
     # panel/shadow tail is still ignored only for the verified current additions.
     if not (
         name in {
@@ -143,13 +143,14 @@ def current_general_pixel(name: str, x: int, y: int, enabled: bool, height: int)
         return y, False
     presentation_shift = 56
     total_shift = 84
+    panel_left = 16
     panel_right = 288
     persist_bottom = 129
     historical_shadow_bottom = 244
     current_shadow_bottom = 328
-    if x < panel_right and y < persist_bottom and y + presentation_shift < height:
+    if panel_left <= x < panel_right and y < persist_bottom and y + presentation_shift < height:
         return y + presentation_shift, False
-    if x < panel_right and y < historical_shadow_bottom and y + total_shift < height:
+    if panel_left <= x < panel_right and y < historical_shadow_bottom and y + total_shift < height:
         return y + total_shift, False
     if y >= historical_shadow_bottom and y < current_shadow_bottom:
         return y, True
