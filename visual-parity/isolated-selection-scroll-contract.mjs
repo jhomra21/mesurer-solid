@@ -123,7 +123,7 @@ try {
   await nestedScroller.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await nestedScroller.evaluate((element) => { element.scrollTop = 340; });
   await settle();
-  let nestedTargetBox = await box(nestedTarget, "nested target before selection");
+  const nestedTargetBox = await box(nestedTarget, "nested target before selection");
   await page.mouse.click(nestedTargetBox.x + nestedTargetBox.width / 2, nestedTargetBox.y + nestedTargetBox.height / 2);
   await selectedChrome.waitFor({ state: "visible" });
   await annotation.waitFor({ state: "visible" });
@@ -170,18 +170,22 @@ try {
   await assertNativeAnchor(inspectorShell, "offset", "Typography source anchor");
   await assertNativeAnchor(textHighlight, "offset", "selected-text highlight");
 
-  // Exercise an actual interactive control, not arbitrary card background. The
-  // control must respond while keeping the same source edit and page selection.
   const editorValue = await editor.inputValue();
+  const weightBefore = await target.evaluate((element) => getComputedStyle(element).fontWeight);
+  const numericWeight = Number.parseInt(weightBefore, 10);
+  const toggledWeight = Number.isFinite(numericWeight) && numericWeight >= 600 ? "400" : "700";
   const bold = inspector.locator("[data-mesurer-text-style-button='bold']");
   await bold.waitFor({ state: "visible" });
-  const boldBefore = await bold.getAttribute("aria-pressed");
   await bold.click();
-  await page.waitForTimeout(40);
-  assert.notEqual(await bold.getAttribute("aria-pressed"), boldBefore, "isolated Typography Bold control did not respond");
+  await page.waitForFunction(
+    (expected) => getComputedStyle(document.querySelector("#isolated-scroll-target")).fontWeight === expected,
+    toggledWeight,
+  );
   await bold.click();
-  await page.waitForTimeout(60);
-  assert.equal(await bold.getAttribute("aria-pressed"), boldBefore, "isolated Typography Bold control did not restore its starting state");
+  await page.waitForFunction(
+    (expected) => getComputedStyle(document.querySelector("#isolated-scroll-target")).fontWeight === expected,
+    weightBefore,
+  );
   assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography control closed or retargeted the page editor");
   assert.equal(await editor.inputValue(), editorValue, "Typography control changed the active page editor");
   assertSameBox(
@@ -225,8 +229,6 @@ try {
   );
   assertSameBox(editAfter.toolbar, editBefore.toolbar, "toolbar must remain viewport-owned during page scroll");
 
-  // Continue the real wheel gesture until the source itself leaves the viewport.
-  // Typography must leave with it in the public isolated topology too.
   await page.mouse.wheel(0, 1400);
   await page.waitForTimeout(120);
   const offscreenTarget = await box(target, "isolated edit source after offscreen wheel");
@@ -240,7 +242,7 @@ try {
   }
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated E2E: real window/nested scrolling keeps annotation and selection attached; real Typography controls preserve page ownership; Typography leaves with its source while toolbar stays viewport-owned: PASS");
+  console.log("Public isolated E2E: real window/nested scrolling keeps annotation and selection attached; Typography control changes rendered source style without retargeting page ownership; Typography leaves with its source while toolbar stays viewport-owned: PASS");
 } finally {
   await browser.close();
 }
