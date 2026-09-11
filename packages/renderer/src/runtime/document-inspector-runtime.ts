@@ -13,14 +13,6 @@ const isDocumentBackedTarget = (
 ) => !(runtime.pageTarget instanceof realm.ShadowRoot)
   && runtime.pageTarget.getRootNode() === runtime.ownerDocument;
 
-const rectContainsPoint = (rect: DOMRect, x: number, y: number) =>
-  rect.width > 0
-  && rect.height > 0
-  && x >= rect.left
-  && x <= rect.right
-  && y >= rect.top
-  && y <= rect.bottom;
-
 const isProtectedTopLayerControl = (
   event: Event,
   mount: HTMLElement,
@@ -38,13 +30,17 @@ const deepestMountHit = (
   y: number,
   realm: Window & typeof globalThis,
 ) => {
-  const candidates = Array.from(mount.querySelectorAll<HTMLElement>("*"));
-  for (let index = candidates.length - 1; index >= 0; index -= 1) {
-    const candidate = candidates[index];
-    if (!candidate.isConnected) continue;
+  // Use the browser's point hit-test stack instead of walking every inspector
+  // descendant. Cost is bounded by the elements actually stacked at this one
+  // coordinate, independent of how much Context UI exists elsewhere.
+  for (const hit of mount.ownerDocument.elementsFromPoint(x, y)) {
+    if (!(hit instanceof realm.Element) || !mount.contains(hit)) continue;
+    let candidate: Element | null = hit;
+    while (candidate && !(candidate instanceof realm.HTMLElement)) candidate = candidate.parentElement;
+    if (!(candidate instanceof realm.HTMLElement) || !mount.contains(candidate) || !candidate.isConnected) continue;
     const style = realm.getComputedStyle(candidate);
     if (style.display === "none" || style.visibility === "hidden" || style.pointerEvents === "none") continue;
-    if (rectContainsPoint(candidate.getBoundingClientRect(), x, y)) return candidate;
+    return candidate;
   }
   return null;
 };
