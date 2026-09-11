@@ -88,6 +88,16 @@ try {
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
   await page.locator(".mesurer-ti-box[data-state='visible']").waitFor({ state: "visible" });
   await page.locator(".mesurer-ti-card[data-state='visible']").waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const box = document.querySelector(".mesurer-ti-box[data-state='visible']");
+    const card = document.querySelector(".mesurer-ti-card[data-state='visible']");
+    return box instanceof HTMLElement
+      && box.dataset.mesurerNativeScrollAnchor === "box"
+      && box.dataset.mesurerNativeScrollOwner === "typography"
+      && card instanceof HTMLElement
+      && !card.dataset.mesurerNativeScrollAnchor
+      && !card.dataset.mesurerNativeScrollOwner;
+  });
 
   const before = await snapshot();
   assertSameBox(before.box.rect, before.target.rect, "Typography before scroll");
