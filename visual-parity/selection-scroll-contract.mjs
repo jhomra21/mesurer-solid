@@ -45,6 +45,10 @@ const settleScroll = () => page.evaluate(() => new Promise((resolve) => {
   requestAnimationFrame(() => requestAnimationFrame(resolve));
 }));
 
+const waitForSelectedChrome = () => page.waitForFunction(() => Boolean(
+  document.querySelector("[data-mesurer-selected-measurement='true'] > [data-mesurer-native-scroll-anchor='box']"),
+));
+
 const assertMotionFree = async (locator, stage) => {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const motion = await locator.evaluate((element) => {
@@ -112,15 +116,18 @@ const assertViewportOwned = async (locator, stage) => {
 };
 
 // Sample inside the scroll event itself. This catches compositor-visible drift
-// before any queued microtask or animation frame can repair it.
+// before any queued microtask or animation frame can repair it. Resolve the
+// anchored selected box directly instead of walking through a root that Solid
+// can replace during portal reconciliation.
 const sampleScrollEvent = async (
   deltaY,
   { ring = false, inspector = false, typography = false } = {},
 ) => page.evaluate(
   ({ deltaY: scrollDelta, ring: includeRing, inspector: includeInspector, typography: includeTypography }) => new Promise((resolve, reject) => {
     const target = document.querySelector(".feature-copy .kicker");
-    const selectedRoot = document.querySelector("[data-mesurer-selected-measurement='true']");
-    const selected = selectedRoot?.querySelector("[data-mesurer-native-scroll-anchor='box']");
+    const selected = includeTypography
+      ? null
+      : document.querySelector("[data-mesurer-selected-measurement='true'] > [data-mesurer-native-scroll-anchor='box']");
     const editRing = includeRing ? document.querySelector("[data-mesurer-text-edit-ring='true']") : null;
     const inspectorShell = includeInspector
       ? document.querySelector("[data-mesurer-text-inspector-placement-shell='true']")
@@ -149,17 +156,22 @@ const sampleScrollEvent = async (
       const rect = element.getBoundingClientRect();
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
     };
-    const state = () => ({
-      target: snapshot(target),
-      selected: selected instanceof HTMLElement ? snapshot(selected) : null,
-      ring: editRing instanceof HTMLElement ? snapshot(editRing) : null,
-      inspector: inspectorShell instanceof HTMLElement ? snapshot(inspectorShell) : null,
-      inspectorPlacement: inspectorCard instanceof HTMLElement
-        ? inspectorCard.dataset.mesurerTextInspectorPlacement ?? null
-        : null,
-      typographyBox: typographyBox instanceof HTMLElement ? snapshot(typographyBox) : null,
-      typographyCard: typographyCard instanceof HTMLElement ? snapshot(typographyCard) : null,
-    });
+    const state = () => {
+      const currentSelected = includeTypography
+        ? null
+        : document.querySelector("[data-mesurer-selected-measurement='true'] > [data-mesurer-native-scroll-anchor='box']");
+      return {
+        target: snapshot(target),
+        selected: currentSelected instanceof HTMLElement ? snapshot(currentSelected) : null,
+        ring: editRing instanceof HTMLElement ? snapshot(editRing) : null,
+        inspector: inspectorShell instanceof HTMLElement ? snapshot(inspectorShell) : null,
+        inspectorPlacement: inspectorCard instanceof HTMLElement
+          ? inspectorCard.dataset.mesurerTextInspectorPlacement ?? null
+          : null,
+        typographyBox: typographyBox instanceof HTMLElement ? snapshot(typographyBox) : null,
+        typographyCard: typographyCard instanceof HTMLElement ? snapshot(typographyCard) : null,
+      };
+    };
 
     const before = state();
     window.addEventListener("scroll", () => resolve({ before, after: state() }), { capture: true, once: true });
@@ -214,6 +226,7 @@ try {
   // Exercise the actual production selected chrome inside the scroll event.
   // A hand-created duplicate does not share the production placement lifecycle
   // and can lose its synthetic anchor independently of Mesurer's own surface.
+  await waitForSelectedChrome();
   const immediateSelection = await sampleScrollEvent(80);
   assert(immediateSelection.after.selected, "selected scroll event: expected selected chrome geometry");
   assertSameBox(immediateSelection.after.selected, immediateSelection.after.target, "selected in scroll event");
@@ -239,6 +252,7 @@ try {
 
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settleScroll();
+  await waitForSelectedChrome();
   const immediateEdit = await sampleScrollEvent(40, { ring: true, inspector: true });
   assert(immediateEdit.after.selected, "edit scroll event: expected selected chrome geometry");
   assert(immediateEdit.after.ring, "edit scroll event: expected ring geometry");
