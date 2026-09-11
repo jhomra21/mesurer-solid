@@ -572,11 +572,11 @@ export function installDocumentScrollAnchoring(
         && targetRect.bottom > 0
         && targetRect.left < ownerWindow.innerWidth
         && targetRect.top < ownerWindow.innerHeight;
-      // While the edited source is visible we may choose a better lane after
-      // layout settles. Once the source leaves the viewport, preserve the last
-      // source-relative offset so native anchoring carries the card away with it
-      // instead of re-clamping it to an unrelated viewport edge.
-      if ((!scrolling || !alreadyAnchored) && targetIntersectsViewport) {
+      // Choose a viewport-safe lane exactly when the shell first joins the
+      // source anchor graph. After that, scrolling must preserve this relative
+      // offset; otherwise scroll settle turns contextual Typography back into
+      // viewport-following furniture by choosing a new lane.
+      if (!alreadyAnchored && targetIntersectsViewport) {
         inspectorPlacement(shell, card, targetRect);
       }
     }
