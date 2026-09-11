@@ -9,12 +9,12 @@ import { presentationPreferences } from "./presentation-preferences";
  * - saved presentation: Desired text is visible only in Typography, while an
  *   editor is open, or when the user explicitly enables Keep text changes.
  *
- * The legacy core asks currentToolMode() from its scheduled presentation pass
- * and from synchronous input handlers. A very narrow Window proxy marks only
- * requestAnimationFrame callbacks as presentation passes; every other Window
- * member is forwarded with the real Window as its receiver. This keeps direct
- * editing in Select while allowing the same core to restore the original page
- * between editing sessions without duplicating its ownership/restoration logic.
+ * The core schedules its presentation reconciliation with requestAnimationFrame
+ * while synchronous input handlers read the same runtime mode. This adapter
+ * marks only those scheduled callbacks as presentation passes. A small, typed
+ * Window facade forwards exactly the browser APIs the text core consumes with
+ * the real Window as their receiver, avoiding dynamic proxy reflection and DOM
+ * brand-check hazards.
  *
  * Preference/tool checks are O(1). The MutationObserver maintains editor-active
  * state only on editor DOM changes; there is no document query or geometry read
@@ -24,29 +24,54 @@ export const createTextPresentationPolicyRuntime = (
   ctx: MesurerPluginContext,
   runtime: MesurerSolidRuntimeService,
 ): MesurerSolidRuntimeService => {
+  // SAFETY: runtime.ownerWindow is the browsing-context global paired with
+  // runtime.ownerDocument, so its DOM constructors belong to the target realm.
   const realWindow = runtime.ownerWindow as Window & typeof globalThis;
   let presentationPass = false;
   let editorActive = false;
   let editorObserver: MutationObserver | null = null;
 
-  const policyWindow = new Proxy(realWindow, {
-    get(target, property) {
-      if (property === "requestAnimationFrame") {
-        return (callback: FrameRequestCallback) => target.requestAnimationFrame((time) => {
-          presentationPass = true;
-          try {
-            callback(time);
-          } finally {
-            presentationPass = false;
-          }
-        });
+  const policyWindowFacade = {
+    document: realWindow.document,
+    location: realWindow.location,
+    crypto: realWindow.crypto,
+    navigator: realWindow.navigator,
+    performance: realWindow.performance,
+    CSS: realWindow.CSS,
+    Node: realWindow.Node,
+    Text: realWindow.Text,
+    Element: realWindow.Element,
+    HTMLElement: realWindow.HTMLElement,
+    ShadowRoot: realWindow.ShadowRoot,
+    MouseEvent: realWindow.MouseEvent,
+    MutationObserver: realWindow.MutationObserver,
+    get innerWidth() { return realWindow.innerWidth; },
+    get innerHeight() { return realWindow.innerHeight; },
+    get scrollX() { return realWindow.scrollX; },
+    get scrollY() { return realWindow.scrollY; },
+    getComputedStyle: (element: Element, pseudoElement?: string | null) =>
+      realWindow.getComputedStyle(element, pseudoElement),
+    matchMedia: (query: string) => realWindow.matchMedia(query),
+    setTimeout: realWindow.setTimeout.bind(realWindow),
+    clearTimeout: realWindow.clearTimeout.bind(realWindow),
+    cancelAnimationFrame: realWindow.cancelAnimationFrame.bind(realWindow),
+    addEventListener: realWindow.addEventListener.bind(realWindow),
+    removeEventListener: realWindow.removeEventListener.bind(realWindow),
+    requestAnimationFrame: (callback: FrameRequestCallback) => realWindow.requestAnimationFrame((time) => {
+      presentationPass = true;
+      try {
+        callback(time);
+      } finally {
+        presentationPass = false;
       }
-      const value = Reflect.get(target, property, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  }) as Window;
+    }),
+  };
+  // SAFETY: installTextEditing consumes only the explicitly forwarded Window
+  // members above; each method is bound to realWindow and each constructor is
+  // sourced from the same realm. The facade is never exposed outside that core.
+  const policyWindow = policyWindowFacade as unknown as Window;
 
-  const currentToolMode = (): ReturnType<NonNullable<MesurerSolidRuntimeService["currentToolMode"]>> => {
+  const currentToolMode: NonNullable<MesurerSolidRuntimeService["currentToolMode"]> = () => {
     const mode = runtime.currentToolMode?.() ?? "none";
     if (!presentationPass) return mode;
 
