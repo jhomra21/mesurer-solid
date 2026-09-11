@@ -7,6 +7,8 @@ on:
       - "packages/mesurer/src/context-plugin.tsx"
       - "packages/renderer/src/ComposableMesurer.tsx"
       - "packages/renderer/src/Mesurer.tsx"
+      - "packages/renderer/src/core/events.ts"
+      - "packages/renderer/src/core/selection.ts"
       - "packages/renderer/src/components/ContextActions.tsx"
       - "packages/renderer/src/components/MeasurementBox.tsx"
       - "packages/renderer/src/components/MesurerOverlay.tsx"
@@ -23,6 +25,7 @@ on:
       - "examples/basic/src/isolated-scroll.ts"
       - "visual-parity/isolated-selection-scroll-contract.mjs"
       - "visual-parity/native-scroll-settle-contract.mjs"
+      - "visual-parity/rejected-manual-regressions.mjs"
       - ".github/workflows/isolated-scroll-contract.yml"
   workflow_dispatch:
 
@@ -83,6 +86,12 @@ jobs:
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun visual-parity/isolated-selection-scroll-contract.mjs
+
+      - name: Reproduce rejected manual inspector and annotation cases
+        timeout-minutes: 2
+        env:
+          ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
+        run: bun visual-parity/rejected-manual-regressions.mjs
 
       - name: Exercise native scroll settle stability
         timeout-minutes: 2
