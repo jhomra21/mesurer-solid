@@ -53,10 +53,11 @@ try {
   await ring.waitFor({ state: "visible" });
   await selectedChrome.waitFor({ state: "visible" });
 
-  // The card is Mesurer-owned interaction UI. Exercise it with a real pointer
-  // while a page edit is active, then prove neither the selected page element
-  // nor the editor identity changed. This catches both selecting the card and
-  // clicks leaking through it to page content underneath.
+  // Interaction ownership is tested through a real Typography control rather
+  // than an arbitrary card background. Clicking Bold twice exercises the card,
+  // returns formatting to its starting state, and must keep the same page edit
+  // and page selection throughout. If pointer input leaked through the card,
+  // the selected target/editor identity would change.
   targetBox = await box(target, "Expected edited page target before inspector input");
   assertSameBox(
     await box(selectedChrome, "Expected selected page chrome before inspector input"),
@@ -64,18 +65,21 @@ try {
     "Selected page identity before inspector input",
   );
   const valueBefore = await editor.inputValue();
-  const inspectorBeforeInput = await box(inspector, "Expected Typography card before inspector input");
-  await page.mouse.dblclick(
-    inspectorBeforeInput.x + Math.min(110, inspectorBeforeInput.width / 2),
-    inspectorBeforeInput.y + Math.min(18, inspectorBeforeInput.height / 2),
-  );
-  await page.waitForTimeout(80);
-  assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography UI input created a second page editor");
-  assert.equal(await editor.inputValue(), valueBefore, "Typography UI input retargeted the active page editor");
+  const bold = inspector.locator("[data-mesurer-text-style-button='bold']");
+  await bold.waitFor({ state: "visible" });
+  const boldBefore = await bold.getAttribute("aria-pressed");
+  await bold.click();
+  await page.waitForTimeout(40);
+  assert.notEqual(await bold.getAttribute("aria-pressed"), boldBefore, "Bold control did not respond to real pointer input");
+  await bold.click();
+  await page.waitForTimeout(60);
+  assert.equal(await bold.getAttribute("aria-pressed"), boldBefore, "Bold control did not restore its starting state");
+  assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography control interaction closed or retargeted the page editor");
+  assert.equal(await editor.inputValue(), valueBefore, "Typography control interaction retargeted the active page editor");
   assertSameBox(
     await box(selectedChrome, "Expected selected page chrome after inspector input"),
     await box(target, "Expected original page target after inspector input"),
-    "Typography UI input changed the selected page element",
+    "Typography control interaction changed the selected page element",
   );
 
   // Geometry ownership is separate from interaction ownership. Scroll with a
@@ -102,9 +106,6 @@ try {
   assert(Math.abs((inspectorDuring.y - inspectorBefore.y) - targetDelta) <= 2, `Typography card became viewport furniture: ${JSON.stringify({ inspectorBefore, inspectorDuring, targetDelta })}`);
   assertSameBox(selectedDuring, targetDuring, "Selected chrome detached from source text after wheel scroll");
 
-  // Continue the real wheel gesture until the edited source is outside the
-  // viewport. The Typography card must leave with it rather than remaining as
-  // persistent UI unrelated to anything visible on the page.
   await page.mouse.wheel(0, 1200);
   await page.waitForTimeout(120);
   const targetAfter = await box(target, "Expected source geometry after leaving viewport");
@@ -118,7 +119,7 @@ try {
   }
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Typography ownership E2E: inspector blocks page retargeting, follows its source under real wheel scroll, and leaves with the source: PASS");
+  console.log("Typography ownership E2E: real controls keep page ownership, the card follows real wheel scroll, and it leaves with the source: PASS");
 } finally {
   await browser.close();
 }
