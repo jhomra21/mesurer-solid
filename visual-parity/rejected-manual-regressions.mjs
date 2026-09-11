@@ -50,7 +50,7 @@ const boxGap = (a, b) => {
 const selectionSnapshot = () => page.evaluate(async () => {
   const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
   if (!subject) throw new Error("Expected mounted isolated Mesurer subject");
-  const context = await subject.context();
+  const context = await subject.context({ scope: "selection" });
   return {
     scope: context.scope.kind,
     targets: context.targets.map((target) => ({
