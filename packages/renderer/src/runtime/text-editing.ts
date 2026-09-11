@@ -9,6 +9,7 @@ import {
   installMixedInlineTextTargeting,
   installRenderInPlaceTextEditing,
 } from "./text-editing-render-in-place";
+import { createTextPresentationPolicyRuntime } from "./text-presentation-policy-runtime";
 import { installUnifiedTextInspector } from "./text-editing-unified-inspector";
 import {
   installUnifiedTextSelectEscapeGuard,
@@ -45,7 +46,12 @@ export function installTextEditing(
   // The custom dropdown owns Escape only while one of its options has focus.
   // Install that narrow guard before the core's global Escape cancellation.
   installUnifiedTextSelectEscapeGuard(ctx, textRuntime);
-  installTextEditingCore(ctx, textRuntime);
+  // Select remains a valid direct-edit interaction surface, but saved Desired
+  // text no longer becomes the page presentation merely because Select is on.
+  // The policy runtime distinguishes scheduled presentation from synchronous
+  // interaction and honors the explicit Keep text changes preference.
+  const policyRuntime = createTextPresentationPolicyRuntime(ctx, textRuntime);
+  installTextEditingCore(ctx, policyRuntime);
   installTextEditingPresentation(ctx, textRuntime);
   // Typography is the only inspector placement owner. It can observe the
   // editor/ring as those surfaces appear, so install it before render-in-place
