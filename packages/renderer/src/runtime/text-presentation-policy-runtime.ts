@@ -1,6 +1,9 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
-import { presentationPreferences } from "./presentation-preferences";
+import {
+  MESURER_PRESENTATION_PREFERENCES_STATE_ID,
+  presentationPreferences,
+} from "./presentation-preferences";
 
 /**
  * Give the text-edit core two distinct notions that used to be conflated:
@@ -11,9 +14,9 @@ import { presentationPreferences } from "./presentation-preferences";
  *
  * The core schedules its presentation reconciliation with requestAnimationFrame
  * while synchronous input handlers read the same runtime mode. This adapter
- * marks only those scheduled callbacks as presentation passes. A small, typed
- * Window facade forwards exactly the browser APIs the text core consumes with
- * the real Window as their receiver, avoiding dynamic proxy reflection and DOM
+ * marks only those scheduled callbacks as presentation passes. A small Window
+ * facade forwards exactly the browser APIs the text core consumes with the real
+ * Window as their receiver, avoiding dynamic proxy reflection and DOM
  * brand-check hazards.
  *
  * Preference/tool checks are O(1). The MutationObserver maintains editor-active
@@ -66,14 +69,19 @@ export const createTextPresentationPolicyRuntime = (
       }
     }),
   };
-  // SAFETY: installTextEditing consumes only the explicitly forwarded Window
-  // members above; each method is bound to realWindow and each constructor is
-  // sourced from the same realm. The facade is never exposed outside that core.
-  const policyWindow = policyWindowFacade as unknown as Window;
+  // Object.create returns an intentionally structural object. Every Window API
+  // the text core consumes is supplied explicitly above, with methods bound to
+  // the real browsing-context Window so DOM brand checks keep the right receiver.
+  const policyWindow: Window = Object.assign(Object.create(null), policyWindowFacade);
 
   const currentToolMode: NonNullable<MesurerSolidRuntimeService["currentToolMode"]> = () => {
     const mode = runtime.currentToolMode?.() ?? "none";
     if (!presentationPass) return mode;
+
+    // Low-level renderer consumers that install Text editing directly but do
+    // not install the presentation policy retain the historical behavior. The
+    // public ComposableMesurer always registers this state before Text editing.
+    if (ctx.state.get(MESURER_PRESENTATION_PREFERENCES_STATE_ID) === undefined) return mode;
 
     if (editorActive) {
       return mode === "text-inspector" ? "text-inspector" : "select";
