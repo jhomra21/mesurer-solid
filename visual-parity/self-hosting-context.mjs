@@ -80,7 +80,11 @@ try {
   assert(triggerBox, "Annotation trigger must have a bounding box");
   assert.equal(triggerBox.width, 24, "Annotation trigger width");
   assert.equal(triggerBox.height, 24, "Annotation trigger height");
-  assert(boxGap(targetBox, triggerBox) <= 8.5, `Annotation trigger should hug the selected element; gap was ${boxGap(targetBox, triggerBox).toFixed(2)}px`);
+  const triggerGap = boxGap(targetBox, triggerBox);
+  assert(
+    triggerGap >= 5.5 && triggerGap <= 6.5,
+    `Annotation trigger must keep its intended 6px clearance from the selected element; gap was ${triggerGap.toFixed(2)}px`,
+  );
   assert.equal(
     await annotationTrigger.evaluate((element) => getComputedStyle(element).position),
     "absolute",
@@ -296,7 +300,7 @@ try {
     `context buttons: ${measurements.tools.length} × 32×32px`,
     "context SVG boxes: 20×20px, centered in every button",
     `max glyph optical-center offset: ${maxOpticalOffset.toFixed(2)}px`,
-    "annotation trigger: 24×24px beside selected element; compositor-anchored during scroll",
+    "annotation trigger: 24×24px with 6px clearance; compositor-anchored during scroll",
     "annotation composer: compact, target-anchored Mesurer surface",
     "saved marker: clear between target and note panel",
     "observer selection: Copy context button",
@@ -312,7 +316,7 @@ try {
       toolbarCenterLineDelta: "≤ 0.05px",
       glyphEnvelope: "11–18.5px per axis",
       opticalCenterOffset: "≤ 1.5px",
-      annotationTrigger: "24x24px, ≤8.5px from selection, stable in first scroll event",
+      annotationTrigger: "24x24px, 6px clearance from selection (±0.5px), stable in first scroll event",
       annotationComposer: "≤272.5px wide, ≤8.5px from selection",
       annotationPanel: "marker ≤8.5px from target; panel ≤8.5px from marker",
       observerSelection: "canonical selection context + matching body-level portaled chrome",
@@ -364,7 +368,7 @@ try {
     result: "PASS",
     toolIds,
     maxOpticalOffset,
-    annotationTriggerGap: boxGap(targetBox, triggerBox),
+    annotationTriggerGap: triggerGap,
     annotationComposerGap: boxGap(targetBox, composerBox),
     annotationMarkerGap: boxGap(targetBox, markerBox),
     annotationPanelGap: boxGap(markerBox, panelBox),
