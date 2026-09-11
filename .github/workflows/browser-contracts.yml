@@ -51,6 +51,7 @@ on:
       - "visual-parity/arrange-contract.mjs"
       - "visual-parity/arrange-presentation-policy-contract.mjs"
       - "visual-parity/color-picker-contract.mjs"
+      - "visual-parity/presentation-settings-contract.mjs"
       - "visual-parity/selection-scroll-contract.mjs"
       - "visual-parity/shortcuts-setting-contract.mjs"
       - "visual-parity/text-editing-contract.mjs"
@@ -127,6 +128,11 @@ jobs:
           ARRANGE_PRESENTATION_URL: http://127.0.0.1:4174/
         run: bun visual-parity/arrange-presentation-policy-contract.mjs
 
+      - name: Exercise presentation Settings discoverability
+        env:
+          PRESENTATION_SETTINGS_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/presentation-settings-contract.mjs
+
       - name: Exercise global Shortcuts setting
         env:
           SHORTCUTS_SETTING_URL: http://127.0.0.1:4174/
@@ -193,6 +199,11 @@ jobs:
           print("- Saved Arrange intent survives Original/Desired presentation switching without another drag")
 
           print("")
+          print("### Presentation settings")
+          print("- General visibly exposes Keep text changes and Keep Arrange changes")
+          print("- Both switches default off, persist when enabled, and restore cleanly to defaults")
+
+          print("")
           print("### Shortcuts")
           print("- General → Shortcuts persisted master switch exercised in Chromium")
           print("- Disabled global shortcuts leave toolbar actions and Escape lifecycle behavior available")
@@ -247,7 +258,7 @@ jobs:
           print("### Plugin settings")
           print("- Available-but-unloaded first-party plugins are discoverable and loadable from Settings")
           print("- Context, Arrange, and Screenshot lifecycle toggles remove and restore real tools/services")
-          print("- General Text/Arrange presentation preferences and plugin-local persistence are exercised")
+          print("- Plugin-local persistence is exercised independently of the General presentation switches")
           print("- Deterministic defaults reset remains exercised")
           PY
 
