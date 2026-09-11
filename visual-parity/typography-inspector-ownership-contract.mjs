@@ -53,11 +53,6 @@ try {
   await ring.waitFor({ state: "visible" });
   await selectedChrome.waitFor({ state: "visible" });
 
-  // Interaction ownership is tested through a real Typography control rather
-  // than an arbitrary card background. Clicking Bold twice exercises the card,
-  // returns formatting to its starting state, and must keep the same page edit
-  // and page selection throughout. If pointer input leaked through the card,
-  // the selected target/editor identity would change.
   targetBox = await box(target, "Expected edited page target before inspector input");
   assertSameBox(
     await box(selectedChrome, "Expected selected page chrome before inspector input"),
@@ -65,15 +60,21 @@ try {
     "Selected page identity before inspector input",
   );
   const valueBefore = await editor.inputValue();
+  const weightBefore = await target.evaluate((element) => getComputedStyle(element).fontWeight);
+  const numericWeight = Number.parseInt(weightBefore, 10);
+  const toggledWeight = Number.isFinite(numericWeight) && numericWeight >= 600 ? "400" : "700";
   const bold = inspector.locator("[data-mesurer-text-style-button='bold']");
   await bold.waitFor({ state: "visible" });
-  const boldBefore = await bold.getAttribute("aria-pressed");
   await bold.click();
-  await page.waitForTimeout(40);
-  assert.notEqual(await bold.getAttribute("aria-pressed"), boldBefore, "Bold control did not respond to real pointer input");
+  await page.waitForFunction(
+    ({ selector, expected }) => getComputedStyle(document.querySelector(selector)).fontWeight === expected,
+    { selector: ".feature-copy .kicker", expected: toggledWeight },
+  );
   await bold.click();
-  await page.waitForTimeout(60);
-  assert.equal(await bold.getAttribute("aria-pressed"), boldBefore, "Bold control did not restore its starting state");
+  await page.waitForFunction(
+    ({ selector, expected }) => getComputedStyle(document.querySelector(selector)).fontWeight === expected,
+    { selector: ".feature-copy .kicker", expected: weightBefore },
+  );
   assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography control interaction closed or retargeted the page editor");
   assert.equal(await editor.inputValue(), valueBefore, "Typography control interaction retargeted the active page editor");
   assertSameBox(
@@ -82,9 +83,6 @@ try {
     "Typography control interaction changed the selected page element",
   );
 
-  // Geometry ownership is separate from interaction ownership. Scroll with a
-  // real wheel event while the source remains visible. The card, edit ring,
-  // selected chrome and source text must all move by the same rendered delta.
   const inspectorBefore = await box(inspector, "Expected Typography card before wheel scroll");
   const ringBefore = await box(ring, "Expected edit ring before wheel scroll");
   targetBox = await box(target, "Expected page target before wheel scroll");
@@ -119,7 +117,7 @@ try {
   }
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Typography ownership E2E: real controls keep page ownership, the card follows real wheel scroll, and it leaves with the source: PASS");
+  console.log("Typography ownership E2E: real Typography controls change rendered source style without retargeting page ownership; card follows real wheel scroll and leaves with its source: PASS");
 } finally {
   await browser.close();
 }
