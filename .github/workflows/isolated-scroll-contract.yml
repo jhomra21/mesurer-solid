@@ -4,14 +4,17 @@ on:
   pull_request:
     paths:
       - "packages/mesurer/src/index.tsx"
+      - "packages/mesurer/src/context-plugin.tsx"
       - "packages/renderer/src/ComposableMesurer.tsx"
       - "packages/renderer/src/Mesurer.tsx"
+      - "packages/renderer/src/components/ContextActions.tsx"
       - "packages/renderer/src/components/MeasurementBox.tsx"
       - "packages/renderer/src/components/MesurerOverlay.tsx"
       - "packages/renderer/src/components/Toolbar.tsx"
       - "packages/renderer/src/runtime/document-scroll-anchoring.ts"
       - "packages/renderer/src/runtime/isolated-document-portal.ts"
       - "packages/renderer/src/runtime/native-scroll-stability.ts"
+      - "packages/renderer/src/runtime/nested-scroll-compensation.ts"
       - "packages/renderer/src/runtime/text-editing.ts"
       - "packages/renderer/src/runtime/text-editing-render-in-place.ts"
       - "packages/renderer/src/runtime/text-editing-unified-inspector.ts"
