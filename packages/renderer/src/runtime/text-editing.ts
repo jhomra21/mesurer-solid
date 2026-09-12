@@ -71,11 +71,11 @@ export function installTextEditing(
   // is Mesurer-owned for interaction but source-owned for geometry: clicking it
   // cannot retarget Select, while page scrolling carries it with the edited text.
   installUnifiedTextInspector(ctx, textRuntime);
-  // Direct edit owns its own blue ring and range highlight. Keep the ordinary
-  // selection MeasurementBox and same-target Select hover paintless while that
-  // editor is active. Pass the original renderer portal too because an isolated
-  // mount can still have one stale hover frame in Shadow DOM before Solid moves
-  // later hover updates into the document-backed Typography paint layer.
+  // Direct edit owns the visible border for its source. Keep ordinary selected
+  // MeasurementBox roots logically mounted but paintless while the editor is
+  // active. Pass the original renderer portal as well as the document-backed
+  // text runtime so a transient Solid portal root still living in the isolated
+  // ShadowRoot cannot become a second independently positioned blue rectangle.
   installDirectEditSelectionChromeOwnership(ctx, textRuntime, runtime.portalTarget);
   installRenderInPlaceTextEditing(ctx, textRuntime);
   installUnifiedTextSelectMenus(ctx, textRuntime);
