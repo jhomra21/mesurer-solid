@@ -109,8 +109,22 @@ try {
   await editRing.waitFor({ state: "visible", timeout: 5000 });
   await waitFrames(2);
 
+  // Chromium's synthesized double-click may clear the hover node entirely.
+  // Recreate the real manual condition after the editor is active: Select stays
+  // on and the pointer moves by one pixel over the same edited element. This
+  // must create a live same-target hover node without letting it paint.
+  await page.mouse.move(editX + 1, editY);
+  await waitFrames(2);
+  await page.waitForFunction(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    return Boolean(
+      document.body.querySelector("[data-mesurer-hover-measurement='true']")
+      || island?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']"),
+    );
+  }, undefined, { timeout: 5000 });
+
   // Direct edit must be the sole visible owner for the edited element. The
-  // normal selected MeasurementBox and the stale same-target Select hover may
+  // normal selected MeasurementBox and the live same-target Select hover may
   // stay mounted/anchored, but neither is allowed to paint another blue box.
   const directEditOwnership = await page.evaluate(() => {
     const island = document.querySelector("[data-mesurer-island='true']");
@@ -148,7 +162,7 @@ try {
   if (!directEditOwnership) throw new Error("Could not resolve packed direct-edit chrome ownership");
   const sameTargetHovers = directEditOwnership.hovers.filter((entry) => entry.sameTarget);
   if (!sameTargetHovers.length) {
-    throw new Error(`Packed regression lost the same-target Select hover instead of exercising its ownership: ${JSON.stringify(directEditOwnership)}`);
+    throw new Error(`Packed regression did not create same-target Select hover during active edit: ${JSON.stringify(directEditOwnership)}`);
   }
   if (sameTargetHovers.some((entry) => entry.opacity !== "0" || entry.suppressed !== "true")) {
     throw new Error(`Same-target Select hover can still paint beside the direct-edit ring: ${JSON.stringify(directEditOwnership)}`);
