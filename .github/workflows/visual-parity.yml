@@ -123,6 +123,9 @@ jobs:
           PARITY_DPR: 1
         run: node e2e/parity-capture.mjs
 
+      - name: Verify current-only parity metadata
+        run: bun visual-parity/normalize-current-contract-metadata.mjs parity-artifacts
+
       - name: Build side-by-side and pixel-diff report
         shell: bash
         run: |
@@ -158,6 +161,7 @@ jobs:
             parity-artifacts/comparison-settings-*.png
             parity-artifacts/react-settings-*.json
             parity-artifacts/solid-settings-*.json
+            parity-artifacts/current-contract-normalization.json
             parity-artifacts/report.json
             parity-artifacts/report.txt
           if-no-files-found: warn
