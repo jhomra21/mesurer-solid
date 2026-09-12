@@ -5,6 +5,10 @@ import { SettingsPanel as SettingsPanelCore } from "./SettingsPanelCore";
 
 type SettingsPanelProps = ComponentProps<typeof SettingsPanelCore>;
 
+const SETTINGS_WIDTH = 272;
+const VIEWPORT_PADDING = 8;
+const SETTINGS_ANCHOR_GAP = 4;
+
 function PresentationSwitch(props: {
   id: string;
   label: string;
@@ -47,6 +51,11 @@ function PresentationSwitch(props: {
  * during pointer or scroll interaction. The preference accessors stay reactive
  * through the existing plugin-settings context, and each toggle updates only
  * its O(1) policy bit; Text/Arrange own any resulting page mutation work.
+ *
+ * Plugin lifecycle can also change the toolbar width while Settings stays open.
+ * The toolbar owns the initial menu placement, while this component observes
+ * only toolbar/anchor size changes and re-clamps that same horizontal placement
+ * after layout. This avoids polling or adding work to pointer/scroll hot paths.
  */
 export function SettingsPanel(props: SettingsPanelProps) {
   const pluginSettings = useMesurerPluginSettings();
@@ -55,15 +64,66 @@ export function SettingsPanel(props: SettingsPanelProps) {
 
   onSettled(() => {
     const host = hostElement;
-    const Observer = props.ownerWindow.document.defaultView?.MutationObserver;
+    const ownerWindow = props.ownerWindow.document.defaultView ?? props.ownerWindow;
+    const Observer = ownerWindow.MutationObserver;
     if (!host || !Observer) return;
+
+    const dialog = host.closest<HTMLElement>("[role='dialog'][aria-label='Settings']");
+    const anchor = dialog?.parentElement instanceof ownerWindow.HTMLElement
+      ? dialog.parentElement
+      : null;
+    const toolbar = dialog?.closest<HTMLElement>("[data-mesurer-toolbar='true']") ?? null;
+    let clampFrame = 0;
+
+    const clampToViewport = () => {
+      clampFrame = 0;
+      if (!dialog?.isConnected || !anchor?.isConnected) return;
+      const viewportWidth = ownerWindow.innerWidth;
+      if (viewportWidth <= 0) return;
+      const measuredWidth = dialog.getBoundingClientRect().width || SETTINGS_WIDTH;
+      const width = Math.min(measuredWidth, Math.max(0, viewportWidth - VIEWPORT_PADDING * 2));
+      const anchorRect = anchor.getBoundingClientRect();
+      const idealViewportLeft = anchorRect.right + SETTINGS_ANCHOR_GAP - width;
+      const maxViewportLeft = Math.max(
+        VIEWPORT_PADDING,
+        viewportWidth - VIEWPORT_PADDING - width,
+      );
+      const viewportLeft = Math.min(
+        maxViewportLeft,
+        Math.max(VIEWPORT_PADDING, idealViewportLeft),
+      );
+      const nextLeft = viewportLeft - anchorRect.left;
+      const currentLeft = Number.parseFloat(dialog.style.left);
+      if (!Number.isFinite(currentLeft) || Math.abs(currentLeft - nextLeft) > 0.25) {
+        dialog.style.left = `${nextLeft}px`;
+        dialog.style.right = "auto";
+      }
+    };
+    const scheduleClamp = () => {
+      if (clampFrame) return;
+      clampFrame = ownerWindow.requestAnimationFrame(clampToViewport);
+    };
     const syncMount = () => {
       setGeneralMount(host.querySelector<HTMLElement>("section[aria-label='General settings']"));
+      scheduleClamp();
     };
     const observer = new Observer(syncMount);
     observer.observe(host, { childList: true, subtree: true });
+
+    const Resize = ownerWindow.ResizeObserver;
+    const resizeObserver = Resize ? new Resize(scheduleClamp) : null;
+    if (toolbar) resizeObserver?.observe(toolbar);
+    if (anchor) resizeObserver?.observe(anchor);
+    ownerWindow.addEventListener("resize", scheduleClamp);
+
     syncMount();
-    return () => observer.disconnect();
+    scheduleClamp();
+    return () => {
+      observer.disconnect();
+      resizeObserver?.disconnect();
+      ownerWindow.removeEventListener("resize", scheduleClamp);
+      if (clampFrame) ownerWindow.cancelAnimationFrame(clampFrame);
+    };
   });
 
   return (
