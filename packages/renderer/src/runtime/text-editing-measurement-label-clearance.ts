@@ -224,6 +224,8 @@ export function installTextEditingMeasurementLabelClearance(
   sourcePortalTarget: HTMLElement | ShadowRoot = runtime.portalTarget,
 ) {
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
+  // SAFETY: ownerWindow owns every runtime/source portal node inspected here,
+  // so its DOM constructors are the correct realm for instanceof checks.
   const realm = ownerWindow as Window & typeof globalThis;
   const runtimeMounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
   const runtimeMount = runtimeMounts.item(runtimeMounts.length - 1);
