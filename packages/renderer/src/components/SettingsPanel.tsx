@@ -65,13 +65,12 @@ export function SettingsPanel(props: SettingsPanelProps) {
   onSettled(() => {
     const host = hostElement;
     const ownerWindow = props.ownerWindow.document.defaultView ?? props.ownerWindow;
-    const Observer = ownerWindow.MutationObserver;
+    const realm = ownerWindow as Window & typeof globalThis;
+    const Observer = realm.MutationObserver;
     if (!host || !Observer) return;
 
     const dialog = host.closest<HTMLElement>("[role='dialog'][aria-label='Settings']");
-    const anchor = dialog?.parentElement instanceof ownerWindow.HTMLElement
-      ? dialog.parentElement
-      : null;
+    const anchor = dialog?.parentElement ?? null;
     const toolbar = dialog?.closest<HTMLElement>("[data-mesurer-toolbar='true']") ?? null;
     let clampFrame = 0;
 
@@ -110,7 +109,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     const observer = new Observer(syncMount);
     observer.observe(host, { childList: true, subtree: true });
 
-    const Resize = ownerWindow.ResizeObserver;
+    const Resize = realm.ResizeObserver;
     const resizeObserver = Resize ? new Resize(scheduleClamp) : null;
     if (toolbar) resizeObserver?.observe(toolbar);
     if (anchor) resizeObserver?.observe(anchor);
