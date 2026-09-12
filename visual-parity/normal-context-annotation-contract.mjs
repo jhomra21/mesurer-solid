@@ -3,7 +3,7 @@ import { chromium } from "playwright";
 
 const url = process.env.NORMAL_CONTEXT_URL ?? "http://127.0.0.1:4174/";
 const browser = await chromium.launch({ channel: "chrome", headless: true });
-const page = await browser.newPage({ viewport: { width: 1019, height: 432 } });
+const page = await browser.newPage({ viewport: { width: 1162, height: 494 } });
 const pageErrors = [];
 
 page.on("pageerror", (error) => pageErrors.push(String(error)));
