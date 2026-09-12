@@ -91,6 +91,44 @@ try {
     "Typography control interaction changed the selected page element",
   );
 
+  // Force the real selected measurement chrome through the live Typography card
+  // without changing either component's production z-index. The card must win
+  // the document hit test, matching the persistent toolbar's protected stacking
+  // behavior when page-linked selection chrome passes underneath Mesurer UI.
+  const occlusion = await page.evaluate(() => {
+    const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
+    const selection = document.querySelector("[data-mesurer-selected-measurement='true'] > div");
+    if (!(card instanceof HTMLElement) || !(selection instanceof HTMLElement)) return null;
+    const beforeStyle = selection.getAttribute("style");
+    const cardRect = card.getBoundingClientRect();
+    selection.style.setProperty("position", "fixed", "important");
+    selection.style.setProperty("left", `${cardRect.left}px`, "important");
+    selection.style.setProperty("top", `${cardRect.top}px`, "important");
+    selection.style.setProperty("width", `${cardRect.width}px`, "important");
+    selection.style.setProperty("height", `${cardRect.height}px`, "important");
+    selection.style.setProperty("pointer-events", "auto", "important");
+    const x = cardRect.left + cardRect.width / 2;
+    const y = cardRect.top + Math.min(cardRect.height / 2, 24);
+    const hit = document.elementFromPoint(x, y);
+    const result = {
+      hitInsideTypography: hit instanceof Element && card.contains(hit),
+      selectionZ: getComputedStyle(selection).zIndex,
+      typographyZ: getComputedStyle(card).zIndex,
+    };
+    if (beforeStyle === null) selection.removeAttribute("style");
+    else selection.setAttribute("style", beforeStyle);
+    return result;
+  });
+  assert(occlusion, "Could not resolve Typography/selection stack surfaces");
+  assert(
+    occlusion.hitInsideTypography,
+    `Selected page chrome painted above Typography card: ${JSON.stringify(occlusion)}`,
+  );
+  assert(
+    Number(occlusion.selectionZ) < Number(occlusion.typographyZ),
+    `Selection chrome must occupy a lower stack band than Typography: ${JSON.stringify(occlusion)}`,
+  );
+
   const inspectorBefore = await box(inspector, "Expected Typography card before wheel scroll");
   const ringBefore = await box(ring, "Expected edit ring before wheel scroll");
   targetBox = await box(target, "Expected page target before wheel scroll");
@@ -125,7 +163,7 @@ try {
   }
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Typography ownership E2E: physical input in a live Typography control changes the rendered source without retargeting the editor/selection surface; card/ring follow real wheel scroll and the card leaves with its source. Selection chrome continuity is verified separately by the scroll contract: PASS");
+  console.log("Typography ownership E2E: physical input in a live Typography control changes the rendered source without retargeting the editor/selection surface; Typography paints above selected page chrome; card/ring follow real wheel scroll and the card leaves with its source. Selection chrome continuity is verified separately by the scroll contract: PASS");
 } finally {
   await browser.close();
 }

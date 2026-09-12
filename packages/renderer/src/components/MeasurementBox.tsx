@@ -14,6 +14,7 @@ export type MeasurementBoxProps = {
 
 const allEdges: EdgeVisibility = { top: true, right: true, bottom: true, left: true };
 const formatValue = (value: number) => Math.round(value);
+const SELECTED_CHROME_Z_INDEX = "2147482800";
 
 export function MeasurementBox(props: MeasurementBoxProps) {
   let chromeElement: HTMLDivElement | undefined;
@@ -123,6 +124,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         top: `${measurement().rect.top + selectedPortalOffset().y}px`,
         width: `${measurement().rect.width}px`,
         height: `${measurement().rect.height}px`,
+        "z-index": isSelectedMeasurement() ? SELECTED_CHROME_Z_INDEX : undefined,
         "background-color": props.fillColor,
         transition: transition(),
         "transition-property": isSelectedMeasurement() ? "none" : "left, top, width, height",
@@ -139,6 +141,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     <div ref={labelElement} class="msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:-translate-x-1/2 msr:bg-ink-900/90" style={{
       left: `${measurement().rect.left + selectedPortalOffset().x + measurement().rect.width / 2}px`,
       top: `${measurement().rect.top + selectedPortalOffset().y + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
+      "z-index": isSelectedMeasurement() ? SELECTED_CHROME_Z_INDEX : undefined,
       transition: labelTransition(),
       "transition-property": isSelectedMeasurement() ? "none" : "left, top",
       "transition-duration": isSelectedMeasurement() ? "0s" : `${MEASURE_TRANSITION_MS}ms`,

@@ -13,6 +13,7 @@ const settingsStates = [
 
 const historicalSettingsClass = "mesurer-menu-surface msr:absolute msr:-right-1 msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 msr:top-full msr:mt-2";
 const currentViewportSafeSettingsClass = "mesurer-menu-surface msr:absolute msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:max-h-[calc(100vh-16px)] msr:overflow-y-auto msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 msr:top-full msr:mt-2";
+const currentSelectionChromeZIndex = "2147482800";
 
 const readJson = async (name) => JSON.parse(await fs.readFile(path.join(outputDir, name), "utf8"));
 const writeJson = async (name, value) => fs.writeFile(path.join(outputDir, name), `${JSON.stringify(value, null, 2)}\n`);
@@ -20,6 +21,7 @@ const writeJson = async (name, value) => fs.writeFile(path.join(outputDir, name)
 const manifest = {
   settingsViewportSafety: [],
   typographyOcclusionLayer: null,
+  selectionOcclusionLayer: null,
 };
 
 for (const state of settingsStates) {
@@ -69,5 +71,29 @@ for (const state of settingsStates) {
   await writeJson(solidName, solid);
 }
 
+{
+  const reactName = "react-selection.json";
+  const solidName = "solid-selection.json";
+  const react = await readJson(reactName);
+  const solid = await readJson(solidName);
+  const reactStyle = react.measureTag?.style;
+  const solidStyle = solid.measureTag?.style;
+
+  assert(reactStyle, "selection: missing historical measurement-label style snapshot");
+  assert(solidStyle, "selection: missing current measurement-label style snapshot");
+  assert.equal(reactStyle.zIndex, "auto", "selection: unexpected historical measurement-label z-index");
+  assert.equal(
+    solidStyle.zIndex,
+    currentSelectionChromeZIndex,
+    "selection: current measurement label no longer owns the reviewed page-chrome z-band",
+  );
+
+  manifest.selectionOcclusionLayer = {
+    zIndex: { react: reactStyle.zIndex, solid: solidStyle.zIndex },
+  };
+  solidStyle.zIndex = reactStyle.zIndex;
+  await writeJson(solidName, solid);
+}
+
 await writeJson("current-contract-normalization.json", manifest);
-console.log("Verified and normalized only the exact current-only Settings viewport-safety and Typography occlusion metadata deltas. Pixel captures are untouched.");
+console.log("Verified and normalized only the exact current-only Settings viewport-safety, Typography occlusion, and selection occlusion metadata deltas. Pixel captures are untouched.");

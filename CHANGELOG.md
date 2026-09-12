@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Keep Typography inspector cards above selected page outlines and measurement labels when their document-layer geometry overlaps, matching the toolbar's protected paint and hit ownership without moving either surface.
 
 ## 0.1.7-beta.7 - 2026-09-12
 

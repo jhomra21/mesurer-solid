@@ -18,6 +18,7 @@ presentation_switch_buttons = {
     "Keep text changes",
     "Keep Arrange changes",
 }
+current_selection_chrome_z_index = "2147482800"
 
 
 def deep_diff(left, right, path=""):
@@ -167,7 +168,18 @@ def verified_selection_label_region(name, react_label, solid_label):
         return None
     if react_label.get("text") != solid_label.get("text"):
         return None
-    if react_label.get("style") != solid_label.get("style"):
+
+    react_style = react_label.get("style")
+    solid_style = solid_label.get("style")
+    if not isinstance(react_style, dict) or not isinstance(solid_style, dict):
+        return None
+    if react_style.get("zIndex") != "auto":
+        return None
+    if solid_style.get("zIndex") != current_selection_chrome_z_index:
+        return None
+    react_style_without_z = {key: value for key, value in react_style.items() if key != "zIndex"}
+    solid_style_without_z = {key: value for key, value in solid_style.items() if key != "zIndex"}
+    if react_style_without_z != solid_style_without_z:
         return None
 
     react_rect = react_label.get("rect")
