@@ -80,7 +80,8 @@ try {
     const activeEditor = document.querySelector("[data-mesurer-text-editor='true']");
     if (!(island instanceof HTMLElement) || !(card instanceof HTMLElement) || !(hover instanceof HTMLElement)) return null;
 
-    const beforeStyle = hover.getAttribute("style");
+    const beforeHoverStyle = hover.getAttribute("style");
+    const beforeIslandStyle = island.getAttribute("style");
     const cardRect = card.getBoundingClientRect();
     hover.style.setProperty("position", "fixed", "important");
     hover.style.setProperty("left", `${cardRect.left}px`, "important");
@@ -89,18 +90,29 @@ try {
     hover.style.setProperty("height", `${cardRect.height}px`, "important");
     hover.style.setProperty("pointer-events", "auto", "important");
 
+    // The protected island intentionally owns hit testing while Select is active.
+    // Hide only that hit plane synchronously so elementFromPoint can answer the
+    // separate question this regression cares about: which document-backed
+    // surface paints on top once hover and Typography geometrically overlap?
+    island.style.setProperty("display", "none", "important");
+
     const x = cardRect.left + cardRect.width / 2;
     const y = cardRect.top + Math.min(cardRect.height / 2, 24);
     const hit = document.elementFromPoint(x, y);
+    const placementShell = card.closest("[data-mesurer-text-inspector-placement-shell='true']");
     const value = {
       islandTopLayer: island.matches(":popover-open"),
       hoverDocumentBacked: hover.getRootNode() === document,
       hitInsideTypography: hit instanceof Element && card.contains(hit),
       editorActive: activeEditor instanceof HTMLElement,
+      hoverZIndex: getComputedStyle(hover).zIndex,
+      inspectorZIndex: placementShell instanceof HTMLElement ? getComputedStyle(placementShell).zIndex : null,
     };
 
-    if (beforeStyle === null) hover.removeAttribute("style");
-    else hover.setAttribute("style", beforeStyle);
+    if (beforeIslandStyle === null) island.removeAttribute("style");
+    else island.setAttribute("style", beforeIslandStyle);
+    if (beforeHoverStyle === null) hover.removeAttribute("style");
+    else hover.setAttribute("style", beforeHoverStyle);
     document.querySelector("[data-testid='mesurer-hover-contract-target']")?.remove();
     return value;
   });
@@ -119,7 +131,7 @@ try {
     throw new Error(`Hovering a nearby page element closed direct text editing: ${JSON.stringify(result)}`);
   }
 
-  console.log("Packed Solid 2 Typography/Select hover ownership: PASS");
+  console.log("Packed Solid 2 Typography/Select hover ownership: PASS", result);
 } finally {
   await page.close();
   await browser.close();
