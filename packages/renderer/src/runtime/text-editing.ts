@@ -5,6 +5,7 @@ import { createDocumentTextRuntime } from "./isolated-document-portal";
 import { installIsolatedDocumentUiPassthrough } from "./isolated-document-ui-passthrough";
 import { installNativeScrollStability } from "./native-scroll-stability";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
+import { installTextEditingMeasurementLabelClearance } from "./text-editing-measurement-label-clearance";
 import { installTextEditingPresentation } from "./text-editing-presentation";
 import {
   installMixedInlineTextTargeting,
@@ -89,4 +90,9 @@ export function installTextEditing(
   // coordinates needed for post-scroll re-binding. This prevents selected-text
   // highlights and source-linked Typography surfaces from jumping after settle.
   installNativeScrollStability(ctx, textRuntime);
+  // Measurement labels are separate page chrome. If a visible dimensions pill
+  // occupies the inspector's chosen lane, preserve the canonical lane rules but
+  // add just enough clearance for that pill instead of letting Typography cover
+  // it. Install this last so it resolves only real post-placement collisions.
+  installTextEditingMeasurementLabelClearance(ctx, textRuntime, runtime.portalTarget);
 }
