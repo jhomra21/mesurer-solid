@@ -121,6 +121,11 @@ export function ContextActions(props: ContextActionsProps) {
 
   const supportsSelectionTriggerAnchor = () => {
     const currentWindow = ownerWindow();
+    // CodexBrowser exposes native CSS Anchor Positioning support, but its
+    // document-backed Context surface does not reliably present the anchored
+    // selection affordance. The host bridge is available before Mesurer mounts,
+    // so choose the already-proven cached-delta follower deterministically.
+    if (Object.prototype.hasOwnProperty.call(currentWindow, "__codexWebMcpModelContext")) return false;
     return Boolean(
       currentWindow.CSS?.supports("anchor-name: --mesurer-annotation-trigger")
       && currentWindow.CSS.supports("position-anchor: --mesurer-annotation-trigger")
