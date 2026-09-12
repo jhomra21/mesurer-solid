@@ -4,27 +4,24 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 type InlineOpacity = {
   value: string;
   priority: string;
-  marker: string | undefined;
+  marker: string | null;
 };
 
 const SELECTED_ROOT = "[data-mesurer-selected-measurement='true']";
+const HOVER_ROOT = "[data-mesurer-hover-measurement='true']";
 const EDITOR = "[data-mesurer-text-editor='true']";
+const SELECTED_SUPPRESSED = "data-mesurer-direct-edit-selection-suppressed";
+const HOVER_SUPPRESSED = "data-mesurer-direct-edit-hover-suppressed";
 
 /**
  * Direct text edit owns the visible blue border for the edited element.
  *
- * In the public isolated mount, selected MeasurementBox presentation can cross
- * from the renderer ShadowRoot into the document layer while Solid reconciles
- * the portal. The text-edit runtime itself is already document-backed, so only
- * scanning its portal misses a transient selected root that is still alive in
- * the original isolated renderer. If both copies paint, their independently
- * updated geometry can separate for a frame and appear as the duplicate/trailing
- * blue rectangle seen during direct-edit entry and compositor scrolling.
- *
- * Keep logical selection and all native anchor state mounted. Make every
- * selected MeasurementBox presentation paintless for the editor lifetime in
- * both ownership layers, then restore its exact prior inline opacity when the
- * editor closes.
+ * Keep ordinary selected chrome logically mounted and native-anchored while the
+ * editor is active, but do not let it paint in either the document layer or the
+ * original isolated renderer. Select remains active during editing, so its hover
+ * surface also needs one ownership rule: hovering the element that is already
+ * selected must not create a second copy of the same rectangle, while hovering a
+ * different element stays visible.
  */
 export function installDirectEditSelectionChromeOwnership(
   ctx: MesurerPluginContext,
@@ -38,59 +35,104 @@ export function installDirectEditSelectionChromeOwnership(
   const runtimeMount = runtimeMounts.item(runtimeMounts.length - 1);
   if (!runtimeMount) return;
 
-  const suppressed = new Map<HTMLElement, InlineOpacity>();
+  const workspace = runtime.createWorkspaceRuntime();
+  const selectedSuppressed = new Map<HTMLElement, InlineOpacity>();
+  const hoverSuppressed = new Map<HTMLElement, InlineOpacity>();
   let active = false;
   let queued = false;
   let disposed = false;
-  let selectionObserver: MutationObserver | null = null;
+  let surfaceObserver: MutationObserver | null = null;
 
-  const selectionRoots = () => {
+  const scopes = () => {
+    const values: ParentNode[] = [portalTarget];
+    if (sourcePortalTarget !== portalTarget) values.push(sourcePortalTarget);
+    if (ownerDocument.body && !values.includes(ownerDocument.body)) values.push(ownerDocument.body);
+    return values;
+  };
+
+  const rootsFor = (selector: string) => {
     const roots = new Set<HTMLElement>();
-    const scopes: ParentNode[] = [portalTarget];
-    if (sourcePortalTarget !== portalTarget) scopes.push(sourcePortalTarget);
-    if (ownerDocument.body && !scopes.includes(ownerDocument.body)) scopes.push(ownerDocument.body);
-
-    for (const scope of scopes) {
-      for (const root of scope.querySelectorAll<HTMLElement>(SELECTED_ROOT)) roots.add(root);
+    for (const scope of scopes()) {
+      for (const root of scope.querySelectorAll<HTMLElement>(selector)) roots.add(root);
     }
     return roots;
   };
 
-  const suppressRoot = (root: HTMLElement) => {
-    if (!suppressed.has(root)) {
-      suppressed.set(root, {
+  const suppressRoot = (
+    root: HTMLElement,
+    values: Map<HTMLElement, InlineOpacity>,
+    marker: string,
+  ) => {
+    if (!values.has(root)) {
+      values.set(root, {
         value: root.style.getPropertyValue("opacity"),
         priority: root.style.getPropertyPriority("opacity"),
-        marker: root.dataset.mesurerDirectEditSelectionSuppressed,
+        marker: root.getAttribute(marker),
       });
     }
-    root.dataset.mesurerDirectEditSelectionSuppressed = "true";
-    root.style.setProperty("opacity", "0", "important");
+    if (root.getAttribute(marker) !== "true") root.setAttribute(marker, "true");
+    if (
+      root.style.getPropertyValue("opacity") !== "0"
+      || root.style.getPropertyPriority("opacity") !== "important"
+    ) {
+      root.style.setProperty("opacity", "0", "important");
+    }
   };
 
-  const restoreRoot = (root: HTMLElement, previous: InlineOpacity) => {
+  const restoreRoot = (
+    root: HTMLElement,
+    previous: InlineOpacity,
+    values: Map<HTMLElement, InlineOpacity>,
+    marker: string,
+  ) => {
     if (root.isConnected) {
       if (previous.value || previous.priority) {
         root.style.setProperty("opacity", previous.value, previous.priority);
       } else {
         root.style.removeProperty("opacity");
       }
-      if (previous.marker === undefined) delete root.dataset.mesurerDirectEditSelectionSuppressed;
-      else root.dataset.mesurerDirectEditSelectionSuppressed = previous.marker;
+      if (previous.marker === null) root.removeAttribute(marker);
+      else root.setAttribute(marker, previous.marker);
     }
-    suppressed.delete(root);
+    values.delete(root);
   };
 
-  const suppressCurrentRoots = () => {
-    const current = selectionRoots();
-    for (const root of current) suppressRoot(root);
-    for (const [root, previous] of Array.from(suppressed)) {
-      if (!root.isConnected || !current.has(root)) restoreRoot(root, previous);
+  const restoreAll = (
+    values: Map<HTMLElement, InlineOpacity>,
+    marker: string,
+  ) => {
+    for (const [root, previous] of Array.from(values)) {
+      restoreRoot(root, previous, values, marker);
     }
   };
 
-  const restoreAll = () => {
-    for (const [root, previous] of Array.from(suppressed)) restoreRoot(root, previous);
+  const suppressCurrentSelections = () => {
+    const current = rootsFor(SELECTED_ROOT);
+    for (const root of current) suppressRoot(root, selectedSuppressed, SELECTED_SUPPRESSED);
+    for (const [root, previous] of Array.from(selectedSuppressed)) {
+      if (!root.isConnected || !current.has(root)) {
+        restoreRoot(root, previous, selectedSuppressed, SELECTED_SUPPRESSED);
+      }
+    }
+  };
+
+  const syncHoverOwnership = () => {
+    const hovered = workspace.hoveredElement();
+    const selected = workspace.currentSelection().elements;
+    const sameTarget = Boolean(hovered && selected.includes(hovered));
+    const current = rootsFor(HOVER_ROOT);
+
+    if (!sameTarget) {
+      restoreAll(hoverSuppressed, HOVER_SUPPRESSED);
+      return;
+    }
+
+    for (const root of current) suppressRoot(root, hoverSuppressed, HOVER_SUPPRESSED);
+    for (const [root, previous] of Array.from(hoverSuppressed)) {
+      if (!root.isConnected || !current.has(root)) {
+        restoreRoot(root, previous, hoverSuppressed, HOVER_SUPPRESSED);
+      }
+    }
   };
 
   const schedule = () => {
@@ -102,14 +144,14 @@ export function installDirectEditSelectionChromeOwnership(
     });
   };
 
-  const startSelectionObserver = () => {
-    if (selectionObserver) return;
-    selectionObserver = new realm.MutationObserver(schedule);
+  const startSurfaceObserver = () => {
+    if (surfaceObserver) return;
+    surfaceObserver = new realm.MutationObserver(schedule);
     const observed = new Set<Node>();
     const observe = (root: Node, subtree: boolean) => {
       if (observed.has(root)) return;
       observed.add(root);
-      selectionObserver!.observe(root, { childList: true, subtree });
+      surfaceObserver!.observe(root, { childList: true, subtree });
     };
 
     observe(portalTarget, portalTarget !== ownerDocument.body);
@@ -117,9 +159,9 @@ export function installDirectEditSelectionChromeOwnership(
     if (ownerDocument.body) observe(ownerDocument.body, false);
   };
 
-  const stopSelectionObserver = () => {
-    selectionObserver?.disconnect();
-    selectionObserver = null;
+  const stopSurfaceObserver = () => {
+    surfaceObserver?.disconnect();
+    surfaceObserver = null;
   };
 
   const sync = () => {
@@ -127,27 +169,33 @@ export function installDirectEditSelectionChromeOwnership(
     const editor = runtimeMount.querySelector<HTMLTextAreaElement>(EDITOR);
     if (editor) {
       active = true;
-      suppressCurrentRoots();
-      startSelectionObserver();
+      suppressCurrentSelections();
+      syncHoverOwnership();
+      startSurfaceObserver();
       return;
     }
-    if (!active && suppressed.size === 0) return;
+    if (!active && selectedSuppressed.size === 0 && hoverSuppressed.size === 0) return;
     active = false;
-    stopSelectionObserver();
-    restoreAll();
+    stopSurfaceObserver();
+    restoreAll(selectedSuppressed, SELECTED_SUPPRESSED);
+    restoreAll(hoverSuppressed, HOVER_SUPPRESSED);
   };
 
-  // Register before render-in-place creates its visible edit ring. Mutation
-  // observers flush before the next paint, including selected roots that Solid
-  // creates/replaces in either the isolated or document portal during startup.
+  // Register before render-in-place creates its visible edit ring. Model updates
+  // catch hover/selection ownership changes, while DOM observation catches Solid
+  // replacement roots before the next paint.
   const runtimeObserver = new realm.MutationObserver(schedule);
   runtimeObserver.observe(runtimeMount, { childList: true, subtree: true });
+  const unsubscribeWorkspace = workspace.subscribe(schedule);
   sync();
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     runtimeObserver.disconnect();
-    stopSelectionObserver();
-    restoreAll();
+    stopSurfaceObserver();
+    unsubscribeWorkspace();
+    workspace.dispose();
+    restoreAll(selectedSuppressed, SELECTED_SUPPRESSED);
+    restoreAll(hoverSuppressed, HOVER_SUPPRESSED);
   });
 }
