@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const url = process.env.NORMAL_CONTEXT_URL ?? "http://127.0.0.1:4174/";
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: { width: 1019, height: 432 } });
 const errors = [];
 
@@ -87,7 +87,7 @@ try {
   await marker.waitFor({ state: "visible" });
   assert.equal(await marker.count(), 1, "saved normal-playground annotation marker missing");
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Normal Context annotation E2E: persisted Context reload at reported viewport geometry, physical hero selection, rendered/clickable trigger, saved note, and retained marker: PASS");
+  console.log("Normal Context annotation E2E: stable Chrome, persisted Context reload at reported viewport geometry, physical hero selection, rendered/clickable trigger, saved note, and retained marker: PASS");
 } finally {
   await browser.close();
 }
