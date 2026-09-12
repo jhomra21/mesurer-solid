@@ -4,6 +4,7 @@ import { installDocumentScrollAnchoring } from "./document-scroll-anchoring";
 import { createDocumentTextRuntime } from "./isolated-document-portal";
 import { installIsolatedDocumentUiPassthrough } from "./isolated-document-ui-passthrough";
 import { installNativeScrollStability } from "./native-scroll-stability";
+import { installTextEditorPaintGuard } from "./text-editor-paint-guard";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
 import { installTextEditingPresentation } from "./text-editing-presentation";
 import {
@@ -53,6 +54,10 @@ export function installTextEditing(
   // never reparent renderer-owned nodes imperatively.
   const { runtime: textRuntime } = createDocumentTextRuntime(runtime);
 
+  // The native textarea is only an input/selection model. Install its paint
+  // guard before the core can append it so browser selection/compositor frames
+  // can never expose a second visible copy of the page text.
+  installTextEditorPaintGuard(ctx, textRuntime);
   installMixedInlineTextTargeting(ctx, textRuntime);
   // The custom dropdown owns Escape only while one of its options has focus.
   // Install that narrow guard before the core's global Escape cancellation.
