@@ -3,16 +3,22 @@ name: manual-acceptance-regressions
 on:
   pull_request:
     paths:
+      - "packages/renderer/src/components/SettingsPanel.tsx"
       - "packages/renderer/src/components/Toolbar.tsx"
       - "packages/renderer/src/ComposableMesurer.tsx"
       - "packages/renderer/src/runtime/document-scroll-anchoring.ts"
       - "packages/renderer/src/runtime/isolated-document-portal.ts"
       - "packages/renderer/src/runtime/nested-scroll-compensation.ts"
+      - "packages/renderer/src/runtime/native-scroll-stability.ts"
       - "packages/renderer/src/runtime/text-editing.ts"
       - "packages/renderer/src/runtime/text-editing-unified-inspector.ts"
+      - "packages/renderer/src/styles.css"
       - "packages/mesurer/src/index.tsx"
       - "examples/basic/package.json"
+      - "examples/basic/plugin-settings.html"
       - "examples/basic/src/main.tsx"
+      - "examples/basic/src/plugin-settings.ts"
+      - "visual-parity/compact-settings-toolbar-occlusion-contract.mjs"
       - "visual-parity/manual-acceptance-regressions.mjs"
       - ".github/workflows/manual-acceptance-regressions.yml"
   workflow_dispatch:
@@ -67,6 +73,11 @@ jobs:
         env:
           MANUAL_ACCEPTANCE_URL: http://127.0.0.1:4174/
         run: bun visual-parity/manual-acceptance-regressions.mjs
+
+      - name: Reproduce compact Settings and toolbar overlap cases
+        env:
+          COMPACT_SETTINGS_URL: http://127.0.0.1:4174/plugin-settings.html
+        run: bun visual-parity/compact-settings-toolbar-occlusion-contract.mjs
 
       - name: Stop playground
         if: always()
