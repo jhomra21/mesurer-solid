@@ -124,7 +124,7 @@ export function ContextActions(props: ContextActionsProps) {
     // CodexBrowser exposes native CSS Anchor Positioning support, but its
     // document-backed Context surface does not reliably present the anchored
     // selection affordance. The host bridge is available before Mesurer mounts,
-    // so choose the already-proven cached-delta follower deterministically.
+    // so choose the document-backed fallback deterministically.
     if (Object.prototype.hasOwnProperty.call(currentWindow, "__codexWebMcpModelContext")) return false;
     return Boolean(
       currentWindow.CSS?.supports("anchor-name: --mesurer-annotation-trigger")
@@ -166,11 +166,10 @@ export function ContextActions(props: ContextActionsProps) {
       && element?.isConnected
       && shouldUseNative === alreadyNative
     ) {
-      // The fallback owns accumulated nested/window deltas until an actual
-      // target/anchor topology change replaces it. Workspace notifications can
-      // arrive from the renderer's window-scroll bookkeeping before this
-      // helper receives the same scroll event; rebasing here would erase that
-      // pending delta and leave the fixed trigger behind the page target.
+      // The document-backed fallback inherits window/document movement directly.
+      // Only nested overflow ancestors need scalar delta compensation, so a
+      // workspace notification must preserve the helper's accumulated nested
+      // offset until an actual target/anchor topology change replaces it.
       nestedTriggerScroll?.sync();
       return;
     }
@@ -192,11 +191,13 @@ export function ContextActions(props: ContextActionsProps) {
       return;
     }
 
+    // The fallback is absolutely positioned in the document layer, so ordinary
+    // window scrolling is compositor-owned. Keep JavaScript compensation only
+    // for nested overflow ancestors that the body portal cannot inherit.
     nestedTriggerScroll = installNestedScrollCompensation(
       currentWindow,
       element,
       () => [annotationTriggerElement],
-      { trackWindow: true },
     );
   };
 
@@ -290,14 +291,15 @@ export function ContextActions(props: ContextActionsProps) {
       && point.top + size <= currentWindow.innerHeight - padding;
     const fitted = candidates.flatMap((candidate) => candidate.points).find(fitsViewport);
     const fallback = { left: right + gap, top: value.top };
-    const left = clamp((fitted ?? fallback).left, padding, currentWindow.innerWidth - size - padding);
-    const top = clamp((fitted ?? fallback).top, padding, currentWindow.innerHeight - size - padding);
+    const viewportLeft = clamp((fitted ?? fallback).left, padding, currentWindow.innerWidth - size - padding);
+    const viewportTop = clamp((fitted ?? fallback).top, padding, currentWindow.innerHeight - size - padding);
+    const nativeAnchor = anchoredTriggerElement === element;
     return {
-      left,
-      top,
-      anchorX: left - value.left,
-      anchorY: top - value.top,
-      nativeAnchor: anchoredTriggerElement === element,
+      left: nativeAnchor ? viewportLeft : viewportLeft + currentWindow.scrollX,
+      top: nativeAnchor ? viewportTop : viewportTop + currentWindow.scrollY,
+      anchorX: viewportLeft - value.left,
+      anchorY: viewportTop - value.top,
+      nativeAnchor,
     };
   };
 
@@ -512,7 +514,7 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-native-scroll-anchor={position().nativeAnchor ? "offset" : undefined}
             aria-label="Annotate selection"
             title="Annotate selection"
-            class="msr:pointer-events-auto msr:fixed msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
+            class="msr:pointer-events-auto msr:absolute msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
             style={{
               left: position().nativeAnchor
                 ? `calc(anchor(left) + ${position().anchorX}px)`
