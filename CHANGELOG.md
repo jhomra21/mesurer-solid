@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.7-beta.9 - 2026-09-12
+
 - Keep live Select hover outlines below the active document-backed Typography inspector during direct text editing, while ordinary Select hover retains its protected top-layer ownership.
 
 ## 0.1.7-beta.8 - 2026-09-12
