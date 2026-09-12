@@ -69,10 +69,10 @@ export const createTextPresentationPolicyRuntime = (
       }
     }),
   };
-  // Object.create returns an intentionally structural object. Every Window API
-  // the text core consumes is supplied explicitly above, with methods bound to
-  // the real browsing-context Window so DOM brand checks keep the right receiver.
-  const policyWindow: Window = Object.assign(Object.create(null), policyWindowFacade);
+  // Keep the facade object itself so its viewport accessors remain live. Copying
+  // it with Object.assign would eagerly evaluate those getters and freeze the
+  // initial width/height/scroll values for the lifetime of the text runtime.
+  const policyWindow = policyWindowFacade as unknown as Window;
 
   const currentToolMode: NonNullable<MesurerSolidRuntimeService["currentToolMode"]> = () => {
     const mode = runtime.currentToolMode?.() ?? "none";
