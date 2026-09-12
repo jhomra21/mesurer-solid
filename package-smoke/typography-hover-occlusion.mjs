@@ -21,19 +21,6 @@ try {
   });
 
   await page.evaluate(() => window.__MESURER__.command("builtin.select"));
-  const editTarget = page.locator("[data-testid='consumer-sibling']");
-  const editBox = await editTarget.boundingBox();
-  if (!editBox) throw new Error("Packed Solid 2 direct-edit target has no bounding box");
-  await page.mouse.dblclick(
-    editBox.x + editBox.width / 2,
-    editBox.y + editBox.height / 2,
-  );
-
-  const editor = page.locator("[data-mesurer-text-editor='true']");
-  const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
-  await editor.waitFor({ state: "visible", timeout: 5000 });
-  await inspector.waitFor({ state: "visible", timeout: 5000 });
-  await page.waitForTimeout(80);
 
   const hoverTargetBox = await page.evaluate(() => {
     const target = document.createElement("div");
@@ -51,9 +38,38 @@ try {
     const rect = target.getBoundingClientRect();
     return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
   });
-
   const hoverX = hoverTargetBox.x + hoverTargetBox.width / 2;
   const hoverY = hoverTargetBox.y + hoverTargetBox.height / 2;
+
+  // Before direct editing begins, ordinary Select hover must keep the original
+  // hardened top-layer ownership. The document portal is only for the active
+  // Typography overlap case, not a global change to Select hover semantics.
+  await page.mouse.move(hoverX, hoverY);
+  await waitFrames(2);
+  const ordinaryHover = await page.evaluate(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    return {
+      bodyHover: Boolean(document.body.querySelector("[data-mesurer-hover-measurement='true']")),
+      shadowHover: Boolean(island?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']")),
+    };
+  });
+  if (ordinaryHover.bodyHover || !ordinaryHover.shadowHover) {
+    throw new Error(`Ordinary Select hover left the protected top-layer island: ${JSON.stringify(ordinaryHover)}`);
+  }
+
+  const editTarget = page.locator("[data-testid='consumer-sibling']");
+  const editBox = await editTarget.boundingBox();
+  if (!editBox) throw new Error("Packed Solid 2 direct-edit target has no bounding box");
+  await page.mouse.dblclick(
+    editBox.x + editBox.width / 2,
+    editBox.y + editBox.height / 2,
+  );
+
+  const editor = page.locator("[data-mesurer-text-editor='true']");
+  const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
+  await editor.waitFor({ state: "visible", timeout: 5000 });
+  await inspector.waitFor({ state: "visible", timeout: 5000 });
+  await page.waitForTimeout(80);
 
   // The first movement can be the event that clears document-UI passthrough
   // after leaving the Typography card. A second real pointer movement exercises
@@ -103,6 +119,7 @@ try {
     const value = {
       islandTopLayer: island.matches(":popover-open"),
       hoverDocumentBacked: hover.getRootNode() === document,
+      documentHoverLayer: hover.getAttribute("data-mesurer-document-hover-layer"),
       hitInsideTypography: hit instanceof Element && card.contains(hit),
       editorActive: activeEditor instanceof HTMLElement,
       hoverZIndex: getComputedStyle(hover).zIndex,
@@ -121,8 +138,8 @@ try {
   if (!result.islandTopLayer) {
     throw new Error(`Regression did not exercise the protected top-layer mount: ${JSON.stringify(result)}`);
   }
-  if (!result.hoverDocumentBacked) {
-    throw new Error(`Select hover chrome stayed in the top-layer island while Typography was document-backed: ${JSON.stringify(result)}`);
+  if (!result.hoverDocumentBacked || result.documentHoverLayer !== "true") {
+    throw new Error(`Select hover chrome did not enter the scoped Typography document layer: ${JSON.stringify(result)}`);
   }
   if (!result.hitInsideTypography) {
     throw new Error(`Select hover chrome painted above the active Typography inspector: ${JSON.stringify(result)}`);
@@ -131,7 +148,7 @@ try {
     throw new Error(`Hovering a nearby page element closed direct text editing: ${JSON.stringify(result)}`);
   }
 
-  console.log("Packed Solid 2 Typography/Select hover ownership: PASS", result);
+  console.log("Packed Solid 2 Typography/Select hover ownership: PASS", { ordinaryHover, ...result });
 } finally {
   await page.close();
   await browser.close();
