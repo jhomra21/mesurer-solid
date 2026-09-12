@@ -21,38 +21,12 @@ type DocumentRuntime = {
   isolated: boolean;
 };
 
-type RectLike = {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-};
-
-type CachedTarget = RectLike & {
-  element: HTMLElement;
-};
-
-type CachedToolbar = RectLike & {
-  element: HTMLElement;
-};
-
-const TOOLBAR_TARGET_GAP = 6;
-const VIEWPORT_PADDING = 8;
-const SCROLL_IDLE_MS = 80;
-
 const isDocumentBackedShadow = (
   runtime: MesurerSolidRuntimeService,
   realm: Window & typeof globalThis,
 ) => runtime.portalTarget instanceof realm.ShadowRoot
   && !(runtime.pageTarget instanceof realm.ShadowRoot)
   && runtime.pageTarget.getRootNode() === runtime.ownerDocument;
-
-const intersects = (left: RectLike, right: RectLike, gap = 0) => !(
-  left.left + left.width + gap <= right.left
-  || right.left + right.width + gap <= left.left
-  || left.top + left.height + gap <= right.top
-  || right.top + right.height + gap <= left.top
-);
 
 const captureDisplay = (element: HTMLElement): InlineDisplay => ({
   value: element.style.getPropertyValue("display"),
@@ -256,154 +230,6 @@ export function installIsolatedSelectionPortal(
     ownerWindow.removeEventListener("dblclick", schedule, true);
     ownerWindow.removeEventListener("resize", schedule, true);
     for (const placement of Array.from(placements.values())) releaseRoot(placement, true);
-    workspace.dispose();
-  });
-}
-
-/**
- * The canonical toolbar is viewport UI, so it should not chase the selected
- * element. Its collision response is computed from cached document geometry:
- * scroll events do arithmetic plus a compositor `translate` write only. DOM
- * geometry is sampled when selection/layout changes and once after scrolling
- * settles, never in the hot trackpad path.
- */
-export function installToolbarTargetAvoidance(
-  ctx: MesurerPluginContext,
-  runtime: MesurerSolidRuntimeService,
-) {
-  const { ownerWindow, portalTarget } = runtime;
-  const workspace = runtime.createWorkspaceRuntime();
-  let disposed = false;
-  let captureQueued = false;
-  let scrolling = false;
-  let scrollIdleTimer = 0;
-  let target: CachedTarget | null = null;
-  let toolbar: CachedToolbar | null = null;
-
-  const clearAvoidance = (element: HTMLElement) => {
-    element.style.removeProperty("translate");
-    delete element.dataset.mesurerToolbarAvoidingTarget;
-    delete element.dataset.mesurerToolbarAvoidX;
-    delete element.dataset.mesurerToolbarAvoidY;
-  };
-
-  const applyCached = () => {
-    if (disposed || !toolbar?.element.isConnected || !target?.element.isConnected) return;
-    const base = toolbar;
-    const targetBox: RectLike = {
-      left: target.left - ownerWindow.scrollX,
-      top: target.top - ownerWindow.scrollY,
-      width: target.width,
-      height: target.height,
-    };
-
-    if (!intersects(base, targetBox, TOOLBAR_TARGET_GAP)) {
-      clearAvoidance(base.element);
-      return;
-    }
-
-    const maxLeft = Math.max(VIEWPORT_PADDING, ownerWindow.innerWidth - base.width - VIEWPORT_PADDING);
-    const maxTop = Math.max(VIEWPORT_PADDING, ownerWindow.innerHeight - base.height - VIEWPORT_PADDING);
-    const left = Math.min(maxLeft, Math.max(VIEWPORT_PADDING, base.left));
-    const targetCenterY = targetBox.top + targetBox.height / 2;
-    const verticalCandidates = targetCenterY < ownerWindow.innerHeight / 2
-      ? [maxTop, VIEWPORT_PADDING]
-      : [VIEWPORT_PADDING, maxTop];
-    const horizontalCandidates = [
-      Math.min(maxLeft, Math.max(VIEWPORT_PADDING, targetBox.left - base.width - TOOLBAR_TARGET_GAP)),
-      Math.min(maxLeft, Math.max(VIEWPORT_PADDING, targetBox.left + targetBox.width + TOOLBAR_TARGET_GAP)),
-    ];
-
-    const candidates: RectLike[] = [
-      ...verticalCandidates.map((top) => ({ left, top, width: base.width, height: base.height })),
-      ...horizontalCandidates.map((candidateLeft) => ({
-        left: candidateLeft,
-        top: Math.min(maxTop, Math.max(VIEWPORT_PADDING, base.top)),
-        width: base.width,
-        height: base.height,
-      })),
-    ];
-    const next = candidates.find((candidate) => !intersects(candidate, targetBox, TOOLBAR_TARGET_GAP));
-    if (!next) return;
-
-    const offsetX = next.left - base.left;
-    const offsetY = next.top - base.top;
-    base.element.style.setProperty("translate", `${offsetX}px ${offsetY}px`, "important");
-    base.element.dataset.mesurerToolbarAvoidingTarget = "true";
-    base.element.dataset.mesurerToolbarAvoidX = String(offsetX);
-    base.element.dataset.mesurerToolbarAvoidY = String(offsetY);
-  };
-
-  const capture = () => {
-    captureQueued = false;
-    if (disposed) return;
-    const nextToolbar = portalTarget.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
-    const nextTarget = workspace.currentSelection().elements.at(-1) ?? null;
-    if (!nextToolbar?.isConnected || !nextTarget?.isConnected) {
-      if (toolbar?.element.isConnected) clearAvoidance(toolbar.element);
-      toolbar = null;
-      target = null;
-      return;
-    }
-
-    const rendered = nextToolbar.getBoundingClientRect();
-    const priorX = Number(nextToolbar.dataset.mesurerToolbarAvoidX ?? 0);
-    const priorY = Number(nextToolbar.dataset.mesurerToolbarAvoidY ?? 0);
-    toolbar = {
-      element: nextToolbar,
-      left: rendered.left - priorX,
-      top: rendered.top - priorY,
-      width: rendered.width,
-      height: rendered.height,
-    };
-
-    const targetRect = nextTarget.getBoundingClientRect();
-    target = {
-      element: nextTarget,
-      left: targetRect.left + ownerWindow.scrollX,
-      top: targetRect.top + ownerWindow.scrollY,
-      width: targetRect.width,
-      height: targetRect.height,
-    };
-    applyCached();
-  };
-
-  const scheduleCapture = () => {
-    if (disposed || captureQueued) return;
-    captureQueued = true;
-    ownerWindow.queueMicrotask(capture);
-  };
-
-  const unsubscribeWorkspace = workspace.subscribe(() => {
-    const nextTarget = workspace.currentSelection().elements.at(-1) ?? null;
-    if (nextTarget !== target?.element || !scrolling) scheduleCapture();
-  });
-  const onScroll = () => {
-    scrolling = true;
-    applyCached();
-    if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
-    scrollIdleTimer = ownerWindow.setTimeout(() => {
-      scrollIdleTimer = 0;
-      scrolling = false;
-      scheduleCapture();
-    }, SCROLL_IDLE_MS);
-  };
-  const onResize = () => scheduleCapture();
-  const onPointerUp = () => scheduleCapture();
-
-  ownerWindow.addEventListener("scroll", onScroll, true);
-  ownerWindow.addEventListener("resize", onResize, true);
-  ownerWindow.addEventListener("pointerup", onPointerUp, true);
-  scheduleCapture();
-
-  ctx.lifecycle.onDispose(() => {
-    disposed = true;
-    unsubscribeWorkspace();
-    if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
-    ownerWindow.removeEventListener("scroll", onScroll, true);
-    ownerWindow.removeEventListener("resize", onResize, true);
-    ownerWindow.removeEventListener("pointerup", onPointerUp, true);
-    if (toolbar?.element.isConnected) clearAvoidance(toolbar.element);
     workspace.dispose();
   });
 }
