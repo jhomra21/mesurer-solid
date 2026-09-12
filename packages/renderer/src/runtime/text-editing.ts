@@ -4,13 +4,13 @@ import { installDocumentScrollAnchoring } from "./document-scroll-anchoring";
 import { createDocumentTextRuntime } from "./isolated-document-portal";
 import { installIsolatedDocumentUiPassthrough } from "./isolated-document-ui-passthrough";
 import { installNativeScrollStability } from "./native-scroll-stability";
-import { installTextEditorPaintGuard } from "./text-editor-paint-guard";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
 import { installTextEditingPresentation } from "./text-editing-presentation";
 import {
   installMixedInlineTextTargeting,
   installRenderInPlaceTextEditing,
 } from "./text-editing-render-in-place";
+import { installDirectEditSelectionChromeOwnership } from "./text-editing-selection-chrome";
 import { createTextPresentationPolicyRuntime } from "./text-presentation-policy-runtime";
 import { installUnifiedTextInspector } from "./text-editing-unified-inspector";
 import {
@@ -54,10 +54,6 @@ export function installTextEditing(
   // never reparent renderer-owned nodes imperatively.
   const { runtime: textRuntime } = createDocumentTextRuntime(runtime);
 
-  // The native textarea is only an input/selection model. Install its paint
-  // guard before the core can append it so browser selection/compositor frames
-  // can never expose a second visible copy of the page text.
-  installTextEditorPaintGuard(ctx, textRuntime);
   installMixedInlineTextTargeting(ctx, textRuntime);
   // The custom dropdown owns Escape only while one of its options has focus.
   // Install that narrow guard before the core's global Escape cancellation.
@@ -75,6 +71,10 @@ export function installTextEditing(
   // is Mesurer-owned for interaction but source-owned for geometry: clicking it
   // cannot retarget Select, while page scrolling carries it with the edited text.
   installUnifiedTextInspector(ctx, textRuntime);
+  // Direct edit owns its own blue ring and range highlight. Suppress the
+  // ordinary selection MeasurementBox before the ring can first paint so the
+  // browser never has two independently anchored copies of the same border.
+  installDirectEditSelectionChromeOwnership(ctx, textRuntime);
   installRenderInPlaceTextEditing(ctx, textRuntime);
   installUnifiedTextSelectMenus(ctx, textRuntime);
   installUnifiedTextSelectLayer(ctx, textRuntime);
