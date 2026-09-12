@@ -20,6 +20,7 @@ on:
       - "examples/basic/src/plugin-settings.ts"
       - "visual-parity/compact-settings-toolbar-occlusion-contract.mjs"
       - "visual-parity/manual-acceptance-regressions.mjs"
+      - "visual-parity/normal-context-annotation-contract.mjs"
       - ".github/workflows/manual-acceptance-regressions.yml"
   workflow_dispatch:
 
@@ -78,6 +79,11 @@ jobs:
         env:
           COMPACT_SETTINGS_URL: http://127.0.0.1:4174/plugin-settings.html
         run: bun visual-parity/compact-settings-toolbar-occlusion-contract.mjs
+
+      - name: Reproduce normal Context annotation case
+        env:
+          NORMAL_CONTEXT_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/normal-context-annotation-contract.mjs
 
       - name: Stop playground
         if: always()
