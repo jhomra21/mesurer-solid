@@ -89,6 +89,19 @@ try {
   );
   let triggerBox = await box(trigger, "annotation trigger after persisted Context selection");
   const beforeScroll = { target: await box(target, "target before Context wheel"), trigger: triggerBox };
+
+  await page.evaluate(() => {
+    const triggerElement = document.querySelector("[data-mesurer-annotation-trigger='true']");
+    if (!(triggerElement instanceof HTMLElement)) throw new Error("annotation trigger missing before scroll mutation probe");
+    const state = { count: 0, observer: null };
+    const observer = new MutationObserver((records) => {
+      state.count += records.filter((record) => record.type === "attributes" && record.attributeName === "style").length;
+    });
+    observer.observe(triggerElement, { attributes: true, attributeFilter: ["style"] });
+    state.observer = observer;
+    window.__MESURER_CONTEXT_SCROLL_STYLE_MUTATIONS__ = state;
+  });
+
   await page.mouse.move(1120, 470);
   await page.mouse.wheel(0, 48);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -96,12 +109,23 @@ try {
     target: await box(target, "target after Context wheel"),
     trigger: await box(trigger, "trigger after Context wheel"),
   };
+  const styleMutations = await page.evaluate(() => {
+    const state = window.__MESURER_CONTEXT_SCROLL_STYLE_MUTATIONS__;
+    state?.observer?.disconnect();
+    delete window.__MESURER_CONTEXT_SCROLL_STYLE_MUTATIONS__;
+    return state?.count ?? 0;
+  });
   assert(Math.abs(afterScroll.target.y - beforeScroll.target.y) > 10, "Context acceptance wheel did not move the target");
   for (const key of ["x", "y"]) {
     const beforeOffset = beforeScroll.trigger[key] - beforeScroll.target[key];
     const afterOffset = afterScroll.trigger[key] - afterScroll.target[key];
     assert(Math.abs(afterOffset - beforeOffset) <= 1.5, `Codex cached-delta trigger ${key} offset drifted: before=${beforeOffset}, after=${afterOffset}`);
   }
+  assert.equal(
+    styleMutations,
+    0,
+    `ordinary window scrolling must not main-thread mutate annotation trigger geometry; observed ${styleMutations} style mutation(s)`,
+  );
   triggerBox = afterScroll.trigger;
   const hit = await page.evaluate(({ x, y }) => {
     const node = document.elementFromPoint(x, y);
@@ -122,7 +146,7 @@ try {
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
   const browserVersion = await browser.version();
   const dpr = await page.evaluate(() => window.devicePixelRatio);
-  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Codex-host cached-delta trigger is visible/clickable at reported 900x184 target geometry, follows real wheel input, saves note, and retains marker: PASS`);
+  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Codex-host cached-delta trigger is visible/clickable at reported 900x184 target geometry, follows real wheel input without window-scroll style catch-up, saves note, and retains marker: PASS`);
 } finally {
   await browser.close();
 }
