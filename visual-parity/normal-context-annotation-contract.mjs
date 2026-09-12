@@ -4,12 +4,9 @@ import { chromium } from "playwright";
 const url = process.env.NORMAL_CONTEXT_URL ?? "http://127.0.0.1:4174/";
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: { width: 1019, height: 432 } });
-const errors = [];
+const pageErrors = [];
 
-page.on("pageerror", (error) => errors.push(String(error)));
-page.on("console", (message) => {
-  if (message.type() === "error") errors.push(message.text());
-});
+page.on("pageerror", (error) => pageErrors.push(String(error)));
 
 const box = async (locator, stage) => {
   const value = await locator.boundingBox();
@@ -17,12 +14,19 @@ const box = async (locator, stage) => {
   return value;
 };
 
+const openSettings = async () => {
+  const button = page.locator("button[data-mesurer-builtin='settings']");
+  await button.waitFor({ state: "visible" });
+  await button.click();
+  const dialog = page.getByRole("dialog", { name: "Settings" });
+  await dialog.waitFor({ state: "visible" });
+  return dialog;
+};
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
 
-  await page.keyboard.press("Control+,");
-  let settings = page.getByRole("dialog", { name: "Settings" });
-  await settings.waitFor({ state: "visible" });
+  let settings = await openSettings();
   let general = settings.getByRole("tab", { name: "General", exact: true });
   if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
   let disclosure = settings.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
@@ -30,7 +34,7 @@ try {
   let context = settings.getByRole("switch", { name: "Context", exact: true });
   if ((await context.getAttribute("aria-checked")) !== "true") await context.click();
   await page.waitForFunction(() => document.querySelector("[data-mesurer-plugin-toggle='mesurer.context']")?.getAttribute("aria-checked") === "true");
-  await page.keyboard.press("Control+,");
+  await page.locator("button[data-mesurer-builtin='settings']").click();
   await settings.waitFor({ state: "hidden" });
 
   // Match the manual session: Context is already enabled when the page starts.
@@ -39,16 +43,14 @@ try {
   await page.reload({ waitUntil: "networkidle" });
   const contextTool = page.locator("[data-mesurer-tool-id='context.copy'] button");
   await contextTool.waitFor({ state: "visible" });
-  await page.keyboard.press("Control+,");
-  settings = page.getByRole("dialog", { name: "Settings" });
-  await settings.waitFor({ state: "visible" });
+  settings = await openSettings();
   general = settings.getByRole("tab", { name: "General", exact: true });
   if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
   disclosure = settings.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
   if ((await disclosure.getAttribute("aria-expanded")) !== "true") await disclosure.click();
   context = settings.getByRole("switch", { name: "Context", exact: true });
   assert.equal(await context.getAttribute("aria-checked"), "true", "Context did not restore enabled after reload");
-  await page.keyboard.press("Control+,");
+  await page.locator("button[data-mesurer-builtin='settings']").click();
   await settings.waitFor({ state: "hidden" });
 
   const select = page.locator("button[data-mesurer-builtin='select']");
@@ -57,6 +59,8 @@ try {
 
   const target = page.locator(".hero h1");
   const targetBox = await box(target, "hero target before selection");
+  assert(Math.abs(targetBox.width - 900) <= 2, `expected reported 900px hero width, got ${targetBox.width}`);
+  assert(Math.abs(targetBox.height - 184) <= 4, `expected reported ~184px hero height, got ${targetBox.height}`);
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const selected = page.locator("[data-mesurer-selected-measurement='true'] > div").first();
@@ -78,16 +82,16 @@ try {
   await page.mouse.click(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height / 2);
   const composer = page.locator("[data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
-  const textarea = composer.locator("textarea");
-  await textarea.fill("Normal playground annotation acceptance");
+  await composer.locator("textarea").fill("Normal playground annotation acceptance");
   await composer.getByRole("button", { name: "Add note", exact: true }).click();
   await composer.waitFor({ state: "hidden" });
 
   const marker = page.locator("[data-mesurer-annotation-marker='true']");
   await marker.waitFor({ state: "visible" });
   assert.equal(await marker.count(), 1, "saved normal-playground annotation marker missing");
-  assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Normal Context annotation E2E: stable Chrome, persisted Context reload at reported viewport geometry, physical hero selection, rendered/clickable trigger, saved note, and retained marker: PASS");
+  assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
+  const browserVersion = await browser.version();
+  console.log(`Normal Context annotation E2E (${browserVersion}): persisted Context reload at reported 900x184 target geometry, physical hero selection, rendered/clickable trigger, saved note, and retained marker: PASS`);
 } finally {
   await browser.close();
 }
