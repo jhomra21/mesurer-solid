@@ -1,39 +1,30 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 
-type SuppressedKind = "selection" | "hover";
-
 type InlineOpacity = {
   value: string;
   priority: string;
   marker: string | undefined;
-  kind: SuppressedKind;
 };
 
 const SELECTED_ROOT = "[data-mesurer-selected-measurement='true']";
-const HOVER_ROOT = "[data-mesurer-hover-measurement='true']";
 const EDITOR = "[data-mesurer-text-editor='true']";
-const EDIT_RING = "[data-mesurer-text-edit-ring='true']";
-
-const sameRect = (left: DOMRect, right: DOMRect, tolerance = 2) => (
-  Math.abs(left.left - right.left) <= tolerance
-  && Math.abs(left.top - right.top) <= tolerance
-  && Math.abs(left.width - right.width) <= tolerance
-  && Math.abs(left.height - right.height) <= tolerance
-);
 
 /**
- * Direct text edit owns the visible blue geometry for the element being edited.
- * Select can remain active in the background, but neither its selected
- * MeasurementBox nor its hover box for that same page element may paint at the
- * same time as the edit ring. Those surfaces use independent native anchors;
- * if two compositor handoffs land on different frames, the redundant surface
- * becomes the trailing/duplicate blue rectangle seen during entry and scroll.
+ * Direct text edit owns the visible blue border for the edited element.
  *
- * Keep logical selection and hover state intact. Only their redundant visual
- * presentation is made paintless while the editor owns that exact target.
- * Hovering a different page element remains visible so Select keeps working
- * normally during direct editing.
+ * In the public isolated mount, selected MeasurementBox presentation can cross
+ * from the renderer ShadowRoot into the document layer while Solid reconciles
+ * the portal. The text-edit runtime itself is already document-backed, so only
+ * scanning its portal misses a transient selected root that is still alive in
+ * the original isolated renderer. If both copies paint, their independently
+ * updated geometry can separate for a frame and appear as the duplicate/trailing
+ * blue rectangle seen during direct-edit entry and compositor scrolling.
+ *
+ * Keep logical selection and all native anchor state mounted. Make every
+ * selected MeasurementBox presentation paintless for the editor lifetime in
+ * both ownership layers, then restore its exact prior inline opacity when the
+ * editor closes.
  */
 export function installDirectEditSelectionChromeOwnership(
   ctx: MesurerPluginContext,
@@ -41,57 +32,39 @@ export function installDirectEditSelectionChromeOwnership(
   sourcePortalTarget: HTMLElement | ShadowRoot = runtime.portalTarget,
 ) {
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
-  // SAFETY: ownerWindow owns all supplied roots and supplies their matching DOM constructors.
+  // SAFETY: ownerWindow owns the runtime and source portal roots.
   const realm = ownerWindow as Window & typeof globalThis;
   const runtimeMounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
   const runtimeMount = runtimeMounts.item(runtimeMounts.length - 1);
   if (!runtimeMount) return;
 
-  const workspace = runtime.createWorkspaceRuntime();
   const suppressed = new Map<HTMLElement, InlineOpacity>();
   let active = false;
   let queued = false;
   let disposed = false;
-  let chromeObserver: MutationObserver | null = null;
+  let selectionObserver: MutationObserver | null = null;
 
-  const chromeRoots = (selector: string) => {
+  const selectionRoots = () => {
     const roots = new Set<HTMLElement>();
     const scopes: ParentNode[] = [portalTarget];
     if (sourcePortalTarget !== portalTarget) scopes.push(sourcePortalTarget);
     if (ownerDocument.body && !scopes.includes(ownerDocument.body)) scopes.push(ownerDocument.body);
+
     for (const scope of scopes) {
-      for (const root of scope.querySelectorAll<HTMLElement>(selector)) roots.add(root);
+      for (const root of scope.querySelectorAll<HTMLElement>(SELECTED_ROOT)) roots.add(root);
     }
     return roots;
   };
 
-  const markerFor = (root: HTMLElement, kind: SuppressedKind) => kind === "selection"
-    ? root.dataset.mesurerDirectEditSelectionSuppressed
-    : root.dataset.mesurerDirectEditHoverSuppressed;
-
-  const setMarker = (root: HTMLElement, kind: SuppressedKind, value: string | undefined) => {
-    if (kind === "selection") {
-      if (value === undefined) delete root.dataset.mesurerDirectEditSelectionSuppressed;
-      else root.dataset.mesurerDirectEditSelectionSuppressed = value;
-      return;
-    }
-    if (value === undefined) delete root.dataset.mesurerDirectEditHoverSuppressed;
-    else root.dataset.mesurerDirectEditHoverSuppressed = value;
-  };
-
-  const suppressRoot = (root: HTMLElement, kind: SuppressedKind) => {
-    const previous = suppressed.get(root);
-    if (!previous) {
+  const suppressRoot = (root: HTMLElement) => {
+    if (!suppressed.has(root)) {
       suppressed.set(root, {
         value: root.style.getPropertyValue("opacity"),
         priority: root.style.getPropertyPriority("opacity"),
-        marker: markerFor(root, kind),
-        kind,
+        marker: root.dataset.mesurerDirectEditSelectionSuppressed,
       });
-    } else if (previous.kind !== kind) {
-      return;
     }
-    setMarker(root, kind, "true");
+    root.dataset.mesurerDirectEditSelectionSuppressed = "true";
     root.style.setProperty("opacity", "0", "important");
   };
 
@@ -102,54 +75,22 @@ export function installDirectEditSelectionChromeOwnership(
       } else {
         root.style.removeProperty("opacity");
       }
-      setMarker(root, previous.kind, previous.marker);
+      if (previous.marker === undefined) delete root.dataset.mesurerDirectEditSelectionSuppressed;
+      else root.dataset.mesurerDirectEditSelectionSuppressed = previous.marker;
     }
     suppressed.delete(root);
   };
 
-  const restoreKind = (kind: SuppressedKind) => {
+  const suppressCurrentRoots = () => {
+    const current = selectionRoots();
+    for (const root of current) suppressRoot(root);
     for (const [root, previous] of Array.from(suppressed)) {
-      if (previous.kind === kind) restoreRoot(root, previous);
+      if (!root.isConnected || !current.has(root)) restoreRoot(root, previous);
     }
   };
 
   const restoreAll = () => {
     for (const [root, previous] of Array.from(suppressed)) restoreRoot(root, previous);
-  };
-
-  const hoverBelongsToEditedTarget = () => {
-    const hovered = workspace.hoveredElement();
-    if (!hovered?.isConnected) return false;
-    if (workspace.currentSelection().elements.includes(hovered)) return true;
-
-    // Direct editing can begin before Select has committed a logical selection
-    // in some host/event orderings. The edit ring is already the authoritative
-    // source geometry at that point, so use it only as a narrow fallback.
-    const ring = runtimeMount.querySelector<HTMLElement>(EDIT_RING);
-    if (!ring?.isConnected) return false;
-    return sameRect(hovered.getBoundingClientRect(), ring.getBoundingClientRect());
-  };
-
-  const suppressCurrentChrome = () => {
-    const selectionRoots = chromeRoots(SELECTED_ROOT);
-    for (const root of selectionRoots) suppressRoot(root, "selection");
-
-    const hoverRoots = chromeRoots(HOVER_ROOT);
-    const suppressHover = hoverBelongsToEditedTarget();
-    if (suppressHover) {
-      for (const root of hoverRoots) suppressRoot(root, "hover");
-    } else {
-      restoreKind("hover");
-    }
-
-    for (const [root, previous] of Array.from(suppressed)) {
-      if (!root.isConnected) {
-        suppressed.delete(root);
-        continue;
-      }
-      if (previous.kind === "selection" && !selectionRoots.has(root)) restoreRoot(root, previous);
-      if (previous.kind === "hover" && (!suppressHover || !hoverRoots.has(root))) restoreRoot(root, previous);
-    }
   };
 
   const schedule = () => {
@@ -161,14 +102,14 @@ export function installDirectEditSelectionChromeOwnership(
     });
   };
 
-  const startChromeObserver = () => {
-    if (chromeObserver) return;
-    chromeObserver = new realm.MutationObserver(schedule);
+  const startSelectionObserver = () => {
+    if (selectionObserver) return;
+    selectionObserver = new realm.MutationObserver(schedule);
     const observed = new Set<Node>();
     const observe = (root: Node, subtree: boolean) => {
       if (observed.has(root)) return;
       observed.add(root);
-      chromeObserver!.observe(root, { childList: true, subtree });
+      selectionObserver!.observe(root, { childList: true, subtree });
     };
 
     observe(portalTarget, portalTarget !== ownerDocument.body);
@@ -176,9 +117,9 @@ export function installDirectEditSelectionChromeOwnership(
     if (ownerDocument.body) observe(ownerDocument.body, false);
   };
 
-  const stopChromeObserver = () => {
-    chromeObserver?.disconnect();
-    chromeObserver = null;
+  const stopSelectionObserver = () => {
+    selectionObserver?.disconnect();
+    selectionObserver = null;
   };
 
   const sync = () => {
@@ -186,30 +127,27 @@ export function installDirectEditSelectionChromeOwnership(
     const editor = runtimeMount.querySelector<HTMLTextAreaElement>(EDITOR);
     if (editor) {
       active = true;
-      suppressCurrentChrome();
-      startChromeObserver();
+      suppressCurrentRoots();
+      startSelectionObserver();
       return;
     }
     if (!active && suppressed.size === 0) return;
     active = false;
-    stopChromeObserver();
+    stopSelectionObserver();
     restoreAll();
   };
 
-  // Register before render-in-place does its own editor observer. Mutation
-  // observers run before the next paint, so redundant Select chrome is already
-  // paintless by the frame where the direct-edit ring first appears.
+  // Register before render-in-place creates its visible edit ring. Mutation
+  // observers flush before the next paint, including selected roots that Solid
+  // creates/replaces in either the isolated or document portal during startup.
   const runtimeObserver = new realm.MutationObserver(schedule);
   runtimeObserver.observe(runtimeMount, { childList: true, subtree: true });
-  const unsubscribeWorkspace = workspace.subscribe(schedule);
   sync();
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     runtimeObserver.disconnect();
-    stopChromeObserver();
-    unsubscribeWorkspace();
+    stopSelectionObserver();
     restoreAll();
-    workspace.dispose();
   });
 }
