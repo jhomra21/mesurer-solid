@@ -1,7 +1,10 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { installDocumentScrollAnchoring } from "./document-scroll-anchoring";
-import { createDocumentTextRuntime } from "./isolated-document-portal";
+import {
+  createDocumentTextRuntime,
+  installToolbarTargetAvoidance,
+} from "./isolated-document-portal";
 import { installIsolatedDocumentUiPassthrough } from "./isolated-document-ui-passthrough";
 import { installNativeScrollStability } from "./native-scroll-stability";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
@@ -37,6 +40,11 @@ export function installTextEditing(
   ctx: MesurerPluginContext,
   runtime: MesurerSolidRuntimeService,
 ) {
+  // The canonical toolbar is viewport UI and must not cover the page target it
+  // is describing. This coordinator owns that one collision response using
+  // cached target/toolbar geometry; scroll handling stays arithmetic-only.
+  installToolbarTargetAvoidance(ctx, runtime);
+
   // Document-backed inspector controls can sit visually above the page while
   // the public ShadowRoot island remains in the browser top layer. Let real
   // pointer input pass through the isolated selection plane only over those
