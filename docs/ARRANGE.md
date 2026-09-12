@@ -58,6 +58,21 @@ Each completed drag records target identity, Before and Desired rectangles, offs
 
 The preview is temporary browser presentation. Arrange never writes production CSS, templates, component source, or application state.
 
+## Original vs Desired presentation
+
+Saving an Arrange action and keeping its preview visible outside Arrange are separate decisions. The saved intent remains available even when Mesurer restores the original page geometry.
+
+By default, **Keep Arrange changes is OFF**:
+
+- while **Arrange** owns the presentation, saved Desired transforms are shown;
+- when you return to **Select** or another tool, the original page presentation is restored;
+- switching back to Arrange shows the saved Desired arrangement again;
+- switching presentation does not delete Arrange intent or history.
+
+To keep saved Arrange changes visible outside Arrange, open **Settings** with the gear button or `Cmd/Ctrl+,`, choose **General**, and turn on **Keep Arrange changes**. The setting is persisted. Turning it off restores the normal tool-owned behavior without deleting saved intent.
+
+The same General panel contains **Keep text changes** for Typography/direct text editing; see [Direct text editing and Typography](./TEXT_EDITING.md).
+
 ## Transform ownership
 
 Arrange previews movement with an inline transform while retaining the element's previous inline transform value and priority as its baseline.

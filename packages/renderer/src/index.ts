@@ -12,6 +12,8 @@ export type {
   MesurerWorkspaceRuntime,
   MesurerWorkspaceSnapshot,
 } from "./runtime/workspace-context";
+export { createDocumentInspectorRuntime } from "./runtime/document-inspector-runtime";
+export type { MesurerDocumentInspectorRuntime } from "./runtime/document-inspector-runtime";
 export {
   colorPickerPlugin,
   composeMesurerPlugins,

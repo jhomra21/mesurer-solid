@@ -12,7 +12,9 @@ Double-click ordinary direct text on desktop, or double-tap with touch or pen. M
 
 When editing begins from Select or Arrange, Typography becomes contextually active for that field without replacing Select. If Typography was already explicitly selected, the normal hover/pinned Typography surface is temporarily suppressed so the field has one live card. Ending the edit restores the normal Typography surface and keeps the explicitly selected tool active.
 
-That one contextual card is also the direct formatting surface. Family, Size, Weight, Line, and Tracking are live controls; Format contains Bold, Italic, and Underline; Color contains rendered-page swatches plus a custom color; and Style opens the available Text/Heading presets inside the same card. The card stays visible during the edit and is positioned around the active text without covering it. When full-height placement is impossible in a constrained viewport, the card uses the available lane and scrolls internally rather than disappearing below the viewport or obscuring the field.
+That one contextual card is also the direct formatting surface. Family, Size, Weight, Line, and Tracking are live controls; Format contains Bold, Italic, and Underline; Color contains rendered-page swatches plus a custom color; and Style opens the available Text/Heading presets inside the same card. The card stays visible during the edit and is initially positioned around the active text without covering it. When full-height placement is impossible in a constrained viewport, the card uses the available lane and scrolls internally rather than disappearing below the viewport or obscuring the field.
+
+Typography has two deliberately separate ownership rules. **Interaction ownership belongs to Mesurer:** the card and its controls are inspector UI, never inspectable page content, and form a hard hit-test boundary so clicking or double-clicking them cannot select the card itself or retarget page content underneath. **Geometry ownership belongs to the inspected text:** while the source is visible the card is placed around that source, then scrolls with it; when the source leaves the viewport the contextual card leaves with it instead of remaining as unrelated viewport furniture. The global toolbar and its Settings surface remain viewport-owned UI.
 
 ## What can be edited
 
@@ -62,9 +64,24 @@ A heading shortcut does nothing when that level is unavailable.
 
 Normal Mesurer tool shortcuts are suppressed while the editor owns keyboard focus. Interacting with a control inside the Typography card keeps the same edit session active.
 
+## Original vs Desired presentation
+
+Saving an edit and showing it on the page are separate decisions. The saved intent is retained even when Mesurer temporarily shows the original page value.
+
+By default, **Keep text changes is OFF**:
+
+- while **Typography** owns the presentation, saved Desired copy/style is shown;
+- when you return to **Select** or another tool, the original page presentation is restored;
+- switching back to Typography shows the saved Desired presentation again;
+- this presentation switch does not delete the saved edit or its history.
+
+To keep saved text/style changes visible outside Typography, open **Settings** with the gear button or `Cmd/Ctrl+,`, choose **General**, and turn on **Keep text changes**. The setting is persisted. Turning it off restores the normal tool-owned behavior without deleting the saved intent.
+
+Arrange has the matching **Keep Arrange changes** switch in the same General panel; see [Arrange](./ARRANGE.md).
+
 ## Desired preview and ownership
 
-Each saved edit records the original target, Before text, Desired text, and requested style deltas. Mesurer may preview Desired on the real target while Select or Typography is active, but application source remains unchanged.
+Each saved edit records the original target, Before text, Desired text, and requested style deltas. Desired presentation is tool-owned by default as described above; application source remains unchanged in either presentation.
 
 Undo and redo update the rendered preview only while Mesurer still owns the current value. If Mesurer changed `Original → First → Second`, undo can move the DOM from `Second` back to `First` when `Second` is still the value Mesurer applied. Style ownership uses the same rule and includes inline priority.
 

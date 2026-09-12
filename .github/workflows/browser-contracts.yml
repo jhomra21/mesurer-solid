@@ -13,18 +13,28 @@ on:
       - "packages/renderer/src/components/MeasurementBox.tsx"
       - "packages/renderer/src/components/MesurerOverlay.tsx"
       - "packages/renderer/src/components/SettingsPanel.tsx"
+      - "packages/renderer/src/components/SettingsPanelCore.tsx"
       - "packages/renderer/src/components/Toolbar.tsx"
       - "packages/renderer/src/core/distances.ts"
       - "packages/renderer/src/core/persistence.ts"
+      - "packages/renderer/src/core/selection-helpers.ts"
       - "packages/renderer/src/model/create-mesurer-model.ts"
+      - "packages/renderer/src/plugins/arrange-core.ts"
       - "packages/renderer/src/plugins/arrange.ts"
       - "packages/renderer/src/plugins/settings-runtime.tsx"
       - "packages/renderer/src/plugins/screenshot.ts"
       - "packages/renderer/src/runtime/builtin-actions.ts"
       - "packages/renderer/src/runtime/color-picker-support.ts"
+      - "packages/renderer/src/runtime/document-scroll-anchoring.ts"
+      - "packages/renderer/src/runtime/nested-scroll-compensation.ts"
+      - "packages/renderer/src/runtime/presentation-preferences.ts"
       - "packages/renderer/src/runtime/text-editing.ts"
       - "packages/renderer/src/runtime/text-editing-core.ts"
       - "packages/renderer/src/runtime/text-editing-presentation.ts"
+      - "packages/renderer/src/runtime/text-editing-unified-inspector.ts"
+      - "packages/renderer/src/runtime/text-inspector.ts"
+      - "packages/renderer/src/runtime/text-presentation-policy-runtime.ts"
+      - "packages/renderer/src/styles.css"
       - "packages/renderer/test/arrange-plugin.test.ts"
       - "packages/renderer/test/distances.test.ts"
       - "packages/renderer/test/measurement-box-scroll.test.tsx"
@@ -39,11 +49,14 @@ on:
       - "examples/basic/plugin-settings.html"
       - "examples/basic/src/plugin-settings.ts"
       - "visual-parity/arrange-contract.mjs"
+      - "visual-parity/arrange-presentation-policy-contract.mjs"
       - "visual-parity/color-picker-contract.mjs"
+      - "visual-parity/presentation-settings-contract.mjs"
       - "visual-parity/selection-scroll-contract.mjs"
       - "visual-parity/shortcuts-setting-contract.mjs"
       - "visual-parity/text-editing-contract.mjs"
       - "visual-parity/typography-editing-layout-contract.mjs"
+      - "visual-parity/typography-inspector-ownership-contract.mjs"
       - "visual-parity/self-hosting-context.mjs"
       - "visual-parity/multi-spacing.mjs"
       - "visual-parity/plugin-settings-contract.mjs"
@@ -110,6 +123,16 @@ jobs:
           ARRANGE_URL: http://127.0.0.1:4174/
         run: bun visual-parity/arrange-contract.mjs
 
+      - name: Exercise Arrange presentation preference
+        env:
+          ARRANGE_PRESENTATION_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/arrange-presentation-policy-contract.mjs
+
+      - name: Exercise presentation Settings discoverability
+        env:
+          PRESENTATION_SETTINGS_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/presentation-settings-contract.mjs
+
       - name: Exercise global Shortcuts setting
         env:
           SHORTCUTS_SETTING_URL: http://127.0.0.1:4174/
@@ -124,6 +147,11 @@ jobs:
         env:
           TYPOGRAPHY_EDITING_URL: http://127.0.0.1:4174/
         run: bun visual-parity/typography-editing-layout-contract.mjs
+
+      - name: Exercise Typography inspector ownership and occlusion
+        env:
+          TYPOGRAPHY_OWNERSHIP_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/typography-inspector-ownership-contract.mjs
 
       - name: Exercise selection scroll anchoring
         env:
@@ -167,7 +195,13 @@ jobs:
           print("### Arrange")
           print("- Toolbar enablement after selection exercised in Chromium")
           print("- Nearby-element, X-ray-outline, and guide alignment snapping exercised in Chromium")
-          print("- Ghost suppression, persistent Desired placement, and Live restoration on deactivation exercised in Chromium")
+          print("- Desired layout is tool-owned by default; General → Keep Arrange changes explicitly opts it into other tools")
+          print("- Saved Arrange intent survives Original/Desired presentation switching without another drag")
+
+          print("")
+          print("### Presentation settings")
+          print("- General visibly exposes Keep text changes and Keep Arrange changes")
+          print("- Both switches default off, persist when enabled, and restore cleanly to defaults")
 
           print("")
           print("### Shortcuts")
@@ -181,9 +215,11 @@ jobs:
           print("- Full-text selection and target typography inheritance exercised in Chromium")
           print("- Rendered-page font, size, weight, and color suggestions exercised in Chromium")
           print("- Direct typography controls, semantic-only preset popup, and centered chevron exercised in Chromium")
-          print("- Contextual Typography activation without stealing Select/Arrange exercised in Chromium")
-          print("- Text/style Desired state and Live restoration exercised in Chromium")
+          print("- Saved Text/style intent is Typography-owned by default; Select shows the original page")
+          print("- General → Keep text changes explicitly persists saved Text/style presentation across tools")
           print("- Selected measurement chrome and direct-edit ring remain frame-locked to host geometry while scrolling")
+          print("- Typography is interaction-owned by Mesurer but geometry-owned by its text target: real controls cannot retarget page selection, and the card follows/leaves with the source during scrolling")
+          print("- Physical input on Typography UI cannot retarget the active page editor")
 
           print("")
           print("### Color Picker")
@@ -222,7 +258,8 @@ jobs:
           print("### Plugin settings")
           print("- Available-but-unloaded first-party plugins are discoverable and loadable from Settings")
           print("- Context, Arrange, and Screenshot lifecycle toggles remove and restore real tools/services")
-          print("- Plugin availability, per-plugin settings persistence, and deterministic defaults reset are exercised")
+          print("- Plugin-local persistence is exercised independently of the General presentation switches")
+          print("- Deterministic defaults reset remains exercised")
           PY
 
       - name: Upload self-hosting evidence

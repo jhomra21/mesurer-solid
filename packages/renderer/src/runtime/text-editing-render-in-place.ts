@@ -1,6 +1,7 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import { isElementWithinDomTarget } from "@jhomra21/mesurer-solid-dom";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
+import { isMesurerInputBoundary } from "../core/events";
 
 const TOOLBAR_BLUE = "#0d99ff";
 const SELECTION_FILL = "rgba(13, 153, 255, 0.22)";
@@ -110,6 +111,7 @@ export function installMixedInlineTextTargeting(
     if (!directEditingMode()) return;
 
     for (const candidate of ownerDocument.elementsFromPoint(x, y)) {
+      if (isMesurerInputBoundary(candidate, ownerWindow)) return;
       if (!(candidate instanceof realm.HTMLElement)) continue;
       if (!isPageElement(candidate) || SKIP_TAGS.has(candidate.tagName)) continue;
       if (candidate.isContentEditable) continue;
@@ -190,10 +192,12 @@ export function installRenderInPlaceTextEditing(
   const runtimeMounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
   const runtimeMount = runtimeMounts.item(runtimeMounts.length - 1);
   if (!runtimeMount) return;
+  const workspace = runtime.createWorkspaceRuntime();
 
   let ring: HTMLDivElement | null = null;
   let selectionRects: HTMLDivElement[] = [];
   let boundEditor: HTMLTextAreaElement | null = null;
+  let resolvedEditorTarget: ActiveTextTarget | null = null;
   let queued = false;
   let disposed = false;
 
@@ -216,7 +220,7 @@ export function installRenderInPlaceTextEditing(
     highlight.setAttribute("aria-hidden", "true");
     Object.assign(highlight.style, {
       position: "fixed",
-      zIndex: "2147483646",
+      zIndex: "2147483644",
       pointerEvents: "none",
       borderRadius: "2px",
       background: SELECTION_FILL,
@@ -240,7 +244,7 @@ export function installRenderInPlaceTextEditing(
     ring.setAttribute("aria-hidden", "true");
     Object.assign(ring.style, {
       position: "fixed",
-      zIndex: "2147483647",
+      zIndex: "2147483645",
       pointerEvents: "none",
       boxSizing: "border-box",
       background: "transparent",
@@ -333,10 +337,27 @@ export function installRenderInPlaceTextEditing(
       boundEditor.removeEventListener("pointerup", schedule);
     }
     boundEditor = editor;
+    resolvedEditorTarget = null;
     editor.addEventListener("input", schedule);
     editor.addEventListener("select", schedule);
     editor.addEventListener("keyup", schedule);
     editor.addEventListener("pointerup", schedule);
+  };
+
+  const selectedTargetForEditor = (editor: HTMLTextAreaElement): ActiveTextTarget | null => {
+    const candidates = workspace.currentSelection().elements.filter((element) => (
+      element.isConnected
+      && isElementWithinDomTarget(element, pageTarget)
+      && !element.closest("[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']")
+    ));
+    if (candidates.length !== 1) return null;
+    const element = candidates[0];
+    const nodes = directTextNodes(element, realm);
+    if (!nodes.length) return null;
+    const editorValue = editor.value.trim();
+    const exact = nodes.find(({ node }) => (node.nodeValue ?? "").trim() === editorValue)
+      ?? (nodes.length === 1 ? nodes[0] : null);
+    return exact ? { element, node: exact.node } : null;
   };
 
   const refine = () => {
@@ -350,6 +371,7 @@ export function installRenderInPlaceTextEditing(
         boundEditor.removeEventListener("pointerup", schedule);
       }
       boundEditor = null;
+      resolvedEditorTarget = null;
       clearSelectionRects();
       removeRing();
       return;
@@ -363,7 +385,12 @@ export function installRenderInPlaceTextEditing(
     editor.style.boxShadow = "none";
     bindEditor(editor);
 
-    const target = activeTargetByRuntime.get(runtime) ?? null;
+    const preparedTarget = activeTargetByRuntime.get(runtime) ?? null;
+    const target = preparedTarget
+      ?? resolvedEditorTarget
+      ?? selectedTargetForEditor(editor);
+    if (target?.element.isConnected && target.node.isConnected) resolvedEditorTarget = target;
+
     const host = target?.element ?? null;
     const hostIsUsable = Boolean(
       host?.isConnected
@@ -412,7 +439,9 @@ export function installRenderInPlaceTextEditing(
       boundEditor.removeEventListener("keyup", schedule);
       boundEditor.removeEventListener("pointerup", schedule);
     }
+    resolvedEditorTarget = null;
     clearSelectionRects();
     removeRing();
+    workspace.dispose();
   });
 }

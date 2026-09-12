@@ -1,5 +1,9 @@
 import { For, Show, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
+import {
+  installNestedScrollCompensation,
+  type MesurerNestedScrollCompensation,
+} from "../runtime/nested-scroll-compensation";
 import { CloseIcon, CopyIcon, NoteIcon, TrashIcon } from "./Icons";
 
 export type ContextActionsController = {
@@ -18,6 +22,40 @@ const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
 const annotationButtonClass = "msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:cursor-default msr:disabled:opacity-40";
+let annotationAnchorSequence = 0;
+
+const anchorNames = (value: string) => value
+  .split(",")
+  .map((name) => name.trim())
+  .filter((name) => name.length > 0 && name !== "none");
+
+const addAnchorName = (element: HTMLElement, name: string) => {
+  const before = element.style.getPropertyValue("anchor-name");
+  const beforePriority = element.style.getPropertyPriority("anchor-name");
+  const names = anchorNames(before);
+  if (!names.includes(name)) {
+    element.style.setProperty("anchor-name", [...names, name].join(", "), beforePriority);
+  }
+
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const current = anchorNames(element.style.getPropertyValue("anchor-name"));
+    const remaining = current.filter((candidate) => candidate !== name);
+    if (remaining.length) {
+      element.style.setProperty(
+        "anchor-name",
+        remaining.join(", "),
+        element.style.getPropertyPriority("anchor-name"),
+      );
+    } else if (before.trim() === "none") {
+      element.style.setProperty("anchor-name", before, beforePriority);
+    } else {
+      element.style.removeProperty("anchor-name");
+    }
+  };
+};
 
 const unionRects = (rects: PositionedRect[]): PositionedRect | null => {
   if (!rects.length) return null;
@@ -60,6 +98,7 @@ export function ContextActions(props: ContextActionsProps) {
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
+  const selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
   let surfaceDrag: {
     surfaceId: string;
     pointerId: number;
@@ -72,10 +111,105 @@ export function ContextActions(props: ContextActionsProps) {
   } | null = null;
   let surfaceDragCleanup: (() => void) | null = null;
   let anchorElement: HTMLSpanElement | undefined;
+  let annotationTriggerElement: HTMLButtonElement | undefined;
+  let trackedTriggerElement: HTMLElement | null = null;
+  let anchoredTriggerElement: HTMLElement | null = null;
+  let releaseTriggerAnchor: (() => void) | null = null;
+  let nestedTriggerScroll: MesurerNestedScrollCompensation | null = null;
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
-  const unsubscribe = props.runtime.subscribe(() => setRevision((value) => value + 1));
-  onCleanup(unsubscribe);
+
+  const supportsSelectionTriggerAnchor = () => {
+    const currentWindow = ownerWindow();
+    // CodexBrowser exposes native CSS Anchor Positioning support, but its
+    // document-backed Context surface does not reliably present the anchored
+    // selection affordance. The host bridge is available before Mesurer mounts,
+    // so choose the document-backed fallback deterministically.
+    if (Object.prototype.hasOwnProperty.call(currentWindow, "__codexWebMcpModelContext")) return false;
+    return Boolean(
+      currentWindow.CSS?.supports("anchor-name: --mesurer-annotation-trigger")
+      && currentWindow.CSS.supports("position-anchor: --mesurer-annotation-trigger")
+      && currentWindow.CSS.supports("left: anchor(left)"),
+    );
+  };
+
+  const currentSelectionTriggerElement = () => {
+    const elements = props.runtime.currentSelection().elements;
+    if (!elements.length) return null;
+    const hovered = props.runtime.hoveredElement();
+    return elements.find((element) => element === hovered)
+      ?? elements.find((element) => hovered && element.contains(hovered))
+      ?? elements[0];
+  };
+
+  const releaseSelectionTriggerAnchor = () => {
+    nestedTriggerScroll?.release();
+    nestedTriggerScroll = null;
+    releaseTriggerAnchor?.();
+    releaseTriggerAnchor = null;
+    trackedTriggerElement = null;
+    anchoredTriggerElement = null;
+  };
+
+  const canUseNativeTriggerAnchor = (element: HTMLElement) => Boolean(
+    anchorElement
+    && supportsSelectionTriggerAnchor()
+    && element.getRootNode() === anchorElement.getRootNode(),
+  );
+
+  const syncSelectionTriggerAnchor = () => {
+    const element = currentSelectionTriggerElement();
+    const shouldUseNative = Boolean(element?.isConnected && canUseNativeTriggerAnchor(element));
+    const alreadyNative = anchoredTriggerElement === element;
+    if (
+      element === trackedTriggerElement
+      && element?.isConnected
+      && shouldUseNative === alreadyNative
+    ) {
+      // The document-backed fallback inherits window/document movement directly.
+      // Only nested overflow ancestors need scalar delta compensation, so a
+      // workspace notification must preserve the helper's accumulated nested
+      // offset until an actual target/anchor topology change replaces it.
+      nestedTriggerScroll?.sync();
+      return;
+    }
+
+    releaseSelectionTriggerAnchor();
+    if (!element?.isConnected) return;
+    trackedTriggerElement = element;
+    const currentWindow = element.ownerDocument.defaultView;
+    if (!currentWindow) return;
+
+    if (shouldUseNative) {
+      releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName);
+      anchoredTriggerElement = element;
+      nestedTriggerScroll = installNestedScrollCompensation(
+        currentWindow,
+        element,
+        () => [annotationTriggerElement],
+      );
+      return;
+    }
+
+    // The fallback is absolutely positioned in the document layer, so ordinary
+    // window scrolling is compositor-owned. Keep JavaScript compensation only
+    // for nested overflow ancestors that the body portal cannot inherit.
+    nestedTriggerScroll = installNestedScrollCompensation(
+      currentWindow,
+      element,
+      () => [annotationTriggerElement],
+    );
+  };
+
+  const unsubscribe = props.runtime.subscribe(() => {
+    syncSelectionTriggerAnchor();
+    setRevision((value) => value + 1);
+  });
+  syncSelectionTriggerAnchor();
+  onCleanup(() => {
+    releaseSelectionTriggerAnchor();
+    unsubscribe();
+  });
 
   const selection = createMemo(() => {
     revision();
@@ -113,14 +247,14 @@ export function ContextActions(props: ContextActionsProps) {
     return `${value.anchor.targets.length} selected ${value.anchor.targets.length === 1 ? "element" : "elements"}`;
   };
 
-  const selectionTriggerElement = () => {
+  const selectionTriggerElement = createMemo(() => {
     const elements = selection().elements;
     if (!elements.length) return null;
     const hovered = props.runtime.hoveredElement();
     return elements.find((element) => element === hovered)
       ?? elements.find((element) => hovered && element.contains(hovered))
       ?? elements[0];
-  };
+  });
 
   const selectionTriggerPosition = () => {
     const element = selectionTriggerElement();
@@ -157,9 +291,15 @@ export function ContextActions(props: ContextActionsProps) {
       && point.top + size <= currentWindow.innerHeight - padding;
     const fitted = candidates.flatMap((candidate) => candidate.points).find(fitsViewport);
     const fallback = { left: right + gap, top: value.top };
+    const viewportLeft = clamp((fitted ?? fallback).left, padding, currentWindow.innerWidth - size - padding);
+    const viewportTop = clamp((fitted ?? fallback).top, padding, currentWindow.innerHeight - size - padding);
+    const nativeAnchor = anchoredTriggerElement === element;
     return {
-      left: clamp((fitted ?? fallback).left, padding, currentWindow.innerWidth - size - padding),
-      top: clamp((fitted ?? fallback).top, padding, currentWindow.innerHeight - size - padding),
+      left: nativeAnchor ? viewportLeft : viewportLeft + currentWindow.scrollX,
+      top: nativeAnchor ? viewportTop : viewportTop + currentWindow.scrollY,
+      anchorX: viewportLeft - value.left,
+      anchorY: viewportTop - value.top,
+      nativeAnchor,
     };
   };
 
@@ -349,19 +489,46 @@ export function ContextActions(props: ContextActionsProps) {
 
   return (
     <>
-      <span ref={(element) => { anchorElement = element; }} aria-hidden="true" style={{ display: "none" }} />
+      <span
+        ref={(element) => {
+          anchorElement = element;
+          syncSelectionTriggerAnchor();
+        }}
+        aria-hidden="true"
+        style={{ display: "none" }}
+      />
 
       <Show when={selection().elements.length > 0 && !noteComposerOpen() && !activeAnnotation()}>
         <Show when={selectionTriggerPosition()}>{(position) => (
           <button
+            ref={(element) => {
+              annotationTriggerElement = element;
+              nestedTriggerScroll?.sync();
+            }}
             type="button"
             data-mesurer-layer="chrome"
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-trigger="true"
+            data-mesurer-annotation-scroll-mode={position().nativeAnchor ? "native-anchor" : "cached-delta"}
+            data-mesurer-native-scroll-owner={position().nativeAnchor ? "annotation" : undefined}
+            data-mesurer-native-scroll-anchor={position().nativeAnchor ? "offset" : undefined}
             aria-label="Annotate selection"
             title="Annotate selection"
-            class="msr:pointer-events-auto msr:fixed msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
-            style={{ left: `${position().left}px`, top: `${position().top}px` }}
+            class="msr:pointer-events-auto msr:absolute msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
+            style={{
+              left: position().nativeAnchor
+                ? `calc(anchor(left) + ${position().anchorX}px)`
+                : `${position().left}px`,
+              top: position().nativeAnchor
+                ? `calc(anchor(top) + ${position().anchorY}px)`
+                : `${position().top}px`,
+              translate: position().nativeAnchor
+                ? undefined
+                : "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
+              "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
+              "--mesurer-native-anchor-x": position().nativeAnchor ? `${position().anchorX}px` : undefined,
+              "--mesurer-native-anchor-y": position().nativeAnchor ? `${position().anchorY}px` : undefined,
+            }}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => { event.stopPropagation(); openNoteComposer(); }}
           >

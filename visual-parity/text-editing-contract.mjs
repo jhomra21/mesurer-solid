@@ -27,16 +27,35 @@ const computedTypography = (element) => {
     decoration: style.textDecorationLine,
   };
 };
+const waitForTypography = async (expected) => page.waitForFunction((value) => {
+  const element = document.querySelector(".primary-action");
+  if (!(element instanceof HTMLElement)) return false;
+  const style = getComputedStyle(element);
+  return element.textContent === value.text
+    && style.fontFamily === value.fontFamily
+    && style.fontSize === value.fontSize
+    && style.fontWeight === value.fontWeight
+    && style.fontStyle === value.fontStyle
+    && style.lineHeight === value.lineHeight
+    && style.letterSpacing === value.letterSpacing
+    && style.textTransform === value.textTransform
+    && style.color === value.color
+    && style.textDecorationLine === value.decoration;
+}, expected);
 
 try {
   await page.goto(url, { waitUntil: "networkidle" });
 
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
+  const textInspectorButton = page.locator("[data-mesurer-builtin='text-inspector'] button");
+  const settingsButton = page.locator("button[data-mesurer-builtin='settings']");
   const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
   const target = page.locator(".primary-action");
   const variantReference = page.locator(".type-card h2");
 
   await selectButton.waitFor({ state: "visible" });
+  await textInspectorButton.waitFor({ state: "visible" });
+  await settingsButton.waitFor({ state: "visible" });
   await arrangeButton.waitFor({ state: "visible" });
   await target.waitFor({ state: "visible" });
   await variantReference.waitFor({ state: "visible" });
@@ -275,53 +294,7 @@ try {
   await editor.waitFor({ state: "detached" });
   await inspector.waitFor({ state: "detached" });
 
-  const desired = await target.evaluate(computedTypography);
-  assert.equal(desired.text, desiredText, "Committed text should remain as Desired while Select/Arrange is active");
-  assert.equal(desired.fontFamily, variantStyle.fontFamily, "Chosen page font variant should preview on the real target");
-  assert.equal(desired.fontSize, variantStyle.fontSize, "Chosen page size variant should preview on the real target");
-  assert.equal(desired.fontWeight, variantStyle.fontWeight, "Chosen page weight variant should preview on the real target");
-  assert.equal(desired.fontStyle, desiredFontStyle, "Italic toggle should preview on the real target");
-  assert.equal(desired.lineHeight, desiredLineHeight, "Editable Line row should preview on the real target");
-  assert.equal(desired.letterSpacing, desiredTracking, "Editable Tracking row should preview on the real target");
-  assert.equal(desired.textTransform, dominantHeading2Style.textTransform, "Heading preset should carry the page-derived text transform");
-  assert.equal(desired.color, customRenderedColor, "Custom text color should preview on the real target");
-  assert.equal(desired.decoration.includes("underline"), desiredUnderline, "Underline toggle should preview on the real target");
-
-  // Deactivating editing restores Live; returning to Select reapplies Desired.
-  await arrangeButton.click();
-  await selectButton.click();
-  await page.waitForFunction((expected) => {
-    const element = document.querySelector(".primary-action");
-    if (!(element instanceof HTMLElement)) return false;
-    const style = getComputedStyle(element);
-    return element.textContent === expected.text
-      && style.fontFamily === expected.fontFamily
-      && style.fontSize === expected.fontSize
-      && style.fontWeight === expected.fontWeight
-      && style.fontStyle === expected.fontStyle
-      && style.lineHeight === expected.lineHeight
-      && style.letterSpacing === expected.letterSpacing
-      && style.textTransform === expected.textTransform
-      && style.color === expected.color
-      && style.textDecorationLine === expected.decoration;
-  }, before);
-
-  await selectButton.click();
-  await page.waitForFunction((expected) => {
-    const element = document.querySelector(".primary-action");
-    if (!(element instanceof HTMLElement)) return false;
-    const style = getComputedStyle(element);
-    return element.textContent === expected.text
-      && style.fontFamily === expected.fontFamily
-      && style.fontSize === expected.fontSize
-      && style.fontWeight === expected.fontWeight
-      && style.fontStyle === expected.fontStyle
-      && style.lineHeight === expected.lineHeight
-      && style.letterSpacing === expected.letterSpacing
-      && style.textTransform === expected.textTransform
-      && style.color === expected.color
-      && style.textDecorationLine.includes("underline") === expected.underline;
-  }, {
+  const desired = {
     text: desiredText,
     fontFamily: variantStyle.fontFamily,
     fontSize: variantStyle.fontSize,
@@ -331,12 +304,67 @@ try {
     letterSpacing: desiredTracking,
     textTransform: dominantHeading2Style.textTransform,
     color: customRenderedColor,
-    underline: desiredUnderline,
+    decoration: desiredUnderline ? "underline" : before.decoration,
+  };
+
+  // Saved intent survives the edit, but Select/Arrange defaults to the untouched
+  // page presentation. This is the public default requested by the user.
+  await waitForTypography(before);
+
+  // Leave Arrange, then explicitly enter Typography. The owning tool should
+  // reveal the saved Desired state without creating a new edit or losing intent.
+  await arrangeButton.click();
+  await page.waitForFunction(() => {
+    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
+    return arrange instanceof HTMLButtonElement && arrange.getAttribute("aria-pressed") === "false";
   });
+  await textInspectorButton.click();
+  await page.waitForFunction(() => {
+    const button = document.querySelector("[data-mesurer-builtin='text-inspector'] button");
+    return button instanceof HTMLButtonElement && button.getAttribute("aria-pressed") === "true";
+  });
+  await waitForTypography(desired);
+
+  // Returning to Select hides the saved Text presentation again by default.
+  await selectButton.click();
+  await waitForTypography(before);
+
+  // The explicit General toggle opts saved Text presentation into other tools.
+  await settingsButton.click();
+  const settingsDialog = page.getByRole("dialog", { name: "Settings" });
+  await settingsDialog.waitFor({ state: "visible" });
+  const generalTab = settingsDialog.getByRole("tab", { name: "General", exact: true });
+  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+  const keepTextChanges = settingsDialog.getByRole("switch", { name: "Keep text changes", exact: true });
+  await keepTextChanges.waitFor({ state: "visible" });
+  assert.equal(await keepTextChanges.getAttribute("aria-checked"), "false", "Keep text changes should default off");
+  await keepTextChanges.click();
+  await page.waitForFunction(() => document.querySelector("[data-mesurer-presentation-setting='keep-text-changes']")?.getAttribute("aria-checked") === "true");
+  await waitForTypography(desired);
+
+  await settingsButton.click();
+  await settingsDialog.waitFor({ state: "hidden" });
+  await selectButton.click();
+  await waitForTypography(desired);
+
+  // Turning the preference back off restores the original page immediately;
+  // the saved intent remains available to Typography for the next visit.
+  await settingsButton.click();
+  await settingsDialog.waitFor({ state: "visible" });
+  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+  await keepTextChanges.click();
+  await page.waitForFunction(() => document.querySelector("[data-mesurer-presentation-setting='keep-text-changes']")?.getAttribute("aria-checked") === "false");
+  await waitForTypography(before);
+  await settingsButton.click();
+
+  await textInspectorButton.click();
+  await waitForTypography(desired);
+  await selectButton.click();
+  await waitForTypography(before);
 
   assert.equal(pageErrors.length, 0, `Text editing browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Text editing browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log(`Arrange-compatible direct text editing + one interactive Typography inspector + full-hit Mesurer dropdowns + editable Line/Tracking + B/I/U + color + reversible Desired state: PASS (${firstFamily(before.fontFamily)})`);
+  console.log(`Arrange-compatible direct text editing + one interactive Typography inspector + user-controlled saved presentation + full-hit Mesurer dropdowns + editable Line/Tracking + B/I/U + color: PASS (${firstFamily(before.fontFamily)})`);
 } finally {
   await browser.close();
 }

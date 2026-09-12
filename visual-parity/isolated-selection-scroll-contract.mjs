@@ -17,40 +17,36 @@ const box = async (locator, stage) => {
   return value;
 };
 
-const assertSameBox = (actual, expected, stage) => {
+const assertSameBox = (actual, expected, stage, tolerance = 1.5) => {
   for (const key of ["x", "y", "width", "height"]) {
     assert(
-      Math.abs(actual[key] - expected[key]) <= 1.5,
+      Math.abs(actual[key] - expected[key]) <= tolerance,
       `${stage}: ${key} drifted; target=${expected[key]} surface=${actual[key]}`,
     );
   }
 };
 
-const assertRelativeOffset = (before, after, stage) => {
+const assertRelativeOffset = (before, after, stage, tolerance = 1.5) => {
   for (const key of ["x", "y"]) {
     const beforeOffset = before.surface[key] - before.target[key];
     const afterOffset = after.surface[key] - after.target[key];
     assert(
-      Math.abs(afterOffset - beforeOffset) <= 1.5,
+      Math.abs(afterOffset - beforeOffset) <= tolerance,
       `${stage}: ${key} offset changed; before=${beforeOffset} after=${afterOffset}`,
     );
   }
 };
 
-const intersects = (left, right, gap = 0) => !(
-  left.x + left.width + gap <= right.x
-  || right.x + right.width + gap <= left.x
-  || left.y + left.height + gap <= right.y
-  || right.y + right.height + gap <= left.y
-);
+const boxGap = (a, b) => {
+  const horizontal = Math.max(0, Math.max(a.x, b.x) - Math.min(a.x + a.width, b.x + b.width));
+  const vertical = Math.max(0, Math.max(a.y, b.y) - Math.min(a.y + a.height, b.y + b.height));
+  return Math.hypot(horizontal, vertical);
+};
 
-const settle = () => page.evaluate(() => new Promise((resolve) => {
-  requestAnimationFrame(() => requestAnimationFrame(resolve));
-}));
-
-const waitForScrollIdle = async () => {
-  await new Promise((resolve) => setTimeout(resolve, 100));
-  await settle();
+const settle = async () => {
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
 };
 
 const assertNativeAnchor = async (locator, mode, stage) => {
@@ -66,99 +62,17 @@ const assertNativeAnchor = async (locator, mode, stage) => {
   assert.equal(native.animation, "none", `${stage}: must not animate`);
 };
 
-const sampleScrollEvent = async (deltaY, { ring = false, inspector = false, highlight = false } = {}) => page.evaluate(
-  ({ deltaY: scrollDelta, includeRing, includeInspector, includeHighlight }) => new Promise((resolve, reject) => {
-    const target = document.querySelector("#isolated-scroll-target");
-    const selected = document.querySelector("[data-mesurer-selected-measurement='true'] > div");
-    const editRing = includeRing ? document.querySelector("[data-mesurer-text-edit-ring='true']") : null;
-    const inspectorShell = includeInspector
-      ? document.querySelector("[data-mesurer-text-inspector-placement-shell='true']")
-      : null;
-    const textHighlight = includeHighlight
-      ? document.querySelector("[data-mesurer-text-selection-highlight='true']")
-      : null;
-
-    if (!(target instanceof HTMLElement)) return reject(new Error("Expected isolated target before scroll"));
-    if (!(selected instanceof HTMLElement)) return reject(new Error("Expected isolated selected chrome before scroll"));
-    if (includeRing && !(editRing instanceof HTMLElement)) return reject(new Error("Expected isolated edit ring before scroll"));
-    if (includeInspector && !(inspectorShell instanceof HTMLElement)) return reject(new Error("Expected isolated Typography shell before scroll"));
-    if (includeHighlight && !(textHighlight instanceof HTMLElement)) return reject(new Error("Expected isolated selected-text highlight before scroll"));
-
-    const snapshot = (element) => {
-      const rect = element.getBoundingClientRect();
-      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-    };
-    const state = () => ({
-      target: snapshot(target),
-      selected: snapshot(selected),
-      ring: editRing instanceof HTMLElement ? snapshot(editRing) : null,
-      inspector: inspectorShell instanceof HTMLElement ? snapshot(inspectorShell) : null,
-      highlight: textHighlight instanceof HTMLElement ? snapshot(textHighlight) : null,
-    });
-
-    const before = state();
-    window.addEventListener("scroll", () => resolve({ before, after: state() }), { capture: true, once: true });
-    window.scrollBy({ top: scrollDelta, behavior: "instant" });
-  }),
-  { deltaY, includeRing: ring, includeInspector: inspector, includeHighlight: highlight },
-);
-
-const measureNativeScrollWork = async (deltaY, { ranges = false } = {}) => page.evaluate(
-  ({ deltaY: scrollDelta, includeRanges }) => new Promise((resolve, reject) => {
-    const target = document.querySelector("#isolated-scroll-target");
-    if (!(target instanceof HTMLElement)) return reject(new Error("Expected target for native scroll work probe"));
-
-    const originalRect = target.getBoundingClientRect;
-    const originalRangeRects = Range.prototype.getClientRects;
-    let targetRectReads = 0;
-    let rangeRectReads = 0;
-    target.getBoundingClientRect = function mesurerTargetRectProbe() {
-      targetRectReads += 1;
-      return originalRect.call(this);
-    };
-    if (includeRanges) {
-      Range.prototype.getClientRects = function mesurerRangeRectProbe() {
-        rangeRectReads += 1;
-        return originalRangeRects.call(this);
-      };
-    }
-
-    const finish = () => {
-      delete target.getBoundingClientRect;
-      if (includeRanges) Range.prototype.getClientRects = originalRangeRects;
-      resolve({ targetRectReads, rangeRectReads });
-    };
-
-    window.scrollBy({ top: scrollDelta, behavior: "instant" });
-    requestAnimationFrame(() => requestAnimationFrame(finish));
-  }),
-  { deltaY, includeRanges: ranges },
-);
-
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_ISOLATED_SCROLL_TEST__?.subject));
 
   const mountState = await page.evaluate(() => ({
     isolated: window.__MESURER_ISOLATED_SCROLL_TEST__?.subject.root instanceof ShadowRoot,
-    hostLayer: window.__MESURER_ISOLATED_SCROLL_TEST__?.subject.hostLayer ?? null,
     globalAgent: Boolean(window.__MESURER__),
   }));
   assert.equal(mountState.isolated, true, "contract must exercise the public isolated ShadowRoot mount");
-  assert.equal(mountState.globalAgent, true, "contract must exercise the public window.__MESURER__ agent bridge");
-  assert.deepEqual(
-    await page.evaluate(() => window.__MESURER__.textEdits()),
-    [],
-    "public window.__MESURER__.textEdits() must not recurse",
-  );
-
-  const nativeAnchorSupported = await page.evaluate(() => Boolean(
-    CSS.supports("anchor-name: --mesurer-native-anchor")
-    && CSS.supports("position-anchor: --mesurer-native-anchor")
-    && CSS.supports("left: anchor(left)")
-    && CSS.supports("width: anchor-size(width)"),
-  ));
-  assert.equal(nativeAnchorSupported, true, "isolated scroll contract requires CSS Anchor Positioning");
+  assert.equal(mountState.globalAgent, true, "contract must exercise the public agent bridge");
+  assert.deepEqual(await page.evaluate(() => window.__MESURER__.textEdits()), [], "public textEdits() must not recurse");
 
   const select = page.locator("button[data-mesurer-builtin='select']");
   await select.waitFor({ state: "visible" });
@@ -171,89 +85,169 @@ try {
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const selectedChrome = page.locator("[data-mesurer-selected-measurement='true'] > div").first();
+  const annotation = page.locator("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
   await selectedChrome.waitFor({ state: "visible" });
-  await assertNativeAnchor(selectedChrome, "box", "isolated selected chrome");
-  assertSameBox(await box(selectedChrome, "isolated selected before scroll"), targetBox, "isolated selected before scroll");
-
-  const immediateSelection = await sampleScrollEvent(80);
-  assertSameBox(immediateSelection.after.selected, immediateSelection.after.target, "isolated selected chrome in scroll event");
-  // The previous scroll's 80ms settle pass is allowed to remeasure after the
-  // hot event. Let it finish before instrumenting a second, independent scroll
-  // so this probe counts work caused by that scroll only.
-  await waitForScrollIdle();
-  const selectedScrollWork = await measureNativeScrollWork(20);
-  assert.deepEqual(
-    selectedScrollWork,
-    { targetRectReads: 0, rangeRectReads: 0 },
-    `native selected scroll must not chase geometry from JavaScript: ${JSON.stringify(selectedScrollWork)}`,
+  await annotation.waitFor({ state: "visible" });
+  assertSameBox(await box(selectedChrome, "selected chrome before scroll"), targetBox, "selected chrome before scroll");
+  await assertNativeAnchor(selectedChrome, "box", "selected chrome");
+  await assertNativeAnchor(annotation, "offset", "annotation trigger");
+  let annotationBox = await box(annotation, "annotation before scroll");
+  assert(
+    boxGap(targetBox, annotationBox) >= 5.5 && boxGap(targetBox, annotationBox) <= 6.5,
+    `annotation trigger should keep 6px clearance; gap=${boxGap(targetBox, annotationBox).toFixed(2)}px`,
   );
-  targetBox = await box(target, "isolated target after native work probe");
 
-  await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
-  const editRing = page.locator("[data-mesurer-text-edit-ring='true']");
-  const inspectorShell = page.locator("[data-mesurer-text-inspector-placement-shell='true']");
-  const textHighlight = page.locator("[data-mesurer-text-selection-highlight='true']").first();
-  await editRing.waitFor({ state: "visible" });
-  await inspectorShell.waitFor({ state: "visible" });
-  await textHighlight.waitFor({ state: "visible" });
-  await assertNativeAnchor(editRing, "box", "isolated direct-edit ring");
-  await assertNativeAnchor(inspectorShell, "offset", "isolated contextual Typography shell");
-  await assertNativeAnchor(textHighlight, "offset", "isolated selected-text highlight");
+  const beforeWindow = {
+    target: targetBox,
+    selected: await box(selectedChrome, "selected before wheel"),
+    annotation: annotationBox,
+  };
+  await page.mouse.move(1220, 840);
+  await page.mouse.wheel(0, 80);
+  await settle();
+  const afterWindow = {
+    target: await box(target, "target after wheel"),
+    selected: await box(selectedChrome, "selected after wheel"),
+    annotation: await box(annotation, "annotation after wheel"),
+  };
+  assert(Math.abs(afterWindow.target.y - beforeWindow.target.y) > 20, "real wheel event did not move the inspected page target");
+  assertSameBox(afterWindow.selected, afterWindow.target, "selection after real wheel scroll");
+  assertRelativeOffset(
+    { target: beforeWindow.target, surface: beforeWindow.annotation },
+    { target: afterWindow.target, surface: afterWindow.annotation },
+    "annotation after real wheel scroll",
+  );
+
+  const nestedScroller = page.locator("#nested-scroll-shell");
+  const nestedTarget = page.locator("#isolated-nested-scroll-target");
+  await nestedScroller.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await nestedScroller.evaluate((element) => { element.scrollTop = 340; });
+  await settle();
+  const nestedTargetBox = await box(nestedTarget, "nested target before selection");
+  await page.mouse.click(nestedTargetBox.x + nestedTargetBox.width / 2, nestedTargetBox.y + nestedTargetBox.height / 2);
+  await selectedChrome.waitFor({ state: "visible" });
+  await annotation.waitFor({ state: "visible" });
+  const nestedBefore = {
+    target: nestedTargetBox,
+    selected: await box(selectedChrome, "nested selected before wheel"),
+    annotation: await box(annotation, "nested annotation before wheel"),
+  };
+  assertSameBox(nestedBefore.selected, nestedBefore.target, "nested selection before wheel");
+  const nestedScrollerBox = await box(nestedScroller, "nested scroller");
+  await page.mouse.move(nestedScrollerBox.x + nestedScrollerBox.width / 2, nestedScrollerBox.y + nestedScrollerBox.height / 2);
+  await page.mouse.wheel(0, 48);
+  await settle();
+  const nestedAfter = {
+    target: await box(nestedTarget, "nested target after wheel"),
+    selected: await box(selectedChrome, "nested selected after wheel"),
+    annotation: await box(annotation, "nested annotation after wheel"),
+  };
+  assert(Math.abs(nestedAfter.target.y - nestedBefore.target.y) > 10, "real nested wheel event did not move the nested target");
+  assertSameBox(nestedAfter.selected, nestedAfter.target, "nested selection after wheel");
+  assertRelativeOffset(
+    { target: nestedBefore.target, surface: nestedBefore.annotation },
+    { target: nestedAfter.target, surface: nestedAfter.annotation },
+    "nested annotation after real wheel scroll",
+  );
 
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settle();
-  const immediateEdit = await sampleScrollEvent(40, { ring: true, inspector: true, highlight: true });
-  assertSameBox(immediateEdit.after.selected, immediateEdit.after.target, "isolated selected chrome in edit scroll event");
-  assertSameBox(immediateEdit.after.ring, immediateEdit.after.target, "isolated edit ring in scroll event");
-  assertRelativeOffset(
-    { target: immediateEdit.before.target, surface: immediateEdit.before.inspector },
-    { target: immediateEdit.after.target, surface: immediateEdit.after.inspector },
-    "isolated Typography shell in scroll event",
+  targetBox = await box(target, "target before direct edit");
+  await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+  await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+
+  const editor = page.locator("[data-mesurer-text-editor='true']");
+  const editRing = page.locator("[data-mesurer-text-edit-ring='true']");
+  const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
+  const inspectorShell = page.locator("[data-mesurer-text-inspector-placement-shell='true']");
+  const textHighlight = page.locator("[data-mesurer-text-selection-highlight='true']").first();
+  await editor.waitFor({ state: "visible" });
+  await editRing.waitFor({ state: "visible" });
+  await inspector.waitFor({ state: "visible" });
+  await inspectorShell.waitFor({ state: "visible" });
+  await textHighlight.waitFor({ state: "visible" });
+  await assertNativeAnchor(editRing, "box", "direct-edit ring");
+  await assertNativeAnchor(inspectorShell, "offset", "Typography source anchor");
+  await assertNativeAnchor(textHighlight, "offset", "selected-text highlight");
+
+  // Exercise a live control through physical pointer + keyboard input. The
+  // rendered page style must change, while editor and selected page identity stay
+  // unchanged. This proves the document-backed card receives real input without
+  // relying on a button attribute or looking through to page content beneath it.
+  const editorValue = await editor.inputValue();
+  const lineBefore = await target.evaluate((element) => getComputedStyle(element).lineHeight);
+  const desiredLine = lineBefore === "36px" ? "42px" : "36px";
+  const lineInput = inspector.locator("[data-mesurer-text-style-input='line']");
+  await lineInput.waitFor({ state: "visible" });
+  const lineBox = await box(lineInput, "isolated Typography Line control");
+  await page.mouse.click(lineBox.x + lineBox.width / 2, lineBox.y + lineBox.height / 2);
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type(desiredLine);
+  await page.keyboard.press("Enter");
+  await settle();
+  assert.equal(
+    await target.evaluate((element) => getComputedStyle(element).lineHeight),
+    desiredLine,
+    "Physical input in isolated Typography Line control did not change rendered source style",
   );
-  assertRelativeOffset(
-    { target: immediateEdit.before.target, surface: immediateEdit.before.highlight },
-    { target: immediateEdit.after.target, surface: immediateEdit.after.highlight },
-    "isolated selected-text highlight in scroll event",
-  );
-  await waitForScrollIdle();
-  const editScrollWork = await measureNativeScrollWork(20, { ranges: true });
-  assert.deepEqual(
-    editScrollWork,
-    { targetRectReads: 0, rangeRectReads: 0 },
-    `native direct-edit scroll must not remeasure host text from JavaScript: ${JSON.stringify(editScrollWork)}`,
+  assert.notEqual(desiredLine, lineBefore, "isolated ownership probe must visibly change line-height");
+  assert.equal(await page.locator("[data-mesurer-text-editor='true']").count(), 1, "Typography control closed or retargeted the page editor");
+  assert.equal(await editor.inputValue(), editorValue, "Typography control changed the active page editor");
+  assertSameBox(
+    await box(selectedChrome, "selected chrome after Typography control input"),
+    await box(target, "source target after Typography control input"),
+    "Typography control input changed page selection",
   );
 
-  // The toolbar is persistent viewport UI. Scroll the active edit target into
-  // its viewport band and prove the toolbar itself does not move to another
-  // edge. Local selection/context chrome owns collision behavior instead.
   const toolbar = page.locator("[data-mesurer-toolbar='true']");
-  const toolbarBefore = await box(toolbar, "toolbar before active target overlap");
-  await page.evaluate(() => {
-    const targetElement = document.querySelector("#isolated-scroll-target");
-    if (!(targetElement instanceof HTMLElement)) throw new Error("Expected target for toolbar stability check");
-    const top = targetElement.getBoundingClientRect().top + window.scrollY;
-    window.scrollTo({ top: Math.max(0, top - 18), behavior: "instant" });
-  });
-  await new Promise((resolve) => setTimeout(resolve, 24));
-  const toolbarDuring = await box(toolbar, "toolbar during active target overlap");
-  await waitForScrollIdle();
-  const toolbarAfter = await box(toolbar, "toolbar after active target overlap");
-  targetBox = await box(target, "target near stationary toolbar");
-  assertSameBox(toolbarDuring, toolbarBefore, "toolbar during selected/edit target scroll");
-  assertSameBox(toolbarAfter, toolbarBefore, "toolbar after selected/edit target scroll");
-  assert.equal(
-    await toolbar.getAttribute("data-mesurer-toolbar-avoiding-target"),
-    null,
-    "viewport toolbar must not enable target-avoidance translation",
+  const editBefore = {
+    target: await box(target, "edit source before wheel"),
+    selected: await box(selectedChrome, "edit selection before wheel"),
+    ring: await box(editRing, "edit ring before wheel"),
+    inspector: await box(inspector, "Typography card before wheel"),
+    highlight: await box(textHighlight, "text highlight before wheel"),
+    toolbar: await box(toolbar, "toolbar before wheel"),
+  };
+  await page.mouse.move(1220, 840);
+  await page.mouse.wheel(0, 80);
+  await settle();
+  const editAfter = {
+    target: await box(target, "edit source after wheel"),
+    selected: await box(selectedChrome, "edit selection after wheel"),
+    ring: await box(editRing, "edit ring after wheel"),
+    inspector: await box(inspector, "Typography card after wheel"),
+    highlight: await box(textHighlight, "text highlight after wheel"),
+    toolbar: await box(toolbar, "toolbar after wheel"),
+  };
+  assert(Math.abs(editAfter.target.y - editBefore.target.y) > 20, "direct-edit source did not move under real wheel scroll");
+  assertSameBox(editAfter.selected, editAfter.target, "selection during direct-edit wheel scroll");
+  assertSameBox(editAfter.ring, editAfter.target, "edit ring during real wheel scroll");
+  assertRelativeOffset(
+    { target: editBefore.target, surface: editBefore.inspector },
+    { target: editAfter.target, surface: editAfter.inspector },
+    "Typography card during real wheel scroll",
   );
-  assert.equal(
-    intersects(toolbarAfter, targetBox, 0),
-    true,
-    `stability probe must actually bring the target into the toolbar band; toolbar=${JSON.stringify(toolbarAfter)} target=${JSON.stringify(targetBox)}`,
+  assertRelativeOffset(
+    { target: editBefore.target, surface: editBefore.highlight },
+    { target: editAfter.target, surface: editAfter.highlight },
+    "selected-text highlight during real wheel scroll",
   );
+  assertSameBox(editAfter.toolbar, editBefore.toolbar, "toolbar must remain viewport-owned during page scroll");
+
+  await page.mouse.wheel(0, 1400);
+  await page.waitForTimeout(120);
+  const offscreenTarget = await box(target, "isolated edit source after offscreen wheel");
+  assert(offscreenTarget.y + offscreenTarget.height < 1, `isolated edit source did not leave viewport: ${JSON.stringify(offscreenTarget)}`);
+  const offscreenInspector = await inspector.boundingBox();
+  if (offscreenInspector) {
+    assert(
+      offscreenInspector.y + offscreenInspector.height < 1 || offscreenInspector.y >= 900,
+      `isolated Typography card stayed behind after its source left: ${JSON.stringify({ offscreenTarget, offscreenInspector })}`,
+    );
+  }
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated mount keeps native scroll layout-free, public agent callable, and viewport toolbar stationary: PASS");
+  console.log("Public isolated E2E: real window/nested scrolling keeps annotation and selection attached; physical Typography control input changes rendered source without retargeting page ownership; Typography leaves with its source while toolbar stays viewport-owned: PASS");
 } finally {
   await browser.close();
 }

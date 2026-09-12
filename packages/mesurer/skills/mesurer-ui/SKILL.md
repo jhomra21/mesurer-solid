@@ -141,6 +141,26 @@ Preview ownership is also conservative. While the DOM still equals Mesurer's pre
 
 Final verification must use Live source with the Desired preview inactive. Keep the intent; do not clear history merely to expose Live.
 
+## Respect presentation controls and inspector ownership
+
+Saved intent and visible presentation are separate. By default, both human presentation switches are OFF:
+
+- **Settings → General → Keep text changes**: OFF means Typography shows saved Desired text/style while it owns presentation, but Select/other tools restore the original page. ON keeps saved text/style visible outside Typography.
+- **Settings → General → Keep Arrange changes**: OFF means Arrange shows saved Desired transforms while it owns presentation, but Select/other tools restore the original page. ON keeps saved Arrange presentation visible outside Arrange.
+
+The user can open Settings with the gear button or `Cmd/Ctrl+,`. Changing either switch changes presentation policy only; it must not delete or rewrite saved intent/history. Do not mistake an Original-looking page in Select for missing intent—read the saved Text/Arrange records first.
+
+Mesurer UI is never inspected-page content. Treat `[data-mesurer-root]`, `[data-mesurer-island]`, and `[data-mesurer-inspector-ui]` surfaces as hard selection/hit-test boundaries. Do not look through a Typography card, annotation surface, toolbar, or inspector shell to select page content underneath it.
+
+Scroll ownership is split deliberately:
+
+- page-linked selection boxes, edit rings, selected-text highlights, target-bound annotation affordances, and ordinary Typography cards follow the page element they describe;
+- Typography remains Mesurer-owned for interaction even while its geometry follows the inspected element, so clicking the card cannot select either the card itself or page content underneath it;
+- an explicitly dragged pinned Typography card becomes a manual viewport placement and remains there until its pin lifecycle ends;
+- the global toolbar and Settings remain viewport-owned UI.
+
+Do not “fix” hit testing by making Typography viewport-fixed, and do not “fix” scrolling by allowing Select to look through Mesurer UI. Preserve the separate interaction-ownership and geometry-ownership contracts when changing selection, portals, CSS anchors, or z-index behavior.
+
 ## Acquire targets in the right order
 
 After preserving relevant Arrange/text-edit intent:

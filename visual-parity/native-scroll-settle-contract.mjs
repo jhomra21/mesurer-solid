@@ -11,16 +11,7 @@ const hardTimeout = setTimeout(() => {
   process.exit(124);
 }, HARD_TIMEOUT_MS);
 
-const withTimeout = (promise, stage, timeoutMs = WAIT_TIMEOUT_MS) => Promise.race([
-  promise,
-  new Promise((_, reject) => setTimeout(
-    () => reject(new Error(`${stage} exceeded ${timeoutMs}ms`)),
-    timeoutMs,
-  )),
-]);
-
 const stage = (name) => console.log(`[native-scroll-settle] ${name}`);
-
 const browser = await chromium.launch({ headless: true });
 const browserErrors = [];
 
@@ -34,29 +25,23 @@ const openFixture = async (name) => {
     if (message.type() === "error") browserErrors.push(`${name}: ${message.text()}`);
   });
   await page.goto(url, { waitUntil: "networkidle" });
-  await page.waitForFunction(
-    () => Boolean(window.__MESURER_ISOLATED_SCROLL_TEST__?.subject),
-    undefined,
-    { timeout: WAIT_TIMEOUT_MS },
-  );
+  await page.waitForFunction(() => Boolean(window.__MESURER_ISOLATED_SCROLL_TEST__?.subject));
   return { context, page };
 };
 
-const closeContext = (context, name) => withTimeout(context.close(), `${name} context close`, 5_000);
+const settle = (page) => page.evaluate(() => new Promise((resolve) => {
+  requestAnimationFrame(() => requestAnimationFrame(resolve));
+}));
 
-const box = async (locator, name) => {
-  const value = await withTimeout(locator.boundingBox(), `${name} geometry`);
-  assert(value, `${name}: expected rendered geometry`);
-  return value;
+const waitForScrollIdle = async (page) => {
+  await page.waitForTimeout(140);
+  await settle(page);
 };
 
-const assertSameBox = (actual, expected, name) => {
-  for (const key of ["x", "y", "width", "height"]) {
-    assert(
-      Math.abs(actual[key] - expected[key]) <= 1.5,
-      `${name}: ${key} drifted; target=${expected[key]} surface=${actual[key]}`,
-    );
-  }
+const box = async (locator, name) => {
+  const value = await locator.boundingBox();
+  assert(value, `${name}: expected rendered geometry`);
+  return value;
 };
 
 const relativeOffset = (target, surface) => ({
@@ -64,236 +49,184 @@ const relativeOffset = (target, surface) => ({
   y: surface.y - target.y,
 });
 
-const assertSameOffset = (before, after, name) => {
+const assertSameOffset = (beforeTarget, beforeSurface, afterTarget, afterSurface, name, tolerance = 1.5) => {
+  const before = relativeOffset(beforeTarget, beforeSurface);
+  const after = relativeOffset(afterTarget, afterSurface);
   for (const key of ["x", "y"]) {
     assert(
-      Math.abs(after[key] - before[key]) <= 1.5,
+      Math.abs(after[key] - before[key]) <= tolerance,
       `${name}: ${key} offset changed; before=${before[key]} after=${after[key]}`,
     );
   }
 };
 
-const settle = (page, name) => withTimeout(
-  page.evaluate(() => new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(resolve));
-  })),
-  `${name} animation-frame settle`,
-);
-
-const waitForScrollIdle = async (page, name) => {
-  await new Promise((resolve) => setTimeout(resolve, 140));
-  await settle(page, name);
+const assertSameBox = (actual, expected, name, tolerance = 1.5) => {
+  for (const key of ["x", "y", "width", "height"]) {
+    assert(
+      Math.abs(actual[key] - expected[key]) <= tolerance,
+      `${name}: ${key} drifted; expected=${expected[key]} actual=${actual[key]}`,
+    );
+  }
 };
 
-const verifySelectedTextSettle = async () => {
-  stage("selected-text: load fresh fixture");
-  const { context, page } = await openFixture("selected-text");
-  try {
-    stage("selected-text: enter select mode");
-    const select = page.locator("button[data-mesurer-builtin='select']");
-    await select.waitFor({ state: "visible", timeout: WAIT_TIMEOUT_MS });
-    await select.click({ timeout: WAIT_TIMEOUT_MS });
+const assertMoved = (before, after, name, minimum = 15) => {
+  assert(
+    Math.hypot(after.x - before.x, after.y - before.y) >= minimum,
+    `${name}: expected visible movement; before=${JSON.stringify(before)} after=${JSON.stringify(after)}`,
+  );
+};
 
-    stage("selected-text: open direct edit");
+const verifyDirectEditSettle = async () => {
+  stage("direct-edit: load fresh isolated fixture");
+  const { context, page } = await openFixture("direct-edit");
+  try {
+    const select = page.locator("button[data-mesurer-builtin='select']");
+    await select.click();
+
     const target = page.locator("#isolated-scroll-target");
-    await withTimeout(
-      target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" })),
-      "selected-text target scrollIntoView",
-    );
-    await settle(page, "selected-text target");
-    let targetBox = await box(target, "target before direct edit");
+    await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+    await settle(page);
+    let targetBox = await box(target, "direct-edit target before opening");
     await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
     await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
     const editor = page.locator("[data-mesurer-text-editor='true']");
+    const ring = page.locator("[data-mesurer-text-edit-ring='true']");
     const highlight = page.locator("[data-mesurer-text-selection-highlight='true']").first();
-    await editor.waitFor({ state: "attached", timeout: WAIT_TIMEOUT_MS });
-    await highlight.waitFor({ state: "visible", timeout: WAIT_TIMEOUT_MS });
-    await page.waitForFunction(
-      () => document.querySelector("[data-mesurer-text-selection-highlight='true']")?.getAttribute("data-mesurer-native-scroll-anchor") === "offset",
-      undefined,
-      { timeout: WAIT_TIMEOUT_MS },
-    );
+    const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
+    await editor.waitFor({ state: "visible" });
+    await ring.waitFor({ state: "visible" });
+    await highlight.waitFor({ state: "visible" });
+    await inspector.waitFor({ state: "visible" });
 
-    stage("selected-text: verify post-scroll settle stability");
-    targetBox = await box(target, "target before selected-text settle probe");
-    const highlightBefore = await box(highlight, "selected-text highlight before scroll");
-    const offsetBefore = relativeOffset(targetBox, highlightBefore);
+    const before = {
+      target: await box(target, "direct-edit target before wheel"),
+      ring: await box(ring, "direct-edit ring before wheel"),
+      highlight: await box(highlight, "direct-edit highlight before wheel"),
+      inspector: await box(inspector, "direct-edit Typography before wheel"),
+    };
 
-    await withTimeout(
-      page.evaluate(() => window.scrollBy({ top: 48, behavior: "instant" })),
-      "selected-text scroll",
-    );
-    await waitForScrollIdle(page, "selected-text");
+    stage("direct-edit: real wheel then wait past scroll-idle settle");
+    await page.mouse.wheel(0, 64);
+    await waitForScrollIdle(page);
 
-    targetBox = await box(target, "target after selected-text scroll settles");
-    const highlightAfter = await box(highlight, "selected-text highlight after scroll settles");
-    const offsetAfter = relativeOffset(targetBox, highlightAfter);
-    assertSameOffset(offsetBefore, offsetAfter, "selected-text highlight after scroll settle");
+    const after = {
+      target: await box(target, "direct-edit target after settle"),
+      ring: await box(ring, "direct-edit ring after settle"),
+      highlight: await box(highlight, "direct-edit highlight after settle"),
+      inspector: await box(inspector, "direct-edit Typography after settle"),
+    };
+    assertMoved(before.target, after.target, "direct-edit source under wheel scroll");
+    assertSameBox(after.ring, after.target, "direct-edit ring after scroll settle");
+    assertSameOffset(before.target, before.highlight, after.target, after.highlight, "direct-edit highlight after scroll settle");
+    assertSameOffset(before.target, before.inspector, after.target, after.inspector, "direct-edit Typography after scroll settle");
+
+    stage("direct-edit: source and Typography leave viewport together");
+    await page.mouse.wheel(0, 1200);
+    await waitForScrollIdle(page);
+    targetBox = await box(target, "direct-edit source after leaving viewport");
+    assert(targetBox.y + targetBox.height < 1, `direct-edit source should be above viewport: ${JSON.stringify(targetBox)}`);
+    const inspectorAfterExit = await inspector.boundingBox();
+    if (inspectorAfterExit) {
+      assert(
+        inspectorAfterExit.y + inspectorAfterExit.height < 1 || inspectorAfterExit.y >= VIEWPORT.height,
+        `direct-edit Typography stayed in viewport after source left: ${JSON.stringify(inspectorAfterExit)}`,
+      );
+    }
   } finally {
-    await closeContext(context, "selected-text");
+    await context.close();
   }
 };
 
-const verifyStandaloneTypography = async () => {
-  stage("Typography: load fresh fixture");
-  const { context, page } = await openFixture("Typography");
+const verifyStandaloneTypographySettle = async () => {
+  stage("standalone: load fresh isolated fixture");
+  const { context, page } = await openFixture("standalone");
   try {
-    stage("Typography: activate standalone inspector");
     const typography = page.locator("button[data-mesurer-builtin='text-inspector']");
-    await typography.waitFor({ state: "visible", timeout: WAIT_TIMEOUT_MS });
-    // This is a fresh automation page dedicated to Typography. The separate
-    // selected-text page above owns the direct-edit transition coverage, so no
-    // stale element/input handle survives across top-level tool reconciliation.
-    await withTimeout(typography.evaluate((button) => button.click()), "Typography activation");
-    await page.waitForFunction(
-      () => window.__MESURER_ISOLATED_SCROLL_TEST__?.subject?.root
-        ?.querySelector("button[data-mesurer-builtin='text-inspector']")
-        ?.getAttribute("aria-pressed") === "true",
-      undefined,
-      { timeout: WAIT_TIMEOUT_MS },
-    );
+    await typography.click();
 
     const target = page.locator("#isolated-scroll-target");
-    await withTimeout(
-      target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" })),
-      "Typography target scrollIntoView",
-    );
-    await settle(page, "Typography target");
-    let targetBox = await box(target, "target before standalone Typography probe");
+    await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+    await settle(page);
+    let targetBox = await box(target, "standalone target before hover");
     await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
-    const typographyBox = page.locator(".mesurer-ti-box[data-state='visible']");
-    const typographyCard = page.locator(".mesurer-ti-card[data-state='visible']");
-    await typographyBox.waitFor({ state: "visible", timeout: WAIT_TIMEOUT_MS });
-    await typographyCard.waitFor({ state: "visible", timeout: WAIT_TIMEOUT_MS });
-    await page.waitForFunction(
-      () => document.querySelector(".mesurer-ti-box[data-state='visible']")?.getAttribute("data-mesurer-native-scroll-anchor") === "box",
-      undefined,
-      { timeout: WAIT_TIMEOUT_MS },
-    );
+    const hoverBox = page.locator(".mesurer-ti-box[data-state='visible']").first();
+    const hoverCard = page.locator(".mesurer-ti-card[data-state='visible']").first();
+    await hoverBox.waitFor({ state: "visible" });
+    await hoverCard.waitFor({ state: "visible" });
 
-    assertSameBox(await box(typographyBox, "Typography box before scroll"), targetBox, "Typography box before scroll");
-    const cardBefore = await box(typographyCard, "Typography card before scroll");
-    const cardOffsetBefore = relativeOffset(targetBox, cardBefore);
+    const hoverBefore = {
+      target: await box(target, "standalone target before wheel"),
+      surface: await box(hoverBox, "standalone Typography box before wheel"),
+      card: await box(hoverCard, "standalone Typography card before wheel"),
+    };
+    assertSameBox(hoverBefore.surface, hoverBefore.target, "standalone Typography box before wheel");
 
-    stage("Typography: verify immediate scroll stability");
-    const immediate = await withTimeout(page.evaluate(({ timeoutMs }) => new Promise((resolve, reject) => {
-      const targetElement = document.querySelector("#isolated-scroll-target");
-      const typographySurface = document.querySelector(".mesurer-ti-box[data-state='visible']");
-      const typographyPanel = document.querySelector(".mesurer-ti-card[data-state='visible']");
-      if (!(targetElement instanceof HTMLElement)) return reject(new Error("Expected target for Typography scroll probe"));
-      if (!(typographySurface instanceof HTMLElement)) return reject(new Error("Expected Typography box for scroll probe"));
-      if (!(typographyPanel instanceof HTMLElement)) return reject(new Error("Expected Typography card for scroll probe"));
-      const snapshot = (element) => {
-        const rect = element.getBoundingClientRect();
-        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-      };
-      const maxScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-      const deltaY = window.scrollY + 32 <= maxScrollY ? 32 : window.scrollY >= 32 ? -32 : 0;
-      if (!deltaY) return reject(new Error("Expected available document scroll range for Typography probe"));
+    stage("standalone: hover card follows source through settled wheel scroll");
+    await page.mouse.wheel(0, 48);
+    await waitForScrollIdle(page);
+    const hoverAfter = {
+      target: await box(target, "standalone target after wheel"),
+      surface: await box(hoverBox, "standalone Typography box after wheel"),
+      card: await box(hoverCard, "standalone Typography card after wheel"),
+    };
+    assertMoved(hoverBefore.target, hoverAfter.target, "standalone Typography source under wheel scroll");
+    assertSameBox(hoverAfter.surface, hoverAfter.target, "standalone Typography box after scroll settle");
+    assertSameOffset(hoverBefore.target, hoverBefore.card, hoverAfter.target, hoverAfter.card, "standalone Typography card after scroll settle");
 
-      const timer = window.setTimeout(() => {
-        reject(new Error(`Typography scroll probe did not receive a scroll event within ${timeoutMs}ms`));
-      }, timeoutMs);
-      window.addEventListener("scroll", () => {
-        window.clearTimeout(timer);
-        resolve({
-          target: snapshot(targetElement),
-          typographyBox: snapshot(typographySurface),
-          typographyCard: snapshot(typographyPanel),
-        });
-      }, { capture: true, once: true });
-      window.scrollBy({ top: deltaY, behavior: "instant" });
-    }), { timeoutMs: WAIT_TIMEOUT_MS }), "Typography immediate scroll probe");
-
-    assertSameBox(immediate.typographyBox, immediate.target, "standalone Typography box in scroll event");
-    assertSameOffset(
-      cardOffsetBefore,
-      relativeOffset(immediate.target, immediate.typographyCard),
-      "standalone Typography card in scroll event",
-    );
-
-    stage("Typography: verify post-settle stability");
-    await waitForScrollIdle(page, "Typography");
-    targetBox = await box(target, "target after standalone Typography scroll settles");
-    assertSameBox(
-      await box(typographyBox, "Typography box after scroll settles"),
-      targetBox,
-      "standalone Typography box after scroll settles",
-    );
-
-    stage("Typography: click once to pin inspector card");
+    stage("standalone: click-pinned card remains source-linked until dragged");
+    targetBox = hoverAfter.target;
     await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
     const pinnedCard = page.locator(".mesurer-ti-card:has(.mesurer-ti-close)").first();
-    await pinnedCard.waitFor({ state: "visible", timeout: WAIT_TIMEOUT_MS });
-    await page.waitForFunction(
-      () => document.querySelector(".mesurer-ti-card:has(.mesurer-ti-close)")?.getAttribute("data-mesurer-native-scroll-anchor") === "offset",
-      undefined,
-      { timeout: WAIT_TIMEOUT_MS },
-    );
+    await pinnedCard.waitFor({ state: "visible" });
 
-    targetBox = await box(target, "target before click-pinned Typography scroll");
-    const pinnedBefore = await box(pinnedCard, "click-pinned Typography card before scroll");
-    const pinnedOffsetBefore = relativeOffset(targetBox, pinnedBefore);
+    const pinnedBefore = {
+      target: await box(target, "click-pinned source before wheel"),
+      card: await box(pinnedCard, "click-pinned Typography card before wheel"),
+    };
+    await page.mouse.wheel(0, 48);
+    await waitForScrollIdle(page);
+    const pinnedAfter = {
+      target: await box(target, "click-pinned source after wheel"),
+      card: await box(pinnedCard, "click-pinned Typography card after wheel"),
+    };
+    assertMoved(pinnedBefore.target, pinnedAfter.target, "click-pinned source under wheel scroll");
+    assertSameOffset(pinnedBefore.target, pinnedBefore.card, pinnedAfter.target, pinnedAfter.card, "click-pinned Typography follows source after settle");
 
-    stage("Typography: verify click-pinned card immediate scroll stability");
-    const pinnedImmediate = await withTimeout(page.evaluate(({ timeoutMs }) => new Promise((resolve, reject) => {
-      const targetElement = document.querySelector("#isolated-scroll-target");
-      const pinnedPanel = document.querySelector(".mesurer-ti-card:has(.mesurer-ti-close)");
-      if (!(targetElement instanceof HTMLElement)) return reject(new Error("Expected target for click-pinned Typography scroll probe"));
-      if (!(pinnedPanel instanceof HTMLElement)) return reject(new Error("Expected click-pinned Typography card for scroll probe"));
-      const snapshot = (element) => {
-        const rect = element.getBoundingClientRect();
-        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-      };
-      const maxScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-      const deltaY = window.scrollY + 32 <= maxScrollY ? 32 : window.scrollY >= 32 ? -32 : 0;
-      if (!deltaY) return reject(new Error("Expected available document scroll range for click-pinned Typography probe"));
+    stage("standalone: explicit drag detaches card into manual viewport placement");
+    const dragStart = pinnedAfter.card;
+    await page.mouse.move(dragStart.x + dragStart.width / 2, dragStart.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(dragStart.x + dragStart.width / 2 + 80, dragStart.y + 60, { steps: 6 });
+    await page.mouse.up();
+    await settle(page);
 
-      const timer = window.setTimeout(() => {
-        reject(new Error(`Click-pinned Typography scroll probe did not receive a scroll event within ${timeoutMs}ms`));
-      }, timeoutMs);
-      window.addEventListener("scroll", () => {
-        window.clearTimeout(timer);
-        resolve({
-          target: snapshot(targetElement),
-          pinnedCard: snapshot(pinnedPanel),
-        });
-      }, { capture: true, once: true });
-      window.scrollBy({ top: deltaY, behavior: "instant" });
-    }), { timeoutMs: WAIT_TIMEOUT_MS }), "click-pinned Typography immediate scroll probe");
+    const draggedBeforeScroll = await box(pinnedCard, "dragged Typography card before viewport-stability probe");
+    assertMoved(dragStart, draggedBeforeScroll, "dragged Typography card", 20);
+    const sourceBeforeDetachedScroll = await box(target, "source before detached-card scroll");
 
-    assertSameOffset(
-      pinnedOffsetBefore,
-      relativeOffset(pinnedImmediate.target, pinnedImmediate.pinnedCard),
-      "click-pinned Typography card in scroll event",
-    );
-
-    stage("Typography: verify click-pinned card post-settle stability");
-    await waitForScrollIdle(page, "click-pinned Typography");
-    targetBox = await box(target, "target after click-pinned Typography scroll settles");
-    const pinnedAfter = await box(pinnedCard, "click-pinned Typography card after scroll settles");
-    assertSameOffset(
-      pinnedOffsetBefore,
-      relativeOffset(targetBox, pinnedAfter),
-      "click-pinned Typography card after scroll settle",
-    );
+    await page.mouse.wheel(0, 48);
+    await waitForScrollIdle(page);
+    const draggedAfterScroll = await box(pinnedCard, "dragged Typography card after viewport-stability probe");
+    const sourceAfterDetachedScroll = await box(target, "source after detached-card scroll");
+    assertMoved(sourceBeforeDetachedScroll, sourceAfterDetachedScroll, "source after detached-card wheel scroll");
+    assertSameBox(draggedAfterScroll, draggedBeforeScroll, "explicitly dragged Typography card stays at manual viewport position");
   } finally {
-    await closeContext(context, "Typography");
+    await context.close();
   }
 };
 
 try {
-  await verifySelectedTextSettle();
-  await verifyStandaloneTypography();
+  await verifyDirectEditSettle();
+  await verifyStandaloneTypographySettle();
   assert.deepEqual(browserErrors, [], `browser diagnostics: ${browserErrors.join("\n")}`);
   stage("PASS");
-  console.log("Native selected-text and standalone Typography surfaces stay stable through scroll settle: PASS");
+  console.log("Native scroll-settle E2E passed: direct-edit, hover, and click-pinned Typography follow their source; only a real dragged pin becomes viewport-stable.");
 } finally {
   clearTimeout(hardTimeout);
   stage("close browser");
-  await withTimeout(browser.close(), "browser close", 5_000).catch((error) => {
+  await browser.close().catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

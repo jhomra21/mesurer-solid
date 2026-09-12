@@ -1,6 +1,7 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
 import { MIN_MULTI_TARGET_SIZE } from "./constants";
 import { getBodyElementsCached, getFrameToken, getRectFromDomCached } from "./dom";
+import { isInsideMesurer, isMesurerInputBoundary } from "./events";
 import { rectsOverlap } from "./geometry";
 import { pickMultiTargets, pickPointTarget, pickSingleTarget } from "./targets";
 import { getDeepestElementAtPoint, getDomTreeRoot, isElementWithinDomTarget, withPointerEventsDisabled } from "@jhomra21/mesurer-solid-dom";
@@ -14,12 +15,68 @@ const getOverlayHost = (overlayNode: HTMLDivElement | null) => {
 };
 const isOverlayElement = (element: HTMLElement, overlayNode: HTMLDivElement | null, overlayHost: Element | null) =>
   Boolean(overlayNode?.contains(element) || (overlayHost && element === overlayHost));
+
+const deepestOpenShadowHit = (
+  element: Element,
+  point: Point,
+) => {
+  let current = element;
+  while (current.shadowRoot) {
+    const nested = current.shadowRoot.elementFromPoint(point.x, point.y);
+    if (!nested || nested === current) break;
+    current = nested;
+  }
+  return current;
+};
+
+/**
+ * Select's full-viewport interaction plane has to be ignored to discover page
+ * content, but explicit Mesurer UI beneath that plane is a hard occluder. Check
+ * the browser's physical hit stack before disabling the interaction overlay so
+ * an inspector card, toolbar, settings panel, annotation control, or similar UI
+ * can never be skipped in favor of inspected-page content underneath it.
+ */
+export const isSelectionPointBlockedByMesurerUi = (
+  point: Point,
+  overlayNode: HTMLDivElement | null,
+  ownerDocument: Document = document,
+  pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
+) => {
+  const ownerWindow = ownerDocument.defaultView;
+  if (!ownerWindow) return false;
+  // SAFETY: ownerWindow is ownerDocument.defaultView, so these constructors own every hit from ownerDocument.
+  const realm = ownerWindow as Window & typeof globalThis;
+  const overlayHost = getOverlayHost(overlayNode);
+
+  for (const hit of ownerDocument.elementsFromPoint(point.x, point.y)) {
+    if (!(hit instanceof realm.Element)) continue;
+    const deepest = deepestOpenShadowHit(hit, point);
+    if (deepest instanceof realm.HTMLElement && isOverlayElement(deepest, overlayNode, overlayHost)) continue;
+    if (isMesurerInputBoundary(deepest, ownerWindow)) return true;
+
+    // Once the physical stack has reached ordinary inspected-page content,
+    // anything underneath it is irrelevant to this pointer.
+    if (
+      deepest instanceof realm.HTMLElement
+      && isElementWithinDomTarget(deepest, pageTarget)
+      && !isInsideMesurer(deepest, ownerWindow)
+    ) return false;
+  }
+  return false;
+};
+
 const getSelectionTarget = (
   point: Point,
   overlayNode: HTMLDivElement | null,
   ownerDocument: Document,
   pageTarget: HTMLElement | ShadowRoot,
-) => withPointerEventsDisabled(overlayNode, () => getDeepestElementAtPoint(point, pageTarget, ownerDocument));
+) => {
+  if (isSelectionPointBlockedByMesurerUi(point, overlayNode, ownerDocument, pageTarget)) return null;
+  return withPointerEventsDisabled(
+    overlayNode,
+    () => getDeepestElementAtPoint(point, pageTarget, ownerDocument),
+  );
+};
 
 export const getTargetElement = (
   point: Point,
@@ -29,10 +86,15 @@ export const getTargetElement = (
 ) => {
   const overlayHost = getOverlayHost(overlayNode);
   const element = getSelectionTarget(point, overlayNode, ownerDocument, pageTarget);
-  const HTMLElementConstructor = ownerDocument.defaultView?.HTMLElement;
-  if (!HTMLElementConstructor || !(element instanceof HTMLElementConstructor)) return null;
+  const ownerWindow = ownerDocument.defaultView;
+  const HTMLElementConstructor = ownerWindow?.HTMLElement;
+  if (!ownerWindow || !HTMLElementConstructor || !(element instanceof HTMLElementConstructor)) return null;
   const html = element;
-  if (!isElementWithinDomTarget(html, pageTarget) || isOverlayElement(html, overlayNode, overlayHost)) return null;
+  if (
+    !isElementWithinDomTarget(html, pageTarget)
+    || isOverlayElement(html, overlayNode, overlayHost)
+    || isInsideMesurer(html, ownerWindow)
+  ) return null;
   if (html === ownerDocument.body || html === ownerDocument.documentElement) return null;
   const rect = html.getBoundingClientRect();
   return rect.width > 2 && rect.height > 2 ? html : null;
@@ -90,6 +152,8 @@ export const getSelectionEntries = (
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
 ) => {
   const overlayHost = getOverlayHost(overlayNode);
+  const ownerWindow = ownerDocument.defaultView;
+  if (!ownerWindow) return [];
   const frame = getFrameToken();
   const key = `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
   if (
@@ -109,6 +173,7 @@ export const getSelectionEntries = (
       if (
         !isElementWithinDomTarget(element, pageTarget)
         || isOverlayElement(element, overlayNode, overlayHost)
+        || isInsideMesurer(element, ownerWindow)
         || element === ownerDocument.body
         || element === ownerDocument.documentElement
       ) return false;

@@ -1,7 +1,11 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { installDocumentScrollAnchoring } from "./document-scroll-anchoring";
-import { createDocumentTextRuntime } from "./isolated-document-portal";
+import {
+  createDocumentTextRuntime,
+  installToolbarTargetAvoidance,
+} from "./isolated-document-portal";
+import { installIsolatedDocumentUiPassthrough } from "./isolated-document-ui-passthrough";
 import { installNativeScrollStability } from "./native-scroll-stability";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
 import { installTextEditingPresentation } from "./text-editing-presentation";
@@ -9,6 +13,7 @@ import {
   installMixedInlineTextTargeting,
   installRenderInPlaceTextEditing,
 } from "./text-editing-render-in-place";
+import { createTextPresentationPolicyRuntime } from "./text-presentation-policy-runtime";
 import { installUnifiedTextInspector } from "./text-editing-unified-inspector";
 import {
   installUnifiedTextSelectEscapeGuard,
@@ -35,6 +40,17 @@ export function installTextEditing(
   ctx: MesurerPluginContext,
   runtime: MesurerSolidRuntimeService,
 ) {
+  // The canonical toolbar is viewport UI and must not cover the page target it
+  // is describing. This coordinator owns that one collision response using
+  // cached target/toolbar geometry; scroll handling stays arithmetic-only.
+  installToolbarTargetAvoidance(ctx, runtime);
+
+  // Document-backed inspector controls can sit visually above the page while
+  // the public ShadowRoot island remains in the browser top layer. Let real
+  // pointer input pass through the isolated selection plane only over those
+  // cached Mesurer UI regions; do not redispatch synthetic clicks.
+  installIsolatedDocumentUiPassthrough(ctx, runtime);
+
   // The public package defaults to a ShadowRoot island. Keep the canonical
   // toolbar isolated and framework-owned there. Selection chrome uses the
   // MeasurementBox component's Solid Portal when it needs the document layer;
@@ -45,24 +61,29 @@ export function installTextEditing(
   // The custom dropdown owns Escape only while one of its options has focus.
   // Install that narrow guard before the core's global Escape cancellation.
   installUnifiedTextSelectEscapeGuard(ctx, textRuntime);
-  installTextEditingCore(ctx, textRuntime);
+  // Select remains a valid direct-edit interaction surface, but saved Desired
+  // text no longer becomes the page presentation merely because Select is on.
+  // The policy runtime distinguishes scheduled presentation from synchronous
+  // interaction and honors the explicit Keep text changes preference.
+  const policyRuntime = createTextPresentationPolicyRuntime(ctx, textRuntime);
+  installTextEditingCore(ctx, policyRuntime);
   installTextEditingPresentation(ctx, textRuntime);
   // Typography is the only inspector placement owner. It can observe the
   // editor/ring as those surfaces appear, so install it before render-in-place
-  // rather than keeping a second fallback placement algorithm there.
+  // rather than keeping a second fallback placement algorithm there. The card
+  // is Mesurer-owned for interaction but source-owned for geometry: clicking it
+  // cannot retarget Select, while page scrolling carries it with the edited text.
   installUnifiedTextInspector(ctx, textRuntime);
   installRenderInPlaceTextEditing(ctx, textRuntime);
   installUnifiedTextSelectMenus(ctx, textRuntime);
   installUnifiedTextSelectLayer(ctx, textRuntime);
   // Chromium can move the page in the compositor before JavaScript receives a
-  // scroll event. Keep scroll-following owners in the document anchor tree so
-  // their visible movement is resolved by CSS Anchor Positioning instead of
-  // having fixed overlay geometry chase the page from JS. The text runtime is
-  // created in the document layer for isolated public mounts and stays intact.
+  // scroll event. Keep page-linked selection/edit chrome and ordinary Typography
+  // surfaces in the same document anchor tree so they move with their source.
+  // Only an explicitly dragged pinned card leaves that geometry model.
   installDocumentScrollAnchoring(ctx, textRuntime);
-  // Keep every native anchor in document space and advance only the hidden
-  // fallback coordinates needed for post-scroll re-binding. This prevents the
-  // standalone Typography surface from staying viewport-fixed and prevents a
-  // selected-text highlight from jumping after scrolling settles.
+  // Keep native page anchors in document space and advance only hidden fallback
+  // coordinates needed for post-scroll re-binding. This prevents selected-text
+  // highlights and source-linked Typography surfaces from jumping after settle.
   installNativeScrollStability(ctx, textRuntime);
 }

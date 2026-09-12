@@ -47,36 +47,100 @@ const captureAround = async (boxes, name, padding = 24) => {
   });
 };
 
+const clickByCoordinates = async (locator, label) => {
+  const box = await locator.boundingBox();
+  assert(box, `${label} must have a bounding box`);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+};
+
 try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_SELF_HOSTING__?.subject));
 
-  await page.evaluate(async () => {
-    const harness = window.__MESURER_SELF_HOSTING__;
-    await harness.subject.agent.command("builtin.select");
-  });
-
   const target = page.locator("[data-self-host-target]");
   const targetBox = await target.boundingBox();
   assert(targetBox, "Self-host selection target must have a bounding box");
-  // Hit the button's own padding instead of nested copy so the annotation evidence
-  // is anchored to the actual control being selected.
-  await page.mouse.click(targetBox.x + 10, targetBox.y + 10);
+
+  // Selection mechanics have their own browser contracts. Establish this
+  // annotation fixture through the public API so this test can concentrate on
+  // the document-backed annotation input bridge and compositor anchoring.
+  await page.evaluate(async () => {
+    const harness = window.__MESURER_SELF_HOSTING__;
+    await harness.subject.select("[data-self-host-target]");
+  });
 
   await page.waitForFunction(() => {
     const button = document.querySelector("button[data-mesurer-tool-id='context.copy-selection']");
     return button instanceof HTMLButtonElement && !button.disabled;
   });
 
-  const annotationTrigger = page.locator("[data-mesurer-annotation-trigger='true']");
+  const annotationTrigger = page.locator("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
   await annotationTrigger.waitFor({ state: "visible" });
   const triggerBox = await annotationTrigger.boundingBox();
   assert(triggerBox, "Annotation trigger must have a bounding box");
   assert.equal(triggerBox.width, 24, "Annotation trigger width");
   assert.equal(triggerBox.height, 24, "Annotation trigger height");
-  assert(boxGap(targetBox, triggerBox) <= 8.5, `Annotation trigger should hug the selected element; gap was ${boxGap(targetBox, triggerBox).toFixed(2)}px`);
+  const triggerGap = boxGap(targetBox, triggerBox);
+  assert(
+    triggerGap >= 5.5 && triggerGap <= 6.5,
+    `Annotation trigger must keep its intended 6px clearance from the selected element; gap was ${triggerGap.toFixed(2)}px`,
+  );
+  assert.equal(
+    await annotationTrigger.evaluate((element) => getComputedStyle(element).position),
+    "absolute",
+    "Native annotation trigger must use the document absolute-anchor path",
+  );
 
-  await annotationTrigger.click();
+  const annotationScrollProbe = await page.evaluate(() => new Promise((resolve, reject) => {
+    const targetElement = document.querySelector("[data-self-host-target]");
+    const trigger = document.querySelector("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
+    if (!(targetElement instanceof HTMLElement)) return reject(new Error("Missing annotation scroll target"));
+    if (!(trigger instanceof HTMLElement)) return reject(new Error("Missing subject annotation trigger"));
+
+    const snapshot = (element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    document.body.style.minHeight = "1400px";
+    const before = { target: snapshot(targetElement), trigger: snapshot(trigger) };
+    const timer = window.setTimeout(() => reject(new Error("Annotation trigger scroll probe timed out")), 3_000);
+    window.addEventListener("scroll", () => {
+      window.clearTimeout(timer);
+      resolve({
+        before,
+        immediate: { target: snapshot(targetElement), trigger: snapshot(trigger) },
+        nativeOwner: trigger.dataset.mesurerNativeScrollOwner ?? null,
+        nativeAnchor: trigger.dataset.mesurerNativeScrollAnchor ?? null,
+      });
+    }, { capture: true, once: true });
+    window.scrollBy({ top: 80, behavior: "instant" });
+  }));
+
+  const triggerOffset = (snapshot) => ({
+    x: snapshot.trigger.x - snapshot.target.x,
+    y: snapshot.trigger.y - snapshot.target.y,
+  });
+  const triggerOffsetBefore = triggerOffset(annotationScrollProbe.before);
+  const triggerOffsetImmediate = triggerOffset(annotationScrollProbe.immediate);
+  assert.equal(annotationScrollProbe.nativeOwner, "annotation", "Annotation trigger must use native scroll ownership");
+  assert.equal(annotationScrollProbe.nativeAnchor, "offset", "Annotation trigger must expose its native anchor contract");
+  assert(
+    Math.abs(triggerOffsetImmediate.x - triggerOffsetBefore.x) <= 1.5
+      && Math.abs(triggerOffsetImmediate.y - triggerOffsetBefore.y) <= 1.5,
+    `Annotation trigger must stay attached in the first scroll event; offset moved from ${JSON.stringify(triggerOffsetBefore)} to ${JSON.stringify(triggerOffsetImmediate)}`,
+  );
+  await page.evaluate(() => new Promise((resolve) => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.body.style.minHeight = "";
+      resolve();
+    }));
+  }));
+
+  // The Mesurer host interaction plane can sit above document-backed inspector
+  // UI. Exercise the same physical-pointer path a user does so the capture
+  // bridge, rather than Playwright actionability bypasses, routes the click.
+  await clickByCoordinates(annotationTrigger, "Annotation trigger");
   const composer = page.locator("[data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
   const composerBox = await composer.boundingBox();
@@ -92,7 +156,7 @@ try {
   });
   await captureAround([targetBox, composerBox], "annotation-composer-detail", 28);
 
-  await composer.getByRole("button", { name: "Add note" }).click();
+  await clickByCoordinates(composer.getByRole("button", { name: "Add note" }), "Add note button");
   const annotationPanel = page.locator("[data-mesurer-annotation-panel='true']");
   const annotationMarker = page.locator("[data-mesurer-annotation-marker='true']");
   await annotationPanel.waitFor({ state: "visible" });
@@ -106,7 +170,7 @@ try {
   assert(boxGap(markerBox, panelBox) <= 8.5, `Saved annotation panel should clear the marker by one compact gap; gap was ${boxGap(markerBox, panelBox).toFixed(2)}px`);
   assert.equal((await annotationPanel.textContent())?.includes(noteText), true, "Saved annotation should render the note text");
   await captureAround([targetBox, markerBox, panelBox], "annotation-panel-detail", 28);
-  await annotationPanel.getByRole("button", { name: "Close annotation" }).click();
+  await clickByCoordinates(annotationPanel.getByRole("button", { name: "Close annotation" }), "Close annotation button");
 
   await page.evaluate(async () => {
     await window.__MESURER_SELF_HOSTING__.mountObserver();
@@ -236,7 +300,7 @@ try {
     `context buttons: ${measurements.tools.length} × 32×32px`,
     "context SVG boxes: 20×20px, centered in every button",
     `max glyph optical-center offset: ${maxOpticalOffset.toFixed(2)}px`,
-    "annotation trigger: 24×24px beside selected element",
+    "annotation trigger: 24×24px with 6px clearance; compositor-anchored during scroll",
     "annotation composer: compact, target-anchored Mesurer surface",
     "saved marker: clear between target and note panel",
     "observer selection: Copy context button",
@@ -252,7 +316,7 @@ try {
       toolbarCenterLineDelta: "≤ 0.05px",
       glyphEnvelope: "11–18.5px per axis",
       opticalCenterOffset: "≤ 1.5px",
-      annotationTrigger: "24x24px, ≤8.5px from selection",
+      annotationTrigger: "24x24px, 6px clearance from selection (±0.5px), stable in first scroll event",
       annotationComposer: "≤272.5px wide, ≤8.5px from selection",
       annotationPanel: "marker ≤8.5px from target; panel ≤8.5px from marker",
       observerSelection: "canonical selection context + matching body-level portaled chrome",
@@ -261,6 +325,7 @@ try {
     annotation: {
       target: targetBox,
       trigger: triggerBox,
+      scroll: annotationScrollProbe,
       composer: composerBox,
       marker: markerBox,
       panel: panelBox,
@@ -303,10 +368,14 @@ try {
     result: "PASS",
     toolIds,
     maxOpticalOffset,
-    annotationTriggerGap: boxGap(targetBox, triggerBox),
+    annotationTriggerGap: triggerGap,
     annotationComposerGap: boxGap(targetBox, composerBox),
     annotationMarkerGap: boxGap(targetBox, markerBox),
     annotationPanelGap: boxGap(markerBox, panelBox),
+    annotationScrollOffsetDelta: {
+      x: triggerOffsetImmediate.x - triggerOffsetBefore.x,
+      y: triggerOffsetImmediate.y - triggerOffsetBefore.y,
+    },
     outputDir,
   }, null, 2));
 } finally {

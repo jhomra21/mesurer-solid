@@ -37,6 +37,7 @@ export type ToolbarProps = {
 const TOOLBAR_DRAG_SLOP = 6;
 const GUIDE_MENU_WIDTH = 176;
 const TOOL_MENU_WIDTH = 224;
+const SETTINGS_MENU_WIDTH = 272;
 const VIEWPORT_PADDING = 8;
 const GUIDE_MENU_IDEAL_HEIGHT = 72;
 const SETTINGS_MENU_IDEAL_HEIGHT = 360;
@@ -137,6 +138,7 @@ export function Toolbar(props: ToolbarProps) {
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
   const [menuAlign, setMenuAlign] = createSignal<"left" | "right">("right");
   const [compact, setCompact] = createSignal(false);
+  const [viewportRevision, setViewportRevision] = createSignal(0);
   const tooltip = createTooltip(props.ownerWindow);
   let toolbarElement: HTMLDivElement | undefined;
   let settingsElement: HTMLDivElement | undefined;
@@ -212,6 +214,20 @@ export function Toolbar(props: ToolbarProps) {
     const below = Math.max(0, viewportHeight() - rect.bottom - VIEWPORT_PADDING);
     const above = Math.max(0, rect.top - VIEWPORT_PADDING);
     return below >= SETTINGS_MENU_IDEAL_HEIGHT || below >= above ? "bottom" : "top";
+  };
+  const settingsMenuLeft = () => {
+    position();
+    compact();
+    settingsActive();
+    viewportRevision();
+    const anchor = settingsElement?.getBoundingClientRect();
+    if (!anchor) return 0;
+    const viewportWidth = props.ownerWindow.innerWidth || SETTINGS_MENU_WIDTH + VIEWPORT_PADDING * 2;
+    const width = Math.min(SETTINGS_MENU_WIDTH, Math.max(0, viewportWidth - VIEWPORT_PADDING * 2));
+    const idealViewportLeft = anchor.right + 4 - width;
+    const maxViewportLeft = Math.max(VIEWPORT_PADDING, viewportWidth - VIEWPORT_PADDING - width);
+    const viewportLeft = Math.min(maxViewportLeft, Math.max(VIEWPORT_PADDING, idealViewportLeft));
+    return viewportLeft - anchor.left;
   };
 
   const updateMenuAlign = () => {
@@ -290,6 +306,7 @@ export function Toolbar(props: ToolbarProps) {
       setPluginMenuOpenId(null);
     }
     setCompact(next);
+    props.ownerWindow.setTimeout(() => setViewportRevision((value) => value + 1), 170);
   };
 
   const renderPluginMenu = (tool: ToolContribution) => (
@@ -355,7 +372,10 @@ export function Toolbar(props: ToolbarProps) {
       event.stopPropagation();
       setPluginMenuOpenId(null);
     };
-    const resize = () => { if (guideMenuOpen()) updateMenuAlign(); };
+    const resize = () => {
+      if (guideMenuOpen()) updateMenuAlign();
+      setViewportRevision((value) => value + 1);
+    };
     const keyboardTarget = props.ownerWindow.document;
     props.ownerWindow.addEventListener("pointerdown", handlePointerDown);
     props.ownerWindow.addEventListener("focus", handleCapabilityRefresh);
@@ -530,7 +550,8 @@ export function Toolbar(props: ToolbarProps) {
             <ToolbarButton id="settings" builtin="settings" active={settingsActive()} label="Settings" shortcut="⌘/Ctrl+," onClick={() => props.onBuiltinAction("settings")} {...buttonProps("settings")}><GearIcon size={20} /></ToolbarButton>
             <Show when={props.model.state.settingsOpen}>
               <div
-                class={`mesurer-menu-surface msr:absolute msr:-right-1 msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
+                class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:box-border msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:max-h-[calc(100vh-16px)] msr:overflow-y-auto msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-3 ${settingsMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"}`}
+                style={{ left: `${settingsMenuLeft()}px`, right: "auto" }}
                 data-mesurer-inspector-ui="true"
                 role="dialog"
                 aria-label="Settings"

@@ -1,7 +1,9 @@
 import { render } from "@solidjs/web";
 import {
   ContextActions,
+  createDocumentInspectorRuntime,
   type ContextActionsController,
+  type MesurerSolidRuntimeService,
   type MesurerWorkspaceRuntime,
 } from "@jhomra21/mesurer-solid-renderer";
 import type { MesurerPlugin, PluginValue } from "./core";
@@ -58,14 +60,6 @@ export type MesurerContextService = {
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
   prepareCapture(): Promise<void>;
   finishCapture(): Promise<void>;
-};
-
-type SolidRuntimeService = {
-  ownerDocument: Document;
-  ownerWindow: Window;
-  portalTarget: HTMLElement | ShadowRoot;
-  createWorkspaceRuntime(): MesurerWorkspaceRuntime;
-  createInspectorMount(): { element: HTMLDivElement; dispose(): void };
 };
 
 const stable = async (ownerDocument: Document, ownerWindow: Window, frames = 1) => {
@@ -136,10 +130,11 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
     requires: ["runtime:solid"],
     provides: [MESURER_CONTEXT_SERVICE_ID],
     setup(ctx) {
-      const solid = ctx.service.get<SolidRuntimeService>("runtime:solid");
+      const solid = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
       if (!solid) throw new Error("Mesurer context plugin requires the renderer runtime service.");
 
-      const runtime = solid.createWorkspaceRuntime();
+      const { runtime: contextRuntime, documentBacked } = createDocumentInspectorRuntime(solid);
+      const runtime = contextRuntime.createWorkspaceRuntime();
       const service = createService(runtime, solid.ownerDocument, solid.ownerWindow);
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
 
@@ -182,8 +177,9 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
 
       const createUi = () => {
         if (uiMount) return;
-        uiMount = solid.createInspectorMount();
+        uiMount = contextRuntime.createInspectorMount();
         uiMount.element.dataset.mesurerLayer = "evidence";
+        if (documentBacked) uiMount.element.dataset.mesurerContextDocumentLayer = "true";
         const actionProps: Parameters<typeof ContextActions>[0] = {
           runtime,
           onCopy: service.copyContext,

@@ -120,11 +120,65 @@
   --msr-spacing: 4px;
 }
 
+/* Document-portaled native anchors stay absolute so viewport/document scrolling
+   is handled entirely by the browser. When the selected page target lives under
+   a nested overflow scroller, the small runtime compensation updates only two
+   custom properties from scrollLeft/scrollTop deltas; no geometry reads or DOM
+   scans occur in the scroll hot path. These selectors are more specific than
+   the generic runtime anchor rules and therefore add only that nested delta. */
+body [data-mesurer-native-scroll-anchor="box"][data-mesurer-nested-scroll-compensation="true"] {
+  position: absolute !important;
+  left: calc(anchor(left) + var(--mesurer-nested-scroll-x, 0px)) !important;
+  top: calc(anchor(top) + var(--mesurer-nested-scroll-y, 0px)) !important;
+}
+
+body [data-mesurer-native-scroll-anchor="label"][data-mesurer-nested-scroll-compensation="true"] {
+  position: absolute !important;
+  left: calc(anchor(center) + var(--mesurer-nested-scroll-x, 0px)) !important;
+  top: calc(anchor(bottom) + 2px + var(--mesurer-nested-scroll-y, 0px)) !important;
+}
+
+body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-compensation="true"] {
+  position: absolute !important;
+  left: calc(anchor(left) + var(--mesurer-native-anchor-x, 0px) + var(--mesurer-nested-scroll-x, 0px)) !important;
+  top: calc(anchor(top) + var(--mesurer-native-anchor-y, 0px) + var(--mesurer-nested-scroll-y, 0px)) !important;
+}
+
+/* Page-linked edit/selection chrome and Typography surfaces stay in the same
+   source-following geometry model. Inspector cards remain above their page
+   chrome for interaction, but they leave the viewport with their text target
+   unless the user explicitly drags a pinned card into a manual viewport spot. */
+[data-mesurer-text-edit-ring="true"],
+[data-mesurer-text-selection-highlight="true"],
+[data-mesurer-text-caret="true"] {
+  z-index: 2147482900 !important;
+}
+
+[data-mesurer-text-inspector-placement-shell="true"],
+.mesurer-ti-card {
+  z-index: 2147483647 !important;
+}
+
 /* Selection-adjacent annotation chrome is contextual UI, not a second global
    toolbar. If it reaches the canonical toolbar band while the page scrolls,
    keep the persistent toolbar visually and interactively on top. */
 [data-mesurer-annotation-trigger="true"] {
   z-index: 80 !important;
+}
+
+/* Page-following Context UI is intentionally outside the hardened fixed host so
+   native CSS anchors share the selected page element's document positioning
+   tree. The trigger uses the same absolute native anchor path as selection;
+   composer, saved markers, and panels keep their existing viewport semantics. */
+[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-trigger="true"],
+[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-composer="true"],
+[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-marker="true"],
+[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-panel="true"] {
+  z-index: 2147483000 !important;
+}
+
+[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-trigger="true"][data-mesurer-native-scroll-owner="annotation"][data-mesurer-native-scroll-anchor="offset"] {
+  position: absolute !important;
 }
 
 /* Plugin-contributed toggles share the compact 24px switch row, but unlike
@@ -205,14 +259,6 @@ body.mesurer-solid-xray .mesurer-ti-close {
 
 [data-mesurer-toolbar="true"][data-mesurer-toolbar-compact="true"] > div:has(> [data-mesurer-toolbar-compact-item]):not(:has(> [data-mesurer-toolbar-compact-item][data-visible="true"])) {
   padding-inline: 0;
-}
-
-/* The contextual direct-edit Typography shell follows the edited host. Keep
-   it on the document absolute-anchor path so compositor scrolling moves host,
-   selection, ring, and inspector together. Standalone Typography surfaces keep
-   their fixed viewport-owned rule from document-scroll-anchoring. */
-[data-mesurer-text-inspector-placement-shell="true"][data-mesurer-native-scroll-owner="typography"][data-mesurer-native-scroll-anchor="offset"] {
-  position: absolute !important;
 }
 
 /* Keep Solid ownership without giving the portaled selection wrapper its own

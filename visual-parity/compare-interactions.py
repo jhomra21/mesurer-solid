@@ -9,6 +9,15 @@ from PIL import Image, ImageChops, ImageDraw, ImageEnhance
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("interaction-artifacts")
 threshold = 8
 cases = json.loads((out / "cases.json").read_text())
+current_general_switches = {
+    "Shortcuts": "true",
+    "Keep text changes": "false",
+    "Keep Arrange changes": "false",
+}
+presentation_switch_buttons = {
+    "Keep text changes",
+    "Keep Arrange changes",
+}
 
 
 def deep_diff(left, right, path=""):
@@ -52,21 +61,54 @@ def normalize_historical_toolbar_state(state):
     return state
 
 
-def normalize_current_shortcuts_state(react_state, solid_state):
-    """Normalize only the exact current-upstream Shortcuts switch missing from v0.0.11."""
+def normalize_current_general_state(react_state, solid_state):
+    """Normalize only the three verified current-only General switches."""
     react_switches = react_state.get("switches")
     solid_switches = solid_state.get("switches")
     if not isinstance(react_switches, list) or not isinstance(solid_switches, list):
         return False
-    if any(item.get("text") == "Shortcuts" for item in react_switches):
+    names = set(current_general_switches)
+    if any(item.get("text") in names for item in react_switches):
         return False
-    shortcuts = [item for item in solid_switches if item.get("text") == "Shortcuts"]
-    if shortcuts != [{"text": "Shortcuts", "checked": "true"}]:
+    additions = [item for item in solid_switches if item.get("text") in names]
+    if len(additions) != len(names) or {item.get("text") for item in additions} != names:
         return False
-    without_shortcuts = [item for item in solid_switches if item.get("text") != "Shortcuts"]
-    if without_shortcuts != react_switches:
+    for item in additions:
+        if item.get("checked") != current_general_switches[item.get("text")]:
+            return False
+    without_additions = [item for item in solid_switches if item.get("text") not in names]
+    if without_additions != react_switches:
         return False
-    solid_state["switches"] = without_shortcuts
+
+    # Presentation switches are buttons, so the generic interaction capture also
+    # records them in toolbarButtons. Verify those duplicate records exactly before
+    # removing them; otherwise an unexpected button can never disappear into the
+    # historical normalization.
+    react_buttons = react_state.get("toolbarButtons")
+    solid_buttons = solid_state.get("toolbarButtons")
+    if not isinstance(react_buttons, list) or not isinstance(solid_buttons, list):
+        return False
+    if any(item.get("label") in presentation_switch_buttons for item in react_buttons):
+        return False
+    button_additions = [
+        item for item in solid_buttons
+        if item.get("label") in presentation_switch_buttons
+    ]
+    if (
+        len(button_additions) != len(presentation_switch_buttons)
+        or {item.get("label") for item in button_additions} != presentation_switch_buttons
+        or any(item.get("pressed") is not None for item in button_additions)
+    ):
+        return False
+    without_button_additions = [
+        item for item in solid_buttons
+        if item.get("label") not in presentation_switch_buttons
+    ]
+    if without_button_additions != react_buttons:
+        return False
+
+    solid_state["switches"] = without_additions
+    solid_state["toolbarButtons"] = without_button_additions
     return True
 
 
@@ -78,14 +120,15 @@ def is_historical_toolbar_pixel(name: str, x: int, y: int) -> bool:
     return False
 
 
-def current_shortcuts_pixel(name: str, x: int, y: int, enabled: bool, height: int):
+def current_general_pixel(name: str, x: int, y: int, enabled: bool, height: int):
     if not enabled:
         return y, False
-    # The shared parity fixture's General panel is x=16..288. Current upstream
-    # inserts one 24px Shortcuts row plus the existing 4px row gap after Persist,
-    # shifting the historical remainder by exactly 28px. Include only the known
-    # 16px horizontal / 12px vertical shadow fringe already measured by this
-    # fixture. The feature-specific Chromium contract owns the inserted row.
+    # The shared parity fixture's General panel is x=16..288. Solid composes two
+    # 24px presentation-policy rows (plus their 4px gaps) before Persist, then
+    # current upstream adds the 24px Shortcuts row plus gap after Persist. Translate
+    # only the panel interior: the 16px side-shadow strips overlay stationary page
+    # content and therefore must stay at their original viewport Y. The extra
+    # panel/shadow tail is still ignored only for the verified current additions.
     if not (
         name in {
             "toolbar-settings-open",
@@ -95,15 +138,21 @@ def current_shortcuts_pixel(name: str, x: int, y: int, enabled: bool, height: in
             "settings-general-clear-workspace",
         }
         and 0 <= x < 304
-        and y >= 129
+        and y >= 105
     ):
         return y, False
-    shift = 28
+    presentation_shift = 56
+    total_shift = 84
+    panel_left = 16
+    panel_right = 288
+    persist_bottom = 129
     historical_shadow_bottom = 244
-    current_shadow_bottom = 272
-    if y < historical_shadow_bottom and y + shift < height:
-        return y + shift, False
-    if y < current_shadow_bottom:
+    current_shadow_bottom = 328
+    if panel_left <= x < panel_right and y < persist_bottom and y + presentation_shift < height:
+        return y + presentation_shift, False
+    if panel_left <= x < panel_right and y < historical_shadow_bottom and y + total_shift < height:
+        return y + total_shift, False
+    if y >= historical_shadow_bottom and y < current_shadow_bottom:
         return y, True
     return y, False
 
@@ -153,7 +202,7 @@ for name, meta in cases.items():
         react_selection_label,
         solid_selection_label,
     )
-    normalized_shortcuts = normalize_current_shortcuts_state(react_state, solid_state)
+    normalized_general = normalize_current_general_state(react_state, solid_state)
     state_diffs = deep_diff(react_state, solid_state)
 
     react = Image.open(out / f"react-{name}.png").convert("RGBA")
@@ -170,9 +219,9 @@ for name, meta in cases.items():
     ignored_selection_label_exact = ignored_selection_label_thresholded = 0
     for y in range(height):
         for x in range(width):
-            solid_y, ignore_shortcuts = current_shortcuts_pixel(name, x, y, normalized_shortcuts, height)
+            solid_y, ignore_general = current_general_pixel(name, x, y, normalized_general, height)
             raw_delta = max(abs(rp[x, y][i] - sp[x, y][i]) for i in range(4))
-            if ignore_shortcuts:
+            if ignore_general:
                 if raw_delta:
                     ignored_shortcuts_exact += 1
                     if raw_delta > threshold:
@@ -239,7 +288,8 @@ for name, meta in cases.items():
         "ignored_current_shortcuts_threshold_pixels": ignored_shortcuts_thresholded,
         "ignored_selection_label_exact_pixels": ignored_selection_label_exact,
         "ignored_selection_label_threshold_pixels": ignored_selection_label_thresholded,
-        "normalized_current_shortcuts_setting": normalized_shortcuts,
+        "normalized_current_general_settings": normalized_general,
+        "normalized_current_shortcuts_setting": normalized_general,
         "verified_selection_label_contract": selection_label_region is not None,
         "max_channel_delta": max_delta,
         "state_difference_count": len(state_diffs),
@@ -257,4 +307,4 @@ print(json.dumps(report, indent=2))
 
 if failures:
     raise SystemExit("React → Solid historical interaction parity failed:\n- " + "\n- ".join(failures))
-print("React → Solid historical interaction parity outside current toolbar chrome: PASS")
+print("React → Solid historical interaction parity outside current toolbar/General additions: PASS")

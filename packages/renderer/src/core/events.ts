@@ -35,6 +35,31 @@ export function isInsideMesurer(node: EventTarget | null, ownerWindow: Window): 
   return false;
 }
 
+/**
+ * Return true only for a concrete Mesurer-owned input surface at this node.
+ *
+ * This intentionally does not treat the full-screen renderer root or its outer
+ * island host as a pointer boundary merely because they are ancestors. Select's
+ * transparent interaction plane covers the viewport and must be temporarily
+ * ignored to inspect the page. Inspector cards, toolbars, settings, annotation
+ * controls, and other explicit inspector islands are different: they are real
+ * UI and must never be looked through to page content underneath.
+ */
+export function isMesurerInputBoundary(node: EventTarget | null, ownerWindow: Window): boolean {
+  const realm = realmFor(ownerWindow);
+  if (!(node instanceof realm.Element)) return false;
+  let current: Element | null = node;
+  while (current) {
+    if (
+      current.getAttribute("data-mesurer-inspector-ui") === "true"
+      || current.hasAttribute("data-mesurer-toolbar")
+      || current.hasAttribute("data-mesurer-settings")
+    ) return true;
+    current = current.parentElement;
+  }
+  return false;
+}
+
 export function isMesurerUiNode(node: EventTarget | null, ownerWindow: Window): boolean {
   if (isInsideMesurer(node, ownerWindow)) return true;
   const realm = realmFor(ownerWindow);

@@ -27,6 +27,10 @@ import {
 import { MesurerPluginSettingsProvider } from "./plugins/settings-runtime";
 import { installArrangeSelectGuard } from "./runtime/arrange-select-guard";
 import type { MesurerBuiltinController } from "./runtime/builtin-actions";
+import {
+  MESURER_PRESENTATION_SETTINGS_ID,
+  installPresentationPreferences,
+} from "./runtime/presentation-preferences";
 import { installTextEditing } from "./runtime/text-editing";
 import {
   createMesurerWorkspaceRuntime,
@@ -257,6 +261,11 @@ export default function ComposableMesurer(props: MesurerProps) {
           sections: ownedSections,
         };
       });
+  });
+
+  const generalPluginSettings = createMemo(() => {
+    revision();
+    return host.settings().filter((section) => section.id === MESURER_PRESENTATION_SETTINGS_ID);
   });
 
   const visibilityCss = () => {
@@ -620,6 +629,7 @@ export default function ComposableMesurer(props: MesurerProps) {
             createInspectorMount,
           };
           ctx.service.provide<MesurerSolidRuntimeService>("runtime:solid", runtimeService);
+          installPresentationPreferences(ctx);
           installArrangeSelectGuard(ctx, runtimeService);
           installTextEditing(ctx, runtimeService);
           for (const id of BUILTIN_TOOL_IDS) {
@@ -763,7 +773,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   });
 
   return (
-    <MesurerPluginSettingsProvider runtime={{ plugins: managedPluginSettings, version: () => version, setEnabled: (pluginId, enabled) => setManagedPluginEnabled(pluginId, enabled), update: updatePluginSetting, reset: resetPluginSettings }}>
+    <MesurerPluginSettingsProvider runtime={{ plugins: managedPluginSettings, generalSections: generalPluginSettings, version: () => version, setEnabled: (pluginId, enabled) => setManagedPluginEnabled(pluginId, enabled), update: updatePluginSetting, reset: resetPluginSettings }}>
       <MesurerModelRegistrationContext value={(model: MesurerModel) => { rendererModel = model; }}>
         <Mesurer
           {...props}
