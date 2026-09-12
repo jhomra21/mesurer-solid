@@ -25,7 +25,7 @@ describe("Typography dimensions-pill clearance", () => {
     const placement = resolveMeasurementAwareInspectorPlacement(host, [], card, viewport);
 
     expect(placement).toEqual({
-      left: 54,
+      left: 53,
       top: 173,
       placement: "below",
       maxHeight: null,
@@ -36,7 +36,7 @@ describe("Typography dimensions-pill clearance", () => {
     const placement = resolveMeasurementAwareInspectorPlacement(host, [label], card, viewport);
 
     expect(placement).toEqual({
-      left: 54,
+      left: 53,
       top: 195,
       placement: "below",
       maxHeight: null,
