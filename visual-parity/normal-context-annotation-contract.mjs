@@ -21,20 +21,36 @@ try {
   await page.goto(url, { waitUntil: "networkidle" });
 
   await page.keyboard.press("Control+,");
-  const settings = page.getByRole("dialog", { name: "Settings" });
+  let settings = page.getByRole("dialog", { name: "Settings" });
   await settings.waitFor({ state: "visible" });
-  const general = settings.getByRole("tab", { name: "General", exact: true });
+  let general = settings.getByRole("tab", { name: "General", exact: true });
   if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
-  const disclosure = settings.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
+  let disclosure = settings.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
   if ((await disclosure.getAttribute("aria-expanded")) !== "true") await disclosure.click();
-  const context = settings.getByRole("switch", { name: "Context", exact: true });
+  let context = settings.getByRole("switch", { name: "Context", exact: true });
   if ((await context.getAttribute("aria-checked")) !== "true") await context.click();
   await page.waitForFunction(() => document.querySelector("[data-mesurer-plugin-toggle='mesurer.context']")?.getAttribute("aria-checked") === "true");
   await page.keyboard.press("Control+,");
   await settings.waitFor({ state: "hidden" });
 
+  // Match the manual session: Context is already enabled when the page starts.
+  // This specifically exercises persisted available-plugin restoration rather
+  // than only the dynamic enable path that had already been passing.
+  await page.reload({ waitUntil: "networkidle" });
   const contextTool = page.locator("[data-mesurer-tool-id='context.copy'] button");
   await contextTool.waitFor({ state: "visible" });
+  await page.keyboard.press("Control+,");
+  settings = page.getByRole("dialog", { name: "Settings" });
+  await settings.waitFor({ state: "visible" });
+  general = settings.getByRole("tab", { name: "General", exact: true });
+  if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
+  disclosure = settings.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
+  if ((await disclosure.getAttribute("aria-expanded")) !== "true") await disclosure.click();
+  context = settings.getByRole("switch", { name: "Context", exact: true });
+  assert.equal(await context.getAttribute("aria-checked"), "true", "Context did not restore enabled after reload");
+  await page.keyboard.press("Control+,");
+  await settings.waitFor({ state: "hidden" });
+
   const select = page.locator("button[data-mesurer-builtin='select']");
   await select.waitFor({ state: "visible" });
   await select.click();
@@ -52,7 +68,7 @@ try {
   const trigger = page.locator("[data-mesurer-annotation-trigger='true']");
   await trigger.waitFor({ state: "visible", timeout: 3000 });
   assert.equal(await trigger.count(), 1, "expected exactly one annotation trigger for the selected hero");
-  const triggerBox = await box(trigger, "annotation trigger after normal selection");
+  const triggerBox = await box(trigger, "annotation trigger after persisted Context selection");
   const hit = await page.evaluate(({ x, y }) => {
     const node = document.elementFromPoint(x, y);
     return Boolean(node?.closest?.("[data-mesurer-annotation-trigger='true']"));
@@ -71,7 +87,7 @@ try {
   await marker.waitFor({ state: "visible" });
   assert.equal(await marker.count(), 1, "saved normal-playground annotation marker missing");
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Normal Context annotation E2E: enable Context, physically select hero, render/click annotation trigger, save note, and retain marker: PASS");
+  console.log("Normal Context annotation E2E: persisted Context reload, physical hero selection, rendered/clickable trigger, saved note, and retained marker: PASS");
 } finally {
   await browser.close();
 }
