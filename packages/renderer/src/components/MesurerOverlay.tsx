@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
+import { Portal } from "@solidjs/web";
 import { GUIDE_DRAG_HOLD_MS, GUIDE_HITBOX_SIZE, MEASURE_LABEL_OFFSET } from "../core/constants";
 import { getSelectionSpacingOverlays } from "../core/distances";
 import { getEdgeVisibilityForRects } from "../core/edge-visibility";
@@ -92,6 +93,47 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       ...displayedSelectedMeasurements().map((item) => item.rect),
     ])[0] ?? null;
   };
+  const hoverPortalTarget = () => {
+    const overlay = overlayElement;
+    const target = props.model.state.hoverElement;
+    const ownerWindow = overlay?.ownerDocument.defaultView;
+    if (!overlay || !target?.isConnected || !ownerWindow || !overlay.ownerDocument.body) return null;
+    if (!(overlay.getRootNode() instanceof ownerWindow.ShadowRoot)) return null;
+    if (target.getRootNode() !== overlay.ownerDocument) return null;
+    return overlay.ownerDocument.body;
+  };
+  const hoverPortalOffset = () => {
+    const target = props.model.state.hoverElement;
+    const mount = hoverPortalTarget();
+    const ownerWindow = target?.ownerDocument.defaultView;
+    if (!target || !ownerWindow || mount !== target.ownerDocument.body) return { x: 0, y: 0 };
+    return { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
+  };
+  const hoverSurface = () => {
+    const rect = props.model.state.hoverRect!;
+    const offset = hoverPortalOffset();
+    return <div
+      ref={(element) => { hoverChromeElement = element; }}
+      data-mesurer-hover-measurement="true"
+      class="msr:pointer-events-none msr:absolute"
+      style={{
+        position: "absolute",
+        "pointer-events": "none",
+        left: `${rect.left + offset.x}px`,
+        top: `${rect.top + offset.y}px`,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+        "background-color": fill(),
+        transition: "none",
+        animation: "none",
+      }}
+    >
+      <Show when={hoverEdges()?.top}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ position: "absolute", left: "0", top: "0", height: "1px", width: "100%", "background-color": outline() }} /></Show>
+      <Show when={hoverEdges()?.right}><div class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ position: "absolute", right: "0", top: "0", height: "100%", width: "1px", "background-color": outline() }} /></Show>
+      <Show when={hoverEdges()?.bottom}><div class="msr:absolute msr:bottom-0 msr:left-0 msr:h-px msr:w-full" style={{ position: "absolute", bottom: "0", left: "0", height: "1px", width: "100%", "background-color": outline() }} /></Show>
+      <Show when={hoverEdges()?.left}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ position: "absolute", left: "0", top: "0", height: "100%", width: "1px", "background-color": outline() }} /></Show>
+    </div>;
+  };
   const guideColor = (kind: "active" | "hover" | "default" | "preview") => {
     const amount = kind === "active" ? 100 : kind === "hover" ? 90 : kind === "preview" ? 50 : 70;
     return `color-mix(in oklch, ${props.model.state.settings.guideColor} ${amount}%, transparent)`;
@@ -158,9 +200,12 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       const chrome = hoverChromeElement;
       if (!target?.isConnected || !chrome?.isConnected) return;
       const rect = target.getBoundingClientRect();
+      const documentLayer = hoverPortalTarget() === target.ownerDocument.body;
+      const offsetX = documentLayer ? ownerWindow.scrollX : 0;
+      const offsetY = documentLayer ? ownerWindow.scrollY : 0;
       Object.assign(chrome.style, {
-        left: `${rect.left}px`,
-        top: `${rect.top}px`,
+        left: `${rect.left + offsetX}px`,
+        top: `${rect.top + offsetY}px`,
         width: `${rect.width}px`,
         height: `${rect.height}px`,
       });
@@ -175,10 +220,13 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         return;
       }
 
-      // The isolated hover surface cannot share the page's CSS anchor tree.
-      // Hiding it during compositor scroll avoids rendering a second blue box
-      // that trails the native selected chrome. Resolve the new hover geometry
-      // once scrolling settles instead of forcing layout on every wheel event.
+      // The document-backed hover surface can share the page's CSS anchor tree.
+      // Local/Shadow DOM fallbacks still hide during compositor scroll until
+      // their JavaScript geometry catches up after the scroll settles.
+      if (hoverPortalTarget() === ownerDocument.body) {
+        syncHoverGeometry();
+        return;
+      }
       chrome.style.visibility = "hidden";
       if (hoverScrollIdleTimer) ownerWindow.clearTimeout(hoverScrollIdleTimer);
       hoverScrollIdleTimer = ownerWindow.setTimeout(() => {
@@ -298,12 +346,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         </></Show>
 
         <Show when={props.model.state.hoverRect && props.model.state.settings.hoverHighlightEnabled && selectedMeasurements().length <= 1}>
-          <div ref={(element) => { hoverChromeElement = element; }} data-mesurer-hover-measurement="true" class="msr:pointer-events-none msr:absolute" style={{ left: `${props.model.state.hoverRect!.left}px`, top: `${props.model.state.hoverRect!.top}px`, width: `${props.model.state.hoverRect!.width}px`, height: `${props.model.state.hoverRect!.height}px`, "background-color": fill(), transition: "none", animation: "none" }}>
-            <Show when={hoverEdges()?.top}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-px msr:w-full" style={{ "background-color": outline() }} /></Show>
-            <Show when={hoverEdges()?.right}><div class="msr:absolute msr:right-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": outline() }} /></Show>
-            <Show when={hoverEdges()?.bottom}><div class="msr:absolute msr:bottom-0 msr:left-0 msr:h-px msr:w-full" style={{ "background-color": outline() }} /></Show>
-            <Show when={hoverEdges()?.left}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": outline() }} /></Show>
-          </div>
+          <Show when={hoverPortalTarget()} fallback={hoverSurface()}>
+            {(mount) => <Portal mount={mount()}>{hoverSurface()}</Portal>}
+          </Show>
         </Show>
       </Show>
 
