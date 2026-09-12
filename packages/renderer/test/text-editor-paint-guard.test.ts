@@ -77,6 +77,7 @@ describe("direct text editor paint guard", () => {
 
     const target = document.createElement("p");
     target.textContent = "Scroll and inspect this card.";
+    target.style.color = "rgb(17, 24, 39)";
     pageTarget.append(target);
     Object.defineProperty(document, "elementsFromPoint", {
       configurable: true,
@@ -94,7 +95,7 @@ describe("direct text editor paint guard", () => {
     expect(editor).toBeTruthy();
     const computed = getComputedStyle(editor!);
     expect(computed.opacity).toBe("0");
-    expect(isTransparent(computed.color)).toBe(true);
+    expect(computed.color).toBe(getComputedStyle(target).color);
     expect(isTransparent(computed.backgroundColor)).toBe(true);
     expect(computed.boxShadow).toBe("none");
   });
