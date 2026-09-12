@@ -10,6 +10,9 @@ const waitFrames = (count = 2) => page.evaluate(async (frames) => {
   }
 }, count);
 
+const sameBox = (left, right, tolerance = 2) => ["x", "y", "width", "height"]
+  .every((key) => Math.abs(left[key] - right[key]) <= tolerance);
+
 try {
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => Boolean(window.__HOST_READY__));
@@ -21,6 +24,19 @@ try {
   });
 
   await page.evaluate(() => window.__MESURER__.command("builtin.select"));
+
+  // Match the manual failure more closely: keep the edited text onscreen while
+  // the page already has a non-zero document scroll offset. The rejected manual
+  // screenshot showed the ghost displaced by approximately scrollY.
+  await page.evaluate(() => {
+    const spacer = document.createElement("div");
+    spacer.dataset.testid = "mesurer-ghost-scroll-spacer";
+    spacer.style.height = "260px";
+    document.querySelector("#root")?.before(spacer);
+    document.body.style.minHeight = "1800px";
+    window.scrollTo(0, 234);
+  });
+  await waitFrames(2);
 
   const hoverTargetBox = await page.evaluate(() => {
     const target = document.createElement("div");
@@ -134,6 +150,95 @@ try {
     throw new Error(`Document selected chrome can still paint during direct edit: ${JSON.stringify(ownershipProbe)}`);
   }
 
+  // Reproduce the newly reported path with real pointer input: while the child
+  // editor remains active, overwrite Select with its parent, move back over the
+  // edited child, and select the child again. The hover rectangle for the edited
+  // or currently selected target is redundant with the edit ring and must never
+  // become a second paintable 1:1 copy.
+  const parentPoint = await editTarget.evaluate((element) => {
+    const parent = element.parentElement;
+    if (!(parent instanceof HTMLElement)) return null;
+    const rect = parent.getBoundingClientRect();
+    return {
+      x: rect.left + 4,
+      y: rect.top + 4,
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+    };
+  });
+  if (!parentPoint) throw new Error("Packed Solid 2 edit target has no selectable parent");
+
+  await page.mouse.move(parentPoint.x, parentPoint.y);
+  await page.mouse.click(parentPoint.x, parentPoint.y);
+  await waitFrames(2);
+  if (await editor.count() !== 1) throw new Error("Selecting the parent closed direct editing");
+
+  const selectedChrome = page.locator("[data-mesurer-selected-measurement='true'] > div").first();
+  const parentSelectedBox = await selectedChrome.boundingBox();
+  if (!parentSelectedBox || !sameBox(parentSelectedBox, parentPoint.rect, 3)) {
+    throw new Error(`Parent selection did not replace the child selection: ${JSON.stringify({ parentSelectedBox, parent: parentPoint.rect })}`);
+  }
+
+  await page.mouse.move(editX, editY);
+  await waitFrames(2);
+
+  const readReselectionState = () => page.evaluate(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const read = (element, layer, kind) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        layer,
+        kind,
+        opacity: getComputedStyle(element).opacity,
+        selectionSuppressed: element.getAttribute("data-mesurer-direct-edit-selection-suppressed"),
+        hoverSuppressed: element.getAttribute("data-mesurer-direct-edit-hover-suppressed"),
+        nativeAnchor: element.getAttribute("data-mesurer-native-scroll-anchor"),
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      };
+    };
+    const bodySelections = Array.from(document.body.querySelectorAll("[data-mesurer-selected-measurement='true']"))
+      .map((element) => read(element, "document", "selection"));
+    const bodyHovers = Array.from(document.body.querySelectorAll("[data-mesurer-hover-measurement='true']"))
+      .map((element) => read(element, "document", "hover"));
+    const shadowSelections = island?.shadowRoot
+      ? Array.from(island.shadowRoot.querySelectorAll("[data-mesurer-selected-measurement='true']")).map((element) => read(element, "shadow", "selection"))
+      : [];
+    const shadowHovers = island?.shadowRoot
+      ? Array.from(island.shadowRoot.querySelectorAll("[data-mesurer-hover-measurement='true']")).map((element) => read(element, "shadow", "hover"))
+      : [];
+    const target = document.querySelector("[data-testid='consumer-sibling']");
+    const ring = document.querySelector("[data-mesurer-text-edit-ring='true']");
+    const targetRect = target?.getBoundingClientRect();
+    const ringRect = ring?.getBoundingClientRect();
+    return {
+      scrollY: window.scrollY,
+      editorActive: Boolean(document.querySelector("[data-mesurer-text-editor='true']")),
+      target: targetRect ? { x: targetRect.x, y: targetRect.y, width: targetRect.width, height: targetRect.height } : null,
+      ring: ringRect ? { x: ringRect.x, y: ringRect.y, width: ringRect.width, height: ringRect.height } : null,
+      surfaces: [...bodySelections, ...shadowSelections, ...bodyHovers, ...shadowHovers],
+    };
+  });
+
+  const beforeReselect = await readReselectionState();
+  const visibleBeforeReselect = beforeReselect.surfaces.filter((surface) => Number(surface.opacity) > 0.01);
+  if (visibleBeforeReselect.some((surface) => surface.kind === "selection" || surface.kind === "hover")) {
+    throw new Error(`Edited child exposed duplicate chrome while parent remained selected: ${JSON.stringify(beforeReselect)}`);
+  }
+  if (!beforeReselect.editorActive || !beforeReselect.target || !beforeReselect.ring || !sameBox(beforeReselect.target, beforeReselect.ring, 2)) {
+    throw new Error(`Direct-edit ring lost its source during parent overwrite: ${JSON.stringify(beforeReselect)}`);
+  }
+
+  await page.mouse.click(editX, editY);
+  await waitFrames(2);
+  const afterReselect = await readReselectionState();
+  const childSelectedBox = await selectedChrome.boundingBox();
+  if (!childSelectedBox || !sameBox(childSelectedBox, afterReselect.target, 3)) {
+    throw new Error(`Child reselection did not restore the original target selection: ${JSON.stringify({ childSelectedBox, state: afterReselect })}`);
+  }
+  const visibleAfterReselect = afterReselect.surfaces.filter((surface) => Number(surface.opacity) > 0.01);
+  if (visibleAfterReselect.some((surface) => surface.kind === "selection" || surface.kind === "hover")) {
+    throw new Error(`Child reselection exposed duplicate direct-edit chrome: ${JSON.stringify(afterReselect)}`);
+  }
+
   // The first movement can be the event that clears document-UI passthrough
   // after leaving the Typography card. A second real pointer movement exercises
   // the same path a user naturally produces while moving onto a nearby element.
@@ -214,6 +319,8 @@ try {
   console.log("Packed Solid 2 Typography/selection ownership: PASS", {
     ordinaryHover,
     ownershipProbe,
+    beforeReselect,
+    afterReselect,
     ...result,
   });
 } finally {
