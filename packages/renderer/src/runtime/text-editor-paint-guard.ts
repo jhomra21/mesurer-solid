@@ -37,7 +37,8 @@ export function installTextEditorPaintGuard(
   style.dataset.mesurerInspectorUi = "true";
   style.textContent = TEXT_EDITOR_PAINT_GUARD_CSS;
 
-  if (portalTarget instanceof realm.ShadowRoot) portalTarget.append(style);
+  const root = portalTarget.getRootNode();
+  if (root instanceof realm.ShadowRoot) root.append(style);
   else (ownerDocument.head ?? ownerDocument.documentElement).append(style);
 
   ctx.lifecycle.onDispose(() => style.remove());
