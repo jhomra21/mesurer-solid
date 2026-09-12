@@ -22,9 +22,9 @@ const Y_VARIABLE = "--mesurer-nested-scroll-y";
  *
  * Capture the target's composed ancestor chain once. The scroll hot path never
  * scans the DOM or reads layout geometry: it performs one cached source lookup,
- * two scalar deltas, and CSS-variable writes. Cached element sources are
- * observed directly so non-composed ShadowRoot scroll events do not need to
- * escape their tree.
+ * two scalar deltas, and CSS-variable writes only when those deltas change.
+ * Cached element sources are observed directly so non-composed ShadowRoot
+ * scroll events do not need to escape their tree.
  *
  * Native CSS anchors already follow window/document scrolling, so their helper
  * leaves `trackWindow` false and contributes only nested-element deltas. A
@@ -82,10 +82,18 @@ export const installNestedScrollCompensation = (
 
   const sync = () => {
     if (disposed) return;
+    const x = `${offsetX}px`;
+    const y = `${offsetY}px`;
     for (const surface of currentSurfaces()) {
-      surface.dataset.mesurerNestedScrollCompensation = "true";
-      surface.style.setProperty(X_VARIABLE, `${offsetX}px`);
-      surface.style.setProperty(Y_VARIABLE, `${offsetY}px`);
+      if (surface.dataset.mesurerNestedScrollCompensation !== "true") {
+        surface.dataset.mesurerNestedScrollCompensation = "true";
+      }
+      if (surface.style.getPropertyValue(X_VARIABLE) !== x) {
+        surface.style.setProperty(X_VARIABLE, x);
+      }
+      if (surface.style.getPropertyValue(Y_VARIABLE) !== y) {
+        surface.style.setProperty(Y_VARIABLE, y);
+      }
     }
   };
 
