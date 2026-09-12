@@ -3,10 +3,20 @@ import { chromium } from "playwright";
 
 const url = process.env.NORMAL_CONTEXT_URL ?? "http://127.0.0.1:4174/";
 const browser = await chromium.launch({ channel: "chrome", headless: true });
-const page = await browser.newPage({ viewport: { width: 1162, height: 494 } });
+const page = await browser.newPage({
+  viewport: { width: 1162, height: 494 },
+  deviceScaleFactor: 2,
+  userAgent: "CodexBrowser Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+});
 const pageErrors = [];
 
 page.on("pageerror", (error) => pageErrors.push(String(error)));
+await page.addInitScript(() => {
+  Object.defineProperty(window, "__codexWebMcpModelContext", {
+    configurable: true,
+    value: {},
+  });
+});
 
 const box = async (locator, stage) => {
   const value = await locator.boundingBox();
@@ -91,7 +101,8 @@ try {
   assert.equal(await marker.count(), 1, "saved normal-playground annotation marker missing");
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
   const browserVersion = await browser.version();
-  console.log(`Normal Context annotation E2E (${browserVersion}): persisted Context reload at reported 900x184 target geometry, physical hero selection, rendered/clickable trigger, saved note, and retained marker: PASS`);
+  const dpr = await page.evaluate(() => window.devicePixelRatio);
+  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): persisted Context reload at reported 900x184 target geometry, physical hero selection, rendered/clickable trigger, saved note, and retained marker: PASS`);
 } finally {
   await browser.close();
 }
