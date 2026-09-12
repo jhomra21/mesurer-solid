@@ -6,6 +6,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+- Keep selection, direct-edit Typography, and annotation chrome attached to their page targets through window and nested scrolling without scroll catch-up, while Mesurer inspector/toolbar surfaces remain hard interaction boundaries that occlude page selection chrome instead of being selected through.
+- Add persisted **Keep text changes** and **Keep Arrange changes** controls under Settings → General. Both default off, so saved Desired intent remains available in its owning tool while Select and other tools show the original page presentation unless the corresponding control is enabled.
+- Keep Context, Arrange, and Screenshot discoverable as optional Settings plugins, keep compact Settings inside the viewport as the toolbar resizes, and preserve toolbar clearance/stacking over selected page chrome.
+
 ## 0.1.7-beta.5 - 2026-09-10
 
 - No user-facing changes.
