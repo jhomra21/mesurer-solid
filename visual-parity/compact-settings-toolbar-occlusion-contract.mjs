@@ -23,12 +23,6 @@ const intersects = (left, right) => !(
   || right.y + right.height <= left.y
 );
 
-const gap = (left, right) => {
-  const horizontal = Math.max(0, Math.max(left.x, right.x) - Math.min(left.x + left.width, right.x + right.width));
-  const vertical = Math.max(0, Math.max(left.y, right.y) - Math.min(left.y + left.height, right.y + right.height));
-  return Math.hypot(horizontal, vertical);
-};
-
 const settle = () => page.evaluate(() => new Promise((resolve) => {
   requestAnimationFrame(() => requestAnimationFrame(resolve));
 }));
@@ -44,6 +38,8 @@ try {
 
   // Put a real page target through the toolbar band but leave exposed page area
   // below the toolbar so selection still goes through normal physical input.
+  // The target is intentionally allowed to remain under the toolbar: toolbar
+  // placement belongs to the user, not selection collision avoidance.
   await page.locator("#settings-target").evaluate((element) => {
     Object.assign(element.style, {
       position: "fixed",
@@ -66,6 +62,24 @@ try {
   ).first();
   await selectedChrome.waitFor({ state: "visible" });
 
+  const selectedToolbar = await box(toolbar, "toolbar after overlapping selection");
+  const selectedTarget = await box(target, "selected overlapping target");
+  assert(
+    intersects(selectedToolbar, selectedTarget),
+    `Toolbar should remain in its user-owned position while the selected target passes underneath: ${JSON.stringify({ selectedToolbar, selectedTarget })}`,
+  );
+  const avoidance = await toolbar.evaluate((element) => ({
+    translate: element.style.getPropertyValue("translate"),
+    avoiding: element.dataset.mesurerToolbarAvoidingTarget ?? null,
+    avoidX: element.dataset.mesurerToolbarAvoidX ?? null,
+    avoidY: element.dataset.mesurerToolbarAvoidY ?? null,
+  }));
+  assert.deepEqual(
+    avoidance,
+    { translate: "", avoiding: null, avoidX: null, avoidY: null },
+    `Selection collision must not relocate the toolbar: ${JSON.stringify(avoidance)}`,
+  );
+
   const settingsButton = island.locator("[data-mesurer-builtin='settings'] button").first();
   await settingsButton.click();
   const dialog = island.getByRole("dialog", { name: "Settings" });
@@ -75,8 +89,8 @@ try {
   const plugins = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
   if ((await plugins.getAttribute("aria-expanded")) !== "true") await plugins.click();
 
-  // Reproduce the manual failure: unload toolbar-contributing plugins while the
-  // Settings dialog remains open and the settings anchor shifts left.
+  // Reproduce the manual compact-layout case: unload toolbar-contributing
+  // plugins while Settings remains open and the settings anchor shifts left.
   for (const label of ["Screenshot", "Context"]) {
     const control = dialog.getByRole("switch", { name: label, exact: true });
     assert.equal(await control.getAttribute("aria-checked"), "true", `${label} should start enabled`);
@@ -118,8 +132,8 @@ try {
     `General label clipped inside Settings after toolbar shrink: ${JSON.stringify({ dialogBox, keepTextBox })}`,
   );
 
-  // Close Settings and verify the normal collision policy first: the toolbar
-  // should not occupy the selected page target's rectangle.
+  // Close Settings and prove that plugin-driven toolbar resizing does not bring
+  // selection avoidance back: page content may remain physically underneath.
   await settingsButton.click();
   await dialog.waitFor({ state: "hidden" });
   await page.waitForTimeout(200);
@@ -127,14 +141,12 @@ try {
   const liveToolbar = await box(toolbar, "toolbar after closing Settings");
   const liveTarget = await box(target, "selected target after plugin unload");
   assert(
-    !intersects(liveToolbar, liveTarget) && gap(liveToolbar, liveTarget) >= 5.5,
-    `Toolbar did not keep 6px clearance from selected target after plugin-driven resize: ${JSON.stringify({ liveToolbar, liveTarget, gap: gap(liveToolbar, liveTarget) })}`,
+    intersects(liveToolbar, liveTarget),
+    `Toolbar should not move away from the selected target after plugin-driven resize: ${JSON.stringify({ liveToolbar, liveTarget })}`,
   );
 
-  // Separately prove paint order. Cancel only the runtime avoidance translation
-  // in this test so selection and toolbar physically overlap, make the normally
-  // passive selection box hit-testable, then ask Chromium which surface wins.
-  // This converts the visual stacking contract into deterministic browser data.
+  // Prove paint order with the real overlap. Make the normally passive
+  // selection box hit-testable, then ask Chromium which surface wins.
   const stack = await page.evaluate(() => {
     const islandElement = document.querySelector("[data-mesurer-island='true']");
     const root = islandElement?.shadowRoot;
@@ -145,9 +157,6 @@ try {
     if (!(islandElement instanceof HTMLElement) || !(toolbarElement instanceof HTMLElement) || !(selection instanceof HTMLElement)) {
       return null;
     }
-    const previousTranslate = toolbarElement.style.getPropertyValue("translate");
-    const previousPriority = toolbarElement.style.getPropertyPriority("translate");
-    toolbarElement.style.setProperty("translate", "0px 0px", "important");
     selection.style.setProperty("pointer-events", "auto", "important");
     const toolbarRect = toolbarElement.getBoundingClientRect();
     const selectionRect = selection.getBoundingClientRect();
@@ -170,8 +179,6 @@ try {
       islandZ: getComputedStyle(islandElement).zIndex,
     };
     selection.style.removeProperty("pointer-events");
-    if (previousTranslate) toolbarElement.style.setProperty("translate", previousTranslate, previousPriority);
-    else toolbarElement.style.removeProperty("translate");
     return result;
   });
   assert(stack, "Could not resolve toolbar/selection stack surfaces");
@@ -182,7 +189,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `Browser errors:\n${errors.join("\n")}`);
-  console.log("Compact Settings + toolbar occlusion acceptance: plugin-driven toolbar shrink keeps Settings in viewport, toolbar preserves selected-target clearance, and blue page chrome paints beneath Mesurer UI: PASS");
+  console.log("Compact Settings + toolbar occlusion acceptance: plugin-driven toolbar shrink keeps Settings in viewport, page targets may pass beneath the stationary toolbar, and blue page chrome paints beneath Mesurer UI: PASS");
 } finally {
   await browser.close();
 }
