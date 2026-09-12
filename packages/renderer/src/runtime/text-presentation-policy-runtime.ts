@@ -5,6 +5,45 @@ import {
   presentationPreferences,
 } from "./presentation-preferences";
 
+export const createTextPresentationPolicyWindow = (
+  realWindow: Window & typeof globalThis,
+  requestAnimationFrame: Window["requestAnimationFrame"],
+): Window => {
+  const facade = {
+    document: realWindow.document,
+    location: realWindow.location,
+    crypto: realWindow.crypto,
+    navigator: realWindow.navigator,
+    performance: realWindow.performance,
+    CSS: realWindow.CSS,
+    Node: realWindow.Node,
+    Text: realWindow.Text,
+    Element: realWindow.Element,
+    HTMLElement: realWindow.HTMLElement,
+    ShadowRoot: realWindow.ShadowRoot,
+    MouseEvent: realWindow.MouseEvent,
+    MutationObserver: realWindow.MutationObserver,
+    get innerWidth() { return realWindow.innerWidth; },
+    get innerHeight() { return realWindow.innerHeight; },
+    get scrollX() { return realWindow.scrollX; },
+    get scrollY() { return realWindow.scrollY; },
+    getComputedStyle: (element: Element, pseudoElement?: string | null) =>
+      realWindow.getComputedStyle(element, pseudoElement),
+    matchMedia: (query: string) => realWindow.matchMedia(query),
+    setTimeout: realWindow.setTimeout.bind(realWindow),
+    clearTimeout: realWindow.clearTimeout.bind(realWindow),
+    cancelAnimationFrame: realWindow.cancelAnimationFrame.bind(realWindow),
+    addEventListener: realWindow.addEventListener.bind(realWindow),
+    removeEventListener: realWindow.removeEventListener.bind(realWindow),
+    requestAnimationFrame,
+  };
+
+  // SAFETY: text-editing core consumes only the Window members supplied above;
+  // every DOM method is bound to the real browsing-context Window and the
+  // viewport/scroll getters intentionally remain live on this facade object.
+  return facade as Window;
+};
+
 /**
  * Give the text-edit core two distinct notions that used to be conflated:
  *
@@ -34,33 +73,9 @@ export const createTextPresentationPolicyRuntime = (
   let editorActive = false;
   let editorObserver: MutationObserver | null = null;
 
-  const policyWindowFacade = {
-    document: realWindow.document,
-    location: realWindow.location,
-    crypto: realWindow.crypto,
-    navigator: realWindow.navigator,
-    performance: realWindow.performance,
-    CSS: realWindow.CSS,
-    Node: realWindow.Node,
-    Text: realWindow.Text,
-    Element: realWindow.Element,
-    HTMLElement: realWindow.HTMLElement,
-    ShadowRoot: realWindow.ShadowRoot,
-    MouseEvent: realWindow.MouseEvent,
-    MutationObserver: realWindow.MutationObserver,
-    get innerWidth() { return realWindow.innerWidth; },
-    get innerHeight() { return realWindow.innerHeight; },
-    get scrollX() { return realWindow.scrollX; },
-    get scrollY() { return realWindow.scrollY; },
-    getComputedStyle: (element: Element, pseudoElement?: string | null) =>
-      realWindow.getComputedStyle(element, pseudoElement),
-    matchMedia: (query: string) => realWindow.matchMedia(query),
-    setTimeout: realWindow.setTimeout.bind(realWindow),
-    clearTimeout: realWindow.clearTimeout.bind(realWindow),
-    cancelAnimationFrame: realWindow.cancelAnimationFrame.bind(realWindow),
-    addEventListener: realWindow.addEventListener.bind(realWindow),
-    removeEventListener: realWindow.removeEventListener.bind(realWindow),
-    requestAnimationFrame: (callback: FrameRequestCallback) => realWindow.requestAnimationFrame((time) => {
+  const policyWindow = createTextPresentationPolicyWindow(
+    realWindow,
+    (callback) => realWindow.requestAnimationFrame((time) => {
       presentationPass = true;
       try {
         callback(time);
@@ -68,11 +83,7 @@ export const createTextPresentationPolicyRuntime = (
         presentationPass = false;
       }
     }),
-  };
-  // Keep the facade object itself so its viewport accessors remain live. Copying
-  // it with Object.assign would eagerly evaluate those getters and freeze the
-  // initial width/height/scroll values for the lifetime of the text runtime.
-  const policyWindow = policyWindowFacade as unknown as Window;
+  );
 
   const currentToolMode: NonNullable<MesurerSolidRuntimeService["currentToolMode"]> = () => {
     const mode = runtime.currentToolMode?.() ?? "none";
