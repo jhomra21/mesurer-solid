@@ -16,10 +16,25 @@ const allEdges: EdgeVisibility = { top: true, right: true, bottom: true, left: t
 const formatValue = (value: number) => Math.round(value);
 const SELECTED_CHROME_Z_INDEX = "2147482800";
 
+const initialSelectionPortalTarget = (measurement: Measurement | InspectMeasurement | null) => {
+  if (!measurement || !("paddingRect" in measurement) || measurement.id.startsWith("group-")) return null;
+  const target = measurement.elementRef;
+  if (!target?.isConnected || target.getRootNode() !== target.ownerDocument) return null;
+  return target.ownerDocument.body;
+};
+
 export function MeasurementBox(props: MeasurementBoxProps) {
   let chromeElement: HTMLDivElement | undefined;
   let labelElement: HTMLDivElement | undefined;
-  const [selectionPortalTarget, setSelectionPortalTarget] = createSignal<HTMLElement | null>(null);
+  // A document-backed selected target must never paint a fallback copy inside
+  // Mesurer's isolated ShadowRoot. Select's second click in a double-click can
+  // replace the measurement object and remount this component; starting at null
+  // would expose one top-layer frame before onSettled moves the new root to
+  // <body>. Resolve the obvious document portal synchronously, while retaining
+  // the settled path for targets that connect or change ownership later.
+  const [selectionPortalTarget, setSelectionPortalTarget] = createSignal<HTMLElement | null>(
+    initialSelectionPortalTarget(props.measurement),
+  );
   const edges = () => props.edgeVisibility ?? allEdges;
   const isSelectionGroup = () => Boolean(props.measurement?.id.startsWith("group-"));
   const isSelectedMeasurement = () => Boolean(props.measurement && "paddingRect" in props.measurement);
