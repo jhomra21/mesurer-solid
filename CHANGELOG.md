@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.7-beta.7 - 2026-09-12
+
 - Keep the toolbar at the user's chosen viewport position when selected page content moves underneath it. Mesurer no longer automatically shifts the toolbar to another edge to avoid the selected target; toolbar stacking and hit ownership still remain above page selection chrome.
 
 ## 0.1.7-beta.6 - 2026-09-12
