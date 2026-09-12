@@ -185,22 +185,42 @@ async function assertTypographyOccludesHoverChrome(page, testCase) {
   const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
   await inspector.waitFor({ state: "visible", timeout: 5000 });
 
-  const hoverTarget = page.locator("[data-testid='consumer-counter']");
-  const hoverTargetBox = await hoverTarget.boundingBox();
-  if (!hoverTargetBox) throw new Error(`${testCase.name} hover target has no bounding box`);
+  const hoverTargetBox = await page.evaluate(() => {
+    document.querySelector("[data-testid='mesurer-hover-contract-target']")?.remove();
+    const target = document.createElement("div");
+    target.dataset.testid = "mesurer-hover-contract-target";
+    Object.assign(target.style, {
+      position: "fixed",
+      right: "24px",
+      bottom: "24px",
+      width: "120px",
+      height: "80px",
+      background: "transparent",
+      pointerEvents: "auto",
+    });
+    document.body.append(target);
+    const rect = target.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  });
   await page.mouse.move(
     hoverTargetBox.x + hoverTargetBox.width / 2,
     hoverTargetBox.y + hoverTargetBox.height / 2,
   );
-  await page.waitForFunction(() => Boolean(
-    document.body.querySelector("[data-mesurer-hover-measurement='true']"),
-  ), undefined, { timeout: 5000 });
+  await page.waitForFunction(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    return Boolean(
+      document.body.querySelector("[data-mesurer-hover-measurement='true']")
+      || island?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']"),
+    );
+  }, undefined, { timeout: 5000 });
   await waitFrames(page, 2);
 
   const result = await page.evaluate(() => {
     const island = document.querySelector("[data-mesurer-island='true']");
     const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
-    const hover = document.body.querySelector("[data-mesurer-hover-measurement='true']");
+    const bodyHover = document.body.querySelector("[data-mesurer-hover-measurement='true']");
+    const shadowHover = island?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']") ?? null;
+    const hover = bodyHover ?? shadowHover;
     const editor = document.querySelector("[data-mesurer-text-editor='true']");
     if (!(island instanceof HTMLElement) || !(card instanceof HTMLElement) || !(hover instanceof HTMLElement)) return null;
 
@@ -223,6 +243,7 @@ async function assertTypographyOccludesHoverChrome(page, testCase) {
     };
     if (beforeStyle === null) hover.removeAttribute("style");
     else hover.setAttribute("style", beforeStyle);
+    document.querySelector("[data-testid='mesurer-hover-contract-target']")?.remove();
     return value;
   });
 
