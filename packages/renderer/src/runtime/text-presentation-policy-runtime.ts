@@ -38,10 +38,15 @@ export const createTextPresentationPolicyWindow = (
     requestAnimationFrame,
   };
 
-  // SAFETY: text-editing core consumes only the Window members supplied above;
-  // every DOM method is bound to the real browsing-context Window and the
-  // viewport/scroll getters intentionally remain live on this facade object.
-  return facade as Window;
+  // Copy property descriptors rather than property values so the viewport and
+  // scroll accessors stay live. Object.create(null) intentionally supplies the
+  // structural Window facade used by the text core; DOM methods above remain
+  // bound to the real browsing-context Window for browser brand checks.
+  const policyWindow: Window = Object.defineProperties(
+    Object.create(null),
+    Object.getOwnPropertyDescriptors(facade),
+  );
+  return policyWindow;
 };
 
 /**
