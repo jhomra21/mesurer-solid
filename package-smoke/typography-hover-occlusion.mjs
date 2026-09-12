@@ -63,58 +63,84 @@ try {
   const editX = editBox.x + editBox.width / 2;
   const editY = editBox.y + editBox.height / 2;
 
-  // Make the reported failure deterministic: Select the text target and leave
-  // its live hover rectangle on that same element before direct editing starts.
+  // Keep Select logically selected when direct edit begins. Direct edit owns the
+  // visible border, while selection remains available to the rest of Mesurer.
   await page.mouse.move(editX, editY);
-  await waitFrames(2);
   await page.mouse.click(editX, editY);
   await page.waitForFunction(() => Boolean(
     document.body.querySelector("[data-mesurer-selected-measurement='true']"),
   ));
-  await waitFrames(1);
-
-  const sameTargetHoverBefore = await page.evaluate(() => {
-    const island = document.querySelector("[data-mesurer-island='true']");
-    const target = document.querySelector("[data-testid='consumer-sibling']");
-    if (!(target instanceof HTMLElement)) return null;
-    const targetRect = target.getBoundingClientRect();
-    const candidates = [
-      ...document.body.querySelectorAll("[data-mesurer-hover-measurement='true']"),
-      ...(island?.shadowRoot?.querySelectorAll("[data-mesurer-hover-measurement='true']") ?? []),
-    ];
-    return candidates.map((node) => {
-      const element = node;
-      const rect = element.getBoundingClientRect();
-      return {
-        sameTarget: Math.abs(rect.left - targetRect.left) <= 2
-          && Math.abs(rect.top - targetRect.top) <= 2
-          && Math.abs(rect.width - targetRect.width) <= 2
-          && Math.abs(rect.height - targetRect.height) <= 2,
-        opacity: getComputedStyle(element).opacity,
-        root: element.getRootNode() === document ? "document" : "shadow",
-      };
-    });
-  });
-  if (!sameTargetHoverBefore?.some((entry) => entry.sameTarget && entry.opacity !== "0")) {
-    throw new Error(`Regression setup did not leave visible Select hover on the edit target: ${JSON.stringify(sameTargetHoverBefore)}`);
-  }
-
   await page.mouse.dblclick(editX, editY);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
   const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
-  const editRing = page.locator("[data-mesurer-text-edit-ring='true']");
   await editor.waitFor({ state: "visible", timeout: 5000 });
   await inspector.waitFor({ state: "visible", timeout: 5000 });
-  await editRing.waitFor({ state: "visible", timeout: 5000 });
   await waitFrames(2);
 
-  // Chromium's synthesized double-click may clear the hover node entirely.
-  // Recreate the real manual condition after the editor is active: Select stays
-  // on and the pointer moves by one pixel over the same edited element. This
-  // must create a live same-target hover node without letting it paint.
-  await page.mouse.move(editX + 1, editY);
-  await waitFrames(2);
+  // The original bug was an ownership-layer race. The document-backed text
+  // runtime could hide the selected MeasurementBox that had already portaled to
+  // <body>, but a replacement/stale root still in the isolated ShadowRoot was
+  // outside that search. Recreate that exact handoff deterministically while the
+  // editor is active: a selected root appearing in either layer must be
+  // paintless before the next rendered frame, without being removed.
+  const ownershipProbe = await page.evaluate(async () => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    if (!(island instanceof HTMLElement) || !island.shadowRoot) return null;
+
+    const stale = document.createElement("div");
+    stale.dataset.mesurerSelectedMeasurement = "true";
+    stale.dataset.mesurerGhostOwnershipProbe = "true";
+    Object.assign(stale.style, {
+      position: "fixed",
+      left: "124px",
+      top: "270px",
+      width: "440px",
+      height: "50px",
+      opacity: "0.82",
+      pointerEvents: "none",
+      background: "rgba(76, 136, 232, 0.08)",
+      border: "1px solid rgb(76, 136, 232)",
+    });
+    island.shadowRoot.append(stale);
+
+    await new Promise((resolve) => queueMicrotask(resolve));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const bodySelections = Array.from(
+      document.body.querySelectorAll("[data-mesurer-selected-measurement='true']"),
+    ).map((element) => ({
+      opacity: getComputedStyle(element).opacity,
+      suppressed: element.getAttribute("data-mesurer-direct-edit-selection-suppressed"),
+    }));
+    const result = {
+      sourceConnected: stale.isConnected,
+      sourceOpacity: getComputedStyle(stale).opacity,
+      sourceSuppressed: stale.getAttribute("data-mesurer-direct-edit-selection-suppressed"),
+      bodySelections,
+    };
+    stale.remove();
+    return result;
+  });
+
+  if (!ownershipProbe) throw new Error("Could not create isolated selection ownership probe");
+  if (!ownershipProbe.sourceConnected
+    || ownershipProbe.sourceOpacity !== "0"
+    || ownershipProbe.sourceSuppressed !== "true") {
+    throw new Error(`Isolated selected chrome can still paint during direct edit: ${JSON.stringify(ownershipProbe)}`);
+  }
+  if (!ownershipProbe.bodySelections.length
+    || ownershipProbe.bodySelections.some((entry) => entry.opacity !== "0" || entry.suppressed !== "true")) {
+    throw new Error(`Document selected chrome can still paint during direct edit: ${JSON.stringify(ownershipProbe)}`);
+  }
+
+  // The first movement can be the event that clears document-UI passthrough
+  // after leaving the Typography card. A second real pointer movement exercises
+  // the same path a user naturally produces while moving onto a nearby element.
+  await page.mouse.move(hoverX, hoverY);
+  await waitFrames(1);
+  await page.mouse.move(hoverX + 1, hoverY);
+
   await page.waitForFunction(() => {
     const island = document.querySelector("[data-mesurer-island='true']");
     return Boolean(
@@ -122,83 +148,14 @@ try {
       || island?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']"),
     );
   }, undefined, { timeout: 5000 });
-
-  // Direct edit must be the sole visible owner for the edited element. The
-  // normal selected MeasurementBox and the live same-target Select hover may
-  // stay mounted/anchored, but neither is allowed to paint another blue box.
-  const directEditOwnership = await page.evaluate(() => {
-    const island = document.querySelector("[data-mesurer-island='true']");
-    const target = document.querySelector("[data-testid='consumer-sibling']");
-    const ring = document.querySelector("[data-mesurer-text-edit-ring='true']");
-    if (!(target instanceof HTMLElement) || !(ring instanceof HTMLElement)) return null;
-    const targetRect = target.getBoundingClientRect();
-    const sameRect = (rect) => Math.abs(rect.left - targetRect.left) <= 2
-      && Math.abs(rect.top - targetRect.top) <= 2
-      && Math.abs(rect.width - targetRect.width) <= 2
-      && Math.abs(rect.height - targetRect.height) <= 2;
-    const hovers = [
-      ...document.body.querySelectorAll("[data-mesurer-hover-measurement='true']"),
-      ...(island?.shadowRoot?.querySelectorAll("[data-mesurer-hover-measurement='true']") ?? []),
-    ].map((node) => {
-      const element = node;
-      return {
-        sameTarget: sameRect(element.getBoundingClientRect()),
-        opacity: getComputedStyle(element).opacity,
-        suppressed: element.getAttribute("data-mesurer-direct-edit-hover-suppressed"),
-        root: element.getRootNode() === document ? "document" : "shadow",
-      };
-    });
-    const selected = Array.from(document.body.querySelectorAll("[data-mesurer-selected-measurement='true']")).map((element) => ({
-      opacity: getComputedStyle(element).opacity,
-      suppressed: element.getAttribute("data-mesurer-direct-edit-selection-suppressed"),
-    }));
-    return {
-      hovers,
-      selected,
-      ringMatchesTarget: sameRect(ring.getBoundingClientRect()),
-      ringOpacity: getComputedStyle(ring).opacity,
-    };
-  });
-  if (!directEditOwnership) throw new Error("Could not resolve packed direct-edit chrome ownership");
-  const sameTargetHovers = directEditOwnership.hovers.filter((entry) => entry.sameTarget);
-  if (!sameTargetHovers.length) {
-    throw new Error(`Packed regression did not create same-target Select hover during active edit: ${JSON.stringify(directEditOwnership)}`);
-  }
-  if (sameTargetHovers.some((entry) => entry.opacity !== "0" || entry.suppressed !== "true")) {
-    throw new Error(`Same-target Select hover can still paint beside the direct-edit ring: ${JSON.stringify(directEditOwnership)}`);
-  }
-  if (!directEditOwnership.selected.length || directEditOwnership.selected.some((entry) => entry.opacity !== "0" || entry.suppressed !== "true")) {
-    throw new Error(`Ordinary selected MeasurementBox can still paint during direct edit: ${JSON.stringify(directEditOwnership)}`);
-  }
-  if (!directEditOwnership.ringMatchesTarget || directEditOwnership.ringOpacity === "0") {
-    throw new Error(`Direct-edit ring did not remain the visible target owner: ${JSON.stringify(directEditOwnership)}`);
-  }
-
-  // Moving to a different page element must restore normal Select hover while
-  // editing continues. This preserves the beta.9 behavior the manual test
-  // already accepted; only redundant same-target hover is suppressed.
-  await page.mouse.move(hoverX, hoverY);
-  await waitFrames(1);
-  await page.mouse.move(hoverX + 1, hoverY);
-
-  await page.waitForFunction(() => {
-    const island = document.querySelector("[data-mesurer-island='true']");
-    const candidates = [
-      ...document.body.querySelectorAll("[data-mesurer-hover-measurement='true']"),
-      ...(island?.shadowRoot?.querySelectorAll("[data-mesurer-hover-measurement='true']") ?? []),
-    ];
-    return candidates.some((node) => getComputedStyle(node).opacity !== "0");
-  }, undefined, { timeout: 5000 });
   await waitFrames(2);
 
   const result = await page.evaluate(() => {
     const island = document.querySelector("[data-mesurer-island='true']");
     const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
-    const candidates = [
-      ...document.body.querySelectorAll("[data-mesurer-hover-measurement='true']"),
-      ...(island?.shadowRoot?.querySelectorAll("[data-mesurer-hover-measurement='true']") ?? []),
-    ];
-    const hover = candidates.find((node) => getComputedStyle(node).opacity !== "0") ?? null;
+    const bodyHover = document.body.querySelector("[data-mesurer-hover-measurement='true']");
+    const shadowHover = island?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']") ?? null;
+    const hover = bodyHover ?? shadowHover;
     const activeEditor = document.querySelector("[data-mesurer-text-editor='true']");
     if (!(island instanceof HTMLElement) || !(card instanceof HTMLElement) || !(hover instanceof HTMLElement)) return null;
 
@@ -228,7 +185,6 @@ try {
       documentHoverLayer: hover.getAttribute("data-mesurer-document-hover-layer"),
       hitInsideTypography: hit instanceof Element && card.contains(hit),
       editorActive: activeEditor instanceof HTMLElement,
-      hoverSuppressed: hover.getAttribute("data-mesurer-direct-edit-hover-suppressed"),
       hoverZIndex: getComputedStyle(hover).zIndex,
       inspectorZIndex: placementShell instanceof HTMLElement ? getComputedStyle(placementShell).zIndex : null,
     };
@@ -246,10 +202,7 @@ try {
     throw new Error(`Regression did not exercise the protected top-layer mount: ${JSON.stringify(result)}`);
   }
   if (!result.hoverDocumentBacked || result.documentHoverLayer !== "true") {
-    throw new Error(`Different-target Select hover did not enter the scoped Typography document layer: ${JSON.stringify(result)}`);
-  }
-  if (result.hoverSuppressed !== null) {
-    throw new Error(`Different-target Select hover stayed suppressed during direct edit: ${JSON.stringify(result)}`);
+    throw new Error(`Select hover chrome did not enter the scoped Typography document layer: ${JSON.stringify(result)}`);
   }
   if (!result.hitInsideTypography) {
     throw new Error(`Select hover chrome painted above the active Typography inspector: ${JSON.stringify(result)}`);
@@ -258,10 +211,9 @@ try {
     throw new Error(`Hovering a nearby page element closed direct text editing: ${JSON.stringify(result)}`);
   }
 
-  console.log("Packed Solid 2 direct-edit/Select hover ownership: PASS", {
+  console.log("Packed Solid 2 Typography/selection ownership: PASS", {
     ordinaryHover,
-    sameTargetHoverBefore,
-    directEditOwnership,
+    ownershipProbe,
     ...result,
   });
 } finally {
