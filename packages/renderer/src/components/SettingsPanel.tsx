@@ -65,6 +65,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
   onSettled(() => {
     const host = hostElement;
     const ownerWindow = props.ownerWindow.document.defaultView ?? props.ownerWindow;
+    // SAFETY: ownerWindow is the browsing-context global for the Settings DOM and owns the constructors used by these observers.
     const realm = ownerWindow as Window & typeof globalThis;
     const Observer = realm.MutationObserver;
     if (!host || !Observer) return;
