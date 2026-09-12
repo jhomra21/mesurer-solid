@@ -4,7 +4,6 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 export const TEXT_EDITOR_PAINT_GUARD_CSS = `
 [data-mesurer-text-editor="true"] {
   opacity: 0 !important;
-  color: transparent !important;
   -webkit-text-fill-color: transparent !important;
   caret-color: transparent !important;
   background: transparent !important;
@@ -24,6 +23,8 @@ export const TEXT_EDITOR_PAINT_GUARD_CSS = `
  * editing. The page text plus Mesurer's ring/highlight/caret are the visible
  * presentation. Install this rule before the core can mount the textarea so a
  * browser paint/compositor handoff can never expose a second copy of the text.
+ * Keep the inherited `color` value intact because it remains part of the
+ * editor's typography contract even though the glyph fill itself is hidden.
  */
 export function installTextEditorPaintGuard(
   ctx: MesurerPluginContext,
