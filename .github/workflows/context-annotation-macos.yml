@@ -1,0 +1,75 @@
+name: context-annotation-macos
+
+on:
+  pull_request:
+    paths:
+      - "packages/mesurer/src/context-plugin.tsx"
+      - "packages/renderer/src/components/ContextActions.tsx"
+      - "packages/renderer/src/ComposableMesurer.tsx"
+      - "packages/renderer/src/runtime/document-inspector-runtime.ts"
+      - "packages/renderer/src/runtime/nested-scroll-compensation.ts"
+      - "packages/renderer/src/runtime/workspace-context.ts"
+      - "examples/basic/src/main.tsx"
+      - "visual-parity/normal-context-annotation-contract.mjs"
+      - ".github/workflows/context-annotation-macos.yml"
+  workflow_dispatch:
+
+jobs:
+  normal-context-annotation:
+    runs-on: macos-14
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Mesurer Solid
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install workspace
+        run: bun install --frozen-lockfile
+
+      - name: Build foundations
+        run: bun run build:foundations
+
+      - name: Generate renderer styles
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
+
+      - name: Record stable Chrome version
+        shell: bash
+        run: '"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --version'
+
+      - name: Start normal renderer playground
+        shell: bash
+        run: |
+          (
+            cd examples/basic
+            bunx vite --host 127.0.0.1 --port 4174 --strictPort > ../../context-annotation-macos-vite.log 2>&1 &
+            echo $! > ../../context-annotation-macos-vite.pid
+          )
+          ready=0
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent --show-error "http://127.0.0.1:4174/" >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat context-annotation-macos-vite.log || true
+            exit 1
+          fi
+
+      - name: Exercise persisted Context annotation flow
+        env:
+          NORMAL_CONTEXT_URL: http://127.0.0.1:4174/
+        run: bun visual-parity/normal-context-annotation-contract.mjs
+
+      - name: Stop playground
+        if: always()
+        shell: bash
+        run: |
+          if [ -f context-annotation-macos-vite.pid ]; then
+            kill "$(cat context-annotation-macos-vite.pid)" 2>/dev/null || true
+          fi
