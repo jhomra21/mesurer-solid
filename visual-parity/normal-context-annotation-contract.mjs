@@ -82,7 +82,27 @@ try {
   const trigger = page.locator("[data-mesurer-annotation-trigger='true']");
   await trigger.waitFor({ state: "visible", timeout: 3000 });
   assert.equal(await trigger.count(), 1, "expected exactly one annotation trigger for the selected hero");
-  const triggerBox = await box(trigger, "annotation trigger after persisted Context selection");
+  assert.equal(
+    await trigger.getAttribute("data-mesurer-annotation-scroll-mode"),
+    "cached-delta",
+    "Codex host must avoid the native CSS-anchor trigger path",
+  );
+  let triggerBox = await box(trigger, "annotation trigger after persisted Context selection");
+  const beforeScroll = { target: await box(target, "target before Context wheel"), trigger: triggerBox };
+  await page.mouse.move(1120, 470);
+  await page.mouse.wheel(0, 48);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const afterScroll = {
+    target: await box(target, "target after Context wheel"),
+    trigger: await box(trigger, "trigger after Context wheel"),
+  };
+  assert(Math.abs(afterScroll.target.y - beforeScroll.target.y) > 10, "Context acceptance wheel did not move the target");
+  for (const key of ["x", "y"]) {
+    const beforeOffset = beforeScroll.trigger[key] - beforeScroll.target[key];
+    const afterOffset = afterScroll.trigger[key] - afterScroll.target[key];
+    assert(Math.abs(afterOffset - beforeOffset) <= 1.5, `Codex cached-delta trigger ${key} offset drifted: before=${beforeOffset}, after=${afterOffset}`);
+  }
+  triggerBox = afterScroll.trigger;
   const hit = await page.evaluate(({ x, y }) => {
     const node = document.elementFromPoint(x, y);
     return Boolean(node?.closest?.("[data-mesurer-annotation-trigger='true']"));
@@ -102,7 +122,7 @@ try {
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
   const browserVersion = await browser.version();
   const dpr = await page.evaluate(() => window.devicePixelRatio);
-  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): persisted Context reload at reported 900x184 target geometry, physical hero selection, rendered/clickable trigger, saved note, and retained marker: PASS`);
+  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Codex-host cached-delta trigger is visible/clickable at reported 900x184 target geometry, follows real wheel input, saves note, and retains marker: PASS`);
 } finally {
   await browser.close();
 }
