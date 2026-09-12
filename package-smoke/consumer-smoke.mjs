@@ -181,6 +181,66 @@ const waitFrames = (page, count = 2) => page.evaluate(async (frames) => {
   }
 }, count);
 
+async function assertTypographyOccludesHoverChrome(page, testCase) {
+  const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
+  await inspector.waitFor({ state: "visible", timeout: 5000 });
+
+  const hoverTarget = page.locator("[data-testid='consumer-counter']");
+  const hoverTargetBox = await hoverTarget.boundingBox();
+  if (!hoverTargetBox) throw new Error(`${testCase.name} hover target has no bounding box`);
+  await page.mouse.move(
+    hoverTargetBox.x + hoverTargetBox.width / 2,
+    hoverTargetBox.y + hoverTargetBox.height / 2,
+  );
+  await page.waitForFunction(() => Boolean(
+    document.body.querySelector("[data-mesurer-hover-measurement='true']"),
+  ), undefined, { timeout: 5000 });
+  await waitFrames(page, 2);
+
+  const result = await page.evaluate(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
+    const hover = document.body.querySelector("[data-mesurer-hover-measurement='true']");
+    const editor = document.querySelector("[data-mesurer-text-editor='true']");
+    if (!(island instanceof HTMLElement) || !(card instanceof HTMLElement) || !(hover instanceof HTMLElement)) return null;
+
+    const beforeStyle = hover.getAttribute("style");
+    const cardRect = card.getBoundingClientRect();
+    hover.style.setProperty("position", "fixed", "important");
+    hover.style.setProperty("left", `${cardRect.left}px`, "important");
+    hover.style.setProperty("top", `${cardRect.top}px`, "important");
+    hover.style.setProperty("width", `${cardRect.width}px`, "important");
+    hover.style.setProperty("height", `${cardRect.height}px`, "important");
+    hover.style.setProperty("pointer-events", "auto", "important");
+    const x = cardRect.left + cardRect.width / 2;
+    const y = cardRect.top + Math.min(cardRect.height / 2, 24);
+    const hit = document.elementFromPoint(x, y);
+    const value = {
+      islandTopLayer: island.matches(":popover-open"),
+      hoverDocumentBacked: hover.getRootNode() === document,
+      hitInsideTypography: hit instanceof Element && card.contains(hit),
+      editorActive: editor instanceof HTMLElement,
+    };
+    if (beforeStyle === null) hover.removeAttribute("style");
+    else hover.setAttribute("style", beforeStyle);
+    return value;
+  });
+
+  if (!result) throw new Error(`${testCase.name} could not resolve Typography/hover paint surfaces`);
+  if (!result.islandTopLayer) {
+    throw new Error(`${testCase.name} hover occlusion contract did not exercise the protected top-layer mount: ${JSON.stringify(result)}`);
+  }
+  if (!result.hoverDocumentBacked) {
+    throw new Error(`${testCase.name} Select hover chrome stayed inside the top-layer island while Typography was document-backed: ${JSON.stringify(result)}`);
+  }
+  if (!result.hitInsideTypography) {
+    throw new Error(`${testCase.name} Select hover chrome painted above the active Typography inspector: ${JSON.stringify(result)}`);
+  }
+  if (!result.editorActive) {
+    throw new Error(`${testCase.name} hovering a nearby page element closed the active text editor: ${JSON.stringify(result)}`);
+  }
+}
+
 async function assertPackedDirectEditing(page, testCase, errors) {
   const target = page.locator("[data-testid='consumer-sibling']");
   await page.evaluate(() => window.__MESURER__.command("builtin.select"));
@@ -200,6 +260,7 @@ async function assertPackedDirectEditing(page, testCase, errors) {
   const editor = page.locator("[data-mesurer-text-editor='true']");
   await editor.waitFor({ state: "visible", timeout: 5000 });
   await page.waitForTimeout(80);
+  await assertTypographyOccludesHoverChrome(page, testCase);
   if (errors.length) {
     throw new Error(`${testCase.name} direct edit emitted browser errors after opening:\n${errors.join("\n")}`);
   }
