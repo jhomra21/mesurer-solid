@@ -100,6 +100,13 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     if (!overlay || !target?.isConnected || !ownerWindow || !overlay.ownerDocument.body) return null;
     if (!(overlay.getRootNode() instanceof ownerWindow.ShadowRoot)) return null;
     if (target.getRootNode() !== overlay.ownerDocument) return null;
+
+    // Ordinary Select hover stays inside the hardened top-layer island. Only
+    // direct-edit Typography creates a document-backed inspector that needs
+    // hover chrome in the same document paint tree so the inspector can occlude
+    // it. Keeping this scope narrow preserves the normal protected hover layer.
+    const typography = overlay.ownerDocument.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
+    if (!typography?.isConnected || typography.getRootNode() !== overlay.ownerDocument) return null;
     return overlay.ownerDocument.body;
   };
   const hoverPortalOffset = () => {
@@ -111,14 +118,17 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   };
   const hoverSurface = () => {
     const rect = props.model.state.hoverRect!;
+    const documentLayer = Boolean(hoverPortalTarget());
     const offset = hoverPortalOffset();
     return <div
       ref={(element) => { hoverChromeElement = element; }}
       data-mesurer-hover-measurement="true"
+      data-mesurer-document-hover-layer={documentLayer ? "true" : undefined}
       class="msr:pointer-events-none msr:absolute"
       style={{
         position: "absolute",
         "pointer-events": "none",
+        "z-index": documentLayer ? "2147482700" : undefined,
         left: `${rect.left + offset.x}px`,
         top: `${rect.top + offset.y}px`,
         width: `${rect.width}px`,
