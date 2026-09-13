@@ -245,6 +245,7 @@ export function installDocumentScrollAnchoring(
   let disposed = false;
   let queued = false;
   let frame = 0;
+  let hoverFrame = 0;
   let scrolling = false;
   let scrollIdleTimer = 0;
 
@@ -684,6 +685,15 @@ export function installDocumentScrollAnchoring(
     }
   };
 
+  const scheduleHover = () => {
+    if (disposed || scrolling || hoverFrame) return;
+    hoverFrame = ownerWindow.requestAnimationFrame(() => {
+      hoverFrame = 0;
+      if (disposed || scrolling) return;
+      stabilizeHover();
+    });
+  };
+
   const observer = new realm.MutationObserver(() => {
     if (!scrolling) schedule();
   });
@@ -715,7 +725,7 @@ export function installDocumentScrollAnchoring(
 
   ownerWindow.addEventListener("scroll", onScroll, { capture: true, passive: true });
   ownerWindow.addEventListener("resize", onActivity, true);
-  ownerWindow.addEventListener("pointermove", onActivity, true);
+  ownerWindow.addEventListener("pointermove", scheduleHover, true);
   ownerWindow.addEventListener("pointerup", onActivity, true);
   ownerWindow.addEventListener("dblclick", onActivity, true);
   schedule(true);
@@ -724,10 +734,11 @@ export function installDocumentScrollAnchoring(
     disposed = true;
     observer.disconnect();
     if (frame) ownerWindow.cancelAnimationFrame(frame);
+    if (hoverFrame) ownerWindow.cancelAnimationFrame(hoverFrame);
     if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
     ownerWindow.removeEventListener("scroll", onScroll, true);
     ownerWindow.removeEventListener("resize", onActivity, true);
-    ownerWindow.removeEventListener("pointermove", onActivity, true);
+    ownerWindow.removeEventListener("pointermove", scheduleHover, true);
     ownerWindow.removeEventListener("pointerup", onActivity, true);
     ownerWindow.removeEventListener("dblclick", onActivity, true);
 
