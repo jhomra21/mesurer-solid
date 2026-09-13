@@ -3,7 +3,7 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { MEASURE_LABEL_OFFSET } from "../core/constants";
 
 const VIEWPORT_PADDING = 8;
-const SURFACE_GAP = 8;
+const SURFACE_GAP = MEASURE_LABEL_OFFSET;
 const RECT_TOLERANCE = 4;
 const STANDARD_DIMENSIONS_LABEL_HEIGHT = 20;
 const MEASUREMENT_ROOT = "[data-mesurer-measurement='true']";
