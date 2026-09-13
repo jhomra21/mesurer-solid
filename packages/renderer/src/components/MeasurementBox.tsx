@@ -98,20 +98,25 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       ? installNestedScrollCompensation(ownerWindow, target, () => [chromeElement, labelElement])
       : null;
 
+    let scrollFrame = 0;
     const syncOnScroll = () => {
-      // Once CSS Anchor Positioning owns the selected box, reading the target
-      // rect and writing the same geometry on every trackpad event only forces
-      // layout underneath the native scroll path. Keep the JavaScript path as
-      // a fallback until the native binding is actually present.
-      if (chromeElement?.dataset.mesurerNativeScrollAnchor === "box") return;
-      syncSelectedGeometry();
+      // Once CSS Anchor Positioning owns the selected box, JavaScript does no
+      // work. During the short pre-anchor fallback, keep the event itself
+      // layout-free and coalesce geometry sampling to at most one frame.
+      if (chromeElement?.dataset.mesurerNativeScrollAnchor === "box" || scrollFrame) return;
+      scrollFrame = ownerWindow.requestAnimationFrame(() => {
+        scrollFrame = 0;
+        if (chromeElement?.dataset.mesurerNativeScrollAnchor === "box") return;
+        syncSelectedGeometry();
+      });
     };
     syncSelectedGeometry();
     nestedScroll?.sync();
-    ownerWindow.addEventListener("scroll", syncOnScroll, true);
+    ownerWindow.addEventListener("scroll", syncOnScroll, { capture: true, passive: true });
     ownerWindow.addEventListener("resize", syncSelectedGeometry, true);
     return () => {
       nestedScroll?.release();
+      if (scrollFrame) ownerWindow.cancelAnimationFrame(scrollFrame);
       ownerWindow.removeEventListener("scroll", syncOnScroll, true);
       ownerWindow.removeEventListener("resize", syncSelectedGeometry, true);
     };
