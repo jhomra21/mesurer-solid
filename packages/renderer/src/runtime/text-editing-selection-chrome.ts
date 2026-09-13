@@ -38,6 +38,8 @@ export function installDirectEditSelectionChromeOwnership(
   const workspace = runtime.createWorkspaceRuntime();
   const selectedSuppressed = new Map<HTMLElement, InlineOpacity>();
   const hoverSuppressed = new Map<HTMLElement, InlineOpacity>();
+  const selectedRoots = new Set<HTMLElement>();
+  const hoverRoots = new Set<HTMLElement>();
   let editOwnedElements = new Set<HTMLElement>();
   let active = false;
   let queued = false;
@@ -51,13 +53,26 @@ export function installDirectEditSelectionChromeOwnership(
     return values;
   };
 
-  const rootsFor = (selector: string) => {
-    const roots = new Set<HTMLElement>();
-    for (const scope of scopes()) {
-      for (const root of scope.querySelectorAll<HTMLElement>(selector)) roots.add(root);
-    }
-    return roots;
+  const registerRoot = (root: HTMLElement) => {
+    if (root.matches(SELECTED_ROOT)) selectedRoots.add(root);
+    if (root.matches(HOVER_ROOT)) hoverRoots.add(root);
   };
+
+  const registerNode = (node: Node) => {
+    if (!(node instanceof realm.HTMLElement)) return;
+    registerRoot(node);
+    for (const root of node.querySelectorAll<HTMLElement>(`${SELECTED_ROOT}, ${HOVER_ROOT}`)) {
+      registerRoot(root);
+    }
+  };
+
+  const scanScope = (scope: ParentNode) => {
+    for (const root of scope.querySelectorAll<HTMLElement>(`${SELECTED_ROOT}, ${HOVER_ROOT}`)) {
+      registerRoot(root);
+    }
+  };
+
+  for (const scope of scopes()) scanScope(scope);
 
   const suppressRoot = (
     root: HTMLElement,
@@ -108,10 +123,17 @@ export function installDirectEditSelectionChromeOwnership(
   };
 
   const suppressCurrentSelections = () => {
-    const current = rootsFor(SELECTED_ROOT);
-    for (const root of current) suppressRoot(root, selectedSuppressed, SELECTED_SUPPRESSED);
+    for (const root of Array.from(selectedRoots)) {
+      if (!root.isConnected) {
+        selectedRoots.delete(root);
+        const previous = selectedSuppressed.get(root);
+        if (previous) restoreRoot(root, previous, selectedSuppressed, SELECTED_SUPPRESSED);
+        continue;
+      }
+      suppressRoot(root, selectedSuppressed, SELECTED_SUPPRESSED);
+    }
     for (const [root, previous] of Array.from(selectedSuppressed)) {
-      if (!root.isConnected || !current.has(root)) {
+      if (!root.isConnected || !selectedRoots.has(root)) {
         restoreRoot(root, previous, selectedSuppressed, SELECTED_SUPPRESSED);
       }
     }
@@ -122,16 +144,23 @@ export function installDirectEditSelectionChromeOwnership(
     const selected = workspace.currentSelection().elements;
     const editOwned = hovered ? editOwnedElements.has(hovered) : false;
     const selectionOwned = hovered ? selected.includes(hovered) : false;
-    const current = rootsFor(HOVER_ROOT);
 
     if (!editOwned && !selectionOwned) {
       restoreAll(hoverSuppressed, HOVER_SUPPRESSED);
       return;
     }
 
-    for (const root of current) suppressRoot(root, hoverSuppressed, HOVER_SUPPRESSED);
+    for (const root of Array.from(hoverRoots)) {
+      if (!root.isConnected) {
+        hoverRoots.delete(root);
+        const previous = hoverSuppressed.get(root);
+        if (previous) restoreRoot(root, previous, hoverSuppressed, HOVER_SUPPRESSED);
+        continue;
+      }
+      suppressRoot(root, hoverSuppressed, HOVER_SUPPRESSED);
+    }
     for (const [root, previous] of Array.from(hoverSuppressed)) {
-      if (!root.isConnected || !current.has(root)) {
+      if (!root.isConnected || !hoverRoots.has(root)) {
         restoreRoot(root, previous, hoverSuppressed, HOVER_SUPPRESSED);
       }
     }
@@ -146,9 +175,16 @@ export function installDirectEditSelectionChromeOwnership(
     });
   };
 
+  const observeMutations = (records: MutationRecord[]) => {
+    for (const record of records) {
+      for (const node of record.addedNodes) registerNode(node);
+    }
+    schedule();
+  };
+
   const startSurfaceObserver = () => {
     if (surfaceObserver) return;
-    surfaceObserver = new realm.MutationObserver(schedule);
+    surfaceObserver = new realm.MutationObserver(observeMutations);
     const observed = new Set<Node>();
     const observe = (root: Node, subtree: boolean) => {
       if (observed.has(root)) return;
@@ -156,6 +192,7 @@ export function installDirectEditSelectionChromeOwnership(
       surfaceObserver!.observe(root, { childList: true, subtree });
     };
 
+    for (const scope of scopes()) scanScope(scope);
     observe(portalTarget, portalTarget !== ownerDocument.body);
     if (sourcePortalTarget !== portalTarget) observe(sourcePortalTarget, true);
     if (ownerDocument.body) observe(ownerDocument.body, false);
@@ -187,8 +224,9 @@ export function installDirectEditSelectionChromeOwnership(
 
   // Register before render-in-place creates its visible edit ring. Model updates
   // catch hover/selection ownership changes, while DOM observation catches Solid
-  // replacement roots before the next paint.
-  const runtimeObserver = new realm.MutationObserver(schedule);
+  // replacement roots before the next paint. Surface discovery is incremental,
+  // so sync work scales with Mesurer's active chrome rather than page DOM size.
+  const runtimeObserver = new realm.MutationObserver(observeMutations);
   runtimeObserver.observe(runtimeMount, { childList: true, subtree: true });
   const unsubscribeWorkspace = workspace.subscribe(schedule);
   sync();
@@ -201,5 +239,7 @@ export function installDirectEditSelectionChromeOwnership(
     workspace.dispose();
     restoreAll(selectedSuppressed, SELECTED_SUPPRESSED);
     restoreAll(hoverSuppressed, HOVER_SUPPRESSED);
+    selectedRoots.clear();
+    hoverRoots.clear();
   });
 }
