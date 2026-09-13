@@ -34,7 +34,8 @@ const readMeasuredSpacing = () => page.evaluate(() => {
   ].flatMap((label) => {
     if (!(label instanceof HTMLElement)) return [];
     const root = label.closest("[data-mesurer-measurement='true']");
-    if (!(root instanceof HTMLElement)) return [];
+    if (!(root instanceof HTMLElement)
+      || root.getAttribute("data-mesurer-selected-measurement") !== "true") return [];
     const chrome = root.querySelector("[data-mesurer-measurement-chrome='true']");
     if (!(chrome instanceof HTMLElement)) return [];
     const labelRect = label.getBoundingClientRect();
@@ -123,6 +124,55 @@ try {
   const initial = await readMeasuredSpacing();
   assertSymmetric(initial, "initial placement");
 
+  // Pure pointer motion changes hover evidence in Mesurer's model. It must not
+  // become a Typography placement input or rewrite the already-balanced shell.
+  await page.evaluate(() => {
+    const shell = document.querySelector("[data-mesurer-text-inspector-placement-shell='true']");
+    if (!(shell instanceof HTMLElement)) throw new Error("Missing Typography placement shell");
+    const mutations = [];
+    const observer = new MutationObserver(() => {
+      mutations.push({
+        anchorY: shell.style.getPropertyValue("--mesurer-native-anchor-y"),
+        top: shell.style.top,
+      });
+    });
+    observer.observe(shell, { attributes: true, attributeFilter: ["style"] });
+    window.__MESURER_POINTER_SPACING_MUTATIONS__ = mutations;
+    window.__MESURER_POINTER_SPACING_OBSERVER__ = observer;
+  });
+
+  const counter = page.locator("[data-testid='consumer-counter']");
+  const counterBox = await counter.boundingBox();
+  if (!counterBox) throw new Error("Pointer-stability counter target has no geometry");
+  for (let index = 0; index < 6; index += 1) {
+    await page.mouse.move(counterBox.x + 6, counterBox.y + 6, { steps: 5 });
+    await waitFrames(1);
+    await page.mouse.move(targetBox.x + targetBox.width - 6, targetBox.y + 6, { steps: 5 });
+    await waitFrames(1);
+    await page.mouse.move(1100, 700, { steps: 5 });
+    await waitFrames(1);
+  }
+  await waitFrames(3);
+
+  const pointerStable = await readMeasuredSpacing();
+  assertSymmetric(pointerStable, "pointer hover stability");
+  const pointerMutations = await page.evaluate(() => {
+    window.__MESURER_POINTER_SPACING_OBSERVER__?.disconnect();
+    const mutations = window.__MESURER_POINTER_SPACING_MUTATIONS__ ?? [];
+    delete window.__MESURER_POINTER_SPACING_OBSERVER__;
+    delete window.__MESURER_POINTER_SPACING_MUTATIONS__;
+    return mutations;
+  });
+  if (Math.abs(pointerStable.card.y - initial.card.y) > 0.25) {
+    throw new Error(`Pointer motion moved Typography: ${JSON.stringify({ initial, pointerStable })}`);
+  }
+  if (pointerStable.anchorY !== initial.anchorY) {
+    throw new Error(`Pointer motion rewrote Typography native anchor: ${JSON.stringify({ initial, pointerStable })}`);
+  }
+  if (pointerMutations.length > 0) {
+    throw new Error(`Pointer motion mutated Typography placement shell: ${JSON.stringify(pointerMutations)}`);
+  }
+
   // Reproduce the consumer race that escaped the old synthetic test: after the
   // clearance calculation is correct, a later anchor owner rewrites the shell
   // by +7px. Mesurer must re-measure the rendered surfaces and remove exactly
@@ -141,6 +191,7 @@ try {
 
   console.log("Packed Solid 2 Mesurer-measured symmetric dimensions spacing: PASS", {
     initial,
+    pointerStable,
     afterLateRewrite,
   });
 } finally {
