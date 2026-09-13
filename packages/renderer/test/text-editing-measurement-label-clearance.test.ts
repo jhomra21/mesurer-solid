@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveMeasurementAwareInspectorPlacement } from "../src/runtime/text-editing-measurement-label-clearance";
+import {
+  expectedDimensionsLabelBand,
+  resolveMeasurementAwareInspectorPlacement,
+} from "../src/runtime/text-editing-measurement-label-clearance";
 
 const host = {
   left: 193,
@@ -21,18 +24,26 @@ const card = { width: 720, height: 655 };
 const viewport = { width: 828, height: 900 };
 
 describe("Typography dimensions-pill clearance", () => {
-  it("preserves the canonical below lane when no measurement label occupies it", () => {
-    const placement = resolveMeasurementAwareInspectorPlacement(host, [], card, viewport);
+  it("reserves the standard dimensions lane before a label DOM node is discoverable", () => {
+    expect(expectedDimensionsLabelBand(host)).toEqual({
+      left: 193,
+      top: 167,
+      right: 633,
+      bottom: 187,
+      width: 440,
+      height: 20,
+    });
 
+    const placement = resolveMeasurementAwareInspectorPlacement(host, [], card, viewport);
     expect(placement).toEqual({
       left: 53,
-      top: 173,
+      top: 195,
       placement: "below",
       maxHeight: null,
     });
   });
 
-  it("moves the below lane past a visible dimensions pill", () => {
+  it("honors the real visible dimensions pill footprint as well", () => {
     const placement = resolveMeasurementAwareInspectorPlacement(host, [label], card, viewport);
 
     expect(placement).toEqual({
@@ -41,6 +52,6 @@ describe("Typography dimensions-pill clearance", () => {
       placement: "below",
       maxHeight: null,
     });
-    expect(placement.top).toBeGreaterThan(label.bottom);
+    expect(placement.top - label.bottom).toBe(8);
   });
 });
