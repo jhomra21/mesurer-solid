@@ -41,7 +41,7 @@ try {
   await page.locator("[data-mesurer-text-editor='true']").waitFor({ state: "visible", timeout: 5000 });
   await page.locator("[data-mesurer-text-inspector-info='true']").waitFor({ state: "visible", timeout: 5000 });
 
-  const counts = await page.evaluate(() => {
+  const result = await page.evaluate(() => {
     const counters = {
       documentQuerySelector: 0,
       documentQuerySelectorAll: 0,
@@ -53,7 +53,12 @@ try {
       elementsFromPoint: 0,
       computedStyle: 0,
     };
+    const stacks = {};
     let tracking = false;
+    const record = (name) => {
+      counters[name] += 1;
+      stacks[name] ??= new Error(`first ${name}`).stack;
+    };
 
     const originalDocumentQuerySelector = Document.prototype.querySelector;
     const originalDocumentQuerySelectorAll = Document.prototype.querySelectorAll;
@@ -66,39 +71,39 @@ try {
     const originalComputedStyle = window.getComputedStyle;
 
     Document.prototype.querySelector = function (...args) {
-      if (tracking) counters.documentQuerySelector += 1;
+      if (tracking) record("documentQuerySelector");
       return originalDocumentQuerySelector.apply(this, args);
     };
     Document.prototype.querySelectorAll = function (...args) {
-      if (tracking) counters.documentQuerySelectorAll += 1;
+      if (tracking) record("documentQuerySelectorAll");
       return originalDocumentQuerySelectorAll.apply(this, args);
     };
     Element.prototype.querySelector = function (...args) {
-      if (tracking) counters.elementQuerySelector += 1;
+      if (tracking) record("elementQuerySelector");
       return originalElementQuerySelector.apply(this, args);
     };
     Element.prototype.querySelectorAll = function (...args) {
-      if (tracking) counters.elementQuerySelectorAll += 1;
+      if (tracking) record("elementQuerySelectorAll");
       return originalElementQuerySelectorAll.apply(this, args);
     };
     Element.prototype.getBoundingClientRect = function (...args) {
-      if (tracking) counters.boundingClientRect += 1;
+      if (tracking) record("boundingClientRect");
       return originalBoundingClientRect.apply(this, args);
     };
     Range.prototype.getClientRects = function (...args) {
-      if (tracking) counters.rangeClientRects += 1;
+      if (tracking) record("rangeClientRects");
       return originalRangeClientRects.apply(this, args);
     };
     Range.prototype.getBoundingClientRect = function (...args) {
-      if (tracking) counters.rangeBoundingClientRect += 1;
+      if (tracking) record("rangeBoundingClientRect");
       return originalRangeBoundingClientRect.apply(this, args);
     };
     Document.prototype.elementsFromPoint = function (...args) {
-      if (tracking) counters.elementsFromPoint += 1;
+      if (tracking) record("elementsFromPoint");
       return originalElementsFromPoint.apply(this, args);
     };
     window.getComputedStyle = function (...args) {
-      if (tracking) counters.computedStyle += 1;
+      if (tracking) record("computedStyle");
       return originalComputedStyle.apply(this, args);
     };
 
@@ -121,12 +126,12 @@ try {
       window.getComputedStyle = originalComputedStyle;
     }
 
-    return counters;
+    return { counters, stacks };
   });
 
-  const expensive = Object.entries(counts).filter(([, count]) => count !== 0);
+  const expensive = Object.entries(result.counters).filter(([, count]) => count !== 0);
   if (expensive.length) {
-    throw new Error(`Direct-edit scroll event performed synchronous DOM discovery/layout work: ${JSON.stringify(counts)}`);
+    throw new Error(`Direct-edit scroll event performed synchronous DOM discovery/layout work: ${JSON.stringify(result, null, 2)}`);
   }
 
   // Let deferred settle/reconciliation work complete and prove the accepted
@@ -141,7 +146,7 @@ try {
     throw new Error(`Direct edit did not survive scroll hot-path probe: ${JSON.stringify(state)}`);
   }
 
-  console.log("Packed Solid 2 direct-edit scroll hot path: PASS", { counts, state });
+  console.log("Packed Solid 2 direct-edit scroll hot path: PASS", { counts: result.counters, state });
 } finally {
   await page.close();
   await browser.close();
