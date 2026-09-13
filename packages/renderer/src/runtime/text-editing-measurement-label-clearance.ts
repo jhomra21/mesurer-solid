@@ -1,10 +1,13 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
+import { MEASURE_LABEL_OFFSET } from "../core/constants";
 
 const VIEWPORT_PADDING = 8;
 const SURFACE_GAP = 8;
 const RECT_TOLERANCE = 4;
 const MEASUREMENT_ROOT = "[data-mesurer-measurement='true']";
+const MEASUREMENT_CHROME = "[data-mesurer-measurement-chrome='true']";
+const MEASUREMENT_LABEL = "[data-mesurer-measurement-label='true']";
 const EDITOR = "[data-mesurer-text-editor='true']";
 const EDIT_RING = "[data-mesurer-text-edit-ring='true']";
 const INSPECTOR_CARD = "[data-mesurer-text-inspector-info='true']";
@@ -174,6 +177,14 @@ const restoreStyle = (element: HTMLElement, property: string, snapshot: StyleSna
   }
 };
 
+const labelTracksHost = (label: Rect, host: Rect) => {
+  const expectedTop = host.bottom + MEASURE_LABEL_OFFSET;
+  const hostCenter = host.left + host.width / 2;
+  const labelCenter = label.left + label.width / 2;
+  return Math.abs(label.top - expectedTop) <= RECT_TOLERANCE * 2
+    && Math.abs(labelCenter - hostCenter) <= RECT_TOLERANCE * 2;
+};
+
 const visibleMeasurementLabelRects = (
   scopes: ParentNode[],
   host: Rect,
@@ -193,20 +204,26 @@ const visibleMeasurementLabelRects = (
       || Number.parseFloat(rootStyle.opacity) <= 0.01
     ) continue;
 
-    const children = Array.from(root.children)
-      .filter((child): child is HTMLElement => child instanceof realm.HTMLElement);
-    if (children.length < 2) continue;
-    const label = children[children.length - 1];
-    const chrome = children.slice(0, -1).find((child) => {
-      const rect = rectFromDom(child.getBoundingClientRect());
-      return rect.width > 0 && rect.height > 0 && sameRect(rect, host);
-    });
-    if (!chrome) continue;
-
+    const label = root.querySelector<HTMLElement>(MEASUREMENT_LABEL);
+    if (!label) continue;
     const labelStyle = realm.getComputedStyle(label);
-    if (labelStyle.display === "none" || labelStyle.visibility === "hidden") continue;
+    if (
+      labelStyle.display === "none"
+      || labelStyle.visibility === "hidden"
+      || Number.parseFloat(labelStyle.opacity) <= 0.01
+    ) continue;
     const labelRect = rectFromDom(label.getBoundingClientRect());
     if (labelRect.width <= 0 || labelRect.height <= 0) continue;
+
+    const chrome = root.querySelector<HTMLElement>(MEASUREMENT_CHROME);
+    const chromeRect = chrome ? rectFromDom(chrome.getBoundingClientRect()) : null;
+    const chromeTracksHost = Boolean(
+      chromeRect
+      && chromeRect.width > 0
+      && chromeRect.height > 0
+      && sameRect(chromeRect, host),
+    );
+    if (!chromeTracksHost && !labelTracksHost(labelRect, host)) continue;
     labels.push(labelRect);
   }
   return labels;
@@ -235,6 +252,7 @@ export function installTextEditingMeasurementLabelClearance(
   let adjustment: AdjustmentSnapshot | null = null;
   let queued = false;
   let frame = 0;
+  let settleTimer = 0;
   let disposed = false;
 
   const scopes = () => {
@@ -333,18 +351,30 @@ export function installTextEditingMeasurementLabelClearance(
     shell.setAttribute(CLEARANCE_MARKER, "true");
   };
 
-  const schedule = () => {
-    if (disposed || queued) return;
-    queued = true;
-    ownerWindow.queueMicrotask(() => {
-      queued = false;
+  const syncInFrame = () => {
+    if (disposed || frame) return;
+    frame = ownerWindow.requestAnimationFrame(() => {
+      frame = 0;
       sync();
-      if (frame) return;
-      frame = ownerWindow.requestAnimationFrame(() => {
-        frame = 0;
-        sync();
-      });
     });
+  };
+
+  const schedule = () => {
+    if (disposed) return;
+    if (!queued) {
+      queued = true;
+      ownerWindow.queueMicrotask(() => {
+        queued = false;
+        sync();
+        syncInFrame();
+      });
+    }
+    if (settleTimer) ownerWindow.clearTimeout(settleTimer);
+    settleTimer = ownerWindow.setTimeout(() => {
+      settleTimer = 0;
+      sync();
+      syncInFrame();
+    }, 0);
   };
 
   const runtimeObserver = new realm.MutationObserver(schedule);
@@ -352,9 +382,15 @@ export function installTextEditingMeasurementLabelClearance(
   const sourceObserver = sourcePortalTarget === portalTarget
     ? null
     : new realm.MutationObserver(schedule);
-  sourceObserver?.observe(sourcePortalTarget, { childList: true, subtree: true });
+  sourceObserver?.observe(sourcePortalTarget, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["style"],
+  });
   const unsubscribeWorkspace = workspace.subscribe(schedule);
   ownerWindow.addEventListener("resize", schedule, true);
+  ownerWindow.addEventListener("dblclick", schedule, true);
   schedule();
 
   ctx.lifecycle.onDispose(() => {
@@ -364,7 +400,9 @@ export function installTextEditingMeasurementLabelClearance(
     unsubscribeWorkspace();
     workspace.dispose();
     ownerWindow.removeEventListener("resize", schedule, true);
+    ownerWindow.removeEventListener("dblclick", schedule, true);
     if (frame) ownerWindow.cancelAnimationFrame(frame);
+    if (settleTimer) ownerWindow.clearTimeout(settleTimer);
     restoreAdjustment();
   });
 }
