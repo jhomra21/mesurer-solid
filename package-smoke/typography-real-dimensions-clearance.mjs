@@ -113,7 +113,61 @@ try {
     }
   }
 
+  // Once Typography has chosen its source-relative lane, scrolling the edited
+  // element fully out of view must carry Typography with it. Re-running the
+  // viewport-safe placement against an offscreen host would clamp the card to
+  // the viewport edge and make it behave like sticky UI.
+  const beforeOffscreenScroll = await page.evaluate(() => {
+    document.body.style.minHeight = "2400px";
+    const ring = document.querySelector("[data-mesurer-text-edit-ring='true']");
+    const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
+    const shell = document.querySelector("[data-mesurer-text-inspector-placement-shell='true']");
+    if (!(ring instanceof HTMLElement) || !(card instanceof HTMLElement) || !(shell instanceof HTMLElement)) return null;
+    const ringRect = ring.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    return {
+      ringY: ringRect.y,
+      cardY: cardRect.y,
+      relativeY: cardRect.y - ringRect.y,
+      anchorY: shell.style.getPropertyValue("--mesurer-native-anchor-y"),
+    };
+  });
+  if (!beforeOffscreenScroll) throw new Error("Could not capture source-relative Typography offset before offscreen scroll");
+
+  await page.evaluate(() => window.scrollTo(0, 700));
+  await waitFrames(4);
+
+  const offscreenState = await page.evaluate(() => {
+    const ring = document.querySelector("[data-mesurer-text-edit-ring='true']");
+    const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
+    const shell = document.querySelector("[data-mesurer-text-inspector-placement-shell='true']");
+    if (!(ring instanceof HTMLElement) || !(card instanceof HTMLElement) || !(shell instanceof HTMLElement)) return null;
+    const ringRect = ring.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    return {
+      scrollY: window.scrollY,
+      ring: { y: ringRect.y, bottom: ringRect.bottom },
+      card: { y: cardRect.y, bottom: cardRect.bottom },
+      relativeY: cardRect.y - ringRect.y,
+      anchorY: shell.style.getPropertyValue("--mesurer-native-anchor-y"),
+    };
+  });
+  if (!offscreenState) throw new Error("Could not capture Typography after offscreen scroll");
+  if (offscreenState.ring.bottom >= 0) {
+    throw new Error(`Regression fixture did not move the edited element fully offscreen: ${JSON.stringify(offscreenState)}`);
+  }
+  if (Math.abs(offscreenState.relativeY - beforeOffscreenScroll.relativeY) > 1.5) {
+    throw new Error(`Typography changed its source-relative offset after the source left the viewport: ${JSON.stringify({ beforeOffscreenScroll, offscreenState })}`);
+  }
+  if (offscreenState.card.bottom >= 0) {
+    throw new Error(`Typography remained visible/stuck to the viewport after its edited element scrolled away: ${JSON.stringify({ beforeOffscreenScroll, offscreenState })}`);
+  }
+  if (offscreenState.anchorY !== beforeOffscreenScroll.anchorY) {
+    throw new Error(`Typography native anchor offset was rewritten by offscreen scroll: ${JSON.stringify({ beforeOffscreenScroll, offscreenState })}`);
+  }
+
   console.log("Packed Solid 2 proactive dimensions-pill clearance: PASS", { state, expectedLabelBand });
+  console.log("Packed Solid 2 offscreen Typography source anchoring: PASS", { beforeOffscreenScroll, offscreenState });
 } finally {
   await page.close();
   await browser.close();
