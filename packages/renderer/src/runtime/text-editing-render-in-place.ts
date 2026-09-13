@@ -199,6 +199,7 @@ export function installRenderInPlaceTextEditing(
   let boundEditor: HTMLTextAreaElement | null = null;
   let resolvedEditorTarget: ActiveTextTarget | null = null;
   let queued = false;
+  let scrollFrame = 0;
   let disposed = false;
 
   const removeRing = () => {
@@ -414,17 +415,20 @@ export function installRenderInPlaceTextEditing(
 
   const syncOnScroll = () => {
     // Native CSS anchors already move the ring and selected-text paint in the
-    // same compositor scroll. Re-reading DOM/Range geometry here forces layout
-    // and is the visible source of trackpad catch-up. Keep the synchronous path
-    // only until the native ring binding exists for fallback browsers.
-    if (ring?.dataset.mesurerNativeScrollAnchor === "box") return;
-    refine();
+    // compositor. During the short pre-anchor handoff, never force layout from
+    // the scroll event itself; coalesce fallback geometry to one animation frame.
+    if (ring?.dataset.mesurerNativeScrollAnchor === "box" || scrollFrame) return;
+    scrollFrame = ownerWindow.requestAnimationFrame(() => {
+      scrollFrame = 0;
+      if (ring?.dataset.mesurerNativeScrollAnchor === "box") return;
+      refine();
+    });
   };
 
   const observer = new realm.MutationObserver(schedule);
   observer.observe(runtimeMount, { childList: true, subtree: true });
   ownerWindow.addEventListener("resize", schedule);
-  ownerWindow.addEventListener("scroll", syncOnScroll, true);
+  ownerWindow.addEventListener("scroll", syncOnScroll, { capture: true, passive: true });
   refine();
 
   ctx.lifecycle.onDispose(() => {
@@ -433,6 +437,7 @@ export function installRenderInPlaceTextEditing(
     observer.disconnect();
     ownerWindow.removeEventListener("resize", schedule);
     ownerWindow.removeEventListener("scroll", syncOnScroll, true);
+    if (scrollFrame) ownerWindow.cancelAnimationFrame(scrollFrame);
     if (boundEditor) {
       boundEditor.removeEventListener("input", schedule);
       boundEditor.removeEventListener("select", schedule);
