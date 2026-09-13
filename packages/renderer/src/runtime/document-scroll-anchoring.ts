@@ -1,5 +1,6 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
+import { registerNativeScrollAnchoring } from "./native-scroll-registry";
 
 const SCROLL_IDLE_MS = 80;
 const VIEWPORT_PADDING = 8;
@@ -232,6 +233,7 @@ export function installDocumentScrollAnchoring(
   if (portalTarget.getRootNode() !== ownerDocument || pageTarget.getRootNode() !== ownerDocument) return;
   if (!ownerDocument.body) return;
 
+  const releaseNativeScrollRegistration = registerNativeScrollAnchoring(ownerDocument);
   const workspace = runtime.createWorkspaceRuntime();
   const targetAnchors = new Map<HTMLElement, TargetAnchorState>();
   const selectionBindings = new Map<HTMLElement, SelectionBinding>();
@@ -711,7 +713,7 @@ export function installDocumentScrollAnchoring(
   };
   const onActivity = () => schedule(true);
 
-  ownerWindow.addEventListener("scroll", onScroll, true);
+  ownerWindow.addEventListener("scroll", onScroll, { capture: true, passive: true });
   ownerWindow.addEventListener("resize", onActivity, true);
   ownerWindow.addEventListener("pointermove", onActivity, true);
   ownerWindow.addEventListener("pointerup", onActivity, true);
@@ -750,6 +752,7 @@ export function installDocumentScrollAnchoring(
       else target.style.removeProperty("anchor-name");
     }
     targetAnchors.clear();
+    releaseNativeScrollRegistration();
     style.remove();
   });
 }
