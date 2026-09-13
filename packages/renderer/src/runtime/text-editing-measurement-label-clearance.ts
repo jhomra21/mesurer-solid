@@ -93,16 +93,12 @@ export function resolveMeasurementAwareInspectorPlacement(
   cardSize: { width: number; height: number },
   viewport: { width: number; height: number },
 ): Placement {
-  // MeasurementBox always places its dimensions label two pixels below the
-  // measured box. Reserve that standard lane from source geometry itself so
-  // Typography never has to wait for a label DOM node to appear before it can
-  // avoid it. Any visible measured labels extend the protected region when
-  // their real footprint is larger than the standard lane.
-  const protectedRect = unionRects([
-    host,
-    expectedDimensionsLabelBand(host),
-    ...measurementLabels,
-  ]);
+  // Before the dimensions label exists, reserve its standard lane from source
+  // geometry. Once the real selected label is available, use its actual
+  // footprint so the spacing below the pill exactly matches its source offset.
+  const protectedRect = unionRects(measurementLabels.length > 0
+    ? [host, ...measurementLabels]
+    : [host, expectedDimensionsLabelBand(host)]);
   const width = cardSize.width;
   const height = cardSize.height;
   const viewportRight = viewport.width - VIEWPORT_PADDING;
