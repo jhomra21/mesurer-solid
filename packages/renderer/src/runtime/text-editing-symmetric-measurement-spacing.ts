@@ -68,6 +68,8 @@ export function installSymmetricMeasurementSpacing(
   sourcePortalTarget: HTMLElement | ShadowRoot = runtime.portalTarget,
 ) {
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
+  // SAFETY: ownerWindow owns the runtime DOM and therefore provides the realm
+  // constructors used for every instanceof check in this adapter.
   const realm = ownerWindow as Window & typeof globalThis;
   const runtimeMounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
   const runtimeMount = runtimeMounts.item(runtimeMounts.length - 1);
@@ -84,7 +86,7 @@ export function installSymmetricMeasurementSpacing(
   let disposed = false;
 
   const registerSurface = (element: HTMLElement) => {
-    if (element.matches(EDITOR)) editor = element as HTMLTextAreaElement;
+    if (element instanceof realm.HTMLTextAreaElement && element.matches(EDITOR)) editor = element;
     if (element.matches(EDIT_RING)) ring = element;
     if (element.matches(INSPECTOR_SHELL)) shell = element;
     if (element.matches(INSPECTOR_CARD)) card = element;
