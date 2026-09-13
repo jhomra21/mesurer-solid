@@ -119,7 +119,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
 
   const surfaces = (measurement: () => Measurement | InspectMeasurement) => <>
     <Show when={!isSelectionGroup()}>
-      <div ref={chromeElement} class="msr:absolute" style={{
+      <div ref={chromeElement} data-mesurer-measurement-chrome="true" class="msr:absolute" style={{
         left: `${measurement().rect.left + selectedPortalOffset().x}px`,
         top: `${measurement().rect.top + selectedPortalOffset().y}px`,
         width: `${measurement().rect.width}px`,
@@ -138,7 +138,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         <Show when={edges().left}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
       </div>
     </Show>
-    <div ref={labelElement} class="msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:-translate-x-1/2 msr:bg-ink-900/90" style={{
+    <div ref={labelElement} data-mesurer-measurement-label="true" class="msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:-translate-x-1/2 msr:bg-ink-900/90" style={{
       left: `${measurement().rect.left + selectedPortalOffset().x + measurement().rect.width / 2}px`,
       top: `${measurement().rect.top + selectedPortalOffset().y + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
       "z-index": isSelectedMeasurement() ? SELECTED_CHROME_Z_INDEX : undefined,
