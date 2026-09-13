@@ -213,9 +213,14 @@ export function installUnifiedTextInspector(
   };
 
   const syncPositionOnScroll = () => {
-    // Scroll can be compositor-driven. Position the inspector in the scroll
-    // event itself so it never waits one animation frame behind the host.
-    positionCard();
+    // The scroll event itself must stay layout-free. Native CSS anchoring moves
+    // Typography in the compositor and needs no JavaScript at all. Fallback
+    // environments coalesce placement work to at most one animation frame.
+    if (
+      placementShell?.dataset.mesurerNativeScrollOwner === "typography"
+      && placementShell.dataset.mesurerNativeScrollAnchor === "offset"
+    ) return;
+    schedulePosition();
   };
 
   const settlePosition = () => {
@@ -642,7 +647,7 @@ export function installUnifiedTextInspector(
   runtimeMount.addEventListener("change", onInspectorChange, true);
   runtimeMount.addEventListener("keydown", onInspectorKeyDown, true);
   ownerWindow.addEventListener("resize", schedulePosition);
-  ownerWindow.addEventListener("scroll", syncPositionOnScroll, true);
+  ownerWindow.addEventListener("scroll", syncPositionOnScroll, { capture: true, passive: true });
 
   const observer = new realm.MutationObserver(refine);
   observer.observe(runtimeMount, { childList: true, subtree: true });

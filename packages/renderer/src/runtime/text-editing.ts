@@ -5,11 +5,13 @@ import { createDocumentTextRuntime } from "./isolated-document-portal";
 import { installIsolatedDocumentUiPassthrough } from "./isolated-document-ui-passthrough";
 import { installNativeScrollStability } from "./native-scroll-stability";
 import { installTextEditing as installTextEditingCore } from "./text-editing-core";
+import { installTextEditingMeasurementLabelClearance } from "./text-editing-measurement-label-clearance";
 import { installTextEditingPresentation } from "./text-editing-presentation";
 import {
   installMixedInlineTextTargeting,
   installRenderInPlaceTextEditing,
 } from "./text-editing-render-in-place";
+import { installDirectEditSelectionChromeOwnership } from "./text-editing-selection-chrome";
 import { createTextPresentationPolicyRuntime } from "./text-presentation-policy-runtime";
 import { installUnifiedTextInspector } from "./text-editing-unified-inspector";
 import {
@@ -70,6 +72,12 @@ export function installTextEditing(
   // is Mesurer-owned for interaction but source-owned for geometry: clicking it
   // cannot retarget Select, while page scrolling carries it with the edited text.
   installUnifiedTextInspector(ctx, textRuntime);
+  // Direct edit owns the visible border for its source. Keep ordinary selected
+  // MeasurementBox roots logically mounted but paintless while the editor is
+  // active. Pass the original renderer portal as well as the document-backed
+  // text runtime so a transient Solid portal root still living in the isolated
+  // ShadowRoot cannot become a second independently positioned blue rectangle.
+  installDirectEditSelectionChromeOwnership(ctx, textRuntime, runtime.portalTarget);
   installRenderInPlaceTextEditing(ctx, textRuntime);
   installUnifiedTextSelectMenus(ctx, textRuntime);
   installUnifiedTextSelectLayer(ctx, textRuntime);
@@ -82,4 +90,9 @@ export function installTextEditing(
   // coordinates needed for post-scroll re-binding. This prevents selected-text
   // highlights and source-linked Typography surfaces from jumping after settle.
   installNativeScrollStability(ctx, textRuntime);
+  // Measurement labels are separate page chrome. If a visible dimensions pill
+  // occupies the inspector's chosen lane, preserve the canonical lane rules but
+  // add just enough clearance for that pill instead of letting Typography cover
+  // it. Install this last so it resolves only real post-placement collisions.
+  installTextEditingMeasurementLabelClearance(ctx, textRuntime, runtime.portalTarget);
 }
