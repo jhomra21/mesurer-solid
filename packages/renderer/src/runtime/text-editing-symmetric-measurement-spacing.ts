@@ -59,8 +59,9 @@ const setStyleProperty = (element: HTMLElement, property: string, value: string)
  *
  * Placement and collision avoidance choose the lane first. This adapter then
  * measures Mesurer's own edit ring, dimensions pill, and Typography card and
- * removes only the rendered gap error. It intentionally has no scroll listener:
- * native anchoring carries the already-balanced surfaces during scrolling.
+ * removes only the rendered gap error. It intentionally has no scroll or hover
+ * subscription: native anchoring carries the already-balanced surfaces while
+ * pointer motion only changes transient hover evidence.
  */
 export function installSymmetricMeasurementSpacing(
   ctx: MesurerPluginContext,
@@ -75,7 +76,6 @@ export function installSymmetricMeasurementSpacing(
   const runtimeMount = runtimeMounts.item(runtimeMounts.length - 1);
   if (!runtimeMount) return;
 
-  const workspace = runtime.createWorkspaceRuntime();
   const labels = new Set<HTMLElement>();
   let editor: HTMLTextAreaElement | null = null;
   let ring: HTMLElement | null = null;
@@ -119,11 +119,15 @@ export function installSymmetricMeasurementSpacing(
         labels.delete(label);
         continue;
       }
+
+      const root = label.closest(MEASUREMENT_ROOT);
+      if (!(root instanceof realm.HTMLElement)
+        || root.getAttribute("data-mesurer-selected-measurement") !== "true") continue;
+
       const labelRect = rectFromDom(label.getBoundingClientRect());
       if (labelRect.width <= 0 || labelRect.height <= 0) continue;
 
-      const root = label.closest(MEASUREMENT_ROOT);
-      const chrome = root?.querySelector<HTMLElement>(MEASUREMENT_CHROME) ?? null;
+      const chrome = root.querySelector<HTMLElement>(MEASUREMENT_CHROME);
       const chromeRect = chrome?.isConnected ? rectFromDom(chrome.getBoundingClientRect()) : null;
       const expectedTop = host.bottom + MEASURE_LABEL_OFFSET;
       const hostCenter = host.left + host.width / 2;
@@ -238,7 +242,6 @@ export function installSymmetricMeasurementSpacing(
   if (sourcePortalTarget !== portalTarget) observeExternal(sourcePortalTarget, true);
   if (ownerDocument.body) observeExternal(ownerDocument.body, false);
 
-  const unsubscribeWorkspace = workspace.subscribe(schedule);
   ownerWindow.addEventListener("resize", schedule, true);
   ownerWindow.addEventListener("dblclick", schedule, true);
   schedule();
@@ -247,8 +250,6 @@ export function installSymmetricMeasurementSpacing(
     disposed = true;
     runtimeObserver.disconnect();
     externalObserver.disconnect();
-    unsubscribeWorkspace();
-    workspace.dispose();
     ownerWindow.removeEventListener("resize", schedule, true);
     ownerWindow.removeEventListener("dblclick", schedule, true);
     if (frame) ownerWindow.cancelAnimationFrame(frame);
