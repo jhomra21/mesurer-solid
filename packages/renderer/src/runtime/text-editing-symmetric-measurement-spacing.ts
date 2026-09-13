@@ -13,6 +13,7 @@ const STANDARD_DIMENSIONS_LABEL_HEIGHT = 20;
 const RECT_TOLERANCE = 8;
 const GAP_TOLERANCE = 0.75;
 const SPACING_MARKER = "data-mesurer-symmetric-measurement-spacing";
+const CARD_OFFSET_DATASET = "mesurerSymmetricCardOffsetY";
 
 type Rect = {
   left: number;
@@ -57,11 +58,10 @@ const setStyleProperty = (element: HTMLElement, property: string, value: string)
 /**
  * Final rendered-surface spacing owner for direct text edit.
  *
- * Placement and collision avoidance choose the lane first. This adapter then
- * measures Mesurer's own edit ring, dimensions pill, and Typography card and
- * removes only the rendered gap error. It intentionally has no scroll or hover
- * subscription: native anchoring carries the already-balanced surfaces while
- * pointer motion only changes transient hover evidence.
+ * Native anchoring owns the placement shell and its source-relative offset.
+ * This adapter owns only the final visual correction inside that shell. Keeping
+ * those responsibilities separate prevents native placement and rendered-gap
+ * reconciliation from fighting over the same anchor coordinate during hover.
  */
 export function installSymmetricMeasurementSpacing(
   ctx: MesurerPluginContext,
@@ -167,19 +167,11 @@ export function installSymmetricMeasurementSpacing(
 
     if (Math.abs(correction) <= GAP_TOLERANCE) return;
 
-    const nativeAnchored = shell.dataset.mesurerNativeScrollOwner === "typography"
-      && shell.dataset.mesurerNativeScrollAnchor === "offset";
-    if (nativeAnchored) {
-      const currentAnchor = Number.parseFloat(shell.style.getPropertyValue("--mesurer-native-anchor-y"));
-      const shellRect = rectFromDom(shell.getBoundingClientRect());
-      const current = Number.isFinite(currentAnchor) ? currentAnchor : shellRect.top - host.top;
-      setStyleProperty(shell, "--mesurer-native-anchor-y", `${current - correction}px`);
-    } else {
-      const shellRect = rectFromDom(shell.getBoundingClientRect());
-      const currentTop = Number.parseFloat(shell.style.top);
-      const current = Number.isFinite(currentTop) ? currentTop : shellRect.top;
-      setStyleProperty(shell, "top", `${current - correction}px`);
-    }
+    const currentOffset = Number.parseFloat(card.dataset[CARD_OFFSET_DATASET] ?? "0");
+    const normalizedOffset = Number.isFinite(currentOffset) ? currentOffset : 0;
+    const nextOffset = normalizedOffset - correction;
+    card.dataset[CARD_OFFSET_DATASET] = nextOffset.toFixed(3);
+    setStyleProperty(card, "translate", `0px ${nextOffset}px`);
   };
 
   const schedule = () => {
@@ -255,5 +247,9 @@ export function installSymmetricMeasurementSpacing(
     if (frame) ownerWindow.cancelAnimationFrame(frame);
     labels.clear();
     shell?.removeAttribute(SPACING_MARKER);
+    if (card) {
+      card.style.removeProperty("translate");
+      delete card.dataset[CARD_OFFSET_DATASET];
+    }
   });
 }
