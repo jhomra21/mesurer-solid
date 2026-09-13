@@ -37,21 +37,24 @@ describe("Typography dimensions-pill clearance", () => {
     const placement = resolveMeasurementAwareInspectorPlacement(host, [], card, viewport);
     expect(placement).toEqual({
       left: 53,
-      top: 195,
+      top: 189,
       placement: "below",
       maxHeight: null,
     });
   });
 
-  it("honors the real visible dimensions pill footprint as well", () => {
+  it("uses the same spacing below the dimensions pill as above it", () => {
     const placement = resolveMeasurementAwareInspectorPlacement(host, [label], card, viewport);
+    const elementToPillGap = label.top - host.bottom;
+    const pillToTypographyGap = placement.top - label.bottom;
 
     expect(placement).toEqual({
       left: 53,
-      top: 195,
+      top: 189,
       placement: "below",
       maxHeight: null,
     });
-    expect(placement.top - label.bottom).toBe(8);
+    expect(elementToPillGap).toBe(2);
+    expect(pillToTypographyGap).toBe(elementToPillGap);
   });
 });
