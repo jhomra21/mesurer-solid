@@ -49,6 +49,7 @@ import {
   createMesurerBuiltinController,
   type MesurerBuiltinController,
 } from "./runtime/builtin-actions";
+import { hasNativeScrollAnchoring } from "./runtime/native-scroll-registry";
 import { ensureMesurerStyles } from "./runtime/style-inject";
 import { createTextInspector, type TextInspectorAPI } from "./runtime/text-inspector";
 import { createXrayScope } from "./runtime/xray-scope";
@@ -325,7 +326,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         draggingGuideId: null,
         document: ownerDocument,
       });
-      model.addGuide({ id, orientation: model.current.guideOrientation, position });
+      model.addGuide({ id, orientation, position });
       model.setSelectedGuideIds(model.current.settings.selectNewGuideEnabled ? [id] : []);
       model.setTransient({ guidePreview: null });
       scheduleGuideDragHold(id);
@@ -628,9 +629,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
     let syncFrame = 0;
     let scrollSettleTimer = 0;
-    const nativeScrollAnchoringActive = () => Boolean(
-      ownerDocument.querySelector("style[data-mesurer-native-scroll-anchoring='true']"),
-    );
+    const nativeScrollAnchoringActive = () => hasNativeScrollAnchoring(ownerDocument);
     const syncLive = () => {
       if (syncFrame) return;
       syncFrame = ownerWindow.requestAnimationFrame(() => {
@@ -666,13 +665,13 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       const next = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
       const dx = next.x - scrollPosition.x, dy = next.y - scrollPosition.y;
       scrollPosition = next;
-      if (dx || dy) model.setGuides(model.current.guides.map((guide) => ({
+      if ((dx || dy) && model.current.guides.length) model.setGuides(model.current.guides.map((guide) => ({
         ...guide, position: guide.position - (guide.orientation === "vertical" ? dx : dy),
       })));
       if (nativeScrollAnchoringActive()) scheduleSettledLiveSync();
       else syncLive();
     };
-    ownerWindow.addEventListener("scroll", scroll, true);
+    ownerWindow.addEventListener("scroll", scroll, { capture: true, passive: true });
     ownerWindow.addEventListener("resize", syncLive, true);
 
     const globalGuideMove = (event: PointerEvent) => {
