@@ -5,7 +5,7 @@ const url = process.env.ISOLATED_SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
-const DOCUMENT_SELECTED_CHROME = "body > [data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true']";
+const DOCUMENT_SELECTED_CHROME = "body > [data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true'][data-mesurer-native-scroll-anchor='box']";
 
 page.on("pageerror", (error) => errors.push(String(error)));
 page.on("console", (message) => {
