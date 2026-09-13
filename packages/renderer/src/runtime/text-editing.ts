@@ -12,6 +12,7 @@ import {
   installRenderInPlaceTextEditing,
 } from "./text-editing-render-in-place";
 import { installDirectEditSelectionChromeOwnership } from "./text-editing-selection-chrome";
+import { installSymmetricMeasurementSpacing } from "./text-editing-symmetric-measurement-spacing";
 import { createTextPresentationPolicyRuntime } from "./text-presentation-policy-runtime";
 import { installUnifiedTextInspector } from "./text-editing-unified-inspector";
 import {
@@ -93,6 +94,12 @@ export function installTextEditing(
   // Measurement labels are separate page chrome. If a visible dimensions pill
   // occupies the inspector's chosen lane, preserve the canonical lane rules but
   // add just enough clearance for that pill instead of letting Typography cover
-  // it. Install this last so it resolves only real post-placement collisions.
+  // it. Install this after the native placement owners so it resolves only real
+  // post-placement collisions.
   installTextEditingMeasurementLabelClearance(ctx, textRuntime, runtime.portalTarget);
+  // Finally measure Mesurer's own rendered element → pill and pill → Typography
+  // gaps. If a later anchor handoff rewrites placement, correct only the measured
+  // difference. This adapter has no scroll listener, so the accepted O(1) scroll
+  // path remains compositor-owned and layout-free.
+  installSymmetricMeasurementSpacing(ctx, textRuntime, runtime.portalTarget);
 }
