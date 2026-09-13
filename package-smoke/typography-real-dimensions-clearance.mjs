@@ -81,36 +81,39 @@ try {
     };
   });
 
-  if (!state?.label) {
-    throw new Error(`Real MeasurementBox dimensions pill was not observable during direct edit: ${JSON.stringify(state)}`);
-  }
-  if (state.label.score > 16) {
-    throw new Error(`Nearest real dimensions pill is not tied to the edit ring: ${JSON.stringify(state)}`);
-  }
-
+  if (!state) throw new Error("Packed dimensions-clearance state is unavailable");
+  const expectedLabelBand = {
+    x: state.ring.x,
+    y: state.ring.y + state.ring.height + 2,
+    width: state.ring.width,
+    height: 20,
+  };
   const canonicalBelow = {
     x: state.card.x,
     y: state.ring.y + state.ring.height + 8,
     width: state.card.width,
     height: state.card.height,
   };
-  if (!overlaps(canonicalBelow, state.label.rect)) {
-    throw new Error(`Fixture no longer reproduces the reported below-lane collision: ${JSON.stringify(state)}`);
+  if (!overlaps(canonicalBelow, expectedLabelBand)) {
+    throw new Error(`Fixture no longer reproduces the dimensions-label lane conflict: ${JSON.stringify({ state, expectedLabelBand, canonicalBelow })}`);
   }
   if (state.clearance !== "true") {
-    throw new Error(`Typography did not claim real dimensions-pill clearance: ${JSON.stringify(state)}`);
+    throw new Error(`Typography did not claim proactive dimensions-pill clearance: ${JSON.stringify({ state, expectedLabelBand })}`);
   }
-  if (overlaps(state.card, state.label.rect)) {
-    throw new Error(`Typography still overlaps the real dimensions pill: ${JSON.stringify(state)}`);
+  if (overlaps(state.card, expectedLabelBand)) {
+    throw new Error(`Typography still occupies the standard dimensions-pill lane: ${JSON.stringify({ state, expectedLabelBand })}`);
+  }
+  if (state.label && state.label.score <= 16 && overlaps(state.card, state.label.rect)) {
+    throw new Error(`Typography still overlaps a visible real dimensions pill: ${JSON.stringify(state)}`);
   }
   if (state.placement === "below") {
-    const gap = state.card.y - (state.label.rect.y + state.label.rect.height);
+    const gap = state.card.y - (expectedLabelBand.y + expectedLabelBand.height);
     if (gap < 7.5) {
-      throw new Error(`Typography below-lane clearance is less than 8px: ${JSON.stringify({ gap, state })}`);
+      throw new Error(`Typography below-lane clearance is less than 8px: ${JSON.stringify({ gap, state, expectedLabelBand })}`);
     }
   }
 
-  console.log("Packed Solid 2 real MeasurementBox dimensions-pill clearance: PASS", state);
+  console.log("Packed Solid 2 proactive dimensions-pill clearance: PASS", { state, expectedLabelBand });
 } finally {
   await page.close();
   await browser.close();
