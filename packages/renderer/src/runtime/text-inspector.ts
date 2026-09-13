@@ -12,6 +12,7 @@ import {
   TypographyInspector,
   type TypographyInfo,
 } from "./text-inspector-typography";
+import { hasNativeScrollAnchoring } from "./native-scroll-registry";
 
 const DEFAULT_SKIP_TAGS = [
   "HTML", "BODY", "SCRIPT", "STYLE", "META", "LINK", "NOSCRIPT",
@@ -215,8 +216,6 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       if (!active && Math.abs(dx) <= 6 && Math.abs(dy) <= 6) return;
       if (!active) {
         active = true;
-        // A click-pinned card should remain compositor-anchored to its source.
-        // Only an intentional drag detaches it into a viewport-placed card.
         pin.card.classList.add("mesurer-ti-card--pinned");
         delete pin.card.dataset.mesurerNativeScrollAnchor;
         delete pin.card.dataset.mesurerNativeScrollOwner;
@@ -260,9 +259,6 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     const root = ensureOverlay();
     const box = makeBox(doc, FILL_PINNED, OUTLINE_PINNED);
     const card = makeCard(doc, true);
-    // The scroll-anchor coordinator historically used this modifier as a signal
-    // to keep a card viewport-fixed. New click pins stay draggable but do not
-    // opt out of native anchoring until the user actually drags them.
     card.classList.add("mesurer-ti-card--draggable");
     card.classList.remove("mesurer-ti-card--pinned");
     const info = typography.getFull(sourceEl);
@@ -322,8 +318,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
         positionBox(hoverBox, rect);
         positionCard(win, hoverCard, rect);
         const isVisible = rect.bottom >= 0 && rect.right >= 0 && rect.left <= win.innerWidth && rect.top <= win.innerHeight;
-        visible(hoverBox, isVisible);
-        visible(hoverCard, isVisible);
+        visible(hoverBox, isVisible); visible(hoverCard, isVisible);
       }
     }
     syncPins();
@@ -359,8 +354,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     const dy = nextY - scrollY;
     scrollX = nextX;
     scrollY = nextY;
-    const nativeDocumentScroll = portal === doc.body
-      && Boolean(doc.querySelector("style[data-mesurer-native-scroll-anchoring='true']"));
+    const nativeDocumentScroll = portal === doc.body && hasNativeScrollAnchoring(doc);
     if (nativeDocumentScroll) {
       // A newly shown Typography surface can exist for one task before the
       // document anchor coordinator claims it. Keep that fallback glued to its
@@ -369,6 +363,8 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       if (dx || dy) {
         shiftFallback(hoverBox, dx, dy);
         shiftFallback(hoverCard, dx, dy);
+        // Updating pinned surfaces is inherently O(p): each of p visible pins
+        // is an independently rendered output. It is independent of page DOM size.
         for (const pin of pins) {
           shiftFallback(pin.box, dx, dy);
           if (!pin.userPlaced) shiftFallback(pin.card, dx, dy);
@@ -377,9 +373,6 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       if (scrollIdleTimer) win.clearTimeout(scrollIdleTimer);
       scrollIdleTimer = win.setTimeout(() => {
         scrollIdleTimer = 0;
-        // Keep the inspected element stable through scroll settle. A stationary
-        // pointer must not retarget Typography to whatever scrolled underneath
-        // it; the next real pointer move is what chooses a new target.
         syncCurrentGeometry();
       }, NATIVE_SCROLL_SETTLE_MS);
       return;
@@ -418,7 +411,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     win.addEventListener("mouseout", onOut, true);
     win.addEventListener("click", onClick, true);
     win.addEventListener("auxclick", onAux, true);
-    win.addEventListener("scroll", onScroll, true);
+    win.addEventListener("scroll", onScroll, { capture: true, passive: true });
     win.addEventListener("resize", schedule, true);
   };
   const disable = () => {
