@@ -65,7 +65,7 @@ try {
           selector: String(selector),
           targetTag: target?.tagName ?? null,
           targetId: target?.id ?? null,
-          targetClass: typeof target?.className === "string" ? target.className : null,
+          targetClass: target instanceof HTMLElement ? target.className : null,
           targetData: target instanceof HTMLElement ? { ...target.dataset } : null,
         });
       }
