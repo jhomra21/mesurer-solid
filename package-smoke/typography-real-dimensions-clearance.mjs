@@ -107,9 +107,11 @@ try {
     throw new Error(`Typography still overlaps a visible real dimensions pill: ${JSON.stringify(state)}`);
   }
   if (state.placement === "below") {
-    const gap = state.card.y - (expectedLabelBand.y + expectedLabelBand.height);
-    if (gap < 7.5) {
-      throw new Error(`Typography below-lane clearance is less than 8px: ${JSON.stringify({ gap, state, expectedLabelBand })}`);
+    const pill = state.label && state.label.score <= 16 ? state.label.rect : expectedLabelBand;
+    const elementToPillGap = pill.y - (state.ring.y + state.ring.height);
+    const pillToTypographyGap = state.card.y - (pill.y + pill.height);
+    if (Math.abs(pillToTypographyGap - elementToPillGap) > 0.5) {
+      throw new Error(`Typography gap does not match the selected-element dimensions-pill gap: ${JSON.stringify({ elementToPillGap, pillToTypographyGap, state, expectedLabelBand })}`);
     }
   }
 
