@@ -54,10 +54,21 @@ try {
       computedStyle: 0,
     };
     const stacks = {};
+    const selectorCalls = [];
     let tracking = false;
-    const record = (name) => {
+    const record = (name, selector = null, target = null) => {
       counters[name] += 1;
       stacks[name] ??= new Error(`first ${name}`).stack;
+      if (selector !== null && selectorCalls.length < 12) {
+        selectorCalls.push({
+          name,
+          selector: String(selector),
+          targetTag: target?.tagName ?? null,
+          targetId: target?.id ?? null,
+          targetClass: typeof target?.className === "string" ? target.className : null,
+          targetData: target instanceof HTMLElement ? { ...target.dataset } : null,
+        });
+      }
     };
 
     const originalDocumentQuerySelector = Document.prototype.querySelector;
@@ -71,19 +82,19 @@ try {
     const originalComputedStyle = window.getComputedStyle;
 
     Document.prototype.querySelector = function (...args) {
-      if (tracking) record("documentQuerySelector");
+      if (tracking) record("documentQuerySelector", args[0], this.documentElement);
       return originalDocumentQuerySelector.apply(this, args);
     };
     Document.prototype.querySelectorAll = function (...args) {
-      if (tracking) record("documentQuerySelectorAll");
+      if (tracking) record("documentQuerySelectorAll", args[0], this.documentElement);
       return originalDocumentQuerySelectorAll.apply(this, args);
     };
     Element.prototype.querySelector = function (...args) {
-      if (tracking) record("elementQuerySelector");
+      if (tracking) record("elementQuerySelector", args[0], this);
       return originalElementQuerySelector.apply(this, args);
     };
     Element.prototype.querySelectorAll = function (...args) {
-      if (tracking) record("elementQuerySelectorAll");
+      if (tracking) record("elementQuerySelectorAll", args[0], this);
       return originalElementQuerySelectorAll.apply(this, args);
     };
     Element.prototype.getBoundingClientRect = function (...args) {
@@ -126,7 +137,7 @@ try {
       window.getComputedStyle = originalComputedStyle;
     }
 
-    return { counters, stacks };
+    return { counters, stacks, selectorCalls };
   });
 
   const expensive = Object.entries(result.counters).filter(([, count]) => count !== 0);
