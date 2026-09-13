@@ -59,14 +59,22 @@ try {
       if (!(root instanceof HTMLElement)) return [];
       const rootStyle = getComputedStyle(root);
       const labelStyle = getComputedStyle(label);
-      if (rootStyle.display === "none" || rootStyle.visibility === "hidden" || Number(rootStyle.opacity) <= 0.01) return [];
+      const selected = root.getAttribute("data-mesurer-selected-measurement") === "true";
+      const directEditSuppressed = root.getAttribute("data-mesurer-direct-edit-selection-suppressed") === "true";
+      if (rootStyle.display === "none" || rootStyle.visibility === "hidden") return [];
+      // Direct editing deliberately makes ordinary selected chrome paintless,
+      // including its dimensions pill, while retaining its real geometry. That
+      // suppressed selected pill is exactly the Mesurer surface whose spacing
+      // Typography must mirror, so do not replace it with a synthetic 20px band.
+      if (Number(rootStyle.opacity) <= 0.01 && !(selected && directEditSuppressed)) return [];
       if (labelStyle.display === "none" || labelStyle.visibility === "hidden" || Number(labelStyle.opacity) <= 0.01) return [];
       const rect = label.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return [];
       const center = rect.left + rect.width / 2;
       return [{
         layer,
-        selected: root.getAttribute("data-mesurer-selected-measurement"),
+        selected,
+        directEditSuppressed,
         rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
         score: Math.abs(rect.top - expectedLabelTop) + Math.abs(center - expectedLabelCenter),
       }];
@@ -77,6 +85,7 @@ try {
       card: readRect(card),
       label: candidates[0] ?? null,
       clearance: shell.getAttribute("data-mesurer-measurement-label-clearance"),
+      spacingOwner: shell.getAttribute("data-mesurer-symmetric-measurement-spacing"),
       placement: card.getAttribute("data-mesurer-text-inspector-placement"),
     };
   });
@@ -100,18 +109,27 @@ try {
   if (state.clearance !== "true") {
     throw new Error(`Typography did not claim proactive dimensions-pill clearance: ${JSON.stringify({ state, expectedLabelBand })}`);
   }
+  if (state.spacingOwner !== "true") {
+    throw new Error(`Typography did not activate rendered-surface spacing ownership: ${JSON.stringify(state)}`);
+  }
   if (overlaps(state.card, expectedLabelBand)) {
     throw new Error(`Typography still occupies the standard dimensions-pill lane: ${JSON.stringify({ state, expectedLabelBand })}`);
   }
-  if (state.label && state.label.score <= 16 && overlaps(state.card, state.label.rect)) {
-    throw new Error(`Typography still overlaps a visible real dimensions pill: ${JSON.stringify(state)}`);
+  if (!state.label || state.label.score > 16) {
+    throw new Error(`Could not measure the actual Mesurer selected-element dimensions pill: ${JSON.stringify({ state, expectedLabelBand })}`);
+  }
+  if (overlaps(state.card, state.label.rect)) {
+    throw new Error(`Typography still overlaps the actual Mesurer dimensions pill: ${JSON.stringify(state)}`);
   }
   if (state.placement === "below") {
-    const pill = state.label && state.label.score <= 16 ? state.label.rect : expectedLabelBand;
+    const pill = state.label.rect;
     const elementToPillGap = pill.y - (state.ring.y + state.ring.height);
     const pillToTypographyGap = state.card.y - (pill.y + pill.height);
-    if (Math.abs(pillToTypographyGap - elementToPillGap) > 0.5) {
-      throw new Error(`Typography gap does not match the selected-element dimensions-pill gap: ${JSON.stringify({ elementToPillGap, pillToTypographyGap, state, expectedLabelBand })}`);
+    if (Math.abs(elementToPillGap - 2) > 0.75) {
+      throw new Error(`Mesurer selected-element → dimensions-pill gap is not 2px: ${JSON.stringify({ elementToPillGap, state })}`);
+    }
+    if (Math.abs(pillToTypographyGap - elementToPillGap) > 0.75) {
+      throw new Error(`Typography gap does not match the actual Mesurer selected-element dimensions-pill gap: ${JSON.stringify({ elementToPillGap, pillToTypographyGap, state })}`);
     }
   }
 
@@ -168,7 +186,7 @@ try {
     throw new Error(`Typography native anchor offset was rewritten by offscreen scroll: ${JSON.stringify({ beforeOffscreenScroll, offscreenState })}`);
   }
 
-  console.log("Packed Solid 2 proactive dimensions-pill clearance: PASS", { state, expectedLabelBand });
+  console.log("Packed Solid 2 Mesurer-measured dimensions-pill clearance: PASS", { state, expectedLabelBand });
   console.log("Packed Solid 2 offscreen Typography source anchoring: PASS", { beforeOffscreenScroll, offscreenState });
 } finally {
   await page.close();
