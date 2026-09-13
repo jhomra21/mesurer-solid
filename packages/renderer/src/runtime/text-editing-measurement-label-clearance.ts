@@ -331,6 +331,19 @@ export function installTextEditingMeasurementLabelClearance(
 
     const host = rectFromDom(ring.getBoundingClientRect());
     if (host.width <= 0 || host.height <= 0) return;
+    const nativeAnchored = shell.dataset.mesurerNativeScrollOwner === "typography"
+      && shell.dataset.mesurerNativeScrollAnchor === "offset";
+    const hostIntersectsViewport = host.right > 0
+      && host.bottom > 0
+      && host.left < ownerWindow.innerWidth
+      && host.top < ownerWindow.innerHeight;
+    // Native anchor positioning already keeps Typography at its chosen offset
+    // from the edited element while the document scrolls. Once the source has
+    // left the viewport, do not feed its offscreen rect back into the
+    // viewport-safe placer: that would clamp the card to 8px and turn it into
+    // sticky viewport furniture instead of letting it travel with the source.
+    if (nativeAnchored && !hostIntersectsViewport) return;
+
     const labels = visibleMeasurementLabelRects(scopes(), host, realm);
     const expectedLabel = expectedDimensionsLabelBand(host);
     const cardRect = rectFromDom(card.getBoundingClientRect());
@@ -346,8 +359,6 @@ export function installTextEditingMeasurementLabelClearance(
       { width: cardRect.width, height: fullHeight },
       { width: ownerWindow.innerWidth, height: ownerWindow.innerHeight },
     );
-    const nativeAnchored = shell.dataset.mesurerNativeScrollOwner === "typography"
-      && shell.dataset.mesurerNativeScrollAnchor === "offset";
     if (nativeAnchored) {
       shell.style.setProperty("--mesurer-native-anchor-x", `${next.left - host.left}px`);
       shell.style.setProperty("--mesurer-native-anchor-y", `${next.top - host.top}px`);
