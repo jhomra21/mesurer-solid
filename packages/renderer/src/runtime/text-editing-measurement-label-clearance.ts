@@ -5,6 +5,7 @@ import { MEASURE_LABEL_OFFSET } from "../core/constants";
 const VIEWPORT_PADDING = 8;
 const SURFACE_GAP = 8;
 const RECT_TOLERANCE = 4;
+const STANDARD_DIMENSIONS_LABEL_HEIGHT = 20;
 const MEASUREMENT_ROOT = "[data-mesurer-measurement='true']";
 const MEASUREMENT_CHROME = "[data-mesurer-measurement-chrome='true']";
 const MEASUREMENT_LABEL = "[data-mesurer-measurement-label='true']";
@@ -77,15 +78,31 @@ const unionRects = (rects: Rect[]) => rects.reduce((result, rect) => ({
   height: Math.max(result.bottom, rect.bottom) - Math.min(result.top, rect.top),
 }));
 
+export const expectedDimensionsLabelBand = (host: Rect): Rect => ({
+  left: host.left,
+  top: host.bottom + MEASURE_LABEL_OFFSET,
+  right: host.right,
+  bottom: host.bottom + MEASURE_LABEL_OFFSET + STANDARD_DIMENSIONS_LABEL_HEIGHT,
+  width: host.width,
+  height: STANDARD_DIMENSIONS_LABEL_HEIGHT,
+});
+
 export function resolveMeasurementAwareInspectorPlacement(
   host: Rect,
   measurementLabels: Rect[],
   cardSize: { width: number; height: number },
   viewport: { width: number; height: number },
 ): Placement {
-  const protectedRect = measurementLabels.length
-    ? unionRects([host, ...measurementLabels])
-    : host;
+  // MeasurementBox always places its dimensions label two pixels below the
+  // measured box. Reserve that standard lane from source geometry itself so
+  // Typography never has to wait for a label DOM node to appear before it can
+  // avoid it. Any visible measured labels extend the protected region when
+  // their real footprint is larger than the standard lane.
+  const protectedRect = unionRects([
+    host,
+    expectedDimensionsLabelBand(host),
+    ...measurementLabels,
+  ]);
   const width = cardSize.width;
   const height = cardSize.height;
   const viewportRight = viewport.width - VIEWPORT_PADDING;
@@ -231,9 +248,9 @@ const visibleMeasurementLabelRects = (
 
 /**
  * Keep the selected element's dimensions pill readable when direct-edit
- * Typography is placed beside it. The canonical inspector placers still own the
- * normal lane choice; this adapter only intervenes when a visible MeasurementBox
- * label actually intersects the interactive Typography card.
+ * Typography is placed beside it. The standard pill lane is derived directly
+ * from the edit ring, while any visible MeasurementBox label can extend that
+ * protected footprint when necessary.
  */
 export function installTextEditingMeasurementLabelClearance(
   ctx: MesurerPluginContext,
@@ -315,14 +332,11 @@ export function installTextEditingMeasurementLabelClearance(
     const host = rectFromDom(ring.getBoundingClientRect());
     if (host.width <= 0 || host.height <= 0) return;
     const labels = visibleMeasurementLabelRects(scopes(), host, realm);
-    if (!labels.length) {
-      restoreAdjustment();
-      return;
-    }
-
+    const expectedLabel = expectedDimensionsLabelBand(host);
     const cardRect = rectFromDom(card.getBoundingClientRect());
-    const intersectsLabel = labels.some((label) => rectsOverlap(cardRect, label));
-    if (!adjustment && !intersectsLabel) return;
+    const intersectsProtectedLane = rectsOverlap(cardRect, expectedLabel)
+      || labels.some((label) => rectsOverlap(cardRect, label));
+    if (!adjustment && !intersectsProtectedLane) return;
     if (!adjustment) captureAdjustment(shell, card);
 
     const fullHeight = Math.max(cardRect.height, card.scrollHeight);
