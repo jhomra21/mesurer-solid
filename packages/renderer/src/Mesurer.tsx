@@ -326,7 +326,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         draggingGuideId: null,
         document: ownerDocument,
       });
-      model.addGuide({ id, orientation, position });
+      model.addGuide({ id, orientation: model.current.guideOrientation, position });
       model.setSelectedGuideIds(model.current.settings.selectNewGuideEnabled ? [id] : []);
       model.setTransient({ guidePreview: null });
       scheduleGuideDragHold(id);
