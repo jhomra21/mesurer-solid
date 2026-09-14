@@ -5,7 +5,7 @@ const url = process.env.ISOLATED_SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
-const DOCUMENT_SELECTED_CHROME = "body > [data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true'][data-mesurer-native-scroll-anchor='box']";
+const DOCUMENT_SELECTED_CHROME = "body > [data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true']";
 
 page.on("pageerror", (error) => errors.push(String(error)));
 page.on("console", (message) => {
@@ -50,6 +50,20 @@ const settle = async () => {
   }));
 };
 
+const selectedChromeIsFinal = async () => page.evaluate((selector) => {
+  const candidates = Array.from(document.querySelectorAll(selector));
+  if (candidates.length !== 1) return false;
+  const element = candidates[0];
+  if (!(element instanceof HTMLElement)) return false;
+  const rect = element.getBoundingClientRect();
+  const anchor = getComputedStyle(element).getPropertyValue("position-anchor").trim();
+  return rect.width > 0
+    && rect.height > 0
+    && element.dataset.mesurerNativeScrollAnchor === "box"
+    && Boolean(anchor)
+    && anchor !== "none";
+}, DOCUMENT_SELECTED_CHROME);
+
 const waitForStableSelectedChrome = async () => {
   await page.waitForFunction((selector) => {
     const candidates = Array.from(document.querySelectorAll(selector));
@@ -64,7 +78,17 @@ const waitForStableSelectedChrome = async () => {
       && Boolean(anchor)
       && anchor !== "none";
   }, DOCUMENT_SELECTED_CHROME);
-  await settle();
+
+  // The selected MeasurementBox briefly hands ownership from the isolated
+  // ShadowRoot to the document-backed native-anchor surface. Do not accept the
+  // first matching frame: require the final document owner to survive the same
+  // two-frame settle used by the rest of this contract.
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    await settle();
+    if (await selectedChromeIsFinal()) return;
+    await page.waitForTimeout(16);
+  }
+  throw new Error("selected chrome did not retain its final document-backed native anchor after settle");
 };
 
 const assertNativeAnchor = async (locator, mode, stage) => {
