@@ -92,6 +92,27 @@ const placeSurfaceNear = (
   return { left: positionedLeft, top: positionedTop };
 };
 
+const placeComposerNear = (
+  rect: PositionedRect,
+  width: number,
+  height: number,
+  ownerWindow: Window,
+  gap = 8,
+) => {
+  const padding = 8;
+  const maxLeft = ownerWindow.innerWidth - width - padding;
+  const centeredLeft = clamp(rect.left + rect.width / 2 - width / 2, padding, maxLeft);
+  const below = rect.top + rect.height + gap;
+  if (below + height <= ownerWindow.innerHeight - padding) {
+    return { left: centeredLeft, top: below };
+  }
+  const above = rect.top - height - gap;
+  if (above >= padding) {
+    return { left: centeredLeft, top: above };
+  }
+  return placeSurfaceNear(rect, width, height, ownerWindow, gap);
+};
+
 export function ContextActions(props: ContextActionsProps) {
   const [revision, setRevision] = createSignal(0);
   const [triggerRevision, setTriggerRevision] = createSignal(0);
@@ -149,10 +170,6 @@ export function ContextActions(props: ContextActionsProps) {
 
   const supportsSelectionTriggerAnchor = () => {
     const currentWindow = ownerWindow();
-    // CodexBrowser exposes native CSS Anchor Positioning support, but its
-    // document-backed Context surface does not reliably present the anchored
-    // selection affordance. The host bridge is available before Mesurer mounts,
-    // so choose the document-backed fallback deterministically.
     if (Object.prototype.hasOwnProperty.call(currentWindow, "__codexWebMcpModelContext")) return false;
     return Boolean(
       currentWindow.CSS?.supports("anchor-name: --mesurer-annotation-trigger")
@@ -201,10 +218,6 @@ export function ContextActions(props: ContextActionsProps) {
       && element?.isConnected
       && shouldUseNative === alreadyNative
     ) {
-      // The document-backed fallback inherits window/document movement directly.
-      // Only nested overflow ancestors need scalar delta compensation, so a
-      // workspace notification must preserve the helper's accumulated nested
-      // offset until an actual target/anchor topology change replaces it.
       nestedTriggerScroll?.sync();
       return;
     }
@@ -220,10 +233,6 @@ export function ContextActions(props: ContextActionsProps) {
     if (!currentWindow) return;
 
     if (shouldUseNative) {
-      // Install the new target side before publishing the identity consumed by
-      // the replacement trigger. Chromium can retain unresolved geometry when a
-      // live positioned node is retargeted in-place, so target changes remount
-      // that one trigger after ownership is committed instead.
       releaseTriggerAnchor = addAnchorName(element, nextAnchorName);
       anchoredTriggerElement = element;
       selectionTriggerAnchorName = nextAnchorName;
@@ -236,9 +245,6 @@ export function ContextActions(props: ContextActionsProps) {
     }
 
     selectionTriggerAnchorName = nextAnchorName;
-    // The fallback is absolutely positioned in the document layer, so ordinary
-    // window scrolling is compositor-owned. Keep JavaScript compensation only
-    // for nested overflow ancestors that the body portal cannot inherit.
     nestedTriggerScroll = installNestedScrollCompensation(
       currentWindow,
       element,
@@ -279,17 +285,10 @@ export function ContextActions(props: ContextActionsProps) {
       placementTarget = nextPlacementTarget;
       observeTriggerGeometry(placementTarget);
       if (fallbackNextSelection) {
-        // A composer abandoned on pointerdown disappears before Select commits
-        // pointerup. Carry that intent across the short gap so the newly selected
-        // target is restored through the document-coordinate path instead of the
-        // Chromium CSS-anchor handoff that can retain stale geometry.
         fallbackNextSelection = false;
         fallbackTriggerElement = nextPlacementTarget;
       }
     }
-    // Commit native/fallback ownership before invalidating the placement memo.
-    // A keyed trigger owner then replaces the positioned node only when the page
-    // selection target itself changes; resize-only placement updates reuse it.
     syncSelectionTriggerAnchor();
     if (targetChanged) bumpTriggerPlacement();
     setRevision((value) => value + 1);
@@ -446,7 +445,7 @@ export function ContextActions(props: ContextActionsProps) {
     const value = selectionRect();
     const currentWindow = ownerWindow();
     const width = 272;
-    const height = 154;
+    const height = 168;
     const dragged = composerPosition();
     if (dragged) {
       return {
@@ -455,7 +454,7 @@ export function ContextActions(props: ContextActionsProps) {
       };
     }
     if (!value) return { left: 8, top: 8 };
-    return placeSurfaceNear(value, width, height, currentWindow);
+    return placeComposerNear(value, width, height, currentWindow);
   };
 
   const panelPosition = (annotationId: string) => annotationLayout(annotationId)?.panel ?? { left: 8, top: 8 };
@@ -573,18 +572,11 @@ export function ContextActions(props: ContextActionsProps) {
     const wasOpen = noteComposerOpen();
     const changedSelection = composerSelection !== null && !sameSelection(composerSelection, captureSelection());
     if (changedSelection) {
-      // Chromium can retain unresolved CSS-anchor geometry when a hidden Add Note
-      // trigger is restored for a different selection in the same update. Hand
-      // that one new target to the existing document-coordinate path instead.
-      // Window scrolling remains compositor-owned; only nested overflow deltas
-      // are compensated by JavaScript, exactly like the CodexBrowser fallback.
       fallbackTriggerElement = currentSelectionTriggerElement();
       fallbackNextSelection = false;
       syncSelectionTriggerAnchor();
       bumpTriggerPlacement();
     } else if (wasOpen) {
-      // Explicit Cancel/Escape belongs to the current selection and should not
-      // influence the anchor strategy of some later unrelated selection.
       fallbackNextSelection = false;
     }
     resetNoteComposer();
@@ -592,9 +584,6 @@ export function ContextActions(props: ContextActionsProps) {
 
   const abandonNoteComposer = () => {
     if (!noteComposerOpen()) return;
-    // The external pointerdown closes the old draft before Select commits its
-    // pointerup. Remember exactly one pending ownership transfer so that new
-    // target gets the stable cached-delta placement after the selection changes.
     fallbackNextSelection = true;
     resetNoteComposer();
   };
