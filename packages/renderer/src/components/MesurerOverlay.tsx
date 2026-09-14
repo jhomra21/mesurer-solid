@@ -8,6 +8,7 @@ import type { SelectionSpacingStyle } from "../core/persistence";
 import type { Guide, InspectMeasurement, Rect } from "../core/types";
 import { formatValue } from "../core/utils";
 import type { MesurerModel } from "../model/create-mesurer-model";
+import { hasNativeScrollAnchoring } from "../runtime/native-scroll-registry";
 import { DistanceOverlayItem, type SelectionSpacingInteraction } from "./DistanceOverlayItem";
 import { MeasurementBox } from "./MeasurementBox";
 
@@ -47,6 +48,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   let guideHoldTimer = 0;
   let guideHoldId: string | null = null;
   let hoverScrollIdleTimer = 0;
+  let hoverScrollFrame = 0;
   const [expandedSpacingGroup, setExpandedSpacingGroup] = createSignal<string | null>(null);
   const [pinnedSpacingGroup, setPinnedSpacingGroup] = createSignal<string | null>(null);
   const spacingInteraction: SelectionSpacingInteraction = {
@@ -210,7 +212,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       const chrome = hoverChromeElement;
       if (!target?.isConnected || !chrome?.isConnected) return;
       const rect = target.getBoundingClientRect();
-      const documentLayer = hoverPortalTarget() === target.ownerDocument.body;
+      const documentLayer = chrome.dataset.mesurerDocumentHoverLayer === "true";
       const offsetX = documentLayer ? ownerWindow.scrollX : 0;
       const offsetY = documentLayer ? ownerWindow.scrollY : 0;
       Object.assign(chrome.style, {
@@ -220,28 +222,33 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         height: `${rect.height}px`,
       });
     };
+    const scheduleHoverFallback = () => {
+      if (hoverScrollFrame) return;
+      hoverScrollFrame = ownerWindow.requestAnimationFrame(() => {
+        hoverScrollFrame = 0;
+        if (hoverChromeElement?.dataset.mesurerNativeScrollAnchor === "box") return;
+        syncHoverGeometry();
+      });
+    };
     const handleScroll = () => {
       const chrome = hoverChromeElement;
       if (!chrome?.isConnected) return;
       if (chrome.dataset.mesurerNativeScrollAnchor === "box") return;
-      const nativeDocumentScroll = Boolean(ownerDocument.querySelector("style[data-mesurer-native-scroll-anchoring='true']"));
-      if (!nativeDocumentScroll) {
-        syncHoverGeometry();
+
+      if (!hasNativeScrollAnchoring(ownerDocument)) {
+        scheduleHoverFallback();
         return;
       }
 
-      // The document-backed hover surface can share the page's CSS anchor tree.
-      // Local/Shadow DOM fallbacks still hide during compositor scroll until
-      // their JavaScript geometry catches up after the scroll settles.
-      if (hoverPortalTarget() === ownerDocument.body) {
-        syncHoverGeometry();
-        return;
-      }
+      // During the short handoff before the native hover anchor is installed,
+      // avoid DOM discovery/layout on every compositor scroll event. Hide the
+      // fallback and reconcile once the burst settles; the native path takes
+      // over without JavaScript as soon as the coordinator binds it.
       chrome.style.visibility = "hidden";
       if (hoverScrollIdleTimer) ownerWindow.clearTimeout(hoverScrollIdleTimer);
       hoverScrollIdleTimer = ownerWindow.setTimeout(() => {
         hoverScrollIdleTimer = 0;
-        syncHoverGeometry();
+        if (chrome.dataset.mesurerNativeScrollAnchor !== "box") syncHoverGeometry();
         if (chrome.isConnected) chrome.style.removeProperty("visibility");
       }, 80);
     };
@@ -308,7 +315,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     syncHoverGeometry();
     overlay.addEventListener("pointermove", handleOverlayPointerMove);
-    ownerWindow.addEventListener("scroll", handleScroll, true);
+    ownerWindow.addEventListener("scroll", handleScroll, { capture: true, passive: true });
     ownerWindow.addEventListener("resize", syncHoverGeometry, true);
     ownerWindow.addEventListener("pointerdown", handlePassiveGuideDown, true);
     ownerWindow.addEventListener("pointermove", handlePassiveGuideMove, true);
@@ -323,7 +330,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       ownerWindow.removeEventListener("pointerup", handlePassiveGuideEnd, true);
       ownerWindow.removeEventListener("pointercancel", handlePassiveGuideEnd, true);
       if (hoverScrollIdleTimer) ownerWindow.clearTimeout(hoverScrollIdleTimer);
+      if (hoverScrollFrame) ownerWindow.cancelAnimationFrame(hoverScrollFrame);
       hoverScrollIdleTimer = 0;
+      hoverScrollFrame = 0;
       hoverChromeElement?.style.removeProperty("visibility");
       clearGuideHold();
       if (passiveGuideDrag?.previousUserSelect !== null && passiveGuideDrag) {

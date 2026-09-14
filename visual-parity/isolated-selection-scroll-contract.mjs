@@ -5,6 +5,7 @@ const url = process.env.ISOLATED_SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
+const DOCUMENT_SELECTED_CHROME = "body > [data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true'][data-mesurer-native-scroll-anchor='box']";
 
 page.on("pageerror", (error) => errors.push(String(error)));
 page.on("console", (message) => {
@@ -49,6 +50,23 @@ const settle = async () => {
   }));
 };
 
+const waitForStableSelectedChrome = async () => {
+  await page.waitForFunction((selector) => {
+    const candidates = Array.from(document.querySelectorAll(selector));
+    if (candidates.length !== 1) return false;
+    const element = candidates[0];
+    if (!(element instanceof HTMLElement)) return false;
+    const rect = element.getBoundingClientRect();
+    const anchor = getComputedStyle(element).getPropertyValue("position-anchor").trim();
+    return rect.width > 0
+      && rect.height > 0
+      && element.dataset.mesurerNativeScrollAnchor === "box"
+      && Boolean(anchor)
+      && anchor !== "none";
+  }, DOCUMENT_SELECTED_CHROME);
+  await settle();
+};
+
 const assertNativeAnchor = async (locator, mode, stage) => {
   const native = await locator.evaluate((element) => ({
     mode: element.dataset.mesurerNativeScrollAnchor ?? null,
@@ -84,8 +102,9 @@ try {
   let targetBox = await box(target, "isolated target before selection");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
-  const selectedChrome = page.locator("[data-mesurer-selected-measurement='true'] > div").first();
+  const selectedChrome = page.locator(DOCUMENT_SELECTED_CHROME).first();
   const annotation = page.locator("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
+  await waitForStableSelectedChrome();
   await selectedChrome.waitFor({ state: "visible" });
   await annotation.waitFor({ state: "visible" });
   assertSameBox(await box(selectedChrome, "selected chrome before scroll"), targetBox, "selected chrome before scroll");
@@ -125,6 +144,7 @@ try {
   await settle();
   const nestedTargetBox = await box(nestedTarget, "nested target before selection");
   await page.mouse.click(nestedTargetBox.x + nestedTargetBox.width / 2, nestedTargetBox.y + nestedTargetBox.height / 2);
+  await waitForStableSelectedChrome();
   await selectedChrome.waitFor({ state: "visible" });
   await annotation.waitFor({ state: "visible" });
   const nestedBefore = {
@@ -154,6 +174,7 @@ try {
   await settle();
   targetBox = await box(target, "target before direct edit");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+  await waitForStableSelectedChrome();
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");

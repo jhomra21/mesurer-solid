@@ -1,5 +1,6 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
+import { registerNativeScrollAnchoring } from "./native-scroll-registry";
 
 const SCROLL_IDLE_MS = 80;
 const VIEWPORT_PADDING = 8;
@@ -232,6 +233,7 @@ export function installDocumentScrollAnchoring(
   if (portalTarget.getRootNode() !== ownerDocument || pageTarget.getRootNode() !== ownerDocument) return;
   if (!ownerDocument.body) return;
 
+  const releaseNativeScrollRegistration = registerNativeScrollAnchoring(ownerDocument);
   const workspace = runtime.createWorkspaceRuntime();
   const targetAnchors = new Map<HTMLElement, TargetAnchorState>();
   const selectionBindings = new Map<HTMLElement, SelectionBinding>();
@@ -243,6 +245,7 @@ export function installDocumentScrollAnchoring(
   let disposed = false;
   let queued = false;
   let frame = 0;
+  let hoverFrame = 0;
   let scrolling = false;
   let scrollIdleTimer = 0;
 
@@ -682,6 +685,15 @@ export function installDocumentScrollAnchoring(
     }
   };
 
+  const scheduleHover = () => {
+    if (disposed || scrolling || hoverFrame) return;
+    hoverFrame = ownerWindow.requestAnimationFrame(() => {
+      hoverFrame = 0;
+      if (disposed || scrolling) return;
+      stabilizeHover();
+    });
+  };
+
   const observer = new realm.MutationObserver(() => {
     if (!scrolling) schedule();
   });
@@ -711,9 +723,9 @@ export function installDocumentScrollAnchoring(
   };
   const onActivity = () => schedule(true);
 
-  ownerWindow.addEventListener("scroll", onScroll, true);
+  ownerWindow.addEventListener("scroll", onScroll, { capture: true, passive: true });
   ownerWindow.addEventListener("resize", onActivity, true);
-  ownerWindow.addEventListener("pointermove", onActivity, true);
+  ownerWindow.addEventListener("pointermove", scheduleHover, true);
   ownerWindow.addEventListener("pointerup", onActivity, true);
   ownerWindow.addEventListener("dblclick", onActivity, true);
   schedule(true);
@@ -722,10 +734,11 @@ export function installDocumentScrollAnchoring(
     disposed = true;
     observer.disconnect();
     if (frame) ownerWindow.cancelAnimationFrame(frame);
+    if (hoverFrame) ownerWindow.cancelAnimationFrame(hoverFrame);
     if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
     ownerWindow.removeEventListener("scroll", onScroll, true);
     ownerWindow.removeEventListener("resize", onActivity, true);
-    ownerWindow.removeEventListener("pointermove", onActivity, true);
+    ownerWindow.removeEventListener("pointermove", scheduleHover, true);
     ownerWindow.removeEventListener("pointerup", onActivity, true);
     ownerWindow.removeEventListener("dblclick", onActivity, true);
 
@@ -750,6 +763,7 @@ export function installDocumentScrollAnchoring(
       else target.style.removeProperty("anchor-name");
     }
     targetAnchors.clear();
+    releaseNativeScrollRegistration();
     style.remove();
   });
 }

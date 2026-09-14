@@ -5,6 +5,7 @@ const TOOLBAR_BLUE = "#0d99ff";
 const TOOLBAR_MUTED = "#8a8a8a";
 const PRESET_MENU_WIDTH = 288;
 const CARET_WIDTH = 1.5;
+const SCROLL_IDLE_MS = 80;
 
 type TypographyButtonSnapshot = {
   ariaPressed: string | null;
@@ -71,6 +72,7 @@ export function installTextEditingPresentation(
   let activeTextTarget: ActiveTextTarget | null = null;
   let caret: HTMLDivElement | null = null;
   let feedbackFrame = 0;
+  let scrollIdleTimer = 0;
   let disposed = false;
   let refining = false;
 
@@ -459,6 +461,22 @@ export function installTextEditingPresentation(
     feedbackFrame = ownerWindow.requestAnimationFrame(updateInteractionFeedback);
   };
 
+  const onScroll = () => {
+    // Caret/range geometry is main-thread layout work. Native anchors already
+    // move the visible edit ring and selection paint in the compositor, so a
+    // scroll burst should not run Range or DOM discovery once per frame.
+    if (feedbackFrame) {
+      ownerWindow.cancelAnimationFrame(feedbackFrame);
+      feedbackFrame = 0;
+    }
+    if (caret) removeCaret();
+    if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
+    scrollIdleTimer = ownerWindow.setTimeout(() => {
+      scrollIdleTimer = 0;
+      scheduleInteractionFeedback();
+    }, SCROLL_IDLE_MS);
+  };
+
   const unbindEditor = () => {
     if (!boundEditor) return;
     boundEditor.removeEventListener("input", scheduleInteractionFeedback);
@@ -571,16 +589,18 @@ export function installTextEditingPresentation(
   const observer = new realm.MutationObserver(() => refine());
   observer.observe(runtimeMount, { childList: true, subtree: true });
   ownerWindow.addEventListener("resize", scheduleInteractionFeedback);
-  ownerWindow.addEventListener("scroll", scheduleInteractionFeedback, true);
+  ownerWindow.addEventListener("scroll", onScroll, { capture: true, passive: true });
   refine();
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
     ownerWindow.removeEventListener("resize", scheduleInteractionFeedback);
-    ownerWindow.removeEventListener("scroll", scheduleInteractionFeedback, true);
+    ownerWindow.removeEventListener("scroll", onScroll, true);
     if (feedbackFrame) ownerWindow.cancelAnimationFrame(feedbackFrame);
+    if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
     feedbackFrame = 0;
+    scrollIdleTimer = 0;
     unbindEditor();
     restoreOccludedInspector();
     removeCaret();

@@ -213,7 +213,11 @@ export function installUnifiedTextSelectLayer(
   const observer = new realm.MutationObserver(schedule);
   observer.observe(runtimeMount, { childList: true, subtree: true });
   ownerWindow.addEventListener("resize", schedule);
-  ownerWindow.addEventListener("scroll", schedule, true);
+  // The popup is absolutely positioned inside the Typography card. Window
+  // scrolling moves the card, trigger, and popup as one unit (native anchor or
+  // fallback placement), so there is no relative geometry to reconcile here.
+  // Keeping scroll out of this layer also prevents selector/layout work from
+  // competing with compositor scrolling immediately after direct edit begins.
   schedule();
 
   ctx.lifecycle.onDispose(() => {
@@ -221,6 +225,5 @@ export function installUnifiedTextSelectLayer(
     observer.disconnect();
     if (frame) ownerWindow.cancelAnimationFrame(frame);
     ownerWindow.removeEventListener("resize", schedule);
-    ownerWindow.removeEventListener("scroll", schedule, true);
   });
 }
