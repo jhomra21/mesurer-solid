@@ -121,6 +121,14 @@ try {
       background: "white",
     });
     document.body.append(second);
+
+    const scrollRunway = document.createElement("div");
+    scrollRunway.dataset.annotationOwnershipScrollRunway = "true";
+    Object.assign(scrollRunway.style, {
+      height: "1600px",
+      pointerEvents: "none",
+    });
+    document.body.append(scrollRunway);
   });
 
   await page.evaluate(async () => {
@@ -129,9 +137,8 @@ try {
   await composer.waitFor({ state: "detached" });
   await trigger.waitFor({ state: "visible" });
 
-  // The trigger node is reused across selection changes, so visibility alone can
-  // observe the previous target's last placement. Wait for the reactive placement
-  // owner to commit geometry for the new selected element before asserting it.
+  // Visibility alone can observe an earlier placement while selection ownership
+  // is being handed off. Wait for the new selected element to own the trigger.
   const handoffBeforeWait = await page.evaluate(() => {
     const second = document.querySelector("[data-self-host-target-second]");
     const nextTrigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
@@ -177,6 +184,21 @@ try {
     "new selection must own the restored Add Note trigger",
   );
 
+  const triggerOwnership = await trigger.evaluate((element) => ({
+    scrollMode: element.dataset.mesurerAnnotationScrollMode ?? null,
+    nativeOwner: element.dataset.mesurerNativeScrollOwner ?? null,
+  }));
+  assert.equal(
+    triggerOwnership.scrollMode,
+    "cached-delta",
+    "a trigger restored for a different selection must use the document-coordinate handoff path",
+  );
+  assert.equal(
+    triggerOwnership.nativeOwner,
+    null,
+    "the draft-handoff trigger must not retain stale native CSS-anchor ownership",
+  );
+
   const triggerZ = await trigger.evaluate((element) => {
     const value = getComputedStyle(element).zIndex;
     return { text: value, numeric: value === "auto" ? null : Number.parseInt(value, 10) };
@@ -186,6 +208,48 @@ try {
     triggerZ.numeric,
     ownership.cardZ,
     "restored Add Note trigger and composer must share the same protected annotation paint tier",
+  );
+
+  // The fallback is document-positioned, so ordinary window scrolling must be
+  // compositor-owned too: no trigger style rewrites and no target-relative drift.
+  const windowScrollEvidence = await page.evaluate(async () => {
+    const second = document.querySelector("[data-self-host-target-second]");
+    const nextTrigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
+    if (!(second instanceof HTMLElement) || !(nextTrigger instanceof HTMLElement)) {
+      throw new Error("Missing second target or restored Add Note trigger");
+    }
+    const snapshot = () => {
+      const target = second.getBoundingClientRect();
+      const triggerRect = nextTrigger.getBoundingClientRect();
+      return {
+        target: { left: target.left, top: target.top },
+        trigger: { left: triggerRect.left, top: triggerRect.top },
+        relative: {
+          x: triggerRect.left - target.left,
+          y: triggerRect.top - target.top,
+        },
+      };
+    };
+    const mutations = [];
+    const observer = new MutationObserver((records) => mutations.push(...records));
+    observer.observe(nextTrigger, { attributes: true, attributeFilter: ["style"] });
+    const before = snapshot();
+    window.scrollBy(0, 180);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const after = snapshot();
+    observer.disconnect();
+    return { before, after, styleMutations: mutations.length, scrollY: window.scrollY };
+  });
+  assert(windowScrollEvidence.scrollY > 0, "annotation handoff fixture must exercise real window scrolling");
+  assert(
+    Math.abs(windowScrollEvidence.after.relative.x - windowScrollEvidence.before.relative.x) < 0.5
+      && Math.abs(windowScrollEvidence.after.relative.y - windowScrollEvidence.before.relative.y) < 0.5,
+    `document-coordinate Add Note trigger drifted during window scroll: ${JSON.stringify(windowScrollEvidence)}`,
+  );
+  assert.equal(
+    windowScrollEvidence.styleMutations,
+    0,
+    `window scrolling must not rewrite the restored Add Note trigger style: ${JSON.stringify(windowScrollEvidence)}`,
   );
 
   // The abandoned draft must not follow the selection invisibly and reappear on
@@ -199,7 +263,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log(`Annotation ownership contract passed: Context cards own an explicit protected paint tier above document-owned page chrome (${ownership.hoverDocumentLayer ? "ported" : "direct"}), selection change closes/discards the draft, and the new target gets a fresh protected Add Note trigger.`);
+  console.log(`Annotation ownership contract passed: Context cards own an explicit protected paint tier above document-owned page chrome (${ownership.hoverDocumentLayer ? "ported" : "direct"}), selection change closes/discards the draft, the new target gets a protected document-coordinate Add Note trigger, and window scrolling preserves target-relative geometry with zero trigger style rewrites.`);
 } finally {
   await browser.close();
 }
