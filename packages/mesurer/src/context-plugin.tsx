@@ -26,6 +26,7 @@ export const MESURER_CONTEXT_SERVICE_ID = "context:v1";
 export const MESURER_CONTEXT_SETTINGS_STATE_ID = "mesurer.context.settings";
 
 const CONTEXT_UI_STATE_ID = "context.ui";
+const DOCUMENT_CONTEXT_Z_INDEX = "2147483647";
 const COPY_ICON = {
   viewBox: "0 0 256 256",
   paths: ["M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"],
@@ -157,7 +158,11 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       let uiController: ContextActionsController | null = null;
       let disposeUi: (() => void) | null = null;
       let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
-      let previousSelection = runtime.currentSelection();
+      const initialSelection = runtime.currentSelection();
+      let previousSelection = {
+        elements: [...initialSelection.elements],
+        region: initialSelection.region ? { ...initialSelection.region } : null,
+      };
 
       const sameSelection = (
         left: ReturnType<MesurerWorkspaceRuntime["currentSelection"]>,
@@ -208,7 +213,13 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         if (uiMount) return;
         uiMount = contextRuntime.createInspectorMount();
         uiMount.element.dataset.mesurerLayer = "evidence";
-        if (documentBacked) uiMount.element.dataset.mesurerContextDocumentLayer = "true";
+        if (documentBacked) {
+          uiMount.element.dataset.mesurerContextDocumentLayer = "true";
+          Object.assign(uiMount.element.style, {
+            position: "relative",
+            zIndex: DOCUMENT_CONTEXT_Z_INDEX,
+          });
+        }
         const actionProps: Parameters<typeof ContextActions>[0] = {
           runtime,
           onCopy: service.copyContext,
