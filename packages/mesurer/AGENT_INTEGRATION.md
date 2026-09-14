@@ -151,6 +151,8 @@ The editing UI exposes direct B/I/U, Font, Size, Weight, rendered-page colors, c
 
 If Typography was already explicitly selected, the direct-edit session suppresses the older hover/pinned Typography surface so the field has one live card. The normal surface returns when editing ends.
 
+Direct edit also owns the field's visible selection lane. The duplicate ordinary selected border is paint-suppressed, the selected dimensions pill remains available, and the Typography card stays source-relative without reacting to ordinary pointer movement. The selection-adjacent Add Note button is intentionally hidden during the active edit and returns afterward. Existing saved annotation state remains available throughout.
+
 Read durable intent through:
 
 ```js
@@ -161,6 +163,8 @@ const intent = await window.__MESURER__.textEdit(textEditId)
 Treat `intent.desired` and style deltas as visual/source requirements, not inline CSS instructions. Look for the application's semantic props, classes, design tokens, CSS variables, theme values, or stylesheet rules that produce the requested render.
 
 Verification must use Live source with the Desired preview inactive. Text/style preview ownership follows the same conservative rule as Arrange: while the DOM still equals Mesurer's owned value, undo/redo can move it to the restored Desired value; once the application changes it, Mesurer preserves the host value instead of overwriting it during history or cleanup.
+
+Do not infer Context availability from transient chrome. While a direct editor is active the Add Note button is absent by design, but `annotations()`, annotation-scoped `context()`, and `review()` remain the durable interface.
 
 See [Direct text editing and Typography](../../docs/TEXT_EDITING.md).
 
