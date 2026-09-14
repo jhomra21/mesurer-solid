@@ -101,7 +101,9 @@ export function ContextActions(props: ContextActionsProps) {
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
-  const selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
+  const [selectionTriggerAnchorName, setSelectionTriggerAnchorName] = createSignal(
+    `--mesurer-annotation-trigger-${++annotationAnchorSequence}`,
+  );
   let surfaceDrag: {
     surfaceId: string;
     pointerId: number;
@@ -164,6 +166,7 @@ export function ContextActions(props: ContextActionsProps) {
 
   const syncSelectionTriggerAnchor = () => {
     const element = currentSelectionTriggerElement();
+    const previousElement = trackedTriggerElement;
     const shouldUseNative = Boolean(element?.isConnected && canUseNativeTriggerAnchor(element));
     const alreadyNative = anchoredTriggerElement === element;
     if (
@@ -179,14 +182,23 @@ export function ContextActions(props: ContextActionsProps) {
       return;
     }
 
+    const targetChanged = element !== previousElement;
     releaseSelectionTriggerAnchor();
     if (!element?.isConnected) return;
+    if (targetChanged) {
+      // A CSS custom-ident can remain associated with its previous anchor for a
+      // frame while the positioned trigger is temporarily absent (for example,
+      // while the note composer owns the selection). Give every target handoff a
+      // fresh identity so remounting the trigger cannot resolve against stale
+      // anchor geometry from the selection that opened the composer.
+      setSelectionTriggerAnchorName(`--mesurer-annotation-trigger-${++annotationAnchorSequence}`);
+    }
     trackedTriggerElement = element;
     const currentWindow = element.ownerDocument.defaultView;
     if (!currentWindow) return;
 
     if (shouldUseNative) {
-      releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName);
+      releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName());
       anchoredTriggerElement = element;
       nestedTriggerScroll = installNestedScrollCompensation(
         currentWindow,
@@ -569,7 +581,7 @@ export function ContextActions(props: ContextActionsProps) {
               translate: position().nativeAnchor
                 ? undefined
                 : "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
-              "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
+              "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName() : undefined,
               "--mesurer-native-anchor-x": position().nativeAnchor ? `${position().anchorX}px` : undefined,
               "--mesurer-native-anchor-y": position().nativeAnchor ? `${position().anchorY}px` : undefined,
               "z-index": PROTECTED_ANNOTATION_Z_INDEX,
