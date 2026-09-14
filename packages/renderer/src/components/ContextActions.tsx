@@ -210,8 +210,8 @@ export function ContextActions(props: ContextActionsProps) {
     triggerResizeObserver?.disconnect();
     triggerResizeObserver = null;
     if (!element?.isConnected) return;
-    const currentWindow = element.ownerDocument.defaultView as (Window & typeof globalThis) | null;
-    if (!currentWindow || typeof currentWindow.ResizeObserver !== "function") return;
+    const currentWindow = element.ownerDocument.defaultView;
+    if (!currentWindow) return;
     triggerResizeObserver = new currentWindow.ResizeObserver(() => {
       setTriggerRevision((value) => value + 1);
     });
