@@ -36,6 +36,8 @@ try {
 
   await page.evaluate(() => {
     document.querySelector("#isolated-annotation-handoff-target")?.remove();
+    document.documentElement.style.minHeight = "1800px";
+    document.body.style.minHeight = "1800px";
     const target = document.createElement("button");
     target.id = "isolated-annotation-handoff-target";
     target.type = "button";
@@ -78,10 +80,8 @@ try {
     y: secondBox.y + secondBox.height / 2,
   };
 
-  // This is the real-consumer failure mode: the draft must be abandoned on the
-  // external pointerdown itself, before Select consumes pointerup to commit B.
-  // If the composer survives pointerdown it can keep owning the interaction and
-  // the selection-change subscriber never gets a chance to repair the state.
+  // The draft must be abandoned on external pointerdown itself, before Select
+  // consumes pointerup to commit B. This is the real-consumer ordering contract.
   await page.mouse.move(secondPoint.x, secondPoint.y);
   await page.mouse.down();
   await composer.waitFor({ state: "detached", timeout: 1200 });
@@ -103,7 +103,7 @@ try {
   await trigger.waitFor({ state: "visible", timeout: 3000 });
   await settle();
 
-  const handoff = await page.evaluate(() => {
+  const readHandoff = () => page.evaluate(() => {
     const target = document.querySelector("#isolated-annotation-handoff-target");
     const nextTrigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
     if (!(target instanceof HTMLElement) || !(nextTrigger instanceof HTMLElement)) {
@@ -112,15 +112,17 @@ try {
     const targetRect = target.getBoundingClientRect();
     const triggerRect = nextTrigger.getBoundingClientRect();
     return {
+      scrollY: window.scrollY,
       target: { left: targetRect.left, top: targetRect.top, width: targetRect.width, height: targetRect.height },
       trigger: { left: triggerRect.left, top: triggerRect.top, width: triggerRect.width, height: triggerRect.height },
       mode: nextTrigger.dataset.mesurerAnnotationScrollMode ?? null,
     };
   });
-  assert.equal(
-    handoff.mode,
-    "cached-delta",
-    `the first trigger restored after abandoning A must avoid Chromium's stale native-anchor handoff: ${JSON.stringify(handoff)}`,
+
+  const handoff = await readHandoff();
+  assert(
+    handoff.mode === "native-anchor" || handoff.mode === "cached-delta",
+    `restored Add Note trigger must expose a supported scroll owner: ${JSON.stringify(handoff)}`,
   );
   const targetCenter = {
     x: handoff.target.left + handoff.target.width / 2,
@@ -133,6 +135,31 @@ try {
   assert(
     Math.hypot(targetCenter.x - triggerCenter.x, targetCenter.y - triggerCenter.y) < 220,
     `restored Add Note trigger must belong to B: ${JSON.stringify(handoff)}`,
+  );
+
+  // The old cached-delta mode was an implementation workaround for reusing a
+  // hidden positioned node. A fresh Context surface may safely choose native
+  // anchoring instead, so gate the observable invariant: target and trigger move
+  // together through an ordinary compositor-owned window scroll with no drift.
+  await page.evaluate(() => window.scrollBy({ top: 240, behavior: "instant" }));
+  await settle();
+  const afterScroll = await readHandoff();
+  const scrollDelta = afterScroll.scrollY - handoff.scrollY;
+  assert(Math.abs(scrollDelta - 240) < 1, `expected a 240px handoff scroll, got ${scrollDelta}`);
+  assert(
+    Math.abs((afterScroll.target.top - handoff.target.top) + scrollDelta) < 0.75,
+    `B must follow window scroll exactly: ${JSON.stringify({ handoff, afterScroll })}`,
+  );
+  assert(
+    Math.abs((afterScroll.trigger.top - handoff.trigger.top) + scrollDelta) < 0.75,
+    `restored Add Note trigger must follow B exactly: ${JSON.stringify({ handoff, afterScroll })}`,
+  );
+  assert(
+    Math.abs(
+      (afterScroll.trigger.top - afterScroll.target.top)
+      - (handoff.trigger.top - handoff.target.top),
+    ) < 0.75,
+    `restored Add Note trigger must not drift relative to B: ${JSON.stringify({ handoff, afterScroll })}`,
   );
 
   await clickCenter(trigger, "second selection Add Note trigger");
@@ -148,6 +175,7 @@ try {
     composerDismissedOnPointerDown: true,
     selectionTransferredOnPointerUp: true,
     restoredTriggerMode: handoff.mode,
+    compositorScrollDelta: -240,
     draftCleared: true,
   });
 } finally {
