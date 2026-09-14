@@ -126,6 +126,26 @@ try {
   });
   await composer.waitFor({ state: "detached" });
   await trigger.waitFor({ state: "visible" });
+
+  // The trigger node is reused across selection changes, so visibility alone can
+  // observe the previous target's last placement. Wait for the reactive placement
+  // owner to commit geometry for the new selected element before asserting it.
+  await page.waitForFunction(() => {
+    const second = document.querySelector("[data-self-host-target-second]");
+    const nextTrigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
+    if (!(second instanceof HTMLElement) || !(nextTrigger instanceof HTMLElement)) return false;
+    const secondBox = second.getBoundingClientRect();
+    const triggerBox = nextTrigger.getBoundingClientRect();
+    const triggerCenter = {
+      x: triggerBox.left + triggerBox.width / 2,
+      y: triggerBox.top + triggerBox.height / 2,
+    };
+    const secondCenter = {
+      x: secondBox.left + secondBox.width / 2,
+      y: secondBox.top + secondBox.height / 2,
+    };
+    return Math.hypot(triggerCenter.x - secondCenter.x, triggerCenter.y - secondCenter.y) < 180;
+  });
   await settle();
 
   const secondBox = await page.locator("[data-self-host-target-second]").boundingBox();
