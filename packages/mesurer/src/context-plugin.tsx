@@ -153,8 +153,41 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       const setUiEnabled = (ui: boolean) => {
         ctx.state.update<ContextSettingsState>(MESURER_CONTEXT_SETTINGS_STATE_ID, (current) => ({ ...current, ui }));
       };
+
+      let uiController: ContextActionsController | null = null;
+      let disposeUi: (() => void) | null = null;
+      let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
+      let previousSelection = runtime.currentSelection();
+
+      const sameSelection = (
+        left: ReturnType<MesurerWorkspaceRuntime["currentSelection"]>,
+        right: ReturnType<MesurerWorkspaceRuntime["currentSelection"]>,
+      ) => {
+        if (left.elements.length !== right.elements.length) return false;
+        if (left.elements.some((element, index) => element !== right.elements[index])) return false;
+        if (left.region === right.region) return true;
+        if (!left.region || !right.region) return false;
+        return left.region.left === right.region.left
+          && left.region.top === right.region.top
+          && left.region.width === right.region.width
+          && left.region.height === right.region.height;
+      };
+
       const syncSelection = () => {
-        const next = hasContextSelection(runtime);
+        const nextSelection = runtime.currentSelection();
+        const selectionChanged = !sameSelection(previousSelection, nextSelection);
+        previousSelection = {
+          elements: [...nextSelection.elements],
+          region: nextSelection.region ? { ...nextSelection.region } : null,
+        };
+
+        if (selectionChanged) {
+          uiMount?.element.querySelector<HTMLButtonElement>(
+            "[data-mesurer-annotation-composer='true'] button[aria-label='Close note composer']",
+          )?.click();
+        }
+
+        const next = nextSelection.elements.length > 0 || nextSelection.region !== null;
         const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
         if (next !== current) ctx.state.update<ContextUiState>(CONTEXT_UI_STATE_ID, () => ({ hasSelection: next }));
       };
@@ -162,10 +195,6 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
 
       ctx.command.register("context.copy", () => service.copyContext());
       ctx.command.register("context.copy-selection", () => service.copyContext({ scope: "selection" }));
-
-      let uiController: ContextActionsController | null = null;
-      let disposeUi: (() => void) | null = null;
-      let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
 
       const destroyUi = () => {
         uiController = null;
