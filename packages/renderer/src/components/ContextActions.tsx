@@ -101,7 +101,7 @@ export function ContextActions(props: ContextActionsProps) {
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
-  const selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
+  let selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
   let surfaceDrag: {
     surfaceId: string;
     pointerId: number;
@@ -164,6 +164,7 @@ export function ContextActions(props: ContextActionsProps) {
 
   const syncSelectionTriggerAnchor = () => {
     const element = currentSelectionTriggerElement();
+    const previousElement = trackedTriggerElement;
     const shouldUseNative = Boolean(element?.isConnected && canUseNativeTriggerAnchor(element));
     const alreadyNative = anchoredTriggerElement === element;
     if (
@@ -179,8 +180,17 @@ export function ContextActions(props: ContextActionsProps) {
       return;
     }
 
+    const targetChanged = element !== previousElement;
     releaseSelectionTriggerAnchor();
     if (!element?.isConnected) return;
+    if (targetChanged) {
+      // A positioned element can retain the previous target for one lifecycle
+      // when the same custom-ident is removed from one anchor and immediately
+      // assigned to another while the trigger itself is hidden. Rotate the plain
+      // identity before installing the new anchor; placement is invalidated only
+      // after this function returns, so no intermediate unresolved anchor paints.
+      selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
+    }
     trackedTriggerElement = element;
     const currentWindow = element.ownerDocument.defaultView;
     if (!currentWindow) return;
@@ -239,10 +249,9 @@ export function ContextActions(props: ContextActionsProps) {
       placementTarget = nextPlacementTarget;
       observeTriggerGeometry(placementTarget);
     }
-    // Commit native/fallback ownership before invalidating the placement memo.
-    // Otherwise the reactive geometry pass can observe the new target while
-    // `anchoredTriggerElement` still names the previous selection and preserve a
-    // stale trigger position when a composer closes on the same state change.
+    // Commit native/fallback ownership (and a fresh anchor identity when the
+    // target changes) before invalidating the placement memo. This prevents the
+    // remounted trigger from ever observing the new target with old ownership.
     syncSelectionTriggerAnchor();
     if (targetChanged) bumpTriggerPlacement();
     setRevision((value) => value + 1);
