@@ -80,12 +80,28 @@ try {
     y: secondBox.y + secondBox.height / 2,
   };
 
-  // The draft must be abandoned on external pointerdown itself, before Select
-  // consumes pointerup to commit B. This is the real-consumer ordering contract.
-  await page.mouse.move(secondPoint.x, secondPoint.y);
-  await page.mouse.down();
+  // Reproduce a host that sends a physical press at the new coordinates without
+  // first delivering a pointermove there. The draft must still disappear during
+  // pointerdown itself, and the same physical gesture must remain owned by Select.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x: secondPoint.x,
+    y: secondPoint.y,
+    button: "left",
+    buttons: 1,
+    clickCount: 1,
+  });
   await composer.waitFor({ state: "detached", timeout: 1200 });
-  await page.mouse.up();
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: secondPoint.x,
+    y: secondPoint.y,
+    button: "left",
+    buttons: 0,
+    clickCount: 1,
+  });
+  await cdp.detach();
   await settle();
 
   const selectionContext = await page.evaluate(async () => {
