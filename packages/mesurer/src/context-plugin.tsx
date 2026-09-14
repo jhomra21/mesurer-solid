@@ -224,6 +224,26 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       syncUi();
       ctx.state.subscribe(syncUi);
 
+      const ownerWindow = solid.ownerWindow as Window & typeof globalThis;
+      const dismissComposerBeforeExternalPointer = (event: PointerEvent) => {
+        const mount = uiMount?.element;
+        if (!mount || !uiController) return;
+        const startsInsideContextUi = event.composedPath().some((node) =>
+          node === mount || (node instanceof ownerWindow.Node && mount.contains(node)),
+        );
+        if (startsInsideContextUi) return;
+
+        // Dismiss the transient draft on pointerdown, before Select sees the same
+        // physical gesture. In isolated top-layer hosts, the document-input bridge
+        // stops inside-Context events before this listener, while ordinary page
+        // input continues here and then reaches the selection plane unchanged.
+        // That gives the new page target ownership on the first click instead of
+        // waiting for a selection-change notification that can never happen while
+        // the stale composer still occludes the interaction path.
+        uiController.closeNoteComposer();
+      };
+      ownerWindow.addEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
+
       ctx.command.register("context.add-note", () => uiController?.openNoteComposer());
       ctx.tool.register({
         id: "context.copy",
@@ -269,6 +289,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       });
 
       ctx.lifecycle.onDispose(() => {
+        ownerWindow.removeEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
         unsubscribeRuntime();
         destroyUi();
         runtime.dispose();
