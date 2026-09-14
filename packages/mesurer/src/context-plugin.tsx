@@ -157,6 +157,10 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       let uiController: ContextActionsController | null = null;
       let disposeUi: (() => void) | null = null;
       let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
+      let resetOpenComposer: (() => void) | null = null;
+      const composerIsOpen = () => Boolean(
+        uiMount?.element.querySelector("[data-mesurer-annotation-composer='true']"),
+      );
       const initialSelection = runtime.currentSelection();
       let previousSelection = {
         elements: [...initialSelection.elements],
@@ -185,7 +189,10 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
           region: nextSelection.region ? { ...nextSelection.region } : null,
         };
 
-        if (selectionChanged) uiController?.closeNoteComposer();
+        if (selectionChanged) {
+          if (composerIsOpen()) resetOpenComposer?.();
+          else uiController?.closeNoteComposer();
+        }
 
         const next = nextSelection.elements.length > 0 || nextSelection.region !== null;
         const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
@@ -217,6 +224,15 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         disposeUi = render(() => <ContextActions {...actionProps} />, uiMount.element);
       };
 
+      resetOpenComposer = () => {
+        if (!composerIsOpen()) return;
+        // The composer is transient draft UI. Remount only this Context surface
+        // so abandoning it never depends on the controller's renderer-settlement
+        // timing in an injected or external consumer.
+        destroyUi();
+        if (uiEnabled()) createUi();
+      };
+
       const syncUi = () => {
         if (uiEnabled()) createUi();
         else destroyUi();
@@ -228,17 +244,16 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       const ownerWindow = solid.ownerWindow as Window & typeof globalThis;
       const dismissComposerBeforeExternalPointer = (event: PointerEvent) => {
         const mount = uiMount?.element;
-        if (!mount || !uiController) return;
+        if (!mount || !composerIsOpen()) return;
         const startsInsideContextUi = event.composedPath().some((node) =>
           node === mount || (node instanceof ownerWindow.Node && mount.contains(node)),
         );
         if (startsInsideContextUi) return;
 
         // Abandon the transient draft on pointerdown, before Select sees the same
-        // physical gesture. The controller carries the one-shot fallback intent
-        // across the pointerdown→selection gap so B can restore its Add Note
-        // trigger without Chromium's stale CSS-anchor handoff.
-        uiController.abandonNoteComposer();
+        // physical gesture. Recreating this one transient Context surface clears
+        // the draft and anchor state without waiting for an imperative controller.
+        resetOpenComposer?.();
       };
       ownerWindow.addEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
 
@@ -289,6 +304,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       ctx.lifecycle.onDispose(() => {
         ownerWindow.removeEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
         unsubscribeRuntime();
+        resetOpenComposer = null;
         destroyUi();
         runtime.dispose();
       });
