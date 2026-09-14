@@ -3,12 +3,21 @@ import { chromium } from "playwright";
 
 const url = process.env.ISOLATED_SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/isolated-scroll.html";
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+const page = await browser.newPage({
+  viewport: { width: 1280, height: 900 },
+  userAgent: "CodexBrowser Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+});
 const errors = [];
 
 page.on("pageerror", (error) => errors.push(String(error)));
 page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text());
+});
+await page.addInitScript(() => {
+  Object.defineProperty(window, "__codexWebMcpModelContext", {
+    configurable: true,
+    value: {},
+  });
 });
 
 const settle = () => page.evaluate(() => new Promise((resolve) => {
