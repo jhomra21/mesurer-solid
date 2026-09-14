@@ -32,7 +32,7 @@ const COPY_ICON = {
 };
 const COPY_SELECTION_ICON = {
   viewBox: "0 0 256 256",
-  paths: ["M152,40a8,8,0,0,1-8,8H112a8,8,0,0,1,0-16h32A8,8,0,0,1,152,40Zm-8,168H112a8,8,0,0,0,0,16h32a8,8,0,0,0,0-16ZM208,32H184a8,8,0,0,0,0,16h24V72a8,8,0,0,0,16,0V48A16,16,0,0,0,208,32Zm8,72a8,8,0,0,0-8,8v32a8,8,0,0,0,16,0V112A8,8,0,0,0,216,104Zm0,72a8,8,0,0,0-8,8v24H184a8,8,0,0,0,0,16h24a16,16,0,0,0,16-16V184A8,8,0,0,0,216,176ZM40,152a8,8,0,0,0,8-8V112a8,8,0,0,0-16,0v32A8,8,0,0,0,40,152Zm32,56H48V184a8,8,0,0,0-16,0v24a16,16,0,0,0,16,16H72a8,8,0,0,0,0-16ZM72,32H48A16,16,0,0,0,32,48V72a8,8,0,0,0,16,0V48H72a8,8,0,0,0,0-16Z"],
+  paths: ["M152,40a8,8,0,0,1-8,8H112a8,8,0,0,1,0-16h32A8,8,0,0,1,152,40Zm-8,168H112a8,8,0,0,0,0,16h32a8,8,0,0,0,0-16ZM208,32H184a8,8,0,0,0,0,16h24V72a8,8,0,0,0,16,0V48A16,16,0,0,0,208,32Zm8,72a8,8,0,0,0-8,8v32a8,8,0,0,0,16,0V112A8,8,0,0,0,216,104Zm0,72a8,8,0,0,0-8,8v24H184a8,8,0,0,0,0,16h24a16,16,0,0,0,16-16V184A8,8,0,0,0,216,176ZM40,152a8,8,0,0,0,8-8V112a8,8,0,0,0-16,0v32A8,8,0,0,0,40,152Zm32,56H48V184a8,8,0,0,0-16,0v24a16,16,0,0,0,16,16H72a8,8,0,0,0,0-16ZM72,32H48A16,16,0,0,0,32,48V72a8,8,0,0,0,16,0V48A16,16,0,0,0,48,32H72Z"],
 };
 const NOTE_ICON = {
   viewBox: "0 0 256 256",
@@ -44,6 +44,7 @@ type ContextSettingsState = {
   [key: string]: PluginValue;
   ui: boolean;
 };
+type ContextTriggerFallback = "current" | "current-and-next";
 
 export type MesurerContextPluginOptions = {
   /** Initial human-facing Context UI state. The Settings toggle can change it at runtime. Defaults to true. */
@@ -157,7 +158,8 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       let uiController: ContextActionsController | null = null;
       let disposeUi: (() => void) | null = null;
       let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
-      let resetOpenComposer: (() => void) | null = null;
+      let nextUiTriggerFallback: ContextTriggerFallback | undefined;
+      let resetOpenComposer: ((fallback: ContextTriggerFallback) => void) | null = null;
       const composerIsOpen = () => Boolean(
         uiMount?.element.querySelector("[data-mesurer-annotation-composer='true']"),
       );
@@ -190,7 +192,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         };
 
         if (selectionChanged) {
-          if (composerIsOpen()) resetOpenComposer?.();
+          if (composerIsOpen()) resetOpenComposer?.("current");
           else uiController?.closeNoteComposer();
         }
 
@@ -216,19 +218,24 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         uiMount = contextRuntime.createInspectorMount();
         uiMount.element.dataset.mesurerLayer = "evidence";
         if (documentBacked) uiMount.element.dataset.mesurerContextDocumentLayer = "true";
+        const initialTriggerFallback = nextUiTriggerFallback;
+        nextUiTriggerFallback = undefined;
         const actionProps: Parameters<typeof ContextActions>[0] = {
           runtime,
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
+          initialTriggerFallback,
         };
         disposeUi = render(() => <ContextActions {...actionProps} />, uiMount.element);
       };
 
-      resetOpenComposer = () => {
+      resetOpenComposer = (fallback) => {
         if (!composerIsOpen()) return;
         // The composer is transient draft UI. Remount only this Context surface
         // so abandoning it never depends on the controller's renderer-settlement
-        // timing in an injected or external consumer.
+        // timing in an injected or external consumer. Preserve only the one-shot
+        // document-coordinate handoff needed to avoid Chromium's stale anchor.
+        nextUiTriggerFallback = fallback;
         destroyUi();
         if (uiEnabled()) createUi();
       };
@@ -251,9 +258,9 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         if (startsInsideContextUi) return;
 
         // Abandon the transient draft on pointerdown, before Select sees the same
-        // physical gesture. Recreating this one transient Context surface clears
-        // the draft and anchor state without waiting for an imperative controller.
-        resetOpenComposer?.();
+        // physical gesture. The current selection stays cached while pointerdown
+        // is in flight and exactly one following selection inherits that fallback.
+        resetOpenComposer?.("current-and-next");
       };
       ownerWindow.addEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
 
@@ -304,6 +311,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       ctx.lifecycle.onDispose(() => {
         ownerWindow.removeEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
         unsubscribeRuntime();
+        nextUiTriggerFallback = undefined;
         resetOpenComposer = null;
         destroyUi();
         runtime.dispose();
