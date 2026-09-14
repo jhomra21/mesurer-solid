@@ -309,6 +309,7 @@ jobs:
           bun package-smoke/consumer-smoke.mjs
           bun package-smoke/typography-hover-occlusion.mjs
           bun package-smoke/annotation-draft-handoff.mjs
+          bun package-smoke/annotation-adjacent-handoff.mjs
 
       - name: Upload publish candidate
         if: success()
