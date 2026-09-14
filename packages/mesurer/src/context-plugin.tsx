@@ -27,6 +27,12 @@ export const MESURER_CONTEXT_SETTINGS_STATE_ID = "mesurer.context.settings";
 
 const CONTEXT_UI_STATE_ID = "context.ui";
 const DOCUMENT_CONTEXT_Z_INDEX = "2147483647";
+const DOCUMENT_CONTEXT_SURFACES = [
+  "[data-mesurer-annotation-trigger='true']",
+  "[data-mesurer-annotation-composer='true']",
+  "[data-mesurer-annotation-marker='true']",
+  "[data-mesurer-annotation-panel='true']",
+].map((selector) => `[data-mesurer-context-document-layer='true'] ${selector}`).join(",\n");
 const COPY_ICON = {
   viewBox: "0 0 256 256",
   paths: ["M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"],
@@ -187,8 +193,16 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         };
 
         if (selectionChanged) {
-          uiMount?.element.querySelector<HTMLButtonElement>(
-            "[data-mesurer-annotation-composer='true'] button[aria-label='Close note composer']",
+          const composer = uiMount?.element.querySelector<HTMLElement>(
+            "[data-mesurer-annotation-composer='true']",
+          );
+          const input = composer?.querySelector<HTMLTextAreaElement>("textarea");
+          if (input) {
+            input.value = "";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+          composer?.querySelector<HTMLButtonElement>(
+            "button[aria-label='Close note composer']",
           )?.click();
         }
 
@@ -213,19 +227,19 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         if (uiMount) return;
         uiMount = contextRuntime.createInspectorMount();
         uiMount.element.dataset.mesurerLayer = "evidence";
-        if (documentBacked) {
-          uiMount.element.dataset.mesurerContextDocumentLayer = "true";
-          Object.assign(uiMount.element.style, {
-            position: "relative",
-            zIndex: DOCUMENT_CONTEXT_Z_INDEX,
-          });
-        }
+        if (documentBacked) uiMount.element.dataset.mesurerContextDocumentLayer = "true";
         const actionProps: Parameters<typeof ContextActions>[0] = {
           runtime,
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
         };
         disposeUi = render(() => <ContextActions {...actionProps} />, uiMount.element);
+        if (documentBacked) {
+          const protectionStyle = solid.ownerDocument.createElement("style");
+          protectionStyle.dataset.mesurerContextProtectionStyle = "true";
+          protectionStyle.textContent = `${DOCUMENT_CONTEXT_SURFACES} {\n  z-index: ${DOCUMENT_CONTEXT_Z_INDEX} !important;\n}`;
+          uiMount.element.append(protectionStyle);
+        }
       };
 
       const syncUi = () => {
