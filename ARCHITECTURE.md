@@ -79,6 +79,8 @@ renderer bridge
      ├─ in-place editor
      ├─ typography controls + semantic presets
      ├─ contextual Typography card
+     ├─ selected/edit chrome ownership
+     ├─ measured dimensions-pill clearance
      ├─ Before/Desired history
      ├─ ownership-aware preview
      ├─ state: mesurer.text-edit.intents
@@ -90,6 +92,12 @@ It activates from Select or Typography by double-click/double-tap. Arrange keeps
 The target boundary follows browser editability semantics: form controls stay native; descendants that inherit `contenteditable` stay native; a nested `contenteditable="false"` boundary ends that inherited region; ambiguous mixed/nested rich text is not converted into a generic editor.
 
 If Typography was already selected, the normal hover/pinned surface is suppressed during the direct-edit session so the field has one live card.
+
+Direct edit is also the single visible selection owner for its source. The ordinary selected MeasurementBox remains logically mounted so selection identity and measurement geometry survive, but its duplicate border is paint-suppressed while the edit ring is active. The selected dimensions pill remains available. When Typography is placed below the source, the runtime measures the rendered source → pill and pill → Typography gaps and keeps them symmetric without moving the native source-relative shell on pointer or scroll hot paths.
+
+The selection-adjacent annotation trigger belongs to ordinary selection mode, not direct-edit mode. While a direct editor is active the transient trigger is suppressed and restored when editing ends; durable saved annotation markers, panels, and Context state are independent.
+
+Typography keeps separate interaction and geometry ownership. The card is Mesurer UI for hit testing, but ordinary source-linked cards live in the same page-following geometry model as the edit ring and selected text. Pointer hover changes do not own Typography placement. Native document anchoring owns the source-relative shell, while the measured-spacing adapter can apply a small visual correction inside that shell without rewriting the scroll anchor.
 
 Text and style previews are ownership-aware. Undo/redo can update a value Mesurer still owns. A host-authored change takes ownership and survives later history and cleanup.
 
@@ -120,6 +128,8 @@ contextPlugin()
 Injection enables Context by default. Source-mounted applications opt in with `contextPlugin()`.
 
 `window.__MESURER__` is the shared browser-state boundary; there is no Send-to-agent transport. Arrange and text-edit intent remain separate structured channels so they retain their own Before/Desired/Live semantics.
+
+The selection Add Note button is only transient UI. Its temporary suppression during direct editing does not disable Context or remove saved annotations.
 
 See [Context](./docs/CONTEXT_WORKFLOW.md) and [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md).
 
