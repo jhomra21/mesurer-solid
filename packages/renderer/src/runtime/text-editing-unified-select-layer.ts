@@ -82,6 +82,7 @@ export function installUnifiedTextSelectLayer(
   let disposed = false;
   let moving = false;
   let frame = 0;
+  let scrollCard: HTMLElement | null = null;
 
   const triggerFor = (popup: HTMLElement) => {
     const kind = popup.dataset.mesurerUnifiedSelectKind;
@@ -177,6 +178,12 @@ export function installUnifiedTextSelectLayer(
       );
       if (!shell || !card) return;
 
+      if (scrollCard !== card) {
+        scrollCard?.removeEventListener("scroll", queueReconcile);
+        scrollCard = card;
+        scrollCard.addEventListener("scroll", queueReconcile, { passive: true });
+      }
+
       for (const popup of Array.from(
         runtimeMount.querySelectorAll<HTMLElement>("[data-mesurer-unified-select-popup='true']"),
       )) {
@@ -203,13 +210,17 @@ export function installUnifiedTextSelectLayer(
     }
   };
 
-  const schedule = () => {
-    reconcile();
+  function queueReconcile() {
     if (disposed || frame) return;
     frame = ownerWindow.requestAnimationFrame(() => {
       frame = 0;
       reconcile();
     });
+  }
+
+  const schedule = () => {
+    reconcile();
+    queueReconcile();
   };
 
   const observer = new realm.MutationObserver(schedule);
@@ -218,13 +229,16 @@ export function installUnifiedTextSelectLayer(
   // The popup is absolutely positioned inside the Typography card. Window
   // scrolling moves the card, trigger, and popup as one unit (native anchor or
   // fallback placement), so there is no relative geometry to reconcile here.
-  // Keeping scroll out of this layer also prevents selector/layout work from
-  // competing with compositor scrolling immediately after direct edit begins.
+  // Only the card's own internal scroll needs a local rAF reconciliation. This
+  // keeps page scroll out of this layer and preserves the zero-query/layout
+  // direct-edit window-scroll hot path.
   schedule();
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
+    scrollCard?.removeEventListener("scroll", queueReconcile);
+    scrollCard = null;
     if (frame) ownerWindow.cancelAnimationFrame(frame);
     ownerWindow.removeEventListener("resize", schedule);
   });
