@@ -185,7 +185,14 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
           region: nextSelection.region ? { ...nextSelection.region } : null,
         };
 
-        if (selectionChanged) uiController?.closeNoteComposer();
+        if (selectionChanged) {
+          // ContextActions also observes the workspace. Let that synchronous
+          // subscriber transfer the Add Note trigger's native/fallback anchor
+          // ownership before the composer is removed and the trigger remounts.
+          // Microtasks run before the next paint, so the abandoned composer never
+          // visibly follows the new selection while avoiding a stale old anchor.
+          queueMicrotask(() => uiController?.closeNoteComposer());
+        }
 
         const next = nextSelection.elements.length > 0 || nextSelection.region !== null;
         const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
