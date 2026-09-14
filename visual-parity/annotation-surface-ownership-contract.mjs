@@ -42,19 +42,17 @@ try {
   await composer.waitFor({ state: "visible" });
   await composer.locator("textarea").fill("Unsaved note bound to the first selection");
 
-  // A document-backed Context card must get the same protected paint ownership
-  // as Typography. Move over an ordinary page element while the composer stays
-  // open; the live Select hover chrome must leave the hardened ShadowRoot and
-  // join the document paint tree below the Context card itself.
+  // A document-backed Context card must share paint ownership with live page
+  // hover chrome. In isolated hosts the hover is portaled into the document;
+  // in this non-isolated self-hosting fixture it already lives there. Exercise
+  // the real pointer path and require the final hover surface to be document-owned.
   const hoverTarget = page.locator(".fixture-copy h1");
   const hoverBox = await hoverTarget.boundingBox();
   assert(hoverBox, "hover target must have rendered geometry");
   await page.mouse.move(hoverBox.x + hoverBox.width / 2, hoverBox.y + hoverBox.height / 2);
   await page.waitForFunction(() => {
     const hover = document.querySelector("[data-mesurer-hover-measurement='true']");
-    return hover instanceof HTMLElement
-      && hover.dataset.mesurerDocumentHoverLayer === "true"
-      && hover.getRootNode() === document;
+    return hover instanceof HTMLElement && hover.getRootNode() === document;
   });
 
   const ownership = await page.evaluate(() => {
@@ -73,6 +71,7 @@ try {
         ? Number.parseInt(getComputedStyle(selection).zIndex, 10)
         : null,
       hoverRootIsDocument: hover.getRootNode() === document,
+      hoverDocumentLayer: hover.dataset.mesurerDocumentHoverLayer === "true",
     };
   });
   assert.equal(ownership.hoverRootIsDocument, true, "hover chrome must share the annotation card's document paint tree");
@@ -142,7 +141,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Annotation ownership contract passed: Context cards occlude page chrome, selection change closes/discards the draft, and the new target gets a fresh Add Note trigger.");
+  console.log(`Annotation ownership contract passed: Context cards occlude document-owned page chrome (${ownership.hoverDocumentLayer ? "ported" : "direct"}), selection change closes/discards the draft, and the new target gets a fresh Add Note trigger.`);
 } finally {
   await browser.close();
 }
