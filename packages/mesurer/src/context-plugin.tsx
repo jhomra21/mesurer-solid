@@ -234,14 +234,11 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         );
         if (startsInsideContextUi) return;
 
-        // Dismiss the transient draft on pointerdown, before Select sees the same
-        // physical gesture. In isolated top-layer hosts, the document-input bridge
-        // stops inside-Context events before this listener, while ordinary page
-        // input continues here and then reaches the selection plane unchanged.
-        // That gives the new page target ownership on the first click instead of
-        // waiting for a selection-change notification that can never happen while
-        // the stale composer still occludes the interaction path.
-        uiController.closeNoteComposer();
+        // Abandon the transient draft on pointerdown, before Select sees the same
+        // physical gesture. The controller carries the one-shot fallback intent
+        // across the pointerdown→selection gap so B can restore its Add Note
+        // trigger without Chromium's stale CSS-anchor handoff.
+        uiController.abandonNoteComposer();
       };
       ownerWindow.addEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
 
