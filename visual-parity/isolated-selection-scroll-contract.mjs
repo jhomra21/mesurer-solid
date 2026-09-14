@@ -92,12 +92,18 @@ const waitForStableSelectedChrome = async () => {
 };
 
 const assertNativeAnchor = async (locator, mode, stage) => {
-  const native = await locator.evaluate((element) => ({
-    mode: element.dataset.mesurerNativeScrollAnchor ?? null,
-    anchor: getComputedStyle(element).getPropertyValue("position-anchor").trim(),
-    transition: getComputedStyle(element).transitionDuration,
-    animation: getComputedStyle(element).animationName,
-  }));
+  let native = null;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    native = await locator.evaluate((element) => ({
+      mode: element.dataset.mesurerNativeScrollAnchor ?? null,
+      anchor: getComputedStyle(element).getPropertyValue("position-anchor").trim(),
+      transition: getComputedStyle(element).transitionDuration,
+      animation: getComputedStyle(element).animationName,
+    }));
+    if (native.mode === mode && native.anchor && native.anchor !== "none") break;
+    await page.waitForTimeout(16);
+  }
+  assert(native, `${stage}: expected native anchor state`);
   assert.equal(native.mode, mode, `${stage}: native anchor mode`);
   assert(native.anchor && native.anchor !== "none", `${stage}: expected resolved CSS position-anchor`);
   assert.equal(native.transition, "0s", `${stage}: must not transition`);
