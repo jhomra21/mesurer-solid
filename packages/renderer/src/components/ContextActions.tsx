@@ -101,9 +101,7 @@ export function ContextActions(props: ContextActionsProps) {
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
-  const [selectionTriggerAnchorName, setSelectionTriggerAnchorName] = createSignal(
-    `--mesurer-annotation-trigger-${++annotationAnchorSequence}`,
-  );
+  let selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
   let surfaceDrag: {
     surfaceId: string;
     pointerId: number;
@@ -185,7 +183,7 @@ export function ContextActions(props: ContextActionsProps) {
     const targetChanged = element !== previousElement;
     const nextAnchorName = targetChanged
       ? `--mesurer-annotation-trigger-${++annotationAnchorSequence}`
-      : selectionTriggerAnchorName();
+      : selectionTriggerAnchorName;
     releaseSelectionTriggerAnchor();
     if (!element?.isConnected) return;
     trackedTriggerElement = element;
@@ -193,13 +191,13 @@ export function ContextActions(props: ContextActionsProps) {
     if (!currentWindow) return;
 
     if (shouldUseNative) {
-      // Install the target side first. Switching the positioned trigger to a new
-      // custom-ident before that name exists can make Chromium retain unresolved
-      // anchor geometry for the live node. Once the target owns the name, changing
-      // the signal repairs either the existing trigger or the remounted trigger.
+      // Install the new target side before publishing the identity consumed by
+      // the replacement trigger. Chromium can retain unresolved geometry when a
+      // live positioned node is retargeted in-place, so target changes remount
+      // that one trigger after ownership is committed instead.
       releaseTriggerAnchor = addAnchorName(element, nextAnchorName);
       anchoredTriggerElement = element;
-      if (targetChanged) setSelectionTriggerAnchorName(nextAnchorName);
+      selectionTriggerAnchorName = nextAnchorName;
       nestedTriggerScroll = installNestedScrollCompensation(
         currentWindow,
         element,
@@ -208,7 +206,7 @@ export function ContextActions(props: ContextActionsProps) {
       return;
     }
 
-    if (targetChanged) setSelectionTriggerAnchorName(nextAnchorName);
+    selectionTriggerAnchorName = nextAnchorName;
     // The fallback is absolutely positioned in the document layer, so ordinary
     // window scrolling is compositor-owned. Keep JavaScript compensation only
     // for nested overflow ancestors that the body portal cannot inherit.
@@ -252,9 +250,9 @@ export function ContextActions(props: ContextActionsProps) {
       placementTarget = nextPlacementTarget;
       observeTriggerGeometry(placementTarget);
     }
-    // Commit native/fallback ownership (and a fresh reactive anchor identity when
-    // the target changes) before invalidating the placement memo. The signal also
-    // repairs an already-remounted trigger if another subscriber ran first.
+    // Commit native/fallback ownership before invalidating the placement memo.
+    // A keyed trigger owner then replaces the positioned node only when the page
+    // selection target itself changes; resize-only placement updates reuse it.
     syncSelectionTriggerAnchor();
     if (targetChanged) bumpTriggerPlacement();
     setRevision((value) => value + 1);
@@ -473,8 +471,7 @@ export function ContextActions(props: ContextActionsProps) {
     };
     const end = (next: PointerEvent) => {
       if (!surfaceDrag || next.pointerId !== surfaceDrag.pointerId) return;
-      const rootStyle = root.style;
-      rootStyle.userSelect = previousUserSelect;
+      root.style.userSelect = previousUserSelect;
       currentWindow.removeEventListener("pointermove", move);
       currentWindow.removeEventListener("pointerup", end);
       currentWindow.removeEventListener("pointercancel", end);
@@ -561,42 +558,44 @@ export function ContextActions(props: ContextActionsProps) {
       />
 
       <Show when={selection().elements.length > 0 && !noteComposerOpen() && !activeAnnotation()}>
-        <Show when={selectionTriggerPosition()}>{(position) => (
-          <button
-            ref={(element) => {
-              annotationTriggerElement = element;
-              nestedTriggerScroll?.sync();
-            }}
-            type="button"
-            data-mesurer-layer="chrome"
-            data-mesurer-inspector-ui="true"
-            data-mesurer-annotation-trigger="true"
-            data-mesurer-annotation-scroll-mode={position().nativeAnchor ? "native-anchor" : "cached-delta"}
-            data-mesurer-native-scroll-owner={position().nativeAnchor ? "annotation" : undefined}
-            data-mesurer-native-scroll-anchor={position().nativeAnchor ? "offset" : undefined}
-            aria-label="Annotate selection"
-            title="Annotate selection"
-            class="msr:pointer-events-auto msr:absolute msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
-            style={{
-              left: position().nativeAnchor
-                ? `calc(anchor(left) + ${position().anchorX}px)`
-                : `${position().left}px`,
-              top: position().nativeAnchor
-                ? `calc(anchor(top) + ${position().anchorY}px)`
-                : `${position().top}px`,
-              translate: position().nativeAnchor
-                ? undefined
-                : "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
-              "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName() : undefined,
-              "--mesurer-native-anchor-x": position().nativeAnchor ? `${position().anchorX}px` : undefined,
-              "--mesurer-native-anchor-y": position().nativeAnchor ? `${position().anchorY}px` : undefined,
-              "z-index": PROTECTED_ANNOTATION_Z_INDEX,
-            }}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => { event.stopPropagation(); openNoteComposer(); }}
-          >
-            <NoteIcon size={14} />
-          </button>
+        <Show when={selectionTriggerElement()} keyed>{() => (
+          <Show when={selectionTriggerPosition()}>{(position) => (
+            <button
+              ref={(element) => {
+                annotationTriggerElement = element;
+                nestedTriggerScroll?.sync();
+              }}
+              type="button"
+              data-mesurer-layer="chrome"
+              data-mesurer-inspector-ui="true"
+              data-mesurer-annotation-trigger="true"
+              data-mesurer-annotation-scroll-mode={position().nativeAnchor ? "native-anchor" : "cached-delta"}
+              data-mesurer-native-scroll-owner={position().nativeAnchor ? "annotation" : undefined}
+              data-mesurer-native-scroll-anchor={position().nativeAnchor ? "offset" : undefined}
+              aria-label="Annotate selection"
+              title="Annotate selection"
+              class="msr:pointer-events-auto msr:absolute msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
+              style={{
+                left: position().nativeAnchor
+                  ? `calc(anchor(left) + ${position().anchorX}px)`
+                  : `${position().left}px`,
+                top: position().nativeAnchor
+                  ? `calc(anchor(top) + ${position().anchorY}px)`
+                  : `${position().top}px`,
+                translate: position().nativeAnchor
+                  ? undefined
+                  : "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
+                "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
+                "--mesurer-native-anchor-x": position().nativeAnchor ? `${position().anchorX}px` : undefined,
+                "--mesurer-native-anchor-y": position().nativeAnchor ? `${position().anchorY}px` : undefined,
+                "z-index": PROTECTED_ANNOTATION_Z_INDEX,
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => { event.stopPropagation(); openNoteComposer(); }}
+            >
+              <NoteIcon size={14} />
+            </button>
+          )}</Show>
         )}</Show>
       </Show>
 
