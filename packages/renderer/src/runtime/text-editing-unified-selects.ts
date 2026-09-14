@@ -432,7 +432,6 @@ export function installUnifiedTextSelectMenus(
 
   ownerWindow.addEventListener("pointerdown", onPointerDown, true);
   ownerWindow.addEventListener("resize", onViewportChange);
-  ownerWindow.addEventListener("scroll", onViewportChange, true);
 
   const observer = new realm.MutationObserver(transform);
   observer.observe(runtimeMount, { childList: true, subtree: true });
@@ -444,6 +443,5 @@ export function installUnifiedTextSelectMenus(
     closeMenu();
     ownerWindow.removeEventListener("pointerdown", onPointerDown, true);
     ownerWindow.removeEventListener("resize", onViewportChange);
-    ownerWindow.removeEventListener("scroll", onViewportChange, true);
   });
 }
