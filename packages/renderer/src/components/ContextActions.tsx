@@ -8,6 +8,7 @@ import { CloseIcon, CopyIcon, NoteIcon, TrashIcon } from "./Icons";
 
 export type ContextActionsController = {
   openNoteComposer(): void;
+  closeNoteComposer(): void;
 };
 
 export type ContextActionsProps = {
@@ -21,6 +22,7 @@ type PositionedRect = { left: number; top: number; width: number; height: number
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
+const PROTECTED_ANNOTATION_Z_INDEX = "2147483647";
 const annotationButtonClass = "msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:cursor-default msr:disabled:opacity-40";
 let annotationAnchorSequence = 0;
 
@@ -89,6 +91,7 @@ const placeSurfaceNear = (
 
 export function ContextActions(props: ContextActionsProps) {
   const [revision, setRevision] = createSignal(0);
+  const [triggerRevision, setTriggerRevision] = createSignal(0);
   const [activeAnnotationId, setActiveAnnotationId] = createSignal<string | null>(null);
   const [panelPositions, setPanelPositions] = createSignal<Record<string, { left: number; top: number }>>({});
   const [composerPosition, setComposerPosition] = createSignal<{ left: number; top: number } | null>(null);
@@ -116,6 +119,8 @@ export function ContextActions(props: ContextActionsProps) {
   let anchoredTriggerElement: HTMLElement | null = null;
   let releaseTriggerAnchor: (() => void) | null = null;
   let nestedTriggerScroll: MesurerNestedScrollCompensation | null = null;
+  let triggerResizeObserver: ResizeObserver | null = null;
+  let triggerResizeWindow: Window | null = null;
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
 
@@ -201,12 +206,48 @@ export function ContextActions(props: ContextActionsProps) {
     );
   };
 
+  const observeTriggerGeometry = (element: HTMLElement | null) => {
+    triggerResizeObserver?.disconnect();
+    triggerResizeObserver = null;
+    if (!element?.isConnected) return;
+    const currentWindow = element.ownerDocument.defaultView as (Window & typeof globalThis) | null;
+    if (!currentWindow || typeof currentWindow.ResizeObserver !== "function") return;
+    triggerResizeObserver = new currentWindow.ResizeObserver(() => {
+      setTriggerRevision((value) => value + 1);
+    });
+    triggerResizeObserver.observe(element);
+  };
+
+  const bindTriggerViewportResize = () => {
+    const currentWindow = ownerWindow();
+    if (triggerResizeWindow === currentWindow) return;
+    triggerResizeWindow?.removeEventListener("resize", bumpTriggerPlacement);
+    triggerResizeWindow = currentWindow;
+    triggerResizeWindow.addEventListener("resize", bumpTriggerPlacement, { passive: true });
+  };
+
+  function bumpTriggerPlacement() {
+    setTriggerRevision((value) => value + 1);
+  }
+
+  let placementTarget = currentSelectionTriggerElement();
+  observeTriggerGeometry(placementTarget);
   const unsubscribe = props.runtime.subscribe(() => {
+    const nextPlacementTarget = currentSelectionTriggerElement();
+    if (nextPlacementTarget !== placementTarget) {
+      placementTarget = nextPlacementTarget;
+      observeTriggerGeometry(placementTarget);
+      bumpTriggerPlacement();
+    }
     syncSelectionTriggerAnchor();
     setRevision((value) => value + 1);
   });
   syncSelectionTriggerAnchor();
   onCleanup(() => {
+    triggerResizeObserver?.disconnect();
+    triggerResizeObserver = null;
+    triggerResizeWindow?.removeEventListener("resize", bumpTriggerPlacement);
+    triggerResizeWindow = null;
     releaseSelectionTriggerAnchor();
     unsubscribe();
   });
@@ -248,7 +289,8 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const selectionTriggerElement = createMemo(() => {
-    const elements = selection().elements;
+    triggerRevision();
+    const elements = props.runtime.currentSelection().elements;
     if (!elements.length) return null;
     const hovered = props.runtime.hoveredElement();
     return elements.find((element) => element === hovered)
@@ -464,6 +506,7 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const closeNoteComposer = () => {
+    setNote("");
     setNoteComposerOpen(false);
     setNoteError(null);
     setComposerPosition(null);
@@ -483,7 +526,7 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   onSettled(() => {
-    props.onController?.({ openNoteComposer });
+    props.onController?.({ openNoteComposer, closeNoteComposer });
     return () => props.onController?.(null);
   });
 
@@ -492,6 +535,7 @@ export function ContextActions(props: ContextActionsProps) {
       <span
         ref={(element) => {
           anchorElement = element;
+          bindTriggerViewportResize();
           syncSelectionTriggerAnchor();
         }}
         aria-hidden="true"
@@ -528,6 +572,7 @@ export function ContextActions(props: ContextActionsProps) {
               "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
               "--mesurer-native-anchor-x": position().nativeAnchor ? `${position().anchorX}px` : undefined,
               "--mesurer-native-anchor-y": position().nativeAnchor ? `${position().anchorY}px` : undefined,
+              "z-index": PROTECTED_ANNOTATION_Z_INDEX,
             }}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => { event.stopPropagation(); openNoteComposer(); }}
@@ -543,7 +588,7 @@ export function ContextActions(props: ContextActionsProps) {
           data-mesurer-inspector-ui="true"
           data-mesurer-annotation-composer="true"
           class="mesurer-menu-surface msr:pointer-events-auto msr:fixed msr:z-[95] msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
-          style={{ left: `${notePanelPosition().left}px`, top: `${notePanelPosition().top}px` }}
+          style={{ left: `${notePanelPosition().left}px`, top: `${notePanelPosition().top}px`, "z-index": PROTECTED_ANNOTATION_Z_INDEX }}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
         >
@@ -614,7 +659,7 @@ export function ContextActions(props: ContextActionsProps) {
                 openAnnotation(annotation.id);
               }}
               class="msr:pointer-events-auto msr:fixed msr:z-[94] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-[#0d99ff] msr:bg-white msr:text-[#0d99ff] msr:outline-none msr:hover:bg-[#0d99ff]/8"
-              style={{ left: `${value().left}px`, top: `${value().top}px` }}
+              style={{ left: `${value().left}px`, top: `${value().top}px`, "z-index": PROTECTED_ANNOTATION_Z_INDEX }}
             ><NoteIcon size={14} /></button>
           )}</Show>
         );
@@ -628,7 +673,7 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-panel="true"
             class="mesurer-menu-surface msr:pointer-events-auto msr:fixed msr:z-[95] msr:w-[272px] msr:max-h-[220px] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
-            style={{ left: `${position().left}px`, top: `${position().top}px` }}
+            style={{ left: `${position().left}px`, top: `${position().top}px`, "z-index": PROTECTED_ANNOTATION_Z_INDEX }}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
