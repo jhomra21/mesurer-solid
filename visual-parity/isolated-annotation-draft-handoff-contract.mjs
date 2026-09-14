@@ -1,0 +1,142 @@
+import assert from "node:assert/strict";
+import { chromium } from "playwright";
+
+const url = process.env.ISOLATED_SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/isolated-scroll.html";
+const browser = await chromium.launch({ headless: true });
+const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+const errors = [];
+
+page.on("pageerror", (error) => errors.push(String(error)));
+page.on("console", (message) => {
+  if (message.type() === "error") errors.push(message.text());
+});
+
+const settle = () => page.evaluate(() => new Promise((resolve) => {
+  requestAnimationFrame(() => requestAnimationFrame(resolve));
+}));
+
+const clickCenter = async (locator, label) => {
+  const box = await locator.boundingBox();
+  assert(box, `${label} must have rendered geometry`);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+};
+
+try {
+  await page.goto(url, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => Boolean(window.__MESURER_ISOLATED_SCROLL_TEST__?.subject));
+
+  const subjectSelect = async (selector) => page.evaluate(async (nextSelector) => {
+    const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
+    if (!subject) throw new Error("Expected mounted isolated Mesurer subject");
+    await subject.select(nextSelector);
+  }, selector);
+
+  await page.locator("#isolated-scroll-target").evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await settle();
+
+  await page.evaluate(() => {
+    document.querySelector("#isolated-annotation-handoff-target")?.remove();
+    const target = document.createElement("button");
+    target.id = "isolated-annotation-handoff-target";
+    target.type = "button";
+    target.textContent = "Second annotation selection target";
+    Object.assign(target.style, {
+      position: "absolute",
+      left: "72px",
+      top: `${window.scrollY + 690}px`,
+      width: "320px",
+      height: "64px",
+      border: "1px solid #cbd5e1",
+      borderRadius: "10px",
+      background: "white",
+      color: "#0f172a",
+      font: "18px/1.3 ui-sans-serif, system-ui, sans-serif",
+    });
+    document.body.append(target);
+  });
+
+  await subjectSelect("#isolated-scroll-target");
+  await settle();
+
+  const trigger = page.locator(
+    "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']",
+  );
+  const composer = page.locator(
+    "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-composer='true']",
+  );
+  await trigger.waitFor({ state: "visible", timeout: 3000 });
+  await clickCenter(trigger, "first selection Add Note trigger");
+  await composer.waitFor({ state: "visible", timeout: 3000 });
+  await composer.locator("textarea").fill("abandoned draft A");
+
+  const second = page.locator("#isolated-annotation-handoff-target");
+  await second.waitFor({ state: "visible" });
+  await clickCenter(second, "second page selection target");
+
+  let physicalHandoff = true;
+  try {
+    await composer.waitFor({ state: "detached", timeout: 1200 });
+  } catch {
+    physicalHandoff = false;
+  }
+
+  if (!physicalHandoff) {
+    // Match the real-consumer diagnostic path: force the same selection change
+    // through the public API so stale composer state cannot hide behind a failed
+    // pointer handoff.
+    await subjectSelect("#isolated-annotation-handoff-target");
+  }
+
+  await composer.waitFor({ state: "detached", timeout: 3000 });
+  await trigger.waitFor({ state: "visible", timeout: 3000 });
+  await settle();
+
+  const handoff = await page.evaluate(() => {
+    const target = document.querySelector("#isolated-annotation-handoff-target");
+    const nextTrigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
+    if (!(target instanceof HTMLElement) || !(nextTrigger instanceof HTMLElement)) {
+      throw new Error("Missing second target or restored Add Note trigger");
+    }
+    const targetRect = target.getBoundingClientRect();
+    const triggerRect = nextTrigger.getBoundingClientRect();
+    return {
+      target: { left: targetRect.left, top: targetRect.top, width: targetRect.width, height: targetRect.height },
+      trigger: { left: triggerRect.left, top: triggerRect.top, width: triggerRect.width, height: triggerRect.height },
+      mode: nextTrigger.dataset.mesurerAnnotationScrollMode ?? null,
+    };
+  });
+  const targetCenter = {
+    x: handoff.target.left + handoff.target.width / 2,
+    y: handoff.target.top + handoff.target.height / 2,
+  };
+  const triggerCenter = {
+    x: handoff.trigger.left + handoff.trigger.width / 2,
+    y: handoff.trigger.top + handoff.trigger.height / 2,
+  };
+  assert(
+    Math.hypot(targetCenter.x - triggerCenter.x, targetCenter.y - triggerCenter.y) < 220,
+    `restored Add Note trigger must belong to B: ${JSON.stringify(handoff)}`,
+  );
+
+  await clickCenter(trigger, "second selection Add Note trigger");
+  await composer.waitFor({ state: "visible", timeout: 3000 });
+  assert.equal(
+    await composer.locator("textarea").inputValue(),
+    "",
+    "selection handoff must discard A's abandoned annotation draft before B opens",
+  );
+
+  assert.equal(
+    physicalHandoff,
+    true,
+    "a physical page click outside the composer must switch selection and close the transient composer",
+  );
+  assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
+  console.log("Isolated annotation draft handoff: PASS", {
+    physicalHandoff,
+    restoredTriggerMode: handoff.mode,
+    draftCleared: true,
+  });
+} finally {
+  await browser.close();
+}
