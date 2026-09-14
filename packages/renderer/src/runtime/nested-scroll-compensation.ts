@@ -80,20 +80,27 @@ export const installNestedScrollCompensation = (
     return values;
   };
 
+  const syncVariable = (surface: HTMLElement, property: string, offset: number) => {
+    const current = surface.style.getPropertyValue(property);
+    if (offset === 0) {
+      // Every consumer already uses a `var(..., 0px)` fallback. Keep the zero
+      // state implicit so attaching/revalidating compensation cannot create
+      // main-thread style mutations during ordinary compositor-owned scrolling.
+      if (current) surface.style.removeProperty(property);
+      return;
+    }
+    const value = `${offset}px`;
+    if (current !== value) surface.style.setProperty(property, value);
+  };
+
   const sync = () => {
     if (disposed) return;
-    const x = `${offsetX}px`;
-    const y = `${offsetY}px`;
     for (const surface of currentSurfaces()) {
       if (surface.dataset.mesurerNestedScrollCompensation !== "true") {
         surface.dataset.mesurerNestedScrollCompensation = "true";
       }
-      if (surface.style.getPropertyValue(X_VARIABLE) !== x) {
-        surface.style.setProperty(X_VARIABLE, x);
-      }
-      if (surface.style.getPropertyValue(Y_VARIABLE) !== y) {
-        surface.style.setProperty(Y_VARIABLE, y);
-      }
+      syncVariable(surface, X_VARIABLE, offsetX);
+      syncVariable(surface, Y_VARIABLE, offsetY);
     }
   };
 
