@@ -210,7 +210,10 @@ export function createDocumentInspectorRuntime(
       runtime.portalTarget instanceof realm.HTMLElement
       && runtime.portalTarget.dataset.mesurerIsland === "true"
     );
-  const pageTarget = runtime.pageTarget as HTMLElement;
+  const pageTarget = runtime.pageTarget;
+  if (!(pageTarget instanceof realm.HTMLElement)) {
+    return { runtime, documentBacked: false };
+  }
 
   const createInspectorMount = () => {
     const element = ownerDocument.createElement("div");
