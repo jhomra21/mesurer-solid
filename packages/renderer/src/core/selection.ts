@@ -72,9 +72,23 @@ const getSelectionTarget = (
   pageTarget: HTMLElement | ShadowRoot,
 ) => {
   if (isSelectionPointBlockedByMesurerUi(point, overlayNode, ownerDocument, pageTarget)) return null;
+  const ownerWindow = ownerDocument.defaultView;
+  const overlayHost = getOverlayHost(overlayNode);
+  const htmlOverlayHost = ownerWindow && overlayHost instanceof ownerWindow.HTMLElement
+    ? overlayHost
+    : null;
+
+  // The interaction root lives inside the hardened top-layer Shadow host. Making
+  // only the inner overlay transparent is insufficient in Chromium: the host can
+  // remain the document hit even after every Shadow descendant is ignored. The
+  // physical-block check above already protected real Mesurer controls, so make
+  // both layers transparent only for this synchronous underlying-page lookup.
   return withPointerEventsDisabled(
-    overlayNode,
-    () => getDeepestElementAtPoint(point, pageTarget, ownerDocument),
+    htmlOverlayHost,
+    () => withPointerEventsDisabled(
+      overlayNode,
+      () => getDeepestElementAtPoint(point, pageTarget, ownerDocument),
+    ),
   );
 };
 
