@@ -84,6 +84,46 @@ describe("root-aware point selection", () => {
     expect(getSnappedClickTarget(point, null, true)).toBe(target);
   });
 
+  it("pierces both the top-layer Shadow host and interaction root for page lookup", () => {
+    const pageTarget = document.createElement("main");
+    const pageButton = document.createElement("button");
+    const host = document.createElement("div");
+    const shadow = host.attachShadow({ mode: "open" });
+    const overlayRoot = document.createElement("div");
+    const point = { x: 40, y: 40 };
+
+    host.dataset.mesurerIsland = "true";
+    overlayRoot.dataset.mesurerRoot = "true";
+    host.style.pointerEvents = "auto";
+    overlayRoot.style.pointerEvents = "auto";
+    setRect(pageTarget, { left: 0, top: 0, width: 300, height: 200 });
+    setRect(pageButton, { left: 20, top: 20, width: 120, height: 40 });
+    setRect(host, { left: 0, top: 0, width: 300, height: 200 });
+    setRect(overlayRoot, { left: 0, top: 0, width: 300, height: 200 });
+    pageTarget.append(pageButton);
+    shadow.append(overlayRoot);
+    document.body.append(pageTarget, host);
+
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [host, pageButton],
+    });
+    Object.defineProperty(shadow, "elementFromPoint", {
+      configurable: true,
+      value: () => overlayRoot,
+    });
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => host.style.pointerEvents === "none" && overlayRoot.style.pointerEvents === "none"
+        ? pageButton
+        : host,
+    });
+
+    expect(getTargetElement(point, overlayRoot, document, pageTarget)).toBe(pageButton);
+    expect(host.style.pointerEvents).toBe("auto");
+    expect(overlayRoot.style.pointerEvents).toBe("auto");
+  });
+
   it("never exposes Mesurer-owned inspector UI as a page selection target", async () => {
     const pageTarget = document.createElement("main");
     const pageButton = document.createElement("button");
