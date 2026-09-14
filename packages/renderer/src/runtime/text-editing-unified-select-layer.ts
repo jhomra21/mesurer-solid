@@ -8,6 +8,11 @@ const MENU_MIN_HEIGHT = 60;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
+type PopupScrollOrigin = {
+  left: number;
+  top: number;
+};
+
 /**
  * Let an open custom Typography menu consume Escape before the text-edit core.
  *
@@ -65,9 +70,10 @@ export function installUnifiedTextSelectEscapeGuard(
  *
  * The text-edit core treats pointer input inside its inspector card as part of
  * the active edit session. Keeping custom menus as descendants of that card
- * preserves that ownership through native pointerdown/click dispatch. The card
- * itself is the popup containing block, so its native scrolling carries the
- * trigger and menu through the same scroll space without a JavaScript handler.
+ * preserves that ownership through native pointerdown/click dispatch while the
+ * placement shell remains the popup's containing block. Internal card scrolling
+ * is the only motion the shell cannot inherit, so compensate that cached scalar
+ * delta directly without rediscovering or measuring DOM on the scroll path.
  */
 export function installUnifiedTextSelectLayer(
   ctx: MesurerPluginContext,
@@ -83,6 +89,8 @@ export function installUnifiedTextSelectLayer(
   let disposed = false;
   let moving = false;
   let frame = 0;
+  let trackedCard: HTMLElement | null = null;
+  const popupScrollOrigins = new Map<HTMLElement, PopupScrollOrigin>();
 
   const triggerFor = (popup: HTMLElement) => {
     const kind = popup.dataset.mesurerUnifiedSelectKind;
@@ -100,25 +108,46 @@ export function installUnifiedTextSelectLayer(
     }
   };
 
+  const syncPopupScroll = () => {
+    const card = trackedCard;
+    if (!card?.isConnected) return;
+    for (const [popup, origin] of popupScrollOrigins) {
+      if (!popup.isConnected || !card.contains(popup)) {
+        popupScrollOrigins.delete(popup);
+        continue;
+      }
+      const x = origin.left - card.scrollLeft;
+      const y = origin.top - card.scrollTop;
+      popup.style.transform = x === 0 && y === 0
+        ? "none"
+        : `translate(${x}px, ${y}px)`;
+    }
+  };
+
+  const trackCard = (card: HTMLElement | null) => {
+    if (trackedCard === card) return;
+    trackedCard?.removeEventListener("scroll", syncPopupScroll);
+    popupScrollOrigins.clear();
+    trackedCard = card;
+    trackedCard?.addEventListener("scroll", syncPopupScroll, { passive: true });
+  };
+
   const positionInsideCard = (
     popup: HTMLElement,
+    shell: HTMLElement,
     card: HTMLElement,
   ) => {
     const trigger = triggerFor(popup);
     if (!trigger?.isConnected) return;
 
-    // Make the scrolling card the containing block. An absolutely positioned
-    // child whose containing block lives outside this scroller does not inherit
-    // the trigger's internal-scroll movement, which is the beta.10 drift bug.
-    // Relative positioning does not move the card itself; it only establishes
-    // the coordinate space for this popup.
-    card.style.position = "relative";
-
     const triggerRect = trigger.getBoundingClientRect();
+    const shellRect = shell.getBoundingClientRect();
     const cardRect = card.getBoundingClientRect();
     if (
       triggerRect.width <= 0
       || triggerRect.height <= 0
+      || shellRect.width <= 0
+      || shellRect.height <= 0
       || cardRect.width <= 0
       || cardRect.height <= 0
     ) return;
@@ -128,15 +157,14 @@ export function installUnifiedTextSelectLayer(
     popup.style.margin = "0";
     popup.style.pointerEvents = "auto";
     popup.style.zIndex = "2147483647";
+    popup.style.transform = "none";
 
-    const viewportWidth = Math.max(1, card.clientWidth || cardRect.width);
-    const viewportHeight = Math.max(1, card.clientHeight || cardRect.height);
-    const usableWidth = Math.max(1, viewportWidth - MENU_PADDING * 2);
+    const usableWidth = Math.max(1, cardRect.width - MENU_PADDING * 2);
     const width = Math.min(Math.max(triggerRect.width, 120), usableWidth);
     popup.style.width = `${width}px`;
     popup.style.maxWidth = `${usableWidth}px`;
 
-    const cardMaxHeight = Math.max(1, viewportHeight - MENU_PADDING * 2);
+    const cardMaxHeight = Math.max(1, cardRect.height - MENU_PADDING * 2);
     const naturalHeight = Math.min(
       MENU_MAX_HEIGHT,
       Math.max(MENU_MIN_HEIGHT, popup.scrollHeight),
@@ -144,30 +172,34 @@ export function installUnifiedTextSelectLayer(
     const height = Math.min(naturalHeight, cardMaxHeight);
     popup.style.maxHeight = `${height}px`;
 
-    // Translate the trigger's rendered rectangle into the card's scroll-content
-    // coordinate space once. The popup then remains at that content coordinate;
-    // native card scrolling moves both trigger and popup by the same delta.
-    const viewportLeft = card.scrollLeft;
-    const viewportTop = card.scrollTop;
-    const cardInnerLeft = cardRect.left + card.clientLeft;
-    const cardInnerTop = cardRect.top + card.clientTop;
-    const triggerLeft = triggerRect.left - cardInnerLeft + viewportLeft;
-    const triggerTop = triggerRect.top - cardInnerTop + viewportTop;
-    const triggerBottom = triggerRect.bottom - cardInnerTop + viewportTop;
-    const viewportBottom = viewportTop + viewportHeight;
-    const spaceAbove = Math.max(0, triggerTop - viewportTop - MENU_GAP - MENU_PADDING);
-    const spaceBelow = Math.max(0, viewportBottom - triggerBottom - MENU_GAP - MENU_PADDING);
+    // The card is static inside the fixed placement shell, so absolute popup
+    // coordinates are expressed in the shell's coordinate space. Clamp them
+    // to the card's visible rectangle. If the card then scrolls internally,
+    // syncPopupScroll applies only the cached scroll delta; it does not query or
+    // measure any DOM and therefore cannot race the page-scroll anchor owner.
+    const cardLeft = cardRect.left - shellRect.left;
+    const cardTop = cardRect.top - shellRect.top;
+    const triggerLeft = triggerRect.left - shellRect.left;
+    const triggerTop = triggerRect.top - shellRect.top;
+    const triggerBottom = triggerRect.bottom - shellRect.top;
+    const spaceAbove = Math.max(0, triggerTop - cardTop - MENU_GAP - MENU_PADDING);
+    const cardBottom = cardRect.bottom - shellRect.top;
+    const spaceBelow = Math.max(0, cardBottom - triggerBottom - MENU_GAP - MENU_PADDING);
     const openBelow = spaceBelow >= height || spaceBelow >= spaceAbove;
     const desiredTop = openBelow
       ? triggerBottom + MENU_GAP
       : triggerTop - MENU_GAP - height;
 
-    const minLeft = viewportLeft + MENU_PADDING;
-    const maxLeft = Math.max(minLeft, viewportLeft + viewportWidth - MENU_PADDING - width);
-    const minTop = viewportTop + MENU_PADDING;
-    const maxTop = Math.max(minTop, viewportBottom - MENU_PADDING - height);
+    const minLeft = cardLeft + MENU_PADDING;
+    const maxLeft = Math.max(minLeft, cardLeft + cardRect.width - MENU_PADDING - width);
+    const minTop = cardTop + MENU_PADDING;
+    const maxTop = Math.max(minTop, cardTop + cardRect.height - MENU_PADDING - height);
     popup.style.left = `${clamp(triggerLeft, minLeft, maxLeft)}px`;
     popup.style.top = `${clamp(desiredTop, minTop, maxTop)}px`;
+    popupScrollOrigins.set(popup, {
+      left: card.scrollLeft,
+      top: card.scrollTop,
+    });
   };
 
   const reconcile = () => {
@@ -180,8 +212,15 @@ export function installUnifiedTextSelectLayer(
       const card = runtimeMount.querySelector<HTMLElement>(
         "[data-mesurer-text-inspector-info='true'][data-mesurer-text-inspector-unified='true']",
       );
-      if (!shell || !card) return;
+      if (!shell || !card) {
+        trackCard(null);
+        return;
+      }
+      trackCard(card);
 
+      for (const popup of Array.from(popupScrollOrigins.keys())) {
+        if (!popup.isConnected || !card.contains(popup)) popupScrollOrigins.delete(popup);
+      }
       for (const popup of Array.from(
         runtimeMount.querySelectorAll<HTMLElement>("[data-mesurer-unified-select-popup='true']"),
       )) {
@@ -201,7 +240,7 @@ export function installUnifiedTextSelectLayer(
           if (focusedDescendant?.isConnected) focusedDescendant.focus({ preventScroll: true });
         }
         refineOptionSemantics(popup);
-        positionInsideCard(popup, card);
+        positionInsideCard(popup, shell, card);
       }
     } finally {
       moving = false;
@@ -220,9 +259,9 @@ export function installUnifiedTextSelectLayer(
   const observer = new realm.MutationObserver(schedule);
   observer.observe(runtimeMount, { childList: true, subtree: true });
   ownerWindow.addEventListener("resize", schedule);
-  // The popup and trigger share the Typography card's scroll-content coordinate
-  // space. Page scrolling carries the whole anchored card, and internal card
-  // scrolling carries both descendants, so neither path needs scroll work here.
+  // Page scrolling moves the anchored Typography shell, trigger, and popup as
+  // one unit and requires no work here. Internal card scroll uses only cached
+  // element references plus scalar scrollLeft/scrollTop reads and one style write.
   schedule();
 
   ctx.lifecycle.onDispose(() => {
@@ -230,5 +269,6 @@ export function installUnifiedTextSelectLayer(
     observer.disconnect();
     if (frame) ownerWindow.cancelAnimationFrame(frame);
     ownerWindow.removeEventListener("resize", schedule);
+    trackCard(null);
   });
 }
