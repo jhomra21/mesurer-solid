@@ -88,6 +88,8 @@ Arrange is not a toolbar mode. It can be activated before a selection exists and
 
 Direct text editing respects native editing boundaries. Descendants of an editable ancestor remain native, while a nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer target when the normal direct-text rules pass.
 
+While direct text editing is active, Mesurer keeps one visible edit ring, keeps the selected dimensions pill and Typography separated by the same `2px` rendered gap when the card is below the source, and keeps Typography stationary during ordinary pointer movement. The selection-adjacent Add Note button is suppressed only for the active edit and returns when the editor closes; saved annotation markers and panels remain available.
+
 Mesurer previews text, styles, and Arrange transforms only while it still owns the value it applied. Host-authored changes take ownership and are preserved through undo/redo, Live review, cleanup, and disposal.
 
 ## Shortcuts

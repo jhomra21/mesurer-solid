@@ -128,6 +128,8 @@ The target boundary follows browser editability semantics:
 
 If Typography was already explicitly selected, the direct-edit session suppresses the older hover/pinned Typography surface so there is one live Typography card for the field. Closing the editor restores the normal surface without deselecting Typography.
 
+Direct edit also owns the field's visible selection lane. The ordinary selected MeasurementBox stays logically mounted but its duplicate border is paint-suppressed, the selected dimensions pill remains available, and the source-linked Typography card must not move merely because the pointer moves. The selection-adjacent Add Note button is intentionally hidden only while the editor is active and returns afterward. Existing saved annotations remain durable; do not infer that Context disappeared because this transient button is absent.
+
 For normal application work, read saved intent instead of automating the editor UI:
 
 ```js
@@ -154,7 +156,8 @@ Mesurer UI is never inspected-page content. Treat `[data-mesurer-root]`, `[data-
 
 Scroll ownership is split deliberately:
 
-- page-linked selection boxes, edit rings, selected-text highlights, target-bound annotation affordances, and ordinary Typography cards follow the page element they describe;
+- page-linked selection boxes, edit rings, selected-text highlights, ordinary selection annotation affordances, and ordinary Typography cards follow the page element they describe;
+- the transient selection annotation affordance is suppressed while direct text edit owns that source, but saved annotation markers/panels remain independent;
 - Typography remains Mesurer-owned for interaction even while its geometry follows the inspected element, so clicking the card cannot select either the card itself or page content underneath it;
 - an explicitly dragged pinned Typography card becomes a manual viewport placement and remains there until its pin lifecycle ends;
 - the global toolbar and Settings remain viewport-owned UI.

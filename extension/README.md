@@ -37,6 +37,8 @@ Mesurer keeps native editing boundaries intact. Form controls and descendants th
 
 If Typography was already selected, the edit session uses one live Typography card rather than stacking the normal hover/pinned surface with a second card. The normal Typography surface returns when editing ends.
 
+During an active edit, direct-edit chrome owns the selected field: the duplicate ordinary selected border is suppressed, the dimensions pill stays available, and Typography stays source-relative without moving in response to ordinary pointer motion. The selection-adjacent Add Note button is hidden only while the editor is active and returns on exit; existing saved annotation markers and panels remain available.
+
 Saved copy/style changes are reversible Desired intent and can be read through `textEdits()` / `textEdit(id)` when the agent bridge is enabled. Host-authored text/style changes take ownership and survive later undo/redo or Mesurer cleanup.
 
 See [Direct text editing and Typography](../docs/TEXT_EDITING.md).

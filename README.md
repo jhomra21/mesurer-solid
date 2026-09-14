@@ -113,6 +113,8 @@ Plugin shortcuts appear only when the corresponding plugin is mounted and enable
 
 With Select or Typography active, double-click ordinary direct text to edit it on the rendered page. Mesurer previews the text and typography as reversible Desired intent; it does not write source code.
 
+Direct edit owns the visible selection chrome for the field: one edit ring remains visible, the selected dimensions pill stays clear of Typography with symmetric `2px / 2px` spacing when the card is below the target, and ordinary pointer movement does not move the Typography card. The selection-adjacent Add Note button is hidden only while editing is active and returns when the editor closes; saved annotations are unaffected.
+
 Native editing stays native. Mesurer does not intercept form controls or descendants that inherit `contenteditable`. A nested `contenteditable="false"` boundary ends that inherited editable region, so an otherwise valid direct-text target inside it can use Mesurer editing.
 
 Undo and redo update the rendered Desired preview while Mesurer still owns the current text/style value. If the application changes that value itself, Mesurer relinquishes ownership instead of overwriting the host change.
@@ -170,7 +172,7 @@ Start with the [documentation index](./docs/README.md).
 
 ## Upstream
 
-Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@91ca55768f1f9e7d6afe72e046a582e424967b91`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@b14c2bed932f1f97321885c279a4fd52148e62ac`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 

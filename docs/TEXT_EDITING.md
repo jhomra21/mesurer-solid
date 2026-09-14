@@ -12,9 +12,13 @@ Double-click ordinary direct text on desktop, or double-tap with touch or pen. M
 
 When editing begins from Select or Arrange, Typography becomes contextually active for that field without replacing Select. If Typography was already explicitly selected, the normal hover/pinned Typography surface is temporarily suppressed so the field has one live card. Ending the edit restores the normal Typography surface and keeps the explicitly selected tool active.
 
+Direct edit also becomes the sole visible selection owner for that source. The ordinary selected MeasurementBox stays logically mounted for selection state and geometry, but its duplicate border is paint-suppressed while the direct-edit ring is active. The selected dimensions pill remains available, and when Typography is placed beneath the source Mesurer keeps the visible source → pill gap and pill → Typography gap symmetric at `2px / 2px`.
+
+The selection-adjacent **Add Note** annotation button is intentionally hidden for the actively edited selection. Direct edit owns that contextual action lane, so the button cannot overlap the dimensions pill while the user's intent is text editing. Existing saved annotation markers and panels are not hidden, and the Add Note button returns automatically when the editor closes.
+
 That one contextual card is also the direct formatting surface. Family, Size, Weight, Line, and Tracking are live controls; Format contains Bold, Italic, and Underline; Color contains rendered-page swatches plus a custom color; and Style opens the available Text/Heading presets inside the same card. The card stays visible during the edit and is initially positioned around the active text without covering it. When full-height placement is impossible in a constrained viewport, the card uses the available lane and scrolls internally rather than disappearing below the viewport or obscuring the field.
 
-Typography has two deliberately separate ownership rules. **Interaction ownership belongs to Mesurer:** the card and its controls are inspector UI, never inspectable page content, and form a hard hit-test boundary so clicking or double-clicking them cannot select the card itself or retarget page content underneath. **Geometry ownership belongs to the inspected text:** while the source is visible the card is placed around that source, then scrolls with it; when the source leaves the viewport the contextual card leaves with it instead of remaining as unrelated viewport furniture. The global toolbar and its Settings surface remain viewport-owned UI.
+Typography has two deliberately separate ownership rules. **Interaction ownership belongs to Mesurer:** the card and its controls are inspector UI, never inspectable page content, and form a hard hit-test boundary so clicking or double-clicking them cannot select the card itself or retarget page content underneath. **Geometry ownership belongs to the inspected text:** while the source is visible the card is placed around that source, then scrolls with it; when the source leaves the viewport the contextual card leaves with it instead of remaining as unrelated viewport furniture. Ordinary pointer movement does not reposition the card. The global toolbar and its Settings surface remain viewport-owned UI.
 
 ## What can be edited
 
@@ -99,6 +103,8 @@ const intent = await window.__MESURER__.textEdit(edits.at(-1).id)
 An intent includes target identity, Before/Desired copy, and style deltas such as font family, size, weight, style, line height, letter spacing, text transform, color, and text decoration.
 
 Treat these values as visual requirements, not source-level instructions. Implement the result with the application's components, classes, design tokens, theme values, CSS variables, or stylesheet rules where appropriate.
+
+The temporary absence of the selection Add Note button while an editor is open does not mean Context or existing annotations disappeared. Read durable annotation state through the agent/context APIs rather than inferring capability from that transient button.
 
 ## Verify the source result
 

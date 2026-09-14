@@ -89,7 +89,9 @@ Both preview systems are ownership-aware. If the host application changes a text
 
 Arrange keeps Select active, so a reviewer can move an element and then double-click its text without leaving the layout workflow. The edit adds separate text/style Desired intent and a contextual Typography card.
 
-If Typography was already selected, the direct-edit session uses one live Typography card rather than stacking two surfaces. Closing the edit restores the normal Typography surface.
+If Typography was already selected, the direct-edit session uses one live Typography card rather than stacking two surfaces. Direct edit also becomes the sole visible border owner for the edited field, keeps the dimensions pill available, and suppresses only the transient selection Add Note button until editing ends. Existing saved annotations remain intact. Closing the edit restores the normal Typography surface and selection annotation affordance.
+
+The source-linked Typography card should remain visually stationary during ordinary pointer movement and continue following the edited source through scrolling, including fully offscreen and back. If a layout fix causes pointer-driven card motion or duplicate selection chrome, treat that as a regression rather than expected visual noise.
 
 Read Arrange and text-edit intent together before implementing either outcome. See [Arrange](./ARRANGE.md) and [Direct text editing and Typography](./TEXT_EDITING.md).
 

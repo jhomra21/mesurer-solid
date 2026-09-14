@@ -7,12 +7,22 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `74936ac1420d3cb214a6b78fc93e5058be1ef9f7` (`0.1.1`) |
-| Current upstream audit | `91ca55768f1f9e7d6afe72e046a582e424967b91` (`0.1.4`, audited 2026-09-04) |
+| Previous upstream audit | `91ca55768f1f9e7d6afe72e046a582e424967b91` (`0.1.4`, audited 2026-09-04) |
+| Current upstream audit | `b14c2bed932f1f97321885c279a4fd52148e62ac` (`main`, audited 2026-09-13) |
 
-Upstream `main` is still at the current audited commit. No newer source delta needs classification for this documentation refresh.
+The current upstream delta is one commit after the previous audit: `b14c2bed...`, **“feat: pin option measurements with option+s (#25)”**. It adds `Option+S` / `Alt+S` style pinning for the currently previewed Option-distance measurement, anchors the pin near the cursor/related element, refreshes live pin geometry, and removes the older Alt-click hold path while the Guides tool is active so the modifier no longer consumes a guide click.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
+
+### 2026-09-13 delta classification
+
+| Upstream delta | Decision | Reason for this release |
+| --- | --- | --- |
+| `Option+S` pins the current Option-distance preview | **Intentional divergence** for the `0.1.7` release train | Mesurer Solid already exposes persisted held distances through its own measurement/workspace model and documents `Alt` / `Option` as the Distance overlay modifier. This stable candidate does not claim an `Option+S` pin shortcut, and adding a new global shortcut immediately before stable promotion would expand the manually tested interaction surface. Revisit in the next source-first feature cycle. |
+| Upstream stops Alt-click distance holding from consuming Guide clicks | **Intentional divergence** for the `0.1.7` release train | The behavior belongs to the same new pinned-distance interaction redesign. Mesurer Solid keeps its currently shipped held-distance interaction for this release rather than partially importing one side of the upstream model. This is a documented interaction difference, not an implied parity claim. |
+| Cursor/element attachment and live refresh for the new pins | **Not applicable until pinning is adopted** | Mesurer Solid should adopt these geometry rules together with the pin interaction if/when the feature is ported, not as detached internal machinery. |
+
+This classification satisfies the stable-readiness upstream gate without silently adding untested user interaction after the accepted beta candidate. A newer upstream feature is not automatically a blocker when the product difference is explicit and the public package does not claim the capability.
 
 ## Product decisions
 
@@ -24,6 +34,7 @@ For each meaningful upstream change, decide whether Mesurer Solid should **adopt
 | Screenshot region selection | Adopt as optional `screenshotPlugin()` and extend with preview/viewer and extension capture |
 | Global Shortcuts setting | Adopt the persisted master on/off switch; no per-command remapping UI is added |
 | Compact toolbar | Adopt presentation: one stable toolbar, full-height separators, active-tool retention, 150ms motion, reduced-motion support |
+| Option-distance pinning (`Option+S`) | Intentionally not adopted in the `0.1.7` release train; Mesurer Solid retains its existing held-distance workflow |
 | Inspect/Annotate group switching | Intentionally not adopted |
 | Arrange as a toolbar mode | Intentionally not adopted; Arrange remains an optional plugin tool |
 | Arrow, pen, and freeform drawing annotations | Intentionally not adopted |
@@ -41,11 +52,13 @@ The historical `605d202` parity suite still owns shared page/result and Settings
 
 ## Keyboard boundary
 
-Current upstream exposes `shortcutsEnabled`, defaults it to `true`, persists it with General settings, and presents a **Shortcuts** switch beside Persist. The switch gates global Mesurer shortcuts without disabling toolbar controls or Escape/cancel behavior.
+Upstream exposes `shortcutsEnabled`, defaults it to `true`, persists it with General settings, and presents a **Shortcuts** switch beside Persist. The switch gates global Mesurer shortcuts without disabling toolbar controls or Escape/cancel behavior.
 
 Mesurer Solid adopts that product contract across both built-in and plugin-contributed shortcuts. Keyboard ownership is resolved before the shortcut gate: deep active-element lookup follows open Shadow DOM focus, host-page inputs/selects/textareas/contenteditable retain normal typing, Mesurer-owned editable controls retain their local keyboard behavior, and Escape is left to lifecycle/cancel handling instead of being swallowed by the configurable shortcut gate.
 
-Upstream does not currently provide per-command key rebinding, shortcut profiles, or a conflict editor, so Mesurer Solid does not invent those features.
+Upstream does not provide per-command key rebinding, shortcut profiles, or a conflict editor in the audited baseline, so Mesurer Solid does not invent those features.
+
+The new upstream distance-pin shortcut is deliberately excluded from this release as classified above; the public shortcut table therefore remains accurate rather than implying parity that is not present.
 
 ## Mesurer Solid extensions
 
@@ -53,7 +66,7 @@ Upstream does not currently provide per-command key rebinding, shortcut profiles
 
 Mesurer Solid exposes the upstream Text Inspector concept as **Typography** and adds reversible direct copy/type editing. The internal `text-inspector` id, `A` shortcut, icon, and coordination contract remain compatible.
 
-Direct editing follows native browser editability, records Before/Desired copy and style intent, and relinquishes preview ownership when the host application changes the value itself. See [Direct text editing and Typography](./TEXT_EDITING.md).
+Direct editing follows native browser editability, records Before/Desired copy and style intent, and relinquishes preview ownership when the host application changes the value itself. It also owns one visible edit/selection lane: duplicate ordinary selected chrome is paint-suppressed, the dimensions pill remains measurable, source-linked Typography stays stable under pointer motion and follows the source through scroll/offscreen movement, and the transient selection annotation trigger is hidden only for the active edit. See [Direct text editing and Typography](./TEXT_EDITING.md).
 
 ### Arrange
 
