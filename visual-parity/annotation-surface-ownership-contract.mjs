@@ -64,21 +64,35 @@ try {
     if (!(card instanceof HTMLElement) || !(hover instanceof HTMLElement)) {
       throw new Error("Missing annotation card or document hover chrome");
     }
+    const cardZText = getComputedStyle(card).zIndex;
+    const hoverZText = getComputedStyle(hover).zIndex;
+    const selectionZText = selection instanceof HTMLElement ? getComputedStyle(selection).zIndex : null;
+    const numericZ = (value) => value && value !== "auto" ? Number.parseInt(value, 10) : null;
     return {
-      cardZ: Number.parseInt(getComputedStyle(card).zIndex, 10),
-      hoverZ: Number.parseInt(getComputedStyle(hover).zIndex, 10),
-      selectionZ: selection instanceof HTMLElement
-        ? Number.parseInt(getComputedStyle(selection).zIndex, 10)
-        : null,
+      cardZ: numericZ(cardZText),
+      cardZText,
+      hoverZ: numericZ(hoverZText),
+      hoverZText,
+      selectionZ: numericZ(selectionZText),
+      selectionZText,
       hoverRootIsDocument: hover.getRootNode() === document,
       hoverDocumentLayer: hover.dataset.mesurerDocumentHoverLayer === "true",
     };
   });
   assert.equal(ownership.hoverRootIsDocument, true, "hover chrome must share the annotation card's document paint tree");
-  assert(
-    ownership.cardZ > ownership.hoverZ,
-    `annotation card z-index ${ownership.cardZ} must beat hover ${ownership.hoverZ}`,
-  );
+  assert.notEqual(ownership.cardZ, null, `annotation card must own an explicit protected z-index, got ${ownership.cardZText}`);
+  if (ownership.hoverZ !== null) {
+    assert(
+      ownership.cardZ > ownership.hoverZ,
+      `annotation card z-index ${ownership.cardZ} must beat hover ${ownership.hoverZ}`,
+    );
+  } else {
+    assert.equal(
+      ownership.hoverZText,
+      "auto",
+      `direct document hover must either use a numeric protected tier or normal auto stacking, got ${ownership.hoverZText}`,
+    );
+  }
   if (ownership.selectionZ !== null) {
     assert(
       ownership.cardZ > ownership.selectionZ,
@@ -124,10 +138,15 @@ try {
     "new selection must own the restored Add Note trigger",
   );
 
-  const triggerZ = await trigger.evaluate((element) => Number.parseInt(getComputedStyle(element).zIndex, 10));
-  assert(
-    triggerZ > ownership.hoverZ,
-    `restored Add Note trigger z-index ${triggerZ} must remain above page hover chrome ${ownership.hoverZ}`,
+  const triggerZ = await trigger.evaluate((element) => {
+    const value = getComputedStyle(element).zIndex;
+    return { text: value, numeric: value === "auto" ? null : Number.parseInt(value, 10) };
+  });
+  assert.notEqual(triggerZ.numeric, null, `restored Add Note trigger must own an explicit protected z-index, got ${triggerZ.text}`);
+  assert.equal(
+    triggerZ.numeric,
+    ownership.cardZ,
+    "restored Add Note trigger and composer must share the same protected annotation paint tier",
   );
 
   // The abandoned draft must not follow the selection invisibly and reappear on
@@ -141,7 +160,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log(`Annotation ownership contract passed: Context cards occlude document-owned page chrome (${ownership.hoverDocumentLayer ? "ported" : "direct"}), selection change closes/discards the draft, and the new target gets a fresh Add Note trigger.`);
+  console.log(`Annotation ownership contract passed: Context cards own an explicit protected paint tier above document-owned page chrome (${ownership.hoverDocumentLayer ? "ported" : "direct"}), selection change closes/discards the draft, and the new target gets a fresh protected Add Note trigger.`);
 } finally {
   await browser.close();
 }
