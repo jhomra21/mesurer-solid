@@ -71,23 +71,35 @@ try {
 
   const second = page.locator("#isolated-annotation-handoff-target");
   await second.waitFor({ state: "visible" });
-  await clickCenter(second, "second page selection target");
+  const secondBox = await second.boundingBox();
+  assert(secondBox, "second page selection target must have rendered geometry");
+  const secondPoint = {
+    x: secondBox.x + secondBox.width / 2,
+    y: secondBox.y + secondBox.height / 2,
+  };
 
-  let physicalHandoff = true;
-  try {
-    await composer.waitFor({ state: "detached", timeout: 1200 });
-  } catch {
-    physicalHandoff = false;
-  }
+  // This is the real-consumer failure mode: the draft must be abandoned on the
+  // external pointerdown itself, before Select consumes pointerup to commit B.
+  // If the composer survives pointerdown it can keep owning the interaction and
+  // the selection-change subscriber never gets a chance to repair the state.
+  await page.mouse.move(secondPoint.x, secondPoint.y);
+  await page.mouse.down();
+  await composer.waitFor({ state: "detached", timeout: 1200 });
+  await page.mouse.up();
+  await settle();
 
-  if (!physicalHandoff) {
-    // Match the real-consumer diagnostic path: force the same selection change
-    // through the public API so stale composer state cannot hide behind a failed
-    // pointer handoff.
-    await subjectSelect("#isolated-annotation-handoff-target");
-  }
+  const selectionContext = await page.evaluate(async () => {
+    const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
+    if (!subject) throw new Error("Expected mounted isolated Mesurer subject");
+    return subject.context({ scope: "selection" });
+  });
+  assert.equal(selectionContext.targets.length, 1, "physical B click must leave exactly one selected context target");
+  assert.equal(
+    selectionContext.targets[0]?.inspection.id,
+    "isolated-annotation-handoff-target",
+    `physical B click must transfer selection ownership to B: ${JSON.stringify(selectionContext.targets)}`,
+  );
 
-  await composer.waitFor({ state: "detached", timeout: 3000 });
   await trigger.waitFor({ state: "visible", timeout: 3000 });
   await settle();
 
@@ -126,14 +138,10 @@ try {
     "selection handoff must discard A's abandoned annotation draft before B opens",
   );
 
-  assert.equal(
-    physicalHandoff,
-    true,
-    "a physical page click outside the composer must switch selection and close the transient composer",
-  );
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
   console.log("Isolated annotation draft handoff: PASS", {
-    physicalHandoff,
+    composerDismissedOnPointerDown: true,
+    selectionTransferredOnPointerUp: true,
     restoredTriggerMode: handoff.mode,
     draftCleared: true,
   });
