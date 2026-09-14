@@ -55,35 +55,36 @@ const readMeasuredSpacing = () => page.evaluate(() => {
   }).sort((left, right) => left.score - right.score);
 
   const label = labels[0] ?? null;
-  if (!label) return {
-    ring: readRect(ringRect),
-    card: readRect(cardRect),
-    label: null,
-    sourceGap: null,
-    typographyGap: null,
-    marker: shell.getAttribute("data-mesurer-symmetric-measurement-spacing"),
-    sourceMarker: shell.getAttribute("data-mesurer-symmetric-source-gap"),
-    typographyMarker: shell.getAttribute("data-mesurer-symmetric-typography-gap"),
-    anchorY: shell.style.getPropertyValue("--mesurer-native-anchor-y"),
-  };
-
-  return {
+  const shared = {
     ring: readRect(ringRect),
     card: readRect(cardRect),
     label,
-    sourceGap: label.rect.y - ringRect.bottom,
-    typographyGap: cardRect.y - label.rect.bottom,
     marker: shell.getAttribute("data-mesurer-symmetric-measurement-spacing"),
     sourceMarker: shell.getAttribute("data-mesurer-symmetric-source-gap"),
     typographyMarker: shell.getAttribute("data-mesurer-symmetric-typography-gap"),
+    anchorX: shell.style.getPropertyValue("--mesurer-native-anchor-x"),
     anchorY: shell.style.getPropertyValue("--mesurer-native-anchor-y"),
+    shellLeft: shell.style.left,
+    shellTop: shell.style.top,
+    cardTranslate: card.style.translate,
+  };
+  if (!label) return {
+    ...shared,
+    sourceGap: null,
+    typographyGap: null,
+  };
+
+  return {
+    ...shared,
+    sourceGap: label.rect.y - ringRect.bottom,
+    typographyGap: cardRect.y - label.rect.bottom,
   };
 });
 
 const assertSymmetric = (state, phase) => {
   if (!state?.label) throw new Error(`${phase}: Mesurer dimensions pill geometry was unavailable: ${JSON.stringify(state)}`);
   if (state.label.score > 4) {
-    throw new Error(`${phase}: nearest Mesurer dimensions pill does not track the edit ring: ${JSON.stringify(state)}`);
+    throw new Error(`${phase}: selected Mesurer dimensions pill does not track the edit ring: ${JSON.stringify(state)}`);
   }
   if (state.marker !== "true") {
     throw new Error(`${phase}: symmetric rendered-spacing owner is not active: ${JSON.stringify(state)}`);
@@ -124,59 +125,123 @@ try {
   const initial = await readMeasuredSpacing();
   assertSymmetric(initial, "initial placement");
 
-  // Pure pointer motion changes hover evidence in Mesurer's model. It must not
-  // become a Typography placement input or rewrite the already-balanced shell.
+  // A final-position assertion can miss visible jitter when two writers move a
+  // surface apart and back within one pointer gesture. Sample the rendered card
+  // on every animation frame and record style mutations on both placement
+  // owners while the pointer crosses multiple hover targets.
   await page.evaluate(() => {
     const shell = document.querySelector("[data-mesurer-text-inspector-placement-shell='true']");
-    if (!(shell instanceof HTMLElement)) throw new Error("Missing Typography placement shell");
-    const mutations = [];
-    const observer = new MutationObserver(() => {
-      mutations.push({
-        anchorY: shell.style.getPropertyValue("--mesurer-native-anchor-y"),
-        top: shell.style.top,
-      });
+    const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
+    if (!(shell instanceof HTMLElement) || !(card instanceof HTMLElement)) {
+      throw new Error("Missing Typography surfaces for pointer stability probe");
+    }
+    const probe = {
+      active: true,
+      samples: [],
+      shellMutations: [],
+      cardMutations: [],
+      shellObserver: null,
+      cardObserver: null,
+    };
+    probe.shellObserver = new MutationObserver((records) => {
+      for (const record of records) {
+        probe.shellMutations.push({
+          oldValue: record.oldValue,
+          style: shell.getAttribute("style"),
+          anchorX: shell.style.getPropertyValue("--mesurer-native-anchor-x"),
+          anchorY: shell.style.getPropertyValue("--mesurer-native-anchor-y"),
+        });
+      }
     });
-    observer.observe(shell, { attributes: true, attributeFilter: ["style"] });
-    window.__MESURER_POINTER_SPACING_MUTATIONS__ = mutations;
-    window.__MESURER_POINTER_SPACING_OBSERVER__ = observer;
+    probe.cardObserver = new MutationObserver((records) => {
+      for (const record of records) {
+        probe.cardMutations.push({
+          oldValue: record.oldValue,
+          style: card.getAttribute("style"),
+          translate: card.style.translate,
+        });
+      }
+    });
+    probe.shellObserver.observe(shell, { attributes: true, attributeFilter: ["style"], attributeOldValue: true });
+    probe.cardObserver.observe(card, { attributes: true, attributeFilter: ["style"], attributeOldValue: true });
+
+    const sample = () => {
+      if (!probe.active) return;
+      const rect = card.getBoundingClientRect();
+      probe.samples.push({
+        x: rect.x,
+        y: rect.y,
+        anchorX: shell.style.getPropertyValue("--mesurer-native-anchor-x"),
+        anchorY: shell.style.getPropertyValue("--mesurer-native-anchor-y"),
+        shellLeft: shell.style.left,
+        shellTop: shell.style.top,
+        cardTranslate: card.style.translate,
+      });
+      requestAnimationFrame(sample);
+    };
+    window.__MESURER_POINTER_STABILITY_PROBE__ = probe;
+    requestAnimationFrame(sample);
   });
 
   const counter = page.locator("[data-testid='consumer-counter']");
   const counterBox = await counter.boundingBox();
   if (!counterBox) throw new Error("Pointer-stability counter target has no geometry");
-  for (let index = 0; index < 6; index += 1) {
-    await page.mouse.move(counterBox.x + 6, counterBox.y + 6, { steps: 5 });
+  for (let index = 0; index < 8; index += 1) {
+    await page.mouse.move(counterBox.x + 6, counterBox.y + 6, { steps: 6 });
     await waitFrames(1);
-    await page.mouse.move(targetBox.x + targetBox.width - 6, targetBox.y + 6, { steps: 5 });
+    await page.mouse.move(targetBox.x + targetBox.width - 6, targetBox.y + 6, { steps: 6 });
     await waitFrames(1);
-    await page.mouse.move(1100, 700, { steps: 5 });
+    await page.mouse.move(1100, 700, { steps: 6 });
     await waitFrames(1);
   }
   await waitFrames(3);
 
+  const pointerProbe = await page.evaluate(async () => {
+    const probe = window.__MESURER_POINTER_STABILITY_PROBE__;
+    if (!probe) throw new Error("Pointer stability probe disappeared");
+    probe.active = false;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    probe.shellObserver?.disconnect();
+    probe.cardObserver?.disconnect();
+    const result = {
+      samples: probe.samples,
+      shellMutations: probe.shellMutations,
+      cardMutations: probe.cardMutations,
+    };
+    delete window.__MESURER_POINTER_STABILITY_PROBE__;
+    return result;
+  });
+
   const pointerStable = await readMeasuredSpacing();
   assertSymmetric(pointerStable, "pointer hover stability");
-  const pointerMutations = await page.evaluate(() => {
-    window.__MESURER_POINTER_SPACING_OBSERVER__?.disconnect();
-    const mutations = window.__MESURER_POINTER_SPACING_MUTATIONS__ ?? [];
-    delete window.__MESURER_POINTER_SPACING_OBSERVER__;
-    delete window.__MESURER_POINTER_SPACING_MUTATIONS__;
-    return mutations;
-  });
-  if (Math.abs(pointerStable.card.y - initial.card.y) > 0.25) {
-    throw new Error(`Pointer motion moved Typography: ${JSON.stringify({ initial, pointerStable })}`);
+  if (pointerProbe.samples.length < 8) {
+    throw new Error(`Pointer probe did not sample enough rendered frames: ${pointerProbe.samples.length}`);
   }
-  if (pointerStable.anchorY !== initial.anchorY) {
-    throw new Error(`Pointer motion rewrote Typography native anchor: ${JSON.stringify({ initial, pointerStable })}`);
+  const movedFrame = pointerProbe.samples.find((sample) =>
+    Math.abs(sample.x - initial.card.x) > 0.25 || Math.abs(sample.y - initial.card.y) > 0.25);
+  if (movedFrame) {
+    throw new Error(`Pointer motion visibly moved Typography during an intermediate frame: ${JSON.stringify({ initial, movedFrame, pointerProbe })}`);
   }
-  if (pointerMutations.length > 0) {
-    throw new Error(`Pointer motion mutated Typography placement shell: ${JSON.stringify(pointerMutations)}`);
+  const rewrittenAnchor = pointerProbe.samples.find((sample) =>
+    sample.anchorX !== initial.anchorX || sample.anchorY !== initial.anchorY);
+  if (rewrittenAnchor) {
+    throw new Error(`Pointer motion rewrote Typography native anchoring during an intermediate frame: ${JSON.stringify({ initial, rewrittenAnchor, pointerProbe })}`);
+  }
+  if (Math.abs(pointerStable.card.x - initial.card.x) > 0.25
+    || Math.abs(pointerStable.card.y - initial.card.y) > 0.25) {
+    throw new Error(`Pointer motion changed final Typography geometry: ${JSON.stringify({ initial, pointerStable })}`);
+  }
+  if (pointerStable.anchorX !== initial.anchorX || pointerStable.anchorY !== initial.anchorY) {
+    throw new Error(`Pointer motion changed final Typography native anchor: ${JSON.stringify({ initial, pointerStable })}`);
+  }
+  if (pointerProbe.shellMutations.length > 0 || pointerProbe.cardMutations.length > 0) {
+    throw new Error(`Pointer motion mutated Typography placement styles: ${JSON.stringify(pointerProbe)}`);
   }
 
   // Reproduce the consumer race that escaped the old synthetic test: after the
   // clearance calculation is correct, a later anchor owner rewrites the shell
   // by +7px. Mesurer must re-measure the rendered surfaces and remove exactly
-  // that error instead of trusting the stale shell coordinate.
+  // that visual error without making hover a placement input.
   await page.evaluate(() => {
     const shell = document.querySelector("[data-mesurer-text-inspector-placement-shell='true']");
     if (!(shell instanceof HTMLElement)) throw new Error("Missing Typography placement shell");
@@ -192,6 +257,7 @@ try {
   console.log("Packed Solid 2 Mesurer-measured symmetric dimensions spacing: PASS", {
     initial,
     pointerStable,
+    pointerFrames: pointerProbe.samples.length,
     afterLateRewrite,
   });
 } finally {
