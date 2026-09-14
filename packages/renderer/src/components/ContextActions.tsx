@@ -16,6 +16,7 @@ export type ContextActionsProps = {
   runtime: MesurerWorkspaceRuntime;
   onCopy: (request?: MesurerContextRequest) => Promise<void>;
   onController?: (controller: ContextActionsController | null) => void;
+  initialTriggerFallback?: "current" | "current-and-next";
 };
 
 type PositionedRect = { left: number; top: number; width: number; height: number };
@@ -105,7 +106,7 @@ export function ContextActions(props: ContextActionsProps) {
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
   let selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
   let fallbackTriggerElement: HTMLElement | null = null;
-  let fallbackNextSelection = false;
+  let fallbackNextSelection = props.initialTriggerFallback === "current-and-next";
   let composerSelection: ContextSelectionSnapshot | null = null;
   let surfaceDrag: {
     surfaceId: string;
@@ -168,6 +169,10 @@ export function ContextActions(props: ContextActionsProps) {
       ?? elements.find((element) => hovered && element.contains(hovered))
       ?? elements[0];
   };
+
+  if (props.initialTriggerFallback) {
+    fallbackTriggerElement = currentSelectionTriggerElement();
+  }
 
   const releaseSelectionTriggerAnchor = () => {
     nestedTriggerScroll?.release();
