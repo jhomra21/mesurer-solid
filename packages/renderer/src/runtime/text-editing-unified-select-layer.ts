@@ -82,7 +82,6 @@ export function installUnifiedTextSelectLayer(
   let disposed = false;
   let moving = false;
   let frame = 0;
-  let scrollCard: HTMLElement | null = null;
 
   const triggerFor = (popup: HTMLElement) => {
     const kind = popup.dataset.mesurerUnifiedSelectKind;
@@ -139,12 +138,12 @@ export function installUnifiedTextSelectLayer(
     const height = Math.min(naturalHeight, cardMaxHeight);
     popup.style.maxHeight = `${height}px`;
 
-    // The popup stays a descendant of the scrollable card so pointer ownership
-    // remains inside the active edit session, but its absolute containing block
-    // is the fixed placement shell. A scrolling ancestor therefore subtracts
-    // its scroll offset from the rendered popup after these shell coordinates
-    // are resolved. Add that scalar offset back exactly once so the popup keeps
-    // the same visible relationship to its trigger while the card itself scrolls.
+    // The card is static inside the fixed placement shell, so absolute popup
+    // coordinates are expressed in the shell's coordinate space. Clamp them
+    // to the card's actual visible rectangle so overflow never becomes part of
+    // the pointer-ownership contract. Once placed, the popup and trigger are in
+    // the same scrolling card, so native scrolling preserves their relationship
+    // without any JavaScript scroll handler.
     const cardLeft = cardRect.left - shellRect.left;
     const cardTop = cardRect.top - shellRect.top;
     const triggerLeft = triggerRect.left - shellRect.left;
@@ -162,8 +161,8 @@ export function installUnifiedTextSelectLayer(
     const maxLeft = Math.max(minLeft, cardLeft + cardRect.width - MENU_PADDING - width);
     const minTop = cardTop + MENU_PADDING;
     const maxTop = Math.max(minTop, cardTop + cardRect.height - MENU_PADDING - height);
-    popup.style.left = `${clamp(triggerLeft, minLeft, maxLeft) + card.scrollLeft}px`;
-    popup.style.top = `${clamp(desiredTop, minTop, maxTop) + card.scrollTop}px`;
+    popup.style.left = `${clamp(triggerLeft, minLeft, maxLeft)}px`;
+    popup.style.top = `${clamp(desiredTop, minTop, maxTop)}px`;
   };
 
   const reconcile = () => {
@@ -177,12 +176,6 @@ export function installUnifiedTextSelectLayer(
         "[data-mesurer-text-inspector-info='true'][data-mesurer-text-inspector-unified='true']",
       );
       if (!shell || !card) return;
-
-      if (scrollCard !== card) {
-        scrollCard?.removeEventListener("scroll", queueReconcile);
-        scrollCard = card;
-        scrollCard.addEventListener("scroll", queueReconcile, { passive: true });
-      }
 
       for (const popup of Array.from(
         runtimeMount.querySelectorAll<HTMLElement>("[data-mesurer-unified-select-popup='true']"),
@@ -210,35 +203,26 @@ export function installUnifiedTextSelectLayer(
     }
   };
 
-  function queueReconcile() {
+  const schedule = () => {
+    reconcile();
     if (disposed || frame) return;
     frame = ownerWindow.requestAnimationFrame(() => {
       frame = 0;
       reconcile();
     });
-  }
-
-  const schedule = () => {
-    reconcile();
-    queueReconcile();
   };
 
   const observer = new realm.MutationObserver(schedule);
   observer.observe(runtimeMount, { childList: true, subtree: true });
   ownerWindow.addEventListener("resize", schedule);
-  // The popup is absolutely positioned inside the Typography card. Window
-  // scrolling moves the card, trigger, and popup as one unit (native anchor or
-  // fallback placement), so there is no relative geometry to reconcile here.
-  // Only the card's own internal scroll needs a local rAF reconciliation. This
-  // keeps page scroll out of this layer and preserves the zero-query/layout
-  // direct-edit window-scroll hot path.
+  // The popup is absolutely positioned inside the Typography card. Window and
+  // internal card scrolling move the trigger and popup through the same native
+  // scroll tree, so neither scroll path needs selector/layout reconciliation.
   schedule();
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
-    scrollCard?.removeEventListener("scroll", queueReconcile);
-    scrollCard = null;
     if (frame) ownerWindow.cancelAnimationFrame(frame);
     ownerWindow.removeEventListener("resize", schedule);
   });
