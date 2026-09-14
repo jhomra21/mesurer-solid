@@ -117,6 +117,11 @@ try {
       mode: nextTrigger.dataset.mesurerAnnotationScrollMode ?? null,
     };
   });
+  assert.equal(
+    handoff.mode,
+    "cached-delta",
+    `the first trigger restored after abandoning A must avoid Chromium's stale native-anchor handoff: ${JSON.stringify(handoff)}`,
+  );
   const targetCenter = {
     x: handoff.target.left + handoff.target.width / 2,
     y: handoff.target.top + handoff.target.height / 2,
