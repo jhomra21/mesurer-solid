@@ -45,7 +45,7 @@ try {
   // A document-backed Context card must get the same protected paint ownership
   // as Typography. Move over an ordinary page element while the composer stays
   // open; the live Select hover chrome must leave the hardened ShadowRoot and
-  // join the document paint tree below the protected Context stacking context.
+  // join the document paint tree below the Context card itself.
   const hoverTarget = page.locator(".fixture-copy h1");
   const hoverBox = await hoverTarget.boundingBox();
   assert(hoverBox, "hover target must have rendered geometry");
@@ -66,12 +66,8 @@ try {
     if (!(card instanceof HTMLElement) || !(hover instanceof HTMLElement)) {
       throw new Error("Missing annotation card or document hover chrome");
     }
-    const contextLayer = card.closest("[data-mesurer-context-document-layer='true']");
-    if (!(contextLayer instanceof HTMLElement)) {
-      throw new Error("Missing protected Context document layer");
-    }
     return {
-      contextLayerZ: Number.parseInt(getComputedStyle(contextLayer).zIndex, 10),
+      cardZ: Number.parseInt(getComputedStyle(card).zIndex, 10),
       hoverZ: Number.parseInt(getComputedStyle(hover).zIndex, 10),
       selectionZ: selection instanceof HTMLElement
         ? Number.parseInt(getComputedStyle(selection).zIndex, 10)
@@ -81,13 +77,13 @@ try {
   });
   assert.equal(ownership.hoverRootIsDocument, true, "hover chrome must share the annotation card's document paint tree");
   assert(
-    ownership.contextLayerZ > ownership.hoverZ,
-    `Context layer z-index ${ownership.contextLayerZ} must beat hover ${ownership.hoverZ}`,
+    ownership.cardZ > ownership.hoverZ,
+    `annotation card z-index ${ownership.cardZ} must beat hover ${ownership.hoverZ}`,
   );
   if (ownership.selectionZ !== null) {
     assert(
-      ownership.contextLayerZ > ownership.selectionZ,
-      `Context layer z-index ${ownership.contextLayerZ} must beat selection ${ownership.selectionZ}`,
+      ownership.cardZ > ownership.selectionZ,
+      `annotation card z-index ${ownership.cardZ} must beat selection ${ownership.selectionZ}`,
     );
   }
 
@@ -127,6 +123,12 @@ try {
   assert(
     Math.hypot(triggerCenter.x - secondCenter.x, triggerCenter.y - secondCenter.y) < 180,
     "new selection must own the restored Add Note trigger",
+  );
+
+  const triggerZ = await trigger.evaluate((element) => Number.parseInt(getComputedStyle(element).zIndex, 10));
+  assert(
+    triggerZ > ownership.hoverZ,
+    `restored Add Note trigger z-index ${triggerZ} must remain above page hover chrome ${ownership.hoverZ}`,
   );
 
   // The abandoned draft must not follow the selection invisibly and reappear on
