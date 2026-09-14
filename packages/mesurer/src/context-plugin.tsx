@@ -224,6 +224,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       syncUi();
       ctx.state.subscribe(syncUi);
 
+      // SAFETY: solid.ownerWindow is the browsing-context global paired with solid.ownerDocument.
       const ownerWindow = solid.ownerWindow as Window & typeof globalThis;
       const dismissComposerBeforeExternalPointer = (event: PointerEvent) => {
         const mount = uiMount?.element;
