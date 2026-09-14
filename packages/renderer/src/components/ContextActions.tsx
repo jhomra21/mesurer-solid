@@ -558,7 +558,7 @@ export function ContextActions(props: ContextActionsProps) {
       />
 
       <Show when={selection().elements.length > 0 && !noteComposerOpen() && !activeAnnotation()}>
-        <Show when={selectionTriggerElement()} keyed>{() => (
+        <Show when={selectionTriggerElement()} keyed>{(_owner) => (
           <Show when={selectionTriggerPosition()}>{(position) => (
             <button
               ref={(element) => {
