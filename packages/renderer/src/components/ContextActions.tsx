@@ -101,7 +101,9 @@ export function ContextActions(props: ContextActionsProps) {
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
-  let selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
+  const [selectionTriggerAnchorName, setSelectionTriggerAnchorName] = createSignal(
+    `--mesurer-annotation-trigger-${++annotationAnchorSequence}`,
+  );
   let surfaceDrag: {
     surfaceId: string;
     pointerId: number;
@@ -184,19 +186,18 @@ export function ContextActions(props: ContextActionsProps) {
     releaseSelectionTriggerAnchor();
     if (!element?.isConnected) return;
     if (targetChanged) {
-      // A positioned element can retain the previous target for one lifecycle
-      // when the same custom-ident is removed from one anchor and immediately
-      // assigned to another while the trigger itself is hidden. Rotate the plain
-      // identity before installing the new anchor; placement is invalidated only
-      // after this function returns, so no intermediate unresolved anchor paints.
-      selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
+      // Keep the positioned trigger subscribed to the anchor identity itself.
+      // This matters when a hidden trigger is remounted by an earlier selection
+      // subscriber: changing the signal repairs that live node immediately rather
+      // than waiting for another placement invalidation to rerun a plain variable.
+      setSelectionTriggerAnchorName(`--mesurer-annotation-trigger-${++annotationAnchorSequence}`);
     }
     trackedTriggerElement = element;
     const currentWindow = element.ownerDocument.defaultView;
     if (!currentWindow) return;
 
     if (shouldUseNative) {
-      releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName);
+      releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName());
       anchoredTriggerElement = element;
       nestedTriggerScroll = installNestedScrollCompensation(
         currentWindow,
@@ -249,9 +250,9 @@ export function ContextActions(props: ContextActionsProps) {
       placementTarget = nextPlacementTarget;
       observeTriggerGeometry(placementTarget);
     }
-    // Commit native/fallback ownership (and a fresh anchor identity when the
-    // target changes) before invalidating the placement memo. This prevents the
-    // remounted trigger from ever observing the new target with old ownership.
+    // Commit native/fallback ownership (and a fresh reactive anchor identity when
+    // the target changes) before invalidating the placement memo. The signal also
+    // repairs an already-remounted trigger if another subscriber ran first.
     syncSelectionTriggerAnchor();
     if (targetChanged) bumpTriggerPlacement();
     setRevision((value) => value + 1);
@@ -583,7 +584,7 @@ export function ContextActions(props: ContextActionsProps) {
               translate: position().nativeAnchor
                 ? undefined
                 : "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
-              "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
+              "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName() : undefined,
               "--mesurer-native-anchor-x": position().nativeAnchor ? `${position().anchorX}px` : undefined,
               "--mesurer-native-anchor-y": position().nativeAnchor ? `${position().anchorY}px` : undefined,
               "z-index": PROTECTED_ANNOTATION_Z_INDEX,
