@@ -24,6 +24,20 @@ const isProtectedTopLayerControl = (
     || node.hasAttribute("data-mesurer-settings");
 });
 
+const eventTargetsPageContent = (
+  event: Event,
+  pageTarget: HTMLElement,
+  mount: HTMLElement,
+  realm: Window & typeof globalThis,
+) => {
+  const target = event.target;
+  if (!(target instanceof realm.Element) || mount.contains(target)) return false;
+  if (target.closest("[data-mesurer-root='true'], [data-mesurer-island='true'], [data-mesurer-inspector-ui='true']")) {
+    return false;
+  }
+  return target === pageTarget || pageTarget.contains(target);
+};
+
 const deepestMountHit = (
   mount: HTMLElement,
   x: number,
@@ -66,6 +80,7 @@ const createBridgedClick = (
 
 const installHostedInputBridge = (
   mount: HTMLElement,
+  pageTarget: HTMLElement,
   ownerWindow: Window & typeof globalThis,
 ) => {
   const eventStartsInsideMount = (event: Event) =>
@@ -84,6 +99,12 @@ const installHostedInputBridge = (
 
   const routePointer = (event: PointerEvent) => {
     if (eventStartsInsideMount(event)) return;
+    // A browser/agent host can deliberately target a concrete inspected-page
+    // node even when document-backed Mesurer UI geometrically overlaps it. The
+    // event target is stronger ownership evidence than a second hit test: let
+    // Context/Select observe that page gesture instead of routing it back into
+    // the composer or another inspector surface.
+    if (eventTargetsPageContent(event, pageTarget, mount, ownerWindow)) return;
     if (isProtectedTopLayerControl(event, mount, ownerWindow)) return;
     const target = deepestMountHit(mount, event.clientX, event.clientY, ownerWindow);
     if (!target) return;
@@ -124,6 +145,7 @@ const installHostedInputBridge = (
 
   const routeClick = (event: MouseEvent) => {
     if (eventStartsInsideMount(event)) return;
+    if (eventTargetsPageContent(event, pageTarget, mount, ownerWindow)) return;
     if (isProtectedTopLayerControl(event, mount, ownerWindow)) return;
     const target = deepestMountHit(mount, event.clientX, event.clientY, ownerWindow);
     if (!target) return;
@@ -188,6 +210,7 @@ export function createDocumentInspectorRuntime(
       runtime.portalTarget instanceof realm.HTMLElement
       && runtime.portalTarget.dataset.mesurerIsland === "true"
     );
+  const pageTarget = runtime.pageTarget as HTMLElement;
 
   const createInspectorMount = () => {
     const element = ownerDocument.createElement("div");
@@ -195,7 +218,7 @@ export function createDocumentInspectorRuntime(
     element.dataset.mesurerDocumentInspectorRuntime = "true";
     ownerDocument.body.append(element);
     const disposeInputBridge = hostedIsland
-      ? installHostedInputBridge(element, realm)
+      ? installHostedInputBridge(element, pageTarget, realm)
       : null;
     let disposed = false;
     return {
