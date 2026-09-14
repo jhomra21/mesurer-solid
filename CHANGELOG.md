@@ -6,6 +6,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.1.7-beta.10 - 2026-09-14
+
 - Keep direct text editing as the single visible selection owner: parent → child re-entry no longer leaves duplicate selection chrome, the dimensions pill stays clear of Typography with symmetric `2px / 2px` rendered spacing, and Typography continues to follow its source fully offscreen and back.
 - Keep Typography visually stable during ordinary pointer movement and preserve the zero-layout/query direct-edit window-scroll hot path, eliminating the cursor-move jitter and scroll catch-up found during real-consumer testing.
 - Hide the transient **Add Note** annotation button while direct text editing is active so it cannot overlap the dimensions pill, then restore it automatically when editing ends; existing saved annotation markers and panels remain available.
