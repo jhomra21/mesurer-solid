@@ -50,10 +50,12 @@ try {
   const hoverBox = await hoverTarget.boundingBox();
   assert(hoverBox, "hover target must have rendered geometry");
   await page.mouse.move(hoverBox.x + hoverBox.width / 2, hoverBox.y + hoverBox.height / 2);
+  console.log("Annotation ownership stage: waiting for document-owned hover chrome");
   await page.waitForFunction(() => {
     const hover = document.querySelector("[data-mesurer-hover-measurement='true']");
     return hover instanceof HTMLElement && hover.getRootNode() === document;
   });
+  console.log("Annotation ownership stage: document-owned hover chrome ready");
 
   const ownership = await page.evaluate(() => {
     const card = document.querySelector("[data-mesurer-annotation-composer='true']");
@@ -130,6 +132,22 @@ try {
   // The trigger node is reused across selection changes, so visibility alone can
   // observe the previous target's last placement. Wait for the reactive placement
   // owner to commit geometry for the new selected element before asserting it.
+  const handoffBeforeWait = await page.evaluate(() => {
+    const second = document.querySelector("[data-self-host-target-second]");
+    const nextTrigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
+    if (!(second instanceof HTMLElement) || !(nextTrigger instanceof HTMLElement)) return null;
+    const secondBox = second.getBoundingClientRect();
+    const triggerBox = nextTrigger.getBoundingClientRect();
+    return {
+      second: { left: secondBox.left, top: secondBox.top, width: secondBox.width, height: secondBox.height },
+      trigger: { left: triggerBox.left, top: triggerBox.top, width: triggerBox.width, height: triggerBox.height },
+      positionAnchor: getComputedStyle(nextTrigger).getPropertyValue("position-anchor").trim(),
+      scrollMode: nextTrigger.dataset.mesurerAnnotationScrollMode ?? null,
+      nativeOwner: nextTrigger.dataset.mesurerNativeScrollOwner ?? null,
+      targetAnchorName: second.style.getPropertyValue("anchor-name"),
+    };
+  });
+  console.log("Annotation ownership stage: waiting for retargeted Add Note trigger", handoffBeforeWait);
   await page.waitForFunction(() => {
     const second = document.querySelector("[data-self-host-target-second]");
     const nextTrigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
@@ -146,6 +164,7 @@ try {
     };
     return Math.hypot(triggerCenter.x - secondCenter.x, triggerCenter.y - secondCenter.y) < 180;
   });
+  console.log("Annotation ownership stage: retargeted Add Note trigger ready");
   await settle();
 
   const secondBox = await page.locator("[data-self-host-target-second]").boundingBox();
