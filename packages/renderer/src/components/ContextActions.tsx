@@ -18,6 +18,7 @@ export type ContextActionsProps = {
 };
 
 type PositionedRect = { left: number; top: number; width: number; height: number };
+type ContextSelectionSnapshot = { elements: HTMLElement[]; region: PositionedRect | null };
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
@@ -102,6 +103,8 @@ export function ContextActions(props: ContextActionsProps) {
   const [status, setStatus] = createSignal<string | null>(null);
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
   let selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
+  let fallbackTriggerElement: HTMLElement | null = null;
+  let composerSelection: ContextSelectionSnapshot | null = null;
   let surfaceDrag: {
     surfaceId: string;
     pointerId: number;
@@ -123,6 +126,23 @@ export function ContextActions(props: ContextActionsProps) {
   let triggerResizeWindow: Window | null = null;
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
+  const captureSelection = (): ContextSelectionSnapshot => {
+    const value = props.runtime.currentSelection();
+    return {
+      elements: [...value.elements],
+      region: value.region ? { ...value.region } : null,
+    };
+  };
+  const sameSelection = (left: ContextSelectionSnapshot, right: ContextSelectionSnapshot) => {
+    if (left.elements.length !== right.elements.length) return false;
+    if (left.elements.some((element, index) => element !== right.elements[index])) return false;
+    if (left.region === right.region) return true;
+    if (!left.region || !right.region) return false;
+    return left.region.left === right.region.left
+      && left.region.top === right.region.top
+      && left.region.width === right.region.width
+      && left.region.height === right.region.height;
+  };
 
   const supportsSelectionTriggerAnchor = () => {
     const currentWindow = ownerWindow();
@@ -158,12 +178,14 @@ export function ContextActions(props: ContextActionsProps) {
 
   const canUseNativeTriggerAnchor = (element: HTMLElement) => Boolean(
     anchorElement
+    && element !== fallbackTriggerElement
     && supportsSelectionTriggerAnchor()
     && element.getRootNode() === anchorElement.getRootNode(),
   );
 
   const syncSelectionTriggerAnchor = () => {
     const element = currentSelectionTriggerElement();
+    if (fallbackTriggerElement && element !== fallbackTriggerElement) fallbackTriggerElement = null;
     const previousElement = trackedTriggerElement;
     const shouldUseNative = Boolean(element?.isConnected && canUseNativeTriggerAnchor(element));
     const alreadyNative = anchoredTriggerElement === element;
@@ -424,6 +446,7 @@ export function ContextActions(props: ContextActionsProps) {
   const panelPosition = (annotationId: string) => annotationLayout(annotationId)?.panel ?? { left: 8, top: 8 };
 
   const openAnnotation = (annotationId: string) => {
+    composerSelection = null;
     setNoteComposerOpen(false);
     setActiveAnnotationId(annotationId);
     setStatus(null);
@@ -513,6 +536,7 @@ export function ContextActions(props: ContextActionsProps) {
 
   const openNoteComposer = () => {
     if (!hasSelection()) return;
+    composerSelection = captureSelection();
     setNoteError(null);
     setStatus(null);
     setActiveAnnotationId(null);
@@ -521,6 +545,18 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const closeNoteComposer = () => {
+    const changedSelection = composerSelection !== null && !sameSelection(composerSelection, captureSelection());
+    if (changedSelection) {
+      // Chromium can retain unresolved CSS-anchor geometry when a hidden Add Note
+      // trigger is restored for a different selection in the same update. Hand
+      // that one new target to the existing document-coordinate path instead.
+      // Window scrolling remains compositor-owned; only nested overflow deltas
+      // are compensated by JavaScript, exactly like the CodexBrowser fallback.
+      fallbackTriggerElement = currentSelectionTriggerElement();
+      syncSelectionTriggerAnchor();
+      bumpTriggerPlacement();
+    }
+    composerSelection = null;
     setNote("");
     setNoteComposerOpen(false);
     setNoteError(null);
@@ -530,6 +566,7 @@ export function ContextActions(props: ContextActionsProps) {
   const addNote = () => {
     try {
       const annotation = props.runtime.addSelectionAnnotation(note());
+      composerSelection = null;
       setNote("");
       setNoteError(null);
       setNoteComposerOpen(false);
