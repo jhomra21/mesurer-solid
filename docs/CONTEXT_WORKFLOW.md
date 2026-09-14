@@ -40,6 +40,8 @@ Agents normally read the API directly instead of clicking these controls.
 
 For an ordinary selected element, Mesurer can show a selection-adjacent Add Note button. That transient button is hidden while the same selection is in direct text edit so the edit ring, dimensions pill, and Typography own the contextual lane. It returns when editing ends. Existing saved annotation markers/panels and the underlying Context data are not removed.
 
+The Add Note composer is owned by the selection that opened it. If the user selects a different element or region before saving, Mesurer closes the unsaved composer instead of moving it to the new target; the new selection gets its normal small Add Note button. Add Note and saved annotation cards are protected Mesurer inspector surfaces, so live page selection/hover chrome paints underneath them rather than crossing through the card.
+
 ## Read existing intent first
 
 A broad request such as “check Mesurer” can include several channels at once: current selection, annotations, Arrange intent, text/style intent, guides, measurements, rulers/X-ray state, and screenshot review state.
@@ -125,6 +127,8 @@ For small selections, keep useful unique pair relationships. For large selection
 Annotations are target- or region-bound review context rather than freeform drawing objects. A saved note carries its baseline with the rendered evidence it describes.
 
 The Add Note button is only a convenience affordance. During an active direct text edit it is intentionally absent from the selected element, so agents and integrations must not use button visibility as a capability check. Durable annotation state remains available through `annotations()`, `context({ annotation })`, and `review()`.
+
+An unsaved composer is transient UI, not durable annotation state. Changing selection closes it by design; only a submitted note becomes a saved annotation that follows its own stored target/region baseline.
 
 After source changes:
 
