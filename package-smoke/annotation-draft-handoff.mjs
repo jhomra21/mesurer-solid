@@ -144,6 +144,23 @@ async function assertScrollOwnership(page, trigger) {
   return before.mode;
 }
 
+async function dispatchLegacyMouse(page, type, point) {
+  await page.evaluate(({ eventType, x, y }) => {
+    const target = document.querySelector("#packed-annotation-handoff-target");
+    if (!(target instanceof HTMLElement)) throw new Error("Missing legacy mouse handoff target");
+    target.dispatchEvent(new MouseEvent(eventType, {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      button: 0,
+      buttons: eventType === "mousedown" ? 1 : 0,
+      clientX: x,
+      clientY: y,
+      view: window,
+    }));
+  }, { eventType: type, x: point.x, y: point.y });
+}
+
 async function runCase(testCase) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
@@ -246,14 +263,45 @@ async function runCase(testCase) {
     );
 
     await assertFreshComposer(page, trigger, composer, `${testCase.name} physical handoff`);
-    const scrollMode = await assertScrollOwnership(page, trigger);
+    const physicalScrollMode = await assertScrollOwnership(page, trigger);
+
+    // Some browser/agent hosts synthesize only legacy MouseEvents at the concrete
+    // page node. That used to reproduce the manual failure exactly: the composer
+    // stayed open on mousedown and A remained selected after mouseup. Keep the
+    // normal PointerEvent path above, then prove this narrow compatibility path
+    // abandons A before mouseup and transfers the same one-shot ownership to B.
+    await page.evaluate(() => window.__MESURER__.select("[data-testid='consumer-counter']"));
+    await settle(page);
+    await openDraft(page, trigger, composer, "legacy abandoned draft A", `${testCase.name} legacy mouse`);
+
+    const legacyBox = await second.boundingBox();
+    assert(legacyBox, `${testCase.name} legacy B must have rendered geometry`);
+    const legacyPoint = {
+      x: legacyBox.x + legacyBox.width / 2,
+      y: legacyBox.y + legacyBox.height / 2,
+    };
+    await dispatchLegacyMouse(page, "mousedown", legacyPoint);
+    await composer.waitFor({ state: "detached", timeout: 1200 });
+    await dispatchLegacyMouse(page, "mouseup", legacyPoint);
+    await settle(page);
+
+    assert.equal(
+      await selectionId(page),
+      "packed-annotation-handoff-target",
+      `${testCase.name} legacy mouse B handoff must transfer selection ownership to B`,
+    );
+    await assertFreshComposer(page, trigger, composer, `${testCase.name} legacy mouse handoff`);
+    const legacyScrollMode = await assertScrollOwnership(page, trigger);
 
     assert.deepEqual(errors, [], `${testCase.name} annotation handoff browser diagnostics: ${errors.join("\n")}`);
     console.log(`${testCase.name} annotation draft handoff: PASS`, {
       apiSelectionDiscardedDraft: true,
       composerDismissedOnPointerDown: true,
       selectionTransferredOnPointerUp: true,
-      restoredTriggerMode: scrollMode,
+      physicalRestoredTriggerMode: physicalScrollMode,
+      legacyMouseComposerDismissedOnMouseDown: true,
+      legacyMouseSelectionTransferredOnMouseUp: true,
+      legacyRestoredTriggerMode: legacyScrollMode,
       compositorScrollDelta: -240,
       draftCleared: true,
     });
