@@ -7,6 +7,7 @@ const SURFACE_GAP = MEASURE_LABEL_OFFSET;
 const RECT_TOLERANCE = 4;
 const STANDARD_DIMENSIONS_LABEL_HEIGHT = 20;
 const MEASUREMENT_ROOT = "[data-mesurer-measurement='true']";
+const SELECTED_MEASUREMENT_ROOT = "[data-mesurer-selected-measurement='true']";
 const MEASUREMENT_CHROME = "[data-mesurer-measurement-chrome='true']";
 const MEASUREMENT_LABEL = "[data-mesurer-measurement-label='true']";
 const EDITOR = "[data-mesurer-text-editor='true']";
@@ -93,9 +94,9 @@ export function resolveMeasurementAwareInspectorPlacement(
   cardSize: { width: number; height: number },
   viewport: { width: number; height: number },
 ): Placement {
-  // Before the dimensions label exists, reserve its standard lane from source
-  // geometry. Once the real selected label is available, use its actual
-  // footprint so the spacing below the pill exactly matches its source offset.
+  // Reserve Mesurer's dimensions lane even before the selected label has been
+  // portaled into its final document layer. Once it exists, use the real pill
+  // footprint rather than a synthetic height.
   const protectedRect = unionRects(measurementLabels.length > 0
     ? [host, ...measurementLabels]
     : [host, expectedDimensionsLabelBand(host)]);
@@ -182,12 +183,33 @@ const styleSnapshot = (element: HTMLElement, property: string): StyleSnapshot =>
   priority: element.style.getPropertyPriority(property),
 });
 
+const setStyle = (
+  element: HTMLElement,
+  property: string,
+  value: string,
+  priority = "",
+) => {
+  if (
+    element.style.getPropertyValue(property) === value
+    && element.style.getPropertyPriority(property) === priority
+  ) return;
+  element.style.setProperty(property, value, priority);
+};
+
 const restoreStyle = (element: HTMLElement, property: string, snapshot: StyleSnapshot) => {
+  if (
+    element.style.getPropertyValue(property) === snapshot.value
+    && element.style.getPropertyPriority(property) === snapshot.priority
+  ) return;
   if (snapshot.value || snapshot.priority) {
     element.style.setProperty(property, snapshot.value, snapshot.priority);
   } else {
     element.style.removeProperty(property);
   }
+};
+
+const setAttribute = (element: HTMLElement, name: string, value: string) => {
+  if (element.getAttribute(name) !== value) element.setAttribute(name, value);
 };
 
 const labelTracksHost = (label: Rect, host: Rect) => {
@@ -198,38 +220,33 @@ const labelTracksHost = (label: Rect, host: Rect) => {
     && Math.abs(labelCenter - hostCenter) <= RECT_TOLERANCE * 2;
 };
 
-const visibleMeasurementLabelRects = (
+const selectedMeasurementLabelRects = (
   scopes: ParentNode[],
   host: Rect,
   realm: Window & typeof globalThis,
 ) => {
   const roots = new Set<HTMLElement>();
   for (const scope of scopes) {
-    for (const root of scope.querySelectorAll<HTMLElement>(MEASUREMENT_ROOT)) roots.add(root);
+    for (const root of scope.querySelectorAll<HTMLElement>(SELECTED_MEASUREMENT_ROOT)) roots.add(root);
   }
 
   const labels: Rect[] = [];
   for (const root of roots) {
+    // Direct edit intentionally keeps selected MeasurementBox geometry mounted
+    // while suppressing its paint with opacity. Opacity therefore cannot decide
+    // ownership here; only the selected root is allowed to own pill clearance.
     const rootStyle = realm.getComputedStyle(root);
-    if (
-      rootStyle.display === "none"
-      || rootStyle.visibility === "hidden"
-      || Number.parseFloat(rootStyle.opacity) <= 0.01
-    ) continue;
+    if (rootStyle.display === "none" || rootStyle.visibility === "hidden") continue;
 
     const label = root.querySelector<HTMLElement>(MEASUREMENT_LABEL);
     if (!label) continue;
     const labelStyle = realm.getComputedStyle(label);
-    if (
-      labelStyle.display === "none"
-      || labelStyle.visibility === "hidden"
-      || Number.parseFloat(labelStyle.opacity) <= 0.01
-    ) continue;
+    if (labelStyle.display === "none" || labelStyle.visibility === "hidden") continue;
     const labelRect = rectFromDom(label.getBoundingClientRect());
     if (labelRect.width <= 0 || labelRect.height <= 0) continue;
 
     const chrome = root.querySelector<HTMLElement>(MEASUREMENT_CHROME);
-    const chromeRect = chrome ? rectFromDom(chrome.getBoundingClientRect()) : null;
+    const chromeRect = chrome?.isConnected ? rectFromDom(chrome.getBoundingClientRect()) : null;
     const chromeTracksHost = Boolean(
       chromeRect
       && chromeRect.width > 0
@@ -242,11 +259,23 @@ const visibleMeasurementLabelRects = (
   return labels;
 };
 
+const nodeTouchesSelectedMeasurement = (
+  node: Node,
+  realm: Window & typeof globalThis,
+) => {
+  if (!(node instanceof realm.HTMLElement)) return false;
+  return node.matches(SELECTED_MEASUREMENT_ROOT)
+    || Boolean(node.closest(SELECTED_MEASUREMENT_ROOT))
+    || Boolean(node.querySelector(SELECTED_MEASUREMENT_ROOT));
+};
+
 /**
  * Keep the selected element's dimensions pill readable when direct-edit
- * Typography is placed beside it. The standard pill lane is derived directly
- * from the edit ring, while any visible MeasurementBox label can extend that
- * protected footprint when necessary.
+ * Typography is placed beside it.
+ *
+ * This layer deliberately has no workspace/hover subscription. Pointer motion
+ * may create and move transient hover MeasurementBoxes, but those are not
+ * placement evidence for the selected element's Typography card.
  */
 export function installTextEditingMeasurementLabelClearance(
   ctx: MesurerPluginContext,
@@ -261,11 +290,8 @@ export function installTextEditingMeasurementLabelClearance(
   const runtimeMount = runtimeMounts.item(runtimeMounts.length - 1);
   if (!runtimeMount) return;
 
-  const workspace = runtime.createWorkspaceRuntime();
   let adjustment: AdjustmentSnapshot | null = null;
-  let queued = false;
   let frame = 0;
-  let settleTimer = 0;
   let disposed = false;
 
   const scopes = () => {
@@ -285,12 +311,14 @@ export function installTextEditingMeasurementLabelClearance(
       restoreStyle(shell, "--mesurer-native-anchor-x", snapshot.anchorX);
       restoreStyle(shell, "--mesurer-native-anchor-y", snapshot.anchorY);
       if (snapshot.marker === null) shell.removeAttribute(CLEARANCE_MARKER);
-      else shell.setAttribute(CLEARANCE_MARKER, snapshot.marker);
+      else setAttribute(shell, CLEARANCE_MARKER, snapshot.marker);
     }
     if (card.isConnected) {
       restoreStyle(card, "max-height", snapshot.cardMaxHeight);
       if (snapshot.placement === null) delete card.dataset.mesurerTextInspectorPlacement;
-      else card.dataset.mesurerTextInspectorPlacement = snapshot.placement;
+      else if (card.dataset.mesurerTextInspectorPlacement !== snapshot.placement) {
+        card.dataset.mesurerTextInspectorPlacement = snapshot.placement;
+      }
     }
     adjustment = null;
   };
@@ -321,9 +349,7 @@ export function installTextEditingMeasurementLabelClearance(
       return;
     }
 
-    if (adjustment && (adjustment.shell !== shell || adjustment.card !== card)) {
-      restoreAdjustment();
-    }
+    if (adjustment && (adjustment.shell !== shell || adjustment.card !== card)) restoreAdjustment();
 
     const host = rectFromDom(ring.getBoundingClientRect());
     if (host.width <= 0 || host.height <= 0) return;
@@ -333,14 +359,9 @@ export function installTextEditingMeasurementLabelClearance(
       && host.bottom > 0
       && host.left < ownerWindow.innerWidth
       && host.top < ownerWindow.innerHeight;
-    // Native anchor positioning already keeps Typography at its chosen offset
-    // from the edited element while the document scrolls. Once the source has
-    // left the viewport, do not feed its offscreen rect back into the
-    // viewport-safe placer: that would clamp the card to 8px and turn it into
-    // sticky viewport furniture instead of letting it travel with the source.
     if (nativeAnchored && !hostIntersectsViewport) return;
 
-    const labels = visibleMeasurementLabelRects(scopes(), host, realm);
+    const labels = selectedMeasurementLabelRects(scopes(), host, realm);
     const expectedLabel = expectedDimensionsLabelBand(host);
     const cardRect = rectFromDom(card.getBoundingClientRect());
     const intersectsProtectedLane = rectsOverlap(cardRect, expectedLabel)
@@ -356,23 +377,25 @@ export function installTextEditingMeasurementLabelClearance(
       { width: ownerWindow.innerWidth, height: ownerWindow.innerHeight },
     );
     if (nativeAnchored) {
-      shell.style.setProperty("--mesurer-native-anchor-x", `${next.left - host.left}px`);
-      shell.style.setProperty("--mesurer-native-anchor-y", `${next.top - host.top}px`);
+      setStyle(shell, "--mesurer-native-anchor-x", `${next.left - host.left}px`);
+      setStyle(shell, "--mesurer-native-anchor-y", `${next.top - host.top}px`);
     } else {
-      shell.style.left = `${next.left}px`;
-      shell.style.top = `${next.top}px`;
+      setStyle(shell, "left", `${next.left}px`);
+      setStyle(shell, "top", `${next.top}px`);
     }
 
     if (next.maxHeight === null && adjustment) {
       restoreStyle(card, "max-height", adjustment.cardMaxHeight);
     } else if (next.maxHeight !== null) {
-      card.style.maxHeight = `${next.maxHeight}px`;
+      setStyle(card, "max-height", `${next.maxHeight}px`);
     }
-    card.dataset.mesurerTextInspectorPlacement = next.placement;
-    shell.setAttribute(CLEARANCE_MARKER, "true");
+    if (card.dataset.mesurerTextInspectorPlacement !== next.placement) {
+      card.dataset.mesurerTextInspectorPlacement = next.placement;
+    }
+    setAttribute(shell, CLEARANCE_MARKER, "true");
   };
 
-  const syncInFrame = () => {
+  const schedule = () => {
     if (disposed || frame) return;
     frame = ownerWindow.requestAnimationFrame(() => {
       frame = 0;
@@ -380,36 +403,27 @@ export function installTextEditingMeasurementLabelClearance(
     });
   };
 
-  const schedule = () => {
-    if (disposed) return;
-    if (!queued) {
-      queued = true;
-      ownerWindow.queueMicrotask(() => {
-        queued = false;
-        sync();
-        syncInFrame();
-      });
-    }
-    if (settleTimer) ownerWindow.clearTimeout(settleTimer);
-    settleTimer = ownerWindow.setTimeout(() => {
-      settleTimer = 0;
-      sync();
-      syncInFrame();
-    }, 0);
-  };
-
   const runtimeObserver = new realm.MutationObserver(schedule);
   runtimeObserver.observe(runtimeMount, { childList: true, subtree: true });
+
   const sourceObserver = sourcePortalTarget === portalTarget
     ? null
-    : new realm.MutationObserver(schedule);
+    : new realm.MutationObserver((records) => {
+      const relevant = records.some((record) => {
+        if (record.type === "attributes") return nodeTouchesSelectedMeasurement(record.target, realm);
+        if (nodeTouchesSelectedMeasurement(record.target, realm)) return true;
+        return [...record.addedNodes, ...record.removedNodes]
+          .some((node) => nodeTouchesSelectedMeasurement(node, realm));
+      });
+      if (relevant) schedule();
+    });
   sourceObserver?.observe(sourcePortalTarget, {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["style"],
+    attributeFilter: ["data-mesurer-selected-measurement"],
   });
-  const unsubscribeWorkspace = workspace.subscribe(schedule);
+
   ownerWindow.addEventListener("resize", schedule, true);
   ownerWindow.addEventListener("dblclick", schedule, true);
   schedule();
@@ -418,12 +432,9 @@ export function installTextEditingMeasurementLabelClearance(
     disposed = true;
     runtimeObserver.disconnect();
     sourceObserver?.disconnect();
-    unsubscribeWorkspace();
-    workspace.dispose();
     ownerWindow.removeEventListener("resize", schedule, true);
     ownerWindow.removeEventListener("dblclick", schedule, true);
     if (frame) ownerWindow.cancelAnimationFrame(frame);
-    if (settleTimer) ownerWindow.clearTimeout(settleTimer);
     restoreAdjustment();
   });
 }
