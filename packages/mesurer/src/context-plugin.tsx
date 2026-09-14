@@ -54,6 +54,13 @@ type LegacyMouseHandoff = {
   selection: ReturnType<MesurerWorkspaceRuntime["currentSelection"]>;
 };
 
+type RecentPointerDown = {
+  x: number;
+  y: number;
+  button: number;
+  at: number;
+};
+
 export type MesurerContextPluginOptions = {
   /** Initial human-facing Context UI state. The Settings toggle can change it at runtime. Defaults to true. */
   ui?: boolean;
@@ -169,6 +176,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       let nextUiTriggerFallback: ContextTriggerFallback | undefined;
       let resetOpenComposer: ((fallback: ContextTriggerFallback) => void) | null = null;
       let legacyMouseHandoff: LegacyMouseHandoff | null = null;
+      let recentPointerDown: RecentPointerDown | null = null;
       const composerIsOpen = () => Boolean(
         uiMount?.element.querySelector("[data-mesurer-annotation-composer='true']"),
       );
@@ -266,6 +274,12 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         );
       };
       const dismissComposerBeforeExternalPointer = (event: PointerEvent) => {
+        recentPointerDown = {
+          x: event.clientX,
+          y: event.clientY,
+          button: event.button,
+          at: ownerWindow.performance.now(),
+        };
         legacyMouseHandoff = null;
         if (!composerIsOpen() || startsInsideContextUi(event)) return;
 
@@ -292,11 +306,24 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         ) ?? null;
       };
       const dismissComposerBeforeExternalMouse = (event: MouseEvent) => {
+        const pointer = recentPointerDown;
+        recentPointerDown = null;
+        const followsPointer = pointer !== null
+          && pointer.button === event.button
+          && Math.abs(pointer.x - event.clientX) <= 0.5
+          && Math.abs(pointer.y - event.clientY) <= 0.5
+          && ownerWindow.performance.now() - pointer.at <= 250;
+        if (followsPointer) {
+          // Chromium can retarget its compatibility mousedown to the protected
+          // top interaction plane even when the preceding PointerEvent was
+          // capture-bridged to a document-backed Context control. Do not mistake
+          // that compatibility event for a legacy host's independent page press.
+          return;
+        }
+
         legacyMouseHandoff = null;
         if (event.button !== 0 || !composerIsOpen() || startsInsideContextUi(event)) return;
 
-        // Browsers with Pointer Events already ran the pointerdown path above, so
-        // their compatibility mousedown observes a closed composer and stops here.
         // Some browser/agent hosts emit only legacy MouseEvents at the page node.
         // Remember that concrete page target before the Context remount so mouseup
         // can complete the same one-shot selection handoff without touching the
@@ -382,6 +409,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         ownerWindow.removeEventListener("mousedown", dismissComposerBeforeExternalMouse, true);
         ownerWindow.removeEventListener("mouseup", completeLegacyMouseHandoff, true);
         unsubscribeRuntime();
+        recentPointerDown = null;
         legacyMouseHandoff = null;
         nextUiTriggerFallback = undefined;
         resetOpenComposer = null;
