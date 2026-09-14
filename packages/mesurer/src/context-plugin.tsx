@@ -33,7 +33,7 @@ const COPY_ICON = {
 };
 const COPY_SELECTION_ICON = {
   viewBox: "0 0 256 256",
-  paths: ["M152,40a8,8,0,0,1-8,8H112a8,8,0,0,1,0-16h32A8,8,0,0,1,152,40Zm-8,168H112a8,8,0,0,0,0,16h32a8,8,0,0,0,0-16ZM208,32H184a8,8,0,0,0,0,16h24V72a8,8,0,0,0,16,0V48A16,16,0,0,0,208,32Zm8,72a8,8,0,0,0-8,8v32a8,8,0,0,0,16,0V112A8,8,0,0,0,216,104Zm0,72a8,8,0,0,0-8,8v24H184a8,8,0,0,0,0,16h24a16,16,0,0,0,16-16V184A8,8,0,0,0,216,176ZM40,152a8,8,0,0,0,8-8V112a8,8,0,0,0-16,0v32A8,8,0,0,0,40,152Zm32,56H48V184a8,8,0,0,0-16,0v24a16,16,0,0,0,16,16H72a8,8,0,0,0,0-16ZM72,32H48A16,16,0,0,0,32,48V72a8,8,0,0,0,16,0V48H72a8,8,0,0,0,0-16Z"],
+  paths: ["M152,40a8,8,0,0,1-8,8H112a8,8,0,0,1,0-16h32A8,8,0,0,1,152,40Zm-8,168H112a8,8,0,0,0,0,16h32a8,8,0,0,0,0-16ZM208,32H184a8,8,0,0,0,0,16h24V72a8,8,0,0,0,16,0V48A16,16,0,0,0,208,32Zm8,72a8,8,0,0,0-8,8v32a8,8,0,0,0,16,0V112A8,8,0,0,0,216,104Zm0,72a8,8,0,0,0-8,8v24H184a8,8,0,0,0,0,16h24a16,16,0,0,0,16-16V184A8,8,0,0,0,216,176ZM40,152a8,8,0,0,0,8-8V112a8,8,0,0,0-16,0v32A8,8,0,0,0,40,152Zm32,56H48V184a8,8,0,0,0-16,0v24a16,16,0,0,0,16,16H72a8,8,0,0,0,0-16ZM72,32H48A16,16,0,0,0,32,48V72a8,8,0,0,0,16,0V48A16,16,0,0,0,32,48Z"],
 };
 const NOTE_ICON = {
   viewBox: "0 0 256 256",
@@ -52,6 +52,10 @@ type LegacyMouseHandoff = {
   startX: number;
   startY: number;
   selection: ReturnType<MesurerWorkspaceRuntime["currentSelection"]>;
+};
+
+type DirectPointerHandoff = LegacyMouseHandoff & {
+  pointerId: number;
 };
 
 type RecentPointerDown = {
@@ -176,6 +180,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       let nextUiTriggerFallback: ContextTriggerFallback | undefined;
       let resetOpenComposer: ((fallback: ContextTriggerFallback) => void) | null = null;
       let legacyMouseHandoff: LegacyMouseHandoff | null = null;
+      let directPointerHandoff: DirectPointerHandoff | null = null;
       let recentPointerDown: RecentPointerDown | null = null;
       const composerIsOpen = () => Boolean(
         uiMount?.element.querySelector("[data-mesurer-annotation-composer='true']"),
@@ -273,22 +278,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
           node === mount || (node instanceof ownerWindow.Node && mount.contains(node)),
         );
       };
-      const dismissComposerBeforeExternalPointer = (event: PointerEvent) => {
-        recentPointerDown = {
-          x: event.clientX,
-          y: event.clientY,
-          button: event.button,
-          at: ownerWindow.performance.now(),
-        };
-        legacyMouseHandoff = null;
-        if (!composerIsOpen() || startsInsideContextUi(event)) return;
-
-        // Abandon the transient draft on pointerdown, before Select sees the same
-        // physical gesture. The current selection stays cached while pointerdown
-        // is in flight and exactly one following selection inherits that fallback.
-        resetOpenComposer?.("current-and-next");
-      };
-      const legacyMousePageTarget = (event: MouseEvent) => {
+      const pageTargetFromEvent = (event: MouseEvent | PointerEvent) => {
         const path = event.composedPath();
         const startsInsideMesurerUi = path.some((node) =>
           node instanceof ownerWindow.Element
@@ -304,6 +294,56 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
           && node.isConnected
           && isElementWithinDomTarget(node, solid.pageTarget),
         ) ?? null;
+      };
+      const dismissComposerBeforeExternalPointer = (event: PointerEvent) => {
+        recentPointerDown = {
+          x: event.clientX,
+          y: event.clientY,
+          button: event.button,
+          at: ownerWindow.performance.now(),
+        };
+        legacyMouseHandoff = null;
+        directPointerHandoff = null;
+        if (!composerIsOpen() || startsInsideContextUi(event)) return;
+
+        // A browser/agent host can target the concrete inspected page node
+        // directly instead of driving Select's top interaction plane. Preserve
+        // that explicit page ownership so pointerup can finish the same click
+        // if ordinary Select did not already commit it.
+        if (event.button === 0) {
+          const target = pageTargetFromEvent(event);
+          if (target) {
+            try {
+              directPointerHandoff = {
+                selector: getElementSelector(target),
+                startX: event.clientX,
+                startY: event.clientY,
+                pointerId: event.pointerId,
+                selection: runtime.currentSelection(),
+              };
+            } catch {
+              directPointerHandoff = null;
+            }
+          }
+        }
+
+        // Abandon the transient draft on pointerdown, before Select sees the same
+        // physical gesture. The current selection stays cached while pointerdown
+        // is in flight and exactly one following selection inherits that fallback.
+        resetOpenComposer?.("current-and-next");
+      };
+      const completeDirectPointerHandoff = (event: PointerEvent) => {
+        const pending = directPointerHandoff;
+        directPointerHandoff = null;
+        if (!pending || event.button !== 0 || event.pointerId !== pending.pointerId) return;
+        if (Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY) > 6) return;
+        if (!sameSelection(pending.selection, runtime.currentSelection())) return;
+        try {
+          runtime.select([pending.selector]);
+        } catch {
+          // The page may have removed/replaced the direct target during the
+          // gesture. The stale draft was still abandoned correctly.
+        }
       };
       const dismissComposerBeforeExternalMouse = (event: MouseEvent) => {
         const pointer = recentPointerDown;
@@ -328,7 +368,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         // Remember that concrete page target before the Context remount so mouseup
         // can complete the same one-shot selection handoff without touching the
         // normal PointerEvent path.
-        const target = legacyMousePageTarget(event);
+        const target = pageTargetFromEvent(event);
         if (target) {
           try {
             legacyMouseHandoff = {
@@ -357,6 +397,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         }
       };
       ownerWindow.addEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
+      ownerWindow.addEventListener("pointerup", completeDirectPointerHandoff, true);
       ownerWindow.addEventListener("mousedown", dismissComposerBeforeExternalMouse, true);
       ownerWindow.addEventListener("mouseup", completeLegacyMouseHandoff, true);
 
@@ -406,10 +447,12 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
 
       ctx.lifecycle.onDispose(() => {
         ownerWindow.removeEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
+        ownerWindow.removeEventListener("pointerup", completeDirectPointerHandoff, true);
         ownerWindow.removeEventListener("mousedown", dismissComposerBeforeExternalMouse, true);
         ownerWindow.removeEventListener("mouseup", completeLegacyMouseHandoff, true);
         unsubscribeRuntime();
         recentPointerDown = null;
+        directPointerHandoff = null;
         legacyMouseHandoff = null;
         nextUiTriggerFallback = undefined;
         resetOpenComposer = null;
