@@ -138,10 +138,12 @@ export function installUnifiedTextSelectLayer(
     const height = Math.min(naturalHeight, cardMaxHeight);
     popup.style.maxHeight = `${height}px`;
 
-    // The card is static inside the fixed placement shell, so absolute popup
-    // coordinates are expressed in the shell's coordinate space. Clamp them
-    // to the card's actual visible rectangle so overflow never becomes part of
-    // the pointer-ownership contract.
+    // The popup stays a descendant of the scrollable card so pointer ownership
+    // remains inside the active edit session, but its absolute containing block
+    // is the fixed placement shell. A scrolling ancestor therefore subtracts
+    // its scroll offset from the rendered popup after these shell coordinates
+    // are resolved. Add that scalar offset back exactly once so the popup keeps
+    // the same visible relationship to its trigger while the card itself scrolls.
     const cardLeft = cardRect.left - shellRect.left;
     const cardTop = cardRect.top - shellRect.top;
     const triggerLeft = triggerRect.left - shellRect.left;
@@ -159,8 +161,8 @@ export function installUnifiedTextSelectLayer(
     const maxLeft = Math.max(minLeft, cardLeft + cardRect.width - MENU_PADDING - width);
     const minTop = cardTop + MENU_PADDING;
     const maxTop = Math.max(minTop, cardTop + cardRect.height - MENU_PADDING - height);
-    popup.style.left = `${clamp(triggerLeft, minLeft, maxLeft)}px`;
-    popup.style.top = `${clamp(desiredTop, minTop, maxTop)}px`;
+    popup.style.left = `${clamp(triggerLeft, minLeft, maxLeft) + card.scrollLeft}px`;
+    popup.style.top = `${clamp(desiredTop, minTop, maxTop) + card.scrollTop}px`;
   };
 
   const reconcile = () => {
