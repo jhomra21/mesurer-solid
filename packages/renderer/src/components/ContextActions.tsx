@@ -183,22 +183,23 @@ export function ContextActions(props: ContextActionsProps) {
     }
 
     const targetChanged = element !== previousElement;
+    const nextAnchorName = targetChanged
+      ? `--mesurer-annotation-trigger-${++annotationAnchorSequence}`
+      : selectionTriggerAnchorName();
     releaseSelectionTriggerAnchor();
     if (!element?.isConnected) return;
-    if (targetChanged) {
-      // Keep the positioned trigger subscribed to the anchor identity itself.
-      // This matters when a hidden trigger is remounted by an earlier selection
-      // subscriber: changing the signal repairs that live node immediately rather
-      // than waiting for another placement invalidation to rerun a plain variable.
-      setSelectionTriggerAnchorName(`--mesurer-annotation-trigger-${++annotationAnchorSequence}`);
-    }
     trackedTriggerElement = element;
     const currentWindow = element.ownerDocument.defaultView;
     if (!currentWindow) return;
 
     if (shouldUseNative) {
-      releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName());
+      // Install the target side first. Switching the positioned trigger to a new
+      // custom-ident before that name exists can make Chromium retain unresolved
+      // anchor geometry for the live node. Once the target owns the name, changing
+      // the signal repairs either the existing trigger or the remounted trigger.
+      releaseTriggerAnchor = addAnchorName(element, nextAnchorName);
       anchoredTriggerElement = element;
+      if (targetChanged) setSelectionTriggerAnchorName(nextAnchorName);
       nestedTriggerScroll = installNestedScrollCompensation(
         currentWindow,
         element,
@@ -207,6 +208,7 @@ export function ContextActions(props: ContextActionsProps) {
       return;
     }
 
+    if (targetChanged) setSelectionTriggerAnchorName(nextAnchorName);
     // The fallback is absolutely positioned in the document layer, so ordinary
     // window scrolling is compositor-owned. Keep JavaScript compensation only
     // for nested overflow ancestors that the body portal cannot inherit.
@@ -471,7 +473,8 @@ export function ContextActions(props: ContextActionsProps) {
     };
     const end = (next: PointerEvent) => {
       if (!surfaceDrag || next.pointerId !== surfaceDrag.pointerId) return;
-      root.style.userSelect = previousUserSelect;
+      const rootStyle = root.style;
+      rootStyle.userSelect = previousUserSelect;
       currentWindow.removeEventListener("pointermove", move);
       currentWindow.removeEventListener("pointerup", end);
       currentWindow.removeEventListener("pointercancel", end);
