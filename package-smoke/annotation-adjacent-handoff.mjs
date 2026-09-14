@@ -27,10 +27,24 @@ const center = async (locator, label) => {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2, box };
 };
 
-const selectedId = async (page) => {
-  const context = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
-  assert.equal(context.targets.length, 1, `expected one selected target: ${JSON.stringify(context.targets)}`);
-  return context.targets[0]?.inspection.id ?? null;
+const selectionSnapshot = (page) => page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
+
+const selectedId = async (page, label) => {
+  const context = await selectionSnapshot(page);
+  assert.equal(context.targets.length, 1, `${label} expected one selected target: ${JSON.stringify(context.targets)}`);
+  const target = context.targets[0];
+  assert.equal(
+    target?.inspection.id,
+    "packed-adjacent-b",
+    `${label} selected the wrong target: ${JSON.stringify({
+      selector: target?.selector ?? null,
+      tag: target?.inspection.tag ?? null,
+      id: target?.inspection.id ?? null,
+      text: target?.inspection.text ?? null,
+      rect: target?.inspection.rect ?? null,
+    })}`,
+  );
+  return target.inspection.id;
 };
 
 const addAdjacentTargets = (page) => page.evaluate(() => {
@@ -44,7 +58,7 @@ const addAdjacentTargets = (page) => page.evaluate(() => {
     Object.assign(target.style, {
       position: "absolute",
       left: `${left}px`,
-      top: "120px",
+      top: "320px",
       width: "180px",
       height: "80px",
       border: "1px solid #cbd5e1",
@@ -55,6 +69,9 @@ const addAdjacentTargets = (page) => page.evaluate(() => {
     document.body.append(target);
   };
 
+  // Keep the targets horizontally adjacent so the rejected side-placement
+  // composer covers B, but put them below the framework demo content so snapping
+  // has no unrelated consumer element to choose at B's click point.
   makeTarget("packed-adjacent-a", "Adjacent target A", 100);
   makeTarget("packed-adjacent-b", "Adjacent target B", 320);
 });
@@ -135,9 +152,8 @@ async function runCase(testCase) {
     await settle(page);
 
     assert.equal(
-      await selectedId(page),
+      await selectedId(page, `${testCase.name} adjacent physical handoff`),
       "packed-adjacent-b",
-      `${testCase.name} adjacent physical handoff must select B after pointerup`,
     );
     assert.deepEqual(
       diagnostics,
