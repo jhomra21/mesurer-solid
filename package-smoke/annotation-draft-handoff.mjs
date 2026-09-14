@@ -36,13 +36,13 @@ const selectionId = async (page) => {
 const addTargets = (page) => page.evaluate(() => {
   document.querySelector("#packed-annotation-api-handoff-target")?.remove();
   document.querySelector("#packed-annotation-handoff-target")?.remove();
+  document.querySelector("#packed-annotation-direct-pointer-target")?.remove();
   document.documentElement.style.minHeight = "1800px";
   document.body.style.minHeight = "1800px";
 
   const makeTarget = (id, text, left, top) => {
-    const target = document.createElement("button");
+    const target = document.createElement("div");
     target.id = id;
-    target.type = "button";
     target.textContent = text;
     Object.assign(target.style, {
       position: "absolute",
@@ -84,6 +84,34 @@ async function assertFreshComposer(page, trigger, composer, label) {
     .getByRole("button", { name: "Close note composer" })
     .evaluate((button) => button.click());
   await composer.waitFor({ state: "detached", timeout: 3000 });
+}
+
+async function assertTriggerBelongsTo(page, trigger, targetSelector, label) {
+  await trigger.waitFor({ state: "visible", timeout: 3000 });
+  const geometry = await trigger.evaluate((element, selector) => {
+    const target = document.querySelector(selector);
+    if (!(target instanceof HTMLElement)) throw new Error(`Missing handoff target: ${selector}`);
+    const targetRect = target.getBoundingClientRect();
+    const triggerRect = element.getBoundingClientRect();
+    return {
+      mode: element.dataset.mesurerAnnotationScrollMode ?? null,
+      target: { left: targetRect.left, top: targetRect.top, width: targetRect.width, height: targetRect.height },
+      trigger: { left: triggerRect.left, top: triggerRect.top, width: triggerRect.width, height: triggerRect.height },
+    };
+  }, targetSelector);
+  const targetCenter = {
+    x: geometry.target.left + geometry.target.width / 2,
+    y: geometry.target.top + geometry.target.height / 2,
+  };
+  const triggerCenter = {
+    x: geometry.trigger.left + geometry.trigger.width / 2,
+    y: geometry.trigger.top + geometry.trigger.height / 2,
+  };
+  assert(
+    Math.hypot(targetCenter.x - triggerCenter.x, targetCenter.y - triggerCenter.y) < 200,
+    `${label} restored Add Note trigger must belong to the new target: ${JSON.stringify(geometry)}`,
+  );
+  return geometry.mode;
 }
 
 async function assertScrollOwnership(page, trigger) {
@@ -161,6 +189,48 @@ async function dispatchLegacyMouse(page, type, point) {
   }, { eventType: type, x: point.x, y: point.y });
 }
 
+async function placeDirectPointerTargetBehindComposer(page, composer) {
+  const composerBox = await composer.boundingBox();
+  assert(composerBox, "direct pointer composer must have rendered geometry");
+  return page.evaluate((box) => {
+    document.querySelector("#packed-annotation-direct-pointer-target")?.remove();
+    const target = document.createElement("div");
+    target.id = "packed-annotation-direct-pointer-target";
+    target.textContent = "Direct page target underneath composer";
+    Object.assign(target.style, {
+      position: "fixed",
+      left: `${box.x + 24}px`,
+      top: `${box.y + 24}px`,
+      width: "150px",
+      height: "44px",
+      zIndex: "1",
+      background: "white",
+    });
+    document.body.append(target);
+    const rect = target.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }, composerBox);
+}
+
+async function dispatchDirectPointer(page, type, point) {
+  await page.evaluate(({ eventType, x, y }) => {
+    const target = document.querySelector("#packed-annotation-direct-pointer-target");
+    if (!(target instanceof HTMLElement)) throw new Error("Missing direct pointer handoff target");
+    target.dispatchEvent(new PointerEvent(eventType, {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      pointerId: 77,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+      buttons: eventType === "pointerdown" ? 1 : 0,
+      clientX: x,
+      clientY: y,
+    }));
+  }, { eventType: type, x: point.x, y: point.y });
+}
+
 async function runCase(testCase) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
@@ -173,6 +243,15 @@ async function runCase(testCase) {
     await page.goto(testCase.url, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => Boolean(window.__HOST_READY__));
     if (testCase.injectPath) {
+      // The manual acceptance page can stay open across candidates. Never let
+      // package smoke accidentally validate an older connected injected runtime.
+      await page.evaluate(() => {
+        window.__MESURER_CONFIG__ = {
+          ...(window.__MESURER_CONFIG__ ?? {}),
+          context: true,
+          reuseExisting: false,
+        };
+      });
       const source = await readFile(testCase.injectPath, "utf8");
       await page.evaluate(source);
     }
@@ -196,9 +275,6 @@ async function runCase(testCase) {
     });
     await settle(page);
 
-    // The previous real-consumer failure also survived a public selection API
-    // change. Prove transient draft ownership does not depend on an imperative
-    // ContextActions controller becoming available after renderer settlement.
     await openDraft(page, trigger, composer, "programmatic abandoned draft A", testCase.name);
     await page.evaluate(() => window.__MESURER__.select("#packed-annotation-api-handoff-target"));
     await composer.waitFor({ state: "detached", timeout: 1200 });
@@ -210,9 +286,6 @@ async function runCase(testCase) {
     );
     await assertFreshComposer(page, trigger, composer, `${testCase.name} API handoff`);
 
-    // Reset to A, then exercise the exact physical pointerdown→pointerup sequence
-    // from manual acceptance. The composer must disappear during pointerdown,
-    // before Select commits B on pointerup.
     await page.evaluate(() => window.__MESURER__.select("[data-testid='consumer-counter']"));
     await settle(page);
     await openDraft(page, trigger, composer, "abandoned draft A", testCase.name);
@@ -236,40 +309,49 @@ async function runCase(testCase) {
       "packed-annotation-handoff-target",
       `${testCase.name} physical B click must transfer selection ownership to B`,
     );
-
-    await trigger.waitFor({ state: "visible", timeout: 3000 });
-    const handoff = await trigger.evaluate((element) => {
-      const target = document.querySelector("#packed-annotation-handoff-target");
-      if (!(target instanceof HTMLElement)) throw new Error("Missing packed physical B target");
-      const targetRect = target.getBoundingClientRect();
-      const triggerRect = element.getBoundingClientRect();
-      return {
-        mode: element.dataset.mesurerAnnotationScrollMode ?? null,
-        target: { left: targetRect.left, top: targetRect.top, width: targetRect.width, height: targetRect.height },
-        trigger: { left: triggerRect.left, top: triggerRect.top, width: triggerRect.width, height: triggerRect.height },
-      };
-    });
-    const targetCenter = {
-      x: handoff.target.left + handoff.target.width / 2,
-      y: handoff.target.top + handoff.target.height / 2,
-    };
-    const triggerCenter = {
-      x: handoff.trigger.left + handoff.trigger.width / 2,
-      y: handoff.trigger.top + handoff.trigger.height / 2,
-    };
-    assert(
-      Math.hypot(targetCenter.x - triggerCenter.x, targetCenter.y - triggerCenter.y) < 200,
-      `${testCase.name} restored Add Note trigger must belong to B: ${JSON.stringify(handoff)}`,
+    await assertTriggerBelongsTo(
+      page,
+      trigger,
+      "#packed-annotation-handoff-target",
+      `${testCase.name} physical handoff`,
     );
-
     await assertFreshComposer(page, trigger, composer, `${testCase.name} physical handoff`);
     const physicalScrollMode = await assertScrollOwnership(page, trigger);
 
-    // Some browser/agent hosts synthesize only legacy MouseEvents at the concrete
-    // page node. That used to reproduce the manual failure exactly: the composer
-    // stayed open on mousedown and A remained selected after mouseup. Keep the
-    // normal PointerEvent path above, then prove this narrow compatibility path
-    // abandons A before mouseup and transfers the same one-shot ownership to B.
+    // Exact regression for the rejected real-consumer signature. The old packed
+    // fixture used a <button>, which document-inspector-runtime intentionally
+    // exempted from bridge routing. An ordinary page <div> targeted underneath
+    // the open composer was instead captured by the bridge and routed back into
+    // the composer: the draft stayed open and A stayed selected. Model a host
+    // that explicitly targets that page node and require ownership transfer.
+    await page.evaluate(() => window.__MESURER__.select("[data-testid='consumer-counter']"));
+    await settle(page);
+    await openDraft(
+      page,
+      trigger,
+      composer,
+      "direct pointer abandoned draft A",
+      `${testCase.name} direct page pointer`,
+    );
+    const directPoint = await placeDirectPointerTargetBehindComposer(page, composer);
+    await dispatchDirectPointer(page, "pointerdown", directPoint);
+    await composer.waitFor({ state: "detached", timeout: 1200 });
+    await dispatchDirectPointer(page, "pointerup", directPoint);
+    await settle(page);
+    assert.equal(
+      await selectionId(page),
+      "packed-annotation-direct-pointer-target",
+      `${testCase.name} direct page pointer handoff must select the explicitly targeted div`,
+    );
+    const directRestoredTriggerMode = await assertTriggerBelongsTo(
+      page,
+      trigger,
+      "#packed-annotation-direct-pointer-target",
+      `${testCase.name} direct page pointer handoff`,
+    );
+    await assertFreshComposer(page, trigger, composer, `${testCase.name} direct page pointer handoff`);
+    await page.evaluate(() => document.querySelector("#packed-annotation-direct-pointer-target")?.remove());
+
     await page.evaluate(() => window.__MESURER__.select("[data-testid='consumer-counter']"));
     await settle(page);
     await openDraft(page, trigger, composer, "legacy abandoned draft A", `${testCase.name} legacy mouse`);
@@ -299,6 +381,9 @@ async function runCase(testCase) {
       composerDismissedOnPointerDown: true,
       selectionTransferredOnPointerUp: true,
       physicalRestoredTriggerMode: physicalScrollMode,
+      directPagePointerComposerDismissedOnPointerDown: true,
+      directPagePointerSelectionTransferredOnPointerUp: true,
+      directRestoredTriggerMode: directRestoredTriggerMode,
       legacyMouseComposerDismissedOnMouseDown: true,
       legacyMouseSelectionTransferredOnMouseUp: true,
       legacyRestoredTriggerMode: legacyScrollMode,
