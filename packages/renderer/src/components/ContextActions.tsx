@@ -9,6 +9,7 @@ import { CloseIcon, CopyIcon, NoteIcon, TrashIcon } from "./Icons";
 export type ContextActionsController = {
   openNoteComposer(): void;
   closeNoteComposer(): void;
+  abandonNoteComposer(): void;
 };
 
 export type ContextActionsProps = {
@@ -104,6 +105,7 @@ export function ContextActions(props: ContextActionsProps) {
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
   let selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
   let fallbackTriggerElement: HTMLElement | null = null;
+  let fallbackNextSelection = false;
   let composerSelection: ContextSelectionSnapshot | null = null;
   let surfaceDrag: {
     surfaceId: string;
@@ -271,6 +273,14 @@ export function ContextActions(props: ContextActionsProps) {
     if (targetChanged) {
       placementTarget = nextPlacementTarget;
       observeTriggerGeometry(placementTarget);
+      if (fallbackNextSelection) {
+        // A composer abandoned on pointerdown disappears before Select commits
+        // pointerup. Carry that intent across the short gap so the newly selected
+        // target is restored through the document-coordinate path instead of the
+        // Chromium CSS-anchor handoff that can retain stale geometry.
+        fallbackNextSelection = false;
+        fallbackTriggerElement = nextPlacementTarget;
+      }
     }
     // Commit native/fallback ownership before invalidating the placement memo.
     // A keyed trigger owner then replaces the positioned node only when the page
@@ -446,6 +456,7 @@ export function ContextActions(props: ContextActionsProps) {
   const panelPosition = (annotationId: string) => annotationLayout(annotationId)?.panel ?? { left: 8, top: 8 };
 
   const openAnnotation = (annotationId: string) => {
+    fallbackNextSelection = false;
     composerSelection = null;
     setNoteComposerOpen(false);
     setActiveAnnotationId(annotationId);
@@ -534,8 +545,17 @@ export function ContextActions(props: ContextActionsProps) {
     }
   };
 
+  const resetNoteComposer = () => {
+    composerSelection = null;
+    setNote("");
+    setNoteComposerOpen(false);
+    setNoteError(null);
+    setComposerPosition(null);
+  };
+
   const openNoteComposer = () => {
     if (!hasSelection()) return;
+    fallbackNextSelection = false;
     composerSelection = captureSelection();
     setNoteError(null);
     setStatus(null);
@@ -545,6 +565,7 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const closeNoteComposer = () => {
+    const wasOpen = noteComposerOpen();
     const changedSelection = composerSelection !== null && !sameSelection(composerSelection, captureSelection());
     if (changedSelection) {
       // Chromium can retain unresolved CSS-anchor geometry when a hidden Add Note
@@ -553,19 +574,30 @@ export function ContextActions(props: ContextActionsProps) {
       // Window scrolling remains compositor-owned; only nested overflow deltas
       // are compensated by JavaScript, exactly like the CodexBrowser fallback.
       fallbackTriggerElement = currentSelectionTriggerElement();
+      fallbackNextSelection = false;
       syncSelectionTriggerAnchor();
       bumpTriggerPlacement();
+    } else if (wasOpen) {
+      // Explicit Cancel/Escape belongs to the current selection and should not
+      // influence the anchor strategy of some later unrelated selection.
+      fallbackNextSelection = false;
     }
-    composerSelection = null;
-    setNote("");
-    setNoteComposerOpen(false);
-    setNoteError(null);
-    setComposerPosition(null);
+    resetNoteComposer();
+  };
+
+  const abandonNoteComposer = () => {
+    if (!noteComposerOpen()) return;
+    // The external pointerdown closes the old draft before Select commits its
+    // pointerup. Remember exactly one pending ownership transfer so that new
+    // target gets the stable cached-delta placement after the selection changes.
+    fallbackNextSelection = true;
+    resetNoteComposer();
   };
 
   const addNote = () => {
     try {
       const annotation = props.runtime.addSelectionAnnotation(note());
+      fallbackNextSelection = false;
       composerSelection = null;
       setNote("");
       setNoteError(null);
@@ -578,7 +610,7 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   onSettled(() => {
-    props.onController?.({ openNoteComposer, closeNoteComposer });
+    props.onController?.({ openNoteComposer, closeNoteComposer, abandonNoteComposer });
     return () => props.onController?.(null);
   });
 
