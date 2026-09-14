@@ -10,6 +10,14 @@ Good acceptance contracts perform real input such as clicks, double-clicks, typi
 
 For regressions reported manually, reproduce the exact failed scenario before considering the fix complete. A test that does not actually reach the failed surface or behavior is not evidence, even if it is green.
 
+## Measure the rendered surface, not a proxy
+
+When a regression is about visible spacing, overlap, or jitter, assert the geometry the user actually sees. Do not infer visible correctness from an internal shell coordinate, a synthetic fallback lane, or a placement constant when another wrapper/card can add its own offset.
+
+For direct text editing, this means measuring the real edit/selection geometry, the rendered dimensions pill, and the visible Typography card. If the intended gaps are symmetric, compare those rendered gaps directly. When a late anchor handoff can rewrite geometry, the contract should perturb that handoff and prove the visible surfaces recover to the intended relationship.
+
+Pointer-motion regressions must be sampled while the pointer is moving. A before/after assertion can miss a visible intermediate-frame oscillation that returns to the starting coordinate. When a user reports jitter, sample the rendered card on successive animation frames and fail on intermediate movement or unexpected placement-style writes.
+
 ## Supporting tests
 
 Unit, jsdom, attribute, role, count, existence, and implementation-detail checks are supporting tests only. They may protect invariants and shorten debugging, but they do not prove the feature works in the browser and must not be cited as the reason a manual failure is fixed.
@@ -17,6 +25,14 @@ Unit, jsdom, attribute, role, count, existence, and implementation-detail checks
 Do not make production code accommodate missing jsdom/browser APIs merely to keep a supporting test green. Put test-environment shims in the test environment instead.
 
 Implementation diagnostics such as data attributes, event counters, geometry-read counters, or hot-path instrumentation are useful only when paired with an end-to-end behavior contract. They can explain *how* a behavior stays correct or performant; they cannot substitute for proving that the behavior is correct.
+
+## Hot-path performance contracts
+
+Performance regressions should prefer structural contracts over timing thresholds when the required complexity can be stated directly. Timing is noisy across CI runners; synchronous DOM work is observable and deterministic.
+
+For the accepted direct-edit window-scroll path, the packed consumer contract injects thousands of unrelated nodes, enters direct edit, fires a burst of consecutive window scroll events, and requires zero synchronous document/element selector calls, layout reads, Range geometry, hit testing, or computed-style reads during that burst. Deferred settle work may reconcile afterward, but ordinary compositor scroll must not acquire new synchronous discovery/layout cost.
+
+Pointer movement has the same ownership principle: hover may update hover chrome, but pure pointer motion must not restabilize or rewrite source-linked Typography placement when the edited source itself did not move.
 
 ## Release rule
 
