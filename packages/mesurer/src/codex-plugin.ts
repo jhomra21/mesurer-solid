@@ -180,11 +180,13 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         },
         async send(request) {
           const message = await feedbackMessage(contextService, request, instruction);
-          const thread = request?.thread?.trim() || undefined;
+          const thread = request?.thread?.trim();
+          const payload: { message: string; thread?: string } = { message };
+          if (thread) payload.thread = thread;
           const response = await bridgeRequest(endpoint, "send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message, ...(thread ? { thread } : {}) }),
+            body: JSON.stringify(payload),
           });
           const sentThread = response.thread?.trim();
           if (!sentThread) throw new Error("Mesurer Codex bridge did not report the destination thread.");
