@@ -8,7 +8,7 @@ import {
   MESURER_CODEX_SERVICE_ID,
   type MesurerCodexService,
 } from "../../mesurer/src/codex-plugin";
-import type { MesurerAnnotation } from "../../mesurer/src/context";
+import type { MesurerAnnotation, MesurerContextRequest } from "../../mesurer/src/context";
 import type { MesurerContextService } from "../../mesurer/src/context-plugin";
 
 afterEach(() => {
@@ -33,7 +33,7 @@ const annotation: MesurerAnnotation = {
 };
 
 const createContextService = () => {
-  const contextText = vi.fn(async (request) => {
+  const contextText = vi.fn(async (request?: MesurerContextRequest) => {
     if (request && "annotation" in request) return `annotation evidence ${request.annotation}`;
     if (request?.scope === "selection") return "selection evidence";
     return "workspace evidence";
@@ -56,7 +56,7 @@ describe("codexPlugin", () => {
   it("sends saved Context evidence through the explicit loopback transport", async () => {
     const host = createMesurerPluginHost();
     const { service: context, contextText } = createContextService();
-    const fetchMock = vi.fn(async () => ({
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued" }),
@@ -89,7 +89,7 @@ describe("codexPlugin", () => {
     const host = createMesurerPluginHost();
     const { service: context, contextText } = createContextService();
     context.annotations = async () => [];
-    const fetchMock = vi.fn(async () => ({
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ ok: true, thread: "thread-2" }),
