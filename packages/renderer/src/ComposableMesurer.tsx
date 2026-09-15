@@ -42,6 +42,8 @@ export type MesurerSolidRuntimeService = {
   ownerWindow: Window;
   portalTarget: HTMLElement | ShadowRoot;
   pageTarget: HTMLElement | ShadowRoot;
+  /** Exact canonical renderer root owned by this runtime/model. */
+  rendererRoot?: HTMLElement;
   /** Current canonical page-targeting tool when exposed by the renderer bridge. */
   currentToolMode?(): MesurerModel["state"]["toolMode"];
   createWorkspaceRuntime(): MesurerWorkspaceRuntime;
@@ -355,11 +357,17 @@ export default function ComposableMesurer(props: MesurerProps) {
     const ownerDocument = target.ownerDocument ?? document;
     const ownerWindow = ownerDocument.defaultView ?? window;
     const pageTarget = input.pageTarget ?? ownerDocument.body;
-    const queryRoot: ParentNode = target;
 
     const requireModel = () => {
       if (!rendererModel) throw new Error("Mesurer renderer model is unavailable for runtime bridge setup.");
       return rendererModel;
+    };
+    const requireRendererRoot = () => {
+      const root = requireModel().rendererRoot;
+      if (!root?.isConnected) {
+        throw new Error("Mesurer renderer root is unavailable for runtime bridge setup.");
+      }
+      return root;
     };
     const requireBuiltinController = () => {
       if (!builtinController) throw new Error("Mesurer built-in controller is unavailable for runtime bridge setup.");
@@ -369,8 +377,7 @@ export default function ComposableMesurer(props: MesurerProps) {
     const createInspectorMount = () => {
       const element = ownerDocument.createElement("div");
       element.dataset.mesurerInspectorUi = "true";
-      const inspectorRoot = queryRoot.querySelector<HTMLElement>("[data-mesurer-root='true']");
-      (inspectorRoot ?? target).append(element);
+      requireRendererRoot().append(element);
       let disposed = false;
       return {
         element,
@@ -624,6 +631,7 @@ export default function ComposableMesurer(props: MesurerProps) {
             ownerWindow,
             portalTarget: target,
             pageTarget,
+            rendererRoot: requireRendererRoot(),
             currentToolMode: () => requireModel().current.toolMode,
             createWorkspaceRuntime,
             createInspectorMount,
