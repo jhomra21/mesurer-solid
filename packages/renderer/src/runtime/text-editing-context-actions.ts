@@ -23,7 +23,7 @@ export function installDirectEditContextActionSuppression(
   const realm = ownerWindow as Window & typeof globalThis;
   const mounts = portalTarget.querySelectorAll<HTMLElement>(RUNTIME_MOUNT);
   const runtimeMount = mounts.item(mounts.length - 1);
-  const rendererRoot = portalTarget.querySelector<HTMLElement>(RENDERER_ROOT);
+  const rendererRoot = runtimeMount?.closest<HTMLElement>(RENDERER_ROOT) ?? null;
   if (!runtimeMount?.isConnected || !rendererRoot?.isConnected) return;
 
   let active = false;
