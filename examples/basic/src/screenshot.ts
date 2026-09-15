@@ -1,15 +1,11 @@
-import {
-  mountMesurer,
-} from "../../../packages/mesurer/src/index";
-import {
-  screenshotPlugin,
-} from "../../../packages/renderer/src/plugins/screenshot";
+import { mountMesurer } from "../../../packages/mesurer/src/index";
+import { screenshot } from "../../../packages/mesurer/src/plugins";
 
 const subject = mountMesurer({
   target: document.body,
   isolate: true,
   topLayer: false,
-  plugins: [screenshotPlugin({
+  plugins: [screenshot({
     copy: false,
     download: false,
   })],
