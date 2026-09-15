@@ -66,6 +66,11 @@ type BridgeResponse = {
   error?: string;
 };
 
+type BridgeSendRequest = {
+  message: string;
+  thread?: string;
+};
+
 const endpointUrl = (endpoint: string, path: string) => {
   const base = endpoint.endsWith("/") ? endpoint : `${endpoint}/`;
   return new URL(path, base).toString();
@@ -181,7 +186,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         async send(request) {
           const message = await feedbackMessage(contextService, request, instruction);
           const thread = request?.thread?.trim();
-          const payload: { message: string; thread?: string } = { message };
+          const payload: BridgeSendRequest = { message };
           if (thread) payload.thread = thread;
           const response = await bridgeRequest(endpoint, "send", {
             method: "POST",
