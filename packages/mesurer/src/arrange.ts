@@ -105,7 +105,7 @@ export type MesurerArrangeService = {
   clear(): Promise<void>;
 };
 
-export const arrangePlugin = (): MesurerPlugin => ({
+export const arrange = (): MesurerPlugin => ({
   ...rendererArrangePlugin(),
   version: MESURER_VERSION,
 });
