@@ -16,6 +16,8 @@ export type {
 
 export type MesurerModel = MesurerCoreModel<HTMLElement> & {
   state: MesurerModelState<HTMLElement>;
+  /** Exact renderer root owned by this model once MesurerClient mounts. */
+  rendererRoot: HTMLDivElement | null;
 };
 
 const ignoreModelRegistration = (_model: MesurerModel) => undefined;
@@ -57,11 +59,13 @@ export function createMesurerModel(options: MesurerModelOptions = {}): MesurerMo
     dispose,
     state,
     activeSelection,
+    rendererRoot: null,
   };
 
   function dispose() {
     if (disposed) return;
     disposed = true;
+    model.rendererRoot = null;
     unsubscribe();
     disposeCore();
   }
