@@ -166,6 +166,13 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   z-index: 80 !important;
 }
 
+/* Direct text edit and Context coordinate through their shared renderer root.
+   Root-local state works identically in normal DOM and isolated ShadowRoot
+   mounts; no document-global style or cross-root selector is required. */
+[data-mesurer-root="true"][data-mesurer-direct-text-edit-active="true"] [data-mesurer-annotation-trigger="true"] {
+  display: none !important;
+}
+
 /* Plugin-contributed toggles share the compact 24px switch row, but unlike
    upstream's fixed settings columns their labels may be longer. Give only
    plugin rows the remaining width and never let a label increase row height. */
