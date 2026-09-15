@@ -95,9 +95,6 @@ const addAdjacentTargets = (page) => page.evaluate(() => {
     document.body.append(target);
   };
 
-  // Keep the targets horizontally adjacent so the rejected side-placement
-  // composer covers B, but put them below the framework demo content so snapping
-  // has no unrelated consumer element to choose at B's click point.
   makeTarget("packed-adjacent-a", "Adjacent target A", 100);
   makeTarget("packed-adjacent-b", "Adjacent target B", 320);
 });
@@ -125,6 +122,24 @@ async function assertFreshDraft(page, trigger, composer, label) {
     .evaluate((button) => button.click());
   await composer.waitFor({ state: "detached", timeout: 3000 });
 }
+
+const contextOwnership = (page) => page.evaluate(() => {
+  const island = document.querySelector("[data-mesurer-island='true']");
+  const shadow = island instanceof HTMLElement ? island.shadowRoot : null;
+  const root = shadow?.querySelector("[data-mesurer-root='true']") ?? null;
+  const contextRoot = root?.querySelector("[data-mesurer-context-root='true']") ?? null;
+  const composer = contextRoot?.querySelector("[data-mesurer-annotation-composer='true']") ?? null;
+  return {
+    contextInsideCanonicalRoot: Boolean(root && contextRoot && root.contains(contextRoot)),
+    composerInsideCanonicalRoot: Boolean(root && composer && root.contains(composer)),
+    coordinateSpace: composer instanceof HTMLElement
+      ? composer.dataset.mesurerContextCoordinateSpace ?? null
+      : null,
+    documentBackedContextCount: document.querySelectorAll("[data-mesurer-context-document-layer='true']").length,
+    documentRuntimeCount: document.querySelectorAll("[data-mesurer-document-inspector-runtime='true']").length,
+    bodyComposerCount: document.body.querySelectorAll("[data-mesurer-annotation-composer='true']").length,
+  };
+});
 
 async function runCase(testCase) {
   const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
@@ -157,12 +172,20 @@ async function runCase(testCase) {
     await settle(page);
 
     const trigger = page.locator(
-      "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']",
+      "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
     );
     const composer = page.locator(
-      "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-composer='true']",
+      "[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']",
     );
     await openDraft(page, trigger, composer, "abandoned draft A", testCase.name);
+
+    const ownership = await contextOwnership(page);
+    assert.equal(ownership.contextInsideCanonicalRoot, true, `${testCase.name} Context must live under canonical Mesurer root`);
+    assert.equal(ownership.composerInsideCanonicalRoot, true, `${testCase.name} composer must live under canonical Mesurer root`);
+    assert.equal(ownership.coordinateSpace, "viewport", `${testCase.name} Context must use viewport ownership`);
+    assert.equal(ownership.documentBackedContextCount, 0, `${testCase.name} must not create document-backed Context UI`);
+    assert.equal(ownership.documentRuntimeCount, 0, `${testCase.name} must not create document-inspector bridge UI`);
+    assert.equal(ownership.bodyComposerCount, 0, `${testCase.name} must not portal the composer into document.body`);
 
     const b = page.locator("#packed-adjacent-b");
     const bPoint = await center(b, `${testCase.name} adjacent B`);
@@ -188,7 +211,7 @@ async function runCase(testCase) {
       },
       bPoint,
     );
-    assert.equal(initialHit.island, true, `${testCase.name} physical Select plane must own the initial hit`);
+    assert.equal(initialHit.island, true, `${testCase.name} canonical Mesurer island must own the initial hit`);
 
     await page.mouse.move(bPoint.x, bPoint.y);
     await page.mouse.down();
@@ -202,11 +225,9 @@ async function runCase(testCase) {
     );
     await assertFreshDraft(page, trigger, composer, `${testCase.name} adjacent physical handoff`);
 
-    // Reproduce the manual failure's important ownership split directly: Select
-    // receives the pointer inside its ShadowRoot while a window-level Context
-    // listener does not. The rejected candidate could still select B on pointerup
-    // while leaving A's draft mounted. Context must therefore also observe the
-    // Select interaction plane itself and abandon the draft on pointerdown.
+    // Prove the same-root invariant without relying on document/window event
+    // propagation: a non-composed pointer inside the island must drive Select's
+    // own model lifecycle and clear the colocated Context draft before release.
     await page.evaluate(() => window.__MESURER__.select("#packed-adjacent-a"));
     await settle(page);
     await openDraft(
@@ -233,6 +254,12 @@ async function runCase(testCase) {
     );
 
     console.log(`${testCase.name} adjacent annotation handoff: PASS`, {
+      contextInsideCanonicalRoot: true,
+      composerInsideCanonicalRoot: true,
+      documentBackedContextCount: 0,
+      documentRuntimeCount: 0,
+      bodyComposerCount: 0,
+      coordinateSpace: "viewport",
       composerClearOfBCenter: true,
       initialHitOwnedByIsland: true,
       composerDismissedBeforePointerUp: true,
