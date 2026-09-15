@@ -47,9 +47,6 @@ try {
   await page.locator("button[data-mesurer-builtin='settings']").click();
   await settings.waitFor({ state: "hidden" });
 
-  // Match the manual session: Context is already enabled when the page starts.
-  // This specifically exercises persisted available-plugin restoration rather
-  // than only the dynamic enable path that had already been passing.
   await page.reload({ waitUntil: "networkidle" });
   const contextTool = page.locator("[data-mesurer-tool-id='context.copy'] button");
   await contextTool.waitFor({ state: "visible" });
@@ -79,28 +76,40 @@ try {
   assert(Math.abs(selectedBox.x - targetBox.x) <= 2, "selected hero x mismatch");
   assert(Math.abs(selectedBox.y - targetBox.y) <= 2, "selected hero y mismatch");
 
-  const trigger = page.locator("[data-mesurer-annotation-trigger='true']");
+  const trigger = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']");
   await trigger.waitFor({ state: "visible", timeout: 3000 });
   assert.equal(await trigger.count(), 1, "expected exactly one annotation trigger for the selected hero");
   assert.equal(
     await trigger.getAttribute("data-mesurer-annotation-scroll-mode"),
     "cached-delta",
-    "Codex host must avoid the native CSS-anchor trigger path",
+    "Context trigger must use cached-delta scrolling in the canonical root",
   );
-  let triggerBox = await box(trigger, "annotation trigger after persisted Context selection");
-  const beforeScroll = { target: await box(target, "target before Context wheel"), trigger: triggerBox };
+  assert.equal(
+    await trigger.getAttribute("data-mesurer-context-coordinate-space"),
+    "viewport",
+    "Context trigger must use canonical viewport coordinates",
+  );
+  assert.equal(
+    await trigger.evaluate((element) => getComputedStyle(element).position),
+    "fixed",
+    "Context trigger must stay fixed inside the canonical interaction root",
+  );
+  assert.equal(
+    await page.evaluate(() => document.querySelectorAll("[data-mesurer-context-document-layer='true'], [data-mesurer-document-inspector-runtime='true']").length),
+    0,
+    "normal Context must not create the removed document-backed interaction plane",
+  );
 
-  await page.evaluate(() => {
-    const triggerElement = document.querySelector("[data-mesurer-annotation-trigger='true']");
-    if (!(triggerElement instanceof HTMLElement)) throw new Error("annotation trigger missing before scroll mutation probe");
-    const state = { count: 0, observer: null };
-    const observer = new MutationObserver((records) => {
-      state.count += records.filter((record) => record.type === "attributes" && record.attributeName === "style").length;
-    });
-    observer.observe(triggerElement, { attributes: true, attributeFilter: ["style"] });
-    state.observer = observer;
-    window.__MESURER_CONTEXT_SCROLL_STYLE_MUTATIONS__ = state;
-  });
+  let triggerBox = await box(trigger, "annotation trigger after persisted Context selection");
+  const beforeScroll = {
+    target: await box(target, "target before Context wheel"),
+    trigger: triggerBox,
+    scrollY: await page.evaluate(() => window.scrollY),
+    delta: await trigger.evaluate((element) => ({
+      x: element.style.getPropertyValue("--mesurer-nested-scroll-x"),
+      y: element.style.getPropertyValue("--mesurer-nested-scroll-y"),
+    })),
+  };
 
   await page.mouse.move(1120, 470);
   await page.mouse.wheel(0, 48);
@@ -108,24 +117,26 @@ try {
   const afterScroll = {
     target: await box(target, "target after Context wheel"),
     trigger: await box(trigger, "trigger after Context wheel"),
+    scrollY: await page.evaluate(() => window.scrollY),
+    delta: await trigger.evaluate((element) => ({
+      x: element.style.getPropertyValue("--mesurer-nested-scroll-x"),
+      y: element.style.getPropertyValue("--mesurer-nested-scroll-y"),
+    })),
   };
-  const styleMutations = await page.evaluate(() => {
-    const state = window.__MESURER_CONTEXT_SCROLL_STYLE_MUTATIONS__;
-    state?.observer?.disconnect();
-    delete window.__MESURER_CONTEXT_SCROLL_STYLE_MUTATIONS__;
-    return state?.count ?? 0;
-  });
   assert(Math.abs(afterScroll.target.y - beforeScroll.target.y) > 10, "Context acceptance wheel did not move the target");
   for (const key of ["x", "y"]) {
     const beforeOffset = beforeScroll.trigger[key] - beforeScroll.target[key];
     const afterOffset = afterScroll.trigger[key] - afterScroll.target[key];
-    assert(Math.abs(afterOffset - beforeOffset) <= 1.5, `Codex cached-delta trigger ${key} offset drifted: before=${beforeOffset}, after=${afterOffset}`);
+    assert(Math.abs(afterOffset - beforeOffset) <= 1.5, `canonical cached-delta trigger ${key} offset drifted: before=${beforeOffset}, after=${afterOffset}`);
   }
-  assert.equal(
-    styleMutations,
-    0,
-    `ordinary window scrolling must not main-thread mutate annotation trigger geometry; observed ${styleMutations} style mutation(s)`,
+  const scrollDelta = afterScroll.scrollY - beforeScroll.scrollY;
+  const cachedY = Number.parseFloat(afterScroll.delta.y || "0");
+  assert(
+    Math.abs(cachedY + scrollDelta) <= 1.5,
+    `Context cached Y delta must mirror window scroll without geometry catch-up: scroll=${scrollDelta}, cached=${cachedY}`,
   );
+  assert.equal(afterScroll.delta.x || "0px", "0px", "vertical window scroll must not introduce a Context X delta");
+
   triggerBox = afterScroll.trigger;
   const hit = await page.evaluate(({ x, y }) => {
     const node = document.elementFromPoint(x, y);
@@ -134,19 +145,24 @@ try {
   assert.equal(hit, true, "annotation trigger is rendered but does not own its visible pointer location");
 
   await page.mouse.click(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height / 2);
-  const composer = page.locator("[data-mesurer-annotation-composer='true']");
+  const composer = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
+  assert.equal(
+    await page.evaluate(() => document.body.querySelectorAll("[data-mesurer-annotation-composer='true']").length),
+    0,
+    "normal Context composer must remain in the canonical Mesurer root",
+  );
   await composer.locator("textarea").fill("Normal playground annotation acceptance");
   await composer.getByRole("button", { name: "Add note", exact: true }).click();
   await composer.waitFor({ state: "hidden" });
 
-  const marker = page.locator("[data-mesurer-annotation-marker='true']");
+  const marker = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']");
   await marker.waitFor({ state: "visible" });
   assert.equal(await marker.count(), 1, "saved normal-playground annotation marker missing");
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
   const browserVersion = await browser.version();
   const dpr = await page.evaluate(() => window.devicePixelRatio);
-  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Codex-host cached-delta trigger is visible/clickable at reported 900x184 target geometry, follows real wheel input without window-scroll style catch-up, saves note, and retains marker: PASS`);
+  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root, its viewport-fixed trigger follows real wheel input through cached scalar deltas, saves a note, and retains its marker: PASS`);
 } finally {
   await browser.close();
 }
