@@ -1,13 +1,11 @@
+import type { MesurerContextService } from "./context-plugin";
 import type { MesurerPlugin } from "./core";
-import {
-  MESURER_CONTEXT_SERVICE_ID,
-  type MesurerContextService,
-} from "./context-plugin";
 import { MESURER_VERSION } from "./version";
 
 export const MESURER_CODEX_PLUGIN_ID = "mesurer.codex";
 export const MESURER_CODEX_SERVICE_ID = "codex:v1";
 
+const CONTEXT_SERVICE_ID = "context:v1";
 const DEFAULT_ENDPOINT = "http://127.0.0.1:47365";
 const DEFAULT_INSTRUCTION = [
   "Implement the current human feedback from Mesurer in this project.",
@@ -18,7 +16,7 @@ const DEFAULT_INSTRUCTION = [
 const SEND_ICON = {
   viewBox: "0 0 256 256",
   paths: [
-    "M237.9,76.1l-32-32a16,16,0,0,0-22.6,0L88,139.3V112a16,16,0,0,0-16-16H24A16,16,0,0,0,8,112v80a16,16,0,0,0,16,16H72a16,16,0,0,0,16-16V164.7l95.3,95.2a16,16,0,0,0,22.6,0l32-32a16,16,0,0,0,0-22.6L188.7,172H232a16,16,0,0,0,16-16V88A16,16,0,0,0,237.9,76.1ZM72,192H24V112H72Zm122.6,56L99.3,152.7,194.6,57.4,226.7,89.4,164.7,151.3a8,8,0,0,0,0,11.4l62,62Z",
+    "M224,48,32,120l88,32,32,88Z M120,152l104-104",
   ],
 };
 
@@ -90,7 +88,7 @@ const bridgeRequest = async (
     }
     return payload;
   } catch (cause) {
-    if (cause instanceof DOMException && cause.name === "AbortError") {
+    if (cause instanceof Error && cause.name === "AbortError") {
       throw new Error("Mesurer Codex bridge timed out.");
     }
     throw cause;
@@ -108,7 +106,10 @@ const feedbackMessage = async (
   const saved = await context.annotations();
   const requestedIds = request?.annotationIds;
   const annotations = requestedIds
-    ? requestedIds.map((id) => saved.find((annotation) => annotation.id === id)).filter((annotation) => annotation !== undefined)
+    ? requestedIds.flatMap((id) => {
+        const annotation = saved.find((candidate) => candidate.id === id);
+        return annotation ? [annotation] : [];
+      })
     : saved;
   const evidence: string[] = [];
 
@@ -142,10 +143,10 @@ export function codexPlugin(options: MesurerCodexPluginOptions = {}): MesurerPlu
   return {
     id: MESURER_CODEX_PLUGIN_ID,
     version: MESURER_VERSION,
-    requires: [MESURER_CONTEXT_SERVICE_ID],
+    requires: [CONTEXT_SERVICE_ID],
     provides: [MESURER_CODEX_SERVICE_ID],
     setup(ctx) {
-      const context = ctx.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID);
+      const context = ctx.service.get<MesurerContextService>(CONTEXT_SERVICE_ID);
       if (!context) throw new Error("Mesurer Codex plugin requires contextPlugin().");
 
       const service: MesurerCodexService = {
