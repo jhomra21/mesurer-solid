@@ -1,8 +1,6 @@
 import { render } from "@solidjs/web";
-import { getElementSelector, isElementWithinDomTarget } from "@jhomra21/mesurer-solid-dom";
 import {
   ContextActions,
-  createDocumentInspectorRuntime,
   type ContextActionsController,
   type MesurerSolidRuntimeService,
   type MesurerWorkspaceRuntime,
@@ -44,25 +42,6 @@ type ContextUiState = { hasSelection: boolean };
 type ContextSettingsState = {
   [key: string]: PluginValue;
   ui: boolean;
-};
-type ContextTriggerFallback = "current" | "current-and-next";
-
-type LegacyMouseHandoff = {
-  selector: string;
-  startX: number;
-  startY: number;
-  selection: ReturnType<MesurerWorkspaceRuntime["currentSelection"]>;
-};
-
-type DirectPointerHandoff = LegacyMouseHandoff & {
-  pointerId: number;
-};
-
-type RecentPointerDown = {
-  x: number;
-  y: number;
-  button: number;
-  at: number;
 };
 
 export type MesurerContextPluginOptions = {
@@ -153,8 +132,11 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       const solid = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
       if (!solid) throw new Error("Mesurer context plugin requires the renderer runtime service.");
 
-      const { runtime: contextRuntime, documentBacked } = createDocumentInspectorRuntime(solid);
-      const runtime = contextRuntime.createWorkspaceRuntime();
+      // Context is interactive Mesurer UI. Keep it in the canonical inspector
+      // root instead of creating a second document-backed interaction plane.
+      // Page-following geometry is handled by ContextActions' viewport/cached
+      // scroll positioning, so selection and Context share one pointer owner.
+      const runtime = solid.createWorkspaceRuntime();
       const service = createService(runtime, solid.ownerDocument, solid.ownerWindow);
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
 
@@ -177,14 +159,6 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       let uiController: ContextActionsController | null = null;
       let disposeUi: (() => void) | null = null;
       let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
-      let nextUiTriggerFallback: ContextTriggerFallback | undefined;
-      let resetOpenComposer: ((fallback: ContextTriggerFallback) => void) | null = null;
-      let legacyMouseHandoff: LegacyMouseHandoff | null = null;
-      let directPointerHandoff: DirectPointerHandoff | null = null;
-      let recentPointerDown: RecentPointerDown | null = null;
-      const composerIsOpen = () => Boolean(
-        uiMount?.element.querySelector("[data-mesurer-annotation-composer='true']"),
-      );
       const initialSelection = runtime.currentSelection();
       let previousSelection = {
         elements: [...initialSelection.elements],
@@ -213,10 +187,10 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
           region: nextSelection.region ? { ...nextSelection.region } : null,
         };
 
-        if (selectionChanged) {
-          if (composerIsOpen()) resetOpenComposer?.("current");
-          else uiController?.closeNoteComposer();
-        }
+        // This is a post-commit safety net. The canonical physical path abandons
+        // an open draft on Select gesture start inside ContextActions; any API or
+        // other non-pointer selection change closes it here without remounting UI.
+        if (selectionChanged) uiController?.closeNoteComposer();
 
         const next = nextSelection.elements.length > 0 || nextSelection.region !== null;
         const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
@@ -237,29 +211,16 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
 
       const createUi = () => {
         if (uiMount) return;
-        uiMount = contextRuntime.createInspectorMount();
+        uiMount = solid.createInspectorMount();
         uiMount.element.dataset.mesurerLayer = "evidence";
-        if (documentBacked) uiMount.element.dataset.mesurerContextDocumentLayer = "true";
-        const initialTriggerFallback = nextUiTriggerFallback;
-        nextUiTriggerFallback = undefined;
+        uiMount.element.dataset.mesurerContextRoot = "true";
         const actionProps: Parameters<typeof ContextActions>[0] = {
           runtime,
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
-          initialTriggerFallback,
+          coordinateSpace: "viewport",
         };
         disposeUi = render(() => <ContextActions {...actionProps} />, uiMount.element);
-      };
-
-      resetOpenComposer = (fallback) => {
-        if (!composerIsOpen()) return;
-        // The composer is transient draft UI. Remount only this Context surface
-        // so abandoning it never depends on the controller's renderer-settlement
-        // timing in an injected or external consumer. Preserve only the one-shot
-        // document-coordinate handoff needed to avoid Chromium's stale anchor.
-        nextUiTriggerFallback = fallback;
-        destroyUi();
-        if (uiEnabled()) createUi();
       };
 
       const syncUi = () => {
@@ -268,138 +229,6 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       };
       syncUi();
       ctx.state.subscribe(syncUi);
-
-      // SAFETY: solid.ownerWindow is the browsing-context global paired with solid.ownerDocument.
-      const ownerWindow = solid.ownerWindow as Window & typeof globalThis;
-      const startsInsideContextUi = (event: Event) => {
-        const mount = uiMount?.element;
-        if (!mount) return false;
-        return event.composedPath().some((node) =>
-          node === mount || (node instanceof ownerWindow.Node && mount.contains(node)),
-        );
-      };
-      const pageTargetFromEvent = (event: MouseEvent | PointerEvent) => {
-        const path = event.composedPath();
-        const startsInsideMesurerUi = path.some((node) =>
-          node instanceof ownerWindow.Element
-          && (
-            node.getAttribute("data-mesurer-root") === "true"
-            || node.getAttribute("data-mesurer-island") === "true"
-            || node.getAttribute("data-mesurer-inspector-ui") === "true"
-          ),
-        );
-        if (startsInsideMesurerUi) return null;
-        return path.find((node): node is HTMLElement =>
-          node instanceof ownerWindow.HTMLElement
-          && node.isConnected
-          && isElementWithinDomTarget(node, solid.pageTarget),
-        ) ?? null;
-      };
-      const dismissComposerBeforeExternalPointer = (event: PointerEvent) => {
-        recentPointerDown = {
-          x: event.clientX,
-          y: event.clientY,
-          button: event.button,
-          at: ownerWindow.performance.now(),
-        };
-        legacyMouseHandoff = null;
-        directPointerHandoff = null;
-        if (!composerIsOpen() || startsInsideContextUi(event)) return;
-
-        // A browser/agent host can target the concrete inspected page node
-        // directly instead of driving Select's top interaction plane. Preserve
-        // that explicit page ownership so pointerup can finish the same click
-        // if ordinary Select did not already commit it.
-        if (event.button === 0) {
-          const target = pageTargetFromEvent(event);
-          if (target) {
-            try {
-              directPointerHandoff = {
-                selector: getElementSelector(target),
-                startX: event.clientX,
-                startY: event.clientY,
-                pointerId: event.pointerId,
-                selection: runtime.currentSelection(),
-              };
-            } catch {
-              directPointerHandoff = null;
-            }
-          }
-        }
-
-        // Abandon the transient draft on pointerdown, before Select sees the same
-        // physical gesture. The current selection stays cached while pointerdown
-        // is in flight and exactly one following selection inherits that fallback.
-        resetOpenComposer?.("current-and-next");
-      };
-      const completeDirectPointerHandoff = (event: PointerEvent) => {
-        const pending = directPointerHandoff;
-        directPointerHandoff = null;
-        if (!pending || event.button !== 0 || event.pointerId !== pending.pointerId) return;
-        if (Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY) > 6) return;
-        if (!sameSelection(pending.selection, runtime.currentSelection())) return;
-        try {
-          runtime.select([pending.selector]);
-        } catch {
-          // The page may have removed/replaced the direct target during the
-          // gesture. The stale draft was still abandoned correctly.
-        }
-      };
-      const dismissComposerBeforeExternalMouse = (event: MouseEvent) => {
-        const pointer = recentPointerDown;
-        recentPointerDown = null;
-        const followsPointer = pointer !== null
-          && pointer.button === event.button
-          && Math.abs(pointer.x - event.clientX) <= 0.5
-          && Math.abs(pointer.y - event.clientY) <= 0.5
-          && ownerWindow.performance.now() - pointer.at <= 250;
-        if (followsPointer) {
-          // Chromium can retarget its compatibility mousedown to the protected
-          // top interaction plane even when the preceding PointerEvent was
-          // capture-bridged to a document-backed Context control. Do not mistake
-          // that compatibility event for a legacy host's independent page press.
-          return;
-        }
-
-        legacyMouseHandoff = null;
-        if (event.button !== 0 || !composerIsOpen() || startsInsideContextUi(event)) return;
-
-        // Some browser/agent hosts emit only legacy MouseEvents at the page node.
-        // Remember that concrete page target before the Context remount so mouseup
-        // can complete the same one-shot selection handoff without touching the
-        // normal PointerEvent path.
-        const target = pageTargetFromEvent(event);
-        if (target) {
-          try {
-            legacyMouseHandoff = {
-              selector: getElementSelector(target),
-              startX: event.clientX,
-              startY: event.clientY,
-              selection: runtime.currentSelection(),
-            };
-          } catch {
-            legacyMouseHandoff = null;
-          }
-        }
-        resetOpenComposer?.("current-and-next");
-      };
-      const completeLegacyMouseHandoff = (event: MouseEvent) => {
-        const pending = legacyMouseHandoff;
-        legacyMouseHandoff = null;
-        if (!pending || event.button !== 0) return;
-        if (Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY) > 6) return;
-        if (!sameSelection(pending.selection, runtime.currentSelection())) return;
-        try {
-          runtime.select([pending.selector]);
-        } catch {
-          // The page may have removed/replaced the target during the gesture.
-          // Abandoning the stale draft is still correct; leave selection unchanged.
-        }
-      };
-      ownerWindow.addEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
-      ownerWindow.addEventListener("pointerup", completeDirectPointerHandoff, true);
-      ownerWindow.addEventListener("mousedown", dismissComposerBeforeExternalMouse, true);
-      ownerWindow.addEventListener("mouseup", completeLegacyMouseHandoff, true);
 
       ctx.command.register("context.add-note", () => uiController?.openNoteComposer());
       ctx.tool.register({
@@ -446,16 +275,7 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       });
 
       ctx.lifecycle.onDispose(() => {
-        ownerWindow.removeEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
-        ownerWindow.removeEventListener("pointerup", completeDirectPointerHandoff, true);
-        ownerWindow.removeEventListener("mousedown", dismissComposerBeforeExternalMouse, true);
-        ownerWindow.removeEventListener("mouseup", completeLegacyMouseHandoff, true);
         unsubscribeRuntime();
-        recentPointerDown = null;
-        directPointerHandoff = null;
-        legacyMouseHandoff = null;
-        nextUiTriggerFallback = undefined;
-        resetOpenComposer = null;
         destroyUi();
         runtime.dispose();
       });
