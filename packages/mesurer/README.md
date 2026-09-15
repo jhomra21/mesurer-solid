@@ -137,11 +137,19 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 
 ### Optional Send to Codex
 
-When a human wants to push saved Mesurer feedback into a Codex CLI or Codex App thread that is already open, start the local companion for that session and mount the optional transport plugin:
+When Codex starts the loopback companion itself, `mesurer-codex` reads `CODEX_THREAD_ID`, so Mesurer feedback naturally routes back to that same Codex CLI/App thread:
+
+```bash
+bunx mesurer-codex
+```
+
+A normal shell can still choose the initial thread explicitly:
 
 ```bash
 bunx mesurer-codex --thread <SESSION>
 ```
+
+Mount the optional transport next to Context:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -152,7 +160,15 @@ mountMesurer({
 })
 ```
 
-This uses Codex's own queued-user-message command. It does not replace the normal browser-harness agent workflow and it does not resume or take ownership of the target Codex thread.
+A different or newly-created Codex thread can register itself with the running bridge and become the active target:
+
+```bash
+bunx mesurer-codex --register-current
+```
+
+The bridge remembers registered threads. `codex:v1` exposes `health()`, `useThread(thread)`, and `send({ thread })` for switching or one-off routing among those registered destinations. Browser pages cannot register arbitrary Codex sessions themselves.
+
+This uses Codex's own queued-user-message command. It does not replace the normal browser-harness agent workflow, and it does not resume or take ownership of a target Codex thread.
 
 See [Send Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md).
 
