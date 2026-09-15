@@ -68,18 +68,18 @@ bunx mesurer-codex --thread <SESSION> --origin null
 
 The bridge binds only to `127.0.0.1`. The browser cannot choose a different Codex thread: the target is fixed by the person who launched the bridge.
 
-## Mount the plugin
+## Mount the plugins
 
-Context owns the feedback. Codex delivery is a separate optional plugin that requires Context:
+Context owns the feedback. Codex delivery is a separate optional plugin that requires Context. All first-party plugin factories come from `mesurer-solid/plugins`:
 
 ```ts
-import { contextPlugin, mountMesurer } from "mesurer-solid"
-import { codexPlugin } from "mesurer-solid/codex"
+import { mountMesurer } from "mesurer-solid"
+import { codex, context } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   plugins: [
-    contextPlugin(),
-    codexPlugin(),
+    context(),
+    codex(),
   ],
 })
 ```
@@ -97,9 +97,11 @@ The default instruction asks Codex to implement the feedback, preserve unrelated
 
 ## Programmatic send
 
-The plugin provides `codex:v1`:
+The plugin provides `codex:v1`. Import its service type from the same plugin entry:
 
 ```ts
+import type { MesurerCodexService } from "mesurer-solid/plugins"
+
 const service = host.service.get<MesurerCodexService>("codex:v1")
 
 await service?.health()
