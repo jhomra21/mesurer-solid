@@ -187,10 +187,12 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
           region: nextSelection.region ? { ...nextSelection.region } : null,
         };
 
-        // This is a post-commit safety net. The canonical physical path abandons
-        // an open draft on Select gesture start inside ContextActions; any API or
-        // other non-pointer selection change closes it here without remounting UI.
-        if (selectionChanged) uiController?.closeNoteComposer();
+        // A transient note draft is valid only while no Select gesture is
+        // active and the captured selection remains current. Do not depend on
+        // a cached false→true edge: every renderer-model notification is an
+        // opportunity to enforce the ownership invariant synchronously.
+        if (runtime.selectGestureActive()) uiController?.abandonNoteComposer();
+        else if (selectionChanged) uiController?.closeNoteComposer();
 
         const next = nextSelection.elements.length > 0 || nextSelection.region !== null;
         const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
