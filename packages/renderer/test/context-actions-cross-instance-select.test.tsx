@@ -1,12 +1,13 @@
 import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ContextActions, type ContextActionsController } from "../src/components/ContextActions";
+import {
+  ContextActionsSelectOwnership,
+} from "../src/components/ContextActionsSelectOwnership";
+import type { ContextActionsController } from "../src/components/ContextActions";
 import { getInspectMeasurement } from "../src/core/dom";
 import { createMesurerModel } from "../src/model/create-mesurer-model";
 import { createMesurerWorkspaceRuntime } from "../src/runtime/workspace-context";
 import { render } from "../src/solid-dom";
-
-const SELECT_GESTURE_START_EVENT = "mesurer:select-gesture-start";
 
 const settle = async () => {
   await Promise.resolve();
@@ -52,8 +53,9 @@ describe("ContextActions cross-instance Select ownership", () => {
 
     let controller: ContextActionsController | null = null;
     const dispose = render(() => (
-      <ContextActions
+      <ContextActionsSelectOwnership
         runtime={runtime}
+        ownerWindow={window}
         coordinateSpace="viewport"
         onCopy={async () => undefined}
         onController={(value) => { controller = value; }}
@@ -77,13 +79,19 @@ describe("ContextActions cross-instance Select ownership", () => {
     expect(textarea!.value).toBe("abandoned draft A");
     expect(runtime.selectGestureActive()).toBe(false);
 
-    // A different live Mesurer input plane can own the physical B press while
-    // this Context surface still owns A. The canonical Select plane must
-    // broadcast that semantic gesture synchronously; relying on this model's
-    // transient state alone cannot observe a cross-instance handoff.
-    window.dispatchEvent(new Event(SELECT_GESTURE_START_EVENT));
+    // A different live Mesurer model owns the physical Select press. Its
+    // canonical start transition must invalidate this Context draft even
+    // though this runtime's own model remains completely idle.
+    const otherRoot = document.createElement("div");
+    document.body.append(otherRoot);
+    const otherModel = createMesurerModel({ initialEnabled: true, initialToolMode: "select" });
+    otherModel.rendererRoot = otherRoot;
+    mounted.push(() => otherModel.dispose());
+
+    otherModel.setTransient({ start: { x: 320, y: 180 } });
     flush();
 
+    expect(otherModel.current.start).toEqual({ x: 320, y: 180 });
     expect(runtime.selectGestureActive()).toBe(false);
     expect(host.querySelector("[data-mesurer-annotation-composer='true']")).toBeNull();
 
