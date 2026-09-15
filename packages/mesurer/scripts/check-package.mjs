@@ -183,6 +183,7 @@ for (const contractName of [
   "ArrangeReview",
   "ArrangeCapturePlan",
   "MesurerArrangeService",
+  "MesurerCodexHealth",
   "MesurerCodexService",
   "MesurerCodexSendRequest",
   "MesurerCodexSendResult",
@@ -191,6 +192,12 @@ for (const contractName of [
 ]) {
   if (!new RegExp(`\\b${contractName}\\b`).test(pluginDeclarations)) {
     throw new Error(`Published plugins entry is missing ${contractName}.`);
+  }
+}
+
+for (const codexMember of ["useThread", "thread?: string", "threads: string[]"]) {
+  if (!pluginDeclarations.includes(codexMember)) {
+    throw new Error(`Published Codex plugin declarations are missing thread-routing contract: ${codexMember}.`);
   }
 }
 
@@ -213,8 +220,10 @@ if (readFileSync(repositorySkill, "utf8") !== readFileSync(skillSource, "utf8"))
 const bridgeScript = new URL("./codex-bridge.mjs", import.meta.url);
 if (!existsSync(bridgeScript)) throw new Error("Missing packaged Codex bridge script.");
 const bridgeHelp = execFileSync(process.execPath, [fileURLToPath(bridgeScript), "--help"], { encoding: "utf8" });
-if (!bridgeHelp.includes("mesurer-codex --thread")) {
-  throw new Error("Mesurer Codex bridge help does not describe the required thread target.");
+for (const helpContract of ["CODEX_THREAD_ID", "--register-current", "--register <value>"]) {
+  if (!bridgeHelp.includes(helpContract)) {
+    throw new Error(`Mesurer Codex bridge help is missing thread handoff contract: ${helpContract}.`);
+  }
 }
 
 const stageScript = fileURLToPath(new URL("./stage-package.mjs", import.meta.url));
@@ -270,4 +279,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, optional Codex delivery, agent context, Arrange, text edit intents, screenshot tooling, and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, thread-aware optional Codex delivery, agent context, Arrange, text edit intents, screenshot tooling, and Agent Skill installer are self-contained.`);
