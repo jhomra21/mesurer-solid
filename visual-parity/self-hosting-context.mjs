@@ -61,9 +61,6 @@ try {
   const targetBox = await target.boundingBox();
   assert(targetBox, "Self-host selection target must have a bounding box");
 
-  // Selection mechanics have their own browser contracts. Establish this
-  // annotation fixture through the public API so this test can concentrate on
-  // the document-backed annotation input bridge and compositor anchoring.
   await page.evaluate(async () => {
     const harness = window.__MESURER_SELF_HOSTING__;
     await harness.subject.select("[data-self-host-target]");
@@ -74,7 +71,7 @@ try {
     return button instanceof HTMLButtonElement && !button.disabled;
   });
 
-  const annotationTrigger = page.locator("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
+  const annotationTrigger = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']");
   await annotationTrigger.waitFor({ state: "visible" });
   const triggerBox = await annotationTrigger.boundingBox();
   assert(triggerBox, "Annotation trigger must have a bounding box");
@@ -87,15 +84,44 @@ try {
   );
   assert.equal(
     await annotationTrigger.evaluate((element) => getComputedStyle(element).position),
-    "absolute",
-    "Native annotation trigger must use the document absolute-anchor path",
+    "fixed",
+    "Canonical-root annotation trigger must use viewport-fixed positioning",
   );
+  assert.equal(
+    await annotationTrigger.getAttribute("data-mesurer-context-coordinate-space"),
+    "viewport",
+    "Canonical-root annotation trigger must expose viewport coordinate ownership",
+  );
+  assert.equal(
+    await annotationTrigger.getAttribute("data-mesurer-annotation-scroll-mode"),
+    "cached-delta",
+    "Canonical-root annotation trigger must use cached-delta scroll following",
+  );
+
+  const ownership = await page.evaluate(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const root = island instanceof HTMLElement
+      ? island.shadowRoot?.querySelector("[data-mesurer-root='true']") ?? null
+      : null;
+    const contextRoot = root?.querySelector("[data-mesurer-context-root='true']") ?? null;
+    return {
+      insideCanonicalRoot: Boolean(root && contextRoot && root.contains(contextRoot)),
+      documentContextLayers: document.querySelectorAll("[data-mesurer-context-document-layer='true']").length,
+      documentInspectorRuntimes: document.querySelectorAll("[data-mesurer-document-inspector-runtime='true']").length,
+    };
+  });
+  assert.equal(ownership.insideCanonicalRoot, true, "Context must live inside the canonical Mesurer root");
+  assert.equal(ownership.documentContextLayers, 0, "Context must not create a document-backed interaction layer");
+  assert.equal(ownership.documentInspectorRuntimes, 0, "Context must not create a document inspector input bridge");
 
   const annotationScrollProbe = await page.evaluate(() => new Promise((resolve, reject) => {
     const targetElement = document.querySelector("[data-self-host-target]");
-    const trigger = document.querySelector("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const trigger = island instanceof HTMLElement
+      ? island.shadowRoot?.querySelector("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']")
+      : null;
     if (!(targetElement instanceof HTMLElement)) return reject(new Error("Missing annotation scroll target"));
-    if (!(trigger instanceof HTMLElement)) return reject(new Error("Missing subject annotation trigger"));
+    if (!(trigger instanceof HTMLElement)) return reject(new Error("Missing canonical-root annotation trigger"));
 
     const snapshot = (element) => {
       const rect = element.getBoundingClientRect();
@@ -109,8 +135,9 @@ try {
       resolve({
         before,
         immediate: { target: snapshot(targetElement), trigger: snapshot(trigger) },
-        nativeOwner: trigger.dataset.mesurerNativeScrollOwner ?? null,
-        nativeAnchor: trigger.dataset.mesurerNativeScrollAnchor ?? null,
+        mode: trigger.dataset.mesurerAnnotationScrollMode ?? null,
+        coordinateSpace: trigger.dataset.mesurerContextCoordinateSpace ?? null,
+        position: getComputedStyle(trigger).position,
       });
     }, { capture: true, once: true });
     window.scrollBy({ top: 80, behavior: "instant" });
@@ -122,8 +149,9 @@ try {
   });
   const triggerOffsetBefore = triggerOffset(annotationScrollProbe.before);
   const triggerOffsetImmediate = triggerOffset(annotationScrollProbe.immediate);
-  assert.equal(annotationScrollProbe.nativeOwner, "annotation", "Annotation trigger must use native scroll ownership");
-  assert.equal(annotationScrollProbe.nativeAnchor, "offset", "Annotation trigger must expose its native anchor contract");
+  assert.equal(annotationScrollProbe.mode, "cached-delta", "Annotation trigger must use cached-delta scroll ownership");
+  assert.equal(annotationScrollProbe.coordinateSpace, "viewport", "Annotation trigger must remain viewport-owned");
+  assert.equal(annotationScrollProbe.position, "fixed", "Annotation trigger must remain fixed in the canonical interaction root");
   assert(
     Math.abs(triggerOffsetImmediate.x - triggerOffsetBefore.x) <= 1.5
       && Math.abs(triggerOffsetImmediate.y - triggerOffsetBefore.y) <= 1.5,
@@ -137,16 +165,18 @@ try {
     }));
   }));
 
-  // The Mesurer host interaction plane can sit above document-backed inspector
-  // UI. Exercise the same physical-pointer path a user does so the capture
-  // bridge, rather than Playwright actionability bypasses, routes the click.
   await clickByCoordinates(annotationTrigger, "Annotation trigger");
-  const composer = page.locator("[data-mesurer-annotation-composer='true']");
+  const composer = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
   const composerBox = await composer.boundingBox();
   assert(composerBox, "Annotation composer must have a bounding box");
   assert(boxGap(targetBox, composerBox) <= 8.5, `Annotation composer should stay beside the selected element; gap was ${boxGap(targetBox, composerBox).toFixed(2)}px`);
   assert(composerBox.width <= 272.5, `Annotation composer should remain compact; width was ${composerBox.width}px`);
+  assert.equal(
+    await page.evaluate(() => document.body.querySelectorAll("[data-mesurer-annotation-composer='true']").length),
+    0,
+    "Annotation composer must not be portaled into document.body",
+  );
 
   const noteText = "Increase the spacing above this control to 24px.";
   await composer.locator("textarea").fill(noteText);
@@ -157,8 +187,8 @@ try {
   await captureAround([targetBox, composerBox], "annotation-composer-detail", 28);
 
   await clickByCoordinates(composer.getByRole("button", { name: "Add note" }), "Add note button");
-  const annotationPanel = page.locator("[data-mesurer-annotation-panel='true']");
-  const annotationMarker = page.locator("[data-mesurer-annotation-marker='true']");
+  const annotationPanel = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']");
+  const annotationMarker = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']");
   await annotationPanel.waitFor({ state: "visible" });
   await annotationMarker.waitFor({ state: "visible" });
   const panelBox = await annotationPanel.boundingBox();
@@ -267,11 +297,6 @@ try {
   assert(copyBox, "Copy context button must have a bounding box");
   await page.mouse.click(copyBox.x + 3, copyBox.y + copyBox.height / 2);
 
-  // Selected measurement chrome is intentionally portaled to the document
-  // layer for compositor-owned anchoring. Prove self-hosting through the
-  // observer's canonical selection context, then require matching body-level
-  // chrome instead of assuming the visual surface remains a descendant of the
-  // observer's framework root.
   await page.waitForFunction(async () => {
     const observer = window.__MESURER_SELF_HOSTING__?.observer;
     const copy = document.querySelector("button[data-mesurer-tool-id='context.copy']");
@@ -300,8 +325,8 @@ try {
     `context buttons: ${measurements.tools.length} × 32×32px`,
     "context SVG boxes: 20×20px, centered in every button",
     `max glyph optical-center offset: ${maxOpticalOffset.toFixed(2)}px`,
-    "annotation trigger: 24×24px with 6px clearance; compositor-anchored during scroll",
-    "annotation composer: compact, target-anchored Mesurer surface",
+    "annotation trigger: 24×24px with 6px clearance; canonical-root cached-delta scroll ownership",
+    "annotation composer: compact, target-adjacent surface inside canonical Mesurer root",
     "saved marker: clear between target and note panel",
     "observer selection: Copy context button",
   ];
@@ -316,13 +341,15 @@ try {
       toolbarCenterLineDelta: "≤ 0.05px",
       glyphEnvelope: "11–18.5px per axis",
       opticalCenterOffset: "≤ 1.5px",
-      annotationTrigger: "24x24px, 6px clearance from selection (±0.5px), stable in first scroll event",
-      annotationComposer: "≤272.5px wide, ≤8.5px from selection",
+      annotationOwnership: "Context root is inside canonical Mesurer root; no document bridge/runtime",
+      annotationTrigger: "24x24px, 6px clearance from selection (±0.5px), viewport-fixed cached-delta scroll following",
+      annotationComposer: "≤272.5px wide, ≤8.5px from selection, not portaled to body",
       annotationPanel: "marker ≤8.5px from target; panel ≤8.5px from marker",
-      observerSelection: "canonical selection context + matching body-level portaled chrome",
+      observerSelection: "canonical selection context + matching body-level selection chrome",
     },
     maxOpticalOffset,
     annotation: {
+      ownership,
       target: targetBox,
       trigger: triggerBox,
       scroll: annotationScrollProbe,
@@ -368,6 +395,9 @@ try {
     result: "PASS",
     toolIds,
     maxOpticalOffset,
+    contextInsideCanonicalRoot: ownership.insideCanonicalRoot,
+    documentContextLayers: ownership.documentContextLayers,
+    documentInspectorRuntimes: ownership.documentInspectorRuntimes,
     annotationTriggerGap: triggerGap,
     annotationComposerGap: boxGap(targetBox, composerBox),
     annotationMarkerGap: boxGap(targetBox, markerBox),
