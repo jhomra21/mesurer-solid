@@ -27,20 +27,6 @@ const selectionSnapshot = () => page.evaluate(async () => {
   }));
 });
 
-const elementSummary = (element) => {
-  if (!(element instanceof Element)) return null;
-  return {
-    tag: element.tagName.toLowerCase(),
-    id: element.id || null,
-    mesurerRoot: element.getAttribute("data-mesurer-root"),
-    mesurerLayer: element.getAttribute("data-mesurer-layer"),
-    mesurerInspectorUi: element.getAttribute("data-mesurer-inspector-ui"),
-    annotationTrigger: element.getAttribute("data-mesurer-annotation-trigger"),
-    selectedMeasurement: element.getAttribute("data-mesurer-selected-measurement"),
-    measurementChrome: element.getAttribute("data-mesurer-measurement-chrome"),
-  };
-};
-
 const diagnosticSnapshot = (x, y, stage) => page.evaluate(async ({ x, y, stage, selectedSelector }) => {
   const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
   if (!subject) throw new Error("Expected mounted isolated Mesurer subject");
@@ -53,6 +39,19 @@ const diagnosticSnapshot = (x, y, stage) => page.evaluate(async ({ x, y, stage, 
     const value = element.getBoundingClientRect();
     return { x: value.x, y: value.y, width: value.width, height: value.height };
   };
+  const summarize = (element) => {
+    if (!(element instanceof Element)) return null;
+    return {
+      tag: element.tagName.toLowerCase(),
+      id: element.id || null,
+      mesurerRoot: element.getAttribute("data-mesurer-root"),
+      mesurerLayer: element.getAttribute("data-mesurer-layer"),
+      mesurerInspectorUi: element.getAttribute("data-mesurer-inspector-ui"),
+      annotationTrigger: element.getAttribute("data-mesurer-annotation-trigger"),
+      selectedMeasurement: element.getAttribute("data-mesurer-selected-measurement"),
+      measurementChrome: element.getAttribute("data-mesurer-measurement-chrome"),
+    };
+  };
   return {
     stage,
     point: { x, y },
@@ -61,14 +60,14 @@ const diagnosticSnapshot = (x, y, stage) => page.evaluate(async ({ x, y, stage, 
       tag: target.inspection.tag,
       id: target.inspection.id,
     })),
-    documentHit: elementSummary(docHit),
-    documentStack: document.elementsFromPoint(x, y).slice(0, 8).map(elementSummary),
-    shadowHit: elementSummary(shadowHit),
+    documentHit: summarize(docHit),
+    documentStack: document.elementsFromPoint(x, y).slice(0, 8).map(summarize),
+    shadowHit: summarize(shadowHit),
     shadowStack: typeof shadowRoot?.elementsFromPoint === "function"
-      ? shadowRoot.elementsFromPoint(x, y).slice(0, 8).map(elementSummary)
+      ? shadowRoot.elementsFromPoint(x, y).slice(0, 8).map(summarize)
       : [],
     selectedChrome: Array.from(document.querySelectorAll(selectedSelector)).map((element) => ({
-      summary: elementSummary(element),
+      summary: summarize(element),
       rect: rect(element),
       display: getComputedStyle(element).display,
       visibility: getComputedStyle(element).visibility,
@@ -77,7 +76,7 @@ const diagnosticSnapshot = (x, y, stage) => page.evaluate(async ({ x, y, stage, 
     })),
     annotationTriggers: shadowRoot
       ? Array.from(shadowRoot.querySelectorAll("[data-mesurer-annotation-trigger='true']")).map((element) => ({
-        summary: elementSummary(element),
+        summary: summarize(element),
         rect: rect(element),
       }))
       : [],
