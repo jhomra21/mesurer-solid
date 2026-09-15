@@ -27,7 +27,8 @@ afterEach(async () => {
 
 type Probe = {
   mount: HTMLElement;
-  rendererRoot: HTMLElement | null;
+  mountRoot: HTMLElement | null;
+  runtimeRoot: HTMLElement | null;
 };
 
 const rootProbePlugin = (id: string, probes: Map<string, Probe>): MesurerPlugin => defineMesurerPlugin({
@@ -39,7 +40,8 @@ const rootProbePlugin = (id: string, probes: Map<string, Probe>): MesurerPlugin 
     mount.element.dataset.testRendererOwner = id;
     probes.set(id, {
       mount: mount.element,
-      rendererRoot: mount.element.closest<HTMLElement>("[data-mesurer-root='true']"),
+      mountRoot: mount.element.closest<HTMLElement>("[data-mesurer-root='true']"),
+      runtimeRoot: runtime.rendererRoot ?? null,
     });
     ctx.lifecycle.onDispose(() => mount.dispose());
   },
@@ -95,8 +97,10 @@ describe("renderer runtime root ownership", () => {
     const second = probes.get("second");
     expect(first?.mount.isConnected).toBe(true);
     expect(second?.mount.isConnected).toBe(true);
-    expect(first?.rendererRoot).toBe(roots[0]);
-    expect(second?.rendererRoot).toBe(roots[1]);
-    expect(first?.rendererRoot).not.toBe(second?.rendererRoot);
+    expect(first?.runtimeRoot).toBe(roots[0]);
+    expect(first?.mountRoot).toBe(first?.runtimeRoot);
+    expect(second?.runtimeRoot).toBe(roots[1]);
+    expect(second?.mountRoot).toBe(second?.runtimeRoot);
+    expect(first?.runtimeRoot).not.toBe(second?.runtimeRoot);
   });
 });
