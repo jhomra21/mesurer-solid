@@ -92,13 +92,17 @@ try {
     }
     const contextRoot = card.closest("[data-mesurer-context-root='true']");
     const rendererRoot = contextRoot?.closest("[data-mesurer-root='true']");
+    if (!(rendererRoot instanceof HTMLElement)) throw new Error("Missing canonical renderer root");
     const cardZText = getComputedStyle(card).zIndex;
+    const rendererRootZText = getComputedStyle(rendererRoot).zIndex;
     const hoverZText = getComputedStyle(hover).zIndex;
     const selectionZText = selection instanceof HTMLElement ? getComputedStyle(selection).zIndex : null;
     const numericZ = (value) => value && value !== "auto" ? Number.parseInt(value, 10) : null;
     return {
       cardZ: numericZ(cardZText),
       cardZText,
+      rendererRootZ: numericZ(rendererRootZText),
+      rendererRootZText,
       hoverZ: numericZ(hoverZText),
       hoverZText,
       selectionZ: numericZ(selectionZText),
@@ -123,12 +127,17 @@ try {
   assert.notEqual(
     ownership.cardZ,
     null,
-    `annotation card must own an explicit protected z-index, got ${ownership.cardZText}`,
+    `annotation card must own an explicit local z-index, got ${ownership.cardZText}`,
+  );
+  assert.notEqual(
+    ownership.rendererRootZ,
+    null,
+    `canonical renderer root must own an explicit protected z-index, got ${ownership.rendererRootZText}`,
   );
   if (ownership.hoverZ !== null) {
     assert(
-      ownership.cardZ > ownership.hoverZ,
-      `annotation card z-index ${ownership.cardZ} must beat hover ${ownership.hoverZ}`,
+      ownership.rendererRootZ > ownership.hoverZ,
+      `canonical renderer root z-index ${ownership.rendererRootZ} must beat document hover ${ownership.hoverZ}`,
     );
   } else {
     assert.equal(
@@ -139,8 +148,8 @@ try {
   }
   if (ownership.selectionZ !== null) {
     assert(
-      ownership.cardZ > ownership.selectionZ,
-      `annotation card z-index ${ownership.cardZ} must beat selection ${ownership.selectionZ}`,
+      ownership.rendererRootZ > ownership.selectionZ,
+      `canonical renderer root z-index ${ownership.rendererRootZ} must beat document selection ${ownership.selectionZ}`,
     );
   }
 
@@ -228,11 +237,21 @@ try {
     "new selection must own the restored Add Note trigger",
   );
 
-  const triggerOwnership = await trigger.evaluate((element) => ({
-    scrollMode: element.dataset.mesurerAnnotationScrollMode ?? null,
-    nativeOwner: element.dataset.mesurerNativeScrollOwner ?? null,
-    insideCanonicalRoot: Boolean(element.closest("[data-mesurer-root='true']")),
-  }));
+  const triggerOwnership = await trigger.evaluate((element) => {
+    const rendererRoot = element.closest("[data-mesurer-root='true']");
+    const triggerZText = getComputedStyle(element).zIndex;
+    const rendererRootZText = rendererRoot instanceof HTMLElement ? getComputedStyle(rendererRoot).zIndex : null;
+    const numericZ = (value) => value && value !== "auto" ? Number.parseInt(value, 10) : null;
+    return {
+      scrollMode: element.dataset.mesurerAnnotationScrollMode ?? null,
+      nativeOwner: element.dataset.mesurerNativeScrollOwner ?? null,
+      insideCanonicalRoot: rendererRoot instanceof HTMLElement,
+      triggerZ: numericZ(triggerZText),
+      triggerZText,
+      rendererRootZ: numericZ(rendererRootZText),
+      rendererRootZText,
+    };
+  });
   assert.equal(
     triggerOwnership.scrollMode,
     "cached-delta",
@@ -248,20 +267,15 @@ try {
     true,
     "the restored Add Note trigger must remain inside the canonical Mesurer root",
   );
-
-  const triggerZ = await trigger.evaluate((element) => {
-    const value = getComputedStyle(element).zIndex;
-    return { text: value, numeric: value === "auto" ? null : Number.parseInt(value, 10) };
-  });
   assert.notEqual(
-    triggerZ.numeric,
+    triggerOwnership.triggerZ,
     null,
-    `restored Add Note trigger must own an explicit protected z-index, got ${triggerZ.text}`,
+    `restored Add Note trigger must own an explicit local z-index, got ${triggerOwnership.triggerZText}`,
   );
   assert.equal(
-    triggerZ.numeric,
-    ownership.cardZ,
-    "restored Add Note trigger and composer must share the same protected annotation paint tier",
+    triggerOwnership.rendererRootZ,
+    ownership.rendererRootZ,
+    "restored Add Note trigger must remain in the same protected canonical-root paint tier",
   );
 
   // The canonical-root trigger is viewport-fixed while its page target scrolls.
@@ -331,7 +345,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log(`Annotation ownership contract passed: canonical-root Context cards own an explicit protected paint tier above document-owned page chrome (${ownership.hoverDocumentLayer ? "ported" : "direct"}), selection change closes/discards the draft, the new target gets a canonical-root cached-delta Add Note trigger, and window scrolling preserves target-relative geometry through scalar compensation.`);
+  console.log(`Annotation ownership contract passed: canonical-root Context surfaces are protected by the renderer root above document-owned page chrome (${ownership.hoverDocumentLayer ? "ported" : "direct"}), selection change closes/discards the draft, the new target gets a canonical-root cached-delta Add Note trigger, and window scrolling preserves target-relative geometry through scalar compensation.`);
 } finally {
   await browser.close();
 }
