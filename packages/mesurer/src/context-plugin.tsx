@@ -1,7 +1,8 @@
 import { render } from "@solidjs/web";
 import {
-  ContextActions,
+  ContextActionsSelectOwnership,
   type ContextActionsController,
+  type ContextActionsProps,
   type MesurerSolidRuntimeService,
   type MesurerWorkspaceRuntime,
 } from "@jhomra21/mesurer-solid-renderer";
@@ -216,13 +217,18 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         uiMount = solid.createInspectorMount();
         uiMount.element.dataset.mesurerLayer = "evidence";
         uiMount.element.dataset.mesurerContextRoot = "true";
-        const actionProps: Parameters<typeof ContextActions>[0] = {
+        const actionProps: ContextActionsProps = {
           runtime,
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
           coordinateSpace: "viewport",
         };
-        disposeUi = render(() => <ContextActions {...actionProps} />, uiMount.element);
+        disposeUi = render(() => (
+          <ContextActionsSelectOwnership
+            {...actionProps}
+            ownerWindow={solid.ownerWindow}
+          />
+        ), uiMount.element);
       };
 
       const syncUi = () => {
