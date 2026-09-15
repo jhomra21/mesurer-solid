@@ -4,11 +4,11 @@ import {
   type MountedMesurer,
 } from "./index";
 import {
-  context,
+  context as contextFactory,
   type MesurerContextPluginOptions,
 } from "./context-plugin";
 import {
-  screenshot,
+  screenshot as screenshotFactory,
   type MesurerScreenshotPluginOptions,
 } from "./screenshot";
 
@@ -59,8 +59,8 @@ function mountInjectedMesurer(): MountedMesurer {
   if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
   const injectedPlugins = [
-    ...(context === false ? [] : [context(context === true ? {} : context)]),
-    ...(screenshot === false ? [] : [screenshot(screenshot === true ? {} : screenshot)]),
+    ...(context === false ? [] : [contextFactory(context === true ? {} : context)]),
+    ...(screenshot === false ? [] : [screenshotFactory(screenshot === true ? {} : screenshot)]),
     ...plugins,
   ];
 
