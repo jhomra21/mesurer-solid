@@ -156,11 +156,15 @@ npx --yes --package=mesurer-solid mesurer-skill install
 
 See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the packaged [`mesurer-ui` skill](./.agents/skills/mesurer-ui/SKILL.md).
 
-### Send human feedback to an open Codex session
+### Send human feedback to Codex
 
-The optional Codex transport keeps Context as the feedback source and uses Codex's own queued-user-message command to reach a session that is already open in Codex CLI or the Codex App.
+The optional Codex transport keeps Context as the feedback source and uses Codex's own queued-user-message command. When Codex starts the bridge itself, `mesurer-codex` reads `CODEX_THREAD_ID`, so feedback naturally routes back to the same Codex thread:
 
-Start the local companion pinned to that session:
+```bash
+bunx mesurer-codex
+```
+
+A manual shell can still choose the initial destination explicitly:
 
 ```bash
 bunx mesurer-codex --thread <SESSION>
@@ -177,7 +181,15 @@ mountMesurer({
 })
 ```
 
-Mesurer adds **Send to Codex**. Saved annotation Context is sent first; when there are no saved notes, it falls back to the current selection or workspace Context. The bridge never resumes or takes the writer lock of the target Codex thread.
+Mesurer adds **Send to Codex**. Saved annotation Context is sent first; when there are no saved notes, it falls back to the current selection or workspace Context.
+
+A different or newly-created Codex thread can take over the same bridge by running:
+
+```bash
+bunx mesurer-codex --register-current
+```
+
+The bridge retains previously registered threads. Programmatic callers can use `health()`, `useThread(thread)`, or `send({ thread })` to switch or route to another registered destination. Browser pages cannot register arbitrary Codex threads themselves.
 
 See [Send Context feedback to Codex](./docs/CODEX.md).
 
