@@ -113,11 +113,12 @@ const runCodexQueue = (message) => new Promise((resolve, reject) => {
   let stdout = "";
   let stderr = "";
   let settled = false;
+  let timeout;
 
   const finish = (error, output) => {
     if (settled) return;
     settled = true;
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
     if (error) reject(error);
     else resolve(output);
   };
@@ -134,7 +135,7 @@ const runCodexQueue = (message) => new Promise((resolve, reject) => {
     finish(new Error(`codex queue failed: ${detail}`));
   });
 
-  const timeout = setTimeout(() => {
+  timeout = setTimeout(() => {
     child.kill("SIGTERM");
     finish(new Error(`codex queue timed out after ${CODEX_TIMEOUT_MS}ms.`));
   }, CODEX_TIMEOUT_MS);
