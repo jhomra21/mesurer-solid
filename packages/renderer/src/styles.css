@@ -193,11 +193,16 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   margin-inline: -8px;
 }
 
-/* Solid host compatibility: visually equivalent to upstream's root utility classes. */
+/* The canonical fixed root is one stacking context. Keep it above ordinary
+   document-portaled selection (2147482800) and hover (2147482700) chrome so
+   Context, toolbar, menus, and other interactive Mesurer UI cannot be painted
+   underneath page measurement chrome. Dedicated text-edit chrome begins at
+   2147482900 and Typography cards use 2147483647, so those document-owned
+   editing surfaces retain their intentional higher tier. */
 .mesurer-solid-root {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 2147483000;
   pointer-events: none;
   --msr-spacing: 4px;
 }
