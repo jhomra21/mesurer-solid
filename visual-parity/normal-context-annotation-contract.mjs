@@ -95,6 +95,13 @@ try {
     "Context trigger must stay fixed inside the canonical interaction root",
   );
   assert.equal(
+    await trigger.evaluate((element) => Boolean(
+      element.closest("[data-mesurer-context-root='true']")?.closest("[data-mesurer-root='true']"),
+    )),
+    true,
+    "normal Context trigger must be owned by the canonical Mesurer root",
+  );
+  assert.equal(
     await page.evaluate(() => document.querySelectorAll("[data-mesurer-context-document-layer='true'], [data-mesurer-document-inspector-runtime='true']").length),
     0,
     "normal Context must not create the removed document-backed interaction plane",
@@ -148,9 +155,18 @@ try {
   const composer = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
   assert.equal(
-    await page.evaluate(() => document.body.querySelectorAll("[data-mesurer-annotation-composer='true']").length),
+    await composer.evaluate((element) => {
+      const contextRoot = element.closest("[data-mesurer-context-root='true']");
+      const canonicalRoot = contextRoot?.closest("[data-mesurer-root='true']");
+      return Boolean(contextRoot && canonicalRoot && canonicalRoot.contains(contextRoot));
+    }),
+    true,
+    "normal Context composer must remain inside the canonical Mesurer root",
+  );
+  assert.equal(
+    await page.evaluate(() => document.querySelectorAll("[data-mesurer-context-document-layer='true'], [data-mesurer-document-inspector-runtime='true']").length),
     0,
-    "normal Context composer must remain in the canonical Mesurer root",
+    "normal Context composer must not recreate the removed document interaction bridge",
   );
   await composer.locator("textarea").fill("Normal playground annotation acceptance");
   await composer.getByRole("button", { name: "Add note", exact: true }).click();
