@@ -53,18 +53,24 @@ try {
     clientHeight: element.clientHeight,
     scrollHeight: element.scrollHeight,
   }));
+  const maximumScrollTop = scrollState.scrollHeight - scrollState.clientHeight;
   assert(
-    scrollState.scrollHeight > scrollState.clientHeight + 24,
+    maximumScrollTop > 24,
     `fixture must exercise a genuinely scrollable Typography card; client=${scrollState.clientHeight} scroll=${scrollState.scrollHeight}`,
   );
 
   // Reproduce the real-consumer state from the screen recording: the inspector
-  // has already scrolled internally before a custom select opens. The popup is
-  // absolutely positioned against the outer placement shell while remaining a
-  // descendant of the scrolling card for edit-session pointer ownership.
-  await inspector.evaluate((element) => {
-    element.scrollTop = Math.min(48, element.scrollHeight - element.clientHeight);
-  });
+  // has already scrolled internally before a custom select opens. Leave a
+  // guaranteed second scroll step available instead of assuming every font /
+  // viewport combination has more than 76px of total scroll range.
+  const initialScrollTop = Math.min(24, maximumScrollTop / 3);
+  await inspector.evaluate((element, value) => {
+    element.scrollTop = value;
+  }, initialScrollTop);
+  await page.waitForFunction(
+    (expected) => Math.abs((document.querySelector("[data-mesurer-text-inspector-info='true']")?.scrollTop ?? -1) - expected) < 0.5,
+    initialScrollTop,
+  );
   await settle();
 
   const trigger = inspector.locator("[data-mesurer-unified-select-trigger='weight']");
@@ -87,12 +93,17 @@ try {
   );
 
   const beforeScrollTop = await inspector.evaluate((element) => element.scrollTop);
-  await inspector.evaluate((element) => {
-    const maximum = element.scrollHeight - element.clientHeight;
-    element.scrollTop = Math.min(maximum, element.scrollTop + 28);
-  });
+  const remainingScroll = maximumScrollTop - beforeScrollTop;
+  const internalScrollDelta = Math.min(28, Math.max(8, remainingScroll / 2));
+  assert(
+    beforeScrollTop + internalScrollDelta <= maximumScrollTop + 0.5,
+    `fixture must leave room for a second Typography-card scroll; before=${beforeScrollTop} delta=${internalScrollDelta} max=${maximumScrollTop}`,
+  );
+  await inspector.evaluate((element, delta) => {
+    element.scrollTop += delta;
+  }, internalScrollDelta);
   await page.waitForFunction(
-    (beforeValue) => document.querySelector("[data-mesurer-text-inspector-info='true']")?.scrollTop !== beforeValue,
+    (beforeValue) => Math.abs((document.querySelector("[data-mesurer-text-inspector-info='true']")?.scrollTop ?? beforeValue) - beforeValue) >= 1,
     beforeScrollTop,
   );
   await settle();
