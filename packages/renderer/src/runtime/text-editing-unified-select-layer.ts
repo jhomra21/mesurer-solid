@@ -8,6 +8,11 @@ const MENU_MIN_HEIGHT = 60;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
+type PopupScrollOrigin = {
+  left: number;
+  top: number;
+};
+
 /**
  * Let an open custom Typography menu consume Escape before the text-edit core.
  *
@@ -66,7 +71,9 @@ export function installUnifiedTextSelectEscapeGuard(
  * The text-edit core treats pointer input inside its inspector card as part of
  * the active edit session. Keeping custom menus as descendants of that card
  * preserves that ownership through native pointerdown/click dispatch while the
- * placement shell still provides the viewport-constrained positioning frame.
+ * placement shell remains the popup's containing block. Internal card scrolling
+ * is the only motion the shell cannot inherit, so compensate that cached scalar
+ * delta directly without rediscovering or measuring DOM on the scroll path.
  */
 export function installUnifiedTextSelectLayer(
   ctx: MesurerPluginContext,
@@ -82,6 +89,8 @@ export function installUnifiedTextSelectLayer(
   let disposed = false;
   let moving = false;
   let frame = 0;
+  let trackedCard: HTMLElement | null = null;
+  const popupScrollOrigins = new Map<HTMLElement, PopupScrollOrigin>();
 
   const triggerFor = (popup: HTMLElement) => {
     const kind = popup.dataset.mesurerUnifiedSelectKind;
@@ -97,6 +106,30 @@ export function installUnifiedTextSelectLayer(
       const value = option.dataset.mesurerUnifiedSelectOption;
       if (value) option.setAttribute("aria-label", value);
     }
+  };
+
+  const syncPopupScroll = () => {
+    const card = trackedCard;
+    if (!card?.isConnected) return;
+    for (const [popup, origin] of popupScrollOrigins) {
+      if (!popup.isConnected || !card.contains(popup)) {
+        popupScrollOrigins.delete(popup);
+        continue;
+      }
+      const x = origin.left - card.scrollLeft;
+      const y = origin.top - card.scrollTop;
+      popup.style.transform = x === 0 && y === 0
+        ? "none"
+        : `translate(${x}px, ${y}px)`;
+    }
+  };
+
+  const trackCard = (card: HTMLElement | null) => {
+    if (trackedCard === card) return;
+    trackedCard?.removeEventListener("scroll", syncPopupScroll);
+    popupScrollOrigins.clear();
+    trackedCard = card;
+    trackedCard?.addEventListener("scroll", syncPopupScroll, { passive: true });
   };
 
   const positionInsideCard = (
@@ -124,6 +157,7 @@ export function installUnifiedTextSelectLayer(
     popup.style.margin = "0";
     popup.style.pointerEvents = "auto";
     popup.style.zIndex = "2147483647";
+    popup.style.transform = "none";
 
     const usableWidth = Math.max(1, cardRect.width - MENU_PADDING * 2);
     const width = Math.min(Math.max(triggerRect.width, 120), usableWidth);
@@ -140,8 +174,9 @@ export function installUnifiedTextSelectLayer(
 
     // The card is static inside the fixed placement shell, so absolute popup
     // coordinates are expressed in the shell's coordinate space. Clamp them
-    // to the card's actual visible rectangle so overflow never becomes part of
-    // the pointer-ownership contract.
+    // to the card's visible rectangle. If the card then scrolls internally,
+    // syncPopupScroll applies only the cached scroll delta; it does not query or
+    // measure any DOM and therefore cannot race the page-scroll anchor owner.
     const cardLeft = cardRect.left - shellRect.left;
     const cardTop = cardRect.top - shellRect.top;
     const triggerLeft = triggerRect.left - shellRect.left;
@@ -161,6 +196,10 @@ export function installUnifiedTextSelectLayer(
     const maxTop = Math.max(minTop, cardTop + cardRect.height - MENU_PADDING - height);
     popup.style.left = `${clamp(triggerLeft, minLeft, maxLeft)}px`;
     popup.style.top = `${clamp(desiredTop, minTop, maxTop)}px`;
+    popupScrollOrigins.set(popup, {
+      left: card.scrollLeft,
+      top: card.scrollTop,
+    });
   };
 
   const reconcile = () => {
@@ -173,8 +212,15 @@ export function installUnifiedTextSelectLayer(
       const card = runtimeMount.querySelector<HTMLElement>(
         "[data-mesurer-text-inspector-info='true'][data-mesurer-text-inspector-unified='true']",
       );
-      if (!shell || !card) return;
+      if (!shell || !card) {
+        trackCard(null);
+        return;
+      }
+      trackCard(card);
 
+      for (const popup of Array.from(popupScrollOrigins.keys())) {
+        if (!popup.isConnected || !card.contains(popup)) popupScrollOrigins.delete(popup);
+      }
       for (const popup of Array.from(
         runtimeMount.querySelectorAll<HTMLElement>("[data-mesurer-unified-select-popup='true']"),
       )) {
@@ -213,11 +259,9 @@ export function installUnifiedTextSelectLayer(
   const observer = new realm.MutationObserver(schedule);
   observer.observe(runtimeMount, { childList: true, subtree: true });
   ownerWindow.addEventListener("resize", schedule);
-  // The popup is absolutely positioned inside the Typography card. Window
-  // scrolling moves the card, trigger, and popup as one unit (native anchor or
-  // fallback placement), so there is no relative geometry to reconcile here.
-  // Keeping scroll out of this layer also prevents selector/layout work from
-  // competing with compositor scrolling immediately after direct edit begins.
+  // Page scrolling moves the anchored Typography shell, trigger, and popup as
+  // one unit and requires no work here. Internal card scroll uses only cached
+  // element references plus scalar scrollLeft/scrollTop reads and one style write.
   schedule();
 
   ctx.lifecycle.onDispose(() => {
@@ -225,5 +269,6 @@ export function installUnifiedTextSelectLayer(
     observer.disconnect();
     if (frame) ownerWindow.cancelAnimationFrame(frame);
     ownerWindow.removeEventListener("resize", schedule);
+    trackCard(null);
   });
 }

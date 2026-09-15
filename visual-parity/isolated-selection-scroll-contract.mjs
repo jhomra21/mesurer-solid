@@ -5,7 +5,7 @@ const url = process.env.ISOLATED_SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
-const DOCUMENT_SELECTED_CHROME = "body > [data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true'][data-mesurer-native-scroll-anchor='box']";
+const DOCUMENT_SELECTED_CHROME = "body > [data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true']";
 
 page.on("pageerror", (error) => errors.push(String(error)));
 page.on("console", (message) => {
@@ -50,34 +50,93 @@ const settle = async () => {
   }));
 };
 
-const waitForStableSelectedChrome = async () => {
-  await page.waitForFunction((selector) => {
+const selectedChromeOwnsTarget = async (expectedTargetId) => page.evaluate(async ({ selector, expectedTargetId }) => {
+  const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
+  if (!subject) return false;
+  const context = await subject.context({ scope: "selection" });
+  if (context.targets.at(-1)?.inspection.id !== expectedTargetId) return false;
+
+  const target = document.getElementById(expectedTargetId);
+  const candidates = Array.from(document.querySelectorAll(selector));
+  if (!(target instanceof HTMLElement) || candidates.length !== 1) return false;
+  const element = candidates[0];
+  if (!(element instanceof HTMLElement)) return false;
+
+  const targetRect = target.getBoundingClientRect();
+  const rect = element.getBoundingClientRect();
+  const anchor = getComputedStyle(element).getPropertyValue("position-anchor").trim();
+  const aligned = ["x", "y", "width", "height"].every((key) =>
+    Math.abs(rect[key] - targetRect[key]) <= 1.5);
+  return rect.width > 0
+    && rect.height > 0
+    && element.dataset.mesurerNativeScrollAnchor === "box"
+    && Boolean(anchor)
+    && anchor !== "none"
+    && aligned;
+}, { selector: DOCUMENT_SELECTED_CHROME, expectedTargetId });
+
+const waitForStableSelectedChrome = async (expectedTargetId) => {
+  await page.waitForFunction(async ({ selector, expectedTargetId }) => {
+    const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
+    if (!subject) return false;
+    const context = await subject.context({ scope: "selection" });
+    if (context.targets.at(-1)?.inspection.id !== expectedTargetId) return false;
+
+    const target = document.getElementById(expectedTargetId);
     const candidates = Array.from(document.querySelectorAll(selector));
-    if (candidates.length !== 1) return false;
+    if (!(target instanceof HTMLElement) || candidates.length !== 1) return false;
     const element = candidates[0];
     if (!(element instanceof HTMLElement)) return false;
+
+    const targetRect = target.getBoundingClientRect();
     const rect = element.getBoundingClientRect();
     const anchor = getComputedStyle(element).getPropertyValue("position-anchor").trim();
+    const aligned = ["x", "y", "width", "height"].every((key) =>
+      Math.abs(rect[key] - targetRect[key]) <= 1.5);
     return rect.width > 0
       && rect.height > 0
       && element.dataset.mesurerNativeScrollAnchor === "box"
       && Boolean(anchor)
-      && anchor !== "none";
-  }, DOCUMENT_SELECTED_CHROME);
-  await settle();
+      && anchor !== "none"
+      && aligned;
+  }, { selector: DOCUMENT_SELECTED_CHROME, expectedTargetId });
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    await settle();
+    if (await selectedChromeOwnsTarget(expectedTargetId)) return;
+    await page.waitForTimeout(16);
+  }
+  throw new Error(`selected chrome did not retain ownership of #${expectedTargetId} after settle`);
 };
 
 const assertNativeAnchor = async (locator, mode, stage) => {
-  const native = await locator.evaluate((element) => ({
-    mode: element.dataset.mesurerNativeScrollAnchor ?? null,
-    anchor: getComputedStyle(element).getPropertyValue("position-anchor").trim(),
-    transition: getComputedStyle(element).transitionDuration,
-    animation: getComputedStyle(element).animationName,
-  }));
+  let native = null;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    native = await locator.evaluate((element) => ({
+      mode: element.dataset.mesurerNativeScrollAnchor ?? null,
+      anchor: getComputedStyle(element).getPropertyValue("position-anchor").trim(),
+      transition: getComputedStyle(element).transitionDuration,
+      animation: getComputedStyle(element).animationName,
+    }));
+    if (native.mode === mode && native.anchor && native.anchor !== "none") break;
+    await page.waitForTimeout(16);
+  }
+  assert(native, `${stage}: expected native anchor state`);
   assert.equal(native.mode, mode, `${stage}: native anchor mode`);
   assert(native.anchor && native.anchor !== "none", `${stage}: expected resolved CSS position-anchor`);
   assert.equal(native.transition, "0s", `${stage}: must not transition`);
   assert.equal(native.animation, "none", `${stage}: must not animate`);
+};
+
+const assertCanonicalContextTrigger = async (locator, stage) => {
+  const value = await locator.evaluate((element) => ({
+    mode: element.dataset.mesurerAnnotationScrollMode ?? null,
+    coordinateSpace: element.dataset.mesurerContextCoordinateSpace ?? null,
+    position: getComputedStyle(element).position,
+  }));
+  assert.equal(value.mode, "cached-delta", `${stage}: annotation scroll mode`);
+  assert.equal(value.coordinateSpace, "viewport", `${stage}: annotation coordinate space`);
+  assert.equal(value.position, "fixed", `${stage}: annotation positioning`);
 };
 
 try {
@@ -103,13 +162,29 @@ try {
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const selectedChrome = page.locator(DOCUMENT_SELECTED_CHROME).first();
-  const annotation = page.locator("[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']");
-  await waitForStableSelectedChrome();
+  const annotation = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']");
+  await waitForStableSelectedChrome("isolated-scroll-target");
   await selectedChrome.waitFor({ state: "visible" });
   await annotation.waitFor({ state: "visible" });
   assertSameBox(await box(selectedChrome, "selected chrome before scroll"), targetBox, "selected chrome before scroll");
   await assertNativeAnchor(selectedChrome, "box", "selected chrome");
-  await assertNativeAnchor(annotation, "offset", "annotation trigger");
+  await assertCanonicalContextTrigger(annotation, "annotation trigger");
+  const contextOwnership = await page.evaluate(() => ({
+    documentContextLayers: document.querySelectorAll("[data-mesurer-context-document-layer='true']").length,
+    documentInspectorRuntimes: document.querySelectorAll("[data-mesurer-document-inspector-runtime='true']").length,
+    contextInsideCanonicalRoot: (() => {
+      const island = document.querySelector("[data-mesurer-island='true']");
+      const root = island instanceof HTMLElement
+        ? island.shadowRoot?.querySelector("[data-mesurer-root='true']") ?? null
+        : null;
+      const contextRoot = root?.querySelector("[data-mesurer-context-root='true']") ?? null;
+      return Boolean(root && contextRoot && root.contains(contextRoot));
+    })(),
+  }));
+  assert.equal(contextOwnership.contextInsideCanonicalRoot, true, "annotation Context must live inside canonical Mesurer root");
+  assert.equal(contextOwnership.documentContextLayers, 0, "annotation Context must not create document-backed layers");
+  assert.equal(contextOwnership.documentInspectorRuntimes, 0, "annotation Context must not create document input bridges");
+
   let annotationBox = await box(annotation, "annotation before scroll");
   assert(
     boxGap(targetBox, annotationBox) >= 5.5 && boxGap(targetBox, annotationBox) <= 6.5,
@@ -144,9 +219,10 @@ try {
   await settle();
   const nestedTargetBox = await box(nestedTarget, "nested target before selection");
   await page.mouse.click(nestedTargetBox.x + nestedTargetBox.width / 2, nestedTargetBox.y + nestedTargetBox.height / 2);
-  await waitForStableSelectedChrome();
+  await waitForStableSelectedChrome("isolated-nested-scroll-target");
   await selectedChrome.waitFor({ state: "visible" });
   await annotation.waitFor({ state: "visible" });
+  await assertCanonicalContextTrigger(annotation, "nested annotation trigger");
   const nestedBefore = {
     target: nestedTargetBox,
     selected: await box(selectedChrome, "nested selected before wheel"),
@@ -174,7 +250,7 @@ try {
   await settle();
   targetBox = await box(target, "target before direct edit");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
-  await waitForStableSelectedChrome();
+  await waitForStableSelectedChrome("isolated-scroll-target");
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
@@ -191,10 +267,6 @@ try {
   await assertNativeAnchor(inspectorShell, "offset", "Typography source anchor");
   await assertNativeAnchor(textHighlight, "offset", "selected-text highlight");
 
-  // Exercise a live control through physical pointer + keyboard input. The
-  // rendered page style must change, while editor and selected page identity stay
-  // unchanged. This proves the document-backed card receives real input without
-  // relying on a button attribute or looking through to page content beneath it.
   const editorValue = await editor.inputValue();
   const lineBefore = await target.evaluate((element) => getComputedStyle(element).lineHeight);
   const desiredLine = lineBefore === "36px" ? "42px" : "36px";
@@ -268,7 +340,7 @@ try {
   }
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated E2E: real window/nested scrolling keeps annotation and selection attached; physical Typography control input changes rendered source without retargeting page ownership; Typography leaves with its source while toolbar stays viewport-owned: PASS");
+  console.log("Public isolated E2E: real window/nested scrolling keeps canonical-root annotation and selection attached; Context uses no document input bridge; physical Typography control input changes rendered source without retargeting page ownership; Typography leaves with its source while toolbar stays viewport-owned: PASS");
 } finally {
   await browser.close();
 }

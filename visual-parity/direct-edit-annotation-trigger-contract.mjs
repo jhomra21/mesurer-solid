@@ -35,7 +35,7 @@ try {
 
   await page.mouse.click(x, y);
   const annotation = page.locator(
-    "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']",
+    "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
   );
   await annotation.waitFor({ state: "visible", timeout: 3000 });
 
@@ -44,9 +44,9 @@ try {
   await editor.waitFor({ state: "visible", timeout: 3000 });
   await annotation.waitFor({ state: "hidden", timeout: 3000 });
   assert.equal(
-    await page.locator("html[data-mesurer-direct-text-edit-active='true']").count(),
-    1,
-    "direct edit must own the contextual action lane while its editor is active",
+    await annotation.evaluate((element) => element.closest("[data-mesurer-root='true']")?.getAttribute("data-mesurer-direct-text-edit-active")),
+    "true",
+    "direct edit must mark the same canonical root that owns Context",
   );
   assert.equal(await annotation.isVisible(), false, "annotation trigger must not be visible during direct text edit");
 
@@ -58,13 +58,14 @@ try {
   await settle();
   await annotation.waitFor({ state: "visible", timeout: 3000 });
   assert.equal(
-    await page.locator("html[data-mesurer-direct-text-edit-active='true']").count(),
-    0,
-    "direct-edit contextual suppression must clear when editing ends",
+    await annotation.evaluate((element) => element.closest("[data-mesurer-root='true']")?.hasAttribute("data-mesurer-direct-text-edit-active") ?? false),
+    false,
+    "direct-edit root-local contextual suppression must clear when editing ends",
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
   console.log("Direct-edit annotation trigger ownership: PASS", {
+    rootLocalOwnership: true,
     visibleBeforeEdit: true,
     hiddenDuringEdit: true,
     visibleAfterEdit: true,

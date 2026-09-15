@@ -239,7 +239,7 @@ jobs:
           cat > src/main.tsx <<'TSX'
           import { createSignal } from "solid-js";
           import { render } from "@solidjs/web";
-          import { defineMesurerPlugin, mountMesurer } from "mesurer-solid";
+          import { contextPlugin, defineMesurerPlugin, mountMesurer } from "mesurer-solid";
 
           function App() {
             const [count, setCount] = createSignal(0);
@@ -272,7 +272,7 @@ jobs:
               });
             },
           });
-          const mesurer = mountMesurer({ agent: true, plugins: [plugin] });
+          const mesurer = mountMesurer({ agent: true, plugins: [plugin, contextPlugin()] });
           await mesurer.ready;
           (window as Window & { __HOST_READY__?: boolean }).__HOST_READY__ = true;
           TSX
@@ -308,6 +308,8 @@ jobs:
         run: |
           bun package-smoke/consumer-smoke.mjs
           bun package-smoke/typography-hover-occlusion.mjs
+          bun package-smoke/annotation-draft-handoff.mjs
+          bun package-smoke/annotation-adjacent-handoff.mjs
 
       - name: Upload publish candidate
         if: success()

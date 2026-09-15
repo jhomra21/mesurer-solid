@@ -2,7 +2,14 @@ export { default as Mesurer } from "./ComposableMesurer";
 export type { MesurerAvailablePlugin, MesurerProps, MesurerSolidRuntimeService } from "./ComposableMesurer";
 export { ContextActions } from "./components/ContextActions";
 export type { ContextActionsController, ContextActionsProps } from "./components/ContextActions";
+export { ContextActionsSelectOwnership } from "./components/ContextActionsSelectOwnership";
+export type { ContextActionsSelectOwnershipProps } from "./components/ContextActionsSelectOwnership";
 export { createMesurerWorkspaceRuntime } from "./runtime/workspace-context";
+export {
+  MESURER_SELECT_GESTURE_START_EVENT,
+  publishMesurerSelectGestureStart,
+  subscribeMesurerSelectGestureStart,
+} from "./runtime/select-gesture-channel";
 export type {
   MesurerAnnotation,
   MesurerAnnotationBaseline,
@@ -12,8 +19,6 @@ export type {
   MesurerWorkspaceRuntime,
   MesurerWorkspaceSnapshot,
 } from "./runtime/workspace-context";
-export { createDocumentInspectorRuntime } from "./runtime/document-inspector-runtime";
-export type { MesurerDocumentInspectorRuntime } from "./runtime/document-inspector-runtime";
 export {
   colorPickerPlugin,
   composeMesurerPlugins,

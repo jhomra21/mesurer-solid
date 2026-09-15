@@ -61,25 +61,28 @@ const selectionSnapshot = () => page.evaluate(async () => {
   };
 });
 
-const shadowGeometry = () => page.evaluate(() => {
-  const host = document.querySelector("#shadow-scroll-host");
-  const root = host?.shadowRoot;
-  const scroller = root?.querySelector("#shadow-scroll-shell");
-  const target = root?.querySelector("#isolated-shadow-scroll-target");
-  const trigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
-  if (!(scroller instanceof HTMLElement)) throw new Error("Expected cross-shadow scroller");
-  if (!(target instanceof HTMLElement)) throw new Error("Expected cross-shadow target");
-  if (!(trigger instanceof HTMLElement)) throw new Error("Expected annotation trigger");
-  const snapshot = (element) => {
-    const rect = element.getBoundingClientRect();
-    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-  };
+const shadowGeometry = async (trigger) => {
+  const geometry = await page.evaluate(() => {
+    const host = document.querySelector("#shadow-scroll-host");
+    const root = host?.shadowRoot;
+    const scroller = root?.querySelector("#shadow-scroll-shell");
+    const target = root?.querySelector("#isolated-shadow-scroll-target");
+    if (!(scroller instanceof HTMLElement)) throw new Error("Expected cross-shadow scroller");
+    if (!(target instanceof HTMLElement)) throw new Error("Expected cross-shadow target");
+    const snapshot = (element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    return {
+      scroller: snapshot(scroller),
+      target: snapshot(target),
+    };
+  });
   return {
-    scroller: snapshot(scroller),
-    target: snapshot(target),
-    surface: snapshot(trigger),
+    ...geometry,
+    surface: await box(trigger, "canonical-root annotation trigger"),
   };
-});
+};
 
 try {
   await page.goto(url, { waitUntil: "networkidle" });
@@ -139,8 +142,9 @@ try {
 
   // Reproduce the annotation failure in the topology that used to escape the
   // green suite: inspected content in a different ShadowRoot and overflow
-  // scroller, while Mesurer remains isolated. Scroll it the way a user does and
-  // require the visible annotation button to remain attached to the same target.
+  // scroller, while Mesurer remains isolated. Context now stays in Mesurer's
+  // canonical root, so locate it through Playwright's shadow-piercing locator
+  // rather than document.querySelector from the page tree.
   const shadowHost = page.locator("#shadow-scroll-host");
   await shadowHost.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await page.evaluate(() => {
@@ -160,9 +164,16 @@ try {
   });
   await page.mouse.click(shadow.x + shadow.width / 2, shadow.y + shadow.height / 2);
 
-  const annotationTrigger = page.locator("[data-mesurer-annotation-trigger='true']");
+  const annotationTrigger = page.locator(
+    "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
+  );
   await annotationTrigger.waitFor({ state: "visible" });
-  let geometry = await shadowGeometry();
+  assert.equal(
+    await annotationTrigger.getAttribute("data-mesurer-context-coordinate-space"),
+    "viewport",
+    "isolated annotation trigger must use canonical viewport ownership",
+  );
+  let geometry = await shadowGeometry(annotationTrigger);
   let gap = boxGap(geometry.target, geometry.surface);
   assert(gap >= 5.5 && gap <= 6.5, `annotation should start at 6px clearance; gap=${gap.toFixed(2)}px`);
 
@@ -173,7 +184,7 @@ try {
   );
   await page.mouse.wheel(0, 72);
   await settle();
-  geometry = await shadowGeometry();
+  geometry = await shadowGeometry(annotationTrigger);
   assertRelativeOffset(beforeNested, geometry, "annotation during nested ShadowRoot scrolling");
   gap = boxGap(geometry.target, geometry.surface);
   assert(gap >= 5.5 && gap <= 6.5, `annotation should keep 6px nested-scroll clearance; gap=${gap.toFixed(2)}px`);
@@ -182,7 +193,7 @@ try {
   await page.mouse.move(8, 8);
   await page.mouse.wheel(0, 80);
   await settle();
-  geometry = await shadowGeometry();
+  geometry = await shadowGeometry(annotationTrigger);
   assertRelativeOffset(beforeWindow, geometry, "annotation during window scrolling");
   gap = boxGap(geometry.target, geometry.surface);
   assert(gap >= 5.5 && gap <= 6.5, `annotation should keep 6px window-scroll clearance; gap=${gap.toFixed(2)}px`);
@@ -195,7 +206,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Manual rejection scenarios pass end-to-end: Typography cannot become the selected page target, and annotation stays attached through real nested and window scrolling.");
+  console.log("Manual rejection scenarios pass end-to-end: Typography cannot become the selected page target, and canonical-root annotation stays attached through real nested and window scrolling.");
 } finally {
   await browser.close();
 }

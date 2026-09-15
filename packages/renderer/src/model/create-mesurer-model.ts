@@ -5,6 +5,7 @@ import {
   type MesurerModelOptions,
   type MesurerModelState,
 } from "@jhomra21/mesurer-solid-core";
+import { publishMesurerSelectGestureStart } from "../runtime/select-gesture-channel";
 
 export type {
   GuidePreview,
@@ -16,6 +17,8 @@ export type {
 
 export type MesurerModel = MesurerCoreModel<HTMLElement> & {
   state: MesurerModelState<HTMLElement>;
+  /** Exact renderer root owned by this model once MesurerClient mounts. */
+  rendererRoot: HTMLDivElement | null;
 };
 
 const ignoreModelRegistration = (_model: MesurerModel) => undefined;
@@ -32,6 +35,7 @@ export function createMesurerModel(options: MesurerModelOptions = {}): MesurerMo
   const unsubscribe = core.subscribe((snapshot) => setState(() => snapshot));
   const disposeCore = core.dispose;
   let disposed = false;
+  let model!: MesurerModel;
   const activeSelection = createMemo(
     () => state.selectedMeasurement ?? state.selectedMeasurements.at(-1) ?? null,
   );
@@ -50,18 +54,30 @@ export function createMesurerModel(options: MesurerModelOptions = {}): MesurerMo
     if (unchanged) return;
     core.setGuides(guides);
   };
+  const setTransient: typeof core.setTransient = (update) => {
+    const wasSelectGestureActive = core.current.toolMode === "select" && core.current.start !== null;
+    core.setTransient(update);
+    const selectGestureActive = core.current.toolMode === "select" && core.current.start !== null;
+    if (!wasSelectGestureActive && selectGestureActive) {
+      const ownerWindow = model.rendererRoot?.ownerDocument.defaultView;
+      if (ownerWindow) publishMesurerSelectGestureStart(ownerWindow);
+    }
+  };
 
-  const model: MesurerModel = {
+  model = {
     ...core,
     setGuides,
+    setTransient,
     dispose,
     state,
     activeSelection,
+    rendererRoot: null,
   };
 
   function dispose() {
     if (disposed) return;
     disposed = true;
+    model.rendererRoot = null;
     unsubscribe();
     disposeCore();
   }

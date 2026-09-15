@@ -103,12 +103,14 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     if (!(overlay.getRootNode() instanceof ownerWindow.ShadowRoot)) return null;
     if (target.getRootNode() !== overlay.ownerDocument) return null;
 
-    // Ordinary Select hover stays inside the hardened top-layer island. Only
-    // direct-edit Typography creates a document-backed inspector that needs
-    // hover chrome in the same document paint tree so the inspector can occlude
-    // it. Keeping this scope narrow preserves the normal protected hover layer.
-    const typography = overlay.ownerDocument.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
-    if (!typography?.isConnected || typography.getRootNode() !== overlay.ownerDocument) return null;
+    // Ordinary Select hover stays inside the hardened top-layer island. A live
+    // document-backed inspector surface is the narrow exception: move hover
+    // chrome into the same document paint tree so Typography and Context note
+    // surfaces can occlude page chrome exactly like the persistent toolbar.
+    const protectedInspector = overlay.ownerDocument.querySelector<HTMLElement>(
+      "[data-mesurer-text-inspector-info='true'], [data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
+    );
+    if (!protectedInspector?.isConnected || protectedInspector.getRootNode() !== overlay.ownerDocument) return null;
     return overlay.ownerDocument.body;
   };
   const hoverPortalOffset = () => {

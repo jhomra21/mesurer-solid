@@ -18,6 +18,8 @@ The selection-adjacent **Add Note** annotation button is intentionally hidden fo
 
 That one contextual card is also the direct formatting surface. Family, Size, Weight, Line, and Tracking are live controls; Format contains Bold, Italic, and Underline; Color contains rendered-page swatches plus a custom color; and Style opens the available Text/Heading presets inside the same card. The card stays visible during the edit and is initially positioned around the active text without covering it. When full-height placement is impossible in a constrained viewport, the card uses the available lane and scrolls internally rather than disappearing below the viewport or obscuring the field.
 
+Custom Family, Size, and Weight menus stay attached to their trigger when that constrained Typography card scrolls internally. The popup remains part of the Typography interaction surface instead of becoming independent viewport furniture, and ordinary page scrolling still moves the source-linked card and its open popup together.
+
 Typography has two deliberately separate ownership rules. **Interaction ownership belongs to Mesurer:** the card and its controls are inspector UI, never inspectable page content, and form a hard hit-test boundary so clicking or double-clicking them cannot select the card itself or retarget page content underneath. **Geometry ownership belongs to the inspected text:** while the source is visible the card is placed around that source, then scrolls with it; when the source leaves the viewport the contextual card leaves with it instead of remaining as unrelated viewport furniture. Ordinary pointer movement does not reposition the card. The global toolbar and its Settings surface remain viewport-owned UI.
 
 ## What can be edited

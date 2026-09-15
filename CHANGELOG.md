@@ -4,7 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Keep Add Note and saved annotation cards above live page selection/hover chrome. The transient Add Note composer now belongs to the selection that opened it, so selecting another element closes the composer and restores the small Add Note trigger for the new target instead of moving the open card.
+- Keep custom Typography select popups attached to their trigger while the Typography card scrolls internally, without adding work back to the direct-edit window-scroll hot path.
 
 ## 0.1.7-beta.10 - 2026-09-14
 

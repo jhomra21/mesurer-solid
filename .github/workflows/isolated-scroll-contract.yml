@@ -25,6 +25,7 @@ on:
       - "examples/basic/isolated-scroll.html"
       - "examples/basic/src/isolated-scroll.ts"
       - "visual-parity/direct-edit-annotation-trigger-contract.mjs"
+      - "visual-parity/isolated-annotation-draft-handoff-contract.mjs"
       - "visual-parity/isolated-selection-scroll-contract.mjs"
       - "visual-parity/native-scroll-settle-contract.mjs"
       - "visual-parity/rejected-manual-regressions.mjs"
@@ -95,6 +96,12 @@ jobs:
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun visual-parity/direct-edit-annotation-trigger-contract.mjs
+
+      - name: Exercise isolated annotation draft handoff
+        timeout-minutes: 2
+        env:
+          ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
+        run: bun visual-parity/isolated-annotation-draft-handoff-contract.mjs
 
       - name: Exercise public isolated compositor scroll and toolbar avoidance
         env:

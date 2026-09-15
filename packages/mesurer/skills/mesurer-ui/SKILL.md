@@ -130,6 +130,8 @@ If Typography was already explicitly selected, the direct-edit session suppresse
 
 Direct edit also owns the field's visible selection lane. The ordinary selected MeasurementBox stays logically mounted but its duplicate border is paint-suppressed, the selected dimensions pill remains available, and the source-linked Typography card must not move merely because the pointer moves. The selection-adjacent Add Note button is intentionally hidden only while the editor is active and returns afterward. Existing saved annotations remain durable; do not infer that Context disappeared because this transient button is absent.
 
+In constrained viewports the Typography card may scroll internally. Its custom Family, Size, and Weight popup stays attached to the trigger inside that scrolling card and remains part of the same Mesurer interaction surface; page scrolling still moves the source-linked card and popup together. Do not “fix” a popup by making it independent viewport furniture or by adding page-scroll geometry work.
+
 For normal application work, read saved intent instead of automating the editor UI:
 
 ```js
@@ -153,6 +155,8 @@ Saved intent and visible presentation are separate. By default, both human prese
 The user can open Settings with the gear button or `Cmd/Ctrl+,`. Changing either switch changes presentation policy only; it must not delete or rewrite saved intent/history. Do not mistake an Original-looking page in Select for missing intent—read the saved Text/Arrange records first.
 
 Mesurer UI is never inspected-page content. Treat `[data-mesurer-root]`, `[data-mesurer-island]`, and `[data-mesurer-inspector-ui]` surfaces as hard selection/hit-test boundaries. Do not look through a Typography card, annotation surface, toolbar, or inspector shell to select page content underneath it.
+
+An Add Note composer is transient and belongs to the exact selection that opened it. If the human changes selection before saving, Mesurer closes that unsaved composer and shows the normal small Add Note trigger for the new selection instead of carrying the draft card to another target. Add Note and saved annotation cards are protected inspector surfaces: live page hover/selection chrome paints underneath them, just as it does for Typography and the persistent toolbar.
 
 Scroll ownership is split deliberately:
 

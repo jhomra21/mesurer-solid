@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import {
   installNestedScrollCompensation,
@@ -8,19 +8,25 @@ import { CloseIcon, CopyIcon, NoteIcon, TrashIcon } from "./Icons";
 
 export type ContextActionsController = {
   openNoteComposer(): void;
+  closeNoteComposer(): void;
+  abandonNoteComposer(): void;
 };
 
 export type ContextActionsProps = {
   runtime: MesurerWorkspaceRuntime;
   onCopy: (request?: MesurerContextRequest) => Promise<void>;
   onController?: (controller: ContextActionsController | null) => void;
+  initialTriggerFallback?: "current" | "current-and-next";
+  coordinateSpace?: "document" | "viewport";
 };
 
 type PositionedRect = { left: number; top: number; width: number; height: number };
+type ContextSelectionSnapshot = { elements: HTMLElement[]; region: PositionedRect | null };
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
+const PROTECTED_ANNOTATION_Z_INDEX = "2147483647";
 const annotationButtonClass = "msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:cursor-default msr:disabled:opacity-40";
 let annotationAnchorSequence = 0;
 
@@ -87,8 +93,30 @@ const placeSurfaceNear = (
   return { left: positionedLeft, top: positionedTop };
 };
 
+const placeComposerNear = (
+  rect: PositionedRect,
+  width: number,
+  height: number,
+  ownerWindow: Window,
+  gap = 8,
+) => {
+  const padding = 8;
+  const maxLeft = ownerWindow.innerWidth - width - padding;
+  const centeredLeft = clamp(rect.left + rect.width / 2 - width / 2, padding, maxLeft);
+  const below = rect.top + rect.height + gap;
+  if (below + height <= ownerWindow.innerHeight - padding) {
+    return { left: centeredLeft, top: below };
+  }
+  const above = rect.top - height - gap;
+  if (above >= padding) {
+    return { left: centeredLeft, top: above };
+  }
+  return placeSurfaceNear(rect, width, height, ownerWindow, gap);
+};
+
 export function ContextActions(props: ContextActionsProps) {
   const [revision, setRevision] = createSignal(0);
+  const [triggerRevision, setTriggerRevision] = createSignal(0);
   const [activeAnnotationId, setActiveAnnotationId] = createSignal<string | null>(null);
   const [panelPositions, setPanelPositions] = createSignal<Record<string, { left: number; top: number }>>({});
   const [composerPosition, setComposerPosition] = createSignal<{ left: number; top: number } | null>(null);
@@ -98,7 +126,10 @@ export function ContextActions(props: ContextActionsProps) {
   const [busy, setBusy] = createSignal(false);
   const [status, setStatus] = createSignal<string | null>(null);
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
-  const selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
+  let selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
+  let fallbackTriggerElement: HTMLElement | null = null;
+  let fallbackNextSelection = props.initialTriggerFallback === "current-and-next";
+  let composerSelection: ContextSelectionSnapshot | null = null;
   let surfaceDrag: {
     surfaceId: string;
     pointerId: number;
@@ -116,15 +147,39 @@ export function ContextActions(props: ContextActionsProps) {
   let anchoredTriggerElement: HTMLElement | null = null;
   let releaseTriggerAnchor: (() => void) | null = null;
   let nestedTriggerScroll: MesurerNestedScrollCompensation | null = null;
+  let triggerResizeObserver: ResizeObserver | null = null;
+  let triggerResizeWindow: Window | null = null;
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
+  const usesViewportCoordinates = () => props.coordinateSpace === "viewport";
+  const captureSelection = (): ContextSelectionSnapshot => {
+    const value = props.runtime.currentSelection();
+    return {
+      elements: [...value.elements],
+      region: value.region ? { ...value.region } : null,
+    };
+  };
+  const sameSelection = (left: ContextSelectionSnapshot, right: ContextSelectionSnapshot) => {
+    if (left.elements.length !== right.elements.length) return false;
+    if (left.elements.some((element, index) => element !== right.elements[index])) return false;
+    if (left.region === right.region) return true;
+    if (!left.region || !right.region) return false;
+    return left.region.left === right.region.left
+      && left.region.top === right.region.top
+      && left.region.width === right.region.width
+      && left.region.height === right.region.height;
+  };
+  const resetNoteComposerState = () => {
+    composerSelection = null;
+    setNote("");
+    setNoteComposerOpen(false);
+    setNoteError(null);
+    setComposerPosition(null);
+  };
 
   const supportsSelectionTriggerAnchor = () => {
+    if (usesViewportCoordinates()) return false;
     const currentWindow = ownerWindow();
-    // CodexBrowser exposes native CSS Anchor Positioning support, but its
-    // document-backed Context surface does not reliably present the anchored
-    // selection affordance. The host bridge is available before Mesurer mounts,
-    // so choose the document-backed fallback deterministically.
     if (Object.prototype.hasOwnProperty.call(currentWindow, "__codexWebMcpModelContext")) return false;
     return Boolean(
       currentWindow.CSS?.supports("anchor-name: --mesurer-annotation-trigger")
@@ -142,6 +197,10 @@ export function ContextActions(props: ContextActionsProps) {
       ?? elements[0];
   };
 
+  if (props.initialTriggerFallback) {
+    fallbackTriggerElement = currentSelectionTriggerElement();
+  }
+
   const releaseSelectionTriggerAnchor = () => {
     nestedTriggerScroll?.release();
     nestedTriggerScroll = null;
@@ -153,12 +212,15 @@ export function ContextActions(props: ContextActionsProps) {
 
   const canUseNativeTriggerAnchor = (element: HTMLElement) => Boolean(
     anchorElement
+    && element !== fallbackTriggerElement
     && supportsSelectionTriggerAnchor()
     && element.getRootNode() === anchorElement.getRootNode(),
   );
 
   const syncSelectionTriggerAnchor = () => {
     const element = currentSelectionTriggerElement();
+    if (fallbackTriggerElement && element !== fallbackTriggerElement) fallbackTriggerElement = null;
+    const previousElement = trackedTriggerElement;
     const shouldUseNative = Boolean(element?.isConnected && canUseNativeTriggerAnchor(element));
     const alreadyNative = anchoredTriggerElement === element;
     if (
@@ -166,14 +228,14 @@ export function ContextActions(props: ContextActionsProps) {
       && element?.isConnected
       && shouldUseNative === alreadyNative
     ) {
-      // The document-backed fallback inherits window/document movement directly.
-      // Only nested overflow ancestors need scalar delta compensation, so a
-      // workspace notification must preserve the helper's accumulated nested
-      // offset until an actual target/anchor topology change replaces it.
       nestedTriggerScroll?.sync();
       return;
     }
 
+    const targetChanged = element !== previousElement;
+    const nextAnchorName = targetChanged
+      ? `--mesurer-annotation-trigger-${++annotationAnchorSequence}`
+      : selectionTriggerAnchorName;
     releaseSelectionTriggerAnchor();
     if (!element?.isConnected) return;
     trackedTriggerElement = element;
@@ -181,8 +243,9 @@ export function ContextActions(props: ContextActionsProps) {
     if (!currentWindow) return;
 
     if (shouldUseNative) {
-      releaseTriggerAnchor = addAnchorName(element, selectionTriggerAnchorName);
+      releaseTriggerAnchor = addAnchorName(element, nextAnchorName);
       anchoredTriggerElement = element;
+      selectionTriggerAnchorName = nextAnchorName;
       nestedTriggerScroll = installNestedScrollCompensation(
         currentWindow,
         element,
@@ -191,22 +254,81 @@ export function ContextActions(props: ContextActionsProps) {
       return;
     }
 
-    // The fallback is absolutely positioned in the document layer, so ordinary
-    // window scrolling is compositor-owned. Keep JavaScript compensation only
-    // for nested overflow ancestors that the body portal cannot inherit.
+    selectionTriggerAnchorName = nextAnchorName;
     nestedTriggerScroll = installNestedScrollCompensation(
       currentWindow,
       element,
       () => [annotationTriggerElement],
+      { trackWindow: usesViewportCoordinates() },
     );
   };
 
+  const observeTriggerGeometry = (element: HTMLElement | null) => {
+    triggerResizeObserver?.disconnect();
+    triggerResizeObserver = null;
+    if (!element?.isConnected) return;
+    const currentWindow = element.ownerDocument.defaultView;
+    if (!currentWindow) return;
+    triggerResizeObserver = new currentWindow.ResizeObserver(() => {
+      setTriggerRevision((value) => value + 1);
+    });
+    triggerResizeObserver.observe(element);
+  };
+
+  const bindTriggerViewportResize = () => {
+    const currentWindow = ownerWindow();
+    if (triggerResizeWindow === currentWindow) return;
+    triggerResizeWindow?.removeEventListener("resize", bumpTriggerPlacement);
+    triggerResizeWindow = currentWindow;
+    triggerResizeWindow.addEventListener("resize", bumpTriggerPlacement, { passive: true });
+  };
+
+  function bumpTriggerPlacement() {
+    setTriggerRevision((value) => value + 1);
+  }
+
+  let placementTarget = currentSelectionTriggerElement();
+  observeTriggerGeometry(placementTarget);
   const unsubscribe = props.runtime.subscribe(() => {
+    const selectGestureActive = props.runtime.selectGestureActive();
+    if (noteComposerOpen() && selectGestureActive) {
+      // Draft validity is state-based, not edge-based. Any renderer-model
+      // notification while Select owns an active gesture invalidates the draft
+      // synchronously, even if this component mounted or resubscribed mid-cycle.
+      fallbackNextSelection = true;
+      resetNoteComposerState();
+    } else if (
+      noteComposerOpen()
+      && composerSelection !== null
+      && !sameSelection(composerSelection, captureSelection())
+    ) {
+      // A non-pointer/API selection change is the same ownership violation. Keep
+      // the restored trigger on the committed selection and discard old text.
+      fallbackTriggerElement = currentSelectionTriggerElement();
+      fallbackNextSelection = false;
+      resetNoteComposerState();
+    }
+
+    const nextPlacementTarget = currentSelectionTriggerElement();
+    const targetChanged = nextPlacementTarget !== placementTarget;
+    if (targetChanged) {
+      placementTarget = nextPlacementTarget;
+      observeTriggerGeometry(placementTarget);
+      if (fallbackNextSelection) {
+        fallbackNextSelection = false;
+        fallbackTriggerElement = nextPlacementTarget;
+      }
+    }
     syncSelectionTriggerAnchor();
+    if (targetChanged) bumpTriggerPlacement();
     setRevision((value) => value + 1);
   });
   syncSelectionTriggerAnchor();
   onCleanup(() => {
+    triggerResizeObserver?.disconnect();
+    triggerResizeObserver = null;
+    triggerResizeWindow?.removeEventListener("resize", bumpTriggerPlacement);
+    triggerResizeWindow = null;
     releaseSelectionTriggerAnchor();
     unsubscribe();
   });
@@ -224,6 +346,14 @@ export function ContextActions(props: ContextActionsProps) {
     return id ? annotations().find((annotation) => annotation.id === id) ?? null : null;
   });
   const hasSelection = () => selection().elements.length > 0 || selection().region !== null;
+  const composerOwnsCurrentSelection = () => {
+    revision();
+    const captured = composerSelection;
+    // Ownership is the captured selection, not a render-time gesture gate.
+    // A stale/already-active Select state is handled by the subscription above
+    // on the next model notification, which is exactly the handoff boundary.
+    return captured !== null && sameSelection(captured, captureSelection());
+  };
   const selectionRect = createMemo(() => {
     const value = selection();
     const elementRects = value.elements
@@ -248,7 +378,8 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const selectionTriggerElement = createMemo(() => {
-    const elements = selection().elements;
+    triggerRevision();
+    const elements = props.runtime.currentSelection().elements;
     if (!elements.length) return null;
     const hovered = props.runtime.hoveredElement();
     return elements.find((element) => element === hovered)
@@ -294,12 +425,14 @@ export function ContextActions(props: ContextActionsProps) {
     const viewportLeft = clamp((fitted ?? fallback).left, padding, currentWindow.innerWidth - size - padding);
     const viewportTop = clamp((fitted ?? fallback).top, padding, currentWindow.innerHeight - size - padding);
     const nativeAnchor = anchoredTriggerElement === element;
+    const viewportOwned = usesViewportCoordinates() && !nativeAnchor;
     return {
-      left: nativeAnchor ? viewportLeft : viewportLeft + currentWindow.scrollX,
-      top: nativeAnchor ? viewportTop : viewportTop + currentWindow.scrollY,
+      left: nativeAnchor || viewportOwned ? viewportLeft : viewportLeft + currentWindow.scrollX,
+      top: nativeAnchor || viewportOwned ? viewportTop : viewportTop + currentWindow.scrollY,
       anchorX: viewportLeft - value.left,
       anchorY: viewportTop - value.top,
       nativeAnchor,
+      viewportOwned,
     };
   };
 
@@ -352,7 +485,7 @@ export function ContextActions(props: ContextActionsProps) {
     const value = selectionRect();
     const currentWindow = ownerWindow();
     const width = 272;
-    const height = 154;
+    const height = 168;
     const dragged = composerPosition();
     if (dragged) {
       return {
@@ -361,12 +494,14 @@ export function ContextActions(props: ContextActionsProps) {
       };
     }
     if (!value) return { left: 8, top: 8 };
-    return placeSurfaceNear(value, width, height, currentWindow);
+    return placeComposerNear(value, width, height, currentWindow);
   };
 
   const panelPosition = (annotationId: string) => annotationLayout(annotationId)?.panel ?? { left: 8, top: 8 };
 
   const openAnnotation = (annotationId: string) => {
+    fallbackNextSelection = false;
+    composerSelection = null;
     setNoteComposerOpen(false);
     setActiveAnnotationId(annotationId);
     setStatus(null);
@@ -454,8 +589,13 @@ export function ContextActions(props: ContextActionsProps) {
     }
   };
 
+  const resetNoteComposer = resetNoteComposerState;
+
   const openNoteComposer = () => {
     if (!hasSelection()) return;
+    fallbackNextSelection = false;
+    composerSelection = captureSelection();
+    setNote("");
     setNoteError(null);
     setStatus(null);
     setActiveAnnotationId(null);
@@ -464,14 +604,30 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const closeNoteComposer = () => {
-    setNoteComposerOpen(false);
-    setNoteError(null);
-    setComposerPosition(null);
+    const wasOpen = noteComposerOpen();
+    const changedSelection = composerSelection !== null && !sameSelection(composerSelection, captureSelection());
+    if (changedSelection) {
+      fallbackTriggerElement = currentSelectionTriggerElement();
+      fallbackNextSelection = false;
+      syncSelectionTriggerAnchor();
+      bumpTriggerPlacement();
+    } else if (wasOpen) {
+      fallbackNextSelection = false;
+    }
+    resetNoteComposer();
+  };
+
+  const abandonNoteComposer = () => {
+    if (!noteComposerOpen()) return;
+    fallbackNextSelection = true;
+    resetNoteComposer();
   };
 
   const addNote = () => {
     try {
       const annotation = props.runtime.addSelectionAnnotation(note());
+      fallbackNextSelection = false;
+      composerSelection = null;
       setNote("");
       setNoteError(null);
       setNoteComposerOpen(false);
@@ -482,16 +638,20 @@ export function ContextActions(props: ContextActionsProps) {
     }
   };
 
-  onSettled(() => {
-    props.onController?.({ openNoteComposer });
-    return () => props.onController?.(null);
-  });
+  const controller: ContextActionsController = {
+    openNoteComposer,
+    closeNoteComposer,
+    abandonNoteComposer,
+  };
+  props.onController?.(controller);
+  onCleanup(() => props.onController?.(null));
 
   return (
     <>
       <span
         ref={(element) => {
           anchorElement = element;
+          bindTriggerViewportResize();
           syncSelectionTriggerAnchor();
         }}
         aria-hidden="true"
@@ -499,51 +659,57 @@ export function ContextActions(props: ContextActionsProps) {
       />
 
       <Show when={selection().elements.length > 0 && !noteComposerOpen() && !activeAnnotation()}>
-        <Show when={selectionTriggerPosition()}>{(position) => (
-          <button
-            ref={(element) => {
-              annotationTriggerElement = element;
-              nestedTriggerScroll?.sync();
-            }}
-            type="button"
-            data-mesurer-layer="chrome"
-            data-mesurer-inspector-ui="true"
-            data-mesurer-annotation-trigger="true"
-            data-mesurer-annotation-scroll-mode={position().nativeAnchor ? "native-anchor" : "cached-delta"}
-            data-mesurer-native-scroll-owner={position().nativeAnchor ? "annotation" : undefined}
-            data-mesurer-native-scroll-anchor={position().nativeAnchor ? "offset" : undefined}
-            aria-label="Annotate selection"
-            title="Annotate selection"
-            class="msr:pointer-events-auto msr:absolute msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
-            style={{
-              left: position().nativeAnchor
-                ? `calc(anchor(left) + ${position().anchorX}px)`
-                : `${position().left}px`,
-              top: position().nativeAnchor
-                ? `calc(anchor(top) + ${position().anchorY}px)`
-                : `${position().top}px`,
-              translate: position().nativeAnchor
-                ? undefined
-                : "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
-              "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
-              "--mesurer-native-anchor-x": position().nativeAnchor ? `${position().anchorX}px` : undefined,
-              "--mesurer-native-anchor-y": position().nativeAnchor ? `${position().anchorY}px` : undefined,
-            }}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => { event.stopPropagation(); openNoteComposer(); }}
-          >
-            <NoteIcon size={14} />
-          </button>
+        <Show when={selectionTriggerElement()} keyed>{(_owner) => (
+          <Show when={selectionTriggerPosition()}>{(position) => (
+            <button
+              ref={(element) => {
+                annotationTriggerElement = element;
+                nestedTriggerScroll?.sync();
+              }}
+              type="button"
+              data-mesurer-layer="chrome"
+              data-mesurer-inspector-ui="true"
+              data-mesurer-annotation-trigger="true"
+              data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
+              data-mesurer-annotation-scroll-mode={position().nativeAnchor ? "native-anchor" : "cached-delta"}
+              data-mesurer-native-scroll-owner={position().nativeAnchor ? "annotation" : undefined}
+              data-mesurer-native-scroll-anchor={position().nativeAnchor ? "offset" : undefined}
+              aria-label="Annotate selection"
+              title="Annotate selection"
+              class="msr:pointer-events-auto msr:absolute msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
+              style={{
+                position: position().viewportOwned ? "fixed" : "absolute",
+                left: position().nativeAnchor
+                  ? `calc(anchor(left) + ${position().anchorX}px)`
+                  : `${position().left}px`,
+                top: position().nativeAnchor
+                  ? `calc(anchor(top) + ${position().anchorY}px)`
+                  : `${position().top}px`,
+                translate: position().nativeAnchor
+                  ? undefined
+                  : "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
+                "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
+                "--mesurer-native-anchor-x": position().nativeAnchor ? `${position().anchorX}px` : undefined,
+                "--mesurer-native-anchor-y": position().nativeAnchor ? `${position().anchorY}px` : undefined,
+                "z-index": PROTECTED_ANNOTATION_Z_INDEX,
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => { event.stopPropagation(); openNoteComposer(); }}
+            >
+              <NoteIcon size={14} />
+            </button>
+          )}</Show>
         )}</Show>
       </Show>
 
-      <Show when={noteComposerOpen() && selectionRect()}>
+      <Show when={noteComposerOpen() && composerOwnsCurrentSelection() && selectionRect()}>
         <div
           data-mesurer-layer="chrome"
           data-mesurer-inspector-ui="true"
           data-mesurer-annotation-composer="true"
+          data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
           class="mesurer-menu-surface msr:pointer-events-auto msr:fixed msr:z-[95] msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
-          style={{ left: `${notePanelPosition().left}px`, top: `${notePanelPosition().top}px` }}
+          style={{ left: `${notePanelPosition().left}px`, top: `${notePanelPosition().top}px`, "z-index": PROTECTED_ANNOTATION_Z_INDEX }}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
         >
@@ -599,6 +765,7 @@ export function ContextActions(props: ContextActionsProps) {
               type="button"
               data-mesurer-layer="evidence"
               data-mesurer-annotation-marker="true"
+              data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
               aria-label={`Mesurer annotation ${index() + 1}: ${annotation.note}`}
               title={annotation.note}
               aria-expanded={activeAnnotationId() === annotation.id ? "true" : "false"}
@@ -614,7 +781,7 @@ export function ContextActions(props: ContextActionsProps) {
                 openAnnotation(annotation.id);
               }}
               class="msr:pointer-events-auto msr:fixed msr:z-[94] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-[#0d99ff] msr:bg-white msr:text-[#0d99ff] msr:outline-none msr:hover:bg-[#0d99ff]/8"
-              style={{ left: `${value().left}px`, top: `${value().top}px` }}
+              style={{ left: `${value().left}px`, top: `${value().top}px`, "z-index": PROTECTED_ANNOTATION_Z_INDEX }}
             ><NoteIcon size={14} /></button>
           )}</Show>
         );
@@ -627,8 +794,9 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-layer="chrome"
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-panel="true"
+            data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
             class="mesurer-menu-surface msr:pointer-events-auto msr:fixed msr:z-[95] msr:w-[272px] msr:max-h-[220px] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
-            style={{ left: `${position().left}px`, top: `${position().top}px` }}
+            style={{ left: `${position().left}px`, top: `${position().top}px`, "z-index": PROTECTED_ANNOTATION_Z_INDEX }}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >

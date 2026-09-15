@@ -81,9 +81,9 @@ export function installTextEditing(
   // ShadowRoot cannot become a second independently positioned blue rectangle.
   installDirectEditSelectionChromeOwnership(ctx, textRuntime, runtime.portalTarget);
   // Direct text edit also owns the selected element's contextual action lane.
-  // Hide only the transient annotation trigger while the editor exists; saved
-  // annotation evidence remains visible and the trigger returns on edit exit.
-  installDirectEditContextActionSuppression(ctx, textRuntime);
+  // The editor can live in a document-backed runtime while Context remains in
+  // the canonical renderer root, so pass both ownership planes explicitly.
+  installDirectEditContextActionSuppression(ctx, textRuntime, runtime);
   installRenderInPlaceTextEditing(ctx, textRuntime);
   installUnifiedTextSelectMenus(ctx, textRuntime);
   installUnifiedTextSelectLayer(ctx, textRuntime);

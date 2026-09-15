@@ -3,72 +3,44 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 
 const EDITOR = "[data-mesurer-text-editor='true']";
 const RUNTIME_MOUNT = "[data-mesurer-text-edit-runtime='true']";
+const RENDERER_ROOT = "[data-mesurer-root='true']";
 const ACTIVE_ATTRIBUTE = "data-mesurer-direct-text-edit-active";
-const STYLE_MARKER = "data-mesurer-direct-edit-context-actions";
-
-type DocumentState = {
-  users: Set<symbol>;
-  active: Set<symbol>;
-  style: HTMLStyleElement;
-};
-
-const documentStates = new WeakMap<Document, DocumentState>();
-
-const syncDocumentState = (ownerDocument: Document, state: DocumentState) => {
-  const active = state.active.size > 0;
-  if (active) ownerDocument.documentElement.setAttribute(ACTIVE_ATTRIBUTE, "true");
-  else ownerDocument.documentElement.removeAttribute(ACTIVE_ATTRIBUTE);
-};
-
-const acquireDocumentState = (ownerDocument: Document) => {
-  let state = documentStates.get(ownerDocument);
-  if (state) return state;
-
-  const style = ownerDocument.createElement("style");
-  style.setAttribute(STYLE_MARKER, "true");
-  style.textContent = `
-html[${ACTIVE_ATTRIBUTE}="true"] [data-mesurer-annotation-trigger="true"] {
-  display: none !important;
-}
-`;
-  ownerDocument.head.append(style);
-  state = { users: new Set(), active: new Set(), style };
-  documentStates.set(ownerDocument, state);
-  return state;
-};
 
 /**
- * Direct text edit is an editing interaction, not an annotation interaction.
- * While the editor is mounted, suppress only the selection annotation trigger
- * so it cannot compete with the dimensions pill or Typography surface. Saved
- * annotation markers and panels remain available.
+ * Direct text edit can intentionally render in a document-backed runtime while
+ * Context stays inside the canonical renderer root. Keep those two ownership
+ * planes explicit: observe editor lifecycle in the text runtime, but publish
+ * contextual-action suppression on the exact renderer root that owns Context.
  *
- * The observer is scoped to Mesurer's text-edit runtime. It never watches page
- * content and does no work on pointermove or scroll.
+ * Production renderer runtimes carry that root identity explicitly. The local
+ * ancestor fallback exists only for synthetic/test runtimes that predate the
+ * identity field; it never queries another renderer root from the portal.
+ *
+ * The observer remains scoped to Mesurer's text-edit runtime. It never watches
+ * page content and does no work on pointermove or scroll.
  */
 export function installDirectEditContextActionSuppression(
   ctx: MesurerPluginContext,
-  runtime: MesurerSolidRuntimeService,
+  textRuntime: MesurerSolidRuntimeService,
+  rendererRuntime: MesurerSolidRuntimeService,
 ) {
-  const { ownerDocument, ownerWindow, portalTarget } = runtime;
-  // SAFETY: ownerWindow is the browsing-context global paired with ownerDocument.
+  const { ownerWindow, portalTarget } = textRuntime;
+  // SAFETY: ownerWindow is the browsing-context global paired with this runtime.
   const realm = ownerWindow as Window & typeof globalThis;
   const mounts = portalTarget.querySelectorAll<HTMLElement>(RUNTIME_MOUNT);
   const runtimeMount = mounts.item(mounts.length - 1);
-  if (!runtimeMount?.isConnected) return;
+  const rendererRoot = rendererRuntime.rendererRoot
+    ?? runtimeMount?.closest<HTMLElement>(RENDERER_ROOT)
+    ?? null;
+  if (!runtimeMount?.isConnected || !rendererRoot?.isConnected) return;
 
-  const state = acquireDocumentState(ownerDocument);
-  const token = Symbol("mesurer-direct-text-edit");
-  state.users.add(token);
   let active = false;
-
   const sync = () => {
     const next = Boolean(runtimeMount.querySelector(EDITOR));
     if (next === active) return;
     active = next;
-    if (active) state.active.add(token);
-    else state.active.delete(token);
-    syncDocumentState(ownerDocument, state);
+    if (active) rendererRoot.setAttribute(ACTIVE_ATTRIBUTE, "true");
+    else rendererRoot.removeAttribute(ACTIVE_ATTRIBUTE);
   };
 
   const observer = new realm.MutationObserver(sync);
@@ -77,12 +49,6 @@ export function installDirectEditContextActionSuppression(
 
   ctx.lifecycle.onDispose(() => {
     observer.disconnect();
-    state.active.delete(token);
-    state.users.delete(token);
-    syncDocumentState(ownerDocument, state);
-    if (state.users.size > 0) return;
-    state.style.remove();
-    ownerDocument.documentElement.removeAttribute(ACTIVE_ATTRIBUTE);
-    documentStates.delete(ownerDocument);
+    rendererRoot.removeAttribute(ACTIVE_ATTRIBUTE);
   });
 }

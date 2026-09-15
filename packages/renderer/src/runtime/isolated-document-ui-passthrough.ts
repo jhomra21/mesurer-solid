@@ -47,7 +47,8 @@ export function installIsolatedDocumentUiPassthrough(
   const realm = ownerWindow as Window & typeof globalThis;
   if (!ownerDocument.body || !isDocumentBackedIsolatedRuntime(runtime, realm)) return;
 
-  const rendererRoot = portalTarget.querySelector<HTMLElement>("[data-mesurer-root='true']");
+  const rendererRoot = runtime.rendererRoot
+    ?? portalTarget.querySelector<HTMLElement>("[data-mesurer-root='true']");
   if (!rendererRoot) return;
 
   const style = ownerDocument.createElement("style");

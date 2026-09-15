@@ -710,7 +710,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   return (
     <Portal mount={env.portalMount}>
-      <div ref={(element) => { rootElement = element; }} class="mesurer-solid-root" data-mesurer-root="true">
+      <div ref={(element) => { rootElement = element; model.rendererRoot = element; }} class="mesurer-solid-root" data-mesurer-root="true">
         <Show when={model.state.enabled && model.state.rulersVisible}>
           <RulersOverlay
             ownerWindow={ownerWindow}

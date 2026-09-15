@@ -52,6 +52,7 @@ export type MesurerWorkspaceSnapshot = {
 export type MesurerWorkspaceRuntime = {
   snapshot(): MesurerWorkspaceSnapshot;
   currentSelection(): { elements: HTMLElement[]; region: Rect | null };
+  selectGestureActive(): boolean;
   select(selectors: string[]): HTMLElement[];
   hoveredElement(): HTMLElement | null;
   annotations(): MesurerAnnotation[];
@@ -414,6 +415,9 @@ export function createMesurerWorkspaceRuntime(options: {
           ? cloneMesurerRect(model.current.selectionOriginRect)
           : null,
       };
+    },
+    selectGestureActive() {
+      return model.current.toolMode === "select" && model.current.start !== null;
     },
     select,
     hoveredElement() {

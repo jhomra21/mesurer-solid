@@ -1,8 +1,8 @@
 import { render } from "@solidjs/web";
 import {
-  ContextActions,
-  createDocumentInspectorRuntime,
+  ContextActionsSelectOwnership,
   type ContextActionsController,
+  type ContextActionsProps,
   type MesurerSolidRuntimeService,
   type MesurerWorkspaceRuntime,
 } from "@jhomra21/mesurer-solid-renderer";
@@ -133,8 +133,11 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       const solid = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
       if (!solid) throw new Error("Mesurer context plugin requires the renderer runtime service.");
 
-      const { runtime: contextRuntime, documentBacked } = createDocumentInspectorRuntime(solid);
-      const runtime = contextRuntime.createWorkspaceRuntime();
+      // Context is interactive Mesurer UI. Keep it in the canonical inspector
+      // root instead of creating a second document-backed interaction plane.
+      // Page-following geometry is handled by ContextActions' viewport/cached
+      // scroll positioning, so selection and Context share one pointer owner.
+      const runtime = solid.createWorkspaceRuntime();
       const service = createService(runtime, solid.ownerDocument, solid.ownerWindow);
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
 
@@ -153,8 +156,46 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
       const setUiEnabled = (ui: boolean) => {
         ctx.state.update<ContextSettingsState>(MESURER_CONTEXT_SETTINGS_STATE_ID, (current) => ({ ...current, ui }));
       };
+
+      let uiController: ContextActionsController | null = null;
+      let disposeUi: (() => void) | null = null;
+      let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
+      const initialSelection = runtime.currentSelection();
+      let previousSelection = {
+        elements: [...initialSelection.elements],
+        region: initialSelection.region ? { ...initialSelection.region } : null,
+      };
+
+      const sameSelection = (
+        left: ReturnType<MesurerWorkspaceRuntime["currentSelection"]>,
+        right: ReturnType<MesurerWorkspaceRuntime["currentSelection"]>,
+      ) => {
+        if (left.elements.length !== right.elements.length) return false;
+        if (left.elements.some((element, index) => element !== right.elements[index])) return false;
+        if (left.region === right.region) return true;
+        if (!left.region || !right.region) return false;
+        return left.region.left === right.region.left
+          && left.region.top === right.region.top
+          && left.region.width === right.region.width
+          && left.region.height === right.region.height;
+      };
+
       const syncSelection = () => {
-        const next = hasContextSelection(runtime);
+        const nextSelection = runtime.currentSelection();
+        const selectionChanged = !sameSelection(previousSelection, nextSelection);
+        previousSelection = {
+          elements: [...nextSelection.elements],
+          region: nextSelection.region ? { ...nextSelection.region } : null,
+        };
+
+        // A transient note draft is valid only while no Select gesture is
+        // active and the captured selection remains current. Do not depend on
+        // a cached false→true edge: every renderer-model notification is an
+        // opportunity to enforce the ownership invariant synchronously.
+        if (runtime.selectGestureActive()) uiController?.abandonNoteComposer();
+        else if (selectionChanged) uiController?.closeNoteComposer();
+
+        const next = nextSelection.elements.length > 0 || nextSelection.region !== null;
         const current = ctx.state.get<ContextUiState>(CONTEXT_UI_STATE_ID)?.hasSelection ?? false;
         if (next !== current) ctx.state.update<ContextUiState>(CONTEXT_UI_STATE_ID, () => ({ hasSelection: next }));
       };
@@ -162,10 +203,6 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
 
       ctx.command.register("context.copy", () => service.copyContext());
       ctx.command.register("context.copy-selection", () => service.copyContext({ scope: "selection" }));
-
-      let uiController: ContextActionsController | null = null;
-      let disposeUi: (() => void) | null = null;
-      let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
 
       const destroyUi = () => {
         uiController = null;
@@ -177,15 +214,21 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
 
       const createUi = () => {
         if (uiMount) return;
-        uiMount = contextRuntime.createInspectorMount();
+        uiMount = solid.createInspectorMount();
         uiMount.element.dataset.mesurerLayer = "evidence";
-        if (documentBacked) uiMount.element.dataset.mesurerContextDocumentLayer = "true";
-        const actionProps: Parameters<typeof ContextActions>[0] = {
+        uiMount.element.dataset.mesurerContextRoot = "true";
+        const actionProps: ContextActionsProps = {
           runtime,
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
+          coordinateSpace: "viewport",
         };
-        disposeUi = render(() => <ContextActions {...actionProps} />, uiMount.element);
+        disposeUi = render(() => (
+          <ContextActionsSelectOwnership
+            {...actionProps}
+            ownerWindow={solid.ownerWindow}
+          />
+        ), uiMount.element);
       };
 
       const syncUi = () => {
