@@ -83,6 +83,88 @@ describe("codex", () => {
     const payload = JSON.parse(String(init?.body));
     expect(payload.message).toContain("Implement the current human feedback from Mesurer in this project.");
     expect(payload.message).toContain("annotation evidence note-1");
+    expect(payload.thread).toBeUndefined();
+  });
+
+  it("can inspect and switch among threads registered by Codex", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            threads: ["thread-a", "thread-b"],
+          }),
+        };
+      }
+      if (url.endsWith("/target")) {
+        expect(JSON.parse(String(init?.body))).toEqual({ thread: "thread-b" });
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-b",
+            threads: ["thread-a", "thread-b"],
+          }),
+        };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-threads",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex({ ui: false }));
+
+    const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
+    await expect(service?.health()).resolves.toEqual({
+      thread: "thread-a",
+      threads: ["thread-a", "thread-b"],
+    });
+    await expect(service?.useThread(" thread-b ")).resolves.toEqual({
+      thread: "thread-b",
+      threads: ["thread-a", "thread-b"],
+    });
+  });
+
+  it("can send one message to another registered thread without changing the default", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, thread: "thread-b", output: "queued" }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-thread-override",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex({ ui: false }));
+
+    const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
+    await expect(service?.send({ thread: "thread-b" })).resolves.toEqual({
+      thread: "thread-b",
+      output: "queued",
+    });
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(payload.thread).toBe("thread-b");
   });
 
   it("falls back to the current selection when there are no saved annotations", async () => {
