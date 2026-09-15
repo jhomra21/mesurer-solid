@@ -167,6 +167,13 @@ export function ContextActions(props: ContextActionsProps) {
       && left.region.width === right.region.width
       && left.region.height === right.region.height;
   };
+  const resetNoteComposerState = () => {
+    composerSelection = null;
+    setNote("");
+    setNoteComposerOpen(false);
+    setNoteError(null);
+    setComposerPosition(null);
+  };
 
   const supportsSelectionTriggerAnchor = () => {
     const currentWindow = ownerWindow();
@@ -277,8 +284,21 @@ export function ContextActions(props: ContextActionsProps) {
   }
 
   let placementTarget = currentSelectionTriggerElement();
+  let selectGestureActive = props.runtime.selectGestureActive();
   observeTriggerGeometry(placementTarget);
   const unsubscribe = props.runtime.subscribe(() => {
+    const nextSelectGestureActive = props.runtime.selectGestureActive();
+    const selectGestureStarted = !selectGestureActive && nextSelectGestureActive;
+    selectGestureActive = nextSelectGestureActive;
+    if (selectGestureStarted && noteComposerOpen()) {
+      // This subscription is fed directly by the same model mutation that
+      // starts Select's physical gesture. Abandon the transient draft here,
+      // before pointerup can transfer selection, without depending on DOM event
+      // propagation through the host island or document-inspector bridge.
+      fallbackNextSelection = true;
+      resetNoteComposerState();
+    }
+
     const nextPlacementTarget = currentSelectionTriggerElement();
     const targetChanged = nextPlacementTarget !== placementTarget;
     if (targetChanged) {
@@ -549,13 +569,7 @@ export function ContextActions(props: ContextActionsProps) {
     }
   };
 
-  const resetNoteComposer = () => {
-    composerSelection = null;
-    setNote("");
-    setNoteComposerOpen(false);
-    setNoteError(null);
-    setComposerPosition(null);
-  };
+  const resetNoteComposer = resetNoteComposerState;
 
   const openNoteComposer = () => {
     if (!hasSelection()) return;
