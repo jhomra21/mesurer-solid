@@ -4,7 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Consolidate first-party plugin factories under `mesurer-solid/plugins` with concise feature names such as `context()`, `arrange()`, `screenshot()`, and `codex()`, and remove the redundant public `*Plugin` factory names and one-plugin-per-subpath exports.
+- Add an optional **Send to Codex** transport that sends saved Context feedback, selection evidence, or workspace Context through a loopback `mesurer-codex` companion into an explicitly selected existing Codex CLI/App session using Codex's queued-user-message command.
 
 ## 0.1.7 - 2026-09-15
 
