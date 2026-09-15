@@ -60,6 +60,7 @@ for (const file of [
   "inject.js",
   "inject.d.ts",
   "inject-script.js",
+  "codex-plugin.d.ts",
 ]) {
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
@@ -99,6 +100,7 @@ for (const factory of [
 
 const rootDeclarations = readFileSync(new URL("index.d.ts", dist), "utf8");
 const pluginDeclarations = readFileSync(new URL("plugins.d.ts", dist), "utf8");
+const codexDeclarations = readFileSync(new URL("codex-plugin.d.ts", dist), "utf8");
 const publishedDeclarations = distFiles
   .filter((file) => file.endsWith(".d.ts"))
   .map((file) => readFileSync(new URL(file, dist), "utf8"))
@@ -196,7 +198,7 @@ for (const contractName of [
 }
 
 for (const codexMember of ["useThread", "thread?: string", "threads: string[]"]) {
-  if (!pluginDeclarations.includes(codexMember)) {
+  if (!codexDeclarations.includes(codexMember)) {
     throw new Error(`Published Codex plugin declarations are missing thread-routing contract: ${codexMember}.`);
   }
 }
