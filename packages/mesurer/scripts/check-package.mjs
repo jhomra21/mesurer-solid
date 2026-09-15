@@ -92,7 +92,7 @@ for (const factory of [
   "defaults",
   "compose",
 ]) {
-  if (typeof publishedPlugins[factory] !== "function") {
+  if (!(publishedPlugins[factory] instanceof Function)) {
     throw new Error(`Published plugins entry must expose ${factory}().`);
   }
 }
