@@ -29,13 +29,13 @@ const center = async (locator, label) => {
 
 const selectionSnapshot = (page) => page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
 
-const selectedId = async (page, label) => {
+const selectedId = async (page, expectedId, label) => {
   const context = await selectionSnapshot(page);
   assert.equal(context.targets.length, 1, `${label} expected one selected target: ${JSON.stringify(context.targets)}`);
   const target = context.targets[0];
   assert.equal(
     target?.inspection.id,
-    "packed-adjacent-b",
+    expectedId,
     `${label} selected the wrong target: ${JSON.stringify({
       selector: target?.selector ?? null,
       tag: target?.inspection.tag ?? null,
@@ -98,12 +98,14 @@ async function assertFreshDraft(page, trigger, composer, label) {
 }
 
 const contextOwnership = (page) => page.evaluate(() => {
-  const island = document.querySelector("[data-mesurer-island='true']");
+  const islands = [...document.querySelectorAll("[data-mesurer-island='true']")];
+  const island = islands[0] ?? null;
   const shadow = island instanceof HTMLElement ? island.shadowRoot : null;
   const root = shadow?.querySelector("[data-mesurer-root='true']") ?? null;
   const contextRoot = root?.querySelector("[data-mesurer-context-root='true']") ?? null;
   const composer = contextRoot?.querySelector("[data-mesurer-annotation-composer='true']") ?? null;
   return {
+    islandCount: islands.length,
     contextInsideCanonicalRoot: Boolean(root && contextRoot && root.contains(contextRoot)),
     composerInsideCanonicalRoot: Boolean(root && composer && root.contains(composer)),
     coordinateSpace: composer instanceof HTMLElement
@@ -139,11 +141,21 @@ async function runCase(testCase) {
     await page.waitForFunction(() => Boolean(window.__MESURER__));
     await page.evaluate(() => window.__MESURER__.ready());
     await addAdjacentTargets(page);
-    await page.evaluate(async () => {
-      await window.__MESURER__.command("builtin.select");
-      await window.__MESURER__.select("#packed-adjacent-a");
-    });
+    await page.evaluate(() => window.__MESURER__.command("builtin.select"));
     await settle(page);
+
+    // Match the real-consumer acceptance sequence: A itself is selected by a
+    // physical browser gesture. The old regression selected A through the public
+    // API and therefore skipped an entire Select start/end lifecycle before the
+    // draft was opened.
+    const a = page.locator("#packed-adjacent-a");
+    const aPoint = await center(a, `${testCase.name} adjacent A`);
+    await page.mouse.click(aPoint.x, aPoint.y);
+    await settle(page);
+    assert.equal(
+      await selectedId(page, "packed-adjacent-a", `${testCase.name} initial physical selection`),
+      "packed-adjacent-a",
+    );
 
     const trigger = page.locator(
       "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
@@ -154,6 +166,7 @@ async function runCase(testCase) {
     await openDraft(page, trigger, composer, "abandoned draft A", testCase.name);
 
     const ownership = await contextOwnership(page);
+    assert.equal(ownership.islandCount, 1, `${testCase.name} packed consumer must have exactly one public Mesurer island`);
     assert.equal(ownership.contextInsideCanonicalRoot, true, `${testCase.name} Context must live under canonical Mesurer root`);
     assert.equal(ownership.composerInsideCanonicalRoot, true, `${testCase.name} composer must live under canonical Mesurer root`);
     assert.equal(ownership.coordinateSpace, "viewport", `${testCase.name} Context must use viewport ownership`);
@@ -197,7 +210,7 @@ async function runCase(testCase) {
     await settle(page);
 
     assert.equal(
-      await selectedId(page, `${testCase.name} adjacent physical handoff`),
+      await selectedId(page, "packed-adjacent-b", `${testCase.name} adjacent physical handoff`),
       "packed-adjacent-b",
     );
     await assertFreshDraft(page, trigger, composer, `${testCase.name} adjacent physical handoff`);
@@ -209,6 +222,7 @@ async function runCase(testCase) {
     );
 
     console.log(`${testCase.name} adjacent annotation handoff: PASS`, {
+      initialSelectionWasPhysical: true,
       contextInsideCanonicalRoot: true,
       composerInsideCanonicalRoot: true,
       documentBackedContextCount: 0,
