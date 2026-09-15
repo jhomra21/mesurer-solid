@@ -149,18 +149,26 @@ codex()
    ├─ service: codex:v1
    └─ HTTP to an explicitly started loopback companion
                   │
+        ┌─────────┴──────────┐
+        ▼                    ▼
+ CODEX_THREAD_ID       --register-current
+ / --thread            from another Codex thread
+        │                    │
+        └─────────┬──────────┘
                   ▼
-         mesurer-codex --thread <session>
+        registered thread set
                   │
                   ▼
        codex queue --thread … --message …
 ```
 
-The companion is outside the browser because a framework-agnostic web package cannot spawn the local Codex executable. It binds to `127.0.0.1`, is pinned to one target session at startup, limits request size and browser origins, and invokes Codex without a shell. The browser cannot supply another executable, command, or destination thread.
+The companion is outside the browser because a framework-agnostic web package cannot spawn the local Codex executable. It binds to `127.0.0.1`, limits request size and browser origins, and invokes Codex without a shell. When Codex starts it, `CODEX_THREAD_ID` supplies the initial thread automatically; a user can instead pass `--thread` explicitly. Another existing or newly-created Codex thread can register itself later with `--register-current`.
 
-This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser harness. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and explicitly asks an already-open Codex CLI/App session to act on that feedback.
+Thread registration is deliberately a local-process capability. Browser requests may inspect the registered set, switch the active destination, or send one message to another registered thread, but they cannot register an arbitrary thread id. The `codex:v1` service exposes this as `health()`, `useThread(thread)`, and `send({ thread })`. Mesurer never creates, resumes, or takes the writer lock of a Codex thread.
 
-The first version sends text because Codex's queued-user-message CLI currently accepts text input. It does not use `thread/resume`, a second app-server writer, MCP/ACP, or private Codex Desktop IPC.
+This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser harness. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and asks a registered Codex CLI/App thread to act on that feedback.
+
+The integration sends text because Codex's queued-user-message CLI currently accepts text input. It does not use `thread/resume`, a second app-server writer, MCP/ACP, or private Codex Desktop IPC.
 
 See [Send Context feedback to Codex](./docs/CODEX.md).
 
@@ -201,7 +209,7 @@ human selection / notes / Arrange / text Desired
 
 Agent attachment reuses an existing Mesurer instance when present. After source changes, verification uses the real Live page: Arrange preview removed, text Desired preview inactive, and fresh Context/measurement/review evidence.
 
-The optional Codex transport does not invert that ownership model for agents. It is a separate explicit human action that serializes Context evidence and queues it into one user-selected Codex session.
+The optional Codex transport does not invert that ownership model for agents. It is a separate explicit human action that serializes Context evidence and queues it into the active registered Codex destination (or another explicitly registered destination for a one-off send).
 
 Temporary Mesurer presentation expresses intent or evidence; it is not proof that source was updated.
 
@@ -209,6 +217,6 @@ Temporary Mesurer presentation expresses intent or evidence; it is not proof tha
 
 The public package bundles the private workspaces into self-contained artifacts and is validated as an exact packed npm candidate across clean React, Solid 1, and Solid 2 consumers.
 
-Release validation also covers browser contracts, host isolation, screenshots, the unified public plugins entry and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery additionally validates the packaged companion binary, loopback boundary, and exact `codex queue` argument contract before release.
+Release validation also covers browser contracts, host isolation, screenshots, the unified public plugins entry and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery additionally validates the packaged companion binary, loopback boundary, registered-thread routing, and exact `codex queue` argument contract before release.
 
 See [Releasing](./RELEASING.md) and [Upstream parity](./docs/UPSTREAM_PARITY.md).
