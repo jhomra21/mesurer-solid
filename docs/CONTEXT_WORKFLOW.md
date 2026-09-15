@@ -2,21 +2,19 @@
 
 Mesurer turns live browser state and human visual intent into structured context a coding agent can read through `window.__MESURER__`.
 
-Context is the shared page state. There is no separate Mesurer message-delivery layer.
+Context is the shared page state. Normal agent use does not require a separate Mesurer message-delivery layer; optional transports such as Codex depend on Context without changing that browser-state contract.
 
 ## Enable Context
 
-Source-mounted applications opt in with `contextPlugin()`:
+Source-mounted applications opt in with `context()` from the unified plugin entry:
 
 ```ts
-import {
-  contextPlugin,
-  mountMesurer,
-} from "mesurer-solid"
+import { mountMesurer } from "mesurer-solid"
+import { context } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
-  plugins: [contextPlugin()],
+  plugins: [context()],
 })
 ```
 
@@ -138,6 +136,12 @@ const review = await window.__MESURER__.review(annotationId)
 ```
 
 This target-bound model intentionally differs from upstream Mesurer's drawing annotations. See [Upstream parity](./UPSTREAM_PARITY.md).
+
+## Optional delivery transports
+
+Context itself does not know about local coding-agent processes or session ownership. A transport plugin can depend on `context:v1` and serialize the same evidence for an explicit human action.
+
+The first such transport is `codex()` from `mesurer-solid/plugins`, which queues Context text into one Codex session selected when the local `mesurer-codex` companion starts. See [Send Context feedback to Codex](./CODEX.md).
 
 ## Fresh evidence after source changes
 
