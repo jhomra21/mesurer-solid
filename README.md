@@ -50,25 +50,23 @@ See [Getting started](./docs/GETTING_STARTED.md) for framework-specific placemen
 
 ### Add first-party plugins
 
-Keep plugin setup next to `mountMesurer()`:
+All first-party plugin factories live at `mesurer-solid/plugins` and use the plugin name directly:
 
 ```ts
-import {
-  contextPlugin,
-  mountMesurer,
-} from "mesurer-solid"
-import { arrangePlugin } from "mesurer-solid/arrange"
-import { screenshotPlugin } from "mesurer-solid/screenshot"
+import { mountMesurer } from "mesurer-solid"
+import { arrange, context, screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
   plugins: [
-    contextPlugin(),
-    arrangePlugin(),
-    screenshotPlugin(),
+    context(),
+    arrange(),
+    screenshot(),
   ],
 })
 ```
+
+The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, `settings`, `defaults`, and `compose` for applications that want to build a custom plugin set explicitly.
 
 ## Features
 
@@ -134,9 +132,12 @@ See [Arrange](./docs/ARRANGE.md).
 Enable the agent bridge when a coding agent should read the same rendered state and human intent:
 
 ```ts
+import { mountMesurer } from "mesurer-solid"
+import { arrange, context } from "mesurer-solid/plugins"
+
 const mesurer = mountMesurer({
   agent: true,
-  plugins: [contextPlugin(), arrangePlugin()],
+  plugins: [context(), arrange()],
 })
 ```
 
@@ -165,14 +166,14 @@ Start the local companion pinned to that session:
 bunx mesurer-codex --thread <SESSION>
 ```
 
-Then mount the optional plugin alongside Context:
+Then mount Codex alongside Context:
 
 ```ts
-import { contextPlugin, mountMesurer } from "mesurer-solid"
-import { codexPlugin } from "mesurer-solid/codex"
+import { mountMesurer } from "mesurer-solid"
+import { codex, context } from "mesurer-solid/plugins"
 
 mountMesurer({
-  plugins: [contextPlugin(), codexPlugin()],
+  plugins: [context(), codex()],
 })
 ```
 
