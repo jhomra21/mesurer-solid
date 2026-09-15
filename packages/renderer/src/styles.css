@@ -159,26 +159,11 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   z-index: 2147483647 !important;
 }
 
-/* Selection-adjacent annotation chrome is contextual UI, not a second global
-   toolbar. If it reaches the canonical toolbar band while the page scrolls,
-   keep the persistent toolbar visually and interactively on top. */
+/* Context is interactive Mesurer UI and stays inside the canonical root. Its
+   selection-adjacent trigger follows page movement with cached scroll deltas;
+   it never needs a document-backed interaction layer or input bridge. */
 [data-mesurer-annotation-trigger="true"] {
   z-index: 80 !important;
-}
-
-/* Page-following Context UI is intentionally outside the hardened fixed host so
-   native CSS anchors share the selected page element's document positioning
-   tree. The trigger uses the same absolute native anchor path as selection;
-   composer, saved markers, and panels keep their existing viewport semantics. */
-[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-trigger="true"],
-[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-composer="true"],
-[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-marker="true"],
-[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-panel="true"] {
-  z-index: 2147483000 !important;
-}
-
-[data-mesurer-context-document-layer="true"] [data-mesurer-annotation-trigger="true"][data-mesurer-native-scroll-owner="annotation"][data-mesurer-native-scroll-anchor="offset"] {
-  position: absolute !important;
 }
 
 /* Plugin-contributed toggles share the compact 24px switch row, but unlike
