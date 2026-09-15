@@ -155,6 +155,31 @@ npx --yes --package=mesurer-solid mesurer-skill install
 
 See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the packaged [`mesurer-ui` skill](./.agents/skills/mesurer-ui/SKILL.md).
 
+### Send human feedback to an open Codex session
+
+The optional Codex transport keeps Context as the feedback source and uses Codex's own queued-user-message command to reach a session that is already open in Codex CLI or the Codex App.
+
+Start the local companion pinned to that session:
+
+```bash
+bunx mesurer-codex --thread <SESSION>
+```
+
+Then mount the optional plugin alongside Context:
+
+```ts
+import { contextPlugin, mountMesurer } from "mesurer-solid"
+import { codexPlugin } from "mesurer-solid/codex"
+
+mountMesurer({
+  plugins: [contextPlugin(), codexPlugin()],
+})
+```
+
+Mesurer adds **Send to Codex**. Saved annotation Context is sent first; when there are no saved notes, it falls back to the current selection or workspace Context. The bridge never resumes or takes the writer lock of the target Codex thread.
+
+See [Send Context feedback to Codex](./docs/CODEX.md).
+
 ## Documentation
 
 Start with the [documentation index](./docs/README.md).
@@ -164,6 +189,7 @@ Start with the [documentation index](./docs/README.md).
 - [Arrange](./docs/ARRANGE.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
 - [Context workflow](./docs/CONTEXT_WORKFLOW.md)
+- [Send Context feedback to Codex](./docs/CODEX.md)
 - [Browser harness](./docs/BROWSER_HARNESS.md)
 - [Host isolation](./docs/HOST_ISOLATION.md)
 - [Trusted Types](./docs/TRUSTED_TYPES.md)
