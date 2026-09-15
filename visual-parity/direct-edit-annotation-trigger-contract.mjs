@@ -35,7 +35,7 @@ try {
 
   await page.mouse.click(x, y);
   const annotation = page.locator(
-    "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']",
+    "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
   );
   await annotation.waitFor({ state: "visible", timeout: 3000 });
 
