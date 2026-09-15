@@ -34,6 +34,8 @@ export type MesurerCodexSendRequest = {
   instruction?: string;
   /** Send only these saved annotation ids. When omitted, all saved annotations are sent. */
   annotationIds?: string[];
+  /** Send to a particular registered Codex thread without changing the bridge default. */
+  thread?: string;
 };
 
 export type MesurerCodexSendResult = {
@@ -42,17 +44,24 @@ export type MesurerCodexSendResult = {
 };
 
 export type MesurerCodexHealth = {
-  thread: string;
+  /** Current default target. Null when the bridge has not been bound yet. */
+  thread: string | null;
+  /** Threads explicitly registered by local Codex processes/users. */
+  threads: string[];
 };
 
 export type MesurerCodexService = {
   health(): Promise<MesurerCodexHealth>;
+  /** Switch the default target to an already-registered thread. */
+  useThread(thread: string): Promise<MesurerCodexHealth>;
+  /** Send Context to the default target or to one explicitly registered thread. */
   send(request?: MesurerCodexSendRequest): Promise<MesurerCodexSendResult>;
 };
 
 type BridgeResponse = {
   ok?: boolean;
-  thread?: string;
+  thread?: string | null;
+  threads?: string[];
   output?: string;
   error?: string;
 };
@@ -96,6 +105,13 @@ const bridgeRequest = async (
     clearTimeout(timeout);
   }
 };
+
+const bridgeHealth = (response: BridgeResponse): MesurerCodexHealth => ({
+  thread: response.thread?.trim() || null,
+  threads: Array.isArray(response.threads)
+    ? response.threads.filter((thread): thread is string => typeof thread === "string" && thread.length > 0)
+    : [],
+});
 
 const feedbackMessage = async (
   context: MesurerContextService,
@@ -151,19 +167,28 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       const service: MesurerCodexService = {
         async health() {
-          const response = await bridgeRequest(endpoint, "health");
-          if (!response.thread) throw new Error("Mesurer Codex bridge did not report its target thread.");
-          return { thread: response.thread };
+          return bridgeHealth(await bridgeRequest(endpoint, "health"));
+        },
+        async useThread(thread) {
+          const target = thread.trim();
+          if (!target) throw new Error("Codex thread must be a non-empty string.");
+          return bridgeHealth(await bridgeRequest(endpoint, "target", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ thread: target }),
+          }));
         },
         async send(request) {
           const message = await feedbackMessage(contextService, request, instruction);
+          const thread = request?.thread?.trim() || undefined;
           const response = await bridgeRequest(endpoint, "send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({ message, ...(thread ? { thread } : {}) }),
           });
-          if (!response.thread) throw new Error("Mesurer Codex bridge did not report its target thread.");
-          return { thread: response.thread, output: response.output ?? "" };
+          const sentThread = response.thread?.trim();
+          if (!sentThread) throw new Error("Mesurer Codex bridge did not report the destination thread.");
+          return { thread: sentThread, output: response.output ?? "" };
         },
       };
 
