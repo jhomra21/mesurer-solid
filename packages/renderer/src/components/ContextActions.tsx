@@ -349,9 +349,10 @@ export function ContextActions(props: ContextActionsProps) {
   const composerOwnsCurrentSelection = createMemo(() => {
     revision();
     const captured = composerSelection;
-    return captured !== null
-      && !props.runtime.selectGestureActive()
-      && sameSelection(captured, captureSelection());
+    // Ownership is the captured selection, not a render-time gesture gate.
+    // A stale/already-active Select state is handled by the subscription above
+    // on the next model notification, which is exactly the handoff boundary.
+    return captured !== null && sameSelection(captured, captureSelection());
   });
   const selectionRect = createMemo(() => {
     const value = selection();
