@@ -237,8 +237,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       .sort((a, b) => Math.abs(a.position - preview.position) - Math.abs(b.position - preview.position))[0];
     if (!nearest) return null;
     return getDistanceOverlay(
-      getGuideRect({ id: "preview", ...preview }, ownerWindow),
-      getGuideRect(nearest, ownerWindow), null, null, ownerWindow,
+      getGuideRect({ id: "preview", ...preview }, ownerWindow), ownerWindow ? getGuideRect(nearest, ownerWindow) : getGuideRect(nearest, ownerWindow), null, null, ownerWindow,
     );
   });
 
@@ -618,8 +617,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       if (key === "a") { runBuiltinAction("text-inspector"); return; }
       if (key === "g") { runBuiltinAction("guides"); return; }
       if (key === "p") { runBuiltinAction("color-picker", true); return; }
-      if (key === "x") { runBuiltinAction("xray"); return; }
-      if (key === "r") { runBuiltinAction("rulers"); return; }
+      if (key === "x") { model.toggleXray(); return; }
+      if (key === "r") { model.toggleRulers(); return; }
       if (key === "h") { if (!builtinActionDisabled("guides")) model.setGuideOrientation("horizontal", true); return; }
       if (key === "v") { if (!builtinActionDisabled("guides")) model.setGuideOrientation("vertical", true); }
     };
@@ -710,7 +709,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   return (
     <Portal mount={env.portalMount}>
-      <div ref={(element) => { rootElement = element; }} class="mesurer-solid-root" data-mesurer-root="true">
+      <div ref={(element) => { rootElement = element; model.rendererRoot = element; }} class="mesurer-solid-root" data-mesurer-root="true">
         <Show when={model.state.enabled && model.state.rulersVisible}>
           <RulersOverlay
             ownerWindow={ownerWindow}
