@@ -7,23 +7,33 @@ const RENDERER_ROOT = "[data-mesurer-root='true']";
 const ACTIVE_ATTRIBUTE = "data-mesurer-direct-text-edit-active";
 
 /**
- * Direct text edit and Context are both renderer-owned interactions. Keep their
- * coordination inside the same canonical Mesurer root rather than using a
- * document-global style/attribute that cannot cross an isolated ShadowRoot.
+ * Direct text edit can intentionally render in a document-backed runtime while
+ * Context stays inside the canonical renderer root. Keep those two ownership
+ * planes explicit: observe editor lifecycle in the text runtime, but publish
+ * contextual-action suppression on the renderer runtime that owns Context.
  *
- * The observer is scoped to Mesurer's text-edit runtime. It never watches page
- * content and does no work on pointermove or scroll.
+ * In a non-isolated mount both runtimes share the same tree and the editor mount
+ * resolves its own renderer ancestor directly. In an isolated mount the text
+ * runtime lives under document.body, so the canonical renderer root is resolved
+ * from the original renderer portal (normally the instance ShadowRoot), never
+ * by walking or querying the document-backed text plane.
+ *
+ * The observer remains scoped to Mesurer's text-edit runtime. It never watches
+ * page content and does no work on pointermove or scroll.
  */
 export function installDirectEditContextActionSuppression(
   ctx: MesurerPluginContext,
-  runtime: MesurerSolidRuntimeService,
+  textRuntime: MesurerSolidRuntimeService,
+  rendererRuntime: MesurerSolidRuntimeService,
 ) {
-  const { ownerWindow, portalTarget } = runtime;
+  const { ownerWindow, portalTarget } = textRuntime;
   // SAFETY: ownerWindow is the browsing-context global paired with this runtime.
   const realm = ownerWindow as Window & typeof globalThis;
   const mounts = portalTarget.querySelectorAll<HTMLElement>(RUNTIME_MOUNT);
   const runtimeMount = mounts.item(mounts.length - 1);
-  const rendererRoot = runtimeMount?.closest<HTMLElement>(RENDERER_ROOT) ?? null;
+  const rendererRoot = runtimeMount?.closest<HTMLElement>(RENDERER_ROOT)
+    ?? rendererRuntime.portalTarget.querySelector<HTMLElement>(RENDERER_ROOT)
+    ?? null;
   if (!runtimeMount?.isConnected || !rendererRoot?.isConnected) return;
 
   let active = false;
