@@ -26,6 +26,12 @@ const Y_VARIABLE = "--mesurer-nested-scroll-y";
  * Cached element sources are observed directly so non-composed ShadowRoot
  * scroll events do not need to escape their tree.
  *
+ * Scroll listeners run in capture phase so the cached deltas are committed at
+ * the first observable scroll boundary, before downstream capture/bubble
+ * observers sample Mesurer geometry. This keeps the fixed canonical-root
+ * surface and its page target coherent within the same scroll event without a
+ * layout read, animation-frame chase, or post-event catch-up.
+ *
  * Native CSS anchors already follow window/document scrolling, so their helper
  * leaves `trackWindow` false and contributes only nested-element deltas. A
  * surface that cannot share the target's anchor tree sets `trackWindow` true
@@ -133,9 +139,9 @@ export const installNestedScrollCompensation = (
   };
 
   for (const element of positions.keys()) {
-    element.addEventListener("scroll", onElementScroll, { passive: true });
+    element.addEventListener("scroll", onElementScroll, { capture: true, passive: true });
   }
-  if (trackWindow) ownerWindow.addEventListener("scroll", onWindowScroll, { passive: true });
+  if (trackWindow) ownerWindow.addEventListener("scroll", onWindowScroll, { capture: true, passive: true });
   sync();
 
   return {
@@ -157,9 +163,9 @@ export const installNestedScrollCompensation = (
     release() {
       if (disposed) return;
       disposed = true;
-      if (trackWindow) ownerWindow.removeEventListener("scroll", onWindowScroll);
+      if (trackWindow) ownerWindow.removeEventListener("scroll", onWindowScroll, true);
       for (const element of positions.keys()) {
-        element.removeEventListener("scroll", onElementScroll);
+        element.removeEventListener("scroll", onElementScroll, true);
       }
       for (const surface of currentSurfaces()) {
         delete surface.dataset.mesurerNestedScrollCompensation;
