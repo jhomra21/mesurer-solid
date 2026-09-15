@@ -36,15 +36,15 @@ Users install `mesurer-solid`.
 
 | Entry | Purpose |
 | --- | --- |
-| `mesurer-solid` | Mount API, Context plugin, public types, agent surface |
-| `mesurer-solid/arrange` | First-party Arrange plugin |
-| `mesurer-solid/codex` | Optional human-triggered Context delivery to an open Codex session |
-| `mesurer-solid/screenshot` | First-party Screenshot plugin |
+| `mesurer-solid` | Mount API, domain types, and agent surface |
+| `mesurer-solid/plugins` | All first-party plugin factories and plugin-specific contracts |
 | `mesurer-solid/core` | Lower-level framework-neutral public contracts |
 | `mesurer-solid/inject` | Programmatic injection helper |
 | `mesurer-solid/inject-script` | Self-contained classic browser payload |
 
 The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, and the optional `mesurer-codex` loopback companion. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
+
+Public first-party plugin factories use their feature name directly. Applications import `context`, `arrange`, `screenshot`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
 
 ## Workspace ownership
 
@@ -108,7 +108,7 @@ See [Direct text editing and Typography](./docs/TEXT_EDITING.md).
 
 ## Arrange
 
-Arrange is a renderer-aware first-party plugin exported from `mesurer-solid/arrange`.
+Arrange is a renderer-aware first-party plugin exposed as `arrange()` from `mesurer-solid/plugins`.
 
 It owns active state, `Shift+A`, snapping, drag preview, Before/Desired intent, persistence, and review. Activating Arrange enables Select; turning Arrange off leaves Select active; turning Select off exits Arrange.
 
@@ -121,14 +121,14 @@ See [Arrange](./docs/ARRANGE.md).
 The removable `mesurer.context` plugin owns annotations and the human/agent context workflow:
 
 ```text
-contextPlugin()
+context()
   ├─ Copy Context / Copy Selection / Add Note
   ├─ annotation state + conservative rebinding
   ├─ context/select/review/capture-plan operations
   └─ service: context:v1
 ```
 
-Injection enables Context by default. Source-mounted applications opt in with `contextPlugin()`.
+Injection enables Context by default. Source-mounted applications opt in with `context()` from `mesurer-solid/plugins`.
 
 `window.__MESURER__` remains the shared browser-state boundary for ordinary coding-agent work. Context itself does not know about Codex, sessions, local processes, or transport. Arrange and text-edit intent remain separate structured channels so they retain their own Before/Desired/Live semantics.
 
@@ -138,13 +138,13 @@ See [Context](./docs/CONTEXT_WORKFLOW.md) and [Agent integration](./packages/mes
 
 ## Codex delivery
 
-`mesurer.codex` is an optional first-party transport plugin exported from `mesurer-solid/codex`. It depends on the Context service rather than duplicating annotation or inspection state.
+`mesurer.codex` is an optional first-party transport plugin exposed as `codex()` from `mesurer-solid/plugins`. It depends on the Context service rather than duplicating annotation or inspection state.
 
 ```text
 context:v1
    │
    ▼
-codexPlugin()
+codex()
    ├─ Send to Codex tool / command
    ├─ service: codex:v1
    └─ HTTP to an explicitly started loopback companion
@@ -166,7 +166,7 @@ See [Send Context feedback to Codex](./docs/CODEX.md).
 
 ## Screenshot
 
-`mesurer.screenshot` is an optional first-party plugin exported from `mesurer-solid/screenshot`.
+`mesurer.screenshot` is an optional first-party plugin exposed as `screenshot()` from `mesurer-solid/plugins`.
 
 It owns camera activation, region selection, capture provider, HiDPI crop logic, output preferences, status, thumbnail/viewer UI, commands, service, and cleanup. Normal browser hosts use `getDisplayMedia()`; the Chromium extension uses `chrome.tabs.captureVisibleTab()` through an isolated-world bridge and the existing `activeTab` grant.
 
@@ -209,6 +209,6 @@ Temporary Mesurer presentation expresses intent or evidence; it is not proof tha
 
 The public package bundles the private workspaces into self-contained artifacts and is validated as an exact packed npm candidate across clean React, Solid 1, and Solid 2 consumers.
 
-Release validation also covers browser contracts, host isolation, screenshots, public subpaths and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery additionally validates its public subpath, packaged companion binary, loopback boundary, and exact `codex queue` argument contract before release.
+Release validation also covers browser contracts, host isolation, screenshots, the unified public plugins entry and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery additionally validates the packaged companion binary, loopback boundary, and exact `codex queue` argument contract before release.
 
 See [Releasing](./RELEASING.md) and [Upstream parity](./docs/UPSTREAM_PARITY.md).
