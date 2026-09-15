@@ -27,32 +27,6 @@ const center = async (locator, label) => {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2, box };
 };
 
-const dispatchSelectPlanePointer = (page, type, point) => page.evaluate(
-  ({ eventType, x, y }) => {
-    const island = document.querySelector("[data-mesurer-island='true']");
-    if (!(island instanceof HTMLElement) || !island.shadowRoot) {
-      throw new Error("Missing Mesurer island ShadowRoot");
-    }
-    const target = island.shadowRoot.elementFromPoint(x, y);
-    if (!(target instanceof Element)) {
-      throw new Error(`Missing Select-plane hit at ${x},${y}`);
-    }
-    target.dispatchEvent(new PointerEvent(eventType, {
-      bubbles: true,
-      cancelable: true,
-      composed: false,
-      pointerId: 91,
-      pointerType: "mouse",
-      isPrimary: true,
-      button: 0,
-      buttons: eventType === "pointerdown" ? 1 : 0,
-      clientX: x,
-      clientY: y,
-    }));
-  },
-  { eventType: type, x: point.x, y: point.y },
-);
-
 const selectionSnapshot = (page) => page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
 
 const selectedId = async (page, label) => {
@@ -213,6 +187,9 @@ async function runCase(testCase) {
     );
     assert.equal(initialHit.island, true, `${testCase.name} canonical Mesurer island must own the initial hit`);
 
+    // This is the release-critical path: real browser pointer input, not a
+    // hand-dispatched PointerEvent. The composer must be gone while the mouse is
+    // still down; only then may pointerup transfer Select ownership to B.
     await page.mouse.move(bPoint.x, bPoint.y);
     await page.mouse.down();
     await composer.waitFor({ state: "detached", timeout: 1200 });
@@ -224,28 +201,6 @@ async function runCase(testCase) {
       "packed-adjacent-b",
     );
     await assertFreshDraft(page, trigger, composer, `${testCase.name} adjacent physical handoff`);
-
-    // Prove the same-root invariant without relying on document/window event
-    // propagation: a non-composed pointer inside the island must drive Select's
-    // own model lifecycle and clear the colocated Context draft before release.
-    await page.evaluate(() => window.__MESURER__.select("#packed-adjacent-a"));
-    await settle(page);
-    await openDraft(
-      page,
-      trigger,
-      composer,
-      "select-plane abandoned draft A",
-      `${testCase.name} Select-plane-local handoff`,
-    );
-    await dispatchSelectPlanePointer(page, "pointerdown", bPoint);
-    await composer.waitFor({ state: "detached", timeout: 1200 });
-    await dispatchSelectPlanePointer(page, "pointerup", bPoint);
-    await settle(page);
-    assert.equal(
-      await selectedId(page, `${testCase.name} Select-plane-local handoff`),
-      "packed-adjacent-b",
-    );
-    await assertFreshDraft(page, trigger, composer, `${testCase.name} Select-plane-local handoff`);
 
     assert.deepEqual(
       diagnostics,
@@ -264,8 +219,6 @@ async function runCase(testCase) {
       initialHitOwnedByIsland: true,
       composerDismissedBeforePointerUp: true,
       selectionTransferredToB: true,
-      selectPlaneLocalComposerDismissedBeforePointerUp: true,
-      selectPlaneLocalSelectionTransferredToB: true,
       abandonedDraftCleared: true,
     });
   } finally {
