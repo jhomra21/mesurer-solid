@@ -141,7 +141,7 @@ describe("codex", () => {
   it("can send one message to another registered thread without changing the default", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => ({
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ ok: true, thread: "thread-b", output: "queued" }),
