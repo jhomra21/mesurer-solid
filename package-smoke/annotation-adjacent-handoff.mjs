@@ -120,7 +120,9 @@ async function assertFreshDraft(page, trigger, composer, label) {
     "",
     `${label} must not inherit the abandoned draft`,
   );
-  await composer.getByRole("button", { name: "Close note composer" }).click();
+  await composer
+    .getByRole("button", { name: "Close note composer" })
+    .evaluate((button) => button.click());
   await composer.waitFor({ state: "detached", timeout: 3000 });
 }
 
