@@ -5,6 +5,7 @@ import {
   type MesurerModelOptions,
   type MesurerModelState,
 } from "@jhomra21/mesurer-solid-core";
+import { publishMesurerSelectGestureStart } from "../runtime/select-gesture-channel";
 
 export type {
   GuidePreview,
@@ -34,6 +35,7 @@ export function createMesurerModel(options: MesurerModelOptions = {}): MesurerMo
   const unsubscribe = core.subscribe((snapshot) => setState(() => snapshot));
   const disposeCore = core.dispose;
   let disposed = false;
+  let model!: MesurerModel;
   const activeSelection = createMemo(
     () => state.selectedMeasurement ?? state.selectedMeasurements.at(-1) ?? null,
   );
@@ -52,10 +54,20 @@ export function createMesurerModel(options: MesurerModelOptions = {}): MesurerMo
     if (unchanged) return;
     core.setGuides(guides);
   };
+  const setTransient: typeof core.setTransient = (update) => {
+    const wasSelectGestureActive = core.current.toolMode === "select" && core.current.start !== null;
+    core.setTransient(update);
+    const selectGestureActive = core.current.toolMode === "select" && core.current.start !== null;
+    if (!wasSelectGestureActive && selectGestureActive) {
+      const ownerWindow = model.rendererRoot?.ownerDocument.defaultView;
+      if (ownerWindow) publishMesurerSelectGestureStart(ownerWindow);
+    }
+  };
 
-  const model: MesurerModel = {
+  model = {
     ...core,
     setGuides,
+    setTransient,
     dispose,
     state,
     activeSelection,
