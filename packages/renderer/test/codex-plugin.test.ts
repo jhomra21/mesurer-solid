@@ -4,10 +4,10 @@ import {
   defineMesurerPlugin,
 } from "@jhomra21/mesurer-solid-core";
 import {
-  codexPlugin,
+  codex,
   MESURER_CODEX_SERVICE_ID,
   type MesurerCodexService,
-} from "../../mesurer/src/codex-plugin";
+} from "../../mesurer/src/plugins";
 import type { MesurerAnnotation, MesurerContextRequest } from "../../mesurer/src/context";
 import type { MesurerContextService } from "../../mesurer/src/context-plugin";
 
@@ -52,10 +52,10 @@ const createContextService = () => {
   return { service, contextText };
 };
 
-describe("codexPlugin", () => {
+describe("codex", () => {
   it("sends saved Context evidence through the explicit loopback transport", async () => {
     const host = createMesurerPluginHost();
-    const { service: context, contextText } = createContextService();
+    const { service: contextService, contextText } = createContextService();
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
@@ -67,10 +67,10 @@ describe("codexPlugin", () => {
       id: "test.context",
       provides: ["context:v1"],
       setup(ctx) {
-        ctx.service.provide("context:v1", context);
+        ctx.service.provide("context:v1", contextService);
       },
     }));
-    await host.load(codexPlugin({ endpoint: "http://127.0.0.1:47365", ui: false }));
+    await host.load(codex({ endpoint: "http://127.0.0.1:47365", ui: false }));
 
     const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
     expect(service).toBeDefined();
@@ -87,8 +87,8 @@ describe("codexPlugin", () => {
 
   it("falls back to the current selection when there are no saved annotations", async () => {
     const host = createMesurerPluginHost();
-    const { service: context, contextText } = createContextService();
-    context.annotations = async () => [];
+    const { service: contextService, contextText } = createContextService();
+    contextService.annotations = async () => [];
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
@@ -100,10 +100,10 @@ describe("codexPlugin", () => {
       id: "test.context-empty",
       provides: ["context:v1"],
       setup(ctx) {
-        ctx.service.provide("context:v1", context);
+        ctx.service.provide("context:v1", contextService);
       },
     }));
-    await host.load(codexPlugin({ ui: false }));
+    await host.load(codex({ ui: false }));
 
     const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
     await service?.send({ instruction: "Fix the selected UI." });
