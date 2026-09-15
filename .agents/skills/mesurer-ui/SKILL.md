@@ -7,7 +7,7 @@ description: Use Mesurer for frontend UI implementation, review, debugging, layo
 
 Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. The rendered page is the integration boundary.
 
-The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the harness already owns and read `window.__MESURER__` directly. The optional `codex()` plugin and `mesurer-codex` loopback companion are a separate human-initiated convenience for sending Context feedback to one existing Codex session; do not start or reconfigure that transport unless the user asks.
+The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the harness already owns and read `window.__MESURER__` directly. The optional `codex()` plugin and `mesurer-codex` loopback companion are a separate human-initiated convenience for routing Context feedback to explicitly registered Codex threads; do not start or reconfigure that transport unless the user asks for Codex delivery.
 
 A meaningful Mesurer step must return evidence the agent actually uses.
 
@@ -242,6 +242,28 @@ try {
 Use `{ annotation: annotationId }` for a saved annotation baseline.
 
 The optional Screenshot plugin is a separate human camera workflow. Preserve an existing human thumbnail/viewer unless the task specifically concerns that feature.
+
+## Optional Codex thread handoff
+
+Only use this path when the user has explicitly asked for Mesurer-to-Codex delivery or has already enabled the `codex()` plugin.
+
+If the current task is running inside Codex and this Codex thread should receive future human Mesurer feedback, starting the companion from a Codex shell/tool command is enough:
+
+```bash
+bunx mesurer-codex
+```
+
+Codex injects `CODEX_THREAD_ID` into its shell/tool environment. The companion reads it, registers that thread, and makes it the active destination.
+
+If a bridge is already running and this is a different or newly-created Codex thread that should receive Mesurer feedback, register the current thread with that bridge:
+
+```bash
+bunx mesurer-codex --register-current
+```
+
+That registration is a local-process action. Browser pages may switch or send only among threads that Codex/the user already registered; they may not invent arbitrary Codex destinations.
+
+When application code has mounted `codex()` next to `context()`, its typed `codex:v1` service supports `health()`, `useThread(thread)`, and `send({ thread })` for inspecting the registered set, changing the default, or routing one message to another registered thread. This transport is separate from the normal `window.__MESURER__` evidence workflow and must not replace browser-based verification.
 
 ## Completion
 
