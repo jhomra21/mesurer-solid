@@ -271,7 +271,6 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
 
       // SAFETY: solid.ownerWindow is the browsing-context global paired with solid.ownerDocument.
       const ownerWindow = solid.ownerWindow as Window & typeof globalThis;
-      const interactionRoot = solid.portalTarget;
       const startsInsideContextUi = (event: Event) => {
         const mount = uiMount?.element;
         if (!mount) return false;
@@ -332,14 +331,6 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         // physical gesture. The current selection stays cached while pointerdown
         // is in flight and exactly one following selection inherits that fallback.
         resetOpenComposer?.("current-and-next");
-      };
-      const dismissComposerFromInteractionPlane = (event: Event) => {
-        if (!(event instanceof ownerWindow.PointerEvent) || !composerIsOpen()) return;
-        // Some real hosts deliver a physical pointer to the isolated Select plane
-        // without exposing the same event to the window-level Context listener.
-        // If Select can receive the gesture, Context must still abandon the draft
-        // before pointerup can transfer selection ownership to another page target.
-        dismissComposerBeforeExternalPointer(event);
       };
       const completeDirectPointerHandoff = (event: PointerEvent) => {
         const pending = directPointerHandoff;
@@ -406,7 +397,6 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
         }
       };
       ownerWindow.addEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
-      interactionRoot.addEventListener("pointerdown", dismissComposerFromInteractionPlane, true);
       ownerWindow.addEventListener("pointerup", completeDirectPointerHandoff, true);
       ownerWindow.addEventListener("mousedown", dismissComposerBeforeExternalMouse, true);
       ownerWindow.addEventListener("mouseup", completeLegacyMouseHandoff, true);
@@ -457,7 +447,6 @@ export function contextPlugin(options: MesurerContextPluginOptions = {}): Mesure
 
       ctx.lifecycle.onDispose(() => {
         ownerWindow.removeEventListener("pointerdown", dismissComposerBeforeExternalPointer, true);
-        interactionRoot.removeEventListener("pointerdown", dismissComposerFromInteractionPlane, true);
         ownerWindow.removeEventListener("pointerup", completeDirectPointerHandoff, true);
         ownerWindow.removeEventListener("mousedown", dismissComposerBeforeExternalMouse, true);
         ownerWindow.removeEventListener("mouseup", completeLegacyMouseHandoff, true);
