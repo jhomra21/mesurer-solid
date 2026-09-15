@@ -27,6 +27,32 @@ const center = async (locator, label) => {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2, box };
 };
 
+const dispatchSelectPlanePointer = (page, type, point) => page.evaluate(
+  ({ eventType, x, y }) => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    if (!(island instanceof HTMLElement) || !island.shadowRoot) {
+      throw new Error("Missing Mesurer island ShadowRoot");
+    }
+    const target = island.shadowRoot.elementFromPoint(x, y);
+    if (!(target instanceof Element)) {
+      throw new Error(`Missing Select-plane hit at ${x},${y}`);
+    }
+    target.dispatchEvent(new PointerEvent(eventType, {
+      bubbles: true,
+      cancelable: true,
+      composed: false,
+      pointerId: 91,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+      buttons: eventType === "pointerdown" ? 1 : 0,
+      clientX: x,
+      clientY: y,
+    }));
+  },
+  { eventType: type, x: point.x, y: point.y },
+);
+
 const selectionSnapshot = (page) => page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
 
 const selectedId = async (page, label) => {
@@ -76,6 +102,28 @@ const addAdjacentTargets = (page) => page.evaluate(() => {
   makeTarget("packed-adjacent-b", "Adjacent target B", 320);
 });
 
+async function openDraft(page, trigger, composer, value, label) {
+  await trigger.waitFor({ state: "visible", timeout: 3000 });
+  const triggerPoint = await center(trigger, `${label} Add Note trigger`);
+  await page.mouse.click(triggerPoint.x, triggerPoint.y);
+  await composer.waitFor({ state: "visible", timeout: 3000 });
+  await composer.locator("textarea").fill(value);
+}
+
+async function assertFreshDraft(page, trigger, composer, label) {
+  await trigger.waitFor({ state: "visible", timeout: 3000 });
+  const triggerPoint = await center(trigger, `${label} restored Add Note trigger`);
+  await page.mouse.click(triggerPoint.x, triggerPoint.y);
+  await composer.waitFor({ state: "visible", timeout: 3000 });
+  assert.equal(
+    await composer.locator("textarea").inputValue(),
+    "",
+    `${label} must not inherit the abandoned draft`,
+  );
+  await composer.getByRole("button", { name: "Close note composer" }).click();
+  await composer.waitFor({ state: "detached", timeout: 3000 });
+}
+
 async function runCase(testCase) {
   const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
   const diagnostics = [];
@@ -109,15 +157,10 @@ async function runCase(testCase) {
     const trigger = page.locator(
       "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']",
     );
-    await trigger.waitFor({ state: "visible", timeout: 3000 });
-    const triggerPoint = await center(trigger, `${testCase.name} Add Note trigger`);
-    await page.mouse.click(triggerPoint.x, triggerPoint.y);
-
     const composer = page.locator(
       "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-composer='true']",
     );
-    await composer.waitFor({ state: "visible", timeout: 3000 });
-    await composer.locator("textarea").fill("abandoned draft A");
+    await openDraft(page, trigger, composer, "abandoned draft A", testCase.name);
 
     const b = page.locator("#packed-adjacent-b");
     const bPoint = await center(b, `${testCase.name} adjacent B`);
@@ -155,6 +198,32 @@ async function runCase(testCase) {
       await selectedId(page, `${testCase.name} adjacent physical handoff`),
       "packed-adjacent-b",
     );
+    await assertFreshDraft(page, trigger, composer, `${testCase.name} adjacent physical handoff`);
+
+    // Reproduce the manual failure's important ownership split directly: Select
+    // receives the pointer inside its ShadowRoot while a window-level Context
+    // listener does not. The rejected candidate could still select B on pointerup
+    // while leaving A's draft mounted. Context must therefore also observe the
+    // Select interaction plane itself and abandon the draft on pointerdown.
+    await page.evaluate(() => window.__MESURER__.select("#packed-adjacent-a"));
+    await settle(page);
+    await openDraft(
+      page,
+      trigger,
+      composer,
+      "select-plane abandoned draft A",
+      `${testCase.name} Select-plane-local handoff`,
+    );
+    await dispatchSelectPlanePointer(page, "pointerdown", bPoint);
+    await composer.waitFor({ state: "detached", timeout: 1200 });
+    await dispatchSelectPlanePointer(page, "pointerup", bPoint);
+    await settle(page);
+    assert.equal(
+      await selectedId(page, `${testCase.name} Select-plane-local handoff`),
+      "packed-adjacent-b",
+    );
+    await assertFreshDraft(page, trigger, composer, `${testCase.name} Select-plane-local handoff`);
+
     assert.deepEqual(
       diagnostics,
       [],
@@ -166,6 +235,9 @@ async function runCase(testCase) {
       initialHitOwnedByIsland: true,
       composerDismissedBeforePointerUp: true,
       selectionTransferredToB: true,
+      selectPlaneLocalComposerDismissedBeforePointerUp: true,
+      selectPlaneLocalSelectionTransferredToB: true,
+      abandonedDraftCleared: true,
     });
   } finally {
     await page.close();
