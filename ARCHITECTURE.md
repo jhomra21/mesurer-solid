@@ -18,6 +18,8 @@ Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron
              ├───────────────┬─────────────────┤
              ▼               ▼                 ▼
         Context plugin   Arrange plugin   Screenshot plugin
+             │
+             └── optional Codex plugin ──► loopback companion ──► Codex queue
              │               │                 │
              └───────────────┼─────────────────┘
                              ▼
@@ -36,12 +38,13 @@ Users install `mesurer-solid`.
 | --- | --- |
 | `mesurer-solid` | Mount API, Context plugin, public types, agent surface |
 | `mesurer-solid/arrange` | First-party Arrange plugin |
+| `mesurer-solid/codex` | Optional human-triggered Context delivery to an open Codex session |
 | `mesurer-solid/screenshot` | First-party Screenshot plugin |
 | `mesurer-solid/core` | Lower-level framework-neutral public contracts |
 | `mesurer-solid/inject` | Programmatic injection helper |
 | `mesurer-solid/inject-script` | Self-contained classic browser payload |
 
-The package also ships `mesurer-skill` and the portable `mesurer-ui` Agent Skill. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
+The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, and the optional `mesurer-codex` loopback companion. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
 
 ## Workspace ownership
 
@@ -127,11 +130,39 @@ contextPlugin()
 
 Injection enables Context by default. Source-mounted applications opt in with `contextPlugin()`.
 
-`window.__MESURER__` is the shared browser-state boundary; there is no Send-to-agent transport. Arrange and text-edit intent remain separate structured channels so they retain their own Before/Desired/Live semantics.
+`window.__MESURER__` remains the shared browser-state boundary for ordinary coding-agent work. Context itself does not know about Codex, sessions, local processes, or transport. Arrange and text-edit intent remain separate structured channels so they retain their own Before/Desired/Live semantics.
 
 The selection Add Note button is only transient UI. Its temporary suppression during direct editing does not disable Context or remove saved annotations.
 
 See [Context](./docs/CONTEXT_WORKFLOW.md) and [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md).
+
+## Codex delivery
+
+`mesurer.codex` is an optional first-party transport plugin exported from `mesurer-solid/codex`. It depends on the Context service rather than duplicating annotation or inspection state.
+
+```text
+context:v1
+   │
+   ▼
+codexPlugin()
+   ├─ Send to Codex tool / command
+   ├─ service: codex:v1
+   └─ HTTP to an explicitly started loopback companion
+                  │
+                  ▼
+         mesurer-codex --thread <session>
+                  │
+                  ▼
+       codex queue --thread … --message …
+```
+
+The companion is outside the browser because a framework-agnostic web package cannot spawn the local Codex executable. It binds to `127.0.0.1`, is pinned to one target session at startup, limits request size and browser origins, and invokes Codex without a shell. The browser cannot supply another executable, command, or destination thread.
+
+This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser harness. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and explicitly asks an already-open Codex CLI/App session to act on that feedback.
+
+The first version sends text because Codex's queued-user-message CLI currently accepts text input. It does not use `thread/resume`, a second app-server writer, MCP/ACP, or private Codex Desktop IPC.
+
+See [Send Context feedback to Codex](./docs/CODEX.md).
 
 ## Screenshot
 
@@ -170,12 +201,14 @@ human selection / notes / Arrange / text Desired
 
 Agent attachment reuses an existing Mesurer instance when present. After source changes, verification uses the real Live page: Arrange preview removed, text Desired preview inactive, and fresh Context/measurement/review evidence.
 
+The optional Codex transport does not invert that ownership model for agents. It is a separate explicit human action that serializes Context evidence and queues it into one user-selected Codex session.
+
 Temporary Mesurer presentation expresses intent or evidence; it is not proof that source was updated.
 
 ## Distribution and release
 
 The public package bundles the private workspaces into self-contained artifacts and is validated as an exact packed npm candidate across clean React, Solid 1, and Solid 2 consumers.
 
-Release validation also covers browser contracts, host isolation, screenshots, public subpaths and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions.
+Release validation also covers browser contracts, host isolation, screenshots, public subpaths and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery additionally validates its public subpath, packaged companion binary, loopback boundary, and exact `codex queue` argument contract before release.
 
 See [Releasing](./RELEASING.md) and [Upstream parity](./docs/UPSTREAM_PARITY.md).
