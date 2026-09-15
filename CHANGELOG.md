@@ -4,8 +4,29 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.7 - 2026-09-15
+
 - Keep Add Note and saved annotation cards above live page selection/hover chrome. The transient Add Note composer now belongs to the selection that opened it, so selecting another element closes the composer and restores the small Add Note trigger for the new target instead of moving the open card.
 - Keep custom Typography select popups attached to their trigger while the Typography card scrolls internally, without adding work back to the direct-edit window-scroll hot path.
+- Keep direct text editing as the single visible selection owner: parent → child re-entry no longer leaves duplicate selection chrome, the dimensions pill stays clear of Typography with symmetric `2px / 2px` rendered spacing, and Typography continues to follow its source fully offscreen and back.
+- Keep Typography visually stable during ordinary pointer movement and preserve the zero-layout/query direct-edit window-scroll hot path, eliminating the cursor-move jitter and scroll catch-up found during real-consumer testing.
+- Hide the transient **Add Note** annotation button while direct text editing is active so it cannot overlap the dimensions pill, then restore it automatically when editing ends; existing saved annotation markers and panels remain available.
+- Keep live Select hover outlines below the active document-backed Typography inspector during direct text editing, while ordinary Select hover retains its protected top-layer ownership.
+- Keep Typography inspector cards above selected page outlines and measurement labels when their document-layer geometry overlaps, matching the toolbar's protected paint and hit ownership without moving either surface.
+- Keep the toolbar at the user's chosen viewport position when selected page content moves underneath it. Mesurer no longer automatically shifts the toolbar to another edge to avoid the selected target; toolbar stacking and hit ownership still remain above page selection chrome.
+- Keep selection, direct-edit Typography, and annotation chrome attached to their page targets through window and nested scrolling without scroll catch-up, while Mesurer inspector/toolbar surfaces remain hard interaction boundaries that occlude page selection chrome instead of being selected through.
+- Add persisted **Keep text changes** and **Keep Arrange changes** controls under Settings → General. Both default off, so saved Desired intent remains available in its owning tool while Select and other tools show the original page presentation unless the corresponding control is enabled.
+- Keep Context, Arrange, and Screenshot discoverable as optional Settings plugins, keep compact Settings inside the viewport as the toolbar resizes, and preserve toolbar clearance/stacking over selected page chrome.
+- Keep plugin-owned persisted settings durable across immediate page reload/navigation, including the default `mesurer-plugin-settings` namespace used when no `persistKey` is provided.
+- Keep direct text editing visually anchored to the rendered host element: the keyboard textarea stays transparent at the host's exact bounds, a subtle inset ring marks edit state, the initially selected text is visibly highlighted for immediate replacement, a blinking caret follows collapsed selections, and text runs around inline markup such as shortcut badges remain editable without flattening those children.
+- Unify contextual Typography information and direct formatting into one always-visible interactive inspector. Family, Size, Weight, Line, and Tracking become live controls alongside Bold/Italic/Underline, rendered-page and custom colors, and Text/Heading presets; the old second floating text toolbar/menu no longer renders as a competing surface, and the unified inspector repositions or constrains itself within available viewport space rather than covering the active edit field.
+- Keep selected and inspected element chrome locked to its host while scrolling instead of easing or catching up after the page moves; direct-edit rings follow the same frame-locked geometry.
+- Add a persisted global **Shortcuts** switch under Settings → General, defaulting on and available as `shortcutsEnabled`. Turning it off gates built-in and plugin shortcuts while leaving toolbar controls, editor-local keys, and Escape/cancel behavior available.
+- Add one stable compactable toolbar with full-height separators and 150ms reduced-motion-aware transitions. Compact mode hides inactive controls while keeping every active tool visible, and expanding restores the same order and state without introducing toolbar modes.
+- Tighten Arrange and Typography interaction: Arrange can be activated before Select and enables it automatically; turning Arrange off leaves Select active while turning Select off exits Arrange; direct text editing shows one live Typography card even when Typography was already selected.
+- Make preview ownership safe across history and teardown. Text/style undo and redo now update still-owned Desired values without overwriting host changes, inherited `contenteditable` regions remain native with nested `contenteditable="false"` boundaries respected, Arrange preserves host-authored transform updates, and async plugin setup is cancelled cleanly without disposing unrelated plugins on shared hosts.
 
 ## 0.1.7-beta.10 - 2026-09-14
 
