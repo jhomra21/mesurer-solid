@@ -48,6 +48,18 @@ When Codex starts the bridge, no thread argument is needed:
 bunx mesurer-codex
 ```
 
+That command is for an installed `mesurer-solid` consumer. When testing from the Mesurer Solid monorepo checkout itself, the workspace root is private rather than the published package, so use the checked-in source command instead:
+
+```bash
+bun run mesurer-codex
+```
+
+Bridge arguments work the same way from the source checkout, for example:
+
+```bash
+bun run mesurer-codex --register-current
+```
+
 The bridge reads `CODEX_THREAD_ID`, registers that thread, and makes it the active Mesurer destination. That gives the useful default behavior: **Codex uses or starts Mesurer, and human feedback goes back to the same Codex thread.**
 
 You can still start the bridge manually and pin the first thread explicitly:
@@ -176,6 +188,8 @@ A thread override that was never registered is rejected rather than silently rou
 ## Failure behavior
 
 Delivery is explicit. If the companion is not running, the Codex executable is missing, no thread has been registered, the requested thread is not in the bridge registry, the local origin is not authorized, or `codex queue` rejects the request, the send fails.
+
+The toolbar action reports delivery failures to the browser console with a `[Mesurer] Failed to send feedback to Codex: …` diagnostic and still propagates the failure through the normal plugin error path. Programmatic `send()` calls reject with the same underlying error. A stopped or unreachable bridge is reported as unavailable at its configured endpoint instead of being swallowed silently.
 
 The bridge does not resume or launch an unloaded existing thread. Current Codex behavior can persist queued input for an unloaded thread without starting it until another client resumes that thread, so interactive feedback should normally target a loaded Codex CLI/App thread.
 
