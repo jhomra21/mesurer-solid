@@ -98,30 +98,22 @@ try {
     "Canonical-root annotation trigger must use cached-delta scroll following",
   );
 
-  const ownership = await page.evaluate(() => {
-    const island = document.querySelector("[data-mesurer-island='true']");
-    const root = island instanceof HTMLElement
-      ? island.shadowRoot?.querySelector("[data-mesurer-root='true']") ?? null
-      : null;
-    const contextRoot = root?.querySelector("[data-mesurer-context-root='true']") ?? null;
+  const ownership = await annotationTrigger.evaluate((element) => {
+    const contextRoot = element.closest("[data-mesurer-context-root='true']");
+    const root = contextRoot?.closest("[data-mesurer-root='true']");
     return {
       insideCanonicalRoot: Boolean(root && contextRoot && root.contains(contextRoot)),
       documentContextLayers: document.querySelectorAll("[data-mesurer-context-document-layer='true']").length,
       documentInspectorRuntimes: document.querySelectorAll("[data-mesurer-document-inspector-runtime='true']").length,
     };
   });
-  assert.equal(ownership.insideCanonicalRoot, true, "Context must live inside the canonical Mesurer root");
+  assert.equal(ownership.insideCanonicalRoot, true, "Context must live inside its nearest canonical Mesurer root");
   assert.equal(ownership.documentContextLayers, 0, "Context must not create a document-backed interaction layer");
   assert.equal(ownership.documentInspectorRuntimes, 0, "Context must not create a document inspector input bridge");
 
-  const annotationScrollProbe = await page.evaluate(() => new Promise((resolve, reject) => {
-    const targetElement = document.querySelector("[data-self-host-target]");
-    const island = document.querySelector("[data-mesurer-island='true']");
-    const trigger = island instanceof HTMLElement
-      ? island.shadowRoot?.querySelector("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']")
-      : null;
+  const annotationScrollProbe = await annotationTrigger.evaluate((trigger) => new Promise((resolve, reject) => {
+    const targetElement = trigger.ownerDocument.querySelector("[data-self-host-target]");
     if (!(targetElement instanceof HTMLElement)) return reject(new Error("Missing annotation scroll target"));
-    if (!(trigger instanceof HTMLElement)) return reject(new Error("Missing canonical-root annotation trigger"));
 
     const snapshot = (element) => {
       const rect = element.getBoundingClientRect();
@@ -173,9 +165,13 @@ try {
   assert(boxGap(targetBox, composerBox) <= 8.5, `Annotation composer should stay beside the selected element; gap was ${boxGap(targetBox, composerBox).toFixed(2)}px`);
   assert(composerBox.width <= 272.5, `Annotation composer should remain compact; width was ${composerBox.width}px`);
   assert.equal(
-    await page.evaluate(() => document.body.querySelectorAll("[data-mesurer-annotation-composer='true']").length),
-    0,
-    "Annotation composer must not be portaled into document.body",
+    await composer.evaluate((element) => {
+      const contextRoot = element.closest("[data-mesurer-context-root='true']");
+      const root = contextRoot?.closest("[data-mesurer-root='true']");
+      return Boolean(root && contextRoot && root.contains(contextRoot));
+    }),
+    true,
+    "Annotation composer must remain inside its canonical Mesurer root",
   );
 
   const noteText = "Increase the spacing above this control to 24px.";
@@ -341,9 +337,9 @@ try {
       toolbarCenterLineDelta: "≤ 0.05px",
       glyphEnvelope: "11–18.5px per axis",
       opticalCenterOffset: "≤ 1.5px",
-      annotationOwnership: "Context root is inside canonical Mesurer root; no document bridge/runtime",
+      annotationOwnership: "Context root is inside its nearest canonical Mesurer root; no document bridge/runtime",
       annotationTrigger: "24x24px, 6px clearance from selection (±0.5px), viewport-fixed cached-delta scroll following",
-      annotationComposer: "≤272.5px wide, ≤8.5px from selection, not portaled to body",
+      annotationComposer: "≤272.5px wide, ≤8.5px from selection, canonical-root owned",
       annotationPanel: "marker ≤8.5px from target; panel ≤8.5px from marker",
       observerSelection: "canonical selection context + matching body-level selection chrome",
     },
