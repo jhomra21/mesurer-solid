@@ -2,7 +2,7 @@
 
 Mesurer's agent integration is the rendered page itself. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
 
-There is no Mesurer MCP server, localhost daemon, Send-to-agent callback, or harness-specific transport.
+The normal agent workflow requires no Mesurer MCP server, localhost daemon, Send-to-agent callback, or harness-specific transport. The optional `codex()` plugin is a separate human convenience path for explicitly sending Context feedback to one already-open Codex session; it does not replace the browser-state contract described here.
 
 ## Install the Agent Skill
 
@@ -199,7 +199,13 @@ try {
 }
 ```
 
-The optional `mesurer-solid/screenshot` plugin is a separate human camera workflow. It is not an agent delivery capability. Preserve an existing human preview unless the task is specifically about Screenshot behavior.
+The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separate camera workflow. It is not an agent delivery capability. Preserve an existing human preview unless the task is specifically about Screenshot behavior.
+
+## Optional human-to-Codex delivery
+
+A source-mounted page may opt into `codex()` from `mesurer-solid/plugins` alongside `context()`. This is not an agent integration requirement and does not add a generic send capability to `window.__MESURER__`.
+
+The human starts `mesurer-codex --thread <SESSION>` locally and explicitly clicks **Send to Codex**. The plugin serializes Context evidence and the loopback companion queues it into that one Codex session. See [Send Context feedback to Codex](../../docs/CODEX.md).
 
 ## Revalidate after source edits
 
