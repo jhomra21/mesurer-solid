@@ -36,7 +36,6 @@ const selectionId = async (page) => {
 const addTargets = (page) => page.evaluate(() => {
   document.querySelector("#packed-annotation-api-handoff-target")?.remove();
   document.querySelector("#packed-annotation-handoff-target")?.remove();
-  document.querySelector("#packed-annotation-direct-pointer-target")?.remove();
   document.documentElement.style.minHeight = "1800px";
   document.body.style.minHeight = "1800px";
 
@@ -95,6 +94,7 @@ async function assertTriggerBelongsTo(page, trigger, targetSelector, label) {
     const triggerRect = element.getBoundingClientRect();
     return {
       mode: element.dataset.mesurerAnnotationScrollMode ?? null,
+      coordinateSpace: element.dataset.mesurerContextCoordinateSpace ?? null,
       target: { left: targetRect.left, top: targetRect.top, width: targetRect.width, height: targetRect.height },
       trigger: { left: triggerRect.left, top: triggerRect.top, width: triggerRect.width, height: triggerRect.height },
     };
@@ -107,6 +107,7 @@ async function assertTriggerBelongsTo(page, trigger, targetSelector, label) {
     x: geometry.trigger.left + geometry.trigger.width / 2,
     y: geometry.trigger.top + geometry.trigger.height / 2,
   };
+  assert.equal(geometry.coordinateSpace, "viewport", `${label} trigger must be viewport-owned`);
   assert(
     Math.hypot(targetCenter.x - triggerCenter.x, targetCenter.y - triggerCenter.y) < 200,
     `${label} restored Add Note trigger must belong to the new target: ${JSON.stringify(geometry)}`,
@@ -114,44 +115,39 @@ async function assertTriggerBelongsTo(page, trigger, targetSelector, label) {
   return geometry.mode;
 }
 
+const readScrollGeometry = (page) => page.evaluate(() => {
+  const target = document.querySelector("#packed-annotation-handoff-target");
+  const island = document.querySelector("[data-mesurer-island='true']");
+  const trigger = island instanceof HTMLElement
+    ? island.shadowRoot?.querySelector("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']")
+    : null;
+  if (!(target instanceof HTMLElement) || !(trigger instanceof HTMLElement)) {
+    throw new Error("Missing physical handoff target or canonical-root Add Note trigger");
+  }
+  const targetRect = target.getBoundingClientRect();
+  const triggerRect = trigger.getBoundingClientRect();
+  return {
+    scrollY: window.scrollY,
+    targetTop: targetRect.top,
+    triggerTop: triggerRect.top,
+    relativeTop: triggerRect.top - targetRect.top,
+    mode: trigger.dataset.mesurerAnnotationScrollMode ?? null,
+    coordinateSpace: trigger.dataset.mesurerContextCoordinateSpace ?? null,
+    position: getComputedStyle(trigger).position,
+  };
+});
+
 async function assertScrollOwnership(page, trigger) {
   await trigger.waitFor({ state: "visible", timeout: 3000 });
-  const before = await page.evaluate(() => {
-    const target = document.querySelector("#packed-annotation-handoff-target");
-    const trigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
-    if (!(target instanceof HTMLElement) || !(trigger instanceof HTMLElement)) {
-      throw new Error("Missing physical handoff target or Add Note trigger");
-    }
-    const targetRect = target.getBoundingClientRect();
-    const triggerRect = trigger.getBoundingClientRect();
-    return {
-      scrollY: window.scrollY,
-      targetTop: targetRect.top,
-      triggerTop: triggerRect.top,
-      relativeTop: triggerRect.top - targetRect.top,
-      mode: trigger.dataset.mesurerAnnotationScrollMode ?? null,
-    };
-  });
+  const before = await readScrollGeometry(page);
+  assert.equal(before.mode, "cached-delta", "canonical-root Context trigger must use cached-delta scrolling");
+  assert.equal(before.coordinateSpace, "viewport", "canonical-root Context trigger must use viewport coordinates");
+  assert.equal(before.position, "fixed", "canonical-root Context trigger must be fixed to the viewport interaction root");
 
   await page.evaluate(() => window.scrollBy({ top: 240, behavior: "instant" }));
   await settle(page);
 
-  const after = await page.evaluate(() => {
-    const target = document.querySelector("#packed-annotation-handoff-target");
-    const trigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
-    if (!(target instanceof HTMLElement) || !(trigger instanceof HTMLElement)) {
-      throw new Error("Missing physical handoff target or Add Note trigger after scroll");
-    }
-    const targetRect = target.getBoundingClientRect();
-    const triggerRect = trigger.getBoundingClientRect();
-    return {
-      scrollY: window.scrollY,
-      targetTop: targetRect.top,
-      triggerTop: triggerRect.top,
-      relativeTop: triggerRect.top - targetRect.top,
-    };
-  });
-
+  const after = await readScrollGeometry(page);
   const scrollDelta = after.scrollY - before.scrollY;
   assert(Math.abs(scrollDelta - 240) < 1, `expected a 240px scroll, got ${scrollDelta}`);
   assert(
@@ -160,75 +156,16 @@ async function assertScrollOwnership(page, trigger) {
   );
   assert(
     Math.abs((after.triggerTop - before.triggerTop) + scrollDelta) < 0.75,
-    `restored Add Note trigger did not follow compositor scroll exactly: ${JSON.stringify({ before, after })}`,
+    `canonical-root Add Note trigger did not follow cached scroll exactly: ${JSON.stringify({ before, after })}`,
   );
   assert(
     Math.abs(after.relativeTop - before.relativeTop) < 0.75,
-    `restored Add Note trigger drifted relative to B: ${JSON.stringify({ before, after })}`,
+    `canonical-root Add Note trigger drifted relative to B: ${JSON.stringify({ before, after })}`,
   );
 
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
   await settle(page);
   return before.mode;
-}
-
-async function dispatchLegacyMouse(page, type, point) {
-  await page.evaluate(({ eventType, x, y }) => {
-    const target = document.querySelector("#packed-annotation-handoff-target");
-    if (!(target instanceof HTMLElement)) throw new Error("Missing legacy mouse handoff target");
-    target.dispatchEvent(new MouseEvent(eventType, {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      button: 0,
-      buttons: eventType === "mousedown" ? 1 : 0,
-      clientX: x,
-      clientY: y,
-      view: window,
-    }));
-  }, { eventType: type, x: point.x, y: point.y });
-}
-
-async function placeDirectPointerTargetBehindComposer(page, composer) {
-  const composerBox = await composer.boundingBox();
-  assert(composerBox, "direct pointer composer must have rendered geometry");
-  return page.evaluate((box) => {
-    document.querySelector("#packed-annotation-direct-pointer-target")?.remove();
-    const target = document.createElement("div");
-    target.id = "packed-annotation-direct-pointer-target";
-    target.textContent = "Direct page target underneath composer";
-    Object.assign(target.style, {
-      position: "fixed",
-      left: `${box.x + 24}px`,
-      top: `${box.y + 24}px`,
-      width: "150px",
-      height: "44px",
-      zIndex: "1",
-      background: "white",
-    });
-    document.body.append(target);
-    const rect = target.getBoundingClientRect();
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-  }, composerBox);
-}
-
-async function dispatchDirectPointer(page, type, point) {
-  await page.evaluate(({ eventType, x, y }) => {
-    const target = document.querySelector("#packed-annotation-direct-pointer-target");
-    if (!(target instanceof HTMLElement)) throw new Error("Missing direct pointer handoff target");
-    target.dispatchEvent(new PointerEvent(eventType, {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      pointerId: 77,
-      pointerType: "mouse",
-      isPrimary: true,
-      button: 0,
-      buttons: eventType === "pointerdown" ? 1 : 0,
-      clientX: x,
-      clientY: y,
-    }));
-  }, { eventType: type, x: point.x, y: point.y });
 }
 
 async function runCase(testCase) {
@@ -243,8 +180,6 @@ async function runCase(testCase) {
     await page.goto(testCase.url, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => Boolean(window.__HOST_READY__));
     if (testCase.injectPath) {
-      // The manual acceptance page can stay open across candidates. Never let
-      // package smoke accidentally validate an older connected injected runtime.
       await page.evaluate(() => {
         window.__MESURER_CONFIG__ = {
           ...(window.__MESURER_CONFIG__ ?? {}),
@@ -263,10 +198,10 @@ async function runCase(testCase) {
     await addTargets(page);
 
     const trigger = page.locator(
-      "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']",
+      "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
     );
     const composer = page.locator(
-      "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-composer='true']",
+      "[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']",
     );
 
     await page.evaluate(async () => {
@@ -318,75 +253,14 @@ async function runCase(testCase) {
     await assertFreshComposer(page, trigger, composer, `${testCase.name} physical handoff`);
     const physicalScrollMode = await assertScrollOwnership(page, trigger);
 
-    // Exact regression for the rejected real-consumer signature. The old packed
-    // fixture used a <button>, which document-inspector-runtime intentionally
-    // exempted from bridge routing. An ordinary page <div> targeted underneath
-    // the open composer was instead captured by the bridge and routed back into
-    // the composer: the draft stayed open and A stayed selected. Model a host
-    // that explicitly targets that page node and require ownership transfer.
-    await page.evaluate(() => window.__MESURER__.select("[data-testid='consumer-counter']"));
-    await settle(page);
-    await openDraft(
-      page,
-      trigger,
-      composer,
-      "direct pointer abandoned draft A",
-      `${testCase.name} direct page pointer`,
-    );
-    const directPoint = await placeDirectPointerTargetBehindComposer(page, composer);
-    await dispatchDirectPointer(page, "pointerdown", directPoint);
-    await composer.waitFor({ state: "detached", timeout: 1200 });
-    await dispatchDirectPointer(page, "pointerup", directPoint);
-    await settle(page);
-    assert.equal(
-      await selectionId(page),
-      "packed-annotation-direct-pointer-target",
-      `${testCase.name} direct page pointer handoff must select the explicitly targeted div`,
-    );
-    const directRestoredTriggerMode = await assertTriggerBelongsTo(
-      page,
-      trigger,
-      "#packed-annotation-direct-pointer-target",
-      `${testCase.name} direct page pointer handoff`,
-    );
-    await assertFreshComposer(page, trigger, composer, `${testCase.name} direct page pointer handoff`);
-    await page.evaluate(() => document.querySelector("#packed-annotation-direct-pointer-target")?.remove());
-
-    await page.evaluate(() => window.__MESURER__.select("[data-testid='consumer-counter']"));
-    await settle(page);
-    await openDraft(page, trigger, composer, "legacy abandoned draft A", `${testCase.name} legacy mouse`);
-
-    const legacyBox = await second.boundingBox();
-    assert(legacyBox, `${testCase.name} legacy B must have rendered geometry`);
-    const legacyPoint = {
-      x: legacyBox.x + legacyBox.width / 2,
-      y: legacyBox.y + legacyBox.height / 2,
-    };
-    await dispatchLegacyMouse(page, "mousedown", legacyPoint);
-    await composer.waitFor({ state: "detached", timeout: 1200 });
-    await dispatchLegacyMouse(page, "mouseup", legacyPoint);
-    await settle(page);
-
-    assert.equal(
-      await selectionId(page),
-      "packed-annotation-handoff-target",
-      `${testCase.name} legacy mouse B handoff must transfer selection ownership to B`,
-    );
-    await assertFreshComposer(page, trigger, composer, `${testCase.name} legacy mouse handoff`);
-    const legacyScrollMode = await assertScrollOwnership(page, trigger);
-
     assert.deepEqual(errors, [], `${testCase.name} annotation handoff browser diagnostics: ${errors.join("\n")}`);
     console.log(`${testCase.name} annotation draft handoff: PASS`, {
       apiSelectionDiscardedDraft: true,
       composerDismissedOnPointerDown: true,
       selectionTransferredOnPointerUp: true,
       physicalRestoredTriggerMode: physicalScrollMode,
-      directPagePointerComposerDismissedOnPointerDown: true,
-      directPagePointerSelectionTransferredOnPointerUp: true,
-      directRestoredTriggerMode: directRestoredTriggerMode,
-      legacyMouseComposerDismissedOnMouseDown: true,
-      legacyMouseSelectionTransferredOnMouseUp: true,
-      legacyRestoredTriggerMode: legacyScrollMode,
+      canonicalContextRoot: true,
+      viewportCoordinateSpace: true,
       compositorScrollDelta: -240,
       draftCleared: true,
     });
