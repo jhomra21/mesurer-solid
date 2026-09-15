@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import {
   installNestedScrollCompensation,
@@ -288,17 +288,24 @@ export function ContextActions(props: ContextActionsProps) {
   }
 
   let placementTarget = currentSelectionTriggerElement();
-  let selectGestureActive = props.runtime.selectGestureActive();
   observeTriggerGeometry(placementTarget);
   const unsubscribe = props.runtime.subscribe(() => {
-    const nextSelectGestureActive = props.runtime.selectGestureActive();
-    const selectGestureStarted = !selectGestureActive && nextSelectGestureActive;
-    selectGestureActive = nextSelectGestureActive;
-    if (selectGestureStarted && noteComposerOpen()) {
-      // Context and Select share one renderer model and one interaction root.
-      // The Select start mutation is therefore the authoritative pre-release
-      // boundary for abandoning a transient draft.
+    const selectGestureActive = props.runtime.selectGestureActive();
+    if (noteComposerOpen() && selectGestureActive) {
+      // Draft validity is state-based, not edge-based. Any renderer-model
+      // notification while Select owns an active gesture invalidates the draft
+      // synchronously, even if this component mounted or resubscribed mid-cycle.
       fallbackNextSelection = true;
+      resetNoteComposerState();
+    } else if (
+      noteComposerOpen()
+      && composerSelection !== null
+      && !sameSelection(composerSelection, captureSelection())
+    ) {
+      // A non-pointer/API selection change is the same ownership violation. Keep
+      // the restored trigger on the committed selection and discard old text.
+      fallbackTriggerElement = currentSelectionTriggerElement();
+      fallbackNextSelection = false;
       resetNoteComposerState();
     }
 
@@ -339,6 +346,13 @@ export function ContextActions(props: ContextActionsProps) {
     return id ? annotations().find((annotation) => annotation.id === id) ?? null : null;
   });
   const hasSelection = () => selection().elements.length > 0 || selection().region !== null;
+  const composerOwnsCurrentSelection = createMemo(() => {
+    revision();
+    const captured = composerSelection;
+    return captured !== null
+      && !props.runtime.selectGestureActive()
+      && sameSelection(captured, captureSelection());
+  });
   const selectionRect = createMemo(() => {
     const value = selection();
     const elementRects = value.elements
@@ -580,6 +594,7 @@ export function ContextActions(props: ContextActionsProps) {
     if (!hasSelection()) return;
     fallbackNextSelection = false;
     composerSelection = captureSelection();
+    setNote("");
     setNoteError(null);
     setStatus(null);
     setActiveAnnotationId(null);
@@ -622,10 +637,13 @@ export function ContextActions(props: ContextActionsProps) {
     }
   };
 
-  onSettled(() => {
-    props.onController?.({ openNoteComposer, closeNoteComposer, abandonNoteComposer });
-    return () => props.onController?.(null);
-  });
+  const controller: ContextActionsController = {
+    openNoteComposer,
+    closeNoteComposer,
+    abandonNoteComposer,
+  };
+  props.onController?.(controller);
+  onCleanup(() => props.onController?.(null));
 
   return (
     <>
@@ -683,7 +701,7 @@ export function ContextActions(props: ContextActionsProps) {
         )}</Show>
       </Show>
 
-      <Show when={noteComposerOpen() && selectionRect()}>
+      <Show when={noteComposerOpen() && composerOwnsCurrentSelection() && selectionRect()}>
         <div
           data-mesurer-layer="chrome"
           data-mesurer-inspector-ui="true"
