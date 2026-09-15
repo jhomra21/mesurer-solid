@@ -17,6 +17,7 @@ export type ContextActionsProps = {
   onCopy: (request?: MesurerContextRequest) => Promise<void>;
   onController?: (controller: ContextActionsController | null) => void;
   initialTriggerFallback?: "current" | "current-and-next";
+  coordinateSpace?: "document" | "viewport";
 };
 
 type PositionedRect = { left: number; top: number; width: number; height: number };
@@ -150,6 +151,7 @@ export function ContextActions(props: ContextActionsProps) {
   let triggerResizeWindow: Window | null = null;
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
+  const usesViewportCoordinates = () => props.coordinateSpace === "viewport";
   const captureSelection = (): ContextSelectionSnapshot => {
     const value = props.runtime.currentSelection();
     return {
@@ -176,6 +178,7 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const supportsSelectionTriggerAnchor = () => {
+    if (usesViewportCoordinates()) return false;
     const currentWindow = ownerWindow();
     if (Object.prototype.hasOwnProperty.call(currentWindow, "__codexWebMcpModelContext")) return false;
     return Boolean(
@@ -256,6 +259,7 @@ export function ContextActions(props: ContextActionsProps) {
       currentWindow,
       element,
       () => [annotationTriggerElement],
+      { trackWindow: usesViewportCoordinates() },
     );
   };
 
@@ -291,10 +295,9 @@ export function ContextActions(props: ContextActionsProps) {
     const selectGestureStarted = !selectGestureActive && nextSelectGestureActive;
     selectGestureActive = nextSelectGestureActive;
     if (selectGestureStarted && noteComposerOpen()) {
-      // This subscription is fed directly by the same model mutation that
-      // starts Select's physical gesture. Abandon the transient draft here,
-      // before pointerup can transfer selection, without depending on DOM event
-      // propagation through the host island or document-inspector bridge.
+      // Context and Select share one renderer model and one interaction root.
+      // The Select start mutation is therefore the authoritative pre-release
+      // boundary for abandoning a transient draft.
       fallbackNextSelection = true;
       resetNoteComposerState();
     }
@@ -407,12 +410,14 @@ export function ContextActions(props: ContextActionsProps) {
     const viewportLeft = clamp((fitted ?? fallback).left, padding, currentWindow.innerWidth - size - padding);
     const viewportTop = clamp((fitted ?? fallback).top, padding, currentWindow.innerHeight - size - padding);
     const nativeAnchor = anchoredTriggerElement === element;
+    const viewportOwned = usesViewportCoordinates() && !nativeAnchor;
     return {
-      left: nativeAnchor ? viewportLeft : viewportLeft + currentWindow.scrollX,
-      top: nativeAnchor ? viewportTop : viewportTop + currentWindow.scrollY,
+      left: nativeAnchor || viewportOwned ? viewportLeft : viewportLeft + currentWindow.scrollX,
+      top: nativeAnchor || viewportOwned ? viewportTop : viewportTop + currentWindow.scrollY,
       anchorX: viewportLeft - value.left,
       anchorY: viewportTop - value.top,
       nativeAnchor,
+      viewportOwned,
     };
   };
 
@@ -646,6 +651,7 @@ export function ContextActions(props: ContextActionsProps) {
               data-mesurer-layer="chrome"
               data-mesurer-inspector-ui="true"
               data-mesurer-annotation-trigger="true"
+              data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
               data-mesurer-annotation-scroll-mode={position().nativeAnchor ? "native-anchor" : "cached-delta"}
               data-mesurer-native-scroll-owner={position().nativeAnchor ? "annotation" : undefined}
               data-mesurer-native-scroll-anchor={position().nativeAnchor ? "offset" : undefined}
@@ -653,6 +659,7 @@ export function ContextActions(props: ContextActionsProps) {
               title="Annotate selection"
               class="msr:pointer-events-auto msr:absolute msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
               style={{
+                position: position().viewportOwned ? "fixed" : "absolute",
                 left: position().nativeAnchor
                   ? `calc(anchor(left) + ${position().anchorX}px)`
                   : `${position().left}px`,
@@ -681,6 +688,7 @@ export function ContextActions(props: ContextActionsProps) {
           data-mesurer-layer="chrome"
           data-mesurer-inspector-ui="true"
           data-mesurer-annotation-composer="true"
+          data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
           class="mesurer-menu-surface msr:pointer-events-auto msr:fixed msr:z-[95] msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
           style={{ left: `${notePanelPosition().left}px`, top: `${notePanelPosition().top}px`, "z-index": PROTECTED_ANNOTATION_Z_INDEX }}
           onPointerDown={(event) => event.stopPropagation()}
@@ -738,6 +746,7 @@ export function ContextActions(props: ContextActionsProps) {
               type="button"
               data-mesurer-layer="evidence"
               data-mesurer-annotation-marker="true"
+              data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
               aria-label={`Mesurer annotation ${index() + 1}: ${annotation.note}`}
               title={annotation.note}
               aria-expanded={activeAnnotationId() === annotation.id ? "true" : "false"}
@@ -766,6 +775,7 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-layer="chrome"
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-panel="true"
+            data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
             class="mesurer-menu-surface msr:pointer-events-auto msr:fixed msr:z-[95] msr:w-[272px] msr:max-h-[220px] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
             style={{ left: `${position().left}px`, top: `${position().top}px`, "z-index": PROTECTED_ANNOTATION_Z_INDEX }}
             onPointerDown={(event) => event.stopPropagation()}
