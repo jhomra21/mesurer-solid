@@ -1,8 +1,8 @@
 import {
-  contextPlugin,
   mountMesurer,
   type MountedMesurer,
 } from "../../../packages/mesurer/src/index";
+import { context } from "../../../packages/mesurer/src/plugins";
 
 type SelfHostingHarness = {
   subject: MountedMesurer;
@@ -30,7 +30,7 @@ const subject = mountMesurer({
   isolate: false,
   topLayer: false,
   agent: { globalName: "__MESURER_SUBJECT__" },
-  plugins: [contextPlugin()],
+  plugins: [context()],
   persistKey: "mesurer-self-host-subject",
 });
 
