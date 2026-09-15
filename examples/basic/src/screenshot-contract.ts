@@ -4,10 +4,10 @@ import {
 } from "../../../packages/mesurer/src/index";
 import {
   MESURER_SCREENSHOT_SERVICE_ID,
-  screenshotPlugin,
+  screenshot,
   type MesurerScreenshotService,
   type ScreenshotCaptureProvider,
-} from "../../../packages/renderer/src/plugins/screenshot";
+} from "../../../packages/mesurer/src/plugins";
 
 const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, ownerWindow }) => {
   const canvas = ownerDocument.createElement("canvas");
@@ -31,7 +31,7 @@ const subject = mountMesurer({
   target: document.body,
   isolate: true,
   topLayer: false,
-  plugins: [screenshotPlugin({
+  plugins: [screenshot({
     copy: false,
     download: false,
     captureVisibleTab: deterministicCapture,
