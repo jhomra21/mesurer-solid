@@ -14,7 +14,7 @@
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
     "./arrange": { "types": "./dist/arrange.d.ts", "import": "./dist/arrange.js" },
-    "./codex": { "types": "./dist/codex.d.ts", "import": "./dist/codex.js" },
+    "./codex": { "types": "./dist/codex-plugin.d.ts", "import": "./dist/codex.js" },
     "./core": { "types": "./dist/core.d.ts", "import": "./dist/core.js" },
     "./screenshot": { "types": "./dist/screenshot.d.ts", "import": "./dist/screenshot.js" },
     "./inject": { "types": "./dist/inject.d.ts", "import": "./dist/inject.js" },
