@@ -50,41 +50,63 @@ const settle = async () => {
   }));
 };
 
-const selectedChromeIsFinal = async () => page.evaluate((selector) => {
+const selectedChromeOwnsTarget = async (expectedTargetId) => page.evaluate(async ({ selector, expectedTargetId }) => {
+  const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
+  if (!subject) return false;
+  const context = await subject.context({ scope: "selection" });
+  if (context.targets.at(-1)?.inspection.id !== expectedTargetId) return false;
+
+  const target = document.getElementById(expectedTargetId);
   const candidates = Array.from(document.querySelectorAll(selector));
-  if (candidates.length !== 1) return false;
+  if (!(target instanceof HTMLElement) || candidates.length !== 1) return false;
   const element = candidates[0];
   if (!(element instanceof HTMLElement)) return false;
+
+  const targetRect = target.getBoundingClientRect();
   const rect = element.getBoundingClientRect();
   const anchor = getComputedStyle(element).getPropertyValue("position-anchor").trim();
+  const aligned = ["x", "y", "width", "height"].every((key) =>
+    Math.abs(rect[key] - targetRect[key]) <= 1.5);
   return rect.width > 0
     && rect.height > 0
     && element.dataset.mesurerNativeScrollAnchor === "box"
     && Boolean(anchor)
-    && anchor !== "none";
-}, DOCUMENT_SELECTED_CHROME);
+    && anchor !== "none"
+    && aligned;
+}, { selector: DOCUMENT_SELECTED_CHROME, expectedTargetId });
 
-const waitForStableSelectedChrome = async () => {
-  await page.waitForFunction((selector) => {
+const waitForStableSelectedChrome = async (expectedTargetId) => {
+  await page.waitForFunction(async ({ selector, expectedTargetId }) => {
+    const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
+    if (!subject) return false;
+    const context = await subject.context({ scope: "selection" });
+    if (context.targets.at(-1)?.inspection.id !== expectedTargetId) return false;
+
+    const target = document.getElementById(expectedTargetId);
     const candidates = Array.from(document.querySelectorAll(selector));
-    if (candidates.length !== 1) return false;
+    if (!(target instanceof HTMLElement) || candidates.length !== 1) return false;
     const element = candidates[0];
     if (!(element instanceof HTMLElement)) return false;
+
+    const targetRect = target.getBoundingClientRect();
     const rect = element.getBoundingClientRect();
     const anchor = getComputedStyle(element).getPropertyValue("position-anchor").trim();
+    const aligned = ["x", "y", "width", "height"].every((key) =>
+      Math.abs(rect[key] - targetRect[key]) <= 1.5);
     return rect.width > 0
       && rect.height > 0
       && element.dataset.mesurerNativeScrollAnchor === "box"
       && Boolean(anchor)
-      && anchor !== "none";
-  }, DOCUMENT_SELECTED_CHROME);
+      && anchor !== "none"
+      && aligned;
+  }, { selector: DOCUMENT_SELECTED_CHROME, expectedTargetId });
 
   for (let attempt = 0; attempt < 12; attempt += 1) {
     await settle();
-    if (await selectedChromeIsFinal()) return;
+    if (await selectedChromeOwnsTarget(expectedTargetId)) return;
     await page.waitForTimeout(16);
   }
-  throw new Error("selected chrome did not retain its final document-backed native anchor after settle");
+  throw new Error(`selected chrome did not retain ownership of #${expectedTargetId} after settle`);
 };
 
 const assertNativeAnchor = async (locator, mode, stage) => {
@@ -141,7 +163,7 @@ try {
 
   const selectedChrome = page.locator(DOCUMENT_SELECTED_CHROME).first();
   const annotation = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']");
-  await waitForStableSelectedChrome();
+  await waitForStableSelectedChrome("isolated-scroll-target");
   await selectedChrome.waitFor({ state: "visible" });
   await annotation.waitFor({ state: "visible" });
   assertSameBox(await box(selectedChrome, "selected chrome before scroll"), targetBox, "selected chrome before scroll");
@@ -197,7 +219,7 @@ try {
   await settle();
   const nestedTargetBox = await box(nestedTarget, "nested target before selection");
   await page.mouse.click(nestedTargetBox.x + nestedTargetBox.width / 2, nestedTargetBox.y + nestedTargetBox.height / 2);
-  await waitForStableSelectedChrome();
+  await waitForStableSelectedChrome("isolated-nested-scroll-target");
   await selectedChrome.waitFor({ state: "visible" });
   await annotation.waitFor({ state: "visible" });
   await assertCanonicalContextTrigger(annotation, "nested annotation trigger");
@@ -228,7 +250,7 @@ try {
   await settle();
   targetBox = await box(target, "target before direct edit");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
-  await waitForStableSelectedChrome();
+  await waitForStableSelectedChrome("isolated-scroll-target");
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
