@@ -143,7 +143,7 @@ const runCodexQueue = (message) => new Promise((resolve, reject) => {
 
 let successfulSends = 0;
 const server = createServer(async (request, response) => {
-  const origin = typeof request.headers.origin === "string" ? request.headers.origin : undefined;
+  const origin = [request.headers.origin].flat().find(Boolean);
   if (!originAllowed(origin)) {
     writeJson(response, 403, { ok: false, error: `Origin is not allowed: ${origin}` }, origin);
     return;
@@ -167,7 +167,7 @@ const server = createServer(async (request, response) => {
 
   try {
     const body = await readJsonBody(request);
-    const message = typeof body.message === "string" ? body.message.trim() : "";
+    const message = body?.message?.trim?.() ?? "";
     if (!message) {
       writeJson(response, 400, { ok: false, error: "message must be a non-empty string." }, origin);
       return;
@@ -190,7 +190,7 @@ server.on("error", (error) => {
 
 server.listen(parsedPort, "127.0.0.1", () => {
   const address = server.address();
-  const port = typeof address === "object" && address ? address.port : parsedPort;
+  const port = address?.port ?? parsedPort;
   const url = `http://127.0.0.1:${port}`;
   console.log(`Mesurer Codex bridge listening on ${url}`);
   console.log(`Target Codex thread: ${thread}`);
