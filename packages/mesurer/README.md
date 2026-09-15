@@ -42,32 +42,30 @@ Full placement examples: [Getting started](https://github.com/jhomra21/mesurer-s
 
 ## First-party plugins
 
+All public first-party plugin factories are exported from `mesurer-solid/plugins` and use the feature name directly:
+
 ```ts
-import {
-  contextPlugin,
-  mountMesurer,
-} from "mesurer-solid"
-import { arrangePlugin } from "mesurer-solid/arrange"
-import { screenshotPlugin } from "mesurer-solid/screenshot"
+import { mountMesurer } from "mesurer-solid"
+import { arrange, context, screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
   plugins: [
-    contextPlugin(),
-    arrangePlugin(),
-    screenshotPlugin(),
+    context(),
+    arrange(),
+    screenshot(),
   ],
 })
 ```
 
 The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. Native Color Picker is available only when the host exposes an operational `EyeDropper`.
 
+For explicit plugin composition, `mesurer-solid/plugins` also exports `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, `settings`, `defaults`, and `compose`.
+
 | Entry | Purpose |
 | --- | --- |
-| `mesurer-solid` | Mount API, context plugin, public types, agent surface |
-| `mesurer-solid/arrange` | Arrange layout-intent plugin |
-| `mesurer-solid/codex` | Optional human-triggered delivery of Context feedback to an open Codex session |
-| `mesurer-solid/screenshot` | Screenshot capture plugin |
+| `mesurer-solid` | Mount API, public domain types, and agent surface |
+| `mesurer-solid/plugins` | All first-party plugin factories and plugin-specific contracts |
 | `mesurer-solid/core` | Lower-level framework-neutral public contracts |
 | `mesurer-solid/inject` | Programmatic browser injection |
 | `mesurer-solid/inject-script` | Built classic injection artifact |
@@ -146,11 +144,11 @@ bunx mesurer-codex --thread <SESSION>
 ```
 
 ```ts
-import { contextPlugin, mountMesurer } from "mesurer-solid"
-import { codexPlugin } from "mesurer-solid/codex"
+import { mountMesurer } from "mesurer-solid"
+import { codex, context } from "mesurer-solid/plugins"
 
 mountMesurer({
-  plugins: [contextPlugin(), codexPlugin()],
+  plugins: [context(), codex()],
 })
 ```
 
