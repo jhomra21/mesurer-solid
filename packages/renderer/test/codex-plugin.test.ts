@@ -86,6 +86,31 @@ describe("codex", () => {
     expect(payload.thread).toBeUndefined();
   });
 
+  it("reports toolbar delivery failures instead of swallowing them silently", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    }));
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-delivery-error",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex({ endpoint: "http://127.0.0.1:47365" }));
+
+    await expect(host.command.execute("codex.send")).rejects.toThrow(
+      "Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before sending feedback.",
+    );
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[Mesurer] Failed to send feedback to Codex: Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before sending feedback.",
+    );
+  });
+
   it("can inspect and switch among threads registered by Codex", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
