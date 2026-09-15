@@ -66,11 +66,13 @@ The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance,
 | --- | --- |
 | `mesurer-solid` | Mount API, context plugin, public types, agent surface |
 | `mesurer-solid/arrange` | Arrange layout-intent plugin |
+| `mesurer-solid/codex` | Optional human-triggered delivery of Context feedback to an open Codex session |
 | `mesurer-solid/screenshot` | Screenshot capture plugin |
 | `mesurer-solid/core` | Lower-level framework-neutral public contracts |
 | `mesurer-solid/inject` | Programmatic browser injection |
 | `mesurer-solid/inject-script` | Built classic injection artifact |
 | `mesurer-skill` | Install the portable coding-agent skill |
+| `mesurer-codex` | Run the optional loopback Codex queue companion |
 
 ## Features
 
@@ -135,6 +137,27 @@ The skill preserves existing human state, reads Arrange/text/annotation intent b
 
 See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/packages/mesurer/AGENT_INTEGRATION.md).
 
+### Optional Send to Codex
+
+When a human wants to push saved Mesurer feedback into a Codex CLI or Codex App thread that is already open, start the local companion for that session and mount the optional transport plugin:
+
+```bash
+bunx mesurer-codex --thread <SESSION>
+```
+
+```ts
+import { contextPlugin, mountMesurer } from "mesurer-solid"
+import { codexPlugin } from "mesurer-solid/codex"
+
+mountMesurer({
+  plugins: [contextPlugin(), codexPlugin()],
+})
+```
+
+This uses Codex's own queued-user-message command. It does not replace the normal browser-harness agent workflow and it does not resume or take ownership of the target Codex thread.
+
+See [Send Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md).
+
 ## Documentation
 
 - [Getting started](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md)
@@ -142,6 +165,7 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 - [Arrange](https://github.com/jhomra21/mesurer-solid/blob/main/docs/ARRANGE.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
+- [Send Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md)
 - [Browser harness](https://github.com/jhomra21/mesurer-solid/blob/main/docs/BROWSER_HARNESS.md)
 - [Host isolation](https://github.com/jhomra21/mesurer-solid/blob/main/docs/HOST_ISOLATION.md)
 - [Trusted Types](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TRUSTED_TYPES.md)
