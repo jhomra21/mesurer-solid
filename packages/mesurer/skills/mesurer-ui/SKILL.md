@@ -7,7 +7,7 @@ description: Use Mesurer for frontend UI implementation, review, debugging, layo
 
 Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. The rendered page is the integration boundary.
 
-There is no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the harness already owns and read `window.__MESURER__` directly.
+The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the harness already owns and read `window.__MESURER__` directly. The optional `codex()` plugin and `mesurer-codex` loopback companion are a separate human-initiated convenience for sending Context feedback to one existing Codex session; do not start or reconfigure that transport unless the user asks.
 
 A meaningful Mesurer step must return evidence the agent actually uses.
 
