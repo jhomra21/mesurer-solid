@@ -23,7 +23,7 @@ afterEach(async () => {
 });
 
 describe("ContextActions Select gesture ownership", () => {
-  it("abandons an open draft when the renderer model records Select pointerdown", async () => {
+  it("abandons an open viewport-owned draft when the renderer model records Select pointerdown", async () => {
     const page = document.createElement("div");
     const a = document.createElement("div");
     const b = document.createElement("div");
@@ -56,6 +56,7 @@ describe("ContextActions Select gesture ownership", () => {
     const dispose = render(() => (
       <ContextActions
         runtime={runtime}
+        coordinateSpace="viewport"
         onCopy={async () => undefined}
         onController={(value) => { controller = value; }}
       />
@@ -71,7 +72,9 @@ describe("ContextActions Select gesture ownership", () => {
     controller!.openNoteComposer();
     await settle();
 
-    const textarea = host.querySelector<HTMLTextAreaElement>("[data-mesurer-annotation-composer='true'] textarea");
+    const composer = host.querySelector<HTMLElement>("[data-mesurer-annotation-composer='true']");
+    const textarea = composer?.querySelector<HTMLTextAreaElement>("textarea") ?? null;
+    expect(composer?.dataset.mesurerContextCoordinateSpace).toBe("viewport");
     expect(textarea).not.toBeNull();
     textarea!.value = "abandoned draft A";
     textarea!.dispatchEvent(new Event("input", { bubbles: true }));
@@ -81,7 +84,7 @@ describe("ContextActions Select gesture ownership", () => {
 
     // This is the exact synchronous model mutation performed by Mesurer's
     // canonical Select pointerdown path. No DOM pointer listener participates in
-    // this test, so only the workspace-model ownership path can clear the draft.
+    // this test, so only the shared workspace-model ownership path can clear it.
     model.setTransient({
       start: { x: 330, y: 160 },
       end: { x: 330, y: 160 },
@@ -92,7 +95,6 @@ describe("ContextActions Select gesture ownership", () => {
     flush();
     expect(host.querySelector("[data-mesurer-annotation-composer='true']")).toBeNull();
 
-    // Complete the same handoff and prove the abandoned text cannot migrate to B.
     model.setSelectedMeasurements([measurementB], measurementB);
     model.setTransient({ start: null, end: null, isDragging: false });
     flush();
