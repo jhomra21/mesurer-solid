@@ -8,9 +8,9 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: false,
     lib: {
-      entry: "src/arrange.ts",
+      entry: "src/plugins.ts",
       formats: ["es"],
-      fileName: "arrange",
+      fileName: "plugins",
     },
     rollupOptions: {
       external: [],

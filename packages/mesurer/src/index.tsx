@@ -1,16 +1,6 @@
 import { render } from "@solidjs/web";
 import {
   Mesurer as RendererMesurer,
-  colorPickerPlugin as rendererColorPickerPlugin,
-  composeMesurerPlugins as rendererComposeMesurerPlugins,
-  defaultMesurerPlugins as rendererDefaultMesurerPlugins,
-  distancePlugin as rendererDistancePlugin,
-  guidesPlugin as rendererGuidesPlugin,
-  rulersPlugin as rendererRulersPlugin,
-  selectPlugin as rendererSelectPlugin,
-  settingsPlugin as rendererSettingsPlugin,
-  textInspectorPlugin as rendererTextInspectorPlugin,
-  xrayPlugin as rendererXrayPlugin,
   type MesurerProps as RendererMesurerProps,
 } from "@jhomra21/mesurer-solid-renderer";
 import {
@@ -37,7 +27,7 @@ import type {
 import {
   MESURER_CONTEXT_PLUGIN_ID,
   MESURER_CONTEXT_SERVICE_ID,
-  contextPlugin,
+  context as createContextPlugin,
   type MesurerContextService,
 } from "./context-plugin";
 import type { MesurerPlugin, MesurerPluginDescription, MesurerPluginHost } from "./core";
@@ -59,7 +49,7 @@ const firstPartyAvailablePlugins = (): MesurerAvailablePlugin[] => [{
   id: MESURER_CONTEXT_PLUGIN_ID,
   label: "Context",
   order: 30,
-  create: () => contextPlugin(),
+  create: () => createContextPlugin(),
   settingsIds: ["context"],
   hiddenSettingsControlIds: ["ui"],
 }];
@@ -286,7 +276,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     await baseAgent.ready();
     const service = pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID);
     if (!service) {
-      throw new Error("Mesurer context plugin is not loaded. Add contextPlugin() to the plugins array.");
+      throw new Error("Mesurer Context is not loaded. Add context() from mesurer-solid/plugins.");
     }
     return service;
   };
@@ -294,7 +284,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     await baseAgent.ready();
     const service = pluginHost?.service.get<MesurerArrangeService>(ARRANGE_SERVICE_ID);
     if (!service) {
-      throw new Error("Mesurer Arrange plugin is not loaded. Add arrangePlugin() from mesurer-solid/arrange.");
+      throw new Error("Mesurer Arrange is not loaded. Add arrange() from mesurer-solid/plugins.");
     }
     return service;
   };
@@ -503,15 +493,6 @@ export type {
   MesurerReviewPresenceChange,
   MesurerReviewV1,
 } from "./context";
-export {
-  contextPlugin,
-  MESURER_CONTEXT_PLUGIN_ID,
-  MESURER_CONTEXT_SERVICE_ID,
-} from "./context-plugin";
-export type {
-  MesurerContextPluginOptions,
-  MesurerContextService,
-} from "./context-plugin";
 export { createMesurerPluginHost, createMesurerRuntime, defineMesurerPlugin } from "./core";
 export type {
   CommandHandler as MesurerCommandHandler,
@@ -526,20 +507,3 @@ export type {
   ToolContribution,
 } from "./core";
 export type { MesurerHostLayerMode } from "./host-layer";
-
-const withPackageVersion = (plugin: MesurerPlugin): MesurerPlugin => ({ ...plugin, version: MESURER_VERSION });
-export const selectPlugin = (): MesurerPlugin => withPackageVersion(rendererSelectPlugin());
-export const xrayPlugin = (): MesurerPlugin => withPackageVersion(rendererXrayPlugin());
-export const colorPickerPlugin = (): MesurerPlugin => withPackageVersion(rendererColorPickerPlugin());
-export const rulersPlugin = (): MesurerPlugin => withPackageVersion(rendererRulersPlugin());
-export const textInspectorPlugin = (): MesurerPlugin => withPackageVersion(rendererTextInspectorPlugin());
-export const guidesPlugin = (): MesurerPlugin => withPackageVersion(rendererGuidesPlugin());
-export const distancePlugin = (): MesurerPlugin => withPackageVersion(rendererDistancePlugin());
-export const settingsPlugin = (): MesurerPlugin => withPackageVersion(rendererSettingsPlugin());
-export const defaultMesurerPlugins = (): MesurerPlugin[] => rendererDefaultMesurerPlugins().map(withPackageVersion);
-export const composeMesurerPlugins = (
-  plugins: MesurerPlugin[] = [],
-  exclude: MesurerBuiltinPluginId[] = [],
-): MesurerPlugin[] => rendererComposeMesurerPlugins(plugins, exclude).map((plugin) =>
-  plugin.id.startsWith("mesurer.") ? withPackageVersion(plugin) : plugin,
-);

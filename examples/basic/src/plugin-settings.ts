@@ -1,15 +1,15 @@
 import {
-  contextPlugin,
   MESURER_VERSION,
   mountMesurer,
   type MountedMesurer,
 } from "../../../packages/mesurer/src/index";
 import {
+  context,
   MESURER_SCREENSHOT_SERVICE_ID,
-  screenshotPlugin,
+  screenshot,
   type MesurerScreenshotService,
   type ScreenshotCaptureProvider,
-} from "../../../packages/renderer/src/plugins/screenshot";
+} from "../../../packages/mesurer/src/plugins";
 
 const pluginStorageKey = "mesurer-plugin-settings";
 const pluginAvailabilityStorageKey = `${pluginStorageKey}:availability`;
@@ -61,12 +61,12 @@ const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, 
   const canvas = ownerDocument.createElement("canvas");
   canvas.width = ownerWindow.innerWidth;
   canvas.height = ownerWindow.innerHeight;
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("Plugin settings fixture canvas unavailable");
-  context.fillStyle = "#f8fafc";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = "#0f172a";
-  context.fillRect(96, 96, 280, 160);
+  const context2d = canvas.getContext("2d");
+  if (!context2d) throw new Error("Plugin settings fixture canvas unavailable");
+  context2d.fillStyle = "#f8fafc";
+  context2d.fillRect(0, 0, canvas.width, canvas.height);
+  context2d.fillStyle = "#0f172a";
+  context2d.fillRect(96, 96, 280, 160);
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
@@ -80,8 +80,8 @@ const subject = mountMesurer({
   isolate: true,
   topLayer: false,
   plugins: [
-    contextPlugin(),
-    screenshotPlugin({
+    context(),
+    screenshot({
       copy: false,
       download: false,
       includeMeasurements: false,
@@ -92,7 +92,7 @@ const subject = mountMesurer({
 
 await subject.ready;
 captureRoots = [subject.root, document];
-const screenshot = () => subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
+const screenshotService = () => subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
 
 type PluginSettingsHarness = {
   subject: MountedMesurer;
@@ -107,4 +107,4 @@ declare global {
   }
 }
 
-window.__MESURER_PLUGIN_SETTINGS_TEST__ = { subject, screenshot, captures, version: MESURER_VERSION };
+window.__MESURER_PLUGIN_SETTINGS_TEST__ = { subject, screenshot: screenshotService, captures, version: MESURER_VERSION };

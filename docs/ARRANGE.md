@@ -6,11 +6,11 @@ It is an optional first-party plugin:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { arrangePlugin } from "mesurer-solid/arrange"
+import { arrange } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
-  plugins: [arrangePlugin()],
+  plugins: [arrange()],
 })
 ```
 

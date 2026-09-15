@@ -1,0 +1,209 @@
+import assert from "node:assert/strict";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawn } from "node:child_process";
+import test from "node:test";
+
+const bridgeScript = new URL("../packages/mesurer/scripts/codex-bridge.mjs", import.meta.url);
+
+const waitForLine = (stream, prefix, timeoutMs = 10_000) => new Promise((resolve, reject) => {
+  let buffer = "";
+  const timeout = setTimeout(() => {
+    cleanup();
+    reject(new Error(`Timed out waiting for ${prefix}`));
+  }, timeoutMs);
+  const onData = (chunk) => {
+    buffer += chunk.toString();
+    for (const line of buffer.split(/\r?\n/)) {
+      if (line.startsWith(prefix)) {
+        cleanup();
+        resolve(line.slice(prefix.length));
+        return;
+      }
+    }
+  };
+  const cleanup = () => {
+    clearTimeout(timeout);
+    stream.off("data", onData);
+  };
+  stream.on("data", onData);
+});
+
+const waitForExit = (child, timeoutMs = 10_000) => new Promise((resolve, reject) => {
+  if (child.exitCode !== null) {
+    resolve(child.exitCode);
+    return;
+  }
+  const timeout = setTimeout(() => {
+    child.kill("SIGKILL");
+    reject(new Error("Bridge did not exit in time."));
+  }, timeoutMs);
+  child.once("exit", (code) => {
+    clearTimeout(timeout);
+    resolve(code);
+  });
+});
+
+const readInvocations = async (path) => {
+  const text = await readFile(path, "utf8");
+  return text.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+};
+
+test("Codex bridge auto-binds the launching thread and routes only registered threads", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-bridge-"));
+  const argsPath = join(root, "args.jsonl");
+  const fakeCodex = join(root, "fake-codex.mjs");
+  await writeFile(fakeCodex, `#!/usr/bin/env node\nimport { appendFileSync } from "node:fs";\nappendFileSync(process.env.MESURER_FAKE_CODEX_ARGS, JSON.stringify(process.argv.slice(2)) + "\\n");\nconsole.log("queued by fake codex");\n`);
+  await chmod(fakeCodex, 0o755);
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--codex", fakeCodex,
+  ], {
+    env: {
+      ...process.env,
+      CODEX_THREAD_ID: "thread-a",
+      MESURER_FAKE_CODEX_ARGS: argsPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
+    const health = await fetch(`${bridgeUrl}/health`, {
+      headers: { Origin: "http://localhost:5173" },
+    });
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), {
+      ok: true,
+      thread: "thread-a",
+      threads: ["thread-a"],
+    });
+    assert.equal(health.headers.get("access-control-allow-origin"), "http://localhost:5173");
+
+    const forbiddenOrigin = await fetch(`${bridgeUrl}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://example.com",
+      },
+      body: JSON.stringify({ message: "do not send" }),
+    });
+    assert.equal(forbiddenOrigin.status, 403);
+
+    const browserRegistration = await fetch(`${bridgeUrl}/threads/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173",
+      },
+      body: JSON.stringify({ thread: "thread-browser" }),
+    });
+    assert.equal(browserRegistration.status, 403);
+
+    const registration = await fetch(`${bridgeUrl}/threads/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread: "thread-b" }),
+    });
+    assert.equal(registration.status, 200, stderr);
+    assert.deepEqual(await registration.json(), {
+      ok: true,
+      thread: "thread-b",
+      threads: ["thread-a", "thread-b"],
+    });
+
+    const switchBack = await fetch(`${bridgeUrl}/target`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://127.0.0.1:4255",
+      },
+      body: JSON.stringify({ thread: "thread-a" }),
+    });
+    assert.equal(switchBack.status, 200, stderr);
+
+    const sendToOther = await fetch(`${bridgeUrl}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://127.0.0.1:4255",
+      },
+      body: JSON.stringify({ message: "fix thread b", thread: "thread-b" }),
+    });
+    assert.equal(sendToOther.status, 200, stderr);
+    assert.deepEqual(await sendToOther.json(), {
+      ok: true,
+      thread: "thread-b",
+      output: "queued by fake codex",
+    });
+
+    const unknownThread = await fetch(`${bridgeUrl}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://127.0.0.1:4255",
+      },
+      body: JSON.stringify({ message: "do not route", thread: "thread-c" }),
+    });
+    assert.equal(unknownThread.status, 409);
+
+    assert.deepEqual(await readInvocations(argsPath), [[
+      "queue",
+      "--thread",
+      "thread-b",
+      "--message",
+      "fix thread b",
+    ]]);
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("another Codex thread can register itself with a running bridge", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-register-"));
+  const fakeCodex = join(root, "fake-codex.mjs");
+  await writeFile(fakeCodex, "#!/usr/bin/env node\n");
+  await chmod(fakeCodex, 0o755);
+
+  const server = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--codex", fakeCodex,
+  ], {
+    env: { ...process.env, CODEX_THREAD_ID: "thread-original" },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    const bridgeUrl = await waitForLine(server.stdout, "BRIDGE_URL=");
+    const register = spawn(process.execPath, [bridgeScript.pathname,
+      "--register-current",
+      "--bridge", bridgeUrl,
+    ], {
+      env: { ...process.env, CODEX_THREAD_ID: "thread-new" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let registerStderr = "";
+    register.stderr.on("data", (chunk) => { registerStderr += chunk.toString(); });
+    assert.equal(await waitForExit(register), 0, registerStderr);
+
+    const health = await fetch(`${bridgeUrl}/health`);
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), {
+      ok: true,
+      thread: "thread-new",
+      threads: ["thread-original", "thread-new"],
+    });
+  } finally {
+    if (server.exitCode === null) server.kill("SIGKILL");
+    await waitForExit(server).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});

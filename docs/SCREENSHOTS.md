@@ -11,11 +11,11 @@ They share Mesurer's capture-presentation rules but solve different problems.
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { screenshotPlugin } from "mesurer-solid/screenshot"
+import { screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   plugins: [
-    screenshotPlugin({
+    screenshot({
       copy: true,
       download: false,
     }),
@@ -65,7 +65,7 @@ Click the thumbnail to open a larger viewer with Copy, Save, and Close. Escape o
 
 Normal browser hosts use `getDisplayMedia()` and reuse a live capture stream when possible. Browser permission and chooser behavior remain under browser/platform control.
 
-Applications can provide a custom `ScreenshotCaptureProvider` for another capture source or deterministic testing.
+Applications can provide a custom `ScreenshotCaptureProvider` for another capture source or deterministic testing. Import the provider and service types from `mesurer-solid/plugins`.
 
 The first-party Chromium extension uses `chrome.tabs.captureVisibleTab()` through its existing `activeTab` permission and isolated-world bridge, so that path does not show the normal screen-share chooser. See [Browser extension](../extension/README.md).
 

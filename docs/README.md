@@ -14,6 +14,7 @@ Mesurer Solid is a browser inspection and visual-intent tool. Start with setup, 
 - [Arrange](./ARRANGE.md) — move rendered UI into a Desired layout and compare it with Live source.
 - [Screenshots](./SCREENSHOTS.md) — capture visible-tab regions and configure screenshot output.
 - [Context](./CONTEXT_WORKFLOW.md) — selection, measurements, annotations, review, and shared human/agent state.
+- [Send Context feedback to Codex](./CODEX.md) — explicitly queue human visual feedback into an already-open Codex CLI or Codex App session.
 - [Design feedback loop](./DESIGN_FEEDBACK_LOOP.md) — use Mesurer while implementing and reviewing UI.
 
 ## Agent and browser integration

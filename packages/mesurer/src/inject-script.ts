@@ -1,10 +1,10 @@
 import {
-  contextPlugin,
   mountMesurer,
   type MountedMesurer,
 } from "./index";
+import { context as contextFactory } from "./context-plugin";
 import type { MesurerInjectConfig } from "./inject";
-import { screenshotPlugin } from "./screenshot";
+import { screenshot as screenshotFactory } from "./screenshot";
 
 declare global {
   var __MESURER_CONFIG__: MesurerInjectConfig | undefined;
@@ -36,8 +36,8 @@ if (reusableExisting) {
   if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
   const injectedPlugins = [
-    ...(context === false ? [] : [contextPlugin(context === true ? {} : context)]),
-    ...(screenshot === false ? [] : [screenshotPlugin(screenshot === true ? {} : screenshot)]),
+    ...(context === false ? [] : [contextFactory(context === true ? {} : context)]),
+    ...(screenshot === false ? [] : [screenshotFactory(screenshot === true ? {} : screenshot)]),
     ...plugins,
   ];
 

@@ -1,5 +1,5 @@
 import { render } from "@solidjs/web";
-import { contextPlugin, MESURER_CONTEXT_PLUGIN_ID } from "../../../packages/mesurer/src/index";
+import { context, MESURER_CONTEXT_PLUGIN_ID } from "../../../packages/mesurer/src/plugins";
 import { Mesurer, arrangePlugin } from "@jhomra21/mesurer-solid-renderer";
 import "./playground.css";
 
@@ -7,7 +7,7 @@ const contextAvailablePlugin = {
   id: MESURER_CONTEXT_PLUGIN_ID,
   label: "Context",
   order: 30,
-  create: () => contextPlugin(),
+  create: () => context(),
   settingsIds: ["context"],
   hiddenSettingsControlIds: ["ui"],
 };

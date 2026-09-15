@@ -50,25 +50,23 @@ See [Getting started](./docs/GETTING_STARTED.md) for framework-specific placemen
 
 ### Add first-party plugins
 
-Keep plugin setup next to `mountMesurer()`:
+All first-party plugin factories live at `mesurer-solid/plugins` and use the plugin name directly:
 
 ```ts
-import {
-  contextPlugin,
-  mountMesurer,
-} from "mesurer-solid"
-import { arrangePlugin } from "mesurer-solid/arrange"
-import { screenshotPlugin } from "mesurer-solid/screenshot"
+import { mountMesurer } from "mesurer-solid"
+import { arrange, context, screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
   plugins: [
-    contextPlugin(),
-    arrangePlugin(),
-    screenshotPlugin(),
+    context(),
+    arrange(),
+    screenshot(),
   ],
 })
 ```
+
+The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, `settings`, `defaults`, and `compose` for applications that want to build a custom plugin set explicitly.
 
 ## Features
 
@@ -134,9 +132,12 @@ See [Arrange](./docs/ARRANGE.md).
 Enable the agent bridge when a coding agent should read the same rendered state and human intent:
 
 ```ts
+import { mountMesurer } from "mesurer-solid"
+import { arrange, context } from "mesurer-solid/plugins"
+
 const mesurer = mountMesurer({
   agent: true,
-  plugins: [contextPlugin(), arrangePlugin()],
+  plugins: [context(), arrange()],
 })
 ```
 
@@ -155,6 +156,43 @@ npx --yes --package=mesurer-solid mesurer-skill install
 
 See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the packaged [`mesurer-ui` skill](./.agents/skills/mesurer-ui/SKILL.md).
 
+### Send human feedback to Codex
+
+The optional Codex transport keeps Context as the feedback source and uses Codex's own queued-user-message command. When Codex starts the bridge itself, `mesurer-codex` reads `CODEX_THREAD_ID`, so feedback naturally routes back to the same Codex thread:
+
+```bash
+bunx mesurer-codex
+```
+
+A manual shell can still choose the initial destination explicitly:
+
+```bash
+bunx mesurer-codex --thread <SESSION>
+```
+
+Then mount Codex alongside Context:
+
+```ts
+import { mountMesurer } from "mesurer-solid"
+import { codex, context } from "mesurer-solid/plugins"
+
+mountMesurer({
+  plugins: [context(), codex()],
+})
+```
+
+Mesurer adds **Send to Codex**. Saved annotation Context is sent first; when there are no saved notes, it falls back to the current selection or workspace Context.
+
+A different or newly-created Codex thread can take over the same bridge by running:
+
+```bash
+bunx mesurer-codex --register-current
+```
+
+The bridge retains previously registered threads. Programmatic callers can use `health()`, `useThread(thread)`, or `send({ thread })` to switch or route to another registered destination. Browser pages cannot register arbitrary Codex threads themselves.
+
+See [Send Context feedback to Codex](./docs/CODEX.md).
+
 ## Documentation
 
 Start with the [documentation index](./docs/README.md).
@@ -164,6 +202,7 @@ Start with the [documentation index](./docs/README.md).
 - [Arrange](./docs/ARRANGE.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
 - [Context workflow](./docs/CONTEXT_WORKFLOW.md)
+- [Send Context feedback to Codex](./docs/CODEX.md)
 - [Browser harness](./docs/BROWSER_HARNESS.md)
 - [Host isolation](./docs/HOST_ISOLATION.md)
 - [Trusted Types](./docs/TRUSTED_TYPES.md)

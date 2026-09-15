@@ -55,23 +55,19 @@ if (import.meta.env.DEV) {
 
 ## Add first-party plugins
 
-Keep plugin setup with the Mesurer mount:
+Keep plugin setup with the Mesurer mount. First-party plugin factories all come from `mesurer-solid/plugins`:
 
 ```ts
-import {
-  contextPlugin,
-  mountMesurer,
-} from "mesurer-solid"
-import { arrangePlugin } from "mesurer-solid/arrange"
-import { screenshotPlugin } from "mesurer-solid/screenshot"
+import { mountMesurer } from "mesurer-solid"
+import { arrange, context, screenshot } from "mesurer-solid/plugins"
 
 if (import.meta.env.DEV) {
   const mesurer = mountMesurer({
     agent: true,
     plugins: [
-      contextPlugin(),
-      arrangePlugin(),
-      screenshotPlugin(),
+      context(),
+      arrange(),
+      screenshot(),
     ],
   })
 
@@ -81,7 +77,7 @@ if (import.meta.env.DEV) {
 }
 ```
 
-Context, Arrange, and Screenshot do not require separate application files.
+Context, Arrange, Screenshot, and optional transports such as Codex do not require separate application files. For explicit custom composition, the same `mesurer-solid/plugins` entry also exposes the built-in factories.
 
 ## Browser-only boundary
 
