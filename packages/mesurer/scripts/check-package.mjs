@@ -24,8 +24,13 @@ if (packageJson.private === true) throw new Error("The public Mesurer package wo
 if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
   throw new Error("The public Mesurer package must not publish runtime workspace dependencies.");
 }
-for (const requiredExport of [".", "./arrange", "./codex", "./core", "./screenshot", "./inject", "./inject-script"]) {
+for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
+}
+for (const removedExport of ["./arrange", "./codex", "./screenshot"]) {
+  if (packageJson.exports?.[removedExport]) {
+    throw new Error(`Obsolete first-party plugin subpath must not remain public: ${removedExport}`);
+  }
 }
 if (packageJson.publishConfig?.access !== "public") throw new Error("publishConfig.access must be public.");
 if (packageJson.publishConfig?.registry !== "https://registry.npmjs.org/") {
@@ -48,14 +53,10 @@ for (const file of distFiles) {
 for (const file of [
   "index.js",
   "index.d.ts",
-  "arrange.js",
-  "arrange.d.ts",
-  "codex.js",
-  "codex-plugin.d.ts",
+  "plugins.js",
+  "plugins.d.ts",
   "core.js",
   "core.d.ts",
-  "screenshot.js",
-  "screenshot.d.ts",
   "inject.js",
   "inject.d.ts",
   "inject-script.js",
@@ -74,7 +75,30 @@ if (publishedRoot.mountMeasurer !== publishedRoot.mountMesurer) {
   throw new Error("Deprecated mountMeasurer() must remain an alias of mountMesurer() for 0.1.1 compatibility.");
 }
 
+const publishedPlugins = await import(new URL("../dist/plugins.js", import.meta.url));
+for (const factory of [
+  "context",
+  "codex",
+  "arrange",
+  "screenshot",
+  "select",
+  "xray",
+  "colorPicker",
+  "rulers",
+  "typography",
+  "guides",
+  "distance",
+  "settings",
+  "defaults",
+  "compose",
+]) {
+  if (typeof publishedPlugins[factory] !== "function") {
+    throw new Error(`Published plugins entry must expose ${factory}().`);
+  }
+}
+
 const rootDeclarations = readFileSync(new URL("index.d.ts", dist), "utf8");
+const pluginDeclarations = readFileSync(new URL("plugins.d.ts", dist), "utf8");
 const publishedDeclarations = distFiles
   .filter((file) => file.endsWith(".d.ts"))
   .map((file) => readFileSync(new URL(file, dist), "utf8"))
@@ -132,40 +156,50 @@ for (const legacyName of ["mountMeasurer", "MountMeasurerOptions", "MountedMeasu
   }
 }
 
-const packageReadme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
-if (/\bmountMeasurer\b/.test(packageReadme)) {
-  throw new Error("The npm README must document canonical mountMesurer(), not the deprecated mountMeasurer() spelling.");
+for (const obsoleteFactory of [
+  "contextPlugin",
+  "codexPlugin",
+  "arrangePlugin",
+  "screenshotPlugin",
+  "selectPlugin",
+  "xrayPlugin",
+  "colorPickerPlugin",
+  "rulersPlugin",
+  "textInspectorPlugin",
+  "guidesPlugin",
+  "distancePlugin",
+  "settingsPlugin",
+  "defaultMesurerPlugins",
+  "composeMesurerPlugins",
+]) {
+  if (new RegExp(`\\b${obsoleteFactory}\\b`).test(rootDeclarations) || new RegExp(`\\b${obsoleteFactory}\\b`).test(pluginDeclarations)) {
+    throw new Error(`Published API still exposes obsolete plugin factory name ${obsoleteFactory}.`);
+  }
 }
 
-const arrangeDeclarations = readFileSync(new URL("arrange.d.ts", dist), "utf8");
-if (!/\barrangePlugin\b/.test(arrangeDeclarations)) {
-  throw new Error("Published Arrange entry must expose arrangePlugin().");
-}
 for (const contractName of [
   "ArrangeElementFingerprint",
   "ArrangeIntent",
   "ArrangeReview",
   "ArrangeCapturePlan",
   "MesurerArrangeService",
+  "MesurerCodexService",
+  "MesurerCodexSendRequest",
+  "MesurerCodexSendResult",
+  "MesurerContextService",
+  "MesurerScreenshotService",
 ]) {
-  if (!new RegExp(`\\b${contractName}\\b`).test(arrangeDeclarations)) {
-    throw new Error(`Published Arrange entry is missing ${contractName}.`);
+  if (!new RegExp(`\\b${contractName}\\b`).test(pluginDeclarations)) {
+    throw new Error(`Published plugins entry is missing ${contractName}.`);
   }
 }
 
-const codexDeclarations = readFileSync(new URL("codex-plugin.d.ts", dist), "utf8");
-for (const contractName of ["codexPlugin", "MesurerCodexService", "MesurerCodexSendRequest", "MesurerCodexSendResult"]) {
-  if (!new RegExp(`\\b${contractName}\\b`).test(codexDeclarations)) {
-    throw new Error(`Published Codex entry is missing ${contractName}.`);
-  }
+const packageReadme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+if (/\bmountMeasurer\b/.test(packageReadme)) {
+  throw new Error("The npm README must document canonical mountMesurer(), not the deprecated mountMeasurer() spelling.");
 }
-
-const screenshotDeclarations = readFileSync(new URL("screenshot.d.ts", dist), "utf8");
-if (!/\bscreenshotPlugin\b/.test(screenshotDeclarations)) {
-  throw new Error("Published screenshot entry must expose screenshotPlugin().");
-}
-if (!/\bMesurerScreenshotService\b/.test(screenshotDeclarations)) {
-  throw new Error("Published screenshot entry must expose the screenshot service contract.");
+if (/\b(?:contextPlugin|codexPlugin|arrangePlugin|screenshotPlugin)\b/.test(packageReadme)) {
+  throw new Error("The npm README must document canonical plugin factory names from mesurer-solid/plugins.");
 }
 
 const skillSource = new URL("../skills/mesurer-ui/SKILL.md", import.meta.url);
@@ -195,14 +229,13 @@ if (stagedPackageJson.bin?.["mesurer-skill"] !== skillBinPath) {
 if (stagedPackageJson.bin?.["mesurer-codex"] !== codexBinPath) {
   throw new Error(`Expected staged mesurer-codex bin path ${codexBinPath}, got ${stagedPackageJson.bin?.["mesurer-codex"] ?? "<missing>"}.`);
 }
-if (!stagedPackageJson.exports?.["./arrange"]) {
-  throw new Error("Staged npm package is missing the ./arrange export.");
+if (!stagedPackageJson.exports?.["./plugins"]) {
+  throw new Error("Staged npm package is missing the ./plugins export.");
 }
-if (!stagedPackageJson.exports?.["./codex"]) {
-  throw new Error("Staged npm package is missing the ./codex export.");
-}
-if (!stagedPackageJson.exports?.["./screenshot"]) {
-  throw new Error("Staged npm package is missing the ./screenshot export.");
+for (const removedExport of ["./arrange", "./codex", "./screenshot"]) {
+  if (stagedPackageJson.exports?.[removedExport]) {
+    throw new Error(`Staged npm package retained obsolete plugin subpath ${removedExport}.`);
+  }
 }
 if (!existsSync(new URL("../.publish/scripts/codex-bridge.mjs", import.meta.url))) {
   throw new Error("Staged npm package is missing scripts/codex-bridge.mjs.");
@@ -237,4 +270,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, compatibility aliases, context-first agent surface, optional Codex delivery, Arrange, text edit intents, screenshot plugin, and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, optional Codex delivery, agent context, Arrange, text edit intents, screenshot tooling, and Agent Skill installer are self-contained.`);
