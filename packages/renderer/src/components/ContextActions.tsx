@@ -346,14 +346,14 @@ export function ContextActions(props: ContextActionsProps) {
     return id ? annotations().find((annotation) => annotation.id === id) ?? null : null;
   });
   const hasSelection = () => selection().elements.length > 0 || selection().region !== null;
-  const composerOwnsCurrentSelection = createMemo(() => {
+  const composerOwnsCurrentSelection = () => {
     revision();
     const captured = composerSelection;
     // Ownership is the captured selection, not a render-time gesture gate.
     // A stale/already-active Select state is handled by the subscription above
     // on the next model notification, which is exactly the handoff boundary.
     return captured !== null && sameSelection(captured, captureSelection());
-  });
+  };
   const selectionRect = createMemo(() => {
     const value = selection();
     const elementRects = value.elements
