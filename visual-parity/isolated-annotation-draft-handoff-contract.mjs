@@ -70,12 +70,32 @@ try {
   await settle();
 
   const trigger = page.locator(
-    "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-trigger='true']",
+    "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
   );
   const composer = page.locator(
-    "[data-mesurer-context-document-layer='true'] [data-mesurer-annotation-composer='true']",
+    "[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']",
   );
   await trigger.waitFor({ state: "visible", timeout: 3000 });
+
+  const topology = await trigger.evaluate((element) => {
+    const contextRoot = element.closest("[data-mesurer-context-root='true']");
+    const rendererRoot = element.closest("[data-mesurer-root='true']");
+    return {
+      hasContextRoot: contextRoot instanceof HTMLElement,
+      hasRendererRoot: rendererRoot instanceof HTMLElement,
+      contextInsideRenderer: Boolean(contextRoot && rendererRoot && rendererRoot.contains(contextRoot)),
+      legacyContextDocumentLayers: document.querySelectorAll("[data-mesurer-context-document-layer='true']").length,
+      legacyDocumentInspectorRuntimes: document.querySelectorAll("[data-mesurer-document-inspector-runtime='true']").length,
+    };
+  });
+  assert.deepEqual(topology, {
+    hasContextRoot: true,
+    hasRendererRoot: true,
+    contextInsideRenderer: true,
+    legacyContextDocumentLayers: 0,
+    legacyDocumentInspectorRuntimes: 0,
+  }, `Context handoff UI must be owned only by the canonical renderer root: ${JSON.stringify(topology)}`);
+
   await clickCenter(trigger, "first selection Add Note trigger");
   await composer.waitFor({ state: "visible", timeout: 3000 });
   await composer.locator("textarea").fill("abandoned draft A");
@@ -129,10 +149,12 @@ try {
   await settle();
 
   const readHandoff = () => page.evaluate(() => {
+    const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
+    if (!subject) throw new Error("Expected mounted isolated Mesurer subject");
     const target = document.querySelector("#isolated-annotation-handoff-target");
-    const nextTrigger = document.querySelector("[data-mesurer-annotation-trigger='true']");
+    const nextTrigger = subject.root.querySelector("[data-mesurer-annotation-trigger='true']");
     if (!(target instanceof HTMLElement) || !(nextTrigger instanceof HTMLElement)) {
-      throw new Error("Missing second target or restored Add Note trigger");
+      throw new Error("Missing second target or canonical-root Add Note trigger");
     }
     const targetRect = target.getBoundingClientRect();
     const triggerRect = nextTrigger.getBoundingClientRect();
@@ -162,10 +184,8 @@ try {
     `restored Add Note trigger must belong to B: ${JSON.stringify(handoff)}`,
   );
 
-  // The old cached-delta mode was an implementation workaround for reusing a
-  // hidden positioned node. A fresh Context surface may safely choose native
-  // anchoring instead, so gate the observable invariant: target and trigger move
-  // together through an ordinary compositor-owned window scroll with no drift.
+  // Gate the observable invariant: target and trigger move together through an
+  // ordinary compositor-owned window scroll with no drift or catch-up frame.
   await page.evaluate(() => window.scrollBy({ top: 240, behavior: "instant" }));
   await settle();
   const afterScroll = await readHandoff();
@@ -197,6 +217,7 @@ try {
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
   console.log("Isolated annotation draft handoff: PASS", {
+    canonicalRootOwnership: true,
     composerDismissedOnPointerDown: true,
     selectionTransferredOnPointerUp: true,
     restoredTriggerMode: handoff.mode,
