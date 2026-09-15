@@ -78,7 +78,7 @@ const bridgeRequest = async (
     let payload: BridgeResponse = {};
     if (text) {
       try {
-        payload = JSON.parse(text) as BridgeResponse;
+        payload = JSON.parse(text);
       } catch {
         payload = { error: text };
       }
