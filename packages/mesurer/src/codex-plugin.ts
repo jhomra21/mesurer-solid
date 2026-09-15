@@ -136,7 +136,7 @@ const feedbackMessage = async (
   ].join("\n").trimEnd();
 };
 
-export function codexPlugin(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
+export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
   const endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
   const instruction = options.instruction?.trim() || DEFAULT_INSTRUCTION;
 
@@ -146,8 +146,8 @@ export function codexPlugin(options: MesurerCodexPluginOptions = {}): MesurerPlu
     requires: [CONTEXT_SERVICE_ID],
     provides: [MESURER_CODEX_SERVICE_ID],
     setup(ctx) {
-      const context = ctx.service.get<MesurerContextService>(CONTEXT_SERVICE_ID);
-      if (!context) throw new Error("Mesurer Codex plugin requires contextPlugin().");
+      const contextService = ctx.service.get<MesurerContextService>(CONTEXT_SERVICE_ID);
+      if (!contextService) throw new Error("Mesurer Codex plugin requires context() from mesurer-solid/plugins.");
 
       const service: MesurerCodexService = {
         async health() {
@@ -156,7 +156,7 @@ export function codexPlugin(options: MesurerCodexPluginOptions = {}): MesurerPlu
           return { thread: response.thread };
         },
         async send(request) {
-          const message = await feedbackMessage(context, request, instruction);
+          const message = await feedbackMessage(contextService, request, instruction);
           const response = await bridgeRequest(endpoint, "send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
