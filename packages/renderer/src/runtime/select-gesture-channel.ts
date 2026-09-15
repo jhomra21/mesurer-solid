@@ -1,7 +1,8 @@
 export const MESURER_SELECT_GESTURE_START_EVENT = "mesurer:select-gesture-start";
 
 export function publishMesurerSelectGestureStart(ownerWindow: Window) {
-  ownerWindow.dispatchEvent(new ownerWindow.Event(MESURER_SELECT_GESTURE_START_EVENT));
+  const realm = ownerWindow as Window & typeof globalThis;
+  ownerWindow.dispatchEvent(new realm.Event(MESURER_SELECT_GESTURE_START_EVENT));
 }
 
 export function subscribeMesurerSelectGestureStart(
