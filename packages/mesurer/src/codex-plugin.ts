@@ -105,6 +105,9 @@ const bridgeRequest = async (
     if (cause instanceof Error && cause.name === "AbortError") {
       throw new Error("Mesurer Codex bridge timed out.");
     }
+    if (cause instanceof TypeError) {
+      throw new Error(`Mesurer Codex bridge is unavailable at ${endpoint}. Start the local bridge before sending feedback.`);
+    }
     throw cause;
   } finally {
     clearTimeout(timeout);
@@ -201,8 +204,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       ctx.service.provide(MESURER_CODEX_SERVICE_ID, service);
       ctx.command.register("codex.send", async () => {
-        const result = await service.send();
-        console.info(`[Mesurer] Sent feedback to Codex thread ${result.thread}.`);
+        try {
+          const result = await service.send();
+          console.info(`[Mesurer] Sent feedback to Codex thread ${result.thread}.`);
+        } catch (cause) {
+          const message = cause instanceof Error ? cause.message : String(cause);
+          console.error(`[Mesurer] Failed to send feedback to Codex: ${message}`);
+          throw cause;
+        }
       });
 
       if (options.ui ?? true) {
