@@ -223,7 +223,7 @@ try {
       panel: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']"),
       highlight: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']"),
     }), { once: true });
-    window.scrollBy(0, 80);
+    window.scrollBy(0, 20);
   }));
   assert(sameEventBefore.target && sameEventAfter.target, "annotation scroll contract lost its target");
   for (const surface of ["marker", "panel", "highlight"]) {
@@ -246,7 +246,7 @@ try {
   await page.waitForFunction(() => {
     const badgeElement = document.querySelector("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true'] [data-mesurer-annotation-badge='true']");
     return badgeElement instanceof HTMLElement && badgeElement.getBoundingClientRect().width <= 21;
-  }, { timeout: 1000 });
+  }, undefined, { timeout: 1000 });
   const restingBadge = await box(badge, "resting annotation number badge");
   assert(Math.abs(restingBadge.width - 20) <= 1, `expected compact ~20px annotation badge, got ${restingBadge.width}`);
   assert.equal(
