@@ -215,10 +215,25 @@ try {
   await highlight.waitFor({ state: "visible" });
   const highlightBox = await box(highlight, "annotation target ownership highlight");
   const currentTargetBox = await box(target, "annotation target while marker hovered");
-  assert(Math.abs(highlightBox.x - (currentTargetBox.x - 2)) <= 2, "annotation highlight x does not identify its target");
-  assert(Math.abs(highlightBox.y - (currentTargetBox.y - 2)) <= 2, "annotation highlight y does not identify its target");
-  assert(Math.abs(highlightBox.width - (currentTargetBox.width + 4)) <= 3, "annotation highlight width does not identify its target");
-  assert(Math.abs(highlightBox.height - (currentTargetBox.height + 4)) <= 3, "annotation highlight height does not identify its target");
+  assert(Math.abs(highlightBox.x - currentTargetBox.x) <= 1.5, "annotation emphasis must reuse the target boundary on x");
+  assert(Math.abs(highlightBox.y - currentTargetBox.y) <= 1.5, "annotation emphasis must reuse the target boundary on y");
+  assert(Math.abs(highlightBox.width - currentTargetBox.width) <= 2, "annotation emphasis must reuse the target boundary width");
+  assert(Math.abs(highlightBox.height - currentTargetBox.height) <= 2, "annotation emphasis must reuse the target boundary height");
+  const highlightStyle = await highlight.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      borderTopWidth: style.borderTopWidth,
+      backgroundColor: style.backgroundColor,
+      boxShadow: style.boxShadow,
+      borderRadius: style.borderRadius,
+      boxSizing: style.boxSizing,
+    };
+  });
+  assert.equal(highlightStyle.borderTopWidth, "1.5px", "annotation emphasis should add only 0.5px over the normal 1px selection edge");
+  assert.equal(highlightStyle.backgroundColor, "rgba(0, 0, 0, 0)", "annotation emphasis must not tint the selected element");
+  assert.equal(highlightStyle.boxShadow, "none", "annotation emphasis must not add the old outer glow");
+  assert.equal(highlightStyle.borderRadius, "0px", "annotation emphasis must not add a second rounded frame");
+  assert.equal(highlightStyle.boxSizing, "border-box", "annotation emphasis must stay on the existing target bounds");
 
   await page.mouse.move(1120, 470);
   await highlight.waitFor({ state: "hidden" });
@@ -226,7 +241,7 @@ try {
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
   const browserVersion = await browser.version();
   const dpr = await page.evaluate(() => window.devicePixelRatio);
-  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root, its viewport-fixed trigger follows real wheel input, saved notes use numbered ownership markers, open panels stay below marker hit targets, hover grows the compact badge with a 150ms transition, and the owning target is highlighted: PASS`);
+  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root, its viewport-fixed trigger follows real wheel input, saved notes use numbered ownership markers, open panels stay below marker hit targets, hover grows the compact badge with a 150ms transition, and annotation ownership reuses the target boundary as one 1.5px line with no fill or glow: PASS`);
 } finally {
   await browser.close();
 }
