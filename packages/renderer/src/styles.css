@@ -159,12 +159,9 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   z-index: 2147483647 !important;
 }
 
-/* Public Context page evidence now uses ordinary absolute document coordinates,
-   so window scrolling is owned by the same document/compositor path as the
-   selected page element. ContextActions owns the protected stacking tiers for
-   its interactive surfaces. Make that ownership explicit here so host styles
-   cannot collapse a saved marker/card/highlight back into static flow, which
-   would also disable its protected z-index and break physical hit testing. */
+/* Context page evidence uses ordinary absolute document coordinates so window
+   scrolling shares the selected page element's compositor-owned scroll tree.
+   ContextActions owns the protected stacking tiers for its interactive surfaces. */
 [data-mesurer-context-root="true"] [data-mesurer-annotation-scroll-mode="document"] {
   position: absolute !important;
 }
@@ -262,15 +259,51 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   opacity: 0.16 !important;
 }
 
-/* Upstream X-ray appearance wins over the legacy Solid host class name. */
+/* Upstream X-ray appearance wins over the legacy Solid host class name. Mesurer
+   owned renderer/document-inspector UI is explicitly excluded from page X-ray. */
 body.mesurer-solid-xray * {
-  cursor: crosshair !important;
+  outline: solid 1px blue !important;
+}
+body.mesurer-solid-xray [data-mesurer-root],
+body.mesurer-solid-xray [data-mesurer-root] *,
+body.mesurer-solid-xray [data-mesurer-inspector-ui],
+body.mesurer-solid-xray [data-mesurer-inspector-ui] *,
+body.mesurer-solid-xray .mesurer-toolbar-surface,
+body.mesurer-solid-xray .mesurer-toolbar-surface *,
+body.mesurer-solid-xray .mesurer-ti-box,
+body.mesurer-solid-xray .mesurer-ti-card,
+body.mesurer-solid-xray .mesurer-ti-card *,
+body.mesurer-solid-xray .mesurer-ti-close {
+  outline: none !important;
 }
 
-/* Selected document chrome portals only need their wrapper while Solid mounts.
-   Once the child owns a native document anchor, remove that anonymous box from
-   layout so it cannot intercept or offset host-page geometry. Keep the wrapper
-   for non-anchor fallback paths. */
+/* Compact items animate to zero width, so their group wrappers must also stop
+   contributing horizontal padding once every item in that group is hidden.
+   Otherwise invisible built-in/plugin/settings groups leave a phantom gap
+   immediately before the compact/expand chevron. */
+[data-mesurer-toolbar="true"] > div:has(> [data-mesurer-toolbar-compact-item]) {
+  transition: padding-inline 150ms ease;
+}
+
+[data-mesurer-toolbar="true"][data-mesurer-toolbar-compact="true"] > div:has(> [data-mesurer-toolbar-compact-item]):not(:has(> [data-mesurer-toolbar-compact-item][data-visible="true"])) {
+  padding-inline: 0;
+}
+
+/* Keep Solid ownership without giving the portaled selection wrapper its own
+   layout/containing-block box. Native-anchor children then participate in the
+   document layer as if they were direct body children, while the wrapper stays
+   in the DOM for reconciliation. The :has() gate limits this to the native
+   document-anchor path; Shadow DOM and JS fallbacks keep their normal wrapper. */
 [data-mesurer-selected-measurement="true"]:has(> [data-mesurer-native-scroll-anchor="box"]) {
   display: contents !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-mesurer-toolbar="true"] > div:has(> [data-mesurer-toolbar-compact-item]) {
+    transition: none;
+  }
+
+  [data-mesurer-annotation-badge="true"] {
+    transition: none !important;
+  }
 }
