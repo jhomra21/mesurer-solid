@@ -1,9 +1,18 @@
-import type { MesurerPluginRegistration } from "@jhomra21/mesurer-solid-renderer";
 import type { MesurerPlugin } from "./core";
 import { arrange, MESURER_ARRANGE_PLUGIN_ID } from "./arrange";
 import { codex, MESURER_CODEX_PLUGIN_ID } from "./codex-plugin";
 import { context, MESURER_CONTEXT_PLUGIN_ID } from "./context-plugin";
 import { screenshot, MESURER_SCREENSHOT_PLUGIN_ID } from "./screenshot";
+
+type MesurerPluginRegistryEntry = {
+  id: string;
+  label?: string;
+  order?: number;
+  enabled?: boolean;
+  create(): MesurerPlugin | Promise<MesurerPlugin>;
+  settingsIds?: string[];
+  hiddenSettingsControlIds?: string[];
+};
 
 export type MesurerPluginCatalogEntry = {
   id: string;
@@ -64,11 +73,11 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
  */
 export const createPluginRegistry = (
   plugins?: readonly MesurerPlugin[],
-): MesurerPluginRegistration[] => {
+): MesurerPluginRegistryEntry[] => {
   const hasExplicitSet = plugins !== undefined;
   const explicitPlugins = new Map((plugins ?? []).map((plugin) => [plugin.id, plugin]));
   const firstPartyIds = new Set(MESURER_FIRST_PARTY_PLUGINS.map((entry) => entry.id));
-  const registry: MesurerPluginRegistration[] = MESURER_FIRST_PARTY_PLUGINS.map((entry) => {
+  const registry: MesurerPluginRegistryEntry[] = MESURER_FIRST_PARTY_PLUGINS.map((entry) => {
     const explicit = explicitPlugins.get(entry.id);
     return {
       ...entry,
