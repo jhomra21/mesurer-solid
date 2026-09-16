@@ -39,11 +39,22 @@ const saveNote = async (composer, text) => {
   await composer.waitFor({ state: "hidden" });
 };
 
-const assertNativeSurface = async (locator, label, anchorPrefix = "--mesurer-annotation-") => {
-  assert.equal(await locator.getAttribute("data-mesurer-annotation-scroll-mode"), "native-anchor", `${label} must use native target anchoring`);
-  assert.equal(await locator.evaluate((element) => getComputedStyle(element).position), "fixed", `${label} must use a fixed anchor positioning context`);
-  const anchor = await locator.evaluate((element) => getComputedStyle(element).getPropertyValue("position-anchor").trim());
-  assert(anchor.startsWith(anchorPrefix), `${label} lost its source anchor: ${anchor || "<empty>"}`);
+const assertDocumentSurface = async (locator, label) => {
+  assert.equal(
+    await locator.getAttribute("data-mesurer-annotation-scroll-mode"),
+    "document",
+    `${label} must use document scroll ownership`,
+  );
+  assert.equal(
+    await locator.evaluate((element) => getComputedStyle(element).position),
+    "absolute",
+    `${label} must use absolute document positioning`,
+  );
+  assert.equal(
+    await locator.evaluate((element) => element.style.getPropertyValue("position-anchor")),
+    "",
+    `${label} must not depend on CSS anchor positioning for window scrolling`,
+  );
   assert.equal(
     await locator.evaluate((element) => element.style.getPropertyValue("--mesurer-nested-scroll-y")),
     "",
@@ -61,6 +72,7 @@ const captureFrameSeries = async (steps, delta) => page.evaluate(async ({ steps,
   const capture = () => ({
     target: read(".hero h1"),
     trigger: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']"),
+    composer: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']"),
     marker: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']"),
     panel: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']"),
     highlight: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']"),
@@ -69,8 +81,8 @@ const captureFrameSeries = async (steps, delta) => page.evaluate(async ({ steps,
   for (let index = 0; index < steps; index += 1) {
     window.scrollBy(0, delta);
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    // The geometry read happens in the frame callback immediately before that
-    // frame can paint. A one-frame catch-up therefore fails this contract.
+    // Read in the frame callback immediately before paint. Any one-frame
+    // catch-up between page content and annotation UI fails this contract.
     frames.push(capture());
   }
   return frames;
@@ -134,45 +146,58 @@ try {
   const selectedBox = await box(selected, "selected hero chrome");
   assert(Math.abs(selectedBox.x - targetBox.x) <= 2 && Math.abs(selectedBox.y - targetBox.y) <= 2, "selection chrome must match its page target");
 
-  const trigger = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']");
+  const contextRoot = page.locator("[data-mesurer-context-root='true']");
+  await contextRoot.waitFor({ state: "attached" });
+  assert.equal(
+    await contextRoot.getAttribute("data-mesurer-document-inspector-mount"),
+    "true",
+    "Context page evidence must use the document inspector mount",
+  );
+  assert.equal(
+    await contextRoot.evaluate((element) => element.getRootNode() === document),
+    true,
+    "Context page evidence must live in the host document scroll tree",
+  );
+  assert.equal(
+    await contextRoot.evaluate((element) => Boolean(element.closest("[data-mesurer-root='true']"))),
+    false,
+    "Context page evidence must not remain fixed inside the canonical viewport root",
+  );
+
+  const trigger = contextRoot.locator("[data-mesurer-annotation-trigger='true']");
   await trigger.waitFor({ state: "visible", timeout: 3000 });
   assert.equal(await trigger.count(), 1, "expected one Add Note trigger");
-  await assertNativeSurface(trigger, "Add Note trigger", "--mesurer-annotation-trigger-");
-  assert.equal(
-    await trigger.evaluate((element) => Boolean(element.closest("[data-mesurer-context-root='true']")?.closest("[data-mesurer-root='true']"))),
-    true,
-    "Context trigger must remain inside the canonical Mesurer root",
-  );
+  await assertDocumentSurface(trigger, "Add Note trigger");
 
   const triggerFrames = await captureFrameSeries(6, 8);
   assertFrameAttachment(triggerFrames, ["trigger"]);
 
   const triggerBox = await box(trigger, "trigger after pre-note scroll");
   await page.mouse.click(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height / 2);
-  const composer = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']");
+  const composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
-  await assertNativeSurface(composer, "Add Note composer", "--mesurer-annotation-trigger-");
+  await assertDocumentSurface(composer, "Add Note composer");
   const composerFrames = await captureFrameSeries(4, 6);
   assertFrameAttachment(composerFrames, ["composer"]);
   await saveNote(composer, "Normal playground annotation acceptance");
 
-  let markers = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']");
+  let markers = contextRoot.locator("[data-mesurer-annotation-marker='true']");
   await markers.first().waitFor({ state: "visible" });
   assert.equal(await markers.count(), 1, "first saved annotation marker missing");
   const marker = markers.first();
   assert.equal(await marker.getAttribute("data-mesurer-annotation-number"), "1", "first marker must be numbered 1");
-  await assertNativeSurface(marker, "saved annotation marker");
+  await assertDocumentSurface(marker, "saved annotation marker");
 
-  const panel = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']");
+  const panel = contextRoot.locator("[data-mesurer-annotation-panel='true']");
   await panel.waitFor({ state: "visible" });
-  await assertNativeSurface(panel, "open annotation panel");
+  await assertDocumentSurface(panel, "open annotation panel");
   assert.equal(await panel.locator("[data-mesurer-annotation-panel-badge='true']").textContent(), "1", "panel number must match marker");
   await trigger.waitFor({ state: "visible" });
   assert.equal(await trigger.count(), 1, "Add Note must remain available while a panel is open");
 
-  const highlight = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']");
+  const highlight = contextRoot.locator("[data-mesurer-annotation-target-highlight='true']");
   await highlight.waitFor({ state: "visible" });
-  await assertNativeSurface(highlight, "annotation ownership highlight");
+  await assertDocumentSurface(highlight, "annotation ownership highlight");
 
   const annotationFrames = await captureFrameSeries(10, 8);
   assertFrameAttachment(annotationFrames, ["marker", "panel", "highlight"]);
@@ -214,14 +239,14 @@ try {
   await panel.getByRole("button", { name: "Close annotation" }).click();
   await panel.waitFor({ state: "hidden" });
 
-  // Add notes 2 and 3 after scrolling. This is the user's reported failure
-  // shape: a newly mounted third marker must remain visibly owned by the target.
+  // Add notes 2 and 3 after scrolling. A newly mounted third marker must stay
+  // close enough to its target that ownership is visually obvious.
   await marker.click();
   await panel.waitFor({ state: "visible" });
   await trigger.click();
   await panel.waitFor({ state: "hidden" });
   await saveNote(composer, "Second annotation on the same selected element");
-  markers = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']");
+  markers = contextRoot.locator("[data-mesurer-annotation-marker='true']");
   assert.equal(await markers.count(), 2, "second annotation marker missing");
 
   await trigger.click();
@@ -232,7 +257,7 @@ try {
     const targetElement = document.querySelector(".hero h1");
     if (!(targetElement instanceof HTMLElement)) return null;
     const targetRect = targetElement.getBoundingClientRect();
-    const values = [...document.querySelectorAll("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']")].map((element) => {
+    return [...document.querySelectorAll("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']")].map((element) => {
       const rect = element.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
@@ -242,14 +267,17 @@ try {
         number: element.getAttribute("data-mesurer-annotation-number"),
         distance: Math.hypot(dx, dy),
         rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
-        anchor: getComputedStyle(element).getPropertyValue("position-anchor").trim(),
+        mode: element.getAttribute("data-mesurer-annotation-scroll-mode"),
+        position: getComputedStyle(element).position,
+        anchor: element.style.getPropertyValue("position-anchor"),
       };
     });
-    return values;
   });
   assert(markerState, "could not measure repeated markers");
   for (const state of markerState) {
-    assert(state.anchor.startsWith("--mesurer-annotation-"), `marker ${state.number} lost source anchor`);
+    assert.equal(state.mode, "document", `marker ${state.number} left document scroll ownership`);
+    assert.equal(state.position, "absolute", `marker ${state.number} left document positioning`);
+    assert.equal(state.anchor, "", `marker ${state.number} unexpectedly depends on CSS anchoring`);
     assert(state.distance <= 64, `marker ${state.number} drifted ${state.distance}px from target`);
   }
   for (let left = 0; left < markerState.length; left += 1) {
@@ -267,7 +295,7 @@ try {
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
   const browserVersion = await browser.version();
   const dpr = await page.evaluate(() => window.devicePixelRatio);
-  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): every pre-paint scroll frame keeps Add Note, composer, saved markers, panel, and ownership highlight source-attached; the panel moves with its page point; three same-target notes stay nearby and separate; Add Note remains available while a note is open; and ownership stays one clean target boundary: PASS`);
+  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): document-owned annotation surfaces stay source-attached on every pre-paint scroll frame; the panel moves with its page point; three same-target notes stay nearby and separate; Add Note remains available while a note is open; and ownership stays one clean target boundary: PASS`);
 } finally {
   await browser.close();
 }
