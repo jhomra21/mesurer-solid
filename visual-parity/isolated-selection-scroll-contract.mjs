@@ -128,15 +128,17 @@ const assertNativeAnchor = async (locator, mode, stage) => {
   assert.equal(native.animation, "none", `${stage}: must not animate`);
 };
 
-const assertCanonicalContextTrigger = async (locator, stage) => {
+const assertDocumentContextTrigger = async (locator, stage) => {
   const value = await locator.evaluate((element) => ({
     mode: element.dataset.mesurerAnnotationScrollMode ?? null,
     coordinateSpace: element.dataset.mesurerContextCoordinateSpace ?? null,
     position: getComputedStyle(element).position,
+    anchor: element.style.getPropertyValue("position-anchor"),
   }));
-  assert.equal(value.mode, "cached-delta", `${stage}: annotation scroll mode`);
-  assert.equal(value.coordinateSpace, "viewport", `${stage}: annotation coordinate space`);
-  assert.equal(value.position, "fixed", `${stage}: annotation positioning`);
+  assert.equal(value.mode, "document", `${stage}: annotation scroll mode`);
+  assert.equal(value.coordinateSpace, "document", `${stage}: annotation coordinate space`);
+  assert.equal(value.position, "absolute", `${stage}: annotation positioning`);
+  assert.equal(value.anchor, "", `${stage}: window scrolling must not depend on CSS anchor positioning`);
 };
 
 try {
@@ -162,28 +164,24 @@ try {
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const selectedChrome = page.locator(DOCUMENT_SELECTED_CHROME).first();
-  const annotation = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']");
+  const contextRoot = page.locator("[data-mesurer-context-root='true']");
+  const annotation = contextRoot.locator("[data-mesurer-annotation-trigger='true']");
   await waitForStableSelectedChrome("isolated-scroll-target");
   await selectedChrome.waitFor({ state: "visible" });
   await annotation.waitFor({ state: "visible" });
   assertSameBox(await box(selectedChrome, "selected chrome before scroll"), targetBox, "selected chrome before scroll");
   await assertNativeAnchor(selectedChrome, "box", "selected chrome");
-  await assertCanonicalContextTrigger(annotation, "annotation trigger");
-  const contextOwnership = await page.evaluate(() => ({
-    documentContextLayers: document.querySelectorAll("[data-mesurer-context-document-layer='true']").length,
-    documentInspectorRuntimes: document.querySelectorAll("[data-mesurer-document-inspector-runtime='true']").length,
-    contextInsideCanonicalRoot: (() => {
-      const island = document.querySelector("[data-mesurer-island='true']");
-      const root = island instanceof HTMLElement
-        ? island.shadowRoot?.querySelector("[data-mesurer-root='true']") ?? null
-        : null;
-      const contextRoot = root?.querySelector("[data-mesurer-context-root='true']") ?? null;
-      return Boolean(root && contextRoot && root.contains(contextRoot));
-    })(),
+  await assertDocumentContextTrigger(annotation, "annotation trigger");
+  const contextOwnership = await contextRoot.evaluate((element) => ({
+    rootIsDocument: element.getRootNode() === document,
+    documentMount: element.dataset.mesurerDocumentInspectorMount ?? null,
+    insideCanonicalRoot: Boolean(element.closest("[data-mesurer-root='true']")),
   }));
-  assert.equal(contextOwnership.contextInsideCanonicalRoot, true, "annotation Context must live inside canonical Mesurer root");
-  assert.equal(contextOwnership.documentContextLayers, 0, "annotation Context must not create document-backed layers");
-  assert.equal(contextOwnership.documentInspectorRuntimes, 0, "annotation Context must not create document input bridges");
+  assert.deepEqual(contextOwnership, {
+    rootIsDocument: true,
+    documentMount: "true",
+    insideCanonicalRoot: false,
+  }, `annotation Context must share the page document scroll tree: ${JSON.stringify(contextOwnership)}`);
 
   let annotationBox = await box(annotation, "annotation before scroll");
   assert(
@@ -211,6 +209,11 @@ try {
     { target: afterWindow.target, surface: afterWindow.annotation },
     "annotation after real wheel scroll",
   );
+  assert.equal(
+    await annotation.evaluate((element) => element.style.getPropertyValue("--mesurer-nested-scroll-y")),
+    "",
+    "window scrolling must not write a Context JS compensation delta",
+  );
 
   const nestedScroller = page.locator("#nested-scroll-shell");
   const nestedTarget = page.locator("#isolated-nested-scroll-target");
@@ -222,7 +225,7 @@ try {
   await waitForStableSelectedChrome("isolated-nested-scroll-target");
   await selectedChrome.waitFor({ state: "visible" });
   await annotation.waitFor({ state: "visible" });
-  await assertCanonicalContextTrigger(annotation, "nested annotation trigger");
+  await assertDocumentContextTrigger(annotation, "nested annotation trigger");
   const nestedBefore = {
     target: nestedTargetBox,
     selected: await box(selectedChrome, "nested selected before wheel"),
@@ -340,7 +343,7 @@ try {
   }
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Public isolated E2E: real window/nested scrolling keeps canonical-root annotation and selection attached; Context uses no document input bridge; physical Typography control input changes rendered source without retargeting page ownership; Typography leaves with its source while toolbar stays viewport-owned: PASS");
+  console.log("Public isolated E2E: real window/nested scrolling keeps document-owned annotation and native selection attached; physical Typography control input changes rendered source without retargeting page ownership; Context window scroll needs no JS catch-up; Typography leaves with its source while toolbar stays viewport-owned: PASS");
 } finally {
   await browser.close();
 }
