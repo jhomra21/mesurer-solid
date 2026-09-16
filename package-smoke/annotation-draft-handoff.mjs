@@ -107,7 +107,8 @@ async function assertTriggerBelongsTo(page, trigger, targetSelector, label) {
     x: geometry.trigger.left + geometry.trigger.width / 2,
     y: geometry.trigger.top + geometry.trigger.height / 2,
   };
-  assert.equal(geometry.coordinateSpace, "viewport", `${label} trigger must be viewport-owned`);
+  assert.equal(geometry.coordinateSpace, "document", `${label} trigger must be document-owned`);
+  assert.equal(geometry.mode, "document", `${label} trigger must leave window scrolling to the document`);
   assert(
     Math.hypot(targetCenter.x - triggerCenter.x, targetCenter.y - triggerCenter.y) < 200,
     `${label} restored Add Note trigger must belong to the new target: ${JSON.stringify(geometry)}`,
@@ -117,12 +118,11 @@ async function assertTriggerBelongsTo(page, trigger, targetSelector, label) {
 
 const readScrollGeometry = (page) => page.evaluate(() => {
   const target = document.querySelector("#packed-annotation-handoff-target");
-  const island = document.querySelector("[data-mesurer-island='true']");
-  const trigger = island instanceof HTMLElement
-    ? island.shadowRoot?.querySelector("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']")
-    : null;
+  const trigger = document.querySelector(
+    "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
+  );
   if (!(target instanceof HTMLElement) || !(trigger instanceof HTMLElement)) {
-    throw new Error("Missing physical handoff target or canonical-root Add Note trigger");
+    throw new Error("Missing physical handoff target or document-owned Add Note trigger");
   }
   const targetRect = target.getBoundingClientRect();
   const triggerRect = trigger.getBoundingClientRect();
@@ -134,15 +134,17 @@ const readScrollGeometry = (page) => page.evaluate(() => {
     mode: trigger.dataset.mesurerAnnotationScrollMode ?? null,
     coordinateSpace: trigger.dataset.mesurerContextCoordinateSpace ?? null,
     position: getComputedStyle(trigger).position,
+    documentMount: trigger.closest("[data-mesurer-context-root='true']")?.getAttribute("data-mesurer-document-inspector-mount") ?? null,
   };
 });
 
 async function assertScrollOwnership(page, trigger) {
   await trigger.waitFor({ state: "visible", timeout: 3000 });
   const before = await readScrollGeometry(page);
-  assert.equal(before.mode, "cached-delta", "canonical-root Context trigger must use cached-delta scrolling");
-  assert.equal(before.coordinateSpace, "viewport", "canonical-root Context trigger must use viewport coordinates");
-  assert.equal(before.position, "fixed", "canonical-root Context trigger must be fixed to the viewport interaction root");
+  assert.equal(before.mode, "document", "Context trigger must use document scrolling");
+  assert.equal(before.coordinateSpace, "document", "Context trigger must use document coordinates");
+  assert.equal(before.position, "absolute", "Context trigger must use absolute document positioning");
+  assert.equal(before.documentMount, "true", "Context trigger must live in the document inspector mount");
 
   await page.evaluate(() => window.scrollBy({ top: 240, behavior: "instant" }));
   await settle(page);
@@ -156,11 +158,11 @@ async function assertScrollOwnership(page, trigger) {
   );
   assert(
     Math.abs((after.triggerTop - before.triggerTop) + scrollDelta) < 0.75,
-    `canonical-root Add Note trigger did not follow cached scroll exactly: ${JSON.stringify({ before, after })}`,
+    `document-owned Add Note trigger did not follow compositor scroll exactly: ${JSON.stringify({ before, after })}`,
   );
   assert(
     Math.abs(after.relativeTop - before.relativeTop) < 0.75,
-    `canonical-root Add Note trigger drifted relative to B: ${JSON.stringify({ before, after })}`,
+    `document-owned Add Note trigger drifted relative to B: ${JSON.stringify({ before, after })}`,
   );
 
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
@@ -182,7 +184,7 @@ async function runCase(testCase) {
     if (testCase.injectPath) {
       await page.evaluate(() => {
         window.__MESURER_CONFIG__ = {
-          ...(window.__MESURER_CONFIG__ ?? {}),
+          ...window.__MESURER_CONFIG__,
           context: true,
           reuseExisting: false,
         };
@@ -259,8 +261,8 @@ async function runCase(testCase) {
       composerDismissedOnPointerDown: true,
       selectionTransferredOnPointerUp: true,
       physicalRestoredTriggerMode: physicalScrollMode,
-      canonicalContextRoot: true,
-      viewportCoordinateSpace: true,
+      documentContextRoot: true,
+      documentCoordinateSpace: true,
       compositorScrollDelta: -240,
       draftCleared: true,
     });
