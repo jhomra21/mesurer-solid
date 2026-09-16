@@ -229,8 +229,11 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
         uiMount.element.dataset.mesurerContextRoot = "true";
 
         if (solid.rendererRoot) {
-          directEditObserver = new solid.ownerWindow.MutationObserver(syncDirectEditSuppression);
-          directEditObserver.observe(solid.rendererRoot, {
+          // SAFETY: ownerWindow is the browsing-context global paired with rendererRoot.
+          const realm = solid.ownerWindow as Window & typeof globalThis;
+          const observer = new realm.MutationObserver(syncDirectEditSuppression);
+          directEditObserver = observer;
+          observer.observe(solid.rendererRoot, {
             attributes: true,
             attributeFilter: [DIRECT_EDIT_ACTIVE_ATTRIBUTE],
           });
