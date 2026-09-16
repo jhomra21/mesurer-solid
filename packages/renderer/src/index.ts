@@ -1,5 +1,10 @@
 export { default as Mesurer } from "./ComposableMesurer";
-export type { MesurerAvailablePlugin, MesurerProps, MesurerSolidRuntimeService } from "./ComposableMesurer";
+export type {
+  MesurerPluginInput,
+  MesurerPluginRegistration,
+  MesurerProps,
+  MesurerSolidRuntimeService,
+} from "./ComposableMesurer";
 export { ContextActions } from "./components/ContextActions";
 export type { ContextActionsController, ContextActionsProps } from "./components/ContextActions";
 export { ContextActionsSelectOwnership } from "./components/ContextActionsSelectOwnership";

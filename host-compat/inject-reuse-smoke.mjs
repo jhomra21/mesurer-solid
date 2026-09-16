@@ -39,8 +39,8 @@ try {
   if (JSON.stringify(directContract.capabilityKeys) !== JSON.stringify(expectedCapabilityKeys)) {
     throw new Error(`Unexpected direct context capability surface: ${JSON.stringify(directContract)}`);
   }
-  if (directContract.capabilities.arrange !== false) {
-    throw new Error(`Base injector must advertise Arrange as unavailable until the optional plugin is mounted: ${JSON.stringify(directContract)}`);
+  if (directContract.capabilities.arrange !== true) {
+    throw new Error(`Default injection must include the first-party Arrange capability: ${JSON.stringify(directContract)}`);
   }
   if (directContract.capabilities.textEdit !== true) {
     throw new Error(`Base injector must advertise built-in text-edit intent availability: ${JSON.stringify(directContract)}`);
@@ -146,7 +146,7 @@ try {
 
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join("\n")}`);
   if (consoleErrors.length) throw new Error(`Console errors: ${consoleErrors.join("\n")}`);
-  console.log("Context-returning selection, text-edit capability, and human-state-safe injection: PASS");
+  console.log("Default first-party capabilities, Context-returning selection, text-edit capability, and human-state-safe injection: PASS");
 } finally {
   await browser.close();
 }

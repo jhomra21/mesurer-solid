@@ -31,7 +31,11 @@ const moveToolbar = (left: number, top: number) => {
   toolbar.style.top = `${top}px`;
 };
 
-moveToolbar(52, 244);
+// Keep the toolbar outside the four-card measurement grid. The first-party
+// plugin catalog can widen over time; a fixture that relies on the toolbar
+// remaining narrower than the gap to card A turns a UI growth into a blocked
+// physical click instead of exercising multi-selection spacing.
+moveToolbar(52, 160);
 
 const harness: MultiSpacingHarness = {
   mesurer,

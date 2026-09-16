@@ -57,6 +57,59 @@ describe("createMesurerWorkspaceRuntime", () => {
     secondModel.dispose();
   });
 
+  it("does not notify subscribers while annotation state is being read", async () => {
+    const target = document.createElement("div");
+    target.id = "annotation-read-target";
+    target.textContent = "Target";
+    document.body.append(target);
+
+    const model = createMesurerModel({ initialEnabled: true });
+    model.setSelectedMeasurements([selectionFor(target)]);
+    const runtime = createMesurerWorkspaceRuntime({
+      model,
+      ownerDocument: document,
+      ownerWindow: window,
+    });
+    const annotation = runtime.addSelectionAnnotation("Track this target");
+    let notifications = 0;
+    const unsubscribe = runtime.subscribe(() => {
+      notifications += 1;
+    });
+
+    const movedRect = { left: 80, top: 44, width: 120, height: 40 };
+    Object.defineProperty(target, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        ...movedRect,
+        right: movedRect.left + movedRect.width,
+        bottom: movedRect.top + movedRect.height,
+        x: movedRect.left,
+        y: movedRect.top,
+        toJSON: () => ({}),
+      }),
+    });
+
+    expect(runtime.annotations()).toHaveLength(1);
+    expect(runtime.annotation(annotation.id)?.resolvedTargets[0]?.element).toBe(target);
+    expect(runtime.annotationRect(annotation.id)?.left).toBe(movedRect.left);
+    expect(notifications).toBe(0);
+
+    window.dispatchEvent(new Event("resize"));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+
+    expect(notifications).toBe(1);
+    const refreshed = runtime.annotations()[0];
+    expect(refreshed.anchor.kind).toBe("elements");
+    if (refreshed.anchor.kind === "elements") {
+      expect(refreshed.anchor.targets[0]?.lastRect.left).toBe(movedRect.left);
+    }
+
+    unsubscribe();
+    runtime.dispose();
+    model.dispose();
+    target.remove();
+  });
+
   it("rebinding stays inside an HTMLElement target within its ShadowRoot", () => {
     const host = document.createElement("div");
     const shadow = host.attachShadow({ mode: "open" });

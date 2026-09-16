@@ -301,7 +301,7 @@ try {
   await waitForTool("arrange", true);
   await waitForTool("screenshot", false);
 
-  // Reset returns plugin availability to the fixture's mount defaults: Context + Screenshot on, Arrange off.
+  // Reset returns plugin availability to the fixture's mount defaults: Context + Screenshot on, Arrange + Codex off.
   await dialog.getByRole("button", { name: "Reset settings to defaults" }).click();
   await waitForPlugin("mesurer.arrange", false);
   await waitForPlugin("mesurer.screenshot", true);
@@ -323,6 +323,7 @@ try {
     "mesurer.context": true,
     "mesurer.arrange": false,
     "mesurer.screenshot": true,
+    "mesurer.codex": false,
   };
   const actualAvailability = resetAvailability?.enabled ?? {};
   const expectedEntries = Object.entries(expectedAvailability).sort(([left], [right]) => left.localeCompare(right));

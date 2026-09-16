@@ -354,7 +354,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     const dy = nextY - scrollY;
     scrollX = nextX;
     scrollY = nextY;
-    const nativeDocumentScroll = portal === doc.body && hasNativeScrollAnchoring(doc);
+    const nativeDocumentScroll = hasNativeScrollAnchoring(doc);
     if (nativeDocumentScroll) {
       // A newly shown Typography surface can exist for one task before the
       // document anchor coordinator claims it. Keep that fallback glued to its

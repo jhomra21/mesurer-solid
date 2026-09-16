@@ -1,16 +1,6 @@
 import { render } from "@solidjs/web";
-import { context, MESURER_CONTEXT_PLUGIN_ID } from "../../../packages/mesurer/src/plugins";
-import { Mesurer, arrangePlugin } from "@jhomra21/mesurer-solid-renderer";
+import { mountMesurer } from "../../../packages/mesurer/src/index";
 import "./playground.css";
-
-const contextAvailablePlugin = {
-  id: MESURER_CONTEXT_PLUGIN_ID,
-  label: "Context",
-  order: 30,
-  create: () => context(),
-  settingsIds: ["context"],
-  hiddenSettingsControlIds: ["ui"],
-};
 
 function App() {
   return (
@@ -73,14 +63,19 @@ function App() {
         <strong>Keyboard checks</strong>
         <p>Delete removes selected guides. Escape clears measurements/guides. Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z undo/redo. Cmd/Ctrl+, opens settings.</p>
       </footer>
-
-      <Mesurer
-        persistKey="mesurer-parity-playground"
-        plugins={[arrangePlugin()]}
-        availablePlugins={[contextAvailablePlugin]}
-      />
     </main>
   );
 }
 
-render(() => <App />, document.getElementById("root")!);
+const root = document.getElementById("root")!;
+render(() => <App />, root);
+
+// Use the public mount path so the playground exercises the same default
+// first-party plugin catalog as consumers, while preserving the old in-page
+// fixture topology used by the renderer acceptance contracts.
+mountMesurer({
+  target: root,
+  persistKey: "mesurer-parity-playground",
+  isolate: false,
+  topLayer: false,
+});

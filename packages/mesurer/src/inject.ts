@@ -3,26 +3,12 @@ import {
   type MountMesurerOptions,
   type MountedMesurer,
 } from "./index";
-import {
-  context as contextFactory,
-  type MesurerContextPluginOptions,
-} from "./context-plugin";
-import {
-  screenshot as screenshotFactory,
-  type MesurerScreenshotPluginOptions,
-} from "./screenshot";
 
-export type MesurerInjectConfig = Omit<MountMesurerOptions, "target" | "agent" | "plugins"> & {
+export type MesurerInjectConfig = Omit<MountMesurerOptions, "target" | "agent"> & {
   /** Optional application container selector. Defaults to document.body. */
   target?: string;
   /** Global agent API name. Defaults to __MESURER__. */
   globalName?: string;
-  /** Additional plugins loaded after first-party injected plugins. */
-  plugins?: MountMesurerOptions["plugins"];
-  /** Enable/configure the removable context plugin. Defaults to true for injection. */
-  context?: boolean | MesurerContextPluginOptions;
-  /** Enable/configure the optional screenshot plugin. Defaults to false. */
-  screenshot?: boolean | MesurerScreenshotPluginOptions;
   /**
    * Reuse an already-mounted connected injected Mesurer instance.
    * Defaults to true so an agent cannot accidentally destroy human selections,
@@ -42,9 +28,6 @@ const config = globalThis.__MESURER_CONFIG__ ?? {};
 const {
   target: targetSelector,
   globalName = "__MESURER__",
-  context = true,
-  screenshot = false,
-  plugins = [],
   reuseExisting = true,
   ...options
 } = config;
@@ -58,16 +41,9 @@ function mountInjectedMesurer(): MountedMesurer {
   const target = targetSelector ? document.querySelector<HTMLElement>(targetSelector) : document.body;
   if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
-  const injectedPlugins = [
-    ...(context === false ? [] : [contextFactory(context === true ? {} : context)]),
-    ...(screenshot === false ? [] : [screenshotFactory(screenshot === true ? {} : screenshot)]),
-    ...plugins,
-  ];
-
   existing?.dispose();
   return mountMesurer({
     ...options,
-    plugins: injectedPlugins,
     target,
     agent: { globalName, root: document },
   });

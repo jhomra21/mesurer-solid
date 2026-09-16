@@ -47,6 +47,8 @@ type EditBinding = AnchorBinding & {
 type InspectorPairBinding = AnchorBinding & {
   box: HTMLElement;
   card: HTMLElement | null;
+  fallbackScrollX: number;
+  fallbackScrollY: number;
 };
 
 type TargetAnchorState = {
@@ -620,22 +622,64 @@ export function installDocumentScrollAnchoring(
       for (const { box, card } of visiblePairs) {
         const intended = inlineRect(box);
         let binding = inspectorPairBindings.get(box);
-        if (!binding?.target.isConnected || (!scrolling && !sameRect(rectFromDom(binding.target.getBoundingClientRect()), intended))) {
-          if (binding) releaseInspectorPair(binding);
-          const target = findTargetForRect(intended, ownerDocument, realm, pageTarget);
-          if (!target) {
-            inspectorPairBindings.delete(box);
-            continue;
+        let fallbackIsCurrent = false;
+
+        if (binding?.target.isConnected) {
+          const targetRect = rectFromDom(binding.target.getBoundingClientRect());
+          const inlineMatchesTarget = sameRect(targetRect, intended);
+          if (inlineMatchesTarget) {
+            binding.fallbackScrollX = ownerWindow.scrollX;
+            binding.fallbackScrollY = ownerWindow.scrollY;
+            fallbackIsCurrent = true;
+          } else {
+            const scrollDeltaX = ownerWindow.scrollX - binding.fallbackScrollX;
+            const scrollDeltaY = ownerWindow.scrollY - binding.fallbackScrollY;
+            const projectedFallback: Rect = {
+              left: intended.left - scrollDeltaX,
+              top: intended.top - scrollDeltaY,
+              right: intended.right - scrollDeltaX,
+              bottom: intended.bottom - scrollDeltaY,
+              width: intended.width,
+              height: intended.height,
+            };
+            const staleScrollFallback = sameRect(targetRect, projectedFallback);
+            if (!scrolling && !staleScrollFallback) {
+              releaseInspectorPair(binding);
+              inspectorPairBindings.delete(box);
+              binding = undefined;
+            }
           }
-          binding = { ...makeBinding(target, "typography"), box, card };
-          inspectorPairBindings.set(box, binding);
+        } else if (binding) {
+          releaseInspectorPair(binding);
+          inspectorPairBindings.delete(box);
+          binding = undefined;
         }
+
+        if (!binding) {
+          const target = findTargetForRect(intended, ownerDocument, realm, pageTarget);
+          if (!target) continue;
+          binding = {
+            ...makeBinding(target, "typography"),
+            box,
+            card,
+            fallbackScrollX: ownerWindow.scrollX,
+            fallbackScrollY: ownerWindow.scrollY,
+          };
+          inspectorPairBindings.set(box, binding);
+          fallbackIsCurrent = true;
+        }
+
         box.dataset.mesurerNativeScrollOwner = "typography";
         applyAnchor(box, binding, "box");
         if (card?.isConnected && !card.classList.contains("mesurer-ti-card--pinned")) {
           card.dataset.mesurerNativeScrollOwner = "typography";
           applyAnchor(card, binding, "offset");
-          if (!scrolling) {
+          // Standalone Typography and the native anchor coordinator both settle
+          // after scrolling. Only refresh the card offset when the inspector's
+          // inline fallback has caught up to the current source. If its fallback
+          // still represents an earlier scroll position, keep the already-correct
+          // CSS anchor offset instead of turning a timer race into visible drift.
+          if (!scrolling && fallbackIsCurrent) {
             const targetRect = rectFromDom(binding.target.getBoundingClientRect());
             const cardLeft = Number.parseFloat(card.style.left);
             const cardTop = Number.parseFloat(card.style.top);

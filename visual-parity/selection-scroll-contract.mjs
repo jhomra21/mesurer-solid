@@ -5,6 +5,7 @@ const url = process.env.SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/";
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
+const DOCUMENT_SELECTED_ROOT = "[data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']";
 
 page.on("pageerror", (error) => errors.push(String(error)));
 page.on("console", (message) => {
@@ -121,18 +122,37 @@ try {
 
   let targetBox = await box(target, "target before selection");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
-  const selected = page.locator("[data-mesurer-selected-measurement='true'] > div").first();
-  await selected.waitFor({ state: "visible" });
-  assertSameBox(await box(selected, "selection before wheel"), targetBox, "selection before wheel");
+  const selectedRoot = page.locator(DOCUMENT_SELECTED_ROOT).first();
+  const selected = selectedRoot.locator(":scope > div").first();
+  const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
+  await selectedRoot.waitFor({ state: "attached" });
+  await arrangeBox.waitFor({ state: "visible" });
+  assert.equal(
+    await selected.evaluate((element) => getComputedStyle(element).visibility),
+    "hidden",
+    "Arrange must own the visible selection border while the document-backed measurement stays geometry-resident",
+  );
+  assertSameBox(await box(arrangeBox, "Arrange box before wheel"), targetBox, "Arrange box before wheel");
 
+  // Arrange intentionally paints its own interaction box instead of the normal
+  // selected MeasurementBox. The selected box must nevertheless stay mounted in
+  // the document anchor tree so direct edit can take over without a geometry
+  // teardown. Sample that hidden geometry directly during the physical wheel.
   const selectedWheel = await sampleRealWheel(80, {
     target: ".feature-copy .kicker",
-    selected: "[data-mesurer-selected-measurement='true'] > div",
+    selected: `${DOCUMENT_SELECTED_ROOT} > div`,
   });
   assert(selectedWheel.before.selected && selectedWheel.after.selected, "selection wheel probe expected selected geometry");
   assertMoved(selectedWheel.before.target, selectedWheel.after.target, "selected page target under real wheel");
-  assertSameBox(selectedWheel.before.selected, selectedWheel.before.target, "selection at wheel start");
-  assertSameBox(selectedWheel.after.selected, selectedWheel.after.target, "selection inside wheel scroll event");
+  assertSameBox(selectedWheel.before.selected, selectedWheel.before.target, "selection geometry at wheel start");
+  assertSameBox(selectedWheel.after.selected, selectedWheel.after.target, "selection geometry inside wheel scroll event");
+  await settle();
+  assertSameBox(
+    await box(arrangeBox, "Arrange box after wheel settle"),
+    await box(target, "target after Arrange wheel settle"),
+    "Arrange box after wheel settle",
+    2,
+  );
 
   targetBox = selectedWheel.after.target;
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
@@ -142,10 +162,16 @@ try {
   await editor.waitFor({ state: "visible" });
   await ring.waitFor({ state: "visible" });
   await inspector.waitFor({ state: "visible" });
+  await selected.waitFor({ state: "visible" });
+  assert.equal(
+    await selectedRoot.getAttribute("data-mesurer-direct-edit-selection-suppressed"),
+    "true",
+    "direct edit must keep selected measurement geometry mounted but paint-suppressed",
+  );
 
   // Change rendered geometry through an actual Typography control before the
   // scroll probe. This recreates the reported settle boundary where selection
-  // chrome previously appeared to disappear while measurement state refreshed.
+  // geometry previously disappeared while measurement state refreshed.
   const lineInput = inspector.locator("[data-mesurer-text-style-input='line']");
   await lineInput.waitFor({ state: "visible" });
   const lineBefore = await target.evaluate((element) => getComputedStyle(element).lineHeight);
@@ -164,16 +190,17 @@ try {
   const continuityStartTarget = await box(target, "target before continuous wheel probe");
   const continuityStartSelected = await box(selected, "selection before continuous wheel probe");
   const continuityStartRing = await box(ring, "edit ring before continuous wheel probe");
-  const continuityStartInspector = await box(inspector, "Typography card before continuous wheel probe");
-  assertSameBox(continuityStartSelected, continuityStartTarget, "selection before continuous wheel probe");
+  assertSameBox(continuityStartSelected, continuityStartTarget, "selection geometry before continuous wheel probe");
   assertSameBox(continuityStartRing, continuityStartTarget, "edit ring before continuous wheel probe");
 
   // Sample every animation frame from the physical wheel event through and past
-  // the 80ms live-measurement refresh. This catches a user-visible teardown or
-  // one-frame catch-up that start/end-only assertions would miss.
+  // the 80ms live-measurement refresh. The selected MeasurementBox is paintless
+  // during direct edit, so user-visible continuity belongs to the edit ring and
+  // Typography card. The hidden selection root must stay mounted throughout and
+  // reconcile to exact target geometry before ownership can be handed back.
   const continuity = await monitorWheelContinuity(48, {
     target: ".feature-copy .kicker",
-    selected: "[data-mesurer-selected-measurement='true'] > div",
+    selected: `${DOCUMENT_SELECTED_ROOT} > div`,
     ring: "[data-mesurer-text-edit-ring='true']",
     inspector: "[data-mesurer-text-inspector-info='true']",
   });
@@ -185,7 +212,6 @@ try {
       assert(current[name], `continuity frame ${index} at ${frame.at.toFixed(1)}ms lost rendered ${name}`);
     }
     if (Math.abs(current.target.y - continuity.before.target.y) > 15) moved = true;
-    assertSameBox(current.selected, current.target, `selection continuity frame ${index}`);
     assertSameBox(current.ring, current.target, `edit-ring continuity frame ${index}`);
     assertSameOffset(
       continuity.before.target,
@@ -200,7 +226,7 @@ try {
 
   await waitForScrollIdle();
   const settledTarget = await box(target, "direct-edit target after scroll settle");
-  assertSameBox(await box(selected, "selection after scroll settle"), settledTarget, "selection after scroll settle");
+  assertSameBox(await box(selected, "selection after scroll settle"), settledTarget, "selection geometry after scroll settle");
   assertSameBox(await box(ring, "edit ring after scroll settle"), settledTarget, "edit ring after scroll settle");
   assertSameOffset(
     continuity.before.target,
@@ -214,7 +240,16 @@ try {
   await editor.focus();
   await page.keyboard.press("Escape");
   await editor.waitFor({ state: "detached" });
+  await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']")?.hasAttribute("data-mesurer-direct-edit-selection-suppressed") === false);
   await arrange.click();
+  await page.waitForFunction(() => document.querySelector("button[data-mesurer-tool-id='arrange']")?.getAttribute("aria-pressed") === "false");
+  await selected.waitFor({ state: "visible" });
+  await settle();
+  assertSameBox(
+    await box(selected, "selection after direct-edit ownership handoff"),
+    await box(target, "target after direct-edit ownership handoff"),
+    "selection after direct-edit ownership handoff",
+  );
 
   const typography = page.locator("button[data-mesurer-builtin='text-inspector']");
   await typography.click();
@@ -262,7 +297,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Selection scroll E2E passed: physical wheel input keeps selection, edit ring, direct-edit Typography, and standalone Typography attached to their real source; animation-frame sampling proves selected chrome does not disappear through the live-measurement settle boundary.");
+  console.log("Selection scroll E2E passed: Arrange owns the visible pre-edit border while hidden selected geometry stays native-anchored; direct edit keeps its visible ring and Typography card frame-locked while the paint-suppressed selection root remains mounted and reconciles before ownership returns; standalone Typography remains source-attached under physical wheel input.");
 } finally {
   await browser.close();
 }

@@ -25,34 +25,15 @@ import type {
   MesurerReviewV1,
 } from "./context";
 import {
-  MESURER_CONTEXT_PLUGIN_ID,
   MESURER_CONTEXT_SERVICE_ID,
-  context as createContextPlugin,
   type MesurerContextService,
 } from "./context-plugin";
 import type { MesurerPlugin, MesurerPluginDescription, MesurerPluginHost } from "./core";
 import { mountMesurerHost, type MesurerHostLayerMode } from "./host-layer";
+import { createPluginRegistry } from "./plugin-catalog";
 import { MESURER_VERSION } from "./version";
 
 const ARRANGE_SERVICE_ID = "arrange";
-
-export type MesurerAvailablePlugin = {
-  id: string;
-  label: string;
-  order?: number;
-  create(): MesurerPlugin | Promise<MesurerPlugin>;
-  settingsIds?: string[];
-  hiddenSettingsControlIds?: string[];
-};
-
-const firstPartyAvailablePlugins = (): MesurerAvailablePlugin[] => [{
-  id: MESURER_CONTEXT_PLUGIN_ID,
-  label: "Context",
-  order: 30,
-  create: () => createContextPlugin(),
-  settingsIds: ["context"],
-  hiddenSettingsControlIds: ["ui"],
-}];
 
 export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 export type MesurerBuiltinPluginId = "select" | "xray" | "color-picker" | "rulers" | "text-inspector" | "guides" | "distance" | "settings";
@@ -133,9 +114,12 @@ export type MesurerOptions = {
   guideStyle?: Partial<GuideStyle>;
   selectionSpacingStyle?: Partial<SelectionSpacingStyle>;
   rulerSettings?: Partial<RulerSettings>;
+  /**
+   * Initial enabled plugin set. Omit this to enable every first-party Mesurer plugin.
+   * Omitted first-party plugins remain toggleable in Settings from the same canonical
+   * registry; callers never maintain a separate availability or Settings list.
+   */
   plugins?: MesurerPlugin[];
-  /** Additional plugins that Settings may load on demand even when initially disabled. */
-  availablePlugins?: MesurerAvailablePlugin[];
   excludePlugins?: MesurerBuiltinPluginId[];
   pluginHost?: MesurerPluginHost;
   onPluginHost?: (host: MesurerPluginHost) => void;
@@ -223,7 +207,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     agent: agentOption = false,
     onPluginHost,
     onPluginsReady,
-    availablePlugins = [],
+    plugins,
     ...mesurerProps
   } = options;
   const ownerDocument = target.ownerDocument ?? document;
@@ -276,7 +260,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     await baseAgent.ready();
     const service = pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID);
     if (!service) {
-      throw new Error("Mesurer Context is not loaded. Add context() from mesurer-solid/plugins.");
+      throw new Error("Mesurer Context is disabled. Enable it in Settings or include context() in plugins.");
     }
     return service;
   };
@@ -284,7 +268,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     await baseAgent.ready();
     const service = pluginHost?.service.get<MesurerArrangeService>(ARRANGE_SERVICE_ID);
     if (!service) {
-      throw new Error("Mesurer Arrange is not loaded. Add arrange() from mesurer-solid/plugins.");
+      throw new Error("Mesurer Arrange is disabled. Enable it in Settings or include arrange() in plugins.");
     }
     return service;
   };
@@ -353,7 +337,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
   const rendererProps: RendererMesurerProps = {
     ...mesurerProps,
     version: MESURER_VERSION,
-    availablePlugins: [...firstPartyAvailablePlugins(), ...availablePlugins],
+    plugins: createPluginRegistry(plugins),
   };
   const disposeRender = render(
     () => (

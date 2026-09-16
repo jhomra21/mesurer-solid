@@ -110,11 +110,21 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         syncSelectedGeometry();
       });
     };
+
+    // Selection geometry can change without a scroll or window resize (for
+    // example, a live Typography line-height edit). Observe only the selected
+    // source element and resample its box when its own rendered size changes;
+    // this avoids page-wide mutation/layout work while keeping portaled chrome
+    // frame-locked to the target.
+    const targetResizeObserver = new ownerWindow.ResizeObserver(syncSelectedGeometry);
+
     syncSelectedGeometry();
     nestedScroll?.sync();
+    targetResizeObserver.observe(target);
     ownerWindow.addEventListener("scroll", syncOnScroll, { capture: true, passive: true });
     ownerWindow.addEventListener("resize", syncSelectedGeometry, true);
     return () => {
+      targetResizeObserver.disconnect();
       nestedScroll?.release();
       if (scrollFrame) ownerWindow.cancelAnimationFrame(scrollFrame);
       ownerWindow.removeEventListener("scroll", syncOnScroll, true);

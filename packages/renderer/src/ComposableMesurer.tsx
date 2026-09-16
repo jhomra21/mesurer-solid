@@ -14,16 +14,8 @@ import {
   MesurerModelRegistrationContext,
   type MesurerModel,
 } from "./model/create-mesurer-model";
-import {
-  MESURER_ARRANGE_ACTIVE_STATE_ID,
-  MESURER_ARRANGE_PLUGIN_ID,
-  arrangePlugin,
-} from "./plugins/arrange";
+import { MESURER_ARRANGE_ACTIVE_STATE_ID } from "./plugins/arrange";
 import { composeMesurerPlugins, type MesurerBuiltinPluginId } from "./plugins/builtins";
-import {
-  MESURER_SCREENSHOT_PLUGIN_ID,
-  screenshotPlugin,
-} from "./plugins/screenshot";
 import { MesurerPluginSettingsProvider } from "./plugins/settings-runtime";
 import { installArrangeSelectGuard } from "./runtime/arrange-select-guard";
 import type { MesurerBuiltinController } from "./runtime/builtin-actions";
@@ -51,10 +43,16 @@ export type MesurerSolidRuntimeService = {
   createInspectorMount(): { element: HTMLDivElement; dispose(): void };
 };
 
-export type MesurerAvailablePlugin = {
+/**
+ * One plugin registration owns both lifecycle and Settings discovery.
+ * `enabled` controls only the initial state; Settings can toggle the same
+ * registration later without a second availability list.
+ */
+export type MesurerPluginRegistration = {
   id: string;
-  label: string;
+  label?: string;
   order?: number;
+  enabled?: boolean;
   create(): MesurerPlugin | Promise<MesurerPlugin>;
   /** Settings section ids owned by this plugin when known before first load. */
   settingsIds?: string[];
@@ -62,23 +60,23 @@ export type MesurerAvailablePlugin = {
   hiddenSettingsControlIds?: string[];
 };
 
+export type MesurerPluginInput = MesurerPlugin | MesurerPluginRegistration;
+
 export type MesurerProps = Omit<
   BaseMesurerProps,
   "pluginTools" | "onPluginTool" | "onPluginToolMenuItem" | "isBuiltinActionDisabled" | "onBuiltinController"
 > & {
   /** Public package/release version shown by Settings and official Mesurer plugin metadata. */
   version?: string;
-  /** Additional plugins enabled on first mount after built-ins and the renderer bridge are available. */
-  plugins?: MesurerPlugin[];
-  /** Plugins Settings may load later even when they were not supplied in `plugins`. */
-  availablePlugins?: MesurerAvailablePlugin[];
+  /** Plugins known to this Mesurer instance. Plugin instances start enabled; registrations may set `enabled: false`. */
+  plugins?: MesurerPluginInput[];
   /** Remove built-in features without forking the renderer. */
   excludePlugins?: MesurerBuiltinPluginId[];
   /** Supply a long-lived host when plugins should be managed outside the component. */
   pluginHost?: MesurerPluginHost;
   /** Receive the live host immediately for add/remove/replace operations and introspection. */
   onPluginHost?: (host: MesurerPluginHost) => void;
-  /** Called after built-ins, renderer bridge, external plugins and persisted plugin state settle. */
+  /** Called after built-ins, renderer bridge, configured plugins and persisted plugin state settle. */
   onPluginsReady?: (host: MesurerPluginHost) => void;
   onPluginError?: (cause: unknown, pluginId: string) => void;
 };
@@ -93,27 +91,9 @@ const BUILTIN_TOOL_IDS = [
   "settings",
 ] as const satisfies readonly Exclude<MesurerBuiltinPluginId, "distance">[];
 const DEFAULT_PLUGIN_STORAGE_KEY = "mesurer-plugin-settings";
-const AVAILABLE_PLUGIN_STORAGE_VERSION = 1;
+const PLUGIN_REGISTRY_STORAGE_VERSION = 1;
 
-const DEFAULT_AVAILABLE_PLUGINS: MesurerAvailablePlugin[] = [
-  {
-    id: MESURER_ARRANGE_PLUGIN_ID,
-    label: "Arrange",
-    order: 35,
-    create: arrangePlugin,
-    settingsIds: ["arrange"],
-  },
-  {
-    id: MESURER_SCREENSHOT_PLUGIN_ID,
-    label: "Screenshot",
-    order: 40,
-    create: screenshotPlugin,
-    settingsIds: ["screenshot"],
-    hiddenSettingsControlIds: ["tool"],
-  },
-];
-
-type StoredAvailablePluginState = {
+type StoredPluginRegistryState = {
   version: number;
   enabled: Record<string, boolean>;
   state: Record<string, PluginStateSnapshot>;
@@ -127,6 +107,9 @@ const pluginLabelFromId = (id: string) => {
     .map((part) => part[0]?.toUpperCase() + part.slice(1))
     .join(" ") || id;
 };
+
+const isPluginRegistration = (plugin: MesurerPluginInput): plugin is MesurerPluginRegistration =>
+  "create" in plugin && typeof plugin.create === "function";
 
 const isBuiltinPluginId = (value: string): value is MesurerBuiltinPluginId =>
   value === "select"
@@ -174,27 +157,32 @@ export default function ComposableMesurer(props: MesurerProps) {
     props.version && plugin.id.startsWith("mesurer.") ? { ...plugin, version } : plugin;
   const initialExclusions = new Set(untrack(() => props.excludePlugins ?? []));
   const initialBuiltinPlugins = untrack(() => composeMesurerPlugins([], props.excludePlugins ?? []).map(versionPlugin));
-  const initialExternalPlugins = untrack(() => [...(props.plugins ?? [])].map(versionPlugin));
-  const initialEnabledPluginIds = new Set(initialExternalPlugins.map((plugin) => plugin.id));
-  const availablePlugins = new Map<string, MesurerAvailablePlugin>();
-  for (const entry of [
-    ...DEFAULT_AVAILABLE_PLUGINS,
-    ...untrack(() => props.availablePlugins ?? []),
-  ]) {
-    availablePlugins.set(entry.id, entry);
-  }
-  for (const [index, plugin] of initialExternalPlugins.entries()) {
-    const existing = availablePlugins.get(plugin.id);
-    availablePlugins.set(plugin.id, {
-      ...existing,
+  const pluginRegistry = new Map<string, MesurerPluginRegistration>();
+  for (const [index, input] of untrack(() => [...(props.plugins ?? [])]).entries()) {
+    if (isPluginRegistration(input)) {
+      pluginRegistry.set(input.id, {
+        ...input,
+        label: input.label ?? pluginLabelFromId(input.id),
+        order: input.order ?? 1_000 + index,
+      });
+      continue;
+    }
+    const plugin = versionPlugin(input);
+    pluginRegistry.set(plugin.id, {
       id: plugin.id,
-      label: existing?.label ?? pluginLabelFromId(plugin.id),
-      order: existing?.order ?? 1_000 + index,
+      label: pluginLabelFromId(plugin.id),
+      order: 1_000 + index,
+      enabled: true,
       create: () => plugin,
     });
   }
+  const initialEnabledPluginIds = new Set(
+    [...pluginRegistry.values()]
+      .filter((entry) => entry.enabled !== false)
+      .map((entry) => entry.id),
+  );
   const managedSettingsIds = new Map<string, Set<string>>(
-    [...availablePlugins.values()].map((entry) => [entry.id, new Set(entry.settingsIds ?? [])]),
+    [...pluginRegistry.values()].map((entry) => [entry.id, new Set(entry.settingsIds ?? [])]),
   );
   const managedStateIds = new Map<string, Set<string>>();
   const retainedPluginState = new Map<string, PluginStateSnapshot>();
@@ -203,7 +191,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   let rendererModel: MesurerModel | null = null;
   let builtinController: MesurerBuiltinController | null = null;
   let setManagedPluginEnabled: (pluginId: string, enabled: boolean) => void = () => undefined;
-  let resetManagedPluginAvailability: () => Promise<void> = async () => undefined;
+  let resetManagedPlugins: () => Promise<void> = async () => undefined;
   const [revision, setRevision] = createSignal(0);
   const [ready, setReady] = createSignal(false);
 
@@ -243,7 +231,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   const managedPluginSettings = createMemo(() => {
     revision();
     const sections = host.settings();
-    return [...availablePlugins.values()]
+    return [...pluginRegistry.values()]
       .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
       .map((entry) => {
         const settingsIds = managedSettingsIds.get(entry.id) ?? new Set<string>();
@@ -257,7 +245,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           .filter((section) => (section.controls?.length ?? 0) > 0);
         return {
           id: entry.id,
-          label: entry.label,
+          label: entry.label ?? pluginLabelFromId(entry.id),
           enabled: host.has(entry.id),
           busy: busyPluginIds.has(entry.id),
           sections: ownedSections,
@@ -342,13 +330,13 @@ export default function ComposableMesurer(props: MesurerProps) {
   };
 
   const resetPluginSettings = async () => {
-    await resetManagedPluginAvailability();
+    await resetManagedPlugins();
   };
 
   onSettled(() => {
     let active = true;
     let persistTimer = 0;
-    let availabilityWriteSuspended = false;
+    let registryWriteSuspended = false;
     let lifecycleQueue: Promise<void> = Promise.resolve();
     const pendingOwnedLoads = new Set<MesurerPlugin>();
     const runtimeHost: MesurerPluginHost = host;
@@ -404,35 +392,37 @@ export default function ComposableMesurer(props: MesurerProps) {
     target.append(visibilityStyle);
 
     const pluginStorageKey = input.persistKey ? `${input.persistKey}:plugins` : DEFAULT_PLUGIN_STORAGE_KEY;
-    const availablePluginStorageKey = `${pluginStorageKey}:availability`;
+    // Keep the established persisted key so existing local review state is not
+    // discarded merely because the in-memory model is now one plugin registry.
+    const pluginRegistryStorageKey = `${pluginStorageKey}:availability`;
     const storedEnabled = new Map<string, boolean>();
     try {
-      const stored = ownerWindow.localStorage.getItem(availablePluginStorageKey);
+      const stored = ownerWindow.localStorage.getItem(pluginRegistryStorageKey);
       if (stored) {
-        // SAFETY: This versioned, namespaced payload is written only by writeAvailablePluginState below; incompatible JSON is ignored by the version gate or caught by this boundary.
-        const parsed = JSON.parse(stored) as StoredAvailablePluginState;
-        if (parsed?.version === AVAILABLE_PLUGIN_STORAGE_VERSION) {
+        // SAFETY: This versioned, namespaced payload is written only by writePluginRegistryState below; incompatible JSON is ignored by the version gate or caught by this boundary.
+        const parsed = JSON.parse(stored) as StoredPluginRegistryState;
+        if (parsed?.version === PLUGIN_REGISTRY_STORAGE_VERSION) {
           for (const [id, enabled] of Object.entries(parsed.enabled ?? {})) storedEnabled.set(id, enabled);
           for (const [id, snapshot] of Object.entries(parsed.state ?? {})) retainedPluginState.set(id, snapshot);
         }
       }
     } catch (error) {
-      input.onPluginError?.(error, "plugin-availability-persistence");
+      input.onPluginError?.(error, "plugin-registry-persistence");
     }
 
-    const writeAvailablePluginState = () => {
+    const writePluginRegistryState = () => {
       const enabled = Object.fromEntries(
-        [...availablePlugins.keys()].map((id) => [id, runtimeHost.has(id)]),
+        [...pluginRegistry.keys()].map((id) => [id, runtimeHost.has(id)]),
       );
       const state = Object.fromEntries(retainedPluginState);
       try {
-        ownerWindow.localStorage.setItem(availablePluginStorageKey, JSON.stringify({
-          version: AVAILABLE_PLUGIN_STORAGE_VERSION,
+        ownerWindow.localStorage.setItem(pluginRegistryStorageKey, JSON.stringify({
+          version: PLUGIN_REGISTRY_STORAGE_VERSION,
           enabled,
           state,
-        } satisfies StoredAvailablePluginState));
+        } satisfies StoredPluginRegistryState));
       } catch (error) {
-        input.onPluginError?.(error, "plugin-availability-persistence");
+        input.onPluginError?.(error, "plugin-registry-persistence");
       }
     };
 
@@ -462,8 +452,8 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (event.reason === "state" || event.reason === "history" || event.reason === "remove" || event.reason === "replace") {
         persistPluginState();
       }
-      if (ready() && !availabilityWriteSuspended && (event.reason === "load" || event.reason === "remove" || event.reason === "replace")) {
-        writeAvailablePluginState();
+      if (ready() && !registryWriteSuspended && (event.reason === "load" || event.reason === "remove" || event.reason === "replace")) {
+        writePluginRegistryState();
       }
       if (event.reason === "remove" && event.pluginId?.startsWith("mesurer.")) {
         const id = event.pluginId.slice("mesurer.".length);
@@ -502,7 +492,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       }
     };
 
-    const loadManagedPlugin = async (entry: MesurerAvailablePlugin) => {
+    const loadManagedPlugin = async (entry: MesurerPluginRegistration) => {
       if (!active || runtimeHost.has(entry.id)) return runtimeHost.has(entry.id);
       const beforeSettings = new Set(runtimeHost.settings().map((section) => section.id));
       const beforeState = new Set(runtimeHost.describe().state.map((definition) => definition.id));
@@ -510,7 +500,7 @@ export default function ComposableMesurer(props: MesurerProps) {
         const plugin = versionPlugin(await entry.create());
         if (!active) return false;
         if (plugin.id !== entry.id) {
-          throw new Error(`Available plugin ${entry.id} created mismatched plugin ${plugin.id}.`);
+          throw new Error(`Plugin registration ${entry.id} created mismatched plugin ${plugin.id}.`);
         }
         if (!await loadRuntimePlugin(plugin, entry.id)) return false;
         const settingsIds = new Set(managedSettingsIds.get(entry.id) ?? entry.settingsIds ?? []);
@@ -552,7 +542,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       enabled: boolean,
       retainState = true,
     ) => {
-      const entry = availablePlugins.get(pluginId);
+      const entry = pluginRegistry.get(pluginId);
       if (!entry || busyPluginIds.has(pluginId) || runtimeHost.has(pluginId) === enabled) return;
       busyPluginIds.add(pluginId);
       setRevision((value) => value + 1);
@@ -564,7 +554,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           else retainedPluginState.delete(pluginId);
           runtimeHost.remove(pluginId);
         }
-        if (!availabilityWriteSuspended) writeAvailablePluginState();
+        if (!registryWriteSuspended) writePluginRegistryState();
       } finally {
         busyPluginIds.delete(pluginId);
         setRevision((value) => value + 1);
@@ -582,11 +572,11 @@ export default function ComposableMesurer(props: MesurerProps) {
         await changeManagedPlugin(pluginId, enabled);
       });
     };
-    resetManagedPluginAvailability = () => enqueueLifecycle(async () => {
-      availabilityWriteSuspended = true;
+    resetManagedPlugins = () => enqueueLifecycle(async () => {
+      registryWriteSuspended = true;
       try {
         await resetPluginSectionDefaults();
-        const entries = [...availablePlugins.values()]
+        const entries = [...pluginRegistry.values()]
           .sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
         for (const entry of entries) {
           if (!runtimeHost.has(entry.id) && !await loadManagedPlugin(entry)) continue;
@@ -599,11 +589,11 @@ export default function ComposableMesurer(props: MesurerProps) {
           }
         }
       } finally {
-        availabilityWriteSuspended = false;
+        registryWriteSuspended = false;
       }
       if (persistTimer) ownerWindow.clearTimeout(persistTimer);
       writePluginState();
-      writeAvailablePluginState();
+      writePluginRegistryState();
     });
 
     const runBuiltinSlot = async (id: Exclude<MesurerBuiltinPluginId, "distance">) => {
@@ -647,10 +637,10 @@ export default function ComposableMesurer(props: MesurerProps) {
       });
       if (!active) return;
 
-      for (const entry of [...availablePlugins.values()].sort((left, right) => (left.order ?? 0) - (right.order ?? 0))) {
+      for (const entry of [...pluginRegistry.values()].sort((left, right) => (left.order ?? 0) - (right.order ?? 0))) {
         const enabled = storedEnabled.has(entry.id)
           ? storedEnabled.get(entry.id) === true
-          : initialEnabledPluginIds.has(entry.id);
+          : entry.enabled !== false;
         if (runtimeHost.has(entry.id)) {
           if (!enabled) runtimeHost.remove(entry.id);
           continue;
@@ -669,7 +659,9 @@ export default function ComposableMesurer(props: MesurerProps) {
       try {
         const stored = ownerWindow.localStorage.getItem(pluginStorageKey);
         if (stored) {
-          const snapshot: PluginStateSnapshot = JSON.parse(stored);
+          // SAFETY: This namespaced payload is written by writePluginState from the
+          // host's own serializable plugin state; malformed JSON is caught here.
+          const snapshot = JSON.parse(stored) as PluginStateSnapshot;
           runtimeHost.state.restore(snapshot, "persist");
         }
       } catch (error) {
@@ -775,7 +767,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       rendererModel = null;
       builtinController = null;
       setManagedPluginEnabled = () => undefined;
-      resetManagedPluginAvailability = async () => undefined;
+      resetManagedPlugins = async () => undefined;
       if (ownsHost) runtimeHost.dispose();
     };
   });

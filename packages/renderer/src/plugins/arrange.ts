@@ -38,12 +38,6 @@ type PresentationSnapshot = {
  * whether saved Desired transforms should remain visible after Arrange turns
  * off. The default is the untouched page; Keep Arrange changes opts into the
  * saved Desired presentation outside the tool.
- *
- * State notifications perform only O(1) bit/array-identity checks. They do not
- * even schedule a frame when the relevant policy and intent array are unchanged.
- * O(k) target resolution is invoked only when visibility policy or Arrange
- * intent genuinely changes, never from scroll/pointer activity or unrelated
- * plugin state.
  */
 const installArrangePresentationPolicy = (
   ctx: MesurerPluginContext,
@@ -73,9 +67,6 @@ const installArrangePresentationPolicy = (
       return;
     }
 
-    // The core starts in Desired so persisted intents can be reviewed. Retire
-    // that preview immediately when policy says Original. `show(..., "live")`
-    // clears every Mesurer-owned preview while retaining intent/history.
     const latest = snapshot.intents.at(-1);
     if (latest) service.show(latest.id, "live");
   };
@@ -97,8 +88,6 @@ const installArrangePresentationPolicy = (
   };
 
   const subscription = ctx.state.subscribe(scheduleIfChanged);
-  // Correct the core's initial Desired presentation synchronously so a saved
-  // Arrange layout cannot flash for one paint when the plugin is restored.
   apply(readSnapshot());
 
   ctx.lifecycle.onDispose(() => {
@@ -107,6 +96,142 @@ const installArrangePresentationPolicy = (
     frame = 0;
     pending = null;
     subscription.dispose();
+  });
+};
+
+type HiddenMeasurement = {
+  value: string;
+  priority: string;
+};
+
+const DOCUMENT_SELECTED_MEASUREMENT = [
+  "[data-mesurer-measurement='true']",
+  "[data-mesurer-selected-measurement='true']",
+  "[data-mesurer-inspector-ui='true']",
+].join("");
+const TEXT_EDIT_RUNTIME = "[data-mesurer-text-edit-runtime='true']";
+const TEXT_EDITOR = "[data-mesurer-text-editor='true']";
+
+/**
+ * Arrange core suppresses measurements inside the normal renderer portal. A
+ * selected page target can move its MeasurementBox root to <body>, outside that
+ * portal, so this guard owns only that document-backed root. Direct text editing
+ * temporarily takes visible selection-chrome ownership; while its editor exists,
+ * release the document measurement instead of leaving the direct-edit surface
+ * paintless.
+ */
+const installArrangeDocumentMeasurementGuard = (
+  ctx: MesurerPluginContext,
+  runtime: MesurerSolidRuntimeService,
+) => {
+  const body = runtime.ownerDocument.body;
+  if (!body) return;
+
+  // SAFETY: runtime.ownerWindow is the DOM realm that owns body, portalTarget, and the document-backed text runtime.
+  const realm = runtime.ownerWindow as Window & typeof globalThis;
+  const hiddenMeasurements = new Map<HTMLElement, HiddenMeasurement>();
+  let active = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+  let textRuntimeMount: HTMLElement | null = null;
+  let textObserver: MutationObserver | null = null;
+
+  const isDocumentMeasurement = (element: HTMLElement) =>
+    element.matches(DOCUMENT_SELECTED_MEASUREMENT)
+    && !runtime.portalTarget.contains(element);
+
+  const restoreMeasurements = () => {
+    for (const [element, previous] of hiddenMeasurements) {
+      if (!element.isConnected) continue;
+      if (previous.value || previous.priority) {
+        element.style.setProperty("visibility", previous.value, previous.priority);
+      } else {
+        element.style.removeProperty("visibility");
+      }
+    }
+    hiddenMeasurements.clear();
+  };
+
+  const directEditActive = () => Boolean(textRuntimeMount?.querySelector(TEXT_EDITOR));
+
+  const hideMeasurement = (element: HTMLElement) => {
+    if (!active || directEditActive() || !isDocumentMeasurement(element)) return;
+    if (!hiddenMeasurements.has(element)) {
+      hiddenMeasurements.set(element, {
+        value: element.style.getPropertyValue("visibility"),
+        priority: element.style.getPropertyPriority("visibility"),
+      });
+    }
+    if (
+      element.style.getPropertyValue("visibility") !== "hidden"
+      || element.style.getPropertyPriority("visibility") !== "important"
+    ) {
+      element.style.setProperty("visibility", "hidden", "important");
+    }
+  };
+
+  const hideCurrentMeasurements = () => {
+    if (!active || directEditActive()) return;
+    for (const candidate of body.querySelectorAll(DOCUMENT_SELECTED_MEASUREMENT)) {
+      if (candidate instanceof realm.HTMLElement) hideMeasurement(candidate);
+    }
+  };
+
+  const syncMeasurements = () => {
+    if (!active || directEditActive()) restoreMeasurements();
+    else hideCurrentMeasurements();
+  };
+
+  const observeTextRuntime = (mount: HTMLElement | null) => {
+    if (mount === textRuntimeMount) return;
+    textObserver?.disconnect();
+    textObserver = null;
+    textRuntimeMount = mount;
+    if (!mount) {
+      syncMeasurements();
+      return;
+    }
+    textObserver = new realm.MutationObserver(syncMeasurements);
+    textObserver.observe(mount, { childList: true, subtree: true });
+    syncMeasurements();
+  };
+
+  const latestTextRuntimeMount = () => {
+    const mounts = body.querySelectorAll<HTMLElement>(TEXT_EDIT_RUNTIME);
+    return mounts.item(mounts.length - 1);
+  };
+  observeTextRuntime(latestTextRuntimeMount());
+
+  // Both the Solid-selected MeasurementBox portal and the isolated text runtime
+  // are direct body children. Keep this observer out of the host page subtree.
+  const bodyObserver = new realm.MutationObserver((records) => {
+    let runtimeMayHaveChanged = false;
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (!(node instanceof realm.HTMLElement)) continue;
+        if (node.matches(TEXT_EDIT_RUNTIME)) runtimeMayHaveChanged = true;
+        hideMeasurement(node);
+      }
+      for (const node of record.removedNodes) {
+        if (node === textRuntimeMount) runtimeMayHaveChanged = true;
+      }
+    }
+    if (runtimeMayHaveChanged) observeTextRuntime(latestTextRuntimeMount());
+  });
+  bodyObserver.observe(body, { childList: true });
+
+  const subscription = ctx.state.subscribe(() => {
+    const next = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+    if (next === active) return;
+    active = next;
+    syncMeasurements();
+  });
+  syncMeasurements();
+
+  ctx.lifecycle.onDispose(() => {
+    bodyObserver.disconnect();
+    textObserver?.disconnect();
+    textObserver = null;
+    subscription.dispose();
+    restoreMeasurements();
   });
 };
 
@@ -121,6 +246,7 @@ export const arrangePlugin = (): MesurerPlugin => {
       const runtime = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
       if (!runtime) throw new Error("Arrange presentation policy requires the Solid renderer runtime.");
       installArrangePresentationPolicy(ctx, service, runtime.ownerWindow);
+      installArrangeDocumentMeasurementGuard(ctx, runtime);
     },
   };
 };

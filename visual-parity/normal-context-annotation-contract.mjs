@@ -175,10 +175,58 @@ try {
   const marker = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']");
   await marker.waitFor({ state: "visible" });
   assert.equal(await marker.count(), 1, "saved normal-playground annotation marker missing");
+  assert.equal(await marker.getAttribute("data-mesurer-annotation-number"), "1", "first saved annotation marker must be numbered 1");
+
+  const panel = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']");
+  await panel.waitFor({ state: "visible" });
+  assert.equal(
+    await panel.locator("[data-mesurer-annotation-panel-badge='true']").textContent(),
+    "1",
+    "open annotation panel must use the same visible number as its marker",
+  );
+  const markerZIndex = Number(await marker.evaluate((element) => getComputedStyle(element).zIndex));
+  const panelZIndex = Number(await panel.evaluate((element) => getComputedStyle(element).zIndex));
+  assert(
+    markerZIndex > panelZIndex,
+    `saved annotation markers must remain physically reachable above an open panel: marker=${markerZIndex}, panel=${panelZIndex}`,
+  );
+  await panel.getByRole("button", { name: "Close annotation" }).click();
+  await panel.waitFor({ state: "hidden" });
+
+  const badge = marker.locator("[data-mesurer-annotation-badge='true']");
+  const restingBadge = await box(badge, "resting annotation number badge");
+  assert(Math.abs(restingBadge.width - 20) <= 1, `expected compact ~20px annotation badge, got ${restingBadge.width}`);
+  assert.equal(
+    await badge.evaluate((element) => getComputedStyle(element).transitionDuration.split(",").map((value) => value.trim()).every((value) => value === "0.15s")),
+    true,
+    "annotation badge growth transition must remain 150ms",
+  );
+
+  await marker.hover();
+  await page.waitForFunction((restingWidth) => {
+    const badgeElement = document.querySelector("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true'] [data-mesurer-annotation-badge='true']");
+    return badgeElement instanceof HTMLElement && badgeElement.getBoundingClientRect().width >= restingWidth + 3;
+  }, restingBadge.width, { timeout: 1000 });
+  assert.equal(await marker.getAttribute("data-mesurer-annotation-highlighted"), "true", "hovered annotation marker must become the active ownership preview");
+  const hoveredBadge = await box(badge, "hovered annotation number badge");
+  assert(hoveredBadge.width >= restingBadge.width + 3, `annotation badge did not grow on hover: resting=${restingBadge.width}, hovered=${hoveredBadge.width}`);
+
+  const highlight = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']");
+  await highlight.waitFor({ state: "visible" });
+  const highlightBox = await box(highlight, "annotation target ownership highlight");
+  const currentTargetBox = await box(target, "annotation target while marker hovered");
+  assert(Math.abs(highlightBox.x - (currentTargetBox.x - 2)) <= 2, "annotation highlight x does not identify its target");
+  assert(Math.abs(highlightBox.y - (currentTargetBox.y - 2)) <= 2, "annotation highlight y does not identify its target");
+  assert(Math.abs(highlightBox.width - (currentTargetBox.width + 4)) <= 3, "annotation highlight width does not identify its target");
+  assert(Math.abs(highlightBox.height - (currentTargetBox.height + 4)) <= 3, "annotation highlight height does not identify its target");
+
+  await page.mouse.move(1120, 470);
+  await highlight.waitFor({ state: "hidden" });
+
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
   const browserVersion = await browser.version();
   const dpr = await page.evaluate(() => window.devicePixelRatio);
-  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root, its viewport-fixed trigger follows real wheel input through cached scalar deltas, saves a note, and retains its marker: PASS`);
+  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root, its viewport-fixed trigger follows real wheel input, saved notes use numbered ownership markers, open panels stay below marker hit targets, hover grows the compact badge with a 150ms transition, and the owning target is highlighted: PASS`);
 } finally {
   await browser.close();
 }
