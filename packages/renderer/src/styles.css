@@ -172,11 +172,10 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   position: fixed !important;
 }
 
-/* The old document-anchor offset rule above is intentionally more specific than
-   ordinary component styles. Context now reuses that offset contract inside the
-   canonical fixed root, so explicitly win that cascade only for annotation
-   surfaces. Typography/document-owned anchors remain absolute and unchanged. */
-body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-compensation="true"][data-mesurer-annotation-scroll-mode="native-anchor"] {
+/* The generic runtime offset rule is injected inside the Mesurer shadow tree
+   and uses !important. Beat it in that same tree only for Context annotation
+   surfaces; document-owned Typography anchors remain absolute and unchanged. */
+[data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-compensation="true"][data-mesurer-annotation-scroll-mode="native-anchor"] {
   position: fixed !important;
 }
 
