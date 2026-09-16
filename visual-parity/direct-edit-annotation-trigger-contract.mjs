@@ -34,19 +34,19 @@ try {
   const y = targetBox.y + targetBox.height / 2;
 
   await page.mouse.click(x, y);
-  const annotation = page.locator(
-    "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
-  );
+  const contextRoot = page.locator("[data-mesurer-context-root='true']");
+  const annotation = contextRoot.locator("[data-mesurer-annotation-trigger='true']");
   await annotation.waitFor({ state: "visible", timeout: 3000 });
+  assert.equal(await contextRoot.getAttribute("data-mesurer-document-inspector-mount"), "true");
 
   await page.mouse.dblclick(x, y);
   const editor = page.locator("[data-mesurer-text-editor='true']");
   await editor.waitFor({ state: "visible", timeout: 3000 });
   await annotation.waitFor({ state: "hidden", timeout: 3000 });
   assert.equal(
-    await annotation.evaluate((element) => element.closest("[data-mesurer-root='true']")?.getAttribute("data-mesurer-direct-text-edit-active")),
+    await contextRoot.getAttribute("data-mesurer-direct-text-edit-active"),
     "true",
-    "direct edit must mark the same canonical root that owns Context",
+    "direct edit must mirror suppression state onto the document-backed Context root",
   );
   assert.equal(await annotation.isVisible(), false, "annotation trigger must not be visible during direct text edit");
 
@@ -58,14 +58,15 @@ try {
   await settle();
   await annotation.waitFor({ state: "visible", timeout: 3000 });
   assert.equal(
-    await annotation.evaluate((element) => element.closest("[data-mesurer-root='true']")?.hasAttribute("data-mesurer-direct-text-edit-active") ?? false),
+    await contextRoot.hasAttribute("data-mesurer-direct-text-edit-active"),
     false,
-    "direct-edit root-local contextual suppression must clear when editing ends",
+    "direct-edit Context suppression must clear when editing ends",
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
   console.log("Direct-edit annotation trigger ownership: PASS", {
-    rootLocalOwnership: true,
+    documentContextOwnership: true,
+    mirroredDirectEditState: true,
     visibleBeforeEdit: true,
     hiddenDuringEdit: true,
     visibleAfterEdit: true,
