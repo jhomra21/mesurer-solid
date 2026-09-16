@@ -20,7 +20,7 @@ export type MesurerPluginCatalogEntry = {
  * adding a first-party plugin never requires keeping a second availability list
  * in sync.
  */
-export const MESURER_FIRST_PARTY_PLUGINS = [
+export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] = [
   {
     id: MESURER_CONTEXT_PLUGIN_ID,
     label: "Context",
@@ -50,7 +50,7 @@ export const MESURER_FIRST_PARTY_PLUGINS = [
     order: 45,
     create: codex,
   },
-] as const satisfies readonly MesurerPluginCatalogEntry[];
+];
 
 export const firstPartyPluginCatalog = (): MesurerPluginCatalogEntry[] =>
   MESURER_FIRST_PARTY_PLUGINS.map((entry) => ({
