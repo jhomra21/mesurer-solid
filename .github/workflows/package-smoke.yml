@@ -79,14 +79,15 @@ jobs:
             type MesurerPlugin,
           } from "mesurer-solid";
           import {
+            context,
+            screenshot,
+            type MesurerScreenshotPluginOptions,
+            type MesurerScreenshotService,
+          } from "mesurer-solid/plugins";
+          import {
             createMesurerPluginHost,
             type MesurerPluginHost,
           } from "mesurer-solid/core";
-          import {
-            screenshotPlugin,
-            type MesurerScreenshotPluginOptions,
-            type MesurerScreenshotService,
-          } from "mesurer-solid/screenshot";
 
           const plugin: MesurerPlugin = defineMesurerPlugin({
             id: "consumer.types",
@@ -94,7 +95,7 @@ jobs:
               ctx.state.register({ id: "consumer", initial: 0, history: true });
             },
           });
-          const options: MountMesurerOptions = { agent: true, plugins: [plugin] };
+          const options: MountMesurerOptions = { agent: true, plugins: [plugin, context()] };
           const legacyOptions: MountMeasurerOptions = options;
           const screenshotOptions: MesurerScreenshotPluginOptions = { copy: true, download: false };
           const screenshotService: MesurerScreenshotService | undefined = undefined;
@@ -107,7 +108,7 @@ jobs:
           void screenshotService;
           void canonicalMounted;
           void legacyMounted;
-          void screenshotPlugin;
+          void screenshot;
           void host;
           void mountMesurer;
           void mountMeasurer;
@@ -239,7 +240,8 @@ jobs:
           cat > src/main.tsx <<'TSX'
           import { createSignal } from "solid-js";
           import { render } from "@solidjs/web";
-          import { contextPlugin, defineMesurerPlugin, mountMesurer } from "mesurer-solid";
+          import { defineMesurerPlugin, mountMesurer } from "mesurer-solid";
+          import { context } from "mesurer-solid/plugins";
 
           function App() {
             const [count, setCount] = createSignal(0);
@@ -272,7 +274,7 @@ jobs:
               });
             },
           });
-          const mesurer = mountMesurer({ agent: true, plugins: [plugin, contextPlugin()] });
+          const mesurer = mountMesurer({ agent: true, plugins: [plugin, context()] });
           await mesurer.ready;
           (window as Window & { __HOST_READY__?: boolean }).__HOST_READY__ = true;
           TSX

@@ -98,7 +98,7 @@ export const prepareScreenshotCapture = (
 export const releaseScreenshotCapture = (ownerWindow: Window): void =>
   rendererReleaseScreenshotCapture(ownerWindow);
 
-export const screenshotPlugin = (
+export const screenshot = (
   options: MesurerScreenshotPluginOptions = {},
 ): MesurerPlugin => ({ ...rendererScreenshotPlugin(options), version: MESURER_VERSION });
 

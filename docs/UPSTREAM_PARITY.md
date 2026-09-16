@@ -47,7 +47,7 @@ The previous audit covered `b14c2bed...`, **“feat: pin option measurements wit
 | Core measurement, X-ray, guides, rulers, settings | Source-first port with historical visual/interaction validation |
 | Native Color Picker | Adopt where `EyeDropper` is operational; hide in unsupported hosts |
 | Text Inspector | Adopt inspection behavior; visible label is **Typography**, internal id stays `text-inspector` |
-| Screenshot region selection | Adopt as optional `screenshotPlugin()` and extend with preview/viewer and extension capture |
+| Screenshot region selection | Adopt as optional `screenshot()` from `mesurer-solid/plugins` and extend with preview/viewer and extension capture |
 | Global Shortcuts setting | Adopt the persisted master on/off switch; no per-command remapping UI is added |
 | Compact toolbar | Adopt presentation: one stable toolbar, full-height separators, active-tool retention, 150ms motion, reduced-motion support |
 | Option-distance pinning (`Option+S`) | Intentionally not adopted in the `0.1.7` release train; Mesurer Solid retains its existing held-distance workflow |
@@ -94,7 +94,7 @@ Upstream now ships DOM-attached threaded comments. Mesurer Solid intentionally k
 
 ### Screenshots
 
-Mesurer Solid keeps the upstream region-capture interaction behind optional `screenshotPlugin()`, then adapts output, preview/viewer, browser-provider, extension, and cleanup behavior to the plugin architecture. See [Screenshots](./SCREENSHOTS.md).
+Mesurer Solid keeps the upstream region-capture interaction behind optional `screenshot()` from `mesurer-solid/plugins`, then adapts output, preview/viewer, browser-provider, extension, and cleanup behavior to the plugin architecture. See [Screenshots](./SCREENSHOTS.md).
 
 ## Release rule
 

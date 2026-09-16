@@ -11,6 +11,7 @@ for (const path of [
   "dist",
   "skills",
   "scripts/install-skill.mjs",
+  "scripts/codex-bridge.mjs",
   "README.md",
   "AGENT_INTEGRATION.md",
   "LICENSE",

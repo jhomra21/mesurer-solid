@@ -18,6 +18,8 @@ Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron
              ├───────────────┬─────────────────┤
              ▼               ▼                 ▼
         Context plugin   Arrange plugin   Screenshot plugin
+             │
+             └── optional Codex plugin ──► loopback companion ──► Codex queue
              │               │                 │
              └───────────────┼─────────────────┘
                              ▼
@@ -34,14 +36,15 @@ Users install `mesurer-solid`.
 
 | Entry | Purpose |
 | --- | --- |
-| `mesurer-solid` | Mount API, Context plugin, public types, agent surface |
-| `mesurer-solid/arrange` | First-party Arrange plugin |
-| `mesurer-solid/screenshot` | First-party Screenshot plugin |
+| `mesurer-solid` | Mount API, domain types, and agent surface |
+| `mesurer-solid/plugins` | All first-party plugin factories and plugin-specific contracts |
 | `mesurer-solid/core` | Lower-level framework-neutral public contracts |
 | `mesurer-solid/inject` | Programmatic injection helper |
 | `mesurer-solid/inject-script` | Self-contained classic browser payload |
 
-The package also ships `mesurer-skill` and the portable `mesurer-ui` Agent Skill. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
+The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, and the optional `mesurer-codex` loopback companion. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
+
+Public first-party plugin factories use their feature name directly. Applications import `context`, `arrange`, `screenshot`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
 
 ## Workspace ownership
 
@@ -105,7 +108,7 @@ See [Direct text editing and Typography](./docs/TEXT_EDITING.md).
 
 ## Arrange
 
-Arrange is a renderer-aware first-party plugin exported from `mesurer-solid/arrange`.
+Arrange is a renderer-aware first-party plugin exposed as `arrange()` from `mesurer-solid/plugins`.
 
 It owns active state, `Shift+A`, snapping, drag preview, Before/Desired intent, persistence, and review. Activating Arrange enables Select; turning Arrange off leaves Select active; turning Select off exits Arrange.
 
@@ -118,24 +121,60 @@ See [Arrange](./docs/ARRANGE.md).
 The removable `mesurer.context` plugin owns annotations and the human/agent context workflow:
 
 ```text
-contextPlugin()
+context()
   ├─ Copy Context / Copy Selection / Add Note
   ├─ annotation state + conservative rebinding
   ├─ context/select/review/capture-plan operations
   └─ service: context:v1
 ```
 
-Injection enables Context by default. Source-mounted applications opt in with `contextPlugin()`.
+Injection enables Context by default. Source-mounted applications opt in with `context()` from `mesurer-solid/plugins`.
 
-`window.__MESURER__` is the shared browser-state boundary; there is no Send-to-agent transport. Arrange and text-edit intent remain separate structured channels so they retain their own Before/Desired/Live semantics.
+`window.__MESURER__` remains the shared browser-state boundary for ordinary coding-agent work. Context itself does not know about Codex, sessions, local processes, or transport. Arrange and text-edit intent remain separate structured channels so they retain their own Before/Desired/Live semantics.
 
 The selection Add Note button is only transient UI. Its temporary suppression during direct editing does not disable Context or remove saved annotations.
 
 See [Context](./docs/CONTEXT_WORKFLOW.md) and [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md).
 
+## Codex delivery
+
+`mesurer.codex` is an optional first-party transport plugin exposed as `codex()` from `mesurer-solid/plugins`. It depends on the Context service rather than duplicating annotation or inspection state.
+
+```text
+context:v1
+   │
+   ▼
+codex()
+   ├─ Send to Codex tool / command
+   ├─ service: codex:v1
+   └─ HTTP to an explicitly started loopback companion
+                  │
+        ┌─────────┴──────────┐
+        ▼                    ▼
+ CODEX_THREAD_ID       --register-current
+ / --thread            from another Codex thread
+        │                    │
+        └─────────┬──────────┘
+                  ▼
+        registered thread set
+                  │
+                  ▼
+       codex queue --thread … --message …
+```
+
+The companion is outside the browser because a framework-agnostic web package cannot spawn the local Codex executable. It binds to `127.0.0.1`, limits request size and browser origins, and invokes Codex without a shell. When Codex starts it, `CODEX_THREAD_ID` supplies the initial thread automatically; a user can instead pass `--thread` explicitly. Another existing or newly-created Codex thread can register itself later with `--register-current`.
+
+Thread registration is deliberately a local-process capability. Browser requests may inspect the registered set, switch the active destination, or send one message to another registered thread, but they cannot register an arbitrary thread id. The `codex:v1` service exposes this as `health()`, `useThread(thread)`, and `send({ thread })`. Mesurer never creates, resumes, or takes the writer lock of a Codex thread.
+
+This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser harness. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and asks a registered Codex CLI/App thread to act on that feedback.
+
+The integration sends text because Codex's queued-user-message CLI currently accepts text input. It does not use `thread/resume`, a second app-server writer, MCP/ACP, or private Codex Desktop IPC.
+
+See [Send Context feedback to Codex](./docs/CODEX.md).
+
 ## Screenshot
 
-`mesurer.screenshot` is an optional first-party plugin exported from `mesurer-solid/screenshot`.
+`mesurer.screenshot` is an optional first-party plugin exposed as `screenshot()` from `mesurer-solid/plugins`.
 
 It owns camera activation, region selection, capture provider, HiDPI crop logic, output preferences, status, thumbnail/viewer UI, commands, service, and cleanup. Normal browser hosts use `getDisplayMedia()`; the Chromium extension uses `chrome.tabs.captureVisibleTab()` through an isolated-world bridge and the existing `activeTab` grant.
 
@@ -170,12 +209,14 @@ human selection / notes / Arrange / text Desired
 
 Agent attachment reuses an existing Mesurer instance when present. After source changes, verification uses the real Live page: Arrange preview removed, text Desired preview inactive, and fresh Context/measurement/review evidence.
 
+The optional Codex transport does not invert that ownership model for agents. It is a separate explicit human action that serializes Context evidence and queues it into the active registered Codex destination (or another explicitly registered destination for a one-off send).
+
 Temporary Mesurer presentation expresses intent or evidence; it is not proof that source was updated.
 
 ## Distribution and release
 
 The public package bundles the private workspaces into self-contained artifacts and is validated as an exact packed npm candidate across clean React, Solid 1, and Solid 2 consumers.
 
-Release validation also covers browser contracts, host isolation, screenshots, public subpaths and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions.
+Release validation also covers browser contracts, host isolation, screenshots, the unified public plugins entry and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery additionally validates the packaged companion binary, loopback boundary, registered-thread routing, and exact `codex queue` argument contract before release.
 
 See [Releasing](./RELEASING.md) and [Upstream parity](./docs/UPSTREAM_PARITY.md).

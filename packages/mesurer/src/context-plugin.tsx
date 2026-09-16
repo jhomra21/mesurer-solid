@@ -123,7 +123,7 @@ const hasContextSelection = (runtime: MesurerWorkspaceRuntime) => {
   return selection.elements.length > 0 || selection.region !== null;
 };
 
-export function contextPlugin(options: MesurerContextPluginOptions = {}): MesurerPlugin {
+export function context(options: MesurerContextPluginOptions = {}): MesurerPlugin {
   return {
     id: MESURER_CONTEXT_PLUGIN_ID,
     version: MESURER_VERSION,

@@ -2,7 +2,7 @@
 
 Mesurer's agent integration is the rendered page itself. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
 
-There is no Mesurer MCP server, localhost daemon, Send-to-agent callback, or harness-specific transport.
+The normal agent workflow requires no Mesurer MCP server, localhost daemon, Send-to-agent callback, or harness-specific transport. The optional `codex()` plugin is a separate human convenience path for explicitly sending Context feedback to Codex threads that a local Codex process or the user has registered with the loopback companion; it does not replace the browser-state contract described here.
 
 ## Install the Agent Skill
 
@@ -199,7 +199,15 @@ try {
 }
 ```
 
-The optional `mesurer-solid/screenshot` plugin is a separate human camera workflow. It is not an agent delivery capability. Preserve an existing human preview unless the task is specifically about Screenshot behavior.
+The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separate camera workflow. It is not an agent delivery capability. Preserve an existing human preview unless the task is specifically about Screenshot behavior.
+
+## Optional human-to-Codex delivery
+
+A source-mounted page may opt into `codex()` from `mesurer-solid/plugins` alongside `context()`. This is not an agent integration requirement and does not add a generic send capability to `window.__MESURER__`.
+
+When the current Codex thread starts `mesurer-codex`, the companion reads Codex's `CODEX_THREAD_ID`, registers that thread, and makes it the default destination. That means a Codex session that starts or uses Mesurer can route later human Context feedback back to the same thread without copying an id by hand. A normal shell may still select the initial session explicitly with `mesurer-codex --thread <SESSION>`.
+
+A different or newly-created Codex thread can join an already-running bridge with `mesurer-codex --register-current`. Registration is accepted only from a local process without a browser Origin. The bridge keeps previously registered threads; the `codex:v1` service can inspect them with `health()`, switch the default with `useThread(thread)`, or send one message to another registered destination with `send({ thread })`. Mesurer does not create or resume Codex threads itself. See [Send Context feedback to Codex](../../docs/CODEX.md).
 
 ## Revalidate after source edits
 

@@ -9,6 +9,7 @@ const privatePackagePattern = /@jhomra21\/mesurer-solid-(?:core|dom|renderer)/;
 const removedDeliveryPattern = /\b(?:sendContext|toAcpContentBlocks|MesurerContextSender|MesurerContextDelivery|MesurerEvidenceProvider|MesurerEvidenceImage|MesurerAcpContentBlock|AcpTextContentBlock|AcpImageContentBlock)\b/;
 const contextReturningSelectPattern = /\bselect\s*\(\s*selectors:\s*string\s*\|\s*string\[\]\s*\)\s*:\s*Promise<MesurerContextV1>/;
 const skillBinPath = "scripts/install-skill.mjs";
+const codexBinPath = "scripts/codex-bridge.mjs";
 
 if (packageJson.name !== "@jhomra21/mesurer-solid") {
   throw new Error(`Expected internal workspace package name @jhomra21/mesurer-solid, got ${packageJson.name}.`);
@@ -16,12 +17,20 @@ if (packageJson.name !== "@jhomra21/mesurer-solid") {
 if (packageJson.bin?.["mesurer-skill"] !== skillBinPath) {
   throw new Error(`Expected mesurer-skill bin path ${skillBinPath}, got ${packageJson.bin?.["mesurer-skill"] ?? "<missing>"}.`);
 }
+if (packageJson.bin?.["mesurer-codex"] !== codexBinPath) {
+  throw new Error(`Expected mesurer-codex bin path ${codexBinPath}, got ${packageJson.bin?.["mesurer-codex"] ?? "<missing>"}.`);
+}
 if (packageJson.private === true) throw new Error("The public Mesurer package workspace cannot be private.");
 if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
   throw new Error("The public Mesurer package must not publish runtime workspace dependencies.");
 }
-for (const requiredExport of [".", "./arrange", "./core", "./screenshot", "./inject", "./inject-script"]) {
+for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
+}
+for (const removedExport of ["./arrange", "./codex", "./screenshot"]) {
+  if (packageJson.exports?.[removedExport]) {
+    throw new Error(`Obsolete first-party plugin subpath must not remain public: ${removedExport}`);
+  }
 }
 if (packageJson.publishConfig?.access !== "public") throw new Error("publishConfig.access must be public.");
 if (packageJson.publishConfig?.registry !== "https://registry.npmjs.org/") {
@@ -37,22 +46,21 @@ for (const file of distFiles) {
     throw new Error(`${file} leaks a private workspace package name into the published artifact.`);
   }
   if (removedDeliveryPattern.test(source)) {
-    throw new Error(`${file} exposes a removed Mesurer agent-delivery API. Agents must read window.__MESURER__ directly.`);
+    throw new Error(`${file} exposes a removed generic agent-delivery API. Optional Codex delivery must stay in the explicit Codex plugin.`);
   }
 }
 
 for (const file of [
   "index.js",
   "index.d.ts",
-  "arrange.js",
-  "arrange.d.ts",
+  "plugins.js",
+  "plugins.d.ts",
   "core.js",
   "core.d.ts",
-  "screenshot.js",
-  "screenshot.d.ts",
   "inject.js",
   "inject.d.ts",
   "inject-script.js",
+  "codex-plugin.d.ts",
 ]) {
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
@@ -68,7 +76,31 @@ if (publishedRoot.mountMeasurer !== publishedRoot.mountMesurer) {
   throw new Error("Deprecated mountMeasurer() must remain an alias of mountMesurer() for 0.1.1 compatibility.");
 }
 
+const publishedPlugins = await import(new URL("../dist/plugins.js", import.meta.url));
+for (const factory of [
+  "context",
+  "codex",
+  "arrange",
+  "screenshot",
+  "select",
+  "xray",
+  "colorPicker",
+  "rulers",
+  "typography",
+  "guides",
+  "distance",
+  "settings",
+  "defaults",
+  "compose",
+]) {
+  if (!(publishedPlugins[factory] instanceof Function)) {
+    throw new Error(`Published plugins entry must expose ${factory}().`);
+  }
+}
+
 const rootDeclarations = readFileSync(new URL("index.d.ts", dist), "utf8");
+const pluginDeclarations = readFileSync(new URL("plugins.d.ts", dist), "utf8");
+const codexDeclarations = readFileSync(new URL("codex-plugin.d.ts", dist), "utf8");
 const publishedDeclarations = distFiles
   .filter((file) => file.endsWith(".d.ts"))
   .map((file) => readFileSync(new URL(file, dist), "utf8"))
@@ -126,33 +158,57 @@ for (const legacyName of ["mountMeasurer", "MountMeasurerOptions", "MountedMeasu
   }
 }
 
-const packageReadme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
-if (/\bmountMeasurer\b/.test(packageReadme)) {
-  throw new Error("The npm README must document canonical mountMesurer(), not the deprecated mountMeasurer() spelling.");
+for (const obsoleteFactory of [
+  "contextPlugin",
+  "codexPlugin",
+  "arrangePlugin",
+  "screenshotPlugin",
+  "selectPlugin",
+  "xrayPlugin",
+  "colorPickerPlugin",
+  "rulersPlugin",
+  "textInspectorPlugin",
+  "guidesPlugin",
+  "distancePlugin",
+  "settingsPlugin",
+  "defaultMesurerPlugins",
+  "composeMesurerPlugins",
+]) {
+  if (new RegExp(`\\b${obsoleteFactory}\\b`).test(rootDeclarations) || new RegExp(`\\b${obsoleteFactory}\\b`).test(pluginDeclarations)) {
+    throw new Error(`Published API still exposes obsolete plugin factory name ${obsoleteFactory}.`);
+  }
 }
 
-const arrangeDeclarations = readFileSync(new URL("arrange.d.ts", dist), "utf8");
-if (!/\barrangePlugin\b/.test(arrangeDeclarations)) {
-  throw new Error("Published Arrange entry must expose arrangePlugin().");
-}
 for (const contractName of [
   "ArrangeElementFingerprint",
   "ArrangeIntent",
   "ArrangeReview",
   "ArrangeCapturePlan",
   "MesurerArrangeService",
+  "MesurerCodexHealth",
+  "MesurerCodexService",
+  "MesurerCodexSendRequest",
+  "MesurerCodexSendResult",
+  "MesurerContextService",
+  "MesurerScreenshotService",
 ]) {
-  if (!new RegExp(`\\b${contractName}\\b`).test(arrangeDeclarations)) {
-    throw new Error(`Published Arrange entry is missing ${contractName}.`);
+  if (!new RegExp(`\\b${contractName}\\b`).test(pluginDeclarations)) {
+    throw new Error(`Published plugins entry is missing ${contractName}.`);
   }
 }
 
-const screenshotDeclarations = readFileSync(new URL("screenshot.d.ts", dist), "utf8");
-if (!/\bscreenshotPlugin\b/.test(screenshotDeclarations)) {
-  throw new Error("Published screenshot entry must expose screenshotPlugin().");
+for (const codexMember of ["useThread", "thread?: string", "threads: string[]"]) {
+  if (!codexDeclarations.includes(codexMember)) {
+    throw new Error(`Published Codex plugin declarations are missing thread-routing contract: ${codexMember}.`);
+  }
 }
-if (!/\bMesurerScreenshotService\b/.test(screenshotDeclarations)) {
-  throw new Error("Published screenshot entry must expose the screenshot service contract.");
+
+const packageReadme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+if (/\bmountMeasurer\b/.test(packageReadme)) {
+  throw new Error("The npm README must document canonical mountMesurer(), not the deprecated mountMeasurer() spelling.");
+}
+if (/\b(?:contextPlugin|codexPlugin|arrangePlugin|screenshotPlugin)\b/.test(packageReadme)) {
+  throw new Error("The npm README must document canonical plugin factory names from mesurer-solid/plugins.");
 }
 
 const skillSource = new URL("../skills/mesurer-ui/SKILL.md", import.meta.url);
@@ -161,6 +217,15 @@ const repositorySkill = new URL("../../../.agents/skills/mesurer-ui/SKILL.md", i
 if (!existsSync(repositorySkill)) throw new Error("Missing repository Agent Skill: .agents/skills/mesurer-ui/SKILL.md");
 if (readFileSync(repositorySkill, "utf8") !== readFileSync(skillSource, "utf8")) {
   throw new Error("Repository and packaged Mesurer Agent Skills must remain byte-identical.");
+}
+
+const bridgeScript = new URL("./codex-bridge.mjs", import.meta.url);
+if (!existsSync(bridgeScript)) throw new Error("Missing packaged Codex bridge script.");
+const bridgeHelp = execFileSync(process.execPath, [fileURLToPath(bridgeScript), "--help"], { encoding: "utf8" });
+for (const helpContract of ["CODEX_THREAD_ID", "--register-current", "--register <value>"]) {
+  if (!bridgeHelp.includes(helpContract)) {
+    throw new Error(`Mesurer Codex bridge help is missing thread handoff contract: ${helpContract}.`);
+  }
 }
 
 const stageScript = fileURLToPath(new URL("./stage-package.mjs", import.meta.url));
@@ -172,11 +237,19 @@ if (stagedPackageJson.name !== "mesurer-solid") {
 if (stagedPackageJson.bin?.["mesurer-skill"] !== skillBinPath) {
   throw new Error(`Expected staged mesurer-skill bin path ${skillBinPath}, got ${stagedPackageJson.bin?.["mesurer-skill"] ?? "<missing>"}.`);
 }
-if (!stagedPackageJson.exports?.["./arrange"]) {
-  throw new Error("Staged npm package is missing the ./arrange export.");
+if (stagedPackageJson.bin?.["mesurer-codex"] !== codexBinPath) {
+  throw new Error(`Expected staged mesurer-codex bin path ${codexBinPath}, got ${stagedPackageJson.bin?.["mesurer-codex"] ?? "<missing>"}.`);
 }
-if (!stagedPackageJson.exports?.["./screenshot"]) {
-  throw new Error("Staged npm package is missing the ./screenshot export.");
+if (!stagedPackageJson.exports?.["./plugins"]) {
+  throw new Error("Staged npm package is missing the ./plugins export.");
+}
+for (const removedExport of ["./arrange", "./codex", "./screenshot"]) {
+  if (stagedPackageJson.exports?.[removedExport]) {
+    throw new Error(`Staged npm package retained obsolete plugin subpath ${removedExport}.`);
+  }
+}
+if (!existsSync(new URL("../.publish/scripts/codex-bridge.mjs", import.meta.url))) {
+  throw new Error("Staged npm package is missing scripts/codex-bridge.mjs.");
 }
 for (const privateName of ["@jhomra21/mesurer-solid-core", "@jhomra21/mesurer-solid-dom", "@jhomra21/mesurer-solid-renderer"]) {
   if (JSON.stringify(stagedPackageJson).includes(privateName)) {
@@ -208,4 +281,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, compatibility aliases, context-first agent surface, Arrange, text edit intents, screenshot plugin, and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, thread-aware optional Codex delivery, agent context, Arrange, text edit intents, screenshot tooling, and Agent Skill installer are self-contained.`);

@@ -42,35 +42,35 @@ Full placement examples: [Getting started](https://github.com/jhomra21/mesurer-s
 
 ## First-party plugins
 
+All public first-party plugin factories are exported from `mesurer-solid/plugins` and use the feature name directly:
+
 ```ts
-import {
-  contextPlugin,
-  mountMesurer,
-} from "mesurer-solid"
-import { arrangePlugin } from "mesurer-solid/arrange"
-import { screenshotPlugin } from "mesurer-solid/screenshot"
+import { mountMesurer } from "mesurer-solid"
+import { arrange, context, screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
   plugins: [
-    contextPlugin(),
-    arrangePlugin(),
-    screenshotPlugin(),
+    context(),
+    arrange(),
+    screenshot(),
   ],
 })
 ```
 
 The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. Native Color Picker is available only when the host exposes an operational `EyeDropper`.
 
+For explicit plugin composition, `mesurer-solid/plugins` also exports `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, `settings`, `defaults`, and `compose`.
+
 | Entry | Purpose |
 | --- | --- |
-| `mesurer-solid` | Mount API, context plugin, public types, agent surface |
-| `mesurer-solid/arrange` | Arrange layout-intent plugin |
-| `mesurer-solid/screenshot` | Screenshot capture plugin |
+| `mesurer-solid` | Mount API, public domain types, and agent surface |
+| `mesurer-solid/plugins` | All first-party plugin factories and plugin-specific contracts |
 | `mesurer-solid/core` | Lower-level framework-neutral public contracts |
 | `mesurer-solid/inject` | Programmatic browser injection |
 | `mesurer-solid/inject-script` | Built classic injection artifact |
 | `mesurer-skill` | Install the portable coding-agent skill |
+| `mesurer-codex` | Run the optional loopback Codex queue companion |
 
 ## Features
 
@@ -135,6 +135,43 @@ The skill preserves existing human state, reads Arrange/text/annotation intent b
 
 See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/packages/mesurer/AGENT_INTEGRATION.md).
 
+### Optional Send to Codex
+
+When Codex starts the loopback companion itself, `mesurer-codex` reads `CODEX_THREAD_ID`, so Mesurer feedback naturally routes back to that same Codex CLI/App thread:
+
+```bash
+bunx mesurer-codex
+```
+
+A normal shell can still choose the initial thread explicitly:
+
+```bash
+bunx mesurer-codex --thread <SESSION>
+```
+
+Mount the optional transport next to Context:
+
+```ts
+import { mountMesurer } from "mesurer-solid"
+import { codex, context } from "mesurer-solid/plugins"
+
+mountMesurer({
+  plugins: [context(), codex()],
+})
+```
+
+A different or newly-created Codex thread can register itself with the running bridge and become the active target:
+
+```bash
+bunx mesurer-codex --register-current
+```
+
+The bridge remembers registered threads. `codex:v1` exposes `health()`, `useThread(thread)`, and `send({ thread })` for switching or one-off routing among those registered destinations. Browser pages cannot register arbitrary Codex sessions themselves.
+
+This uses Codex's own queued-user-message command. It does not replace the normal browser-harness agent workflow, and it does not resume or take ownership of a target Codex thread.
+
+See [Send Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md).
+
 ## Documentation
 
 - [Getting started](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md)
@@ -142,6 +179,7 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 - [Arrange](https://github.com/jhomra21/mesurer-solid/blob/main/docs/ARRANGE.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
+- [Send Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md)
 - [Browser harness](https://github.com/jhomra21/mesurer-solid/blob/main/docs/BROWSER_HARNESS.md)
 - [Host isolation](https://github.com/jhomra21/mesurer-solid/blob/main/docs/HOST_ISOLATION.md)
 - [Trusted Types](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TRUSTED_TYPES.md)
