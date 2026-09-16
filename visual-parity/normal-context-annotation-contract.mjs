@@ -23,6 +23,30 @@ const box = async (locator, stage) => {
   return value;
 };
 
+const clickDocumentUi = async (locator, label) => {
+  await locator.waitFor({ state: "visible" });
+  const rect = await box(locator, label);
+  const x = rect.x + rect.width / 2;
+  const y = rect.y + rect.height / 2;
+
+  // The protected renderer lives in the browser top layer. Real pointers first
+  // approach a document-backed Mesurer control, which lets the shared
+  // passthrough boundary expose that exact control before the press. Exercise
+  // that physical path instead of Playwright locator actionability, which asks
+  // for the hit target before emitting any pointer approach event.
+  await page.mouse.move(x, y);
+  const ownsHit = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const hit = element.ownerDocument.elementFromPoint(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+    );
+    return Boolean(hit && (hit === element || element.contains(hit)));
+  });
+  assert.equal(ownsHit, true, `${label} did not own its visible pointer location after physical pointer approach`);
+  await page.mouse.click(x, y);
+};
+
 const openSettings = async () => {
   const button = page.locator("button[data-mesurer-builtin='settings']");
   await button.waitFor({ state: "visible" });
@@ -34,8 +58,10 @@ const openSettings = async () => {
 
 const saveNote = async (composer, text) => {
   await composer.waitFor({ state: "visible" });
-  await composer.locator("textarea").fill(text);
-  await composer.getByRole("button", { name: "Add note", exact: true }).click();
+  const textarea = composer.locator("textarea");
+  await clickDocumentUi(textarea, "annotation note textarea");
+  await textarea.fill(text);
+  await clickDocumentUi(composer.getByRole("button", { name: "Add note", exact: true }), "Add note submit button");
   await composer.waitFor({ state: "hidden" });
 };
 
@@ -172,8 +198,7 @@ try {
   const triggerFrames = await captureFrameSeries(6, 8);
   assertFrameAttachment(triggerFrames, ["trigger"]);
 
-  const triggerBox = await box(trigger, "trigger after pre-note scroll");
-  await page.mouse.click(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height / 2);
+  await clickDocumentUi(trigger, "Add Note trigger after pre-note scroll");
   const composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
   await assertDocumentSurface(composer, "Add Note composer");
@@ -236,20 +261,20 @@ try {
   assert.equal(highlightStyle.radius, "0px");
   assert.equal(highlightStyle.sizing, "border-box");
 
-  await panel.getByRole("button", { name: "Close annotation" }).click();
+  await clickDocumentUi(panel.getByRole("button", { name: "Close annotation" }), "Close annotation button");
   await panel.waitFor({ state: "hidden" });
 
   // Add notes 2 and 3 after scrolling. A newly mounted third marker must stay
   // close enough to its target that ownership is visually obvious.
-  await marker.click();
+  await clickDocumentUi(marker, "saved annotation marker 1");
   await panel.waitFor({ state: "visible" });
-  await trigger.click();
+  await clickDocumentUi(trigger, "Add Note trigger while annotation is open");
   await panel.waitFor({ state: "hidden" });
   await saveNote(composer, "Second annotation on the same selected element");
   markers = contextRoot.locator("[data-mesurer-annotation-marker='true']");
   assert.equal(await markers.count(), 2, "second annotation marker missing");
 
-  await trigger.click();
+  await clickDocumentUi(trigger, "Add Note trigger for third note");
   await saveNote(composer, "Third annotation on the same selected element");
   assert.equal(await markers.count(), 3, "third annotation marker missing");
 
