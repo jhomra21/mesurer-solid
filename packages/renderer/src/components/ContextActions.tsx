@@ -374,16 +374,18 @@ export function ContextActions(props: ContextActionsProps) {
     const captured = composerSelection;
     return captured !== null && sameSelection(captured, captureSelection());
   };
-  const selectionRect = createMemo(() => {
+  const selectionObstacleRects = createMemo(() => {
     const value = selection();
-    const elementRects = value.elements
+    const rects = value.elements
       .filter((element) => element.isConnected)
       .map((element) => {
         const rect = element.getBoundingClientRect();
         return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
       });
-    return unionRects(elementRects) ?? value.region;
+    if (value.region) rects.push({ ...value.region });
+    return rects;
   });
+  const selectionRect = createMemo(() => unionRects(selectionObstacleRects()));
 
   const selectionLabel = () => {
     const count = selection().elements.length;
@@ -414,36 +416,22 @@ export function ContextActions(props: ContextActionsProps) {
     const value = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
     const currentWindow = ownerWindow();
     const size = 24;
-    const gap = 6;
+    const markerObstacles = [...annotationMarkerPositions().values()].map((position) => ({
+      left: position.left,
+      top: position.top,
+      width: size,
+      height: size,
+    }));
+    const [placement] = layoutAnnotationMarkers(
+      [{ id: "selection-note-trigger", rect: value }],
+      { width: currentWindow.innerWidth, height: currentWindow.innerHeight },
+      { obstacles: markerObstacles, maxShiftRings: 1 },
+    );
     const padding = 4;
-    const right = value.left + value.width;
-    const bottom = value.top + value.height;
-    const candidates = [
-      { space: currentWindow.innerWidth - right, points: [
-        { left: right + gap, top: value.top },
-        { left: right + gap, top: bottom - size },
-      ] },
-      { space: value.left, points: [
-        { left: value.left - size - gap, top: value.top },
-        { left: value.left - size - gap, top: bottom - size },
-      ] },
-      { space: currentWindow.innerHeight - bottom, points: [
-        { left: right - size, top: bottom + gap },
-        { left: value.left, top: bottom + gap },
-      ] },
-      { space: value.top, points: [
-        { left: right - size, top: value.top - size - gap },
-        { left: value.left, top: value.top - size - gap },
-      ] },
-    ].sort((a, b) => b.space - a.space);
-    const fitsViewport = (point: { left: number; top: number }) =>
-      point.left >= padding && point.top >= padding
-      && point.left + size <= currentWindow.innerWidth - padding
-      && point.top + size <= currentWindow.innerHeight - padding;
-    const fitted = candidates.flatMap((candidate) => candidate.points).find(fitsViewport);
-    const fallback = { left: right + gap, top: value.top };
-    const viewportLeft = clamp((fitted ?? fallback).left, padding, currentWindow.innerWidth - size - padding);
-    const viewportTop = clamp((fitted ?? fallback).top, padding, currentWindow.innerHeight - size - padding);
+    const viewportLeft = placement?.left
+      ?? clamp(value.left + value.width + 6, padding, currentWindow.innerWidth - size - padding);
+    const viewportTop = placement?.top
+      ?? clamp(value.top, padding, currentWindow.innerHeight - size - padding);
     const nativeAnchor = anchoredTriggerElement === element;
     const viewportOwned = usesViewportCoordinates() && !nativeAnchor;
     return {
@@ -468,6 +456,8 @@ export function ContextActions(props: ContextActionsProps) {
       layoutAnnotationMarkers(items, {
         width: currentWindow.innerWidth,
         height: currentWindow.innerHeight,
+      }, {
+        obstacles: selectionObstacleRects(),
       }).map((placement) => [placement.id, placement] as const),
     );
   });
