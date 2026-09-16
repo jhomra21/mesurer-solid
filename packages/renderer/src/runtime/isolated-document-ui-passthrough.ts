@@ -11,23 +11,29 @@ type CachedUiRect = {
 const DOCUMENT_UI_SELECTOR = "[data-mesurer-inspector-ui='true']";
 const SCROLL_IDLE_MS = 80;
 
-const isDocumentBackedIsolatedRuntime = (
+const isDocumentBackedRuntime = (
   runtime: MesurerSolidRuntimeService,
   realm: Window & typeof globalThis,
-) => runtime.portalTarget instanceof realm.ShadowRoot
-  && !(runtime.pageTarget instanceof realm.ShadowRoot)
-  && runtime.pageTarget.getRootNode() === runtime.ownerDocument;
+) => !(runtime.pageTarget instanceof realm.ShadowRoot)
+  && runtime.pageTarget.getRootNode() === runtime.ownerDocument
+  && (
+    runtime.portalTarget instanceof realm.ShadowRoot
+      ? runtime.portalTarget.host.getRootNode() === runtime.ownerDocument
+      : runtime.portalTarget.getRootNode() === runtime.ownerDocument
+  );
 
 const containsPoint = (rect: CachedUiRect, x: number, y: number) => (
   x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
 );
 
 /**
- * The public isolated mount lives in the browser top layer while page-following
- * inspector surfaces such as Typography and annotation actions may be portaled
- * into the document so CSS anchors can follow the inspected page element.
+ * Mesurer's protected renderer host can sit above ordinary document content,
+ * while page-following inspector surfaces such as Typography and Context notes
+ * intentionally live in the document so window scrolling is compositor-owned.
+ * This is true for both the isolated top-layer host and the fixed non-isolated
+ * compatibility host.
  *
- * A top-layer selection plane otherwise wins hit testing even when one of those
+ * A protected selection plane otherwise wins hit testing even when one of those
  * document-backed Mesurer controls is visibly on top of the page. Keep a small
  * cached set of rendered Mesurer UI rectangles and make only the selection/
  * ruler plane transparent while the pointer is over one of them. The real
@@ -48,7 +54,7 @@ export function installIsolatedDocumentUiPassthrough(
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
   // SAFETY: ownerWindow is the browsing-context global for ownerDocument and portalTarget.
   const realm = ownerWindow as Window & typeof globalThis;
-  if (!ownerDocument.body || !isDocumentBackedIsolatedRuntime(runtime, realm)) return;
+  if (!ownerDocument.body || !isDocumentBackedRuntime(runtime, realm)) return;
 
   const rendererRoot = runtime.rendererRoot
     ?? portalTarget.querySelector<HTMLElement>("[data-mesurer-root='true']");
