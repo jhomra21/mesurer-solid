@@ -30,6 +30,21 @@ export function createDocumentInspectorMount(
   const element = ownerDocument.createElement("div");
   element.dataset.mesurerInspectorUi = "true";
   element.dataset.mesurerDocumentInspectorMount = "true";
+  // The fixed host fallback already occupies the highest author z-index. Give
+  // the document inspector one later sibling stacking context at the same tier
+  // so its page-owned controls remain physically reachable while preserving the
+  // marker > panel > highlight ordering inside this mount. The mount itself is
+  // zero-sized and non-interactive; only explicit child surfaces receive input.
+  Object.assign(element.style, {
+    position: "absolute",
+    left: "0px",
+    top: "0px",
+    width: "0px",
+    height: "0px",
+    overflow: "visible",
+    pointerEvents: "none",
+    zIndex: "2147483647",
+  });
   body.append(element);
 
   let disposed = false;
