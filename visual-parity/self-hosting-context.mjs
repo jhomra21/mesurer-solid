@@ -84,71 +84,82 @@ try {
   );
   assert.equal(
     await annotationTrigger.evaluate((element) => getComputedStyle(element).position),
-    "fixed",
-    "Canonical-root annotation trigger must use viewport-fixed positioning",
+    "absolute",
+    "Document-owned annotation trigger must use absolute positioning",
   );
   assert.equal(
     await annotationTrigger.getAttribute("data-mesurer-context-coordinate-space"),
-    "viewport",
-    "Canonical-root annotation trigger must expose viewport coordinate ownership",
+    "document",
+    "Annotation trigger must expose document coordinate ownership",
   );
   assert.equal(
     await annotationTrigger.getAttribute("data-mesurer-annotation-scroll-mode"),
-    "cached-delta",
-    "Canonical-root annotation trigger must use cached-delta scroll following",
+    "document",
+    "Annotation trigger must leave window scrolling to the document",
   );
 
   const ownership = await annotationTrigger.evaluate((element) => {
     const contextRoot = element.closest("[data-mesurer-context-root='true']");
-    const root = contextRoot?.closest("[data-mesurer-root='true']");
     return {
-      insideCanonicalRoot: Boolean(root && contextRoot && root.contains(contextRoot)),
-      documentContextLayers: document.querySelectorAll("[data-mesurer-context-document-layer='true']").length,
-      documentInspectorRuntimes: document.querySelectorAll("[data-mesurer-document-inspector-runtime='true']").length,
+      rootIsDocument: contextRoot?.getRootNode() === document,
+      documentMount: contextRoot instanceof HTMLElement
+        ? contextRoot.dataset.mesurerDocumentInspectorMount ?? null
+        : null,
+      insideCanonicalRoot: Boolean(contextRoot?.closest("[data-mesurer-root='true']")),
     };
   });
-  assert.equal(ownership.insideCanonicalRoot, true, "Context must live inside its nearest canonical Mesurer root");
-  assert.equal(ownership.documentContextLayers, 0, "Context must not create a document-backed interaction layer");
-  assert.equal(ownership.documentInspectorRuntimes, 0, "Context must not create a document inspector input bridge");
+  assert.deepEqual(ownership, {
+    rootIsDocument: true,
+    documentMount: "true",
+    insideCanonicalRoot: false,
+  }, `Context page evidence must use one document scroll plane: ${JSON.stringify(ownership)}`);
 
-  const annotationScrollProbe = await annotationTrigger.evaluate((trigger) => new Promise((resolve, reject) => {
+  const annotationScrollProbe = await annotationTrigger.evaluate(async (trigger) => {
     const targetElement = trigger.ownerDocument.querySelector("[data-self-host-target]");
-    if (!(targetElement instanceof HTMLElement)) return reject(new Error("Missing annotation scroll target"));
+    if (!(targetElement instanceof HTMLElement)) throw new Error("Missing annotation scroll target");
 
     const snapshot = (element) => {
       const rect = element.getBoundingClientRect();
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
     };
+    const read = () => ({
+      target: snapshot(targetElement),
+      trigger: snapshot(trigger),
+      cachedY: trigger.style.getPropertyValue("--mesurer-nested-scroll-y"),
+    });
     document.body.style.minHeight = "1400px";
-    const before = { target: snapshot(targetElement), trigger: snapshot(trigger) };
-    const timer = window.setTimeout(() => reject(new Error("Annotation trigger scroll probe timed out")), 3_000);
-    window.addEventListener("scroll", () => {
-      window.clearTimeout(timer);
-      resolve({
-        before,
-        immediate: { target: snapshot(targetElement), trigger: snapshot(trigger) },
-        mode: trigger.dataset.mesurerAnnotationScrollMode ?? null,
-        coordinateSpace: trigger.dataset.mesurerContextCoordinateSpace ?? null,
-        position: getComputedStyle(trigger).position,
-      });
-    }, { capture: true, once: true });
+    const before = read();
     window.scrollBy({ top: 80, behavior: "instant" });
-  }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const firstPaint = read();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return {
+      before,
+      firstPaint,
+      settled: read(),
+      mode: trigger.dataset.mesurerAnnotationScrollMode ?? null,
+      coordinateSpace: trigger.dataset.mesurerContextCoordinateSpace ?? null,
+      position: getComputedStyle(trigger).position,
+    };
+  });
 
   const triggerOffset = (snapshot) => ({
     x: snapshot.trigger.x - snapshot.target.x,
     y: snapshot.trigger.y - snapshot.target.y,
   });
   const triggerOffsetBefore = triggerOffset(annotationScrollProbe.before);
-  const triggerOffsetImmediate = triggerOffset(annotationScrollProbe.immediate);
-  assert.equal(annotationScrollProbe.mode, "cached-delta", "Annotation trigger must use cached-delta scroll ownership");
-  assert.equal(annotationScrollProbe.coordinateSpace, "viewport", "Annotation trigger must remain viewport-owned");
-  assert.equal(annotationScrollProbe.position, "fixed", "Annotation trigger must remain fixed in the canonical interaction root");
-  assert(
-    Math.abs(triggerOffsetImmediate.x - triggerOffsetBefore.x) <= 1.5
-      && Math.abs(triggerOffsetImmediate.y - triggerOffsetBefore.y) <= 1.5,
-    `Annotation trigger must stay attached in the first scroll event; offset moved from ${JSON.stringify(triggerOffsetBefore)} to ${JSON.stringify(triggerOffsetImmediate)}`,
-  );
+  assert.equal(annotationScrollProbe.mode, "document", "Annotation trigger must use document scroll ownership");
+  assert.equal(annotationScrollProbe.coordinateSpace, "document", "Annotation trigger must remain document-owned");
+  assert.equal(annotationScrollProbe.position, "absolute", "Annotation trigger must remain absolute in the document plane");
+  for (const [label, sample] of [["first paint", annotationScrollProbe.firstPaint], ["settled", annotationScrollProbe.settled]]) {
+    const offset = triggerOffset(sample);
+    assert(
+      Math.abs(offset.x - triggerOffsetBefore.x) <= 0.75
+        && Math.abs(offset.y - triggerOffsetBefore.y) <= 0.75,
+      `Annotation trigger must stay source-attached at ${label}; offset moved from ${JSON.stringify(triggerOffsetBefore)} to ${JSON.stringify(offset)}`,
+    );
+    assert.equal(sample.cachedY, "", `Window scrolling must not write JS compensation at ${label}`);
+  }
   await page.evaluate(() => new Promise((resolve) => {
     window.scrollTo({ top: 0, behavior: "instant" });
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -165,13 +176,9 @@ try {
   assert(boxGap(targetBox, composerBox) <= 8.5, `Annotation composer should stay beside the selected element; gap was ${boxGap(targetBox, composerBox).toFixed(2)}px`);
   assert(composerBox.width <= 272.5, `Annotation composer should remain compact; width was ${composerBox.width}px`);
   assert.equal(
-    await composer.evaluate((element) => {
-      const contextRoot = element.closest("[data-mesurer-context-root='true']");
-      const root = contextRoot?.closest("[data-mesurer-root='true']");
-      return Boolean(root && contextRoot && root.contains(contextRoot));
-    }),
+    await composer.evaluate((element) => element.closest("[data-mesurer-context-root='true']")?.getRootNode() === document),
     true,
-    "Annotation composer must remain inside its canonical Mesurer root",
+    "Annotation composer must share the host document scroll tree",
   );
 
   const noteText = "Increase the spacing above this control to 24px.";
@@ -321,8 +328,8 @@ try {
     `context buttons: ${measurements.tools.length} × 32×32px`,
     "context SVG boxes: 20×20px, centered in every button",
     `max glyph optical-center offset: ${maxOpticalOffset.toFixed(2)}px`,
-    "annotation trigger: 24×24px with 6px clearance; canonical-root cached-delta scroll ownership",
-    "annotation composer: compact, target-adjacent surface inside canonical Mesurer root",
+    "annotation trigger: 24×24px with 6px clearance; document-owned window scrolling",
+    "annotation composer: compact, target-adjacent surface in the page scroll tree",
     "saved marker: clear between target and note panel",
     "observer selection: Copy context button",
   ];
@@ -337,9 +344,9 @@ try {
       toolbarCenterLineDelta: "≤ 0.05px",
       glyphEnvelope: "11–18.5px per axis",
       opticalCenterOffset: "≤ 1.5px",
-      annotationOwnership: "Context root is inside its nearest canonical Mesurer root; no document bridge/runtime",
-      annotationTrigger: "24x24px, 6px clearance from selection (±0.5px), viewport-fixed cached-delta scroll following",
-      annotationComposer: "≤272.5px wide, ≤8.5px from selection, canonical-root owned",
+      annotationOwnership: "Context root is a single document-backed page-evidence plane outside the viewport root",
+      annotationTrigger: "24x24px, 6px clearance from selection (±0.5px), absolute document scroll ownership",
+      annotationComposer: "≤272.5px wide, ≤8.5px from selection, document-owned",
       annotationPanel: "marker ≤8.5px from target; panel ≤8.5px from marker",
       observerSelection: "canonical selection context + matching body-level selection chrome",
     },
@@ -391,16 +398,15 @@ try {
     result: "PASS",
     toolIds,
     maxOpticalOffset,
+    contextDocumentOwned: ownership.rootIsDocument && ownership.documentMount === "true",
     contextInsideCanonicalRoot: ownership.insideCanonicalRoot,
-    documentContextLayers: ownership.documentContextLayers,
-    documentInspectorRuntimes: ownership.documentInspectorRuntimes,
     annotationTriggerGap: triggerGap,
     annotationComposerGap: boxGap(targetBox, composerBox),
     annotationMarkerGap: boxGap(targetBox, markerBox),
     annotationPanelGap: boxGap(markerBox, panelBox),
-    annotationScrollOffsetDelta: {
-      x: triggerOffsetImmediate.x - triggerOffsetBefore.x,
-      y: triggerOffsetImmediate.y - triggerOffsetBefore.y,
+    annotationFirstPaintOffsetDelta: {
+      x: triggerOffset(annotationScrollProbe.firstPaint).x - triggerOffsetBefore.x,
+      y: triggerOffset(annotationScrollProbe.firstPaint).y - triggerOffsetBefore.y,
     },
     outputDir,
   }, null, 2));
