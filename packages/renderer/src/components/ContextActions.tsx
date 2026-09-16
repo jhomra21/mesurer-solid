@@ -707,20 +707,6 @@ export function ContextActions(props: ContextActionsProps) {
     return ranked[0]?.candidate ?? placeSurfaceNear(value, panelWidth, panelHeight, currentWindow);
   };
 
-  const ensurePanelOffset = (annotationId: string) => {
-    if (panelPositions()[annotationId]) return;
-    const value = props.runtime.annotationRect(annotationId);
-    if (!value) return;
-    const position = defaultPanelPosition(annotationId, value);
-    setPanelPositions((positions) => ({
-      ...positions,
-      [annotationId]: {
-        left: position.left - value.left,
-        top: position.top - value.top,
-      },
-    }));
-  };
-
   const panelPosition = (annotationId: string) => {
     const value = props.runtime.annotationRect(annotationId);
     if (!value) return { left: 8, top: 8 };
@@ -742,7 +728,6 @@ export function ContextActions(props: ContextActionsProps) {
     composerSelection = null;
     setNoteComposerOpen(false);
     syncAnnotationScrollBinding(annotationId);
-    ensurePanelOffset(annotationId);
     setActiveAnnotationId(annotationId);
     setStatus(null);
     syncAnnotationSurface(annotationId);
@@ -896,7 +881,6 @@ export function ContextActions(props: ContextActionsProps) {
       setNoteComposerOpen(false);
       setComposerPosition(null);
       syncAnnotationScrollBinding(annotation.id);
-      ensurePanelOffset(annotation.id);
       setActiveAnnotationId(annotation.id);
       syncAnnotationSurface(annotation.id);
     } catch (error) {
