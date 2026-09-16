@@ -110,6 +110,78 @@ const installArrangePresentationPolicy = (
   });
 };
 
+type HiddenMeasurement = {
+  value: string;
+  priority: string;
+};
+
+/**
+ * Arrange core hides measurement chrome that exists when the tool activates.
+ * Solid may legitimately remount that chrome while Arrange remains active, so
+ * guard only later-added measurement nodes here. This keeps the mutation path
+ * incremental instead of rescanning the page or duplicating selection geometry.
+ */
+const installArrangeLateMeasurementGuard = (
+  ctx: MesurerPluginContext,
+  runtime: MesurerSolidRuntimeService,
+) => {
+  const realm = runtime.ownerWindow as Window & typeof globalThis;
+  const hidden = new Map<HTMLElement, HiddenMeasurement>();
+  let active = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+
+  const hide = (element: HTMLElement) => {
+    if (!active || hidden.has(element)) return;
+    hidden.set(element, {
+      value: element.style.getPropertyValue("visibility"),
+      priority: element.style.getPropertyPriority("visibility"),
+    });
+    element.style.setProperty("visibility", "hidden", "important");
+  };
+
+  const hideAddedMeasurements = (node: Node) => {
+    if (!active || !(node instanceof realm.Element)) return;
+    if (node instanceof realm.HTMLElement && node.matches("[data-mesurer-measurement='true']")) {
+      hide(node);
+    }
+    for (const candidate of node.querySelectorAll("[data-mesurer-measurement='true']")) {
+      if (candidate instanceof realm.HTMLElement) hide(candidate);
+    }
+  };
+
+  const restore = () => {
+    for (const [element, previous] of hidden) {
+      if (!element.isConnected) continue;
+      if (previous.value || previous.priority) {
+        element.style.setProperty("visibility", previous.value, previous.priority);
+      } else {
+        element.style.removeProperty("visibility");
+      }
+    }
+    hidden.clear();
+  };
+
+  const observer = new realm.MutationObserver((records) => {
+    if (!active) return;
+    for (const record of records) {
+      for (const node of record.addedNodes) hideAddedMeasurements(node);
+    }
+  });
+  observer.observe(runtime.portalTarget, { childList: true, subtree: true });
+
+  const subscription = ctx.state.subscribe(() => {
+    const next = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+    if (next === active) return;
+    active = next;
+    if (!active) restore();
+  });
+
+  ctx.lifecycle.onDispose(() => {
+    observer.disconnect();
+    subscription.dispose();
+    restore();
+  });
+};
+
 export const arrangePlugin = (): MesurerPlugin => {
   const core = arrangeCorePlugin();
   return {
@@ -121,6 +193,7 @@ export const arrangePlugin = (): MesurerPlugin => {
       const runtime = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
       if (!runtime) throw new Error("Arrange presentation policy requires the Solid renderer runtime.");
       installArrangePresentationPolicy(ctx, service, runtime.ownerWindow);
+      installArrangeLateMeasurementGuard(ctx, runtime);
     },
   };
 };
