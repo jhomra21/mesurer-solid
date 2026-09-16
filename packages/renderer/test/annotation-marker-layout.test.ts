@@ -8,6 +8,13 @@ const box = (left: number, top: number, size = 24) => ({
   bottom: top + size,
 });
 
+const rectBox = (rect: { left: number; top: number; width: number; height: number }) => ({
+  left: rect.left,
+  top: rect.top,
+  right: rect.left + rect.width,
+  bottom: rect.top + rect.height,
+});
+
 const overlaps = (left: ReturnType<typeof box>, right: ReturnType<typeof box>) => !(
   left.right <= right.left
   || right.right <= left.left
@@ -24,6 +31,53 @@ describe("layoutAnnotationMarkers", () => {
 
     expect(placements).toHaveLength(2);
     expect(overlaps(box(placements[0]!.left, placements[0]!.top), box(placements[1]!.left, placements[1]!.top))).toBe(false);
+  });
+
+  it("does not place a note inside an adjacent target", () => {
+    const beta = { left: 10, top: 76, width: 540, height: 296 };
+    const gamma = { left: 550, top: 76, width: 540, height: 296 };
+    const placements = layoutAnnotationMarkers([
+      { id: "beta", rect: beta },
+      { id: "gamma", rect: gamma },
+    ], { width: 1128, height: 416 });
+
+    const betaMarker = box(placements.find((placement) => placement.id === "beta")!.left,
+      placements.find((placement) => placement.id === "beta")!.top);
+    const gammaMarker = box(placements.find((placement) => placement.id === "gamma")!.left,
+      placements.find((placement) => placement.id === "gamma")!.top);
+    expect(overlaps(betaMarker, rectBox(gamma))).toBe(false);
+    expect(overlaps(gammaMarker, rectBox(beta))).toBe(false);
+  });
+
+  it("avoids transient selection and note-trigger obstacles", () => {
+    const target = { left: 80, top: 80, width: 220, height: 150 };
+    const obstacle = { left: 306, top: 80, width: 24, height: 24 };
+    const [placement] = layoutAnnotationMarkers([
+      { id: "saved-note", rect: target },
+    ], { width: 520, height: 320 }, { obstacles: [obstacle] });
+
+    expect(placement).toBeDefined();
+    expect(overlaps(box(placement!.left, placement!.top), rectBox(obstacle))).toBe(false);
+  });
+
+  it("tries another nearby side before drifting down one edge", () => {
+    const target = { left: 120, top: 100, width: 180, height: 120 };
+    const rightSideObstacle = { left: 306, top: 70, width: 40, height: 190 };
+    const [placement] = layoutAnnotationMarkers([
+      { id: "owned", rect: target },
+    ], { width: 600, height: 400 }, { obstacles: [rightSideObstacle] });
+
+    expect(placement).toBeDefined();
+    const markerCenter = {
+      x: placement!.left + 12,
+      y: placement!.top + 12,
+    };
+    const targetCenter = {
+      x: target.left + target.width / 2,
+      y: target.top + target.height / 2,
+    };
+    expect(Math.hypot(markerCenter.x - targetCenter.x, markerCenter.y - targetCenter.y)).toBeLessThan(180);
+    expect(overlaps(box(placement!.left, placement!.top), rectBox(rightSideObstacle))).toBe(false);
   });
 
   it("keeps every marker inside the viewport", () => {
