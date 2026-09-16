@@ -28,7 +28,8 @@ const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
 const PROTECTED_ANNOTATION_Z_INDEX = "2147483647";
-const ANNOTATION_HIGHLIGHT_Z_INDEX = "2147483646";
+const ANNOTATION_PANEL_Z_INDEX = "2147483646";
+const ANNOTATION_HIGHLIGHT_Z_INDEX = "2147483645";
 const annotationButtonClass = "msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:cursor-default msr:disabled:opacity-40";
 let annotationAnchorSequence = 0;
 
@@ -486,30 +487,65 @@ export function ContextActions(props: ContextActionsProps) {
     const currentWindow = ownerWindow();
     const padding = 8;
     const markerSize = 24;
-    const targetGap = 6;
     const panelGap = 8;
     const panelWidth = 272;
     const panelHeight = 176;
-    const rightMarkerLeft = value.left + value.width + targetGap;
-    const rightPanelLeft = rightMarkerLeft + markerSize + panelGap;
-    const leftMarkerLeft = value.left - targetGap - markerSize;
-    const leftPanelLeft = leftMarkerLeft - panelGap - panelWidth;
-    const fitsRight = rightPanelLeft + panelWidth <= currentWindow.innerWidth - padding;
-    const fitsLeft = leftPanelLeft >= padding;
-    const panelLeft = fitsRight
-      ? rightPanelLeft
-      : fitsLeft
-        ? leftPanelLeft
-        : placeSurfaceNear(value, panelWidth, panelHeight, currentWindow).left;
     const draggedPanel = panelPositions()[annotationId];
-    return {
-      left: draggedPanel
-        ? clamp(draggedPanel.left, padding, currentWindow.innerWidth - panelWidth - padding)
-        : panelLeft,
-      top: draggedPanel
-        ? clamp(draggedPanel.top, padding, currentWindow.innerHeight - panelHeight - padding)
-        : clamp(value.top, padding, currentWindow.innerHeight - panelHeight - padding),
+    if (draggedPanel) {
+      return {
+        left: clamp(draggedPanel.left, padding, currentWindow.innerWidth - panelWidth - padding),
+        top: clamp(draggedPanel.top, padding, currentWindow.innerHeight - panelHeight - padding),
+      };
+    }
+
+    const positions = annotationMarkerPositions();
+    const activeMarker = positions.get(annotationId);
+    if (!activeMarker) return placeSurfaceNear(value, panelWidth, panelHeight, currentWindow);
+
+    const maxLeft = currentWindow.innerWidth - panelWidth - padding;
+    const maxTop = currentWindow.innerHeight - panelHeight - padding;
+    const markerRects = [...positions.values()].map((position) => ({
+      left: position.left,
+      top: position.top,
+      width: markerSize,
+      height: markerSize,
+    }));
+    const overlapArea = (left: PositionedRect, right: PositionedRect) => {
+      const width = Math.max(0, Math.min(left.left + left.width, right.left + right.width) - Math.max(left.left, right.left));
+      const height = Math.max(0, Math.min(left.top + left.height, right.top + right.height) - Math.max(left.top, right.top));
+      return width * height;
     };
+    const seen = new Set<string>();
+    const candidates = [
+      { left: activeMarker.left + markerSize + panelGap, top: activeMarker.top },
+      { left: activeMarker.left - panelWidth - panelGap, top: activeMarker.top },
+      { left: activeMarker.left, top: activeMarker.top + markerSize + panelGap },
+      { left: activeMarker.left, top: activeMarker.top - panelHeight - panelGap },
+    ].map((candidate) => ({
+      left: clamp(candidate.left, padding, maxLeft),
+      top: clamp(candidate.top, padding, maxTop),
+    })).filter((candidate) => {
+      const key = `${candidate.left}:${candidate.top}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const ranked = candidates.map((candidate, index) => {
+      const rect = { ...candidate, width: panelWidth, height: panelHeight };
+      const markerOverlap = markerRects.reduce((total, marker) => total + overlapArea(rect, marker), 0);
+      return {
+        candidate,
+        markerOverlap,
+        targetOverlap: overlapArea(rect, value),
+        index,
+      };
+    }).sort((left, right) =>
+      left.markerOverlap - right.markerOverlap
+      || left.targetOverlap - right.targetOverlap
+      || left.index - right.index,
+    );
+
+    return ranked[0]?.candidate ?? placeSurfaceNear(value, panelWidth, panelHeight, currentWindow);
   };
 
   const openAnnotation = (annotationId: string) => {
@@ -864,7 +900,7 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-annotation-panel="true"
             data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
             class="mesurer-menu-surface msr:pointer-events-auto msr:fixed msr:z-[95] msr:w-[272px] msr:max-h-[220px] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
-            style={{ left: `${position().left}px`, top: `${position().top}px`, "z-index": PROTECTED_ANNOTATION_Z_INDEX }}
+            style={{ left: `${position().left}px`, top: `${position().top}px`, "z-index": ANNOTATION_PANEL_Z_INDEX }}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
