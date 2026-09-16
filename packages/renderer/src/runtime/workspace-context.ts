@@ -426,11 +426,9 @@ export function createMesurerWorkspaceRuntime(options: {
         : null;
     },
     annotations() {
-      refreshAnnotations();
       return annotations.map(copyAnnotation);
     },
     annotation(id) {
-      refreshAnnotations();
       const annotation = annotations.find((item) => item.id === id);
       if (!annotation) return null;
       const copy = copyAnnotation(annotation);
