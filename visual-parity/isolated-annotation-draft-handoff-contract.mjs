@@ -69,32 +69,32 @@ try {
   await subjectSelect("#isolated-scroll-target");
   await settle();
 
-  const trigger = page.locator(
-    "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
-  );
-  const composer = page.locator(
-    "[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']",
-  );
+  const contextRoot = page.locator("[data-mesurer-context-root='true']");
+  const trigger = contextRoot.locator("[data-mesurer-annotation-trigger='true']");
+  const composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
   await trigger.waitFor({ state: "visible", timeout: 3000 });
 
   const topology = await trigger.evaluate((element) => {
-    const contextRoot = element.closest("[data-mesurer-context-root='true']");
-    const rendererRoot = element.closest("[data-mesurer-root='true']");
+    const root = element.closest("[data-mesurer-context-root='true']");
     return {
-      hasContextRoot: contextRoot instanceof HTMLElement,
-      hasRendererRoot: rendererRoot instanceof HTMLElement,
-      contextInsideRenderer: Boolean(contextRoot && rendererRoot && rendererRoot.contains(contextRoot)),
-      legacyContextDocumentLayers: document.querySelectorAll("[data-mesurer-context-document-layer='true']").length,
-      legacyDocumentInspectorRuntimes: document.querySelectorAll("[data-mesurer-document-inspector-runtime='true']").length,
+      hasContextRoot: root instanceof HTMLElement,
+      rootIsDocument: root?.getRootNode() === document,
+      documentMount: root instanceof HTMLElement ? root.dataset.mesurerDocumentInspectorMount ?? null : null,
+      insideRenderer: Boolean(root?.closest("[data-mesurer-root='true']")),
+      coordinateSpace: element.dataset.mesurerContextCoordinateSpace ?? null,
+      scrollMode: element.dataset.mesurerAnnotationScrollMode ?? null,
+      position: getComputedStyle(element).position,
     };
   });
   assert.deepEqual(topology, {
     hasContextRoot: true,
-    hasRendererRoot: true,
-    contextInsideRenderer: true,
-    legacyContextDocumentLayers: 0,
-    legacyDocumentInspectorRuntimes: 0,
-  }, `Context handoff UI must be owned only by the canonical renderer root: ${JSON.stringify(topology)}`);
+    rootIsDocument: true,
+    documentMount: "true",
+    insideRenderer: false,
+    coordinateSpace: "document",
+    scrollMode: "document",
+    position: "absolute",
+  }, `Context handoff UI must use the document scroll plane: ${JSON.stringify(topology)}`);
 
   await clickCenter(trigger, "first selection Add Note trigger");
   await composer.waitFor({ state: "visible", timeout: 3000 });
@@ -110,8 +110,8 @@ try {
   };
 
   // Reproduce a host that sends a physical press at the new coordinates without
-  // first delivering a pointermove there. The draft must still disappear during
-  // pointerdown itself, and the same physical gesture must remain owned by Select.
+  // first delivering a pointermove there. The draft must disappear during the
+  // press itself, and the same gesture must remain owned by Select.
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Input.dispatchMouseEvent", {
     type: "mousePressed",
@@ -149,12 +149,12 @@ try {
   await settle();
 
   const readHandoff = () => page.evaluate(() => {
-    const subject = window.__MESURER_ISOLATED_SCROLL_TEST__?.subject;
-    if (!subject) throw new Error("Expected mounted isolated Mesurer subject");
     const target = document.querySelector("#isolated-annotation-handoff-target");
-    const nextTrigger = subject.root.querySelector("[data-mesurer-annotation-trigger='true']");
+    const nextTrigger = document.querySelector(
+      "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
+    );
     if (!(target instanceof HTMLElement) || !(nextTrigger instanceof HTMLElement)) {
-      throw new Error("Missing second target or canonical-root Add Note trigger");
+      throw new Error("Missing second target or document-owned Add Note trigger");
     }
     const targetRect = target.getBoundingClientRect();
     const triggerRect = nextTrigger.getBoundingClientRect();
@@ -163,14 +163,17 @@ try {
       target: { left: targetRect.left, top: targetRect.top, width: targetRect.width, height: targetRect.height },
       trigger: { left: triggerRect.left, top: triggerRect.top, width: triggerRect.width, height: triggerRect.height },
       mode: nextTrigger.dataset.mesurerAnnotationScrollMode ?? null,
+      coordinateSpace: nextTrigger.dataset.mesurerContextCoordinateSpace ?? null,
+      position: getComputedStyle(nextTrigger).position,
+      cachedY: nextTrigger.style.getPropertyValue("--mesurer-nested-scroll-y"),
     };
   });
 
   const handoff = await readHandoff();
-  assert(
-    handoff.mode === "native-anchor" || handoff.mode === "cached-delta",
-    `restored Add Note trigger must expose a supported scroll owner: ${JSON.stringify(handoff)}`,
-  );
+  assert.equal(handoff.mode, "document", `restored Add Note trigger must use document scrolling: ${JSON.stringify(handoff)}`);
+  assert.equal(handoff.coordinateSpace, "document", "restored Add Note trigger must use document coordinates");
+  assert.equal(handoff.position, "absolute", "restored Add Note trigger must use absolute document positioning");
+  assert.equal(handoff.cachedY, "", "window scrolling must not use a cached JS delta");
   const targetCenter = {
     x: handoff.target.left + handoff.target.width / 2,
     y: handoff.target.top + handoff.target.height / 2,
@@ -184,28 +187,42 @@ try {
     `restored Add Note trigger must belong to B: ${JSON.stringify(handoff)}`,
   );
 
-  // Gate the observable invariant: target and trigger move together through an
-  // ordinary compositor-owned window scroll with no drift or catch-up frame.
-  await page.evaluate(() => window.scrollBy({ top: 240, behavior: "instant" }));
-  await settle();
-  const afterScroll = await readHandoff();
-  const scrollDelta = afterScroll.scrollY - handoff.scrollY;
+  // Gate first-paint and settled geometry. Both must preserve the target-relative
+  // offset because the page and Context now share one document scroll tree.
+  const afterScroll = await page.evaluate(async () => {
+    const snapshot = () => {
+      const target = document.querySelector("#isolated-annotation-handoff-target");
+      const action = document.querySelector(
+        "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
+      );
+      if (!(target instanceof HTMLElement) || !(action instanceof HTMLElement)) {
+        throw new Error("Missing handoff target or Add Note action during scroll");
+      }
+      const targetRect = target.getBoundingClientRect();
+      const actionRect = action.getBoundingClientRect();
+      return {
+        scrollY: window.scrollY,
+        targetTop: targetRect.top,
+        triggerTop: actionRect.top,
+        relativeTop: actionRect.top - targetRect.top,
+        cachedY: action.style.getPropertyValue("--mesurer-nested-scroll-y"),
+      };
+    };
+    window.scrollBy({ top: 240, behavior: "instant" });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const firstPaint = snapshot();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return { firstPaint, settled: snapshot() };
+  });
+  const scrollDelta = afterScroll.firstPaint.scrollY - handoff.scrollY;
   assert(Math.abs(scrollDelta - 240) < 1, `expected a 240px handoff scroll, got ${scrollDelta}`);
-  assert(
-    Math.abs((afterScroll.target.top - handoff.target.top) + scrollDelta) < 0.75,
-    `B must follow window scroll exactly: ${JSON.stringify({ handoff, afterScroll })}`,
-  );
-  assert(
-    Math.abs((afterScroll.trigger.top - handoff.trigger.top) + scrollDelta) < 0.75,
-    `restored Add Note trigger must follow B exactly: ${JSON.stringify({ handoff, afterScroll })}`,
-  );
-  assert(
-    Math.abs(
-      (afterScroll.trigger.top - afterScroll.target.top)
-      - (handoff.trigger.top - handoff.target.top),
-    ) < 0.75,
-    `restored Add Note trigger must not drift relative to B: ${JSON.stringify({ handoff, afterScroll })}`,
-  );
+  for (const sample of [afterScroll.firstPaint, afterScroll.settled]) {
+    assert(
+      Math.abs(sample.relativeTop - (handoff.trigger.top - handoff.target.top)) < 0.75,
+      `restored Add Note trigger drifted relative to B: ${JSON.stringify({ handoff, afterScroll })}`,
+    );
+    assert.equal(sample.cachedY, "", "window scrolling must not write cached JS compensation");
+  }
 
   await clickCenter(trigger, "second selection Add Note trigger");
   await composer.waitFor({ state: "visible", timeout: 3000 });
@@ -217,7 +234,7 @@ try {
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
   console.log("Isolated annotation draft handoff: PASS", {
-    canonicalRootOwnership: true,
+    documentContextOwnership: true,
     composerDismissedOnPointerDown: true,
     selectionTransferredOnPointerUp: true,
     restoredTriggerMode: handoff.mode,
