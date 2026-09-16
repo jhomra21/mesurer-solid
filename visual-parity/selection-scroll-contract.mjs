@@ -5,6 +5,7 @@ const url = process.env.SELECTION_SCROLL_URL ?? "http://127.0.0.1:4174/";
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
+const DOCUMENT_SELECTED_ROOT = "[data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']";
 
 page.on("pageerror", (error) => errors.push(String(error)));
 page.on("console", (message) => {
@@ -121,7 +122,7 @@ try {
 
   let targetBox = await box(target, "target before selection");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
-  const selectedRoot = page.locator("[data-mesurer-selected-measurement='true']").first();
+  const selectedRoot = page.locator(DOCUMENT_SELECTED_ROOT).first();
   const selected = selectedRoot.locator(":scope > div").first();
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
   await selectedRoot.waitFor({ state: "attached" });
@@ -139,7 +140,7 @@ try {
   // teardown. Sample that hidden geometry directly during the physical wheel.
   const selectedWheel = await sampleRealWheel(80, {
     target: ".feature-copy .kicker",
-    selected: "[data-mesurer-selected-measurement='true'] > div",
+    selected: `${DOCUMENT_SELECTED_ROOT} > div`,
   });
   assert(selectedWheel.before.selected && selectedWheel.after.selected, "selection wheel probe expected selected geometry");
   assertMoved(selectedWheel.before.target, selectedWheel.after.target, "selected page target under real wheel");
@@ -199,7 +200,7 @@ try {
   // reconcile to exact target geometry before ownership can be handed back.
   const continuity = await monitorWheelContinuity(48, {
     target: ".feature-copy .kicker",
-    selected: "[data-mesurer-selected-measurement='true'] > div",
+    selected: `${DOCUMENT_SELECTED_ROOT} > div`,
     ring: "[data-mesurer-text-edit-ring='true']",
     inspector: "[data-mesurer-text-inspector-info='true']",
   });
@@ -239,7 +240,7 @@ try {
   await editor.focus();
   await page.keyboard.press("Escape");
   await editor.waitFor({ state: "detached" });
-  await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true']")?.hasAttribute("data-mesurer-direct-edit-selection-suppressed") === false);
+  await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']")?.hasAttribute("data-mesurer-direct-edit-selection-suppressed") === false);
   await arrange.click();
   await page.waitForFunction(() => document.querySelector("button[data-mesurer-tool-id='arrange']")?.getAttribute("aria-pressed") === "false");
   await selected.waitFor({ state: "visible" });
