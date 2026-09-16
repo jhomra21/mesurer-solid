@@ -1,6 +1,7 @@
 import { render } from "@solidjs/web";
 import {
   ContextActionsSelectOwnership,
+  createDocumentInspectorMount,
   type ContextActionsController,
   type ContextActionsProps,
   type MesurerSolidRuntimeService,
@@ -133,10 +134,9 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       const solid = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
       if (!solid) throw new Error("Mesurer context plugin requires the renderer runtime service.");
 
-      // Context is interactive Mesurer UI. Keep it in the canonical inspector
-      // root instead of creating a second document-backed interaction plane.
-      // Page-following geometry is handled by ContextActions' viewport/cached
-      // scroll positioning, so selection and Context share one pointer owner.
+      // Annotation markers/cards are page evidence, not viewport furniture. Put
+      // their interactive root in the same document scroll tree as the selected
+      // page element; the canonical toolbar remains isolated in its normal root.
       const runtime = solid.createWorkspaceRuntime();
       const service = createService(runtime, solid.ownerDocument, solid.ownerWindow);
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
@@ -188,10 +188,6 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
           region: nextSelection.region ? { ...nextSelection.region } : null,
         };
 
-        // A transient note draft is valid only while no Select gesture is
-        // active and the captured selection remains current. Do not depend on
-        // a cached false→true edge: every renderer-model notification is an
-        // opportunity to enforce the ownership invariant synchronously.
         if (runtime.selectGestureActive()) uiController?.abandonNoteComposer();
         else if (selectionChanged) uiController?.closeNoteComposer();
 
@@ -214,14 +210,14 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
 
       const createUi = () => {
         if (uiMount) return;
-        uiMount = solid.createInspectorMount();
+        uiMount = createDocumentInspectorMount(solid);
         uiMount.element.dataset.mesurerLayer = "evidence";
         uiMount.element.dataset.mesurerContextRoot = "true";
         const actionProps: ContextActionsProps = {
           runtime,
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
-          coordinateSpace: "viewport",
+          coordinateSpace: "document",
         };
         disposeUi = render(() => (
           <ContextActionsSelectOwnership
