@@ -35,8 +35,11 @@ const containsPoint = (rect: CachedUiRect, x: number, y: number) => (
  * redispatched or synthesized.
  *
  * Geometry is sampled when Mesurer-owned UI changes, on resize, and once after
- * scrolling settles. Pointer movement is O(number of visible Mesurer surfaces)
- * scalar containment checks only, and the scroll hot path does no layout reads.
+ * scrolling settles. Pointer movement is normally O(number of visible Mesurer
+ * surfaces) scalar containment checks only. If UI changed after the last paint,
+ * the first pointer hover/over flushes that one already-scheduled capture before
+ * the ensuing press; steady-state pointer movement and the scroll hot path do no
+ * layout reads.
  */
 export function installIsolatedDocumentUiPassthrough(
   ctx: MesurerPluginContext,
@@ -106,6 +109,14 @@ export function installIsolatedDocumentUiPassthrough(
     captureFrame = ownerWindow.requestAnimationFrame(capture);
   };
 
+  const flushScheduledCapture = () => {
+    if (!captureFrame) return false;
+    ownerWindow.cancelAnimationFrame(captureFrame);
+    captureFrame = 0;
+    capture();
+    return true;
+  };
+
   const isMesurerUiNode = (node: Node) => {
     if (!(node instanceof realm.Element)) return false;
     return node.matches(DOCUMENT_UI_SELECTOR)
@@ -128,9 +139,9 @@ export function installIsolatedDocumentUiPassthrough(
     attributeFilter: ["style", "class", "hidden", "aria-hidden"],
   });
 
-  const onPointerMove = (event: PointerEvent) => {
+  const applyPointerEvent = (event: PointerEvent) => {
     pointer = { x: event.clientX, y: event.clientY };
-    applyPointer();
+    if (!flushScheduledCapture()) applyPointer();
   };
   const onPointerLeave = () => {
     pointer = null;
@@ -145,7 +156,12 @@ export function installIsolatedDocumentUiPassthrough(
     }, SCROLL_IDLE_MS);
   };
 
-  ownerWindow.addEventListener("pointermove", onPointerMove, true);
+  // Hover-capable pointers normally arrive through pointermove. Non-hover input
+  // (touch/stylus tap) emits pointerover before pointerdown, which gives the same
+  // shared boundary a chance to expose the real document control without a
+  // synthetic redispatch.
+  ownerWindow.addEventListener("pointermove", applyPointerEvent, true);
+  ownerWindow.addEventListener("pointerover", applyPointerEvent, true);
   ownerWindow.addEventListener("blur", onPointerLeave, true);
   ownerWindow.addEventListener("resize", onResize, true);
   ownerWindow.addEventListener("scroll", onScroll, true);
@@ -156,7 +172,8 @@ export function installIsolatedDocumentUiPassthrough(
     observer.disconnect();
     if (captureFrame) ownerWindow.cancelAnimationFrame(captureFrame);
     if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
-    ownerWindow.removeEventListener("pointermove", onPointerMove, true);
+    ownerWindow.removeEventListener("pointermove", applyPointerEvent, true);
+    ownerWindow.removeEventListener("pointerover", applyPointerEvent, true);
     ownerWindow.removeEventListener("blur", onPointerLeave, true);
     ownerWindow.removeEventListener("resize", onResize, true);
     ownerWindow.removeEventListener("scroll", onScroll, true);
