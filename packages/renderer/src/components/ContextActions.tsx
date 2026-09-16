@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import type { MesurerAnnotation, MesurerContextRequest, MesurerWorkspaceRuntime } from "../runtime/workspace-context";
 import {
   installNestedScrollCompensation,
@@ -416,7 +416,7 @@ export function ContextActions(props: ContextActionsProps) {
     const value = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
     const currentWindow = ownerWindow();
     const size = 24;
-    const markerObstacles = [...annotationMarkerPositions().values()].map((position) => ({
+    const markerObstacles = [...untrack(annotationMarkerPositions).values()].map((position) => ({
       left: position.left,
       top: position.top,
       width: size,
