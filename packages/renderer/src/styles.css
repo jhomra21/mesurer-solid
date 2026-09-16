@@ -159,11 +159,17 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   z-index: 2147483647 !important;
 }
 
-/* Context is interactive Mesurer UI and stays inside the canonical root. Its
-   selection-adjacent trigger follows page movement with cached scroll deltas;
-   it never needs a document-backed interaction layer or input bridge. */
+/* Context is interactive Mesurer UI and stays inside the canonical root. Native
+   annotation surfaces use fixed anchor positioning so anchor() is interpreted
+   in viewport coordinates while the browser moves them with the page target.
+   Window scrolling therefore requires no main-thread delta writes. Nested
+   overflow scrolling may still contribute the lightweight cached delta. */
 [data-mesurer-annotation-trigger="true"] {
   z-index: 80 !important;
+}
+
+[data-mesurer-annotation-scroll-mode="native-anchor"] {
+  position: fixed !important;
 }
 
 /* Annotation markers reserve a stable 24px interaction box. The visible number
