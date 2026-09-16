@@ -9,6 +9,8 @@ export { ContextActions } from "./components/ContextActions";
 export type { ContextActionsController, ContextActionsProps } from "./components/ContextActions";
 export { ContextActionsSelectOwnership } from "./components/ContextActionsSelectOwnership";
 export type { ContextActionsSelectOwnershipProps } from "./components/ContextActionsSelectOwnership";
+export { createDocumentInspectorMount } from "./runtime/document-inspector-mount";
+export type { DocumentInspectorMount } from "./runtime/document-inspector-mount";
 export { createMesurerWorkspaceRuntime } from "./runtime/workspace-context";
 export {
   MESURER_SELECT_GESTURE_START_EVENT,
