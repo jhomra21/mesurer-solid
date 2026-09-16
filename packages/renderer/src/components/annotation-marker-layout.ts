@@ -31,6 +31,12 @@ type MarkerLayoutOptions = {
   obstacles?: readonly AnnotationMarkerRect[];
   /** Bound local displacement so a note cannot drift into another target's visual territory. */
   maxShiftRings?: number;
+  /**
+   * Viewport-aware placement is useful for transient controls, but saved
+   * annotations are page-owned evidence. Their offsets must remain invariant
+   * under page translation so scrolling cannot relane or pin them to an edge.
+   */
+  viewportAware?: boolean;
 };
 
 type CandidateGroup = {
@@ -56,6 +62,7 @@ const candidateGroups = (
   viewport: AnnotationMarkerViewport,
   markerSize: number,
   targetGap: number,
+  viewportAware: boolean,
 ): CandidateGroup[] => {
   const right = rect.left + rect.width;
   const bottom = rect.top + rect.height;
@@ -93,7 +100,9 @@ const candidateGroups = (
       ],
     },
   ];
-  return groups.sort((left, right) => right.space - left.space);
+  return viewportAware
+    ? groups.sort((left, right) => right.space - left.space)
+    : groups;
 };
 
 /**
@@ -136,6 +145,11 @@ const localCandidates = (
  * markers overlap or visually enter another target's territory. Geometry is an
  * ephemeral renderer concern: annotation data stays target-bound and contains no
  * presentation offsets.
+ *
+ * Source-relative layout is the default. Translating every target by the same
+ * scroll delta therefore translates every marker by exactly that delta. Opt in
+ * to `viewportAware` only for transient controls that intentionally need to be
+ * clamped to the currently visible viewport.
  */
 export function layoutAnnotationMarkers(
   items: readonly AnnotationMarkerItem[],
@@ -149,6 +163,7 @@ export function layoutAnnotationMarkers(
   const viewportPadding = options.viewportPadding ?? 4;
   const obstacles = options.obstacles ?? [];
   const maxShiftRings = Math.max(0, options.maxShiftRings ?? 2);
+  const viewportAware = options.viewportAware ?? false;
   const step = markerSize + markerGap;
   const maxLeft = Math.max(viewportPadding, viewport.width - markerSize - viewportPadding);
   const maxTop = Math.max(viewportPadding, viewport.height - markerSize - viewportPadding);
@@ -159,12 +174,14 @@ export function layoutAnnotationMarkers(
   for (const item of items) {
     const seen = new Set<string>();
     const candidates: Array<{ left: number; top: number }> = [];
-    const groups = candidateGroups(item.rect, viewport, markerSize, targetGap);
+    const groups = candidateGroups(item.rect, viewport, markerSize, targetGap, viewportAware);
     for (const point of localCandidates(groups, step, maxShiftRings)) {
-      const normalized = {
-        left: clamp(point.left, viewportPadding, maxLeft),
-        top: clamp(point.top, viewportPadding, maxTop),
-      };
+      const normalized = viewportAware
+        ? {
+            left: clamp(point.left, viewportPadding, maxLeft),
+            top: clamp(point.top, viewportPadding, maxTop),
+          }
+        : point;
       const key = `${normalized.left}:${normalized.top}`;
       if (seen.has(key)) continue;
       seen.add(key);
