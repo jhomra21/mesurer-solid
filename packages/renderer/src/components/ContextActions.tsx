@@ -152,16 +152,12 @@ export function ContextActions(props: ContextActionsProps) {
   let surfaceDragCleanup: (() => void) | null = null;
   let anchorElement: HTMLSpanElement | undefined;
   let annotationTriggerElement: HTMLButtonElement | undefined;
-  let noteComposerElement: HTMLDivElement | undefined;
   let trackedTriggerElement: HTMLElement | null = null;
   let anchoredTriggerElement: HTMLElement | null = null;
   let releaseTriggerAnchor: (() => void) | null = null;
   let nestedTriggerScroll: MesurerNestedScrollCompensation | null = null;
   let triggerResizeObserver: ResizeObserver | null = null;
   let triggerResizeWindow: Window | null = null;
-  const annotationMarkerElements = new Map<string, HTMLButtonElement>();
-  const annotationPanelElements = new Map<string, HTMLDivElement>();
-  const annotationHighlightElements = new Map<string, Set<HTMLDivElement>>();
   const annotationScrollBindings = new Map<string, AnnotationScrollBinding>();
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
@@ -211,26 +207,19 @@ export function ContextActions(props: ContextActionsProps) {
       ?? elements[0];
   };
 
-  const selectionScrollSurfaces = () => [
-    anchoredTriggerElement ? null : annotationTriggerElement,
-    noteComposerElement,
-  ];
-
+  const contextRoot = () => anchorElement?.parentElement;
+  const selectionScrollSurfaces = () => {
+    const root = contextRoot();
+    if (!root) return [];
+    return [...root.querySelectorAll<HTMLElement>(
+      "[data-mesurer-annotation-trigger='true'], [data-mesurer-annotation-composer='true']",
+    )].filter((surface) => surface !== annotationTriggerElement || anchoredTriggerElement === null);
+  };
   const annotationScrollSurfaces = (annotationId: string) => {
-    const values = new Set<HTMLElement>();
-    const marker = annotationMarkerElements.get(annotationId);
-    const panel = annotationPanelElements.get(annotationId);
-    if (marker?.isConnected) values.add(marker);
-    if (panel?.isConnected) values.add(panel);
-    const highlights = annotationHighlightElements.get(annotationId);
-    if (highlights) {
-      for (const element of [...highlights]) {
-        if (element.isConnected) values.add(element);
-        else highlights.delete(element);
-      }
-      if (highlights.size === 0) annotationHighlightElements.delete(annotationId);
-    }
-    return values;
+    const root = contextRoot();
+    if (!root) return [];
+    return [...root.querySelectorAll<HTMLElement>("[data-mesurer-annotation-id]")]
+      .filter((surface) => surface.dataset.mesurerAnnotationId === annotationId);
   };
 
   const releaseAnnotationScrollBinding = (annotationId: string) => {
@@ -239,13 +228,11 @@ export function ContextActions(props: ContextActionsProps) {
     binding.scroll.release();
     annotationScrollBindings.delete(annotationId);
   };
-
   const annotationScrollTarget = (annotationId: string) => {
     const annotation = props.runtime.annotation(annotationId);
     if (!annotation || annotation.anchor.kind !== "elements") return null;
     return annotation.resolvedTargets.find(({ element }) => element?.isConnected)?.element ?? null;
   };
-
   const syncAnnotationScrollBinding = (annotationId: string) => {
     const target = annotationScrollTarget(annotationId);
     const existing = annotationScrollBindings.get(annotationId);
@@ -270,17 +257,19 @@ export function ContextActions(props: ContextActionsProps) {
       ),
     });
   };
-
   const syncAnnotationScrollBindings = () => {
     const liveIds = new Set(props.runtime.annotations().map((annotation) => annotation.id));
-    for (const annotationId of [...annotationScrollBindings.keys()]) {
+    for (const annotationId of annotationScrollBindings.keys()) {
       if (!liveIds.has(annotationId)) releaseAnnotationScrollBinding(annotationId);
     }
     for (const annotationId of liveIds) syncAnnotationScrollBinding(annotationId);
   };
-
-  const rebaseAnnotationScrollBindings = () => {
+  const syncAnnotationSurface = (annotationId: string) => {
+    ownerWindow().queueMicrotask(() => syncAnnotationScrollBinding(annotationId));
+  };
+  const reconcileAnnotationGeometry = () => {
     ownerWindow().queueMicrotask(() => {
+      syncAnnotationScrollBindings();
       for (const binding of annotationScrollBindings.values()) binding.scroll.rebase();
     });
   };
@@ -406,21 +395,17 @@ export function ContextActions(props: ContextActionsProps) {
     syncSelectionTriggerAnchor();
     if (targetChanged) bumpTriggerPlacement();
     setRevision((value) => value + 1);
-    syncAnnotationScrollBindings();
-    rebaseAnnotationScrollBindings();
+    reconcileAnnotationGeometry();
   });
   syncSelectionTriggerAnchor();
-  syncAnnotationScrollBindings();
+  ownerWindow().queueMicrotask(syncAnnotationScrollBindings);
   onCleanup(() => {
     triggerResizeObserver?.disconnect();
     triggerResizeObserver = null;
     triggerResizeWindow?.removeEventListener("resize", bumpTriggerPlacement);
     triggerResizeWindow = null;
     releaseSelectionTriggerAnchor();
-    for (const annotationId of [...annotationScrollBindings.keys()]) releaseAnnotationScrollBinding(annotationId);
-    annotationMarkerElements.clear();
-    annotationPanelElements.clear();
-    annotationHighlightElements.clear();
+    for (const annotationId of annotationScrollBindings.keys()) releaseAnnotationScrollBinding(annotationId);
     unsubscribe();
   });
 
@@ -645,6 +630,7 @@ export function ContextActions(props: ContextActionsProps) {
     setNoteComposerOpen(false);
     setActiveAnnotationId(annotationId);
     setStatus(null);
+    syncAnnotationSurface(annotationId);
   };
 
   const startSurfaceDrag = (event: PointerEvent & { currentTarget: HTMLDivElement }, surfaceId: string) => {
@@ -688,7 +674,7 @@ export function ContextActions(props: ContextActionsProps) {
       }
     };
     const end = (next: PointerEvent) => {
-      if (!surfaceDrag || next.pointerId !== surfaceDrag.pointerId) return;
+      if (!surfaceDrag || next.pointerId !== event.pointerId) return;
       root.style.userSelect = previousUserSelect;
       currentWindow.removeEventListener("pointermove", move);
       currentWindow.removeEventListener("pointerup", end);
@@ -741,6 +727,7 @@ export function ContextActions(props: ContextActionsProps) {
     setActiveAnnotationId(null);
     setComposerPosition(null);
     setNoteComposerOpen(true);
+    ownerWindow().queueMicrotask(() => nestedTriggerScroll?.sync());
   };
 
   const closeNoteComposer = () => {
@@ -773,6 +760,7 @@ export function ContextActions(props: ContextActionsProps) {
       setNoteComposerOpen(false);
       setComposerPosition(null);
       setActiveAnnotationId(annotation.id);
+      syncAnnotationSurface(annotation.id);
     } catch (error) {
       setNoteError(error instanceof Error ? error.message : String(error));
     }
@@ -844,10 +832,6 @@ export function ContextActions(props: ContextActionsProps) {
 
       <Show when={noteComposerOpen() && composerOwnsCurrentSelection() && selectionRect()}>
         <div
-          ref={(element) => {
-            noteComposerElement = element;
-            nestedTriggerScroll?.sync();
-          }}
           data-mesurer-layer="chrome"
           data-mesurer-inspector-ui="true"
           data-mesurer-annotation-composer="true"
@@ -908,17 +892,6 @@ export function ContextActions(props: ContextActionsProps) {
 
       <For each={annotationHighlightRects()}>{(rect) => (
         <div
-          ref={(element) => {
-            const annotationId = highlightedAnnotationId();
-            if (!annotationId) return;
-            let elements = annotationHighlightElements.get(annotationId);
-            if (!elements) {
-              elements = new Set();
-              annotationHighlightElements.set(annotationId, elements);
-            }
-            elements.add(element);
-            syncAnnotationScrollBinding(annotationId);
-          }}
           data-mesurer-layer="chrome"
           data-mesurer-inspector-ui="true"
           data-mesurer-annotation-target-highlight="true"
@@ -945,10 +918,6 @@ export function ContextActions(props: ContextActionsProps) {
         return (
           <Show when={position()}>{(value) => (
             <button
-              ref={(element) => {
-                annotationMarkerElements.set(annotation.id, element);
-                syncAnnotationScrollBinding(annotation.id);
-              }}
               type="button"
               data-mesurer-layer="evidence"
               data-mesurer-annotation-marker="true"
@@ -960,9 +929,15 @@ export function ContextActions(props: ContextActionsProps) {
               aria-label={`Mesurer annotation ${index() + 1}: ${annotation.note}`}
               title={annotation.note}
               aria-expanded={activeAnnotationId() === annotation.id ? "true" : "false"}
-              onPointerEnter={() => setHoveredAnnotationId(annotation.id)}
+              onPointerEnter={() => {
+                setHoveredAnnotationId(annotation.id);
+                syncAnnotationSurface(annotation.id);
+              }}
               onPointerLeave={() => setHoveredAnnotationId((current) => current === annotation.id ? null : current)}
-              onFocus={() => setFocusedAnnotationId(annotation.id)}
+              onFocus={() => {
+                setFocusedAnnotationId(annotation.id);
+                syncAnnotationSurface(annotation.id);
+              }}
               onBlur={() => setFocusedAnnotationId((current) => current === annotation.id ? null : current)}
               onPointerDown={(event) => {
                 event.preventDefault();
@@ -1011,10 +986,6 @@ export function ContextActions(props: ContextActionsProps) {
         const number = () => annotationNumber(annotation().id);
         return (
           <div
-            ref={(element) => {
-              annotationPanelElements.set(annotation().id, element);
-              syncAnnotationScrollBinding(annotation().id);
-            }}
             data-mesurer-layer="chrome"
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-panel="true"
@@ -1049,14 +1020,15 @@ export function ContextActions(props: ContextActionsProps) {
               <div class="msr:flex msr:items-center msr:gap-0.5">
                 <button type="button" class={annotationButtonClass} aria-label="Copy annotation context" title="Copy context" disabled={busy()} onClick={() => void run(() => props.onCopy({ annotation: annotation().id }), "Copied")}><CopyIcon size={14} /></button>
                 <button type="button" class={annotationButtonClass} aria-label="Delete annotation" title="Delete" onClick={() => {
-                  props.runtime.removeAnnotation(annotation().id);
+                  const annotationId = annotation().id;
+                  props.runtime.removeAnnotation(annotationId);
                   setPanelPositions((positions) => {
                     const next = { ...positions };
-                    delete next[annotation().id];
+                    delete next[annotationId];
                     return next;
                   });
-                  setHoveredAnnotationId((current) => current === annotation().id ? null : current);
-                  setFocusedAnnotationId((current) => current === annotation().id ? null : current);
+                  setHoveredAnnotationId((current) => current === annotationId ? null : current);
+                  setFocusedAnnotationId((current) => current === annotationId ? null : current);
                   setActiveAnnotationId(null);
                   setStatus(null);
                 }}><TrashIcon size={14} /></button>
