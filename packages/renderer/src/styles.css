@@ -166,6 +166,28 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   z-index: 80 !important;
 }
 
+/* Annotation markers reserve a stable 24px interaction box. The visible number
+   badge is 20px at rest and grows to the full box over the accepted 150ms hover,
+   focus, or active ownership transition. Width/height rather than transform are
+   used so browser geometry, screenshots, and accessibility hit testing all
+   observe the same visual size. */
+[data-mesurer-annotation-badge="true"] {
+  width: 20px !important;
+  height: 20px !important;
+  transform: none !important;
+  transition:
+    width 150ms ease,
+    height 150ms ease,
+    background 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease !important;
+}
+
+[data-mesurer-annotation-marker="true"][data-mesurer-annotation-highlighted="true"] > [data-mesurer-annotation-badge="true"] {
+  width: 24px !important;
+  height: 24px !important;
+}
+
 /* Direct text edit and Context coordinate through their shared renderer root.
    Root-local state works identically in normal DOM and isolated ShadowRoot
    mounts; no document-global style or cross-root selector is required. */
@@ -270,5 +292,9 @@ body.mesurer-solid-xray .mesurer-ti-close {
 @media (prefers-reduced-motion: reduce) {
   [data-mesurer-toolbar="true"] > div:has(> [data-mesurer-toolbar-compact-item]) {
     transition: none;
+  }
+
+  [data-mesurer-annotation-badge="true"] {
+    transition: none !important;
   }
 }
