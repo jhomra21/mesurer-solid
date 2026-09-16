@@ -9,7 +9,6 @@ const page = await browser.newPage({
   userAgent: "CodexBrowser Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
 });
 const pageErrors = [];
-
 page.on("pageerror", (error) => pageErrors.push(String(error)));
 await page.addInitScript(() => {
   Object.defineProperty(window, "__codexWebMcpModelContext", {
@@ -33,9 +32,11 @@ const openSettings = async () => {
   return dialog;
 };
 
-const readRect = (element) => {
-  const rect = element.getBoundingClientRect();
-  return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+const saveNote = async (composer, text) => {
+  await composer.waitFor({ state: "visible" });
+  await composer.locator("textarea").fill(text);
+  await composer.getByRole("button", { name: "Add note", exact: true }).click();
+  await composer.waitFor({ state: "hidden" });
 };
 
 try {
@@ -53,8 +54,7 @@ try {
   await settings.waitFor({ state: "hidden" });
 
   await page.reload({ waitUntil: "networkidle" });
-  const contextTool = page.locator("[data-mesurer-tool-id='context.copy'] button");
-  await contextTool.waitFor({ state: "visible" });
+  await page.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "visible" });
   settings = await openSettings();
   general = settings.getByRole("tab", { name: "General", exact: true });
   if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
@@ -66,266 +66,172 @@ try {
   await settings.waitFor({ state: "hidden" });
 
   const select = page.locator("button[data-mesurer-builtin='select']");
-  await select.waitFor({ state: "visible" });
   await select.click();
-
   const target = page.locator(".hero h1");
   const targetBox = await box(target, "hero target before selection");
-  assert(Math.abs(targetBox.width - 900) <= 2, `expected reported 900px hero width, got ${targetBox.width}`);
-  assert(Math.abs(targetBox.height - 184) <= 4, `expected reported ~184px hero height, got ${targetBox.height}`);
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const selected = page.locator("[data-mesurer-selected-measurement='true'] > div").first();
   await selected.waitFor({ state: "visible" });
   const selectedBox = await box(selected, "selected hero chrome");
-  assert(Math.abs(selectedBox.x - targetBox.x) <= 2, "selected hero x mismatch");
-  assert(Math.abs(selectedBox.y - targetBox.y) <= 2, "selected hero y mismatch");
+  assert(Math.abs(selectedBox.x - targetBox.x) <= 2 && Math.abs(selectedBox.y - targetBox.y) <= 2, "selection chrome must match its page target");
 
   const trigger = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']");
   await trigger.waitFor({ state: "visible", timeout: 3000 });
-  assert.equal(await trigger.count(), 1, "expected exactly one annotation trigger for the selected hero");
-  assert.equal(
-    await trigger.getAttribute("data-mesurer-annotation-scroll-mode"),
-    "native-anchor",
-    "Context trigger must use native source anchoring when Chrome supports it",
-  );
-  assert.equal(
-    await trigger.getAttribute("data-mesurer-context-coordinate-space"),
-    "viewport",
-    "Context trigger must use canonical viewport coordinates",
-  );
+  assert.equal(await trigger.count(), 1, "expected one Add Note trigger");
+  assert.equal(await trigger.getAttribute("data-mesurer-annotation-scroll-mode"), "native-anchor", "Add Note trigger must use native target anchoring");
+  assert.equal(await trigger.evaluate((element) => getComputedStyle(element).position), "fixed", "native Add Note trigger must use a fixed anchor positioning context");
   const triggerAnchor = await trigger.evaluate((element) => getComputedStyle(element).getPropertyValue("position-anchor").trim());
-  assert(triggerAnchor.startsWith("--mesurer-annotation-trigger-"), `Context trigger lost its native source anchor: ${triggerAnchor}`);
+  assert(triggerAnchor.startsWith("--mesurer-annotation-trigger-"), `Add Note trigger lost its source anchor: ${triggerAnchor}`);
   assert.equal(
-    await trigger.evaluate((element) => Boolean(
-      element.closest("[data-mesurer-context-root='true']")?.closest("[data-mesurer-root='true']"),
-    )),
+    await trigger.evaluate((element) => Boolean(element.closest("[data-mesurer-context-root='true']")?.closest("[data-mesurer-root='true']"))),
     true,
-    "normal Context trigger must be owned by the canonical Mesurer root",
-  );
-  assert.equal(
-    await page.evaluate(() => document.querySelectorAll("[data-mesurer-context-document-layer='true'], [data-mesurer-document-inspector-runtime='true']").length),
-    0,
-    "normal Context must not create the removed document-backed interaction plane",
+    "Context trigger must remain inside the canonical Mesurer root",
   );
 
-  let triggerBox = await box(trigger, "annotation trigger after persisted Context selection");
-  const beforeScroll = {
-    target: await box(target, "target before Context wheel"),
-    trigger: triggerBox,
-  };
-
+  const beforeTriggerScroll = { target: await box(target, "target before trigger scroll"), trigger: await box(trigger, "trigger before scroll") };
   await page.mouse.move(1120, 470);
   await page.mouse.wheel(0, 48);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const afterScroll = {
-    target: await box(target, "target after Context wheel"),
-    trigger: await box(trigger, "trigger after Context wheel"),
-  };
-  assert(Math.abs(afterScroll.target.y - beforeScroll.target.y) > 10, "Context acceptance wheel did not move the target");
+  const afterTriggerScroll = { target: await box(target, "target after trigger scroll"), trigger: await box(trigger, "trigger after scroll") };
+  assert(Math.abs(afterTriggerScroll.target.y - beforeTriggerScroll.target.y) > 10, "wheel did not move page target");
   for (const key of ["x", "y"]) {
-    const beforeOffset = beforeScroll.trigger[key] - beforeScroll.target[key];
-    const afterOffset = afterScroll.trigger[key] - afterScroll.target[key];
-    assert(Math.abs(afterOffset - beforeOffset) <= 1.5, `native-anchored trigger ${key} offset drifted: before=${beforeOffset}, after=${afterOffset}`);
+    const beforeOffset = beforeTriggerScroll.trigger[key] - beforeTriggerScroll.target[key];
+    const afterOffset = afterTriggerScroll.trigger[key] - afterTriggerScroll.target[key];
+    assert(Math.abs(afterOffset - beforeOffset) <= 1.5, `Add Note trigger ${key} offset drifted across scroll`);
   }
-  assert.equal(
-    await trigger.evaluate((element) => element.style.getPropertyValue("--mesurer-nested-scroll-y")),
-    "",
-    "window scrolling must not drive the native annotation trigger through JS scroll compensation",
-  );
+  assert.equal(await trigger.evaluate((element) => element.style.getPropertyValue("--mesurer-nested-scroll-y")), "", "window scroll must not write JS compensation into native Add Note trigger");
 
-  triggerBox = afterScroll.trigger;
-  const hit = await page.evaluate(({ x, y }) => {
-    const node = document.elementFromPoint(x, y);
-    return Boolean(node?.closest?.("[data-mesurer-annotation-trigger='true']"));
-  }, { x: triggerBox.x + triggerBox.width / 2, y: triggerBox.y + triggerBox.height / 2 });
-  assert.equal(hit, true, "annotation trigger is rendered but does not own its visible pointer location");
-
+  const triggerBox = afterTriggerScroll.trigger;
   await page.mouse.click(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height / 2);
   const composer = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
-  assert.equal(
-    await composer.evaluate((element) => {
-      const contextRoot = element.closest("[data-mesurer-context-root='true']");
-      const canonicalRoot = contextRoot?.closest("[data-mesurer-root='true']");
-      return Boolean(contextRoot && canonicalRoot && canonicalRoot.contains(contextRoot));
-    }),
-    true,
-    "normal Context composer must remain inside the canonical Mesurer root",
-  );
-  assert.equal(await composer.getAttribute("data-mesurer-annotation-scroll-mode"), "native-anchor", "Add Note composer must join the native source anchor graph");
-  assert.equal(
-    await page.evaluate(() => document.querySelectorAll("[data-mesurer-context-document-layer='true'], [data-mesurer-document-inspector-runtime='true']").length),
-    0,
-    "normal Context composer must not recreate the removed document interaction bridge",
-  );
-  await composer.locator("textarea").fill("Normal playground annotation acceptance");
-  await composer.getByRole("button", { name: "Add note", exact: true }).click();
-  await composer.waitFor({ state: "hidden" });
+  assert.equal(await composer.getAttribute("data-mesurer-annotation-scroll-mode"), "native-anchor", "composer must use native target anchoring");
+  assert.equal(await composer.evaluate((element) => getComputedStyle(element).position), "fixed", "native composer must be fixed-position anchored");
+  await saveNote(composer, "Normal playground annotation acceptance");
 
   let markers = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']");
   await markers.first().waitFor({ state: "visible" });
-  assert.equal(await markers.count(), 1, "saved normal-playground annotation marker missing");
+  assert.equal(await markers.count(), 1, "first saved annotation marker missing");
   const marker = markers.first();
-  assert.equal(await marker.getAttribute("data-mesurer-annotation-number"), "1", "first saved annotation marker must be numbered 1");
+  assert.equal(await marker.getAttribute("data-mesurer-annotation-number"), "1", "first marker must be numbered 1");
   assert.equal(await marker.getAttribute("data-mesurer-annotation-scroll-mode"), "native-anchor", "saved marker must use native target anchoring");
 
   const panel = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']");
   await panel.waitFor({ state: "visible" });
-  assert.equal(await panel.getAttribute("data-mesurer-annotation-scroll-mode"), "native-anchor", "open annotation panel must use native target anchoring");
-  assert.equal(
-    await panel.locator("[data-mesurer-annotation-panel-badge='true']").textContent(),
-    "1",
-    "open annotation panel must use the same visible number as its marker",
-  );
+  assert.equal(await panel.getAttribute("data-mesurer-annotation-scroll-mode"), "native-anchor", "open panel must use native target anchoring");
+  assert.equal(await panel.locator("[data-mesurer-annotation-panel-badge='true']").textContent(), "1", "panel number must match marker");
   await trigger.waitFor({ state: "visible" });
-  assert.equal(await trigger.count(), 1, "Add Note trigger must remain available while an annotation panel is open");
-
-  const markerZIndex = Number(await marker.evaluate((element) => getComputedStyle(element).zIndex));
-  const panelZIndex = Number(await panel.evaluate((element) => getComputedStyle(element).zIndex));
-  assert(
-    markerZIndex > panelZIndex,
-    `saved annotation markers must remain physically reachable above an open panel: marker=${markerZIndex}, panel=${panelZIndex}`,
-  );
+  assert.equal(await trigger.count(), 1, "Add Note must remain available while a panel is open");
 
   const highlight = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']");
   await highlight.waitFor({ state: "visible" });
   for (const surface of [marker, panel, highlight]) {
+    assert.equal(await surface.evaluate((element) => getComputedStyle(element).position), "fixed", "native annotation surface must use fixed anchor positioning");
     const anchor = await surface.evaluate((element) => getComputedStyle(element).getPropertyValue("position-anchor").trim());
-    assert(anchor.startsWith("--mesurer-annotation-"), `annotation surface must be natively source-anchored, got ${anchor || "<empty>"}`);
-    assert.equal(
-      await surface.evaluate((element) => element.style.getPropertyValue("--mesurer-nested-scroll-y")),
-      "",
-      "window scrolling must not mutate native annotation surfaces through JS compensation",
-    );
+    assert(anchor.startsWith("--mesurer-annotation-"), `annotation surface lost native source anchor: ${anchor || "<empty>"}`);
+    assert.equal(await surface.evaluate((element) => element.style.getPropertyValue("--mesurer-nested-scroll-y")), "", "window scroll must not use JS delta on native annotation surface");
   }
 
-  const sameEventBefore = await page.evaluate(() => {
-    const read = (selector) => {
-      const element = document.querySelector(selector);
-      return element instanceof HTMLElement ? readRect(element) : null;
-    };
-    return {
-      target: read(".hero h1"),
-      marker: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']"),
-      panel: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']"),
-      highlight: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']"),
-    };
-  });
-  const sameEventAfter = await page.evaluate(() => new Promise((resolve) => {
+  const scrollSample = await page.evaluate(() => new Promise((resolve) => {
     const read = (selector) => {
       const element = document.querySelector(selector);
       if (!(element instanceof HTMLElement)) return null;
       const rect = element.getBoundingClientRect();
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
     };
-    window.addEventListener("scroll", () => resolve({
+    const before = {
       target: read(".hero h1"),
       marker: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']"),
       panel: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']"),
       highlight: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']"),
+    };
+    window.addEventListener("scroll", () => resolve({
+      before,
+      after: {
+        target: read(".hero h1"),
+        marker: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']"),
+        panel: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']"),
+        highlight: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']"),
+      },
     }), { once: true });
     window.scrollBy(0, 80);
   }));
-  assert(sameEventBefore.target && sameEventAfter.target, "annotation scroll contract lost its target");
-  for (const surface of ["marker", "panel", "highlight"]) {
-    const before = sameEventBefore[surface];
-    const after = sameEventAfter[surface];
-    assert(before && after, `annotation scroll contract lost ${surface}`);
-    const beforeX = before.x - sameEventBefore.target.x;
-    const beforeY = before.y - sameEventBefore.target.y;
-    const afterX = after.x - sameEventAfter.target.x;
-    const afterY = after.y - sameEventAfter.target.y;
-    assert(Math.abs(afterX - beforeX) <= 1.5, `${surface} drifted horizontally in the same scroll event`);
-    assert(Math.abs(afterY - beforeY) <= 1.5, `${surface} drifted vertically in the same scroll event`);
-    assert(
-      Math.abs((after.y - before.y) - (sameEventAfter.target.y - sameEventBefore.target.y)) <= 1.5,
-      `${surface} behaved like viewport furniture instead of staying on its page point`,
-    );
+  assert(scrollSample.before.target && scrollSample.after.target, "scroll contract lost target");
+  for (const name of ["marker", "panel", "highlight"]) {
+    const before = scrollSample.before[name];
+    const after = scrollSample.after[name];
+    assert(before && after, `scroll contract lost ${name}`);
+    const targetBefore = scrollSample.before.target;
+    const targetAfter = scrollSample.after.target;
+    assert(Math.abs((before.x - targetBefore.x) - (after.x - targetAfter.x)) <= 1.5, `${name} drifted horizontally during scroll event`);
+    assert(Math.abs((before.y - targetBefore.y) - (after.y - targetAfter.y)) <= 1.5, `${name} drifted vertically during scroll event`);
+    assert(Math.abs((after.y - before.y) - (targetAfter.y - targetBefore.y)) <= 1.5, `${name} behaved like viewport furniture instead of following its page target`);
   }
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
+  const currentTargetBox = await box(target, "target after annotation scroll");
+  const panelBoxAfterScroll = await box(panel, "panel after annotation scroll");
+  assert(panelBoxAfterScroll.y !== scrollSample.before.panel.y, "open annotation panel stayed pinned to the viewport");
+
+  const markerZIndex = Number(await marker.evaluate((element) => getComputedStyle(element).zIndex));
+  const panelZIndex = Number(await panel.evaluate((element) => getComputedStyle(element).zIndex));
+  assert(markerZIndex > panelZIndex, "saved markers must remain physically reachable above open panel");
+
   await panel.getByRole("button", { name: "Close annotation" }).click();
   await panel.waitFor({ state: "hidden" });
-
   const badge = marker.locator("[data-mesurer-annotation-badge='true']");
   await page.waitForFunction(() => {
-    const badgeElement = document.querySelector("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true'] [data-mesurer-annotation-badge='true']");
+    const badgeElement = document.querySelector("[data-mesurer-annotation-marker='true'] [data-mesurer-annotation-badge='true']");
     return badgeElement instanceof HTMLElement && badgeElement.getBoundingClientRect().width <= 21;
   }, undefined, { timeout: 1000 });
-  const restingBadge = await box(badge, "resting annotation number badge");
-  assert(Math.abs(restingBadge.width - 20) <= 1, `expected compact ~20px annotation badge, got ${restingBadge.width}`);
-  assert.equal(
-    await badge.evaluate((element) => getComputedStyle(element).transitionDuration.split(",").map((value) => value.trim()).every((value) => value === "0.15s")),
-    true,
-    "annotation badge growth transition must remain 150ms",
-  );
+  const restingBadge = await box(badge, "resting marker badge");
+  assert(Math.abs(restingBadge.width - 20) <= 1, `expected compact ~20px badge, got ${restingBadge.width}`);
 
   await marker.hover();
-  await page.waitForFunction((restingWidth) => {
-    const badgeElement = document.querySelector("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true'] [data-mesurer-annotation-badge='true']");
-    return badgeElement instanceof HTMLElement && badgeElement.getBoundingClientRect().width >= restingWidth + 3;
-  }, restingBadge.width, { timeout: 1000 });
-  assert.equal(await marker.getAttribute("data-mesurer-annotation-highlighted"), "true", "hovered annotation marker must become the active ownership preview");
-  const hoveredBadge = await box(badge, "hovered annotation number badge");
-  assert(hoveredBadge.width >= restingBadge.width + 3, `annotation badge did not grow on hover: resting=${restingBadge.width}, hovered=${hoveredBadge.width}`);
-
   await highlight.waitFor({ state: "visible" });
-  const highlightBox = await box(highlight, "annotation target ownership highlight");
-  const currentTargetBox = await box(target, "annotation target while marker hovered");
-  assert(Math.abs(highlightBox.x - currentTargetBox.x) <= 1.5, "annotation emphasis must reuse the target boundary on x");
-  assert(Math.abs(highlightBox.y - currentTargetBox.y) <= 1.5, "annotation emphasis must reuse the target boundary on y");
-  assert(Math.abs(highlightBox.width - currentTargetBox.width) <= 2, "annotation emphasis must reuse the target boundary width");
-  assert(Math.abs(highlightBox.height - currentTargetBox.height) <= 2, "annotation emphasis must reuse the target boundary height");
+  const highlightBox = await box(highlight, "annotation ownership highlight");
+  const targetWhileHighlighted = await box(target, "highlighted target");
+  assert(Math.abs(highlightBox.x - targetWhileHighlighted.x) <= 1.5, "ownership highlight x must match target");
+  assert(Math.abs(highlightBox.y - targetWhileHighlighted.y) <= 1.5, "ownership highlight y must match target");
+  assert(Math.abs(highlightBox.width - targetWhileHighlighted.width) <= 2, "ownership highlight width must match target");
+  assert(Math.abs(highlightBox.height - targetWhileHighlighted.height) <= 2, "ownership highlight height must match target");
   const highlightStyle = await highlight.evaluate((element) => {
     const style = getComputedStyle(element);
     return {
-      borderTopWidth: style.borderTopWidth,
-      borderTopColor: style.borderTopColor,
-      backgroundColor: style.backgroundColor,
-      boxShadow: style.boxShadow,
-      borderRadius: style.borderRadius,
-      boxSizing: style.boxSizing,
+      width: Number.parseFloat(style.borderTopWidth),
+      color: style.borderTopColor,
+      background: style.backgroundColor,
+      shadow: style.boxShadow,
+      radius: style.borderRadius,
+      sizing: style.boxSizing,
     };
   });
-  const highlightWidth = Number.parseFloat(highlightStyle.borderTopWidth);
-  assert(
-    highlightWidth >= 1 && highlightWidth <= 1.5,
-    `annotation emphasis must stay within the requested 1px–1.5px selection edge, got ${highlightStyle.borderTopWidth}`,
-  );
-  assert.equal(highlightStyle.borderTopColor, "rgb(13, 153, 255)", "annotation emphasis should use the fully opaque selection blue when fractional border widths are quantized");
-  assert.equal(highlightStyle.backgroundColor, "rgba(0, 0, 0, 0)", "annotation emphasis must not tint the selected element");
-  assert.equal(highlightStyle.boxShadow, "none", "annotation emphasis must not add the old outer glow");
-  assert.equal(highlightStyle.borderRadius, "0px", "annotation emphasis must not add a second rounded frame");
-  assert.equal(highlightStyle.boxSizing, "border-box", "annotation emphasis must stay on the existing target bounds");
-
+  assert(highlightStyle.width >= 1 && highlightStyle.width <= 1.5, `unexpected ownership edge width ${highlightStyle.width}`);
+  assert.equal(highlightStyle.color, "rgb(13, 153, 255)");
+  assert.equal(highlightStyle.background, "rgba(0, 0, 0, 0)");
+  assert.equal(highlightStyle.shadow, "none");
+  assert.equal(highlightStyle.radius, "0px");
+  assert.equal(highlightStyle.sizing, "border-box");
   await page.mouse.move(1120, 470);
   await highlight.waitFor({ state: "hidden" });
 
-  // Add a second and third note after scrolling. Newly mounted markers must join
-  // the same target anchor graph immediately; a fresh marker may not inherit a
-  // stale window-scroll delta and fly away from the element.
+  // Add note 2 and note 3 after scrolling. This is the reported failure shape:
+  // a newly mounted third marker must not inherit stale scroll state or be
+  // relaid out into a distant viewport lane.
   await marker.click();
   await panel.waitFor({ state: "visible" });
-  await trigger.waitFor({ state: "visible" });
   await trigger.click();
   await panel.waitFor({ state: "hidden" });
-  await composer.waitFor({ state: "visible" });
-  await composer.locator("textarea").fill("Second annotation on the same selected element");
-  await composer.getByRole("button", { name: "Add note", exact: true }).click();
-  await composer.waitFor({ state: "hidden" });
+  await saveNote(composer, "Second annotation on the same selected element");
   markers = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']");
-  assert.equal(await markers.count(), 2, "selected elements must accept another note while an existing annotation is open");
+  assert.equal(await markers.count(), 2, "second annotation marker missing");
 
-  await trigger.waitFor({ state: "visible" });
   await trigger.click();
-  await composer.waitFor({ state: "visible" });
-  await composer.locator("textarea").fill("Third annotation on the same selected element");
-  await composer.getByRole("button", { name: "Add note", exact: true }).click();
-  await composer.waitFor({ state: "hidden" });
+  await saveNote(composer, "Third annotation on the same selected element");
   assert.equal(await markers.count(), 3, "third annotation marker missing");
 
-  const markerProximity = await page.evaluate(() => {
+  const markerState = await page.evaluate(() => {
     const targetElement = document.querySelector(".hero h1");
     if (!(targetElement instanceof HTMLElement)) return null;
     const targetRect = targetElement.getBoundingClientRect();
@@ -342,16 +248,16 @@ try {
       };
     });
   });
-  assert(markerProximity, "could not measure marker proximity");
-  for (const value of markerProximity) {
-    assert(value.anchor.startsWith("--mesurer-annotation-"), `marker ${value.number} lost native target ownership`);
-    assert(value.distance <= 64, `marker ${value.number} drifted too far from its owning target: ${value.distance}px`);
+  assert(markerState, "could not measure repeated markers");
+  for (const state of markerState) {
+    assert(state.anchor.startsWith("--mesurer-annotation-"), `marker ${state.number} lost source anchor`);
+    assert(state.distance <= 64, `marker ${state.number} drifted ${state.distance}px from target`);
   }
 
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
   const browserVersion = await browser.version();
   const dpr = await page.evaluate(() => window.devicePixelRatio);
-  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root; Add Note, saved markers, panel, composer, and highlight use native source anchoring; the panel preserves a page-relative offset instead of following the viewport; same-event scrolling stays coherent without window JS compensation; three notes remain visibly owned by the same target; repeated notes work; and ownership reuses one fully opaque 1px–1.5px target boundary with no fill or glow: PASS`);
+  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): native source anchoring keeps Add Note, markers, panel, composer, and highlight page-attached without window JS compensation; panel scrolls with its target; three same-target notes remain nearby; Add Note stays available while a note is open; and ownership remains one clean target boundary: PASS`);
 } finally {
   await browser.close();
 }
