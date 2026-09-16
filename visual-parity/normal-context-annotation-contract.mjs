@@ -45,7 +45,7 @@ const clickDocumentUi = async (locator, label) => {
       return {
         tag: node.tagName,
         id: node.id || null,
-        className: typeof node.className === "string" ? node.className : null,
+        className: node.getAttribute("class"),
         layer: node.dataset.mesurerLayer ?? null,
         root: node.dataset.mesurerRoot ?? null,
         island: node.dataset.mesurerIsland ?? null,
