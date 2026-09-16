@@ -4,6 +4,7 @@ import {
   installNestedScrollCompensation,
   type MesurerNestedScrollCompensation,
 } from "../runtime/nested-scroll-compensation";
+import { layoutAnnotationMarkers } from "./annotation-marker-layout";
 import { CloseIcon, CopyIcon, NoteIcon, TrashIcon } from "./Icons";
 
 export type ContextActionsController = {
@@ -27,6 +28,7 @@ const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
 const PROTECTED_ANNOTATION_Z_INDEX = "2147483647";
+const ANNOTATION_HIGHLIGHT_Z_INDEX = "2147483646";
 const annotationButtonClass = "msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:cursor-default msr:disabled:opacity-40";
 let annotationAnchorSequence = 0;
 
@@ -118,6 +120,8 @@ export function ContextActions(props: ContextActionsProps) {
   const [revision, setRevision] = createSignal(0);
   const [triggerRevision, setTriggerRevision] = createSignal(0);
   const [activeAnnotationId, setActiveAnnotationId] = createSignal<string | null>(null);
+  const [hoveredAnnotationId, setHoveredAnnotationId] = createSignal<string | null>(null);
+  const [focusedAnnotationId, setFocusedAnnotationId] = createSignal<string | null>(null);
   const [panelPositions, setPanelPositions] = createSignal<Record<string, { left: number; top: number }>>({});
   const [composerPosition, setComposerPosition] = createSignal<{ left: number; top: number } | null>(null);
   const [noteComposerOpen, setNoteComposerOpen] = createSignal(false);
@@ -292,9 +296,6 @@ export function ContextActions(props: ContextActionsProps) {
   const unsubscribe = props.runtime.subscribe(() => {
     const selectGestureActive = props.runtime.selectGestureActive();
     if (noteComposerOpen() && selectGestureActive) {
-      // Draft validity is state-based, not edge-based. Any renderer-model
-      // notification while Select owns an active gesture invalidates the draft
-      // synchronously, even if this component mounted or resubscribed mid-cycle.
       fallbackNextSelection = true;
       resetNoteComposerState();
     } else if (
@@ -302,8 +303,6 @@ export function ContextActions(props: ContextActionsProps) {
       && composerSelection !== null
       && !sameSelection(composerSelection, captureSelection())
     ) {
-      // A non-pointer/API selection change is the same ownership violation. Keep
-      // the restored trigger on the committed selection and discard old text.
       fallbackTriggerElement = currentSelectionTriggerElement();
       fallbackNextSelection = false;
       resetNoteComposerState();
@@ -345,13 +344,34 @@ export function ContextActions(props: ContextActionsProps) {
     const id = activeAnnotationId();
     return id ? annotations().find((annotation) => annotation.id === id) ?? null : null;
   });
+  const highlightedAnnotationId = createMemo(() =>
+    hoveredAnnotationId() ?? focusedAnnotationId() ?? activeAnnotationId(),
+  );
+  const annotationNumber = (annotationId: string) =>
+    annotations().findIndex((annotation) => annotation.id === annotationId) + 1;
+  const annotationHighlightRects = createMemo(() => {
+    revision();
+    triggerRevision();
+    const annotationId = highlightedAnnotationId();
+    if (!annotationId) return [];
+    const annotation = props.runtime.annotation(annotationId);
+    if (!annotation) return [];
+    if (annotation.anchor.kind === "region") {
+      return [{ ...annotation.anchor.rect }];
+    }
+    const rects = annotation.resolvedTargets.flatMap(({ element }) => {
+      if (!element?.isConnected) return [];
+      const rect = element.getBoundingClientRect();
+      return [{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }];
+    });
+    if (rects.length) return rects;
+    const fallback = props.runtime.annotationRect(annotationId);
+    return fallback ? [{ ...fallback }] : [];
+  });
   const hasSelection = () => selection().elements.length > 0 || selection().region !== null;
   const composerOwnsCurrentSelection = () => {
     revision();
     const captured = composerSelection;
-    // Ownership is the captured selection, not a render-time gesture gate.
-    // A stale/already-active Select state is handled by the subscription above
-    // on the next model notification, which is exactly the handoff boundary.
     return captured !== null && sameSelection(captured, captureSelection());
   };
   const selectionRect = createMemo(() => {
@@ -436,50 +456,23 @@ export function ContextActions(props: ContextActionsProps) {
     };
   };
 
-  const annotationLayout = (annotationId: string) => {
-    const value = props.runtime.annotationRect(annotationId);
-    if (!value) return null;
+  const annotationMarkerPositions = createMemo(() => {
+    revision();
+    triggerRevision();
     const currentWindow = ownerWindow();
-    const padding = 8;
-    const markerSize = 24;
-    const targetGap = 6;
-    const panelGap = 8;
-    const panelWidth = 272;
-    const panelHeight = 176;
-    const rightMarkerLeft = value.left + value.width + targetGap;
-    const rightPanelLeft = rightMarkerLeft + markerSize + panelGap;
-    const leftMarkerLeft = value.left - targetGap - markerSize;
-    const leftPanelLeft = leftMarkerLeft - panelGap - panelWidth;
-    const fitsRight = rightPanelLeft + panelWidth <= currentWindow.innerWidth - padding;
-    const fitsLeft = leftPanelLeft >= padding;
-    const markerLeft = fitsRight
-      ? rightMarkerLeft
-      : fitsLeft
-        ? leftMarkerLeft
-        : clamp(rightMarkerLeft, padding, currentWindow.innerWidth - markerSize - padding);
-    const panelLeft = fitsRight
-      ? rightPanelLeft
-      : fitsLeft
-        ? leftPanelLeft
-        : placeSurfaceNear(value, panelWidth, panelHeight, currentWindow).left;
-    const draggedPanel = panelPositions()[annotationId];
-    return {
-      marker: {
-        left: markerLeft,
-        top: clamp(value.top - markerSize / 2, 4, currentWindow.innerHeight - markerSize - 4),
-      },
-      panel: {
-        left: draggedPanel
-          ? clamp(draggedPanel.left, padding, currentWindow.innerWidth - panelWidth - padding)
-          : panelLeft,
-        top: draggedPanel
-          ? clamp(draggedPanel.top, padding, currentWindow.innerHeight - panelHeight - padding)
-          : clamp(value.top, padding, currentWindow.innerHeight - panelHeight - padding),
-      },
-    };
-  };
+    const items = annotations().flatMap((annotation) => {
+      const rect = props.runtime.annotationRect(annotation.id);
+      return rect ? [{ id: annotation.id, rect }] : [];
+    });
+    return new Map(
+      layoutAnnotationMarkers(items, {
+        width: currentWindow.innerWidth,
+        height: currentWindow.innerHeight,
+      }).map((placement) => [placement.id, placement] as const),
+    );
+  });
 
-  const markerPosition = (annotationId: string) => annotationLayout(annotationId)?.marker ?? null;
+  const markerPosition = (annotationId: string) => annotationMarkerPositions().get(annotationId) ?? null;
 
   const notePanelPosition = () => {
     const value = selectionRect();
@@ -497,7 +490,37 @@ export function ContextActions(props: ContextActionsProps) {
     return placeComposerNear(value, width, height, currentWindow);
   };
 
-  const panelPosition = (annotationId: string) => annotationLayout(annotationId)?.panel ?? { left: 8, top: 8 };
+  const panelPosition = (annotationId: string) => {
+    const value = props.runtime.annotationRect(annotationId);
+    if (!value) return { left: 8, top: 8 };
+    const currentWindow = ownerWindow();
+    const padding = 8;
+    const markerSize = 24;
+    const targetGap = 6;
+    const panelGap = 8;
+    const panelWidth = 272;
+    const panelHeight = 176;
+    const rightMarkerLeft = value.left + value.width + targetGap;
+    const rightPanelLeft = rightMarkerLeft + markerSize + panelGap;
+    const leftMarkerLeft = value.left - targetGap - markerSize;
+    const leftPanelLeft = leftMarkerLeft - panelGap - panelWidth;
+    const fitsRight = rightPanelLeft + panelWidth <= currentWindow.innerWidth - padding;
+    const fitsLeft = leftPanelLeft >= padding;
+    const panelLeft = fitsRight
+      ? rightPanelLeft
+      : fitsLeft
+        ? leftPanelLeft
+        : placeSurfaceNear(value, panelWidth, panelHeight, currentWindow).left;
+    const draggedPanel = panelPositions()[annotationId];
+    return {
+      left: draggedPanel
+        ? clamp(draggedPanel.left, padding, currentWindow.innerWidth - panelWidth - padding)
+        : panelLeft,
+      top: draggedPanel
+        ? clamp(draggedPanel.top, padding, currentWindow.innerHeight - panelHeight - padding)
+        : clamp(value.top, padding, currentWindow.innerHeight - panelHeight - padding),
+    };
+  };
 
   const openAnnotation = (annotationId: string) => {
     fallbackNextSelection = false;
@@ -757,18 +780,49 @@ export function ContextActions(props: ContextActionsProps) {
         </div>
       </Show>
 
+      <For each={annotationHighlightRects()}>{(rect) => (
+        <div
+          data-mesurer-layer="chrome"
+          data-mesurer-inspector-ui="true"
+          data-mesurer-annotation-target-highlight="true"
+          data-mesurer-annotation-id={highlightedAnnotationId() ?? undefined}
+          aria-hidden="true"
+          class="msr:pointer-events-none msr:fixed"
+          style={{
+            left: `${rect.left - 2}px`,
+            top: `${rect.top - 2}px`,
+            width: `${rect.width + 4}px`,
+            height: `${rect.height + 4}px`,
+            border: "2px solid #0d99ff",
+            "border-radius": "5px",
+            background: "rgba(13, 153, 255, 0.07)",
+            "box-shadow": "0 0 0 2px rgba(13, 153, 255, 0.16)",
+            "z-index": ANNOTATION_HIGHLIGHT_Z_INDEX,
+          }}
+        />
+      )}</For>
+
       <For each={annotations()}>{(annotation, index) => {
         const position = () => markerPosition(annotation.id);
+        const highlighted = () => highlightedAnnotationId() === annotation.id;
+        const muted = () => highlightedAnnotationId() !== null && !highlighted();
         return (
           <Show when={position()}>{(value) => (
             <button
               type="button"
               data-mesurer-layer="evidence"
               data-mesurer-annotation-marker="true"
+              data-mesurer-annotation-number={index() + 1}
+              data-mesurer-annotation-highlighted={highlighted() ? "true" : undefined}
+              data-mesurer-annotation-muted={muted() ? "true" : undefined}
               data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
               aria-label={`Mesurer annotation ${index() + 1}: ${annotation.note}`}
               title={annotation.note}
               aria-expanded={activeAnnotationId() === annotation.id ? "true" : "false"}
+              onPointerEnter={() => setHoveredAnnotationId(annotation.id)}
+              onPointerLeave={() => setHoveredAnnotationId((current) => current === annotation.id ? null : current)}
+              onFocus={() => setFocusedAnnotationId(annotation.id)}
+              onBlur={() => setFocusedAnnotationId((current) => current === annotation.id ? null : current)}
               onPointerDown={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -780,15 +834,39 @@ export function ContextActions(props: ContextActionsProps) {
                 event.stopPropagation();
                 openAnnotation(annotation.id);
               }}
-              class="msr:pointer-events-auto msr:fixed msr:z-[94] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-[#0d99ff] msr:bg-white msr:text-[#0d99ff] msr:outline-none msr:hover:bg-[#0d99ff]/8"
-              style={{ left: `${value().left}px`, top: `${value().top}px`, "z-index": PROTECTED_ANNOTATION_Z_INDEX }}
-            ><NoteIcon size={14} /></button>
+              class="msr:pointer-events-auto msr:fixed msr:z-[94] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:border-0 msr:bg-transparent msr:p-0 msr:outline-none"
+              style={{
+                left: `${value().left}px`,
+                top: `${value().top}px`,
+                opacity: muted() ? "0.36" : "1",
+                transition: "opacity 150ms ease",
+                "z-index": PROTECTED_ANNOTATION_Z_INDEX,
+              }}
+            >
+              <span
+                data-mesurer-annotation-badge="true"
+                aria-hidden="true"
+                class="msr:flex msr:h-5 msr:w-5 msr:items-center msr:justify-center msr:rounded-[6px] msr:border msr:text-[10px] msr:font-semibold msr:leading-none"
+                style={{
+                  border: "1px solid #0d99ff",
+                  color: highlighted() ? "white" : "#0d99ff",
+                  background: highlighted() ? "#0d99ff" : "white",
+                  transform: highlighted() ? "scale(1.2)" : "scale(1)",
+                  "box-shadow": highlighted()
+                    ? "0 3px 10px rgba(13, 153, 255, 0.28)"
+                    : "0 1px 3px rgba(15, 23, 42, 0.12)",
+                  transition: "transform 150ms ease, background 150ms ease, color 150ms ease, box-shadow 150ms ease",
+                  "font-variant-numeric": "tabular-nums",
+                }}
+              >{index() + 1}</span>
+            </button>
           )}</Show>
         );
       }}</For>
 
       <Show when={activeAnnotation()}>{(annotation) => {
         const position = () => panelPosition(annotation().id);
+        const number = () => annotationNumber(annotation().id);
         return (
           <div
             data-mesurer-layer="chrome"
@@ -806,9 +884,14 @@ export function ContextActions(props: ContextActionsProps) {
               aria-label="Drag annotation panel"
               onPointerDown={(event) => startSurfaceDrag(event, annotation().id)}
             >
-              <NoteIcon size={14} class="msr:text-[#0d99ff]" />
+              <span
+                data-mesurer-annotation-panel-badge="true"
+                aria-hidden="true"
+                class="msr:flex msr:h-[18px] msr:w-[18px] msr:items-center msr:justify-center msr:rounded-[5px] msr:text-[9px] msr:font-semibold msr:leading-none msr:text-white"
+                style={{ background: "#0d99ff", "font-variant-numeric": "tabular-nums" }}
+              >{number()}</span>
               <div class="msr:min-w-0 msr:flex-1">
-                <div class="msr:text-[11px] msr:font-medium msr:text-ink-700">Note {annotations().findIndex((item) => item.id === annotation().id) + 1}</div>
+                <div class="msr:text-[11px] msr:font-medium msr:text-ink-700">Note {number()}</div>
                 <div class="msr:text-[9px] msr:text-ink-500">{annotationSelectionLabel(annotation())}</div>
               </div>
               <div class="msr:flex msr:items-center msr:gap-0.5">
@@ -820,6 +903,8 @@ export function ContextActions(props: ContextActionsProps) {
                     delete next[annotation().id];
                     return next;
                   });
+                  setHoveredAnnotationId((current) => current === annotation().id ? null : current);
+                  setFocusedAnnotationId((current) => current === annotation().id ? null : current);
                   setActiveAnnotationId(null);
                   setStatus(null);
                 }}><TrashIcon size={14} /></button>
