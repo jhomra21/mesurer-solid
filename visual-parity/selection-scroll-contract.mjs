@@ -194,8 +194,9 @@ try {
 
   // Sample every animation frame from the physical wheel event through and past
   // the 80ms live-measurement refresh. The selected MeasurementBox is paintless
-  // during direct edit, but its geometry must remain continuously attached so
-  // ownership can return without a jump when editing ends.
+  // during direct edit, so user-visible continuity belongs to the edit ring and
+  // Typography card. The hidden selection root must stay mounted throughout and
+  // reconcile to exact target geometry before ownership can be handed back.
   const continuity = await monitorWheelContinuity(48, {
     target: ".feature-copy .kicker",
     selected: "[data-mesurer-selected-measurement='true'] > div",
@@ -210,7 +211,6 @@ try {
       assert(current[name], `continuity frame ${index} at ${frame.at.toFixed(1)}ms lost rendered ${name}`);
     }
     if (Math.abs(current.target.y - continuity.before.target.y) > 15) moved = true;
-    assertSameBox(current.selected, current.target, `selection geometry continuity frame ${index}`);
     assertSameBox(current.ring, current.target, `edit-ring continuity frame ${index}`);
     assertSameOffset(
       continuity.before.target,
@@ -239,7 +239,16 @@ try {
   await editor.focus();
   await page.keyboard.press("Escape");
   await editor.waitFor({ state: "detached" });
+  await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true']")?.hasAttribute("data-mesurer-direct-edit-selection-suppressed") === false);
   await arrange.click();
+  await page.waitForFunction(() => document.querySelector("button[data-mesurer-tool-id='arrange']")?.getAttribute("aria-pressed") === "false");
+  await selected.waitFor({ state: "visible" });
+  await settle();
+  assertSameBox(
+    await box(selected, "selection after direct-edit ownership handoff"),
+    await box(target, "target after direct-edit ownership handoff"),
+    "selection after direct-edit ownership handoff",
+  );
 
   const typography = page.locator("button[data-mesurer-builtin='text-inspector']");
   await typography.click();
@@ -287,7 +296,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Selection scroll E2E passed: Arrange owns the visible pre-edit border while hidden selected geometry stays native-anchored; direct edit keeps that selection geometry paint-suppressed but frame-locked with its ring and Typography card; standalone Typography remains source-attached under physical wheel input.");
+  console.log("Selection scroll E2E passed: Arrange owns the visible pre-edit border while hidden selected geometry stays native-anchored; direct edit keeps its visible ring and Typography card frame-locked while the paint-suppressed selection root remains mounted and reconciles before ownership returns; standalone Typography remains source-attached under physical wheel input.");
 } finally {
   await browser.close();
 }
