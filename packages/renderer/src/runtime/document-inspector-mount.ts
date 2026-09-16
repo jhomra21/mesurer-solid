@@ -33,8 +33,10 @@ export function createDocumentInspectorMount(
   // The fixed host fallback already occupies the highest author z-index. Give
   // the document inspector one later sibling stacking context at the same tier
   // so its page-owned controls remain physically reachable while preserving the
-  // marker > panel > highlight ordering inside this mount. The mount itself is
-  // zero-sized and non-interactive; only explicit child surfaces receive input.
+  // marker > panel > highlight ordering inside this mount. The mount is a
+  // zero-sized origin, so it cannot cover the page itself; leave pointer-events
+  // at the browser default so its explicitly interactive overflow descendants
+  // do not depend on overriding an inherited pointer-events:none value.
   Object.assign(element.style, {
     position: "absolute",
     left: "0px",
@@ -42,7 +44,6 @@ export function createDocumentInspectorMount(
     width: "0px",
     height: "0px",
     overflow: "visible",
-    pointerEvents: "none",
     zIndex: "2147483647",
   });
   body.append(element);
