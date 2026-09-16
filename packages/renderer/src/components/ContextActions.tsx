@@ -932,13 +932,11 @@ export function ContextActions(props: ContextActionsProps) {
               data-mesurer-annotation-trigger="true"
               data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
               data-mesurer-annotation-scroll-mode={position().nativeAnchor ? "native-anchor" : "cached-delta"}
-              data-mesurer-native-scroll-owner={position().nativeAnchor ? "annotation" : undefined}
-              data-mesurer-native-scroll-anchor={position().nativeAnchor ? "offset" : undefined}
               aria-label="Annotate selection"
               title="Annotate selection"
-              class="msr:pointer-events-auto msr:absolute msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
+              class="msr:pointer-events-auto msr:fixed msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
               style={{
-                position: position().viewportOwned ? "fixed" : "absolute",
+                position: position().nativeAnchor || position().viewportOwned ? "fixed" : "absolute",
                 left: position().nativeAnchor
                   ? `calc(anchor(left) + ${position().anchorX}px)`
                   : `${position().left}px`,
@@ -947,8 +945,6 @@ export function ContextActions(props: ContextActionsProps) {
                   : `${position().top}px`,
                 translate: "var(--mesurer-nested-scroll-x, 0px) var(--mesurer-nested-scroll-y, 0px)",
                 "position-anchor": position().nativeAnchor ? selectionTriggerAnchorName : undefined,
-                "--mesurer-native-anchor-x": position().nativeAnchor ? `${position().anchorX}px` : undefined,
-                "--mesurer-native-anchor-y": position().nativeAnchor ? `${position().anchorY}px` : undefined,
                 "z-index": PROTECTED_ANNOTATION_Z_INDEX,
               }}
               onPointerDown={(event) => event.stopPropagation()}
@@ -1040,6 +1036,7 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-target-highlight="true"
             data-mesurer-annotation-id={annotationId() ?? undefined}
+            data-mesurer-annotation-scroll-mode={placement().nativeAnchor ? "native-anchor" : "cached-delta"}
             aria-hidden="true"
             class="msr:pointer-events-none msr:fixed"
             style={{
