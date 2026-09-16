@@ -27,7 +27,30 @@ const settle = () => page.evaluate(() => new Promise((resolve) => {
 const clickCenter = async (locator, label) => {
   const box = await locator.boundingBox();
   assert(box, `${label} must have rendered geometry`);
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(point.x, point.y);
+  const hit = await page.evaluate(({ x, y }) => {
+    const element = document.elementFromPoint(x, y);
+    const trigger = element?.closest?.("[data-mesurer-annotation-trigger='true']") ?? null;
+    const island = element?.closest?.("[data-mesurer-island='true']") ?? null;
+    const rendererRoot = document.querySelector("[data-mesurer-island='true']")?.shadowRoot
+      ?.querySelector("[data-mesurer-root='true']") ?? null;
+    return {
+      tag: element?.tagName ?? null,
+      annotationTrigger: trigger instanceof HTMLElement,
+      island: island instanceof HTMLElement,
+      passthrough: rendererRoot instanceof HTMLElement
+        ? rendererRoot.dataset.mesurerDocumentUiPassthrough ?? null
+        : null,
+    };
+  }, point);
+  assert.equal(
+    hit.annotationTrigger,
+    true,
+    `${label} must physically own its hit point after pointer approach: ${JSON.stringify(hit)}`,
+  );
+  await page.mouse.down();
+  await page.mouse.up();
 };
 
 try {
@@ -235,6 +258,7 @@ try {
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
   console.log("Isolated annotation draft handoff: PASS", {
     documentContextOwnership: true,
+    triggerOwnsPhysicalHitPoint: true,
     composerDismissedOnPointerDown: true,
     selectionTransferredOnPointerUp: true,
     restoredTriggerMode: handoff.mode,
