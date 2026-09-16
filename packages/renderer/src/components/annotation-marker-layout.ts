@@ -25,7 +25,12 @@ type MarkerLayoutOptions = {
   markerSize?: number;
   markerGap?: number;
   targetGap?: number;
+  targetClearance?: number;
   viewportPadding?: number;
+  /** Transient Mesurer UI or active-selection geometry markers must not cover. */
+  obstacles?: readonly AnnotationMarkerRect[];
+  /** Bound local displacement so a note cannot drift into another target's visual territory. */
+  maxShiftRings?: number;
 };
 
 type CandidateGroup = {
@@ -34,17 +39,12 @@ type CandidateGroup = {
   points: Array<{ left: number; top: number }>;
 };
 
-type MarkerBox = {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-};
+type MarkerBox = AnnotationMarkerRect;
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
-const overlaps = (left: MarkerBox, right: MarkerBox, gap: number) => !(
+const overlaps = (left: MarkerBox, right: MarkerBox, gap = 0) => !(
   left.left + left.width + gap <= right.left
   || right.left + right.width + gap <= left.left
   || left.top + left.height + gap <= right.top
@@ -96,26 +96,35 @@ const candidateGroups = (
   return groups.sort((left, right) => right.space - left.space);
 };
 
-const shiftedPoints = (
-  group: CandidateGroup,
+/**
+ * Walk all target sides at the same displacement before moving farther away.
+ * This keeps ownership proximity more important than one side's raw free space.
+ */
+const localCandidates = (
+  groups: readonly CandidateGroup[],
   step: number,
-  rings: number,
+  maxShiftRings: number,
 ) => {
   const points: Array<{ left: number; top: number }> = [];
-  for (const point of group.points) {
-    points.push(point);
-    for (let ring = 1; ring <= rings; ring += 1) {
-      const offset = ring * step;
-      if (group.axis === "vertical") {
-        points.push(
-          { left: point.left, top: point.top + offset },
-          { left: point.left, top: point.top - offset },
-        );
-      } else {
-        points.push(
-          { left: point.left + offset, top: point.top },
-          { left: point.left - offset, top: point.top },
-        );
+  for (let ring = 0; ring <= maxShiftRings; ring += 1) {
+    const offset = ring * step;
+    for (const group of groups) {
+      for (const point of group.points) {
+        if (ring === 0) {
+          points.push(point);
+          continue;
+        }
+        if (group.axis === "vertical") {
+          points.push(
+            { left: point.left, top: point.top + offset },
+            { left: point.left, top: point.top - offset },
+          );
+        } else {
+          points.push(
+            { left: point.left + offset, top: point.top },
+            { left: point.left - offset, top: point.top },
+          );
+        }
       }
     }
   }
@@ -124,8 +133,9 @@ const shiftedPoints = (
 
 /**
  * Places saved annotation markers around their rendered targets without letting
- * markers overlap. Geometry is an ephemeral renderer concern: annotation data
- * stays target-bound and contains no presentation offsets.
+ * markers overlap or visually enter another target's territory. Geometry is an
+ * ephemeral renderer concern: annotation data stays target-bound and contains no
+ * presentation offsets.
  */
 export function layoutAnnotationMarkers(
   items: readonly AnnotationMarkerItem[],
@@ -135,34 +145,44 @@ export function layoutAnnotationMarkers(
   const markerSize = options.markerSize ?? 24;
   const markerGap = options.markerGap ?? 4;
   const targetGap = options.targetGap ?? 6;
+  const targetClearance = options.targetClearance ?? 2;
   const viewportPadding = options.viewportPadding ?? 4;
+  const obstacles = options.obstacles ?? [];
+  const maxShiftRings = Math.max(0, options.maxShiftRings ?? 2);
   const step = markerSize + markerGap;
-  const rings = Math.max(8, items.length + 2);
   const maxLeft = Math.max(viewportPadding, viewport.width - markerSize - viewportPadding);
   const maxTop = Math.max(viewportPadding, viewport.height - markerSize - viewportPadding);
   const occupied: MarkerBox[] = [];
+  const targetRects = items.map((item) => item.rect);
   const placements: AnnotationMarkerPlacement[] = [];
 
   for (const item of items) {
     const seen = new Set<string>();
     const candidates: Array<{ left: number; top: number }> = [];
-    for (const group of candidateGroups(item.rect, viewport, markerSize, targetGap)) {
-      for (const point of shiftedPoints(group, step, rings)) {
-        const normalized = {
-          left: clamp(point.left, viewportPadding, maxLeft),
-          top: clamp(point.top, viewportPadding, maxTop),
-        };
-        const key = `${normalized.left}:${normalized.top}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        candidates.push(normalized);
-      }
+    const groups = candidateGroups(item.rect, viewport, markerSize, targetGap);
+    for (const point of localCandidates(groups, step, maxShiftRings)) {
+      const normalized = {
+        left: clamp(point.left, viewportPadding, maxLeft),
+        top: clamp(point.top, viewportPadding, maxTop),
+      };
+      const key = `${normalized.left}:${normalized.top}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      candidates.push(normalized);
     }
 
-    const chosen = candidates.find((candidate) => {
+    const valid = candidates.filter((candidate) => {
+      const box = { ...candidate, width: markerSize, height: markerSize };
+      return targetRects.every((target) => !overlaps(box, target, targetClearance))
+        && obstacles.every((obstacle) => !overlaps(box, obstacle, markerGap));
+    });
+    const chosen = valid.find((candidate) => {
       const box = { ...candidate, width: markerSize, height: markerSize };
       return occupied.every((current) => !overlaps(box, current, markerGap));
-    }) ?? candidates[0] ?? { left: viewportPadding, top: viewportPadding };
+    }) ?? valid.find((candidate) => {
+      const box = { ...candidate, width: markerSize, height: markerSize };
+      return occupied.every((current) => !overlaps(box, current));
+    }) ?? valid[0] ?? candidates[0] ?? { left: viewportPadding, top: viewportPadding };
 
     occupied.push({ ...chosen, width: markerSize, height: markerSize });
     placements.push({ id: item.id, ...chosen });
