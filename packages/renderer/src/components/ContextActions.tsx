@@ -138,9 +138,6 @@ export function ContextActions(props: ContextActionsProps) {
   const [activeAnnotationId, setActiveAnnotationId] = createSignal<string | null>(null);
   const [hoveredAnnotationId, setHoveredAnnotationId] = createSignal<string | null>(null);
   const [focusedAnnotationId, setFocusedAnnotationId] = createSignal<string | null>(null);
-  // Stored positions are target-relative offsets, not viewport coordinates. Once
-  // a panel is placed (or dragged), scrolling preserves that exact page-relative
-  // relationship instead of choosing a new viewport lane.
   const [panelPositions, setPanelPositions] = createSignal<Record<string, { left: number; top: number }>>({});
   const [composerPosition, setComposerPosition] = createSignal<{ left: number; top: number } | null>(null);
   const [noteComposerOpen, setNoteComposerOpen] = createSignal(false);
@@ -176,6 +173,19 @@ export function ContextActions(props: ContextActionsProps) {
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
   const usesViewportCoordinates = () => props.coordinateSpace === "viewport";
+  const scrollMode = (nativeAnchor: boolean) => nativeAnchor
+    ? "native-anchor"
+    : usesViewportCoordinates()
+      ? "cached-delta"
+      : "document";
+  const documentPosition = (position: { left: number; top: number }) => {
+    if (usesViewportCoordinates()) return position;
+    const currentWindow = ownerWindow();
+    return {
+      left: position.left + currentWindow.scrollX,
+      top: position.top + currentWindow.scrollY,
+    };
+  };
   const captureSelection = (): ContextSelectionSnapshot => {
     const value = props.runtime.currentSelection();
     return {
@@ -247,7 +257,8 @@ export function ContextActions(props: ContextActionsProps) {
     return annotation.resolvedTargets.find(({ element }) => element?.isConnected)?.element ?? null;
   };
   const canUseNativeAnnotationAnchor = (target: HTMLElement) => Boolean(
-    anchorElement
+    usesViewportCoordinates()
+    && anchorElement
     && supportsNativeAnchors()
     && target.getRootNode() === anchorElement.getRootNode()
   );
@@ -278,8 +289,6 @@ export function ContextActions(props: ContextActionsProps) {
         target,
         anchorName,
         releaseAnchor: addAnchorName(target, anchorName),
-        // Native anchors follow document/window scrolling on the compositor.
-        // Compensation remains only for nested scrolling across a portal edge.
         scroll: installNestedScrollCompensation(
           currentWindow,
           target,
@@ -296,7 +305,7 @@ export function ContextActions(props: ContextActionsProps) {
           currentWindow,
           target,
           () => annotationScrollSurfaces(annotationId),
-          { trackWindow: true },
+          { trackWindow: usesViewportCoordinates() },
         ),
       });
     }
@@ -315,10 +324,6 @@ export function ContextActions(props: ContextActionsProps) {
   const reconcileAnnotationGeometry = () => {
     ownerWindow().queueMicrotask(() => {
       syncAnnotationScrollBindings();
-      // A native anchor must keep its source-relative relationship across the
-      // geometry refresh. Rebasing it here is the race that made the surface
-      // visibly swim during active scrolling. Only the non-native fallback
-      // consumes fresh viewport geometry and therefore needs a reset.
       for (const binding of annotationScrollBindings.values()) {
         if (!binding.anchorName) binding.scroll.rebase();
       }
@@ -339,7 +344,8 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const canUseNativeTriggerAnchor = (element: HTMLElement) => Boolean(
-    anchorElement
+    usesViewportCoordinates()
+    && anchorElement
     && element !== fallbackTriggerElement
     && supportsNativeAnchors()
     && element.getRootNode() === anchorElement.getRootNode(),
@@ -388,7 +394,7 @@ export function ContextActions(props: ContextActionsProps) {
       currentWindow,
       element,
       selectionScrollSurfaces,
-      { trackWindow: true },
+      { trackWindow: usesViewportCoordinates() },
     );
   };
 
@@ -599,7 +605,7 @@ export function ContextActions(props: ContextActionsProps) {
     triggerRevision();
     const binding = annotationScrollBindings.get(annotationId);
     if (!binding?.anchorName || !binding.target.isConnected) {
-      return { ...position, nativeAnchor: false };
+      return { ...documentPosition(position), nativeAnchor: false };
     }
     const targetRect = binding.target.getBoundingClientRect();
     return {
@@ -632,7 +638,7 @@ export function ContextActions(props: ContextActionsProps) {
     const position = notePanelPosition();
     const target = selectionTriggerElement();
     if (!target?.isConnected || anchoredTriggerElement !== target) {
-      return { ...position, nativeAnchor: false };
+      return { ...documentPosition(position), nativeAnchor: false };
     }
     const rect = target.getBoundingClientRect();
     return {
@@ -931,10 +937,10 @@ export function ContextActions(props: ContextActionsProps) {
               data-mesurer-inspector-ui="true"
               data-mesurer-annotation-trigger="true"
               data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
-              data-mesurer-annotation-scroll-mode={position().nativeAnchor ? "native-anchor" : "cached-delta"}
+              data-mesurer-annotation-scroll-mode={scrollMode(position().nativeAnchor)}
               aria-label="Annotate selection"
               title="Annotate selection"
-              class="msr:pointer-events-auto msr:fixed msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
+              class="msr:pointer-events-auto msr:z-[95] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]"
               style={{
                 position: position().nativeAnchor || position().viewportOwned ? "fixed" : "absolute",
                 left: position().nativeAnchor
@@ -963,9 +969,10 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-composer="true"
             data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
-            data-mesurer-annotation-scroll-mode={placement().nativeAnchor ? "native-anchor" : "cached-delta"}
-            class="mesurer-menu-surface msr:pointer-events-auto msr:fixed msr:z-[95] msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
+            data-mesurer-annotation-scroll-mode={scrollMode(placement().nativeAnchor)}
+            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
             style={{
+              position: placement().nativeAnchor || usesViewportCoordinates() ? "fixed" : "absolute",
               left: placement().nativeAnchor
                 ? `calc(anchor(left) + ${placement().anchorX}px)`
                 : `${placement().left}px`,
@@ -1028,7 +1035,9 @@ export function ContextActions(props: ContextActionsProps) {
         const annotationId = () => highlightedAnnotationId();
         const placement = () => {
           const id = annotationId();
-          return id ? nativeAnnotationPlacement(id, { left: rect.left, top: rect.top }) : { left: rect.left, top: rect.top, nativeAnchor: false };
+          return id
+            ? nativeAnnotationPlacement(id, { left: rect.left, top: rect.top })
+            : { ...documentPosition({ left: rect.left, top: rect.top }), nativeAnchor: false };
         };
         return (
           <div
@@ -1036,16 +1045,17 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-target-highlight="true"
             data-mesurer-annotation-id={annotationId() ?? undefined}
-            data-mesurer-annotation-scroll-mode={placement().nativeAnchor ? "native-anchor" : "cached-delta"}
+            data-mesurer-annotation-scroll-mode={scrollMode(placement().nativeAnchor)}
             aria-hidden="true"
-            class="msr:pointer-events-none msr:fixed"
+            class="msr:pointer-events-none"
             style={{
+              position: placement().nativeAnchor || usesViewportCoordinates() ? "fixed" : "absolute",
               left: placement().nativeAnchor
                 ? `calc(anchor(left) + ${placement().anchorX}px)`
-                : `${rect.left}px`,
+                : `${placement().left}px`,
               top: placement().nativeAnchor
                 ? `calc(anchor(top) + ${placement().anchorY}px)`
-                : `${rect.top}px`,
+                : `${placement().top}px`,
               width: `${rect.width}px`,
               height: `${rect.height}px`,
               "box-sizing": "border-box",
@@ -1076,7 +1086,7 @@ export function ContextActions(props: ContextActionsProps) {
               data-mesurer-annotation-number={index() + 1}
               data-mesurer-annotation-highlighted={highlighted() ? "true" : undefined}
               data-mesurer-annotation-muted={muted() ? "true" : undefined}
-              data-mesurer-annotation-scroll-mode={value().nativeAnchor ? "native-anchor" : "cached-delta"}
+              data-mesurer-annotation-scroll-mode={scrollMode(value().nativeAnchor)}
               data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
               aria-label={`Mesurer annotation ${index() + 1}: ${annotation.note}`}
               title={annotation.note}
@@ -1102,8 +1112,9 @@ export function ContextActions(props: ContextActionsProps) {
                 event.stopPropagation();
                 openAnnotation(annotation.id);
               }}
-              class="msr:pointer-events-auto msr:fixed msr:z-[94] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:border-0 msr:bg-transparent msr:p-0 msr:outline-none"
+              class="msr:pointer-events-auto msr:z-[94] msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:border-0 msr:bg-transparent msr:p-0 msr:outline-none"
               style={{
+                position: value().nativeAnchor || usesViewportCoordinates() ? "fixed" : "absolute",
                 left: value().nativeAnchor
                   ? `calc(anchor(left) + ${value().anchorX}px)`
                   : `${value().left}px`,
@@ -1147,10 +1158,11 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-inspector-ui="true"
             data-mesurer-annotation-panel="true"
             data-mesurer-annotation-id={annotation().id}
-            data-mesurer-annotation-scroll-mode={placement().nativeAnchor ? "native-anchor" : "cached-delta"}
+            data-mesurer-annotation-scroll-mode={scrollMode(placement().nativeAnchor)}
             data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
-            class="mesurer-menu-surface msr:pointer-events-auto msr:fixed msr:z-[95] msr:w-[272px] msr:max-h-[220px] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
+            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-[272px] msr:max-h-[220px] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
             style={{
+              position: placement().nativeAnchor || usesViewportCoordinates() ? "fixed" : "absolute",
               left: placement().nativeAnchor
                 ? `calc(anchor(left) + ${placement().anchorX}px)`
                 : `${placement().left}px`,
