@@ -721,18 +721,20 @@ export function ContextActions(props: ContextActionsProps) {
   };
 
   const freezePanelPosition = (annotationId: string) => {
-    const value = props.runtime.annotationRect(annotationId);
-    if (!value) return;
-    setPanelPositions((positions) => {
-      if (positions[annotationId]) return positions;
-      const initial = defaultPanelPosition(annotationId, value);
-      return {
-        ...positions,
-        [annotationId]: {
-          left: initial.left - value.left,
-          top: initial.top - value.top,
-        },
-      };
+    ownerWindow().queueMicrotask(() => {
+      const value = props.runtime.annotationRect(annotationId);
+      if (!value) return;
+      setPanelPositions((positions) => {
+        if (positions[annotationId]) return positions;
+        const initial = defaultPanelPosition(annotationId, value);
+        return {
+          ...positions,
+          [annotationId]: {
+            left: initial.left - value.left,
+            top: initial.top - value.top,
+          },
+        };
+      });
     });
   };
 
@@ -900,6 +902,7 @@ export function ContextActions(props: ContextActionsProps) {
       syncAnnotationScrollBinding(annotation.id);
       freezePanelPosition(annotation.id);
       setActiveAnnotationId(annotation.id);
+      setStatus(null);
       syncAnnotationSurface(annotation.id);
     } catch (error) {
       setNoteError(error instanceof Error ? error.message : String(error));
