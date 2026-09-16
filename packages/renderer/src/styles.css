@@ -161,13 +161,10 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
 
 /* Public Context page evidence now uses ordinary absolute document coordinates,
    so window scrolling is owned by the same document/compositor path as the
-   selected page element. ContextActions still supports a native-anchor viewport
-   mode for isolated component use; nested overflow scrolling can contribute the
-   lightweight cached delta in either topology. */
-[data-mesurer-annotation-trigger="true"] {
-  z-index: 80 !important;
-}
-
+   selected page element. ContextActions owns the protected stacking tiers for
+   its interactive surfaces; do not override those document-level z-indices here.
+   Native-anchor viewport mode remains available for isolated component use, and
+   nested overflow scrolling can contribute the lightweight cached delta. */
 [data-mesurer-annotation-scroll-mode="native-anchor"] {
   position: fixed !important;
 }
