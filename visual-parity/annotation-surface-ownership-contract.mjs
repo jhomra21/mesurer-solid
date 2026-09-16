@@ -30,132 +30,70 @@ try {
   });
   await settle();
 
-  const trigger = page.locator(
-    "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
-  );
+  const contextRoot = page.locator("[data-mesurer-context-root='true']");
+  const trigger = contextRoot.locator("[data-mesurer-annotation-trigger='true']");
   await trigger.waitFor({ state: "visible" });
 
   const topology = await trigger.evaluate((element) => {
-    const contextRoot = element.closest("[data-mesurer-context-root='true']");
-    const rendererRoot = contextRoot?.closest("[data-mesurer-root='true']");
+    const root = element.closest("[data-mesurer-context-root='true']");
     return {
-      contextInsideCanonicalRoot: Boolean(
-        contextRoot && rendererRoot && rendererRoot.contains(contextRoot),
-      ),
-      documentContextLayers: document.querySelectorAll(
-        "[data-mesurer-context-document-layer='true']",
-      ).length,
-      documentInspectorRuntimes: document.querySelectorAll(
-        "[data-mesurer-document-inspector-runtime='true']",
-      ).length,
+      rootIsDocument: root?.getRootNode() === document,
+      documentMount: root instanceof HTMLElement
+        ? root.dataset.mesurerDocumentInspectorMount ?? null
+        : null,
+      insideCanonicalRoot: Boolean(root?.closest("[data-mesurer-root='true']")),
+      coordinateSpace: element.dataset.mesurerContextCoordinateSpace ?? null,
+      scrollMode: element.dataset.mesurerAnnotationScrollMode ?? null,
+      position: getComputedStyle(element).position,
+      positionAnchor: element.style.getPropertyValue("position-anchor"),
+      cachedY: element.style.getPropertyValue("--mesurer-nested-scroll-y"),
     };
   });
   assert.deepEqual(topology, {
-    contextInsideCanonicalRoot: true,
-    documentContextLayers: 0,
-    documentInspectorRuntimes: 0,
-  }, `Context surfaces must be owned only by the canonical renderer root: ${JSON.stringify(topology)}`);
+    rootIsDocument: true,
+    documentMount: "true",
+    insideCanonicalRoot: false,
+    coordinateSpace: "document",
+    scrollMode: "document",
+    position: "absolute",
+    positionAnchor: "",
+    cachedY: "",
+  }, `Context page evidence must use one document-owned scroll plane: ${JSON.stringify(topology)}`);
 
   await clickByCoordinates(trigger, "annotation trigger");
-
-  const composer = page.locator(
-    "[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']",
-  );
+  const composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
   await composer.waitFor({ state: "visible" });
   await composer.locator("textarea").fill("Unsaved note bound to the first selection");
 
-  // Canonical-root Context UI must keep protected paint ownership above live
-  // page hover/selection chrome. This self-hosting fixture is intentionally
-  // non-isolated, so both the canonical renderer root and page chrome belong to
-  // the document paint tree even though Context no longer uses a body portal.
   const hoverTarget = page.locator(".fixture-copy h1");
   const hoverBox = await hoverTarget.boundingBox();
   assert(hoverBox, "hover target must have rendered geometry");
   await page.mouse.move(hoverBox.x + hoverBox.width / 2, hoverBox.y + hoverBox.height / 2);
-  console.log("Annotation ownership stage: waiting for document-owned hover chrome");
   await page.waitForFunction(() => {
     const hover = document.querySelector("[data-mesurer-hover-measurement='true']");
     return hover instanceof HTMLElement && hover.getRootNode() === document;
   });
-  console.log("Annotation ownership stage: document-owned hover chrome ready");
 
-  const ownership = await page.evaluate(() => {
-    const card = document.querySelector(
-      "[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']",
-    );
+  const paint = await page.evaluate(() => {
+    const card = document.querySelector("[data-mesurer-annotation-composer='true']");
     const hover = document.querySelector("[data-mesurer-hover-measurement='true']");
-    const selection = document.querySelector(
-      "body > [data-mesurer-selected-measurement='true'] > [data-mesurer-measurement-chrome='true']",
-    );
     if (!(card instanceof HTMLElement) || !(hover instanceof HTMLElement)) {
       throw new Error("Missing annotation card or document hover chrome");
     }
-    const contextRoot = card.closest("[data-mesurer-context-root='true']");
-    const rendererRoot = contextRoot?.closest("[data-mesurer-root='true']");
-    if (!(rendererRoot instanceof HTMLElement)) throw new Error("Missing canonical renderer root");
-    const cardZText = getComputedStyle(card).zIndex;
-    const rendererRootZText = getComputedStyle(rendererRoot).zIndex;
-    const hoverZText = getComputedStyle(hover).zIndex;
-    const selectionZText = selection instanceof HTMLElement ? getComputedStyle(selection).zIndex : null;
-    const numericZ = (value) => value && value !== "auto" ? Number.parseInt(value, 10) : null;
+    const numeric = (value) => value !== "auto" ? Number.parseInt(value, 10) : null;
     return {
-      cardZ: numericZ(cardZText),
-      cardZText,
-      rendererRootZ: numericZ(rendererRootZText),
-      rendererRootZText,
-      hoverZ: numericZ(hoverZText),
-      hoverZText,
-      selectionZ: numericZ(selectionZText),
-      selectionZText,
-      cardInsideCanonicalRoot: Boolean(
-        contextRoot && rendererRoot && rendererRoot.contains(contextRoot),
-      ),
-      hoverRootIsDocument: hover.getRootNode() === document,
-      hoverDocumentLayer: hover.dataset.mesurerDocumentHoverLayer === "true",
+      cardZ: numeric(getComputedStyle(card).zIndex),
+      hoverZ: numeric(getComputedStyle(hover).zIndex),
+      hoverZText: getComputedStyle(hover).zIndex,
     };
   });
-  assert.equal(
-    ownership.cardInsideCanonicalRoot,
-    true,
-    "annotation composer must remain inside the canonical Mesurer root",
-  );
-  assert.equal(
-    ownership.hoverRootIsDocument,
-    true,
-    "self-hosting hover chrome must be document-owned in this non-isolated fixture",
-  );
-  assert.notEqual(
-    ownership.cardZ,
-    null,
-    `annotation card must own an explicit local z-index, got ${ownership.cardZText}`,
-  );
-  assert.notEqual(
-    ownership.rendererRootZ,
-    null,
-    `canonical renderer root must own an explicit protected z-index, got ${ownership.rendererRootZText}`,
-  );
-  if (ownership.hoverZ !== null) {
-    assert(
-      ownership.rendererRootZ > ownership.hoverZ,
-      `canonical renderer root z-index ${ownership.rendererRootZ} must beat document hover ${ownership.hoverZ}`,
-    );
+  assert.notEqual(paint.cardZ, null, "annotation composer must own an explicit protected z-index");
+  if (paint.hoverZ !== null) {
+    assert(paint.cardZ > paint.hoverZ, `annotation composer z-index ${paint.cardZ} must beat hover ${paint.hoverZ}`);
   } else {
-    assert.equal(
-      ownership.hoverZText,
-      "auto",
-      `direct document hover must either use a numeric protected tier or normal auto stacking, got ${ownership.hoverZText}`,
-    );
-  }
-  if (ownership.selectionZ !== null) {
-    assert(
-      ownership.rendererRootZ > ownership.selectionZ,
-      `canonical renderer root z-index ${ownership.rendererRootZ} must beat document selection ${ownership.selectionZ}`,
-    );
+    assert.equal(paint.hoverZText, "auto", `unexpected hover stacking value ${paint.hoverZText}`);
   }
 
-  // The composer belongs to the selection that opened it. Selecting a different
-  // element must close/discard that transient composer instead of moving it to
-  // the new target. The new selection gets the normal small Add Note trigger.
   await page.evaluate(() => {
     const second = document.createElement("button");
     second.type = "button";
@@ -173,13 +111,10 @@ try {
     });
     document.body.append(second);
 
-    const scrollRunway = document.createElement("div");
-    scrollRunway.dataset.annotationOwnershipScrollRunway = "true";
-    Object.assign(scrollRunway.style, {
-      height: "1600px",
-      pointerEvents: "none",
-    });
-    document.body.append(scrollRunway);
+    const runway = document.createElement("div");
+    runway.dataset.annotationOwnershipScrollRunway = "true";
+    Object.assign(runway.style, { height: "1600px", pointerEvents: "none" });
+    document.body.append(runway);
   });
 
   await page.evaluate(async () => {
@@ -187,155 +122,75 @@ try {
   });
   await composer.waitFor({ state: "detached" });
   await trigger.waitFor({ state: "visible" });
-
-  // Visibility alone can observe an earlier placement while selection ownership
-  // is being handed off. Wait for the new selected element to own the trigger.
-  const handoffBeforeWait = await page.evaluate(() => {
-    const subject = window.__MESURER_SELF_HOSTING__?.subject;
-    const second = document.querySelector("[data-self-host-target-second]");
-    const nextTrigger = subject?.root.querySelector("[data-mesurer-annotation-trigger='true']");
-    if (!(second instanceof HTMLElement) || !(nextTrigger instanceof HTMLElement)) return null;
-    const secondBox = second.getBoundingClientRect();
-    const triggerBox = nextTrigger.getBoundingClientRect();
-    return {
-      second: { left: secondBox.left, top: secondBox.top, width: secondBox.width, height: secondBox.height },
-      trigger: { left: triggerBox.left, top: triggerBox.top, width: triggerBox.width, height: triggerBox.height },
-      positionAnchor: getComputedStyle(nextTrigger).getPropertyValue("position-anchor").trim(),
-      scrollMode: nextTrigger.dataset.mesurerAnnotationScrollMode ?? null,
-      nativeOwner: nextTrigger.dataset.mesurerNativeScrollOwner ?? null,
-      targetAnchorName: second.style.getPropertyValue("anchor-name"),
-    };
-  });
-  console.log("Annotation ownership stage: waiting for retargeted Add Note trigger", handoffBeforeWait);
   await page.waitForFunction(() => {
-    const subject = window.__MESURER_SELF_HOSTING__?.subject;
     const second = document.querySelector("[data-self-host-target-second]");
-    const nextTrigger = subject?.root.querySelector("[data-mesurer-annotation-trigger='true']");
+    const nextTrigger = document.querySelector(
+      "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
+    );
     if (!(second instanceof HTMLElement) || !(nextTrigger instanceof HTMLElement)) return false;
-    const secondBox = second.getBoundingClientRect();
-    const triggerBox = nextTrigger.getBoundingClientRect();
-    const triggerCenter = {
-      x: triggerBox.left + triggerBox.width / 2,
-      y: triggerBox.top + triggerBox.height / 2,
-    };
-    const secondCenter = {
-      x: secondBox.left + secondBox.width / 2,
-      y: secondBox.top + secondBox.height / 2,
-    };
-    return Math.hypot(triggerCenter.x - secondCenter.x, triggerCenter.y - secondCenter.y) < 180;
+    const target = second.getBoundingClientRect();
+    const action = nextTrigger.getBoundingClientRect();
+    return Math.hypot(
+      action.left + action.width / 2 - (target.left + target.width / 2),
+      action.top + action.height / 2 - (target.top + target.height / 2),
+    ) < 180;
   });
-  console.log("Annotation ownership stage: retargeted Add Note trigger ready");
   await settle();
 
-  const secondBox = await page.locator("[data-self-host-target-second]").boundingBox();
-  const triggerBox = await trigger.boundingBox();
-  assert(secondBox && triggerBox, "new selection and Add Note trigger must have rendered geometry");
-  const triggerCenter = { x: triggerBox.x + triggerBox.width / 2, y: triggerBox.y + triggerBox.height / 2 };
-  const secondCenter = { x: secondBox.x + secondBox.width / 2, y: secondBox.y + secondBox.height / 2 };
-  assert(
-    Math.hypot(triggerCenter.x - secondCenter.x, triggerCenter.y - secondCenter.y) < 180,
-    "new selection must own the restored Add Note trigger",
-  );
+  assert.equal(await contextRoot.count(), 1, "selection handoff must keep exactly one Context root");
+  const restored = await trigger.evaluate((element) => ({
+    mode: element.dataset.mesurerAnnotationScrollMode ?? null,
+    coordinateSpace: element.dataset.mesurerContextCoordinateSpace ?? null,
+    position: getComputedStyle(element).position,
+    anchor: element.style.getPropertyValue("position-anchor"),
+    cachedY: element.style.getPropertyValue("--mesurer-nested-scroll-y"),
+  }));
+  assert.deepEqual(restored, {
+    mode: "document",
+    coordinateSpace: "document",
+    position: "absolute",
+    anchor: "",
+    cachedY: "",
+  }, `restored Add Note action left document ownership: ${JSON.stringify(restored)}`);
 
-  const triggerOwnership = await trigger.evaluate((element) => {
-    const rendererRoot = element.closest("[data-mesurer-root='true']");
-    const triggerZText = getComputedStyle(element).zIndex;
-    const rendererRootZText = rendererRoot instanceof HTMLElement ? getComputedStyle(rendererRoot).zIndex : null;
-    const numericZ = (value) => value && value !== "auto" ? Number.parseInt(value, 10) : null;
-    return {
-      scrollMode: element.dataset.mesurerAnnotationScrollMode ?? null,
-      nativeOwner: element.dataset.mesurerNativeScrollOwner ?? null,
-      insideCanonicalRoot: rendererRoot instanceof HTMLElement,
-      triggerZ: numericZ(triggerZText),
-      triggerZText,
-      rendererRootZ: numericZ(rendererRootZText),
-      rendererRootZText,
-    };
-  });
-  assert.equal(
-    triggerOwnership.scrollMode,
-    "cached-delta",
-    "a trigger restored for a different selection must use the canonical-root cached-delta path",
-  );
-  assert.equal(
-    triggerOwnership.nativeOwner,
-    null,
-    "the draft-handoff trigger must not retain stale native CSS-anchor ownership",
-  );
-  assert.equal(
-    triggerOwnership.insideCanonicalRoot,
-    true,
-    "the restored Add Note trigger must remain inside the canonical Mesurer root",
-  );
-  assert.notEqual(
-    triggerOwnership.triggerZ,
-    null,
-    `restored Add Note trigger must own an explicit local z-index, got ${triggerOwnership.triggerZText}`,
-  );
-  assert.equal(
-    triggerOwnership.rendererRootZ,
-    ownership.rendererRootZ,
-    "restored Add Note trigger must remain in the same protected canonical-root paint tier",
-  );
-
-  // The canonical-root trigger is viewport-fixed while its page target scrolls.
-  // Window scrolling therefore updates only cached scalar CSS deltas. Gate the
-  // observable invariant directly: target-relative geometry remains exact and
-  // the Y cache advances by precisely the opposite of the real scroll delta.
   const windowScrollEvidence = await page.evaluate(async () => {
-    const subject = window.__MESURER_SELF_HOSTING__?.subject;
     const second = document.querySelector("[data-self-host-target-second]");
-    const nextTrigger = subject?.root.querySelector("[data-mesurer-annotation-trigger='true']");
+    const nextTrigger = document.querySelector(
+      "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
+    );
     if (!(second instanceof HTMLElement) || !(nextTrigger instanceof HTMLElement)) {
       throw new Error("Missing second target or restored Add Note trigger");
     }
-    const numberVariable = (property) => {
-      const value = nextTrigger.style.getPropertyValue(property).trim();
-      if (!value) return 0;
-      const parsed = Number.parseFloat(value);
-      return Number.isFinite(parsed) ? parsed : 0;
-    };
     const snapshot = () => {
       const target = second.getBoundingClientRect();
-      const triggerRect = nextTrigger.getBoundingClientRect();
+      const action = nextTrigger.getBoundingClientRect();
       return {
         scrollY: window.scrollY,
         target: { left: target.left, top: target.top },
-        trigger: { left: triggerRect.left, top: triggerRect.top },
-        relative: {
-          x: triggerRect.left - target.left,
-          y: triggerRect.top - target.top,
-        },
-        cachedX: numberVariable("--mesurer-nested-scroll-x"),
-        cachedY: numberVariable("--mesurer-nested-scroll-y"),
+        trigger: { left: action.left, top: action.top },
+        relative: { x: action.left - target.left, y: action.top - target.top },
+        cachedY: nextTrigger.style.getPropertyValue("--mesurer-nested-scroll-y"),
       };
     };
     const before = snapshot();
     window.scrollBy({ top: 180, behavior: "instant" });
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const after = snapshot();
-    return { before, after };
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const firstPaint = snapshot();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const settled = snapshot();
+    return { before, firstPaint, settled };
   });
-  const scrollDelta = windowScrollEvidence.after.scrollY - windowScrollEvidence.before.scrollY;
-  assert(scrollDelta > 0, "annotation handoff fixture must exercise real window scrolling");
-  assert(
-    Math.abs(windowScrollEvidence.after.relative.x - windowScrollEvidence.before.relative.x) < 0.5
-      && Math.abs(windowScrollEvidence.after.relative.y - windowScrollEvidence.before.relative.y) < 0.5,
-    `canonical-root Add Note trigger drifted during window scroll: ${JSON.stringify(windowScrollEvidence)}`,
-  );
-  assert(
-    Math.abs(
-      (windowScrollEvidence.after.cachedY - windowScrollEvidence.before.cachedY) + scrollDelta,
-    ) < 0.5,
-    `cached Y compensation must advance by the inverse window scroll delta: ${JSON.stringify(windowScrollEvidence)}`,
-  );
-  assert(
-    Math.abs(windowScrollEvidence.after.cachedX - windowScrollEvidence.before.cachedX) < 0.5,
-    `vertical window scrolling must not perturb cached X compensation: ${JSON.stringify(windowScrollEvidence)}`,
-  );
+  const scrollDelta = windowScrollEvidence.firstPaint.scrollY - windowScrollEvidence.before.scrollY;
+  assert(scrollDelta > 0, "annotation ownership fixture must exercise real window scrolling");
+  for (const sample of [windowScrollEvidence.firstPaint, windowScrollEvidence.settled]) {
+    assert(
+      Math.abs(sample.relative.x - windowScrollEvidence.before.relative.x) < 0.5
+        && Math.abs(sample.relative.y - windowScrollEvidence.before.relative.y) < 0.5,
+      `document-owned Add Note action drifted during scroll: ${JSON.stringify(windowScrollEvidence)}`,
+    );
+    assert.equal(sample.cachedY, "", "window scrolling must not write a JS compensation delta");
+  }
 
-  // The abandoned draft must not follow the selection invisibly and reappear on
-  // the new target when its Add Note button is used.
   await clickByCoordinates(trigger, "second selection annotation trigger");
   await composer.waitFor({ state: "visible" });
   assert.equal(
@@ -345,7 +200,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log(`Annotation ownership contract passed: canonical-root Context surfaces are protected by the renderer root above document-owned page chrome (${ownership.hoverDocumentLayer ? "ported" : "direct"}), selection change closes/discards the draft, the new target gets a canonical-root cached-delta Add Note trigger, and window scrolling preserves target-relative geometry through scalar compensation.`);
+  console.log("Annotation surface ownership contract: one document-backed Context plane paints above page chrome, survives selection handoff, follows window scrolling without JS catch-up, and discards abandoned drafts: PASS");
 } finally {
   await browser.close();
 }
