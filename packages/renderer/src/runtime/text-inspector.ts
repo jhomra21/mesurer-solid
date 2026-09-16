@@ -103,6 +103,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   let hoverCard: InspectorCard | null = null;
   let hoveredEl: HTMLElement | null = null;
   let pointer = { x: 0, y: 0 };
+  let hasPointerPosition = false;
   let raf = 0;
   let enrichmentTimer = 0;
   let scrollIdleTimer = 0;
@@ -339,7 +340,13 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     if (raf) return;
     raf = win.requestAnimationFrame(() => { raf = 0; sync(); });
   };
-  const onMove = (event: MouseEvent) => { pointer = { x: event.clientX, y: event.clientY }; schedule(); };
+  const onMove = (event: MouseEvent) => {
+    const next = { x: event.clientX, y: event.clientY };
+    if (hasPointerPosition && next.x === pointer.x && next.y === pointer.y) return;
+    pointer = next;
+    hasPointerPosition = true;
+    schedule();
+  };
   const shiftFallback = (element: HTMLElement | null, dx: number, dy: number) => {
     if (!element || element.dataset.mesurerNativeScrollAnchor) return;
     const left = Number.parseFloat(element.style.left);
@@ -417,6 +424,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const disable = () => {
     if (!enabled) return;
     enabled = false;
+    hasPointerPosition = false;
     win.cancelAnimationFrame(raf); raf = 0; win.clearTimeout(enrichmentTimer); win.clearTimeout(scrollIdleTimer); scrollIdleTimer = 0;
     win.removeEventListener("mousemove", onMove, true);
     win.removeEventListener("mouseout", onOut, true);
