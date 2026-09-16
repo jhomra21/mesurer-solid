@@ -1,3 +1,4 @@
+import type { MesurerPluginRegistration } from "@jhomra21/mesurer-solid-renderer";
 import type { MesurerPlugin } from "./core";
 import { arrange, MESURER_ARRANGE_PLUGIN_ID } from "./arrange";
 import { codex, MESURER_CODEX_PLUGIN_ID } from "./codex-plugin";
@@ -16,9 +17,9 @@ export type MesurerPluginCatalogEntry = {
 /**
  * Canonical first-party plugin registry.
  *
- * Settings discovery and default loading are both derived from this one list so
- * adding a first-party plugin never requires keeping a second availability list
- * in sync.
+ * Default loading, explicit initial enablement, Settings discovery, and later
+ * re-enablement are all derived from this one list. Adding a first-party plugin
+ * requires one registration here and nowhere else.
  */
 export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] = [
   {
@@ -52,14 +53,43 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
   },
 ];
 
-export const firstPartyPluginCatalog = (): MesurerPluginCatalogEntry[] =>
-  MESURER_FIRST_PARTY_PLUGINS.map((entry) => ({
-    ...entry,
-    settingsIds: entry.settingsIds ? [...entry.settingsIds] : undefined,
-    hiddenSettingsControlIds: entry.hiddenSettingsControlIds
-      ? [...entry.hiddenSettingsControlIds]
-      : undefined,
-  }));
+/**
+ * Resolve the single renderer plugin registry for one mount.
+ *
+ * With no explicit `plugins`, every first-party registration starts enabled.
+ * When callers provide `plugins`, that list is the initial enabled set while
+ * omitted first-party registrations remain known to Settings and can be enabled
+ * later. Explicit first-party instances retain their caller-supplied options
+ * across disable/re-enable cycles.
+ */
+export const createPluginRegistry = (
+  plugins?: readonly MesurerPlugin[],
+): MesurerPluginRegistration[] => {
+  const hasExplicitSet = plugins !== undefined;
+  const explicitPlugins = new Map((plugins ?? []).map((plugin) => [plugin.id, plugin]));
+  const firstPartyIds = new Set(MESURER_FIRST_PARTY_PLUGINS.map((entry) => entry.id));
+  const registry: MesurerPluginRegistration[] = MESURER_FIRST_PARTY_PLUGINS.map((entry) => {
+    const explicit = explicitPlugins.get(entry.id);
+    return {
+      ...entry,
+      settingsIds: entry.settingsIds ? [...entry.settingsIds] : undefined,
+      hiddenSettingsControlIds: entry.hiddenSettingsControlIds
+        ? [...entry.hiddenSettingsControlIds]
+        : undefined,
+      enabled: hasExplicitSet ? Boolean(explicit) : true,
+      create: explicit ? () => explicit : entry.create,
+    };
+  });
 
-export const defaultFirstPartyPlugins = (): MesurerPlugin[] =>
-  MESURER_FIRST_PARTY_PLUGINS.map((entry) => entry.create());
+  for (const [index, plugin] of (plugins ?? []).entries()) {
+    if (firstPartyIds.has(plugin.id)) continue;
+    registry.push({
+      id: plugin.id,
+      order: 1_000 + index,
+      enabled: true,
+      create: () => plugin,
+    });
+  }
+
+  return registry;
+};
