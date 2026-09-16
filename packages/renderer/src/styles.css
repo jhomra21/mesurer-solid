@@ -159,11 +159,11 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   z-index: 2147483647 !important;
 }
 
-/* Context is interactive Mesurer UI and stays inside the canonical root. Native
-   annotation surfaces use fixed anchor positioning so anchor() is interpreted
-   in viewport coordinates while the browser moves them with the page target.
-   Window scrolling therefore requires no main-thread delta writes. Nested
-   overflow scrolling may still contribute the lightweight cached delta. */
+/* Public Context page evidence now uses ordinary absolute document coordinates,
+   so window scrolling is owned by the same document/compositor path as the
+   selected page element. ContextActions still supports a native-anchor viewport
+   mode for isolated component use; nested overflow scrolling can contribute the
+   lightweight cached delta in either topology. */
 [data-mesurer-annotation-trigger="true"] {
   z-index: 80 !important;
 }
@@ -172,9 +172,6 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   position: fixed !important;
 }
 
-/* The generic runtime offset rule is injected inside the Mesurer shadow tree
-   and uses !important. Beat it in that same tree only for Context annotation
-   surfaces; document-owned Typography anchors remain absolute and unchanged. */
 [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-compensation="true"][data-mesurer-annotation-scroll-mode="native-anchor"] {
   position: fixed !important;
 }
@@ -201,10 +198,11 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   height: 24px !important;
 }
 
-/* Direct text edit and Context coordinate through their shared renderer root.
-   Root-local state works identically in normal DOM and isolated ShadowRoot
-   mounts; no document-global style or cross-root selector is required. */
-[data-mesurer-root="true"][data-mesurer-direct-text-edit-active="true"] [data-mesurer-annotation-trigger="true"] {
+/* Direct text edit publishes one root-local state bit. Context mirrors that bit
+   onto its document-backed page-evidence root so the Add Note action keeps the
+   accepted direct-edit clearance without moving Context back into viewport UI. */
+[data-mesurer-root="true"][data-mesurer-direct-text-edit-active="true"] [data-mesurer-annotation-trigger="true"],
+[data-mesurer-context-root="true"][data-mesurer-direct-text-edit-active="true"] [data-mesurer-annotation-trigger="true"] {
   display: none !important;
 }
 
@@ -228,12 +226,9 @@ body [data-mesurer-native-scroll-anchor="offset"][data-mesurer-nested-scroll-com
   margin-inline: -8px;
 }
 
-/* The canonical fixed root is one stacking context. Keep it above ordinary
-   document-portaled selection (2147482800) and hover (2147482700) chrome so
-   Context, toolbar, menus, and other interactive Mesurer UI cannot be painted
-   underneath page measurement chrome. Dedicated text-edit chrome begins at
-   2147482900 and Typography cards use 2147483647, so those document-owned
-   editing surfaces retain their intentional higher tier. */
+/* The canonical fixed root protects toolbar, menus, and other viewport-owned
+   Mesurer UI from ordinary document measurement chrome. Document-owned Context,
+   Typography, and text-edit surfaces carry their own explicit protected tiers. */
 .mesurer-solid-root {
   position: fixed;
   inset: 0;
