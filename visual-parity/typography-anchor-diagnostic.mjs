@@ -105,6 +105,22 @@ try {
   await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settle();
   targetBox = await rect(target, "standalone target");
+  await page.evaluate(() => {
+    globalThis.__mesurerTypographyMoveEvents = [];
+    window.addEventListener("mousemove", (event) => {
+      const targetElement = event.target instanceof Element ? event.target : null;
+      globalThis.__mesurerTypographyMoveEvents.push({
+        at: performance.now(),
+        clientX: event.clientX,
+        clientY: event.clientY,
+        movementX: event.movementX,
+        movementY: event.movementY,
+        isTrusted: event.isTrusted,
+        targetTag: targetElement?.tagName ?? null,
+        targetClass: targetElement instanceof HTMLElement ? targetElement.className : null,
+      });
+    }, true);
+  });
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
   const box = page.locator(".mesurer-ti-box[data-state='visible']").first();
   await box.waitFor({ state: "visible" });
@@ -125,8 +141,9 @@ try {
   states.push(await snapshotStandalone("150ms"));
   await page.waitForTimeout(100);
   states.push(await snapshotStandalone("250ms"));
+  const moveEvents = await page.evaluate(() => globalThis.__mesurerTypographyMoveEvents ?? []);
 
-  console.log(JSON.stringify(states, null, 2));
+  console.log(JSON.stringify({ states, moveEvents }, null, 2));
 } finally {
   await browser.close();
 }
