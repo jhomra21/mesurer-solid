@@ -59,7 +59,7 @@ const candidateGroups = (
 ): CandidateGroup[] => {
   const right = rect.left + rect.width;
   const bottom = rect.top + rect.height;
-  return [
+  const groups: CandidateGroup[] = [
     {
       axis: "vertical",
       space: viewport.width - right,
@@ -92,7 +92,8 @@ const candidateGroups = (
         { left: rect.left, top: rect.top - markerSize - targetGap },
       ],
     },
-  ].sort((left, right) => right.space - left.space);
+  ];
+  return groups.sort((left, right) => right.space - left.space);
 };
 
 const shiftedPoints = (
