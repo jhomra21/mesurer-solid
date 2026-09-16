@@ -190,9 +190,17 @@ try {
   const badge = marker.locator("[data-mesurer-annotation-badge='true']");
   const restingBadge = await box(badge, "resting annotation number badge");
   assert(Math.abs(restingBadge.width - 20) <= 1, `expected compact ~20px annotation badge, got ${restingBadge.width}`);
+  assert.equal(
+    await badge.evaluate((element) => getComputedStyle(element).transitionDuration.split(",").map((value) => value.trim()).every((value) => value === "0.15s")),
+    true,
+    "annotation badge growth transition must remain 150ms",
+  );
 
   await marker.hover();
-  await page.waitForTimeout(180);
+  await page.waitForFunction((restingWidth) => {
+    const badgeElement = document.querySelector("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true'] [data-mesurer-annotation-badge='true']");
+    return badgeElement instanceof HTMLElement && badgeElement.getBoundingClientRect().width >= restingWidth + 3;
+  }, restingBadge.width, { timeout: 1000 });
   assert.equal(await marker.getAttribute("data-mesurer-annotation-highlighted"), "true", "hovered annotation marker must become the active ownership preview");
   const hoveredBadge = await box(badge, "hovered annotation number badge");
   assert(hoveredBadge.width >= restingBadge.width + 3, `annotation badge did not grow on hover: resting=${restingBadge.width}, hovered=${hoveredBadge.width}`);
@@ -212,7 +220,7 @@ try {
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
   const browserVersion = await browser.version();
   const dpr = await page.evaluate(() => window.devicePixelRatio);
-  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root, its viewport-fixed trigger follows real wheel input, saved notes use numbered ownership markers, hover grows the compact badge in 150ms, and the owning target is highlighted: PASS`);
+  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root, its viewport-fixed trigger follows real wheel input, saved notes use numbered ownership markers, hover grows the compact badge with a 150ms transition, and the owning target is highlighted: PASS`);
 } finally {
   await browser.close();
 }
