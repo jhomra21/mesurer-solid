@@ -36,10 +36,10 @@ const containsPoint = (rect: CachedUiRect, x: number, y: number) => (
  *
  * Geometry is sampled when Mesurer-owned UI changes, on resize, and once after
  * scrolling settles. Pointer movement is normally O(number of visible Mesurer
- * surfaces) scalar containment checks only. If UI changed after the last paint,
- * the first pointer hover/over flushes that one already-scheduled capture before
- * the ensuing press; steady-state pointer movement and the scroll hot path do no
- * layout reads.
+ * surfaces) scalar containment checks only. DOM mutations schedule one capture;
+ * scrolling only marks cached geometry stale. The first pointer approach after
+ * either case may synchronously refresh that stale cache before the ensuing
+ * press. The scroll hot path itself still performs no layout reads.
  */
 export function installIsolatedDocumentUiPassthrough(
   ctx: MesurerPluginContext,
@@ -70,6 +70,7 @@ export function installIsolatedDocumentUiPassthrough(
   let disposed = false;
   let captureFrame = 0;
   let scrollIdleTimer = 0;
+  let geometryStale = false;
   let cachedRects: CachedUiRect[] = [];
   let pointer: { x: number; y: number } | null = null;
 
@@ -88,6 +89,7 @@ export function installIsolatedDocumentUiPassthrough(
 
   const capture = () => {
     captureFrame = 0;
+    geometryStale = false;
     if (disposed) return;
     const next: CachedUiRect[] = [];
     for (const element of ownerDocument.body.querySelectorAll<HTMLElement>(DOCUMENT_UI_SELECTOR)) {
@@ -109,9 +111,9 @@ export function installIsolatedDocumentUiPassthrough(
     captureFrame = ownerWindow.requestAnimationFrame(capture);
   };
 
-  const flushScheduledCapture = () => {
-    if (!captureFrame) return false;
-    ownerWindow.cancelAnimationFrame(captureFrame);
+  const flushStaleGeometry = () => {
+    if (!geometryStale && !captureFrame) return false;
+    if (captureFrame) ownerWindow.cancelAnimationFrame(captureFrame);
     captureFrame = 0;
     capture();
     return true;
@@ -141,7 +143,7 @@ export function installIsolatedDocumentUiPassthrough(
 
   const applyPointerEvent = (event: PointerEvent) => {
     pointer = { x: event.clientX, y: event.clientY };
-    if (!flushScheduledCapture()) applyPointer();
+    if (!flushStaleGeometry()) applyPointer();
   };
   const onPointerLeave = () => {
     pointer = null;
@@ -149,6 +151,7 @@ export function installIsolatedDocumentUiPassthrough(
   };
   const onResize = () => scheduleCapture();
   const onScroll = () => {
+    geometryStale = true;
     if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
     scrollIdleTimer = ownerWindow.setTimeout(() => {
       scrollIdleTimer = 0;
@@ -179,6 +182,7 @@ export function installIsolatedDocumentUiPassthrough(
     ownerWindow.removeEventListener("scroll", onScroll, true);
     setPassthrough(false);
     style.remove();
+    geometryStale = false;
     cachedRects = [];
     pointer = null;
   });
