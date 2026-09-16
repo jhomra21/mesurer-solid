@@ -134,25 +134,26 @@ try {
   if ((await pluginsDisclosure.getAttribute("aria-expanded")) !== "true") await pluginsDisclosure.click();
 
   const expectedPlugins = [
-    ["mesurer.context", "Context", "false"],
-    ["mesurer.arrange", "Arrange", "true"],
-    ["mesurer.screenshot", "Screenshot", "false"],
+    ["mesurer.context", "Context"],
+    ["mesurer.arrange", "Arrange"],
+    ["mesurer.screenshot", "Screenshot"],
+    ["mesurer.codex", "Codex"],
   ];
-  for (const [id, label, checked] of expectedPlugins) {
+  for (const [id, label] of expectedPlugins) {
     const row = dialog.locator(`[data-mesurer-plugin-settings-section='${id}']`);
     await row.waitFor({ state: "visible" });
     assert.equal((await row.locator(`[data-mesurer-plugin-label='${id}']`).textContent())?.trim(), label, `${label} plugin row label`);
-    assert.equal(await row.getByRole("switch", { name: label, exact: true }).getAttribute("aria-checked"), checked, `${label} plugin availability state`);
+    assert.equal(await row.getByRole("switch", { name: label, exact: true }).getAttribute("aria-checked"), "true", `${label} should be enabled by default`);
   }
 
   const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
   await contextToggle.click();
-  await settingsPage.waitForFunction(() => document.querySelector("[data-mesurer-plugin-toggle='mesurer.context']")?.getAttribute("aria-checked") === "true");
+  await settingsPage.waitForFunction(() => document.querySelector("[data-mesurer-plugin-toggle='mesurer.context']")?.getAttribute("aria-checked") === "false");
   await settingsPage.keyboard.press("Control+,");
   await dialog.waitFor({ state: "hidden" });
   if ((await compact.getAttribute("aria-pressed")) === "true") await compact.click();
   await settingsPage.waitForTimeout(180);
-  await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "visible" });
+  await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "hidden" });
 
   await settingsPage.keyboard.press("Control+,");
   await dialog.waitFor({ state: "visible" });
@@ -162,11 +163,11 @@ try {
   if ((await disclosureAgain.getAttribute("aria-expanded")) !== "true") await disclosureAgain.click();
   const contextToggleAgain = dialog.getByRole("switch", { name: "Context", exact: true });
   await contextToggleAgain.click();
-  await settingsPage.waitForFunction(() => document.querySelector("[data-mesurer-plugin-toggle='mesurer.context']")?.getAttribute("aria-checked") === "false");
-  await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "hidden" });
+  await settingsPage.waitForFunction(() => document.querySelector("[data-mesurer-plugin-toggle='mesurer.context']")?.getAttribute("aria-checked") === "true");
+  await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "visible" });
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; optional first-party plugins are discoverable and loadable by a human: PASS");
+  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; all first-party plugins including Codex are present and default-enabled; Context can be toggled off and back on: PASS");
 } finally {
   await settingsPage?.close();
   await page?.close();
