@@ -23,6 +23,10 @@ const box = async (locator, stage) => {
   return value;
 };
 
+const settle = () => page.evaluate(() => new Promise((resolve) => {
+  requestAnimationFrame(() => requestAnimationFrame(resolve));
+}));
+
 const clickDocumentUi = async (locator, label) => {
   await locator.waitFor({ state: "visible" });
   const rect = await box(locator, label);
@@ -304,6 +308,18 @@ try {
   assert.equal(highlightStyle.radius, "0px");
   assert.equal(highlightStyle.sizing, "border-box");
 
+  // The card is intentionally page-owned, so the scroll sequence above may
+  // carry it completely out of the viewport. Bring the source back before the
+  // physical close check rather than treating correct off-screen ownership as a
+  // hit-test failure.
+  await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await settle();
+  const restoredTargetBox = await box(target, "target restored for annotation close");
+  const restoredPanelBox = await box(panel, "annotation panel restored for physical close");
+  assert(
+    Math.abs((restoredPanelBox.y - restoredTargetBox.y) - (annotationFrames[0].panel.y - annotationFrames[0].target.y)) <= 1.5,
+    "annotation panel changed its target-relative page point after returning to view",
+  );
   await clickDocumentUi(panel.getByRole("button", { name: "Close annotation" }), "Close annotation button");
   await panel.waitFor({ state: "hidden" });
 
