@@ -8,7 +8,7 @@ type CachedUiRect = {
   bottom: number;
 };
 
-const DOCUMENT_UI_SELECTOR = "[data-mesurer-inspector-ui='true']";
+const DOCUMENT_UI_SELECTOR = "[data-mesurer-inspector-ui='true'], [data-mesurer-annotation-marker='true']";
 const SCROLL_IDLE_MS = 80;
 
 const isDocumentBackedRuntime = (
@@ -41,11 +41,11 @@ const containsPoint = (rect: CachedUiRect, x: number, y: number) => (
  * redispatched or synthesized.
  *
  * Geometry is sampled when Mesurer-owned UI changes, on resize, and once after
- * scrolling settles. Pointer movement is normally O(number of visible Mesurer
- * surfaces) scalar containment checks only. DOM mutations schedule one capture;
- * scrolling only marks cached geometry stale. The first pointer approach after
- * either case may synchronously refresh that stale cache before the ensuing
- * press. The scroll hot path itself still performs no layout reads.
+ * scrolling settles. Window scrolling translates the cached rectangles by the
+ * known scroll delta, so even a stationary pointer stays synchronized without a
+ * layout read. Nested scrolling only marks the cache stale; the next pointer
+ * approach may synchronously refresh it before the ensuing press. The scroll
+ * hot path itself performs no DOM queries or geometry reads.
  */
 export function installIsolatedDocumentUiPassthrough(
   ctx: MesurerPluginContext,
@@ -79,6 +79,8 @@ export function installIsolatedDocumentUiPassthrough(
   let geometryStale = false;
   let cachedRects: CachedUiRect[] = [];
   let pointer: { x: number; y: number } | null = null;
+  let windowScrollX = ownerWindow.scrollX;
+  let windowScrollY = ownerWindow.scrollY;
 
   const setPassthrough = (active: boolean) => {
     if (active) rendererRoot.dataset.mesurerDocumentUiPassthrough = "true";
@@ -109,6 +111,8 @@ export function installIsolatedDocumentUiPassthrough(
       next.push({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom });
     }
     cachedRects = next;
+    windowScrollX = ownerWindow.scrollX;
+    windowScrollY = ownerWindow.scrollY;
     applyPointer();
   };
 
@@ -157,7 +161,28 @@ export function installIsolatedDocumentUiPassthrough(
   };
   const onResize = () => scheduleCapture();
   const onScroll = () => {
-    geometryStale = true;
+    const nextX = ownerWindow.scrollX;
+    const nextY = ownerWindow.scrollY;
+    const dx = nextX - windowScrollX;
+    const dy = nextY - windowScrollY;
+    windowScrollX = nextX;
+    windowScrollY = nextY;
+
+    if (dx || dy) {
+      cachedRects = cachedRects.map((rect) => ({
+        left: rect.left - dx,
+        top: rect.top - dy,
+        right: rect.right - dx,
+        bottom: rect.bottom - dy,
+      }));
+      applyPointer();
+    } else {
+      // A nested scroller can move document-backed UI through its lightweight
+      // compensation without changing window.scrollX/Y. Defer the layout read
+      // until pointer approach or scroll settle rather than doing it here.
+      geometryStale = true;
+    }
+
     if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
     scrollIdleTimer = ownerWindow.setTimeout(() => {
       scrollIdleTimer = 0;
