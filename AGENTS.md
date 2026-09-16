@@ -64,6 +64,72 @@ When editing this repository:
 
 The authoritative third-party notice is [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md). Current parity/product decisions are pinned in [`docs/UPSTREAM_PARITY.md`](./docs/UPSTREAM_PARITY.md).
 
+## Reference Codebases
+
+Reference these codebases when designing APIs, code, architecture, persistence, UI systems, or other programming solutions. Use them to understand patterns and tradeoffs, not as requirements to copy their abstractions.
+
+### Diffusion Studio
+
+**Repositories / sources**
+- `diffusionstudio/editor` — https://github.com/diffusionstudio/editor
+- Diffusion Studio `monorepo-new` when available locally or through authorized repository access
+
+**Role:** Full-stack video editing platform and application architecture.
+
+Reference for editor architecture, media pipelines, editor state, application boundaries, worker/background processing, larger product organization, and performance-sensitive editing interactions. Prefer the smallest relevant pattern instead of reproducing the whole editor architecture.
+
+### DialKit
+
+**Repository:** `joshpuckett/dialkit` — https://github.com/joshpuckett/dialkit
+
+**Role:** Real-time parameter tweaking and UI reference for React, Solid, Svelte, and Vue.
+
+Reference for fine-grained interactive controls, parameter editing, Solid integrations, reactive UI APIs, and small composable primitives. It is especially relevant to mask controls such as threshold, feathering, erosion, dilation, and edge refinement.
+
+### OpenCode v2
+
+**Repository:** `anomalyco/opencode` — https://github.com/anomalyco/opencode
+
+**Role:** Solid application, persistence, preferences, and product architecture reference.
+
+Reference for Solid application architecture, persistence, application preferences, service boundaries, command/action design, and keeping frontend state separate from lower-level runtime services. Do not copy complexity that exists only because OpenCode is a coding-agent platform.
+
+### Solid Primitives
+
+**Repository:** `solidjs-community/solid-primitives` — https://github.com/solidjs-community/solid-primitives
+
+**Role:** Solid library and API-design reference.
+
+Reference especially for storage and persistence primitives, lifecycle handling, browser APIs, cleanup semantics, and composable Solid APIs. Before inventing a general-purpose Solid primitive, check whether Solid Primitives already provides the behavior or demonstrates an established pattern.
+
+### DAW Browser Convex
+
+**Repository:** `jhomra21/daw-browser-convex` — https://github.com/jhomra21/daw-browser-convex
+
+**Role:** Audio DSP and performance-sensitive browser application reference.
+
+Reference for worker architecture, realtime processing, DSP-style pipelines, browser/runtime boundaries, high-frequency state, editor architecture, and avoiding UI work on performance-sensitive paths. Borrow architectural and performance ideas rather than audio-specific abstractions.
+
+### Pi
+
+**Repository:** `earendil-works/pi` — https://github.com/earendil-works/pi
+
+**Role:** Small, composable agent/application architecture reference.
+
+Reference for simple APIs, composable building blocks, narrow interfaces, explicit capabilities, avoiding unnecessary framework layers, and code that remains understandable to humans and coding agents. Use Pi as a counterweight when another reference suggests a heavier abstraction.
+
+## Reference-codebase policy
+
+When designing a new subsystem:
+
+1. Look for an analogous pattern in the reference codebases.
+2. Understand why that pattern exists before adopting it.
+3. Prefer the smallest version that satisfies this repository's actual requirements.
+4. Do not add an abstraction solely because a reference project has one.
+5. Do not copy code blindly. Reimplement the underlying idea for this project's constraints.
+6. When references disagree, prefer fewer concepts, clearer ownership, stronger type safety, and easier testing.
+7. For GPU or inference-specific decisions, benchmark instead of assuming an architecture is faster.
+
 ## 1. Discover and preserve the current Mesurer instance
 
 Before evaluating an injector:
