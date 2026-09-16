@@ -184,16 +184,69 @@ try {
     "1",
     "open annotation panel must use the same visible number as its marker",
   );
+  await trigger.waitFor({ state: "visible" });
+  assert.equal(await trigger.count(), 1, "Add Note trigger must remain available while an annotation panel is open");
+
   const markerZIndex = Number(await marker.evaluate((element) => getComputedStyle(element).zIndex));
   const panelZIndex = Number(await panel.evaluate((element) => getComputedStyle(element).zIndex));
   assert(
     markerZIndex > panelZIndex,
     `saved annotation markers must remain physically reachable above an open panel: marker=${markerZIndex}, panel=${panelZIndex}`,
   );
+
+  const highlight = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']");
+  await highlight.waitFor({ state: "visible" });
+  const sameEventBefore = await page.evaluate(() => {
+    const read = (selector) => {
+      const element = document.querySelector(selector);
+      if (!(element instanceof HTMLElement)) return null;
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    return {
+      target: read(".hero h1"),
+      marker: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']"),
+      panel: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']"),
+      highlight: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']"),
+    };
+  });
+  const sameEventAfter = await page.evaluate(() => new Promise((resolve) => {
+    const read = (selector) => {
+      const element = document.querySelector(selector);
+      if (!(element instanceof HTMLElement)) return null;
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    window.addEventListener("scroll", () => resolve({
+      target: read(".hero h1"),
+      marker: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']"),
+      panel: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']"),
+      highlight: read("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']"),
+    }), { once: true });
+    window.scrollBy(0, 80);
+  }));
+  assert(sameEventBefore.target && sameEventAfter.target, "annotation scroll contract lost its target");
+  for (const surface of ["marker", "panel", "highlight"]) {
+    const before = sameEventBefore[surface];
+    const after = sameEventAfter[surface];
+    assert(before && after, `annotation scroll contract lost ${surface}`);
+    const beforeX = before.x - sameEventBefore.target.x;
+    const beforeY = before.y - sameEventBefore.target.y;
+    const afterX = after.x - sameEventAfter.target.x;
+    const afterY = after.y - sameEventAfter.target.y;
+    assert(Math.abs(afterX - beforeX) <= 1.5, `${surface} drifted horizontally in the same scroll event`);
+    assert(Math.abs(afterY - beforeY) <= 1.5, `${surface} drifted vertically in the same scroll event`);
+  }
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
   await panel.getByRole("button", { name: "Close annotation" }).click();
   await panel.waitFor({ state: "hidden" });
 
   const badge = marker.locator("[data-mesurer-annotation-badge='true']");
+  await page.waitForFunction(() => {
+    const badgeElement = document.querySelector("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true'] [data-mesurer-annotation-badge='true']");
+    return badgeElement instanceof HTMLElement && badgeElement.getBoundingClientRect().width <= 21;
+  }, { timeout: 1000 });
   const restingBadge = await box(badge, "resting annotation number badge");
   assert(Math.abs(restingBadge.width - 20) <= 1, `expected compact ~20px annotation badge, got ${restingBadge.width}`);
   assert.equal(
@@ -211,7 +264,6 @@ try {
   const hoveredBadge = await box(badge, "hovered annotation number badge");
   assert(hoveredBadge.width >= restingBadge.width + 3, `annotation badge did not grow on hover: resting=${restingBadge.width}, hovered=${hoveredBadge.width}`);
 
-  const highlight = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-target-highlight='true']");
   await highlight.waitFor({ state: "visible" });
   const highlightBox = await box(highlight, "annotation target ownership highlight");
   const currentTargetBox = await box(target, "annotation target while marker hovered");
@@ -244,10 +296,25 @@ try {
   await page.mouse.move(1120, 470);
   await highlight.waitFor({ state: "hidden" });
 
+  await marker.click();
+  await panel.waitFor({ state: "visible" });
+  await trigger.waitFor({ state: "visible" });
+  await trigger.click();
+  await panel.waitFor({ state: "hidden" });
+  await composer.waitFor({ state: "visible" });
+  await composer.locator("textarea").fill("Second annotation on the same selected element");
+  await composer.getByRole("button", { name: "Add note", exact: true }).click();
+  await composer.waitFor({ state: "hidden" });
+  assert.equal(
+    await page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']").count(),
+    2,
+    "selected elements must accept another note while an existing annotation is open",
+  );
+
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
   const browserVersion = await browser.version();
   const dpr = await page.evaluate(() => window.devicePixelRatio);
-  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root, its viewport-fixed trigger follows real wheel input, saved notes use numbered ownership markers, open panels stay below marker hit targets, hover grows the compact badge with a 150ms transition, and annotation ownership reuses the target boundary as one fully opaque 1px–1.5px line with no fill or glow: PASS`);
+  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root; selected targets keep Add Note available while a note is open; marker, panel, and highlight preserve their target-relative offsets in the same scroll event; repeated notes work; and ownership reuses one fully opaque 1px–1.5px target boundary with no fill or glow: PASS`);
 } finally {
   await browser.close();
 }
