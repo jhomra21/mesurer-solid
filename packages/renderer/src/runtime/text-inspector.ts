@@ -103,12 +103,13 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   let hoverCard: InspectorCard | null = null;
   let hoveredEl: HTMLElement | null = null;
   let pointer = { x: 0, y: 0 };
-  let hasPointerPosition = false;
   let raf = 0;
   let enrichmentTimer = 0;
   let scrollIdleTimer = 0;
   let scrollX = win.scrollX;
   let scrollY = win.scrollY;
+  let nativeScrollActive = false;
+  let pointerMovedDuringNativeScroll = false;
   const pins: Pin[] = [];
   const history: PinSnapshot[][] = [];
   const future: PinSnapshot[][] = [];
@@ -327,6 +328,10 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
 
   const sync = () => {
     if (!enabled) return;
+    if (nativeScrollActive) {
+      syncCurrentGeometry();
+      return;
+    }
     const target = pick(pointer.x, pointer.y);
     if (!target) hideHover();
     else if (target !== hoveredEl) inspect(target);
@@ -341,10 +346,11 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     raf = win.requestAnimationFrame(() => { raf = 0; sync(); });
   };
   const onMove = (event: MouseEvent) => {
-    const next = { x: event.clientX, y: event.clientY };
-    if (hasPointerPosition && next.x === pointer.x && next.y === pointer.y) return;
-    pointer = next;
-    hasPointerPosition = true;
+    pointer = { x: event.clientX, y: event.clientY };
+    if (nativeScrollActive) {
+      pointerMovedDuringNativeScroll = true;
+      return;
+    }
     schedule();
   };
   const shiftFallback = (element: HTMLElement | null, dx: number, dy: number) => {
@@ -354,6 +360,10 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     if (Number.isFinite(left)) element.style.left = `${left - dx}px`;
     if (Number.isFinite(top)) element.style.top = `${top - dy}px`;
   };
+  const isNativeDocumentScroll = () => portal === doc.body && hasNativeScrollAnchoring(doc);
+  const onWheel = () => {
+    if (isNativeDocumentScroll()) nativeScrollActive = true;
+  };
   const onScroll = () => {
     const nextX = win.scrollX;
     const nextY = win.scrollY;
@@ -361,8 +371,9 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     const dy = nextY - scrollY;
     scrollX = nextX;
     scrollY = nextY;
-    const nativeDocumentScroll = portal === doc.body && hasNativeScrollAnchoring(doc);
+    const nativeDocumentScroll = isNativeDocumentScroll();
     if (nativeDocumentScroll) {
+      nativeScrollActive = true;
       // A newly shown Typography surface can exist for one task before the
       // document anchor coordinator claims it. Keep that fallback glued to its
       // current target with scroll-delta arithmetic only; never read layout in
@@ -381,6 +392,11 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
       scrollIdleTimer = win.setTimeout(() => {
         scrollIdleTimer = 0;
         syncCurrentGeometry();
+        nativeScrollActive = false;
+        if (pointerMovedDuringNativeScroll) {
+          pointerMovedDuringNativeScroll = false;
+          schedule();
+        }
       }, NATIVE_SCROLL_SETTLE_MS);
       return;
     }
@@ -418,18 +434,21 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     win.addEventListener("mouseout", onOut, true);
     win.addEventListener("click", onClick, true);
     win.addEventListener("auxclick", onAux, true);
+    win.addEventListener("wheel", onWheel, { capture: true, passive: true });
     win.addEventListener("scroll", onScroll, { capture: true, passive: true });
     win.addEventListener("resize", schedule, true);
   };
   const disable = () => {
     if (!enabled) return;
     enabled = false;
-    hasPointerPosition = false;
+    nativeScrollActive = false;
+    pointerMovedDuringNativeScroll = false;
     win.cancelAnimationFrame(raf); raf = 0; win.clearTimeout(enrichmentTimer); win.clearTimeout(scrollIdleTimer); scrollIdleTimer = 0;
     win.removeEventListener("mousemove", onMove, true);
     win.removeEventListener("mouseout", onOut, true);
     win.removeEventListener("click", onClick, true);
     win.removeEventListener("auxclick", onAux, true);
+    win.removeEventListener("wheel", onWheel, true);
     win.removeEventListener("scroll", onScroll, true);
     win.removeEventListener("resize", schedule, true);
     hideHover(); clearPins();
