@@ -2,9 +2,7 @@ import {
   mountMesurer,
   type MountedMesurer,
 } from "./index";
-import { context as contextFactory } from "./context-plugin";
 import type { MesurerInjectConfig } from "./inject";
-import { screenshot as screenshotFactory } from "./screenshot";
 
 declare global {
   var __MESURER_CONFIG__: MesurerInjectConfig | undefined;
@@ -15,9 +13,6 @@ const config = globalThis.__MESURER_CONFIG__ ?? {};
 const {
   target: targetSelector,
   globalName = "__MESURER__",
-  context = true,
-  screenshot = false,
-  plugins = [],
   reuseExisting = true,
   ...options
 } = config;
@@ -35,16 +30,9 @@ if (reusableExisting) {
   const target = targetSelector ? document.querySelector<HTMLElement>(targetSelector) : document.body;
   if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
-  const injectedPlugins = [
-    ...(context === false ? [] : [contextFactory(context === true ? {} : context)]),
-    ...(screenshot === false ? [] : [screenshotFactory(screenshot === true ? {} : screenshot)]),
-    ...plugins,
-  ];
-
   existing?.dispose();
   const mesurer = mountMesurer({
     ...options,
-    plugins: injectedPlugins,
     target,
     agent: { globalName, root: document },
   });
