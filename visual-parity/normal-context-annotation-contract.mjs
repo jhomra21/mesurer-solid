@@ -184,6 +184,12 @@ try {
     "1",
     "open annotation panel must use the same visible number as its marker",
   );
+  const markerZIndex = Number(await marker.evaluate((element) => getComputedStyle(element).zIndex));
+  const panelZIndex = Number(await panel.evaluate((element) => getComputedStyle(element).zIndex));
+  assert(
+    markerZIndex > panelZIndex,
+    `saved annotation markers must remain physically reachable above an open panel: marker=${markerZIndex}, panel=${panelZIndex}`,
+  );
   await panel.getByRole("button", { name: "Close annotation" }).click();
   await panel.waitFor({ state: "hidden" });
 
@@ -220,7 +226,7 @@ try {
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join("\n")}`);
   const browserVersion = await browser.version();
   const dpr = await page.evaluate(() => window.devicePixelRatio);
-  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root, its viewport-fixed trigger follows real wheel input, saved notes use numbered ownership markers, hover grows the compact badge with a 150ms transition, and the owning target is highlighted: PASS`);
+  console.log(`Normal Context annotation E2E (${browserVersion}, DPR ${dpr}): Context stays in the canonical Mesurer root, its viewport-fixed trigger follows real wheel input, saved notes use numbered ownership markers, open panels stay below marker hit targets, hover grows the compact badge with a 150ms transition, and the owning target is highlighted: PASS`);
 } finally {
   await browser.close();
 }
