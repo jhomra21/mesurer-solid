@@ -815,14 +815,12 @@ export function ContextActions(props: ContextActionsProps) {
           aria-hidden="true"
           class="msr:pointer-events-none msr:fixed"
           style={{
-            left: `${rect.left - 2}px`,
-            top: `${rect.top - 2}px`,
-            width: `${rect.width + 4}px`,
-            height: `${rect.height + 4}px`,
-            border: "2px solid #0d99ff",
-            "border-radius": "5px",
-            background: "rgba(13, 153, 255, 0.07)",
-            "box-shadow": "0 0 0 2px rgba(13, 153, 255, 0.16)",
+            left: `${rect.left}px`,
+            top: `${rect.top}px`,
+            width: `${rect.width}px`,
+            height: `${rect.height}px`,
+            "box-sizing": "border-box",
+            border: "1.5px solid #0d99ff",
             "z-index": ANNOTATION_HIGHLIGHT_Z_INDEX,
           }}
         />
