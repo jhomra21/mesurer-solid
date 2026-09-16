@@ -29,21 +29,64 @@ const clickDocumentUi = async (locator, label) => {
   const x = rect.x + rect.width / 2;
   const y = rect.y + rect.height / 2;
 
-  // The protected renderer lives in the browser top layer. Real pointers first
-  // approach a document-backed Mesurer control, which lets the shared
-  // passthrough boundary expose that exact control before the press. Exercise
-  // that physical path instead of Playwright locator actionability, which asks
-  // for the hit target before emitting any pointer approach event.
+  // The protected renderer lives above ordinary page content. A real pointer
+  // approaches a document-backed Mesurer control before the press, which lets
+  // the shared passthrough boundary expose that exact control. Keep the hit-test
+  // assertion physical, and report the actual owner if that handoff ever fails.
   await page.mouse.move(x, y);
-  const ownsHit = await locator.evaluate((element) => {
+  const hitState = await locator.evaluate((element) => {
+    const describe = (node) => {
+      if (!(node instanceof HTMLElement)) return null;
+      const style = getComputedStyle(node);
+      return {
+        tag: node.tagName,
+        id: node.id || null,
+        className: typeof node.className === "string" ? node.className : null,
+        layer: node.dataset.mesurerLayer ?? null,
+        root: node.dataset.mesurerRoot ?? null,
+        island: node.dataset.mesurerIsland ?? null,
+        annotationPanel: node.dataset.mesurerAnnotationPanel ?? null,
+        annotationMarker: node.dataset.mesurerAnnotationMarker ?? null,
+        annotationTrigger: node.dataset.mesurerAnnotationTrigger ?? null,
+        selectedMeasurement: node.dataset.mesurerSelectedMeasurement ?? null,
+        pointerEvents: style.pointerEvents,
+        zIndex: style.zIndex,
+        position: style.position,
+      };
+    };
     const rect = element.getBoundingClientRect();
-    const hit = element.ownerDocument.elementFromPoint(
+    const actual = element.ownerDocument.elementFromPoint(
       rect.left + rect.width / 2,
       rect.top + rect.height / 2,
     );
-    return Boolean(hit && (hit === element || element.contains(hit)));
+    const contextRoot = element.closest("[data-mesurer-context-root='true']");
+    const island = element.ownerDocument.querySelector("[data-mesurer-island='true']");
+    const rendererRoot = island instanceof HTMLElement
+      ? island.shadowRoot?.querySelector("[data-mesurer-root='true']")
+        ?? island.querySelector("[data-mesurer-root='true']")
+      : null;
+    return {
+      ownsHit: Boolean(actual && (actual === element || element.contains(actual))),
+      actual: describe(actual),
+      actualParent: describe(actual?.parentElement ?? null),
+      expected: describe(element),
+      contextRoot: describe(contextRoot),
+      rendererRoot: describe(rendererRoot),
+      passthrough: rendererRoot instanceof HTMLElement
+        ? rendererRoot.dataset.mesurerDocumentUiPassthrough ?? null
+        : null,
+      passthroughStyles: element.ownerDocument.querySelectorAll(
+        "style[data-mesurer-document-ui-passthrough-style='true']",
+      ).length + (island?.shadowRoot?.querySelectorAll(
+        "style[data-mesurer-document-ui-passthrough-style='true']",
+      ).length ?? 0),
+    };
   });
-  assert.equal(ownsHit, true, `${label} did not own its visible pointer location after physical pointer approach`);
+  assert.equal(
+    hitState.ownsHit,
+    true,
+    `${label} did not own its visible pointer location after physical pointer approach: ${JSON.stringify(hitState)}`,
+  );
   await page.mouse.click(x, y);
 };
 
