@@ -30,7 +30,7 @@ import {
 } from "./context-plugin";
 import type { MesurerPlugin, MesurerPluginDescription, MesurerPluginHost } from "./core";
 import { mountMesurerHost, type MesurerHostLayerMode } from "./host-layer";
-import { defaultFirstPartyPlugins, firstPartyPluginCatalog } from "./plugin-catalog";
+import { createPluginRegistry } from "./plugin-catalog";
 import { MESURER_VERSION } from "./version";
 
 const ARRANGE_SERVICE_ID = "arrange";
@@ -116,8 +116,8 @@ export type MesurerOptions = {
   rulerSettings?: Partial<RulerSettings>;
   /**
    * Initial enabled plugin set. Omit this to enable every first-party Mesurer plugin.
-   * Settings always discovers the canonical first-party catalog, so omitted first-party
-   * plugins can still be enabled later without a second availability array.
+   * Omitted first-party plugins remain toggleable in Settings from the same canonical
+   * registry; callers never maintain a separate availability or Settings list.
    */
   plugins?: MesurerPlugin[];
   excludePlugins?: MesurerBuiltinPluginId[];
@@ -337,12 +337,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
   const rendererProps: RendererMesurerProps = {
     ...mesurerProps,
     version: MESURER_VERSION,
-    plugins: plugins ?? defaultFirstPartyPlugins(),
-    // The renderer still needs factories for plugins that Settings can re-enable
-    // after they are toggled off. This catalog is derived from the same canonical
-    // first-party registry as the default enabled set; callers never maintain a
-    // second `availablePlugins` list.
-    availablePlugins: firstPartyPluginCatalog(),
+    plugins: createPluginRegistry(plugins),
   };
   const disposeRender = render(
     () => (
