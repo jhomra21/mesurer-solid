@@ -5,7 +5,7 @@ import {
   defineMesurerPlugin,
   type MesurerPlugin,
 } from "@jhomra21/mesurer-solid-core";
-import ComposableMesurer, { type MesurerAvailablePlugin } from "../src/ComposableMesurer";
+import ComposableMesurer, { type MesurerPluginRegistration } from "../src/ComposableMesurer";
 import { render } from "../src/solid-dom";
 
 const mounted: Array<() => void> = [];
@@ -51,13 +51,13 @@ afterEach(async () => {
 });
 
 describe("ComposableMesurer async plugin lifecycle", () => {
-  it("does not start plugin setup when an available-plugin factory resolves after unmount", async () => {
+  it("does not start plugin setup when a registered factory resolves after unmount", async () => {
     const host = createMesurerPluginHost();
     hosts.push(host);
     const factoryResult = deferred<MesurerPlugin>();
     const setup = vi.fn();
     const factory = vi.fn(() => factoryResult.promise);
-    const entry: MesurerAvailablePlugin = {
+    const entry: MesurerPluginRegistration = {
       id: "test.deferred-factory",
       label: "Deferred factory",
       create: factory,
@@ -71,7 +71,7 @@ describe("ComposableMesurer async plugin lifecycle", () => {
     const dispose = mountComposable({
       persistKey: "deferred-factory",
       pluginHost: host,
-      availablePlugins: [entry],
+      plugins: [entry],
     });
     await vi.waitFor(() => expect(factory).toHaveBeenCalledTimes(1));
 
