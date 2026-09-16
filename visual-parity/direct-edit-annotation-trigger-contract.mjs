@@ -58,7 +58,7 @@ try {
   await settle();
   await annotation.waitFor({ state: "visible", timeout: 3000 });
   assert.equal(
-    await contextRoot.hasAttribute("data-mesurer-direct-text-edit-active"),
+    await contextRoot.evaluate((element) => element.hasAttribute("data-mesurer-direct-text-edit-active")),
     false,
     "direct-edit Context suppression must clear when editing ends",
   );
