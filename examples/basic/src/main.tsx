@@ -67,9 +67,15 @@ function App() {
   );
 }
 
-render(() => <App />, document.getElementById("root")!);
+const root = document.getElementById("root")!;
+render(() => <App />, root);
 
+// Use the public mount path so the playground exercises the same default
+// first-party plugin catalog as consumers, while preserving the old in-page
+// fixture topology used by the renderer acceptance contracts.
 mountMesurer({
+  target: root,
   persistKey: "mesurer-parity-playground",
   isolate: false,
+  topLayer: false,
 });
