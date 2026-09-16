@@ -8,89 +8,125 @@ const settle = () => page.evaluate(() => new Promise((resolve) => {
   requestAnimationFrame(() => requestAnimationFrame(resolve));
 }));
 
-const snapshot = () => page.evaluate(() => {
-  const host = document.querySelector(".primary-action");
-  const ring = document.querySelector("[data-mesurer-text-edit-ring='true']");
-  if (!(host instanceof HTMLElement)) throw new Error("Missing direct-edit host");
-  if (!(ring instanceof HTMLElement)) throw new Error("Missing direct-edit ring");
+const rect = async (locator, label) => {
+  const value = await locator.boundingBox();
+  if (!value) throw new Error(`Missing ${label} geometry`);
+  return value;
+};
 
-  const rect = (element) => {
+const snapshotStandalone = (label) => page.evaluate((stage) => {
+  const host = document.querySelector(".feature-copy .kicker");
+  const box = document.querySelector(".mesurer-ti-box[data-state='visible']");
+  const card = document.querySelector(".mesurer-ti-card[data-state='visible']");
+  if (!(host instanceof HTMLElement)) throw new Error("Missing standalone Typography host");
+  if (!(box instanceof HTMLElement)) throw new Error("Missing standalone Typography box");
+
+  const geometry = (element) => {
     const value = element.getBoundingClientRect();
     return { x: value.x, y: value.y, width: value.width, height: value.height };
   };
   const css = (element) => {
     const computed = getComputedStyle(element);
     return {
-      rect: rect(element),
-      inlinePosition: element.style.getPropertyValue("position"),
-      inlinePositionPriority: element.style.getPropertyPriority("position"),
+      rect: geometry(element),
+      inlineLeft: element.style.left,
+      inlineTop: element.style.top,
+      inlineWidth: element.style.width,
+      inlineHeight: element.style.height,
       computedPosition: computed.position,
       computedLeft: computed.left,
       computedTop: computed.top,
       positionAnchor: computed.getPropertyValue("position-anchor").trim(),
       anchorName: computed.getPropertyValue("anchor-name").trim(),
+      owner: element.dataset.mesurerNativeScrollOwner ?? null,
+      anchorKind: element.dataset.mesurerNativeScrollAnchor ?? null,
     };
   };
-  const anchor = getComputedStyle(ring).getPropertyValue("position-anchor").trim();
-  const anchorOwner = Array.from(document.querySelectorAll("*"))
-    .find((element) => getComputedStyle(element).getPropertyValue("anchor-name").split(",").map((name) => name.trim()).includes(anchor));
-  const parent = ring.parentElement;
+  const anchor = getComputedStyle(box).getPropertyValue("position-anchor").trim();
+  const owners = Array.from(document.querySelectorAll("*"))
+    .filter((element) => getComputedStyle(element).getPropertyValue("anchor-name")
+      .split(",").map((name) => name.trim()).includes(anchor))
+    .map((element) => ({
+      tag: element.tagName,
+      id: element.id,
+      className: element instanceof HTMLElement ? element.className : "",
+      rect: geometry(element),
+      anchorName: getComputedStyle(element).getPropertyValue("anchor-name").trim(),
+    }));
 
   return {
+    label: stage,
+    scrollX: window.scrollX,
     scrollY: window.scrollY,
     host: css(host),
-    ring: css(ring),
-    anchorOwner: anchorOwner instanceof HTMLElement ? {
-      tag: anchorOwner.tagName,
-      id: anchorOwner.id,
-      className: anchorOwner.className,
-      ...css(anchorOwner),
-    } : null,
-    parent: parent ? {
-      tag: parent.tagName,
-      id: parent.id,
-      rect: rect(parent),
-      inlinePosition: parent.style.getPropertyValue("position"),
-      computedPosition: getComputedStyle(parent).position,
-      parentTag: parent.parentElement?.tagName ?? null,
-    } : null,
+    box: css(box),
+    card: card instanceof HTMLElement ? css(card) : null,
+    anchorOwners: owners,
   };
-});
+}, label);
 
 try {
   await page.goto(url, { waitUntil: "networkidle" });
+
   const arrange = page.locator("button[data-mesurer-tool-id='arrange']");
-  const host = page.locator(".primary-action");
+  const target = page.locator(".feature-copy .kicker");
   await arrange.click();
-  await host.scrollIntoViewIfNeeded();
+  await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await settle();
-  const hostBox = await host.boundingBox();
-  if (!hostBox) throw new Error("Missing direct-edit host geometry");
-  await page.mouse.click(hostBox.x + hostBox.width / 2, hostBox.y + hostBox.height / 2);
-  await page.mouse.dblclick(hostBox.x + hostBox.width / 2, hostBox.y + hostBox.height / 2);
-  const ring = page.locator("[data-mesurer-text-edit-ring='true']");
-  await ring.waitFor({ state: "visible" });
+  let targetBox = await rect(target, "direct-edit target");
+  await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+  await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+
+  const editor = page.locator("[data-mesurer-text-editor='true']");
+  const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
+  await editor.waitFor({ state: "visible" });
+  await inspector.waitFor({ state: "visible" });
+  const lineInput = inspector.locator("[data-mesurer-text-style-input='line']");
+  const lineBefore = await target.evaluate((element) => getComputedStyle(element).lineHeight);
+  const desiredLine = lineBefore === "36px" ? "42px" : "36px";
+  const lineBox = await rect(lineInput, "Typography Line control");
+  await page.mouse.click(lineBox.x + lineBox.width / 2, lineBox.y + lineBox.height / 2);
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type(desiredLine);
+  await page.keyboard.press("Enter");
+  await settle();
+  await page.mouse.move(1200, 850);
+  await page.mouse.wheel(0, 48);
+  await page.waitForTimeout(180);
+
+  await editor.focus();
+  await page.keyboard.press("Escape");
+  await editor.waitFor({ state: "detached" });
+  await arrange.click();
+  await page.waitForFunction(() => document.querySelector("button[data-mesurer-tool-id='arrange']")?.getAttribute("aria-pressed") === "false");
+
+  const typography = page.locator("button[data-mesurer-builtin='text-inspector']");
+  await typography.click();
+  await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await settle();
+  targetBox = await rect(target, "standalone target");
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+  const box = page.locator(".mesurer-ti-box[data-state='visible']").first();
+  await box.waitFor({ state: "visible" });
   await settle();
 
-  const current = await snapshot();
+  const states = [await snapshotStandalone("before-wheel")];
+  const firstScroll = page.evaluate(() => new Promise((resolve) => {
+    window.addEventListener("scroll", () => resolve(true), { once: true, capture: true });
+  }));
+  await page.mouse.wheel(0, 48);
+  await firstScroll;
+  states.push(await snapshotStandalone("scroll-event"));
+  await page.waitForTimeout(40);
+  states.push(await snapshotStandalone("40ms"));
+  await page.waitForTimeout(50);
+  states.push(await snapshotStandalone("90ms"));
+  await page.waitForTimeout(60);
+  states.push(await snapshotStandalone("150ms"));
+  await page.waitForTimeout(100);
+  states.push(await snapshotStandalone("250ms"));
 
-  // Diagnostic experiment only: keep the same live CSS anchor but make the ring
-  // viewport-positioned with inline !important, overriding the generic absolute
-  // document-anchor rule. The real acceptance gate remains unchanged.
-  await ring.evaluate((element) => element.style.setProperty("position", "fixed", "important"));
-  await settle();
-  const fixed = await snapshot();
-
-  // Second experiment: restore the generic absolute rule but remove the ring
-  // from the zero-sized text runtime so its containing block is the document.
-  await ring.evaluate((element) => {
-    element.style.setProperty("position", "fixed");
-    document.body.append(element);
-  });
-  await settle();
-  const bodyPortaled = await snapshot();
-
-  console.log(JSON.stringify({ current, fixed, bodyPortaled }, null, 2));
+  console.log(JSON.stringify(states, null, 2));
 } finally {
   await browser.close();
 }
