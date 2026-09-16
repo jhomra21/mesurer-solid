@@ -118,9 +118,9 @@ type HiddenMeasurement = {
 /**
  * Arrange core owns the normal measurement hide/restore lifecycle. Solid can
  * remount or restyle measurement chrome while Arrange remains active, so this
- * guard only closes that late-mount gap. It never derives selection geometry or
- * scans the host page; it watches Mesurer's own portal and preserves each node's
- * prior inline visibility exactly once.
+ * guard closes only that late-mount gap. Measurements present when Arrange
+ * activates stay core-owned; newly mounted measurement nodes are tracked here
+ * and restored to their own prior visibility when Arrange exits.
  */
 const installArrangeLateMeasurementGuard = (
   ctx: MesurerPluginContext,
@@ -130,17 +130,11 @@ const installArrangeLateMeasurementGuard = (
   // and all Mesurer nodes observed below, so realm-specific constructor checks
   // must use this Window's globals rather than the ambient test/browser realm.
   const realm = runtime.ownerWindow as Window & typeof globalThis;
-  const hidden = new Map<HTMLElement, HiddenMeasurement>();
+  const hiddenLateMeasurements = new Map<HTMLElement, HiddenMeasurement>();
+  const coreOwnedMeasurements = new Set<HTMLElement>();
   let active = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
 
-  const hide = (element: HTMLElement) => {
-    if (!active) return;
-    if (!hidden.has(element)) {
-      hidden.set(element, {
-        value: element.style.getPropertyValue("visibility"),
-        priority: element.style.getPropertyPriority("visibility"),
-      });
-    }
+  const forceHidden = (element: HTMLElement) => {
     if (
       element.style.getPropertyValue("visibility") !== "hidden"
       || element.style.getPropertyPriority("visibility") !== "important"
@@ -149,25 +143,42 @@ const installArrangeLateMeasurementGuard = (
     }
   };
 
+  const hideLateMeasurement = (element: HTMLElement) => {
+    if (!active) return;
+    if (coreOwnedMeasurements.has(element)) {
+      forceHidden(element);
+      return;
+    }
+    if (!hiddenLateMeasurements.has(element)) {
+      hiddenLateMeasurements.set(element, {
+        value: element.style.getPropertyValue("visibility"),
+        priority: element.style.getPropertyPriority("visibility"),
+      });
+    }
+    forceHidden(element);
+  };
+
   const hideNodeMeasurements = (node: Node) => {
     if (!active || !(node instanceof realm.Element)) return;
     if (node instanceof realm.HTMLElement && node.matches("[data-mesurer-measurement='true']")) {
-      hide(node);
+      hideLateMeasurement(node);
     }
     for (const candidate of node.querySelectorAll("[data-mesurer-measurement='true']")) {
-      if (candidate instanceof realm.HTMLElement) hide(candidate);
+      if (candidate instanceof realm.HTMLElement) hideLateMeasurement(candidate);
     }
   };
 
-  const hideCurrentMeasurements = () => {
+  const claimCurrentMeasurementsForCore = () => {
     if (!active) return;
     for (const candidate of runtime.portalTarget.querySelectorAll("[data-mesurer-measurement='true']")) {
-      if (candidate instanceof realm.HTMLElement) hide(candidate);
+      if (!(candidate instanceof realm.HTMLElement)) continue;
+      coreOwnedMeasurements.add(candidate);
+      forceHidden(candidate);
     }
   };
 
-  const restore = () => {
-    for (const [element, previous] of hidden) {
+  const restoreLateMeasurements = () => {
+    for (const [element, previous] of hiddenLateMeasurements) {
       if (!element.isConnected) continue;
       if (previous.value || previous.priority) {
         element.style.setProperty("visibility", previous.value, previous.priority);
@@ -175,14 +186,15 @@ const installArrangeLateMeasurementGuard = (
         element.style.removeProperty("visibility");
       }
     }
-    hidden.clear();
+    hiddenLateMeasurements.clear();
+    coreOwnedMeasurements.clear();
   };
 
   const observer = new realm.MutationObserver((records) => {
     if (!active) return;
     for (const record of records) {
       if (record.type === "attributes" && record.target instanceof realm.HTMLElement) {
-        if (record.target.matches("[data-mesurer-measurement='true']")) hide(record.target);
+        if (record.target.matches("[data-mesurer-measurement='true']")) hideLateMeasurement(record.target);
         continue;
       }
       for (const node of record.addedNodes) hideNodeMeasurements(node);
@@ -199,15 +211,15 @@ const installArrangeLateMeasurementGuard = (
     const next = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
     if (next === active) return;
     active = next;
-    if (active) hideCurrentMeasurements();
-    else restore();
+    if (active) claimCurrentMeasurementsForCore();
+    else restoreLateMeasurements();
   });
-  hideCurrentMeasurements();
+  if (active) claimCurrentMeasurementsForCore();
 
   ctx.lifecycle.onDispose(() => {
     observer.disconnect();
     subscription.dispose();
-    restore();
+    restoreLateMeasurements();
   });
 };
 
