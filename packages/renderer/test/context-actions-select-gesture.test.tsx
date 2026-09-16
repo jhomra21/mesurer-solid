@@ -22,12 +22,31 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+const setRect = (
+  element: HTMLElement,
+  rect: { left: number; top: number; width: number; height: number },
+) => {
+  Object.defineProperty(element, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({
+      ...rect,
+      right: rect.left + rect.width,
+      bottom: rect.top + rect.height,
+      x: rect.left,
+      y: rect.top,
+      toJSON: () => ({}),
+    }),
+  });
+};
+
 const mountContextActions = () => {
   const page = document.createElement("div");
   const a = document.createElement("div");
   const b = document.createElement("div");
   a.dataset.testid = "select-a";
   b.dataset.testid = "select-b";
+  setRect(a, { left: 40, top: 80, width: 140, height: 44 });
+  setRect(b, { left: 220, top: 80, width: 140, height: 44 });
   page.append(a, b);
   const host = document.createElement("div");
   document.body.append(page, host);
@@ -67,6 +86,8 @@ const mountContextActions = () => {
   });
 
   return {
+    a,
+    b,
     host,
     model,
     runtime,
@@ -124,6 +145,31 @@ describe("ContextActions Select gesture ownership", () => {
     const freshTextarea = host.querySelector<HTMLTextAreaElement>("[data-mesurer-annotation-composer='true'] textarea");
     expect(freshTextarea).not.toBeNull();
     expect(freshTextarea!.value).toBe("");
+  });
+
+  it("keeps marker switching reactive after an annotated target moves", async () => {
+    const { a, host, model, runtime, measurementA, measurementB } = mountContextActions();
+
+    model.setSelectedMeasurements([measurementA], measurementA);
+    runtime.addSelectionAnnotation("First note");
+    model.setSelectedMeasurements([measurementB], measurementB);
+    runtime.addSelectionAnnotation("Second note");
+    await settle();
+
+    expect(host.querySelectorAll("[data-mesurer-annotation-marker='true']")).toHaveLength(2);
+
+    setRect(a, { left: 40, top: 140, width: 140, height: 44 });
+    model.setTransient({ hoverElement: a });
+    expect(() => flush()).not.toThrow();
+
+    const markers = host.querySelectorAll<HTMLButtonElement>("[data-mesurer-annotation-marker='true']");
+    markers[0]!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    flush();
+    expect(host.querySelector("[data-mesurer-annotation-panel-badge='true']")?.textContent).toBe("1");
+
+    markers[1]!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    flush();
+    expect(host.querySelector("[data-mesurer-annotation-panel-badge='true']")?.textContent).toBe("2");
   });
 
   it("never renders a composer whose captured selection no longer owns the runtime", async () => {
