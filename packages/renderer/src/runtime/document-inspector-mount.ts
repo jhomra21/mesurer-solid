@@ -18,6 +18,7 @@ export function createDocumentInspectorMount(
 ): DocumentInspectorMount {
   const { ownerDocument, ownerWindow, pageTarget } = runtime;
   const body = ownerDocument.body;
+  // SAFETY: ownerWindow is the browsing-context global for ownerDocument and pageTarget, so its DOM constructors match this runtime.
   const realm = ownerWindow as Window & typeof globalThis;
   const documentBacked = body
     && !(pageTarget instanceof realm.ShadowRoot)
