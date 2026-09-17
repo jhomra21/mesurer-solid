@@ -20,19 +20,11 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-const renderMeasurement = (
-  measurement: Measurement | InspectMeasurement,
-  options: { showLabel?: boolean } = {},
-) => {
+const renderMeasurement = (measurement: Measurement | InspectMeasurement) => {
   const host = document.createElement("div");
   document.body.append(host);
   disposers.push(render(
-    () => <MeasurementBox
-      measurement={measurement}
-      outlineColor="#0d99ff"
-      fillColor="rgba(13,153,255,.08)"
-      showLabel={options.showLabel}
-    />,
+    () => <MeasurementBox measurement={measurement} outlineColor="#0d99ff" fillColor="rgba(13,153,255,.08)" />,
     host,
   ));
   const root = host.querySelector<HTMLElement>("[data-mesurer-measurement='true']");
@@ -42,7 +34,7 @@ const renderMeasurement = (
   if (!(chrome instanceof HTMLElement) || !(label instanceof HTMLElement)) {
     throw new Error(`Expected measurement chrome and label: ${host.innerHTML}`);
   }
-  return { host, root, chrome, label };
+  return { root, chrome, label };
 };
 
 const setRect = (
@@ -91,7 +83,8 @@ describe("measurement scroll geometry", () => {
 
     const target = document.createElement("div");
     setRect(target, { left: 36, top: 84, width: 240, height: 52 });
-    document.body.append(target);
+    const host = document.createElement("div");
+    document.body.append(target, host);
 
     const measurement: Measurement = {
       id: "selection-companion",
@@ -102,7 +95,15 @@ describe("measurement scroll geometry", () => {
       deltaY: 0,
     };
 
-    const { host } = renderMeasurement(measurement, { showLabel: false });
+    disposers.push(render(
+      () => <MeasurementBox
+        measurement={measurement}
+        outlineColor="#0d99ff"
+        fillColor="rgba(13,153,255,.08)"
+        showLabel={false}
+      />,
+      host,
+    ));
     await settle();
 
     const root = document.body.querySelector<HTMLElement>("[data-mesurer-selection-companion='true']");
