@@ -5,7 +5,7 @@ import { getSelectionSpacingOverlays } from "../core/distances";
 import { getEdgeVisibilityForRects } from "../core/edge-visibility";
 import { trySetPointerCapture } from "../core/events";
 import type { SelectionSpacingStyle } from "../core/persistence";
-import type { Guide, InspectMeasurement, Rect } from "../core/types";
+import type { Guide, InspectMeasurement, Measurement, Rect } from "../core/types";
 import { formatValue } from "../core/utils";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import { hasNativeScrollAnchoring } from "../runtime/native-scroll-registry";
@@ -70,6 +70,13 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     : props.model.state.activeMeasurement ? [props.model.state.activeMeasurement] : []);
   const displayedSelectedMeasurements = createMemo(() => props.displayedSelectedMeasurements);
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
+  const showMeasurementLabel = (measurement: Measurement) => !selectedMeasurements().some((selected) => (
+    selected.elementRef && selected.elementRef === measurement.elementRef
+  ));
+  const hoverTargetsSelected = createMemo(() => {
+    const target = props.model.state.hoverElement;
+    return Boolean(target && selectedMeasurements().some((measurement) => measurement.elementRef === target));
+  });
   const heldDistances = createMemo(() => props.model.state.heldDistances);
   const measurementEdges = createMemo(() => getEdgeVisibilityForRects(displayedMeasurements().map((item) => item.rect)));
   const selectedEdges = createMemo(() => getEdgeVisibilityForRects(displayedSelectedMeasurements().map((item) => item.rect)));
@@ -354,7 +361,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       onPointerLeave={(event) => props.onPointerLeave(event)}
     >
       <Show when={selectionVisible()}>
-        <For each={displayedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={measurementEdges()[index()]} outlineColor={outline()} fillColor={fill()} />}</For>
+        <For each={displayedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={measurementEdges()[index()]} outlineColor={outline()} fillColor={fill()} showLabel={showMeasurementLabel(measurement)} />}</For>
 
         <Show when={props.activeRect && props.model.state.isDragging}><>
           <div class="msr:pointer-events-none msr:absolute" style={{ left: `${props.activeRect!.left}px`, top: `${props.activeRect!.top}px`, width: `${props.activeRect!.width}px`, height: `${props.activeRect!.height}px`, "background-color": fill() }}>
@@ -366,7 +373,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           <Tag axis="x" left={props.activeRect!.left + props.activeRect!.width / 2} top={props.activeRect!.top + props.activeRect!.height + MEASURE_LABEL_OFFSET}>{formatValue(props.activeRect!.width)} x {formatValue(props.activeRect!.height)}</Tag>
         </></Show>
 
-        <Show when={props.model.state.hoverRect && props.model.state.settings.hoverHighlightEnabled && selectedMeasurements().length <= 1}>
+        <Show when={props.model.state.hoverRect && props.model.state.settings.hoverHighlightEnabled && selectedMeasurements().length <= 1 && !hoverTargetsSelected()}>
           <Show when={hoverPortalTarget()} fallback={hoverSurface()}>
             {(mount) => <Portal mount={mount()}>{hoverSurface()}</Portal>}
           </Show>

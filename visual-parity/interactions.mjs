@@ -202,7 +202,57 @@ const cases = [
   { name: "toolbar-settings-open", allowVersionDiff: true, run: openSettings },
   { name: "toolbar-settings-close", run: async (p) => { await openSettings(p); await realClick(button(p, /^Settings/)); } },
 
-  { name: "action-select-target", run: async (p) => { await realClick(button(p, /^Select/)); await sleep(p, 80); await p.mouse.click(340, 290); await sleep(p, 180); } },
+  { name: "action-select-target", run: async (p, implementation) => {
+    await realClick(button(p, /^Select/));
+    await sleep(p, 80);
+    await p.mouse.click(340, 290);
+    await sleep(p, 180);
+
+    // A committed click keeps the transient measurement surface that upstream
+    // renders beneath the selected measurement. Verify both paint layers are
+    // present without mistaking the transient layer for another selection.
+    if (implementation === "solid") {
+      const paintStack = await p.evaluate(() => {
+        const surfaces = [...document.querySelectorAll('[data-mesurer-measurement-chrome="true"]')]
+          .filter((node) => {
+            const rect = node.getBoundingClientRect();
+            return Math.abs(rect.x - 240) < 0.5 && Math.abs(rect.y - 240) < 0.5
+              && Math.abs(rect.width - 200) < 0.5 && Math.abs(rect.height - 100) < 0.5;
+          });
+        const selected = surfaces.find((node) => node.closest('[data-mesurer-selected-measurement="true"]'));
+        const transient = surfaces.find((node) => !node.dataset.mesurerNativeScrollAnchor);
+        if (surfaces.length !== 2 || !selected || !transient) return null;
+        const selectedRect = selected.getBoundingClientRect();
+        const transientRect = transient.getBoundingClientRect();
+        return {
+          selected: { x: selectedRect.x, y: selectedRect.y, width: selectedRect.width, height: selectedRect.height },
+          transient: { x: transientRect.x, y: transientRect.y, width: transientRect.width, height: transientRect.height },
+        };
+      });
+      if (!paintStack) throw new Error("action-select-target: transient selected paint surface is missing or duplicated");
+      if (JSON.stringify(paintStack.selected) !== JSON.stringify(paintStack.transient)) {
+        throw new Error(`action-select-target: selected/transient paint geometry differs: ${JSON.stringify(paintStack)}`);
+      }
+
+      await p.mouse.move(620, 300);
+      await sleep(p, 120);
+      const differentHover = await p.evaluate(() => [...document.querySelectorAll('[data-mesurer-hover-measurement="true"]')].some((node) => {
+        const rect = node.getBoundingClientRect();
+        return Math.abs(rect.x - 560) < 0.5 && Math.abs(rect.y - 260) < 0.5 && Math.abs(rect.width - 140) < 0.5 && Math.abs(rect.height - 80) < 0.5;
+      }));
+      if (!differentHover) throw new Error("action-select-target: hover did not remain functional on another target");
+      // Restore the canonical captured state after the hover-only assertion.
+      // The parity image must remain the same committed selection state as the
+      // upstream action, not a later pointer location.
+      await p.reload({ waitUntil: "networkidle" });
+      await p.locator(".mesurer-toolbar-surface").waitFor();
+      await sleep(p, 100);
+      await realClick(button(p, /^Select/));
+      await sleep(p, 80);
+      await p.mouse.click(340, 290);
+      await sleep(p, 180);
+    }
+  } },
   { name: "action-guide-create-vertical", run: async (p) => { await realClick(button(p, /^Guides/)); await sleep(p, 80); await p.mouse.click(620, 400); await sleep(p, 180); } },
   { name: "action-guide-create-horizontal", run: async (p) => { await openOrientation(p); await realClick(button(p, "Horizontal")); await sleep(p, 80); await p.mouse.click(620, 400); await sleep(p, 180); } },
   { name: "action-text-inspector-hover", run: async (p, implementation) => { await realClick(typographyButton(p, implementation)); await sleep(p, 80); await p.mouse.move(340, 290); await sleep(p, 220); } },
