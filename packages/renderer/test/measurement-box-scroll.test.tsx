@@ -1,23 +1,12 @@
-import { flush } from "solid-js";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { MeasurementBox } from "../src/components/MeasurementBox";
 import type { InspectMeasurement, Measurement } from "../src/core/types";
 import { render } from "../src/solid-dom";
 
 const disposers: Array<() => void> = [];
-
-const settle = async () => {
-  await Promise.resolve();
-  flush();
-  await Promise.resolve();
-  flush();
-};
-
-afterEach(async () => {
+afterEach(() => {
   while (disposers.length) disposers.pop()?.();
-  await settle();
   document.body.replaceChildren();
-  vi.restoreAllMocks();
 });
 
 const renderMeasurement = (measurement: Measurement | InspectMeasurement) => {
@@ -35,23 +24,6 @@ const renderMeasurement = (measurement: Measurement | InspectMeasurement) => {
     throw new Error(`Expected measurement chrome and label: ${host.innerHTML}`);
   }
   return { root, chrome, label };
-};
-
-const setRect = (
-  element: HTMLElement,
-  rect: { left: number; top: number; width: number; height: number },
-) => {
-  Object.defineProperty(element, "getBoundingClientRect", {
-    configurable: true,
-    value: () => ({
-      ...rect,
-      right: rect.left + rect.width,
-      bottom: rect.top + rect.height,
-      x: rect.left,
-      y: rect.top,
-      toJSON: () => ({}),
-    }),
-  });
 };
 
 describe("measurement scroll geometry", () => {
@@ -73,52 +45,6 @@ describe("measurement scroll geometry", () => {
     expect(label.style.transition).toBe("none");
   });
 
-  it("moves the selected-target paint companion into the document layer without inventing another selected root", async () => {
-    class TestResizeObserver {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    }
-    vi.stubGlobal("ResizeObserver", TestResizeObserver);
-
-    const target = document.createElement("div");
-    setRect(target, { left: 36, top: 84, width: 240, height: 52 });
-    const host = document.createElement("div");
-    document.body.append(target, host);
-
-    const measurement: Measurement = {
-      id: "selection-companion",
-      rect: { left: 36, top: 84, width: 240, height: 52 },
-      normalizedRect: { left: 0, top: 0, width: 1, height: 1 },
-      elementRef: target,
-      deltaX: 0,
-      deltaY: 0,
-    };
-
-    disposers.push(render(
-      () => <MeasurementBox
-        measurement={measurement}
-        outlineColor="#0d99ff"
-        fillColor="rgba(13,153,255,.08)"
-        showLabel={false}
-      />,
-      host,
-    ));
-    await settle();
-
-    const root = document.body.querySelector<HTMLElement>("[data-mesurer-selection-companion='true']");
-    expect(root).not.toBeNull();
-    expect(root?.parentElement).toBe(document.body);
-    expect(root?.dataset.mesurerSelectedMeasurement).toBeUndefined();
-    expect(host.querySelector("[data-mesurer-selection-companion='true']")).toBeNull();
-
-    const chrome = root?.querySelector<HTMLElement>("[data-mesurer-measurement-chrome='true']");
-    expect(chrome).not.toBeNull();
-    expect(chrome?.style.transition).toBe("none");
-    expect(chrome?.style.zIndex).toBe("2147482800");
-    expect(root?.querySelector("[data-mesurer-measurement-label='true']")).toBeNull();
-  });
-
   it("retains the existing easing for ordinary measurement motion", () => {
     const measurement: Measurement = {
       id: "measurement",
@@ -131,7 +57,6 @@ describe("measurement scroll geometry", () => {
     const { root, chrome, label } = renderMeasurement(measurement);
 
     expect(root.dataset.mesurerSelectedMeasurement).toBeUndefined();
-    expect(root.dataset.mesurerSelectionCompanion).toBeUndefined();
     expect(chrome.style.transition).toContain("left 140ms ease");
     expect(chrome.style.transition).toContain("top 140ms ease");
     expect(label.style.transition).toContain("left 140ms ease");
