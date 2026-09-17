@@ -134,6 +134,10 @@ Injection enables Context by default. Source-mounted applications opt in with `c
 
 The selection Add Note button is only transient UI. Its temporary suppression during direct editing does not disable Context or remove saved annotations.
 
+Page-linked Context UI uses one managed document inspector mount. The Add Note trigger, composer, saved markers, open panel, and ownership edge use document coordinates for ordinary window scrolling, so the browser moves them with their source in the same frame. Nested overflow boundaries use cached scroll compensation. Saved panels keep a stable target-relative page point instead of re-clamping to the viewport, and repeated notes use a nearby marker layout that keeps each marker separate.
+
+Context also owns the page-evidence stacking rule while that document mount exists. Select hover evidence is portaled into the lower document evidence layer, including when a source-mounted renderer uses `isolate: false` with browser top-layer promotion. This prevents top-layer Select paint from outranking ordinary document annotation cards. The create-note composer and saved panels remain opaque inspector UI above page evidence, while the toolbar remains protected viewport chrome above page-owned boundaries.
+
 See [Context](./docs/CONTEXT_WORKFLOW.md) and [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md).
 
 ## Codex delivery
@@ -184,7 +188,11 @@ See [Screenshots](./docs/SCREENSHOTS.md).
 
 ## Browser boundary
 
-The visible renderer mounts in a ShadowRoot and uses a hardened outer host/top-layer strategy for stacking, clipping, later popovers, and modal dialogs. Renderer-aware plugins and transient editor surfaces stay inside the same ownership boundary.
+The default and injected renderer uses a hardened outer host, browser top-layer promotion when available, and an isolated ShadowRoot for its protected viewport UI. Source-mounted `isolate: false` hosts are also supported; they use the same ownership rules without relying on Shadow DOM isolation.
+
+Mesurer deliberately has two managed paint domains. Viewport-owned controls such as the toolbar, Settings, and other global inspector chrome stay in the protected host/top-layer path. Source-linked inspector UI may use the managed document inspector mount so browser scrolling, clipping, and target geometry stay native to the page. Context annotations and ordinary source-linked Typography are examples of document-backed UI.
+
+Document-backed does not mean arbitrary host-page DOM. Those nodes are still Mesurer inspector UI, use the runtime's managed mount and hit-test boundary, and clean up with their owner. When a document-backed inspector must occlude page selection evidence, the related Select paint is moved into the lower document evidence layer too. Leaving Select paint in the browser top layer while its inspector card lives in the document is invalid because browser top-layer ordering beats any ordinary document `z-index`.
 
 The renderer uses Solid's universal runtime and constructs DOM nodes directly rather than depending on HTML-string template sinks, keeping the packed artifact compatible with strict Trusted Types pages without weakening host CSP.
 
