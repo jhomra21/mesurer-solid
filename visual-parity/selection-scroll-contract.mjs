@@ -127,6 +127,19 @@ try {
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
   await selectedRoot.waitFor({ state: "attached" });
   await arrangeBox.waitFor({ state: "visible" });
+  // Arrange's document-measurement guard is MutationObserver-owned. The box can
+  // become visible in the same task that portals the selected measurement, so
+  // require the intended ownership state after that observer microtask rather
+  // than racing it with an immediate style read.
+  await page.waitForFunction(
+    (selector) => {
+      const root = document.querySelector(selector);
+      const surface = root?.firstElementChild;
+      return surface instanceof HTMLElement && getComputedStyle(surface).visibility === "hidden";
+    },
+    DOCUMENT_SELECTED_ROOT,
+    { timeout: 1000 },
+  );
   assert.equal(
     await selected.evaluate((element) => getComputedStyle(element).visibility),
     "hidden",
