@@ -8,6 +8,7 @@ import type { SelectionSpacingStyle } from "../core/persistence";
 import type { Guide, InspectMeasurement, Rect } from "../core/types";
 import { formatValue } from "../core/utils";
 import type { MesurerModel } from "../model/create-mesurer-model";
+import { documentHoverPortalTarget } from "../runtime/document-hover-portal";
 import { hasNativeScrollAnchoring } from "../runtime/native-scroll-registry";
 import { DistanceOverlayItem, type SelectionSpacingInteraction } from "./DistanceOverlayItem";
 import { MeasurementBox } from "./MeasurementBox";
@@ -114,24 +115,10 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       ...displayedSelectedMeasurements().map((item) => item.rect),
     ])[0] ?? null;
   };
-  const hoverPortalTarget = () => {
-    const overlay = overlayElement;
-    const target = props.model.state.hoverElement;
-    const ownerWindow = overlay?.ownerDocument.defaultView;
-    if (!overlay || !target?.isConnected || !ownerWindow || !overlay.ownerDocument.body) return null;
-    if (!(overlay.getRootNode() instanceof ownerWindow.ShadowRoot)) return null;
-    if (target.getRootNode() !== overlay.ownerDocument) return null;
-
-    // Ordinary Select hover stays inside the hardened top-layer island. A live
-    // document-backed inspector surface is the narrow exception: move hover
-    // chrome into the same document paint tree so Typography and Context note
-    // surfaces can occlude page chrome exactly like the persistent toolbar.
-    const protectedInspector = overlay.ownerDocument.querySelector<HTMLElement>(
-      "[data-mesurer-text-inspector-info='true'], [data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
-    );
-    if (!protectedInspector?.isConnected || protectedInspector.getRootNode() !== overlay.ownerDocument) return null;
-    return overlay.ownerDocument.body;
-  };
+  const hoverPortalTarget = () => documentHoverPortalTarget(
+    overlayElement,
+    props.model.state.hoverElement,
+  );
   const hoverPortalOffset = () => {
     const target = props.model.state.hoverElement;
     const mount = hoverPortalTarget();
