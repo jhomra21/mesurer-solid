@@ -12,7 +12,9 @@ type DocumentInspectorRuntime = Pick<
   "ownerDocument" | "ownerWindow" | "pageTarget" | "createInspectorMount"
 >;
 
-const DOCUMENT_INSPECTOR_Z_INDEX = "2147482999";
+const CONTEXT_HIGHLIGHT_Z_INDEX = "2147482950";
+const CONTEXT_PANEL_Z_INDEX = "2147483646";
+const CONTEXT_INTERACTION_Z_INDEX = "2147483647";
 
 /**
  * Page-owned inspector UI must participate in the same document scroll tree as
@@ -38,11 +40,12 @@ export function createDocumentInspectorMount(
   element.dataset.mesurerInspectorUi = "true";
   element.dataset.mesurerDocumentInspectorMount = "true";
 
-  // Context annotations are page evidence, so the fixed Mesurer renderer must
-  // win when that evidence scrolls underneath the toolbar. Keep one document
-  // stacking context immediately below the canonical renderer (2147483000),
-  // while remaining above page content, selection chrome, and text-edit rings.
-  // Marker > panel > highlight ordering still comes from their child z-indexes.
+  // Do not make the shared document origin a stacking context. Context has two
+  // different paint responsibilities: the ownership edge is page evidence and
+  // must pass underneath fixed Mesurer chrome, while real annotation controls
+  // must stay physically reachable above the protected renderer. Let those
+  // children participate directly in the document stacking order instead of
+  // forcing both responsibilities into one parent z-index.
   Object.assign(element.style, {
     position: "absolute",
     left: "0px",
@@ -50,8 +53,27 @@ export function createDocumentInspectorMount(
     width: "0px",
     height: "0px",
     overflow: "visible",
-    zIndex: DOCUMENT_INSPECTOR_Z_INDEX,
   });
+
+  const layerStyle = ownerDocument.createElement("style");
+  layerStyle.dataset.mesurerDocumentInspectorLayerStyle = "true";
+  layerStyle.textContent = `
+[data-mesurer-document-inspector-mount="true"] [data-mesurer-annotation-target-highlight="true"] {
+  position: absolute !important;
+  z-index: ${CONTEXT_HIGHLIGHT_Z_INDEX} !important;
+}
+[data-mesurer-document-inspector-mount="true"] [data-mesurer-annotation-panel="true"] {
+  position: absolute !important;
+  z-index: ${CONTEXT_PANEL_Z_INDEX} !important;
+}
+[data-mesurer-document-inspector-mount="true"] [data-mesurer-annotation-marker="true"],
+[data-mesurer-document-inspector-mount="true"] [data-mesurer-annotation-trigger="true"],
+[data-mesurer-document-inspector-mount="true"] [data-mesurer-annotation-composer="true"] {
+  position: absolute !important;
+  z-index: ${CONTEXT_INTERACTION_Z_INDEX} !important;
+}
+`;
+  ownerDocument.head.append(layerStyle);
   body.append(element);
 
   let disposed = false;
@@ -60,6 +82,7 @@ export function createDocumentInspectorMount(
     dispose() {
       if (disposed) return;
       disposed = true;
+      layerStyle.remove();
       element.remove();
     },
   };
