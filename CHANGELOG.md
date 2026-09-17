@@ -10,6 +10,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 - Consolidate first-party plugin factories under `mesurer-solid/plugins` with concise feature names such as `context()`, `arrange()`, `screenshot()`, and `codex()`, and remove the redundant public `*Plugin` factory names and one-plugin-per-subpath exports.
 - Add optional **Send to Codex** delivery that can auto-bind to the Codex thread that starts the bridge through `CODEX_THREAD_ID`, register later existing or newly-created Codex threads locally, switch among registered destinations, and send saved Context, selection evidence, or workspace Context through Codex's queued-user-message command.
+- Keep Context annotations attached to their page targets through window and nested scrolling. Add Note, the composer, saved markers and panels, and the ownership edge move with their source without one-frame catch-up; saved panels keep their page-relative point and multiple notes stay local to the target.
+- Keep Add Note available while an existing note is open, allow repeated notes on the same selected element, and keep annotation ownership to one clean exact-bound edge without duplicate selection or ghost paint.
+- Keep Select hover and selection evidence below Context cards and fixed Mesurer chrome, including non-isolated browser top-layer hosts, so blue page evidence cannot paint through the new-note composer or a saved annotation card.
 
 ## 0.1.7 - 2026-09-15
 
