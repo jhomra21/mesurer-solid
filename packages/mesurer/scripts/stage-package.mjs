@@ -12,6 +12,7 @@ for (const path of [
   "skills",
   "scripts/install-skill.mjs",
   "scripts/codex-bridge.mjs",
+  "scripts/codex-connect.mjs",
   "README.md",
   "AGENT_INTEGRATION.md",
   "LICENSE",
