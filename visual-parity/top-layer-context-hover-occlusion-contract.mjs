@@ -185,23 +185,12 @@ try {
   await composer.waitFor({ state: "visible", timeout: 3000 });
   const composerOwnership = await assertSurfaceOccludesHover(composer, "new annotation composer");
 
-  // Saving is not the behavior under test here. Drive the already-rendered
-  // composer's own DOM handlers directly so this contract can independently
-  // prove the saved-card paint order without depending on top-layer passthrough
-  // hit testing (covered by the existing Context interaction contracts).
+  // Saving is not the behavior under test here. Force the composer's own real
+  // input/click handlers so the synthetic top-layer hit plane cannot prevent
+  // us from independently testing the saved annotation card's paint order.
   await removeProbe();
-  await composer.evaluate((element) => {
-    const textarea = element.querySelector("textarea");
-    const submit = [...element.querySelectorAll("button")]
-      .find((button) => button.textContent?.trim() === "Add note");
-    if (!(textarea instanceof HTMLTextAreaElement) || !(submit instanceof HTMLButtonElement)) {
-      throw new Error("Missing annotation composer controls");
-    }
-    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
-    setter?.call(textarea, "Context hover occlusion contract");
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    submit.click();
-  });
+  await composer.locator("textarea").fill("Context hover occlusion contract", { force: true });
+  await composer.getByRole("button", { name: "Add note", exact: true }).click({ force: true });
   await composer.waitFor({ state: "hidden", timeout: 3000 });
 
   const panel = contextRoot.locator("[data-mesurer-annotation-panel='true']");
