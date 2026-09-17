@@ -134,9 +134,15 @@ const installArrangeDocumentMeasurementGuard = (
   let textRuntimeMount: HTMLElement | null = null;
   let textObserver: MutationObserver | null = null;
 
+  // MeasurementBox deliberately portals a document-backed selection directly
+  // under <body>. Identify that ownership by its actual DOM mount instead of by
+  // portalTarget containment: hosts are allowed to use <body> itself as the
+  // renderer portal target, which would otherwise make the guard miss the
+  // selected root and leave Arrange plus selection chrome painted together.
   const isDocumentMeasurement = (element: HTMLElement) =>
     element.matches(DOCUMENT_SELECTED_MEASUREMENT)
-    && !runtime.portalTarget.contains(element);
+    && element.getRootNode() === runtime.ownerDocument
+    && element.parentElement === body;
 
   const restoreMeasurements = () => {
     for (const [element, previous] of hiddenMeasurements) {
