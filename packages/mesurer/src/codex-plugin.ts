@@ -1,5 +1,5 @@
 import type { MesurerContextService } from "./context-plugin";
-import type { MesurerPlugin } from "./core";
+import type { MesurerPlugin, Registration, ToolMenuItemContribution } from "./core";
 import { MESURER_VERSION } from "./version";
 
 export const MESURER_CODEX_PLUGIN_ID = "mesurer.codex";
@@ -7,6 +7,9 @@ export const MESURER_CODEX_SERVICE_ID = "codex:v1";
 
 const CONTEXT_SERVICE_ID = "context:v1";
 const DEFAULT_ENDPOINT = "http://127.0.0.1:47365";
+const HEALTH_POLL_MS = 2_000;
+const RECENT_THREAD_LIMIT = 10;
+const DEFAULT_VISIBLE_THREADS = 5;
 const DEFAULT_INSTRUCTION = [
   "Implement the current human feedback from Mesurer in this project.",
   "Treat the rendered page as the source of truth, preserve unrelated Mesurer review state,",
@@ -34,7 +37,7 @@ export type MesurerCodexSendRequest = {
   instruction?: string;
   /** Send only these saved annotation ids. When omitted, all saved annotations are sent. */
   annotationIds?: string[];
-  /** Send to a particular registered Codex thread without changing the bridge default. */
+  /** Send to a particular bridge-visible Codex thread for this request. */
   thread?: string;
 };
 
@@ -44,24 +47,59 @@ export type MesurerCodexSendResult = {
 };
 
 export type MesurerCodexHealth = {
-  /** Current default target. Null when the bridge has not been bound yet. */
+  /** Current bridge default target. Null when the bridge has not been bound yet. */
   thread: string | null;
   /** Threads explicitly registered by local Codex processes/users. */
   threads: string[];
 };
 
+export type MesurerCodexThread = {
+  id: string;
+  title: string;
+  updatedAt: number | null;
+  /** True when a local Codex SessionStart/register path has connected this thread. */
+  connected: boolean;
+};
+
+export type MesurerCodexThreadList = {
+  /** Thread used to scope same-project discovery. */
+  thread: string | null;
+  /** Recent same-project Codex threads, current scoped thread first when available. */
+  threads: MesurerCodexThread[];
+  /** Whether Codex reported more threads beyond this bounded list. */
+  hasMore: boolean;
+};
+
+export type MesurerCodexThreadListOptions = {
+  /** Maximum number of threads to return. The bridge clamps this to 10. */
+  limit?: number;
+  /** Registered thread whose project should scope discovery. */
+  thread?: string;
+};
+
 export type MesurerCodexService = {
   health(): Promise<MesurerCodexHealth>;
-  /** Switch the default target to an already-registered thread. */
+  /** List recent Codex threads for the current Mesurer project through Codex app-server. */
+  listThreads(options?: MesurerCodexThreadListOptions): Promise<MesurerCodexThreadList>;
+  /** Switch the bridge default target to an already-registered thread. */
   useThread(thread: string): Promise<MesurerCodexHealth>;
-  /** Send Context to the default target or to one explicitly registered thread. */
+  /** Send Context to the page-pinned/default target or one explicit bridge-visible thread. */
   send(request?: MesurerCodexSendRequest): Promise<MesurerCodexSendResult>;
+};
+
+type BridgeThread = {
+  id?: unknown;
+  title?: unknown;
+  updatedAt?: unknown;
+  connected?: unknown;
 };
 
 type BridgeResponse = {
   ok?: boolean;
   thread?: string | null;
   threads?: string[];
+  threadDetails?: BridgeThread[];
+  hasMore?: boolean;
   output?: string;
   error?: string;
 };
@@ -121,6 +159,28 @@ const bridgeHealth = (response: BridgeResponse): MesurerCodexHealth => ({
     : [],
 });
 
+const bridgeThreadList = (response: BridgeResponse): MesurerCodexThreadList => ({
+  thread: response.thread?.trim() || null,
+  threads: Array.isArray(response.threadDetails)
+    ? response.threadDetails.flatMap((thread) => {
+        const id = typeof thread.id === "string" ? thread.id.trim() : "";
+        if (!id) return [];
+        const title = typeof thread.title === "string" && thread.title.trim()
+          ? thread.title.trim()
+          : id;
+        return [{
+          id,
+          title,
+          updatedAt: typeof thread.updatedAt === "number" && Number.isFinite(thread.updatedAt)
+            ? thread.updatedAt
+            : null,
+          connected: thread.connected === true,
+        }];
+      })
+    : [],
+  hasMore: response.hasMore === true,
+});
+
 const feedbackMessage = async (
   context: MesurerContextService,
   request: MesurerCodexSendRequest | undefined,
@@ -160,9 +220,18 @@ const feedbackMessage = async (
   ].join("\n").trimEnd();
 };
 
+const shortThread = (thread: string) => thread.length > 16
+  ? `${thread.slice(0, 8)}…${thread.slice(-4)}`
+  : thread;
+
+const truncateLabel = (value: string, max = 42) => value.length > max
+  ? `${value.slice(0, max - 1)}…`
+  : value;
+
 export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
   const endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
   const instruction = options.instruction?.trim() || DEFAULT_INSTRUCTION;
+  const withUi = options.ui ?? true;
 
   return {
     id: MESURER_CODEX_PLUGIN_ID,
@@ -173,22 +242,184 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       const contextService = ctx.service.get<MesurerContextService>(CONTEXT_SERVICE_ID);
       if (!contextService) throw new Error("Mesurer Codex plugin requires context() from mesurer-solid/plugins.");
 
+      let bridgeAvailable = false;
+      let originThread: string | null = null;
+      let selectedThread: string | null = null;
+      let lastBridgeThread: string | null = null;
+      let registeredThreadIds: string[] = [];
+      let recentThreads: MesurerCodexThread[] = [];
+      let recentHasMore = false;
+      let visibleThreadCount = DEFAULT_VISIBLE_THREADS;
+      let toolRegistration: Registration | undefined;
+      let toolSignature = "";
+      let refreshRunning = false;
+      let disposed = false;
+
+      const fetchHealth = async () => bridgeHealth(await bridgeRequest(endpoint, "health"));
+      const fetchThreads = async (
+        listOptions: MesurerCodexThreadListOptions = {},
+      ): Promise<MesurerCodexThreadList> => {
+        const params = new URLSearchParams();
+        params.set("limit", String(listOptions.limit ?? RECENT_THREAD_LIMIT));
+        const scope = listOptions.thread?.trim();
+        if (scope) params.set("thread", scope);
+        return bridgeThreadList(await bridgeRequest(endpoint, `threads?${params.toString()}`));
+      };
+
+      const currentTarget = () => selectedThread ?? originThread ?? lastBridgeThread;
+
+      const menuThreads = () => {
+        const ordered: MesurerCodexThread[] = [];
+        const seen = new Set<string>();
+        const push = (thread: MesurerCodexThread) => {
+          if (seen.has(thread.id)) return;
+          seen.add(thread.id);
+          ordered.push(thread);
+        };
+        const fallback = (id: string): MesurerCodexThread => ({
+          id,
+          title: `Codex ${shortThread(id)}`,
+          updatedAt: null,
+          connected: true,
+        });
+        if (originThread) push(recentThreads.find((thread) => thread.id === originThread) ?? fallback(originThread));
+        const target = selectedThread;
+        if (target) push(recentThreads.find((thread) => thread.id === target) ?? fallback(target));
+        for (const thread of recentThreads) push(thread);
+        for (const id of registeredThreadIds) push(recentThreads.find((thread) => thread.id === id) ?? fallback(id));
+        return ordered;
+      };
+
+      const menuItems = (): ToolMenuItemContribution[] => {
+        const threads = menuThreads();
+        const visible = threads.slice(0, visibleThreadCount);
+        const target = currentTarget();
+        const items: ToolMenuItemContribution[] = visible.map((thread) => {
+          const prefix = thread.id === originThread
+            ? "Current · "
+            : thread.connected
+              ? "Connected · "
+              : "";
+          return {
+            id: `codex.thread.${thread.id}`,
+            label: `${prefix}${truncateLabel(thread.title)}`,
+            checked: () => target === thread.id,
+            run() {
+              selectedThread = thread.id;
+              syncTool();
+            },
+          };
+        });
+        if (visibleThreadCount < RECENT_THREAD_LIMIT
+          && (threads.length > visibleThreadCount || recentHasMore)) {
+          items.push({
+            id: "codex.thread.show-more",
+            label: "Show 5 more…",
+            run() {
+              visibleThreadCount = RECENT_THREAD_LIMIT;
+              syncTool();
+            },
+          });
+        }
+        return items;
+      };
+
+      const syncTool = () => {
+        if (!withUi || disposed) return;
+        const target = currentTarget();
+        const items = bridgeAvailable ? menuItems() : [];
+        const canSend = bridgeAvailable && Boolean(target);
+        const label = !bridgeAvailable
+          ? "Codex unavailable"
+          : target
+            ? "Send to Codex"
+            : "No Codex thread";
+        const signature = JSON.stringify({
+          bridgeAvailable,
+          target,
+          label,
+          visibleThreadCount,
+          items: items.map((item) => ({ id: item.id, label: item.label, checked: item.checked?.() ?? null })),
+        });
+        if (signature === toolSignature) return;
+        toolSignature = signature;
+        toolRegistration?.dispose();
+        toolRegistration = ctx.tool.register({
+          id: "codex.send",
+          label,
+          command: "codex.send",
+          order: 73,
+          icon: SEND_ICON,
+          disabled: () => !canSend,
+          menu: items.length ? { label: "Codex thread", items } : undefined,
+        });
+      };
+
+      const refreshRecent = async () => {
+        if (!bridgeAvailable) return;
+        const scope = originThread ?? lastBridgeThread;
+        try {
+          const list = await fetchThreads({
+            limit: RECENT_THREAD_LIMIT,
+            thread: scope ?? undefined,
+          });
+          recentThreads = list.threads;
+          recentHasMore = list.hasMore;
+        } catch {
+          recentThreads = registeredThreadIds.map((id) => ({
+            id,
+            title: `Codex ${shortThread(id)}`,
+            updatedAt: null,
+            connected: true,
+          }));
+          recentHasMore = false;
+        }
+      };
+
+      const refreshRuntime = async () => {
+        if (refreshRunning || disposed) return;
+        refreshRunning = true;
+        try {
+          const health = await fetchHealth();
+          const bridgeThreadChanged = health.thread !== lastBridgeThread;
+          bridgeAvailable = true;
+          lastBridgeThread = health.thread;
+          registeredThreadIds = health.threads;
+          if (!originThread && health.thread) {
+            originThread = health.thread;
+            selectedThread = health.thread;
+          }
+          if (bridgeThreadChanged || recentThreads.length === 0) await refreshRecent();
+        } catch {
+          bridgeAvailable = false;
+        } finally {
+          refreshRunning = false;
+          syncTool();
+        }
+      };
+
       const service: MesurerCodexService = {
-        async health() {
-          return bridgeHealth(await bridgeRequest(endpoint, "health"));
-        },
+        health: fetchHealth,
+        listThreads: fetchThreads,
         async useThread(thread) {
           const target = thread.trim();
           if (!target) throw new Error("Codex thread must be a non-empty string.");
-          return bridgeHealth(await bridgeRequest(endpoint, "target", {
+          const health = bridgeHealth(await bridgeRequest(endpoint, "target", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ thread: target }),
           }));
+          selectedThread = target;
+          lastBridgeThread = health.thread;
+          registeredThreadIds = health.threads;
+          bridgeAvailable = true;
+          syncTool();
+          return health;
         },
         async send(request) {
           const message = await feedbackMessage(contextService, request, instruction);
-          const thread = request?.thread?.trim();
+          const explicitThread = request?.thread?.trim();
+          const thread = explicitThread || (withUi ? currentTarget() : null);
           const payload: BridgeSendRequest = { message };
           if (thread) payload.thread = thread;
           const response = await bridgeRequest(endpoint, "send", {
@@ -214,13 +445,15 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         }
       });
 
-      if (options.ui ?? true) {
-        ctx.tool.register({
-          id: "codex.send",
-          label: "Send to Codex",
-          command: "codex.send",
-          order: 73,
-          icon: SEND_ICON,
+      if (withUi) {
+        syncTool();
+        void refreshRuntime();
+        const interval = globalThis.setInterval(() => { void refreshRuntime(); }, HEALTH_POLL_MS);
+        ctx.lifecycle.onDispose(() => {
+          disposed = true;
+          globalThis.clearInterval(interval);
+          toolRegistration?.dispose();
+          toolRegistration = undefined;
         });
       }
     },

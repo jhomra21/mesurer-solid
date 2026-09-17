@@ -64,6 +64,7 @@ if (explicitThread && fromSessionStart) {
 }
 
 let thread = explicitThread ?? process.env.CODEX_THREAD_ID?.trim() ?? null;
+let cwd = process.cwd();
 if (fromSessionStart) {
   const input = await readStdin();
   let event;
@@ -76,6 +77,7 @@ if (fromSessionStart) {
     fail(`Expected hook_event_name SessionStart, got ${event?.hook_event_name ?? "<missing>"}.`, 2);
   }
   thread = event?.session_id?.trim?.() || null;
+  cwd = event?.cwd?.trim?.() || cwd;
 }
 
 if (!thread) {
@@ -154,7 +156,7 @@ try {
 
 if (!current) {
   const bridgeScript = fileURLToPath(new URL("./codex-bridge.mjs", import.meta.url));
-  const args = [bridgeScript, "--port", String(port), "--thread", thread];
+  const args = [bridgeScript, "--port", String(port), "--thread", thread, "--cwd", cwd];
   if (values.codex?.trim()) args.push("--codex", values.codex.trim());
   if (values.once) args.push("--once");
 
@@ -179,7 +181,7 @@ try {
   response = await fetch(new URL("threads/register", bridgeUrl), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ thread }),
+    body: JSON.stringify({ thread, cwd }),
   });
 } catch (cause) {
   const error = cause instanceof Error ? cause.message : String(cause);

@@ -8,6 +8,8 @@ const DEFAULT_PORT = 47365;
 const DEFAULT_BRIDGE = `http://127.0.0.1:${DEFAULT_PORT}`;
 const MAX_MESSAGE_BYTES = 64 * 1024;
 const CODEX_TIMEOUT_MS = 30_000;
+const APP_SERVER_TIMEOUT_MS = 5_000;
+const MAX_DISCOVERED_THREADS = 10;
 
 const usage = `Usage:
   mesurer-codex [--thread <session-id-or-name>] [options]
@@ -17,6 +19,8 @@ const usage = `Usage:
 Server options:
   --thread <value>    Initial Codex session UUID or exact session name.
                       Defaults to CODEX_THREAD_ID when launched by Codex.
+  --cwd <path>        Project directory used to scope recent-thread discovery.
+                      Defaults to the current working directory.
   --port <number>     Loopback port (default: ${DEFAULT_PORT}; use 0 for any free port)
   --origin <origin>   Additional allowed browser Origin. Repeatable.
   --codex <path>      Codex executable (default: CODEX_BIN or codex)
@@ -32,12 +36,13 @@ Other:
 
 Loopback browser origins such as http://localhost:* and http://127.0.0.1:* are allowed by default.
 For file:// or Electron pages, pass --origin null explicitly.
-Browser pages may target only threads that a local Codex process/user has registered with the bridge.
+Browser pages may send to locally registered threads and same-project recent threads returned by Codex app-server discovery.
 `;
 
 const { values } = parseArgs({
   options: {
     thread: { type: "string" },
+    cwd: { type: "string" },
     port: { type: "string", default: String(DEFAULT_PORT) },
     origin: { type: "string", multiple: true },
     codex: { type: "string" },
@@ -57,6 +62,7 @@ if (values.help) {
 }
 
 const normalizeThread = (value) => value?.trim() || null;
+const normalizeCwd = (value) => value?.trim() || null;
 const envThread = normalizeThread(process.env.CODEX_THREAD_ID);
 const requestedRegistration = normalizeThread(values.register);
 const registerCurrent = values["register-current"];
@@ -74,12 +80,13 @@ if (registerCurrent && !registrationThread) {
 
 if (registrationThread) {
   const bridge = values.bridge?.trim() || DEFAULT_BRIDGE;
+  const cwd = normalizeCwd(values.cwd) ?? process.cwd();
   let response;
   try {
     response = await fetch(new URL("threads/register", bridge.endsWith("/") ? bridge : `${bridge}/`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ thread: registrationThread }),
+      body: JSON.stringify({ thread: registrationThread, cwd }),
     });
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : String(cause);
@@ -113,14 +120,27 @@ if (!Number.isInteger(parsedPort) || parsedPort < 0 || parsedPort > 65_535) {
 }
 
 const initialThread = normalizeThread(values.thread) ?? envThread;
+const initialCwd = initialThread ? (normalizeCwd(values.cwd) ?? process.cwd()) : null;
 const codexBin = values.codex?.trim() || process.env.CODEX_BIN?.trim() || "codex";
 const additionalOrigins = new Set(values.origin ?? []);
-const registeredThreads = new Set();
+const registeredThreads = new Map();
+const discoveredThreads = new Map();
 let activeThread = null;
-if (initialThread) {
-  registeredThreads.add(initialThread);
-  activeThread = initialThread;
-}
+let activeCwd = null;
+
+const registerThread = (thread, cwd) => {
+  const previous = registeredThreads.get(thread);
+  const nextCwd = normalizeCwd(cwd) ?? previous?.cwd ?? null;
+  registeredThreads.set(thread, {
+    id: thread,
+    cwd: nextCwd,
+    seenAt: Date.now(),
+  });
+  activeThread = thread;
+  if (nextCwd) activeCwd = nextCwd;
+};
+
+if (initialThread) registerThread(initialThread, initialCwd);
 
 const isLoopbackOrigin = (origin) => {
   try {
@@ -208,9 +228,200 @@ const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
   }, CODEX_TIMEOUT_MS);
 });
 
+const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
+  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+    env: process.env,
+    shell: false,
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  let stdoutBuffer = "";
+  let stderr = "";
+  let settled = false;
+  let timeout;
+
+  const finish = (error, result) => {
+    if (settled) return;
+    settled = true;
+    if (timeout) clearTimeout(timeout);
+    if (child.exitCode === null) child.kill("SIGTERM");
+    if (error) reject(error);
+    else resolve(result);
+  };
+
+  const send = (message) => {
+    child.stdin.write(`${JSON.stringify(message)}\n`);
+  };
+
+  const handleMessage = (message) => {
+    if (message?.id === "mesurer-init") {
+      if (message.error) {
+        finish(new Error(message.error.message || "Codex app-server initialize failed."));
+        return;
+      }
+      send({ method: "initialized" });
+      send({
+        id: "mesurer-thread-list",
+        method: "thread/list",
+        params: {
+          limit,
+          sortKey: "recency_at",
+          sortDirection: "desc",
+          cwd,
+        },
+      });
+      return;
+    }
+    if (message?.id === "mesurer-thread-list") {
+      if (message.error) {
+        finish(new Error(message.error.message || "Codex app-server thread/list failed."));
+        return;
+      }
+      finish(null, message.result ?? {});
+    }
+  };
+
+  child.stdout.on("data", (chunk) => {
+    stdoutBuffer += chunk.toString();
+    while (true) {
+      const newline = stdoutBuffer.indexOf("\n");
+      if (newline < 0) break;
+      const line = stdoutBuffer.slice(0, newline).trim();
+      stdoutBuffer = stdoutBuffer.slice(newline + 1);
+      if (!line) continue;
+      try {
+        handleMessage(JSON.parse(line));
+      } catch {
+        // App-server protocol is JSONL; ignore unrelated stdout defensively.
+      }
+    }
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
+  });
+  child.on("error", (error) => finish(error));
+  child.on("close", (code, signal) => {
+    if (settled) return;
+    const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
+    finish(new Error(`Codex app-server exited before thread/list completed: ${detail}`));
+  });
+
+  timeout = setTimeout(() => {
+    child.kill("SIGTERM");
+    finish(new Error(`Codex app-server thread/list timed out after ${APP_SERVER_TIMEOUT_MS}ms.`));
+  }, APP_SERVER_TIMEOUT_MS);
+
+  send({
+    id: "mesurer-init",
+    method: "initialize",
+    params: {
+      clientInfo: {
+        name: "mesurer-solid",
+        title: "Mesurer Solid",
+        version: "1",
+      },
+      capabilities: {
+        experimentalApi: false,
+      },
+    },
+  });
+});
+
+const normalizeTitle = (value) => {
+  if (typeof value !== "string") return null;
+  const title = value.replace(/\s+/g, " ").trim();
+  if (!title) return null;
+  return title.length > 80 ? `${title.slice(0, 79)}…` : title;
+};
+
+const normalizeTimestamp = (value) => Number.isFinite(value) ? Number(value) : null;
+const shortThread = (thread) => thread.length > 16 ? `${thread.slice(0, 8)}…${thread.slice(-4)}` : thread;
+
+const appServerSummary = (thread, cwd) => {
+  const id = normalizeThread(thread?.id);
+  if (!id) return null;
+  const title = normalizeTitle(thread?.name)
+    ?? normalizeTitle(thread?.preview)
+    ?? `Codex ${shortThread(id)}`;
+  return {
+    id,
+    title,
+    updatedAt: normalizeTimestamp(thread?.recencyAt ?? thread?.updatedAt),
+    connected: registeredThreads.has(id),
+    cwd,
+  };
+};
+
+const registeredSummary = (record) => ({
+  id: record.id,
+  title: `Codex ${shortThread(record.id)}`,
+  updatedAt: Math.floor(record.seenAt / 1_000),
+  connected: true,
+  cwd: record.cwd,
+});
+
+const listThreadSummaries = async (scopeThread, limit) => {
+  const scopeRecord = scopeThread
+    ? registeredThreads.get(scopeThread) ?? discoveredThreads.get(scopeThread)
+    : activeThread
+      ? registeredThreads.get(activeThread) ?? discoveredThreads.get(activeThread)
+      : null;
+  const scopeCwd = scopeRecord?.cwd ?? activeCwd;
+  const preferredThread = scopeThread ?? activeThread;
+  const summaries = [];
+  let appHasMore = false;
+
+  if (scopeCwd) {
+    try {
+      const listed = await runCodexThreadList(scopeCwd, MAX_DISCOVERED_THREADS);
+      const data = Array.isArray(listed?.data) ? listed.data : [];
+      appHasMore = Boolean(listed?.nextCursor);
+      for (const item of data) {
+        const summary = appServerSummary(item, scopeCwd);
+        if (!summary) continue;
+        discoveredThreads.set(summary.id, summary);
+        summaries.push(summary);
+      }
+    } catch {
+      // Discovery is optional. Registered SessionStart destinations still work without app-server listing.
+    }
+  }
+
+  const byId = new Map(summaries.map((summary) => [summary.id, summary]));
+  const ordered = [];
+  const seen = new Set();
+  const push = (summary) => {
+    if (!summary || seen.has(summary.id)) return;
+    seen.add(summary.id);
+    ordered.push({
+      id: summary.id,
+      title: summary.title,
+      updatedAt: summary.updatedAt,
+      connected: registeredThreads.has(summary.id),
+    });
+  };
+
+  if (preferredThread) {
+    push(byId.get(preferredThread)
+      ?? (registeredThreads.get(preferredThread) ? registeredSummary(registeredThreads.get(preferredThread)) : null)
+      ?? discoveredThreads.get(preferredThread));
+  }
+  for (const summary of summaries) push(summary);
+  for (const record of registeredThreads.values()) {
+    if (scopeCwd && record.cwd && record.cwd !== scopeCwd) continue;
+    push(byId.get(record.id) ?? registeredSummary(record));
+  }
+
+  return {
+    thread: preferredThread,
+    threadDetails: ordered.slice(0, limit),
+    hasMore: appHasMore || ordered.length > limit,
+  };
+};
+
 const threadPayload = () => ({
   thread: activeThread,
-  threads: [...registeredThreads],
+  threads: [...registeredThreads.keys()],
 });
 
 let successfulSends = 0;
@@ -233,6 +444,26 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && request.url?.startsWith("/threads")) {
+    const url = new URL(request.url, DEFAULT_BRIDGE);
+    if (url.pathname !== "/threads") {
+      writeJson(response, 404, { ok: false, error: "Not found." }, origin);
+      return;
+    }
+    const requestedLimit = Number(url.searchParams.get("limit") ?? "5");
+    const limit = Number.isInteger(requestedLimit)
+      ? Math.min(MAX_DISCOVERED_THREADS, Math.max(1, requestedLimit))
+      : 5;
+    const scopeThread = normalizeThread(url.searchParams.get("thread")) ?? activeThread;
+    if (scopeThread && !registeredThreads.has(scopeThread) && !discoveredThreads.has(scopeThread)) {
+      writeJson(response, 409, { ok: false, error: `Codex thread is not known to this bridge: ${scopeThread}` }, origin);
+      return;
+    }
+    const payload = await listThreadSummaries(scopeThread, limit);
+    writeJson(response, 200, { ok: true, ...payload }, origin);
+    return;
+  }
+
   if (request.method === "POST" && request.url === "/threads/register") {
     if (originHeaderPresent) {
       writeJson(response, 403, {
@@ -244,12 +475,12 @@ const server = createServer(async (request, response) => {
     try {
       const body = await readJsonBody(request);
       const thread = normalizeThread(body?.thread);
+      const cwd = normalizeCwd(body?.cwd);
       if (!thread) {
         writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
         return;
       }
-      registeredThreads.add(thread);
-      activeThread = thread;
+      registerThread(thread, cwd);
       writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);
@@ -266,7 +497,8 @@ const server = createServer(async (request, response) => {
         writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
         return;
       }
-      if (!registeredThreads.has(thread)) {
+      const record = registeredThreads.get(thread);
+      if (!record) {
         writeJson(response, 409, {
           ok: false,
           error: `Codex thread is not registered with this bridge: ${thread}`,
@@ -274,6 +506,7 @@ const server = createServer(async (request, response) => {
         return;
       }
       activeThread = thread;
+      if (record.cwd) activeCwd = record.cwd;
       writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);
@@ -303,10 +536,10 @@ const server = createServer(async (request, response) => {
       }, origin);
       return;
     }
-    if (!registeredThreads.has(thread)) {
+    if (!registeredThreads.has(thread) && !discoveredThreads.has(thread)) {
       writeJson(response, 409, {
         ok: false,
-        error: `Codex thread is not registered with this bridge: ${thread}`,
+        error: `Codex thread is not available to this bridge: ${thread}`,
       }, origin);
       return;
     }
