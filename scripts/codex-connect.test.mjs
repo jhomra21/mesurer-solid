@@ -7,6 +7,8 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 
 const connectScript = new URL("../packages/mesurer/scripts/codex-connect.mjs", import.meta.url);
+const bridgeScript = new URL("../packages/mesurer/scripts/codex-bridge.mjs", import.meta.url);
+const pluginRoot = new URL("../plugins/mesurer-codex/", import.meta.url);
 
 const waitForExit = (child, timeoutMs = 10_000) => new Promise((resolve, reject) => {
   if (child.exitCode !== null) {
@@ -49,7 +51,28 @@ const waitForUnavailable = async (url, timeoutMs = 10_000) => {
   throw new Error("Detached bridge did not exit after its --once send.");
 };
 
-test("Codex connect starts a packaged bridge and registers the current thread", async () => {
+const runSessionStart = async ({ bridgeUrl, sessionId, codex }) => {
+  const args = [connectScript.pathname, "--session-start", "--bridge", bridgeUrl];
+  if (codex) args.push("--codex", codex, "--once");
+  const child = spawn(process.execPath, args, {
+    env: { ...process.env, CODEX_THREAD_ID: "ignored-in-hook-mode" },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
+  child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+  child.stdin.end(JSON.stringify({
+    session_id: sessionId,
+    cwd: process.cwd(),
+    hook_event_name: "SessionStart",
+    source: "startup",
+  }));
+  const code = await waitForExit(child);
+  return { code, stdout, stderr };
+};
+
+test("Codex SessionStart auto-connect starts once, stays silent, and reuses the bridge", async () => {
   const root = await mkdtemp(join(tmpdir(), "mesurer-codex-connect-"));
   const argsPath = join(root, "args.jsonl");
   const fakeCodex = join(root, "fake-codex.mjs");
@@ -58,31 +81,22 @@ test("Codex connect starts a packaged bridge and registers the current thread", 
 
   const port = await freePort();
   const bridgeUrl = `http://127.0.0.1:${port}`;
-  const connect = spawn(process.execPath, [connectScript.pathname,
-    "--bridge", bridgeUrl,
-    "--codex", fakeCodex,
-    "--once",
-  ], {
-    env: {
-      ...process.env,
-      CODEX_THREAD_ID: "thread-connect",
-      MESURER_FAKE_CODEX_ARGS: argsPath,
-    },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
-  let stderr = "";
-  connect.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
 
   try {
-    assert.equal(await waitForExit(connect), 0, stderr);
+    const first = await runSessionStart({ bridgeUrl, sessionId: "thread-hook-a", codex: fakeCodex });
+    assert.equal(first.code, 0, first.stderr);
+    assert.equal(first.stdout, "", "SessionStart success must not add developer context.");
+
+    const second = await runSessionStart({ bridgeUrl, sessionId: "thread-hook-b" });
+    assert.equal(second.code, 0, second.stderr);
+    assert.equal(second.stdout, "", "Reusing the bridge must also stay silent.");
 
     const health = await fetch(`${bridgeUrl}/health`);
     assert.equal(health.status, 200);
     assert.deepEqual(await health.json(), {
       ok: true,
-      thread: "thread-connect",
-      threads: ["thread-connect"],
+      thread: "thread-hook-b",
+      threads: ["thread-hook-a", "thread-hook-b"],
     });
 
     const send = await fetch(`${bridgeUrl}/send`, {
@@ -96,7 +110,7 @@ test("Codex connect starts a packaged bridge and registers the current thread", 
     assert.equal(send.status, 200);
     assert.deepEqual(await send.json(), {
       ok: true,
-      thread: "thread-connect",
+      thread: "thread-hook-b",
       output: "queued by fake codex",
     });
 
@@ -108,7 +122,7 @@ test("Codex connect starts a packaged bridge and registers the current thread", 
     assert.deepEqual(invocations, [[
       "queue",
       "--thread",
-      "thread-connect",
+      "thread-hook-b",
       "--message",
       "implement the Mesurer feedback",
     ]]);
@@ -124,4 +138,32 @@ test("Codex connect starts a packaged bridge and registers the current thread", 
     } catch {}
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("repo Codex plugin packages the same companion and a bounded SessionStart hook", async () => {
+  const marketplace = JSON.parse(await readFile(new URL("../.agents/plugins/marketplace.json", import.meta.url), "utf8"));
+  const manifest = JSON.parse(await readFile(new URL(".codex-plugin/plugin.json", pluginRoot), "utf8"));
+  const hooks = JSON.parse(await readFile(new URL("hooks/hooks.json", pluginRoot), "utf8"));
+
+  assert.equal(marketplace.name, "mesurer-local");
+  assert.deepEqual(marketplace.plugins.map((entry) => entry.name), ["mesurer-codex"]);
+  assert.equal(marketplace.plugins[0].source.path, "./plugins/mesurer-codex");
+  assert.equal(manifest.name, "mesurer-codex");
+  assert.equal(manifest.version, "0.1.8-beta.1");
+
+  const sessionStart = hooks.hooks.SessionStart[0];
+  assert.equal(sessionStart.matcher, "^(startup|resume|clear)$");
+  assert.equal(sessionStart.hooks.length, 1);
+  assert.equal(sessionStart.hooks[0].timeout, 15);
+  assert.match(sessionStart.hooks[0].command, /\$\{PLUGIN_ROOT\}\/scripts\/codex-connect\.mjs/);
+  assert.match(sessionStart.hooks[0].command, /--session-start/);
+
+  assert.equal(
+    await readFile(new URL("scripts/codex-connect.mjs", pluginRoot), "utf8"),
+    await readFile(connectScript, "utf8"),
+  );
+  assert.equal(
+    await readFile(new URL("scripts/codex-bridge.mjs", pluginRoot), "utf8"),
+    await readFile(bridgeScript, "utf8"),
+  );
 });

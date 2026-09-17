@@ -1,0 +1,20 @@
+{
+  "name": "mesurer-local",
+  "interface": {
+    "displayName": "Mesurer local"
+  },
+  "plugins": [
+    {
+      "name": "mesurer-codex",
+      "source": {
+        "source": "local",
+        "path": "./plugins/mesurer-codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

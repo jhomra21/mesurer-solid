@@ -1,0 +1,21 @@
+{
+  "name": "mesurer-codex",
+  "version": "0.1.8-beta.1",
+  "description": "Connects Mesurer browser feedback to the current Codex session through a local loopback companion.",
+  "author": {
+    "name": "Mesurer Solid"
+  },
+  "homepage": "https://github.com/jhomra21/mesurer-solid",
+  "repository": "https://github.com/jhomra21/mesurer-solid",
+  "license": "MIT",
+  "keywords": ["mesurer", "codex", "ui-review", "feedback"],
+  "interface": {
+    "displayName": "Mesurer Codex",
+    "shortDescription": "Connect Mesurer feedback to the current Codex thread",
+    "longDescription": "Starts or reuses Mesurer's loopback Codex companion at session start and registers the current Codex session for Send to Codex.",
+    "developerName": "Mesurer Solid",
+    "category": "Developer Tools",
+    "capabilities": [],
+    "defaultPrompt": ["Use Mesurer feedback in this project."]
+  }
+}
