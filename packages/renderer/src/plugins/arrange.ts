@@ -104,18 +104,18 @@ type HiddenMeasurement = {
   priority: string;
 };
 
-const DOCUMENT_SELECTION_PAINT = [
-  "[data-mesurer-measurement='true'][data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']",
-  "[data-mesurer-measurement='true'][data-mesurer-selection-companion='true'][data-mesurer-inspector-ui='true']",
-].join(",");
+const DOCUMENT_SELECTED_MEASUREMENT = [
+  "[data-mesurer-measurement='true']",
+  "[data-mesurer-selected-measurement='true']",
+  "[data-mesurer-inspector-ui='true']",
+].join("");
 const TEXT_EDIT_RUNTIME = "[data-mesurer-text-edit-runtime='true']";
 const TEXT_EDITOR = "[data-mesurer-text-editor='true']";
 
 /**
  * Arrange core suppresses measurements inside the normal renderer portal. A
- * selected page target can move both its persistent MeasurementBox and the
- * React-parity transient paint companion to <body>, outside that portal, so
- * this guard owns those document-backed selection surfaces. Direct text editing
+ * selected page target can move its MeasurementBox root to <body>, outside that
+ * portal, so this guard owns only that document-backed root. Direct text editing
  * temporarily takes visible selection-chrome ownership; while its editor exists,
  * release the document measurement instead of leaving the direct-edit surface
  * paintless.
@@ -135,7 +135,7 @@ const installArrangeDocumentMeasurementGuard = (
   let textObserver: MutationObserver | null = null;
 
   const isDocumentMeasurement = (element: HTMLElement) =>
-    element.matches(DOCUMENT_SELECTION_PAINT)
+    element.matches(DOCUMENT_SELECTED_MEASUREMENT)
     && !runtime.portalTarget.contains(element);
 
   const restoreMeasurements = () => {
@@ -170,7 +170,7 @@ const installArrangeDocumentMeasurementGuard = (
 
   const hideCurrentMeasurements = () => {
     if (!active || directEditActive()) return;
-    for (const candidate of body.querySelectorAll(DOCUMENT_SELECTION_PAINT)) {
+    for (const candidate of body.querySelectorAll(DOCUMENT_SELECTED_MEASUREMENT)) {
       if (candidate instanceof realm.HTMLElement) hideMeasurement(candidate);
     }
   };
@@ -200,8 +200,8 @@ const installArrangeDocumentMeasurementGuard = (
   };
   observeTextRuntime(latestTextRuntimeMount());
 
-  // Both Solid-owned selection paint portals and the isolated text runtime are
-  // direct body children. Keep this observer out of the host page subtree.
+  // Both the Solid-selected MeasurementBox portal and the isolated text runtime
+  // are direct body children. Keep this observer out of the host page subtree.
   const bodyObserver = new realm.MutationObserver((records) => {
     let runtimeMayHaveChanged = false;
     for (const record of records) {
@@ -218,16 +218,19 @@ const installArrangeDocumentMeasurementGuard = (
   });
   bodyObserver.observe(body, { childList: true });
 
-  const stateSubscription = ctx.state.subscribe(() => {
-    active = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+  const subscription = ctx.state.subscribe(() => {
+    const next = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+    if (next === active) return;
+    active = next;
     syncMeasurements();
   });
   syncMeasurements();
 
   ctx.lifecycle.onDispose(() => {
-    stateSubscription.dispose();
     bodyObserver.disconnect();
     textObserver?.disconnect();
+    textObserver = null;
+    subscription.dispose();
     restoreMeasurements();
   });
 };
@@ -236,15 +239,14 @@ export const arrangePlugin = (): MesurerPlugin => {
   const core = arrangeCorePlugin();
   return {
     ...core,
-    setup(ctx) {
-      const cleanup = core.setup?.(ctx);
-      const solid = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
+    async setup(ctx) {
+      await core.setup(ctx);
       const service = ctx.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
-      if (solid && service) {
-        installArrangePresentationPolicy(ctx, service, solid.ownerWindow);
-        installArrangeDocumentMeasurementGuard(ctx, solid);
-      }
-      return cleanup;
+      if (!service) throw new Error("Arrange presentation policy requires the Arrange service.");
+      const runtime = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
+      if (!runtime) throw new Error("Arrange presentation policy requires the Solid renderer runtime.");
+      installArrangePresentationPolicy(ctx, service, runtime.ownerWindow);
+      installArrangeDocumentMeasurementGuard(ctx, runtime);
     },
   };
 };
