@@ -5,7 +5,7 @@ import { getSelectionSpacingOverlays } from "../core/distances";
 import { getEdgeVisibilityForRects } from "../core/edge-visibility";
 import { trySetPointerCapture } from "../core/events";
 import type { SelectionSpacingStyle } from "../core/persistence";
-import type { Guide, InspectMeasurement, Measurement, Rect } from "../core/types";
+import type { Guide, InspectMeasurement, Rect } from "../core/types";
 import { formatValue } from "../core/utils";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import { hasNativeScrollAnchoring } from "../runtime/native-scroll-registry";
@@ -65,6 +65,11 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const guidePointerEvents = () => props.interactive && (props.model.state.toolMode !== "none" || props.model.state.rulersVisible);
   const outline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 80%, transparent)`;
   const fill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 8%, transparent)`;
+  // Upstream paints the active measurement and persistent selection on the same
+  // target. Keep one DOM box so it cannot become a scrolling/top-layer ghost,
+  // but preserve the resulting opacity: 1 - (1 - alpha)^2.
+  const selectedOutline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 96%, transparent)`;
+  const selectedFill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 15.36%, transparent)`;
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
   const displayedMeasurements = createMemo(() => {
     const measurements = props.model.state.settings.multiMeasureEnabled && props.model.state.measurements.length > 0
@@ -398,7 +403,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       </Show>
 
       <Show when={selectionVisible()}>
-        <For each={displayedSelectedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={selectedEdges()[index()]} outlineColor={outline()} fillColor={fill()} />}</For>
+        <For each={displayedSelectedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={selectedEdges()[index()]} outlineColor={selectedOutline()} fillColor={selectedFill()} />}</For>
         <Show when={selectedMeasurements().length > 1}>
           <For each={selectedMeasurements()}>{(measurement) => (
             <div
@@ -444,7 +449,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         const backgroundImage = () => props.model.state.settings.guideStyle.pattern === "solid" ? undefined
           : props.model.state.settings.guideStyle.pattern === "dotted"
             ? `radial-gradient(circle, ${strokeColor()} 0 ${strokeWidth() / 2}px, transparent ${strokeWidth() / 2 + 0.5}px)`
-            : `repeating-linear-gradient(${guide.orientation === "vertical" ? "to bottom" : "to right"}, ${strokeColor()} 0 ${props.model.state.settings.guideStyle.dashLength}px, transparent ${props.model.state.settings.guideStyle.dashLength}px ${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px)`;
+            : `repeating-linear-gradient(${guide.orientation === "vertical" ? "to bottom" : "to right"}, ${strokeColor()} 0 ${props.model.state.settings.guideStyle.dashLength}px, transparent ${props.model.state.settings.guideStyle.dashLength}px ${props.model.state.settings.guideStyle.gap}px)`;
         const backgroundSize = () => props.model.state.settings.guideStyle.pattern === "dotted"
           ? guide.orientation === "vertical" ? `${strokeWidth()}px ${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px` : `${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px ${strokeWidth()}px`
           : undefined;
