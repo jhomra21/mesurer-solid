@@ -7,7 +7,12 @@ export type DocumentInspectorMount = {
   dispose(): void;
 };
 
-const ANNOTATION_HIGHLIGHT_Z_INDEX = "2147482950";
+type DocumentInspectorRuntime = Pick<
+  MesurerSolidRuntimeService,
+  "ownerDocument" | "ownerWindow" | "pageTarget" | "createInspectorMount"
+>;
+
+const DOCUMENT_INSPECTOR_Z_INDEX = "2147482999";
 
 /**
  * Page-owned inspector UI must participate in the same document scroll tree as
@@ -16,7 +21,7 @@ const ANNOTATION_HIGHLIGHT_Z_INDEX = "2147482950";
  * positioning, just like the accepted Typography path.
  */
 export function createDocumentInspectorMount(
-  runtime: MesurerSolidRuntimeService,
+  runtime: DocumentInspectorRuntime,
 ): DocumentInspectorMount {
   const { ownerDocument, ownerWindow, pageTarget } = runtime;
   const body = ownerDocument.body;
@@ -33,10 +38,11 @@ export function createDocumentInspectorMount(
   element.dataset.mesurerInspectorUi = "true";
   element.dataset.mesurerDocumentInspectorMount = "true";
 
-  // Keep this origin out of the stacking tree. Individual document-owned
-  // surfaces already own explicit z-index tiers, and letting the mount create a
-  // top-level stacking context would force even non-interactive page evidence
-  // above the fixed Mesurer toolbar while the page scrolls underneath it.
+  // Context annotations are page evidence, so the fixed Mesurer renderer must
+  // win when that evidence scrolls underneath the toolbar. Keep one document
+  // stacking context immediately below the canonical renderer (2147483000),
+  // while remaining above page content, selection chrome, and text-edit rings.
+  // Marker > panel > highlight ordering still comes from their child z-indexes.
   Object.assign(element.style, {
     position: "absolute",
     left: "0px",
@@ -44,21 +50,8 @@ export function createDocumentInspectorMount(
     width: "0px",
     height: "0px",
     overflow: "visible",
+    zIndex: DOCUMENT_INSPECTOR_Z_INDEX,
   });
-
-  // The ownership edge is page evidence, not viewport chrome. Keep it above the
-  // selected measurement box but below the canonical fixed renderer so the
-  // toolbar naturally occludes the edge when its target scrolls behind it. The
-  // interactive marker/panel tiers remain untouched and can still sit above the
-  // renderer when their passthrough contract requires it.
-  const layerStyle = ownerDocument.createElement("style");
-  layerStyle.dataset.mesurerDocumentInspectorLayerStyle = "true";
-  layerStyle.textContent = `
-[data-mesurer-document-inspector-mount="true"] [data-mesurer-annotation-target-highlight="true"] {
-  z-index: ${ANNOTATION_HIGHLIGHT_Z_INDEX} !important;
-}
-`;
-  element.append(layerStyle);
   body.append(element);
 
   let disposed = false;
