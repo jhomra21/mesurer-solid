@@ -106,10 +106,21 @@ const assertOccludesHover = async (surface, label) => {
       ...(shadow ? [...shadow.querySelectorAll("[data-mesurer-hover-measurement='true'], [data-mesurer-measurement-chrome='true'], [data-mesurer-annotation-target-highlight='true']")] : []),
     ].map(describe);
 
+    // elementFromPoint is used only as a paint-order probe here. Neutralize the
+    // top-layer renderer's unrelated full-viewport hit surfaces while leaving
+    // the real hover box opt-in hit-testable. If hover is still owned by the
+    // top layer it will beat the document card; if hover has moved to the
+    // document evidence plane, the higher Context card will win.
+    const suppressed = island instanceof HTMLElement
+      ? [island, ...island.querySelectorAll("*")].filter((element) => element instanceof HTMLElement)
+      : [];
+    if (shadow) {
+      suppressed.push(...[...shadow.querySelectorAll("*")].filter((element) => element instanceof HTMLElement));
+    }
+    const originalStyles = suppressed.map((element) => [element, element.getAttribute("style")]);
+    for (const element of suppressed) element.style.setProperty("pointer-events", "none", "important");
     const hoverStyle = hoverElement.getAttribute("style");
-    const islandStyle = island instanceof HTMLElement ? island.getAttribute("style") : null;
     hoverElement.style.setProperty("pointer-events", "auto", "important");
-    if (island instanceof HTMLElement) island.style.setProperty("pointer-events", "none", "important");
 
     const hit = ownerDocument.elementFromPoint(point.edgeX - 0.5, point.probeY);
     const cardWins = Boolean(hit && (hit === card || card.contains(hit)));
@@ -123,9 +134,9 @@ const assertOccludesHover = async (surface, label) => {
 
     if (hoverStyle === null) hoverElement.removeAttribute("style");
     else hoverElement.setAttribute("style", hoverStyle);
-    if (island instanceof HTMLElement) {
-      if (islandStyle === null) island.removeAttribute("style");
-      else island.setAttribute("style", islandStyle);
+    for (const [element, style] of originalStyles) {
+      if (style === null) element.removeAttribute("style");
+      else element.setAttribute("style", style);
     }
     return value;
   }, probe);
