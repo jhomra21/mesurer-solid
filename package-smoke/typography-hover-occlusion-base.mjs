@@ -41,20 +41,39 @@ try {
   const hoverX = hoverTargetBox.x + hoverTargetBox.width / 2;
   const hoverY = hoverTargetBox.y + hoverTargetBox.height / 2;
 
-  // Before direct editing begins, ordinary Select hover must keep the original
-  // hardened top-layer ownership. The document portal is only for the active
-  // Typography overlap case, not a global change to Select hover semantics.
+  // Without a document-backed inspector owner, ordinary Select hover keeps the
+  // hardened top-layer ownership. This packed Solid 2 host explicitly loads the
+  // Context plugin, whose stable document mount owns page evidence from startup;
+  // in that case hover must already share the document paint plane so a later
+  // annotation card can occlude it without a timing-dependent portal handoff.
   await page.mouse.move(hoverX, hoverY);
   await waitFrames(2);
   const ordinaryHover = await page.evaluate(() => {
     const island = document.querySelector("[data-mesurer-island='true']");
+    const bodyHover = document.body.querySelector("[data-mesurer-hover-measurement='true']");
+    const shadowHover = island?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']") ?? null;
+    const contextDocumentMount = document.querySelector(
+      "[data-mesurer-document-inspector-mount='true'][data-mesurer-context-root='true']",
+    );
     return {
-      bodyHover: Boolean(document.body.querySelector("[data-mesurer-hover-measurement='true']")),
-      shadowHover: Boolean(island?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']")),
+      contextDocumentMount: contextDocumentMount instanceof HTMLElement,
+      bodyHover: bodyHover instanceof HTMLElement,
+      shadowHover: shadowHover instanceof HTMLElement,
+      bodyHoverLayer: bodyHover instanceof HTMLElement
+        ? bodyHover.dataset.mesurerDocumentHoverLayer ?? null
+        : null,
+      bodyHoverZIndex: bodyHover instanceof HTMLElement ? getComputedStyle(bodyHover).zIndex : null,
     };
   });
-  if (ordinaryHover.bodyHover || !ordinaryHover.shadowHover) {
-    throw new Error(`Ordinary Select hover left the protected top-layer island: ${JSON.stringify(ordinaryHover)}`);
+  if (ordinaryHover.contextDocumentMount) {
+    if (!ordinaryHover.bodyHover
+      || ordinaryHover.shadowHover
+      || ordinaryHover.bodyHoverLayer !== "true"
+      || ordinaryHover.bodyHoverZIndex !== "2147482700") {
+      throw new Error(`Context-owned Select hover did not use the document evidence layer: ${JSON.stringify(ordinaryHover)}`);
+    }
+  } else if (ordinaryHover.bodyHover || !ordinaryHover.shadowHover) {
+    throw new Error(`Ordinary Select hover left the protected top-layer island without a document inspector: ${JSON.stringify(ordinaryHover)}`);
   }
 
   const editTarget = page.locator("[data-testid='consumer-sibling']");
