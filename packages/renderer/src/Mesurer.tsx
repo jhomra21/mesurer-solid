@@ -10,7 +10,7 @@ import { GUIDE_DRAG_HOLD_MS } from "./core/constants";
 import { getDistanceOverlay, updateDistanceForResize } from "./core/distances";
 import { getInspectMeasurement, updateMeasurementForResize } from "./core/dom";
 import { isEditableKeyboardEvent, trySetPointerCapture } from "./core/events";
-import { getRectFromPoints, getViewportSize } from "./core/geometry";
+import { getRectFromPoints, getViewportSize, normalizeRect } from "./core/geometry";
 import { getGuideRect, getSnapGuidePosition } from "./core/guides";
 import {
   getHoveredGuide,
@@ -38,7 +38,7 @@ import {
   type SelectionEntriesCache,
 } from "./core/selection";
 import { getSelectedMeasurementHit } from "./core/selection-helpers";
-import type { Guide, InspectMeasurement, Point, Rect } from "./core/types";
+import type { Guide, InspectMeasurement, Measurement, Point, Rect } from "./core/types";
 import { createId } from "./core/utils";
 import {
   createMesurerModel,
@@ -435,6 +435,15 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       } else {
         model.setSelectedMeasurements([measurement], measurement);
       }
+      const activeMeasurement: Measurement = {
+        id: measurement.id,
+        rect: measurement.rect,
+        normalizedRect: normalizeRect(measurement.rect),
+        elementRef: measurement.elementRef,
+        deltaX: 0,
+        deltaY: 0,
+      };
+      model.setActiveMeasurement(activeMeasurement);
     } else if (!event.shiftKey) {
       model.checkpoint(); model.setSelectedMeasurements([], null);
     }

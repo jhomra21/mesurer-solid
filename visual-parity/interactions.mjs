@@ -202,7 +202,57 @@ const cases = [
   { name: "toolbar-settings-open", allowVersionDiff: true, run: openSettings },
   { name: "toolbar-settings-close", run: async (p) => { await openSettings(p); await realClick(button(p, /^Settings/)); } },
 
-  { name: "action-select-target", run: async (p) => { await realClick(button(p, /^Select/)); await sleep(p, 80); await p.mouse.click(340, 290); await sleep(p, 180); } },
+  { name: "action-select-target", run: async (p, implementation) => {
+    await realClick(button(p, /^Select/));
+    await sleep(p, 80);
+    await p.mouse.click(340, 290);
+    await sleep(p, 180);
+
+    // Solid preserves upstream's two-pass selected visual weight in one
+    // document-owned box. Requiring the old transient duplicate would recreate
+    // the fixed-island ghost that can scroll independently and paint over
+    // document-backed annotation cards.
+    if (implementation === "solid") {
+      const selectionPaint = await p.evaluate(() => {
+        const surfaces = [...document.querySelectorAll('[data-mesurer-measurement-chrome="true"]')]
+          .filter((node) => {
+            const rect = node.getBoundingClientRect();
+            return Math.abs(rect.x - 240) < 0.5 && Math.abs(rect.y - 240) < 0.5
+              && Math.abs(rect.width - 200) < 0.5 && Math.abs(rect.height - 100) < 0.5;
+          });
+        if (surfaces.length !== 1) return null;
+        const selected = surfaces[0];
+        if (!selected.closest('[data-mesurer-selected-measurement="true"]')) return null;
+        const rect = selected.getBoundingClientRect();
+        return {
+          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+          nativeAnchor: selected.dataset.mesurerNativeScrollAnchor ?? null,
+        };
+      });
+      if (!selectionPaint) throw new Error("action-select-target: selected target must have exactly one paint surface");
+      if (selectionPaint.nativeAnchor !== "box") {
+        throw new Error(`action-select-target: selected paint lost document anchor ownership: ${JSON.stringify(selectionPaint)}`);
+      }
+
+      await p.mouse.move(620, 300);
+      await sleep(p, 120);
+      const differentHover = await p.evaluate(() => [...document.querySelectorAll('[data-mesurer-hover-measurement="true"]')].some((node) => {
+        const rect = node.getBoundingClientRect();
+        return Math.abs(rect.x - 560) < 0.5 && Math.abs(rect.y - 260) < 0.5 && Math.abs(rect.width - 140) < 0.5 && Math.abs(rect.height - 80) < 0.5;
+      }));
+      if (!differentHover) throw new Error("action-select-target: hover did not remain functional on another target");
+      // Restore the canonical captured state after the hover-only assertion.
+      // The parity image must remain the same committed selection state as the
+      // upstream action, not a later pointer location.
+      await p.reload({ waitUntil: "networkidle" });
+      await p.locator(".mesurer-toolbar-surface").waitFor();
+      await sleep(p, 100);
+      await realClick(button(p, /^Select/));
+      await sleep(p, 80);
+      await p.mouse.click(340, 290);
+      await sleep(p, 180);
+    }
+  } },
   { name: "action-guide-create-vertical", run: async (p) => { await realClick(button(p, /^Guides/)); await sleep(p, 80); await p.mouse.click(620, 400); await sleep(p, 180); } },
   { name: "action-guide-create-horizontal", run: async (p) => { await openOrientation(p); await realClick(button(p, "Horizontal")); await sleep(p, 80); await p.mouse.click(620, 400); await sleep(p, 180); } },
   { name: "action-text-inspector-hover", run: async (p, implementation) => { await realClick(typographyButton(p, implementation)); await sleep(p, 80); await p.mouse.move(340, 290); await sleep(p, 220); } },

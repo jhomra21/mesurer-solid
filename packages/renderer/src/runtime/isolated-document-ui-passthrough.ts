@@ -8,26 +8,32 @@ type CachedUiRect = {
   bottom: number;
 };
 
-const DOCUMENT_UI_SELECTOR = "[data-mesurer-inspector-ui='true']";
+const DOCUMENT_UI_SELECTOR = "[data-mesurer-inspector-ui='true'], [data-mesurer-annotation-marker='true']";
 const SCROLL_IDLE_MS = 80;
 
-const isDocumentBackedIsolatedRuntime = (
+const isDocumentBackedRuntime = (
   runtime: MesurerSolidRuntimeService,
   realm: Window & typeof globalThis,
-) => runtime.portalTarget instanceof realm.ShadowRoot
-  && !(runtime.pageTarget instanceof realm.ShadowRoot)
-  && runtime.pageTarget.getRootNode() === runtime.ownerDocument;
+) => !(runtime.pageTarget instanceof realm.ShadowRoot)
+  && runtime.pageTarget.getRootNode() === runtime.ownerDocument
+  && (
+    runtime.portalTarget instanceof realm.ShadowRoot
+      ? runtime.portalTarget.host.getRootNode() === runtime.ownerDocument
+      : runtime.portalTarget.getRootNode() === runtime.ownerDocument
+  );
 
 const containsPoint = (rect: CachedUiRect, x: number, y: number) => (
   x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
 );
 
 /**
- * The public isolated mount lives in the browser top layer while page-following
- * inspector surfaces such as Typography and annotation actions may be portaled
- * into the document so CSS anchors can follow the inspected page element.
+ * Mesurer's protected renderer host can sit above ordinary document content,
+ * while page-following inspector surfaces such as Typography and Context notes
+ * intentionally live in the document so window scrolling is compositor-owned.
+ * This is true for both the isolated top-layer host and the fixed non-isolated
+ * compatibility host.
  *
- * A top-layer selection plane otherwise wins hit testing even when one of those
+ * A protected selection plane otherwise wins hit testing even when one of those
  * document-backed Mesurer controls is visibly on top of the page. Keep a small
  * cached set of rendered Mesurer UI rectangles and make only the selection/
  * ruler plane transparent while the pointer is over one of them. The real
@@ -35,8 +41,11 @@ const containsPoint = (rect: CachedUiRect, x: number, y: number) => (
  * redispatched or synthesized.
  *
  * Geometry is sampled when Mesurer-owned UI changes, on resize, and once after
- * scrolling settles. Pointer movement is O(number of visible Mesurer surfaces)
- * scalar containment checks only, and the scroll hot path does no layout reads.
+ * scrolling settles. Window scrolling translates the cached rectangles by the
+ * known scroll delta, so even a stationary pointer stays synchronized without a
+ * layout read. Nested scrolling only marks the cache stale; the next pointer
+ * approach may synchronously refresh it before the ensuing press. The scroll
+ * hot path itself performs no DOM queries or geometry reads.
  */
 export function installIsolatedDocumentUiPassthrough(
   ctx: MesurerPluginContext,
@@ -45,7 +54,7 @@ export function installIsolatedDocumentUiPassthrough(
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
   // SAFETY: ownerWindow is the browsing-context global for ownerDocument and portalTarget.
   const realm = ownerWindow as Window & typeof globalThis;
-  if (!ownerDocument.body || !isDocumentBackedIsolatedRuntime(runtime, realm)) return;
+  if (!ownerDocument.body || !isDocumentBackedRuntime(runtime, realm)) return;
 
   const rendererRoot = runtime.rendererRoot
     ?? portalTarget.querySelector<HTMLElement>("[data-mesurer-root='true']");
@@ -67,8 +76,11 @@ export function installIsolatedDocumentUiPassthrough(
   let disposed = false;
   let captureFrame = 0;
   let scrollIdleTimer = 0;
+  let geometryStale = false;
   let cachedRects: CachedUiRect[] = [];
   let pointer: { x: number; y: number } | null = null;
+  let windowScrollX = ownerWindow.scrollX;
+  let windowScrollY = ownerWindow.scrollY;
 
   const setPassthrough = (active: boolean) => {
     if (active) rendererRoot.dataset.mesurerDocumentUiPassthrough = "true";
@@ -85,6 +97,7 @@ export function installIsolatedDocumentUiPassthrough(
 
   const capture = () => {
     captureFrame = 0;
+    geometryStale = false;
     if (disposed) return;
     const next: CachedUiRect[] = [];
     for (const element of ownerDocument.body.querySelectorAll<HTMLElement>(DOCUMENT_UI_SELECTOR)) {
@@ -98,12 +111,22 @@ export function installIsolatedDocumentUiPassthrough(
       next.push({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom });
     }
     cachedRects = next;
+    windowScrollX = ownerWindow.scrollX;
+    windowScrollY = ownerWindow.scrollY;
     applyPointer();
   };
 
   const scheduleCapture = () => {
     if (disposed || captureFrame) return;
     captureFrame = ownerWindow.requestAnimationFrame(capture);
+  };
+
+  const flushStaleGeometry = () => {
+    if (!geometryStale && !captureFrame) return false;
+    if (captureFrame) ownerWindow.cancelAnimationFrame(captureFrame);
+    captureFrame = 0;
+    capture();
+    return true;
   };
 
   const isMesurerUiNode = (node: Node) => {
@@ -128,9 +151,9 @@ export function installIsolatedDocumentUiPassthrough(
     attributeFilter: ["style", "class", "hidden", "aria-hidden"],
   });
 
-  const onPointerMove = (event: PointerEvent) => {
+  const applyPointerEvent = (event: PointerEvent) => {
     pointer = { x: event.clientX, y: event.clientY };
-    applyPointer();
+    if (!flushStaleGeometry()) applyPointer();
   };
   const onPointerLeave = () => {
     pointer = null;
@@ -138,6 +161,28 @@ export function installIsolatedDocumentUiPassthrough(
   };
   const onResize = () => scheduleCapture();
   const onScroll = () => {
+    const nextX = ownerWindow.scrollX;
+    const nextY = ownerWindow.scrollY;
+    const dx = nextX - windowScrollX;
+    const dy = nextY - windowScrollY;
+    windowScrollX = nextX;
+    windowScrollY = nextY;
+
+    if (dx || dy) {
+      cachedRects = cachedRects.map((rect) => ({
+        left: rect.left - dx,
+        top: rect.top - dy,
+        right: rect.right - dx,
+        bottom: rect.bottom - dy,
+      }));
+      applyPointer();
+    } else {
+      // A nested scroller can move document-backed UI through its lightweight
+      // compensation without changing window.scrollX/Y. Defer the layout read
+      // until pointer approach or scroll settle rather than doing it here.
+      geometryStale = true;
+    }
+
     if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
     scrollIdleTimer = ownerWindow.setTimeout(() => {
       scrollIdleTimer = 0;
@@ -145,7 +190,12 @@ export function installIsolatedDocumentUiPassthrough(
     }, SCROLL_IDLE_MS);
   };
 
-  ownerWindow.addEventListener("pointermove", onPointerMove, true);
+  // Hover-capable pointers normally arrive through pointermove. Non-hover input
+  // (touch/stylus tap) emits pointerover before pointerdown, which gives the same
+  // shared boundary a chance to expose the real document control without a
+  // synthetic redispatch.
+  ownerWindow.addEventListener("pointermove", applyPointerEvent, true);
+  ownerWindow.addEventListener("pointerover", applyPointerEvent, true);
   ownerWindow.addEventListener("blur", onPointerLeave, true);
   ownerWindow.addEventListener("resize", onResize, true);
   ownerWindow.addEventListener("scroll", onScroll, true);
@@ -156,12 +206,14 @@ export function installIsolatedDocumentUiPassthrough(
     observer.disconnect();
     if (captureFrame) ownerWindow.cancelAnimationFrame(captureFrame);
     if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
-    ownerWindow.removeEventListener("pointermove", onPointerMove, true);
+    ownerWindow.removeEventListener("pointermove", applyPointerEvent, true);
+    ownerWindow.removeEventListener("pointerover", applyPointerEvent, true);
     ownerWindow.removeEventListener("blur", onPointerLeave, true);
     ownerWindow.removeEventListener("resize", onResize, true);
     ownerWindow.removeEventListener("scroll", onScroll, true);
     setPassthrough(false);
     style.remove();
+    geometryStale = false;
     cachedRects = [];
     pointer = null;
   });

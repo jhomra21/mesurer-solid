@@ -10,6 +10,7 @@ export type MeasurementBoxProps = {
   outlineColor: string;
   fillColor: string;
   edgeVisibility?: EdgeVisibility;
+  showLabel?: boolean;
 };
 
 const allEdges: EdgeVisibility = { top: true, right: true, bottom: true, left: true };
@@ -153,18 +154,20 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         <Show when={edges().left}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ "background-color": props.outlineColor }} /></Show>
       </div>
     </Show>
-    <div ref={labelElement} data-mesurer-measurement-label="true" class="msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:-translate-x-1/2 msr:bg-ink-900/90" style={{
-      left: `${measurement().rect.left + selectedPortalOffset().x + measurement().rect.width / 2}px`,
-      top: `${measurement().rect.top + selectedPortalOffset().y + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
-      "z-index": isSelectedMeasurement() ? SELECTED_CHROME_Z_INDEX : undefined,
-      transition: labelTransition(),
-      "transition-property": isSelectedMeasurement() ? "none" : "left, top",
-      "transition-duration": isSelectedMeasurement() ? "0s" : `${MEASURE_TRANSITION_MS}ms`,
-      animation: "none",
-      "animation-name": "none",
-    }}>
-      {formatValue(measurement().rect.width)} x {formatValue(measurement().rect.height)}
-    </div>
+    <Show when={props.showLabel !== false}>
+      <div ref={labelElement} data-mesurer-measurement-label="true" class="msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:-translate-x-1/2 msr:bg-ink-900/90" style={{
+        left: `${measurement().rect.left + selectedPortalOffset().x + measurement().rect.width / 2}px`,
+        top: `${measurement().rect.top + selectedPortalOffset().y + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
+        "z-index": isSelectedMeasurement() ? SELECTED_CHROME_Z_INDEX : undefined,
+        transition: labelTransition(),
+        "transition-property": isSelectedMeasurement() ? "none" : "left, top",
+        "transition-duration": isSelectedMeasurement() ? "0s" : `${MEASURE_TRANSITION_MS}ms`,
+        animation: "none",
+        "animation-name": "none",
+      }}>
+        {formatValue(measurement().rect.width)} x {formatValue(measurement().rect.height)}
+      </div>
+    </Show>
   </>;
 
   return (

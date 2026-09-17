@@ -1,6 +1,7 @@
 import { render } from "@solidjs/web";
 import {
   ContextActionsSelectOwnership,
+  createDocumentInspectorMount,
   type ContextActionsController,
   type ContextActionsProps,
   type MesurerSolidRuntimeService,
@@ -26,6 +27,7 @@ export const MESURER_CONTEXT_SERVICE_ID = "context:v1";
 export const MESURER_CONTEXT_SETTINGS_STATE_ID = "mesurer.context.settings";
 
 const CONTEXT_UI_STATE_ID = "context.ui";
+const DIRECT_EDIT_ACTIVE_ATTRIBUTE = "data-mesurer-direct-text-edit-active";
 const COPY_ICON = {
   viewBox: "0 0 256 256",
   paths: ["M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"],
@@ -133,10 +135,9 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       const solid = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
       if (!solid) throw new Error("Mesurer context plugin requires the renderer runtime service.");
 
-      // Context is interactive Mesurer UI. Keep it in the canonical inspector
-      // root instead of creating a second document-backed interaction plane.
-      // Page-following geometry is handled by ContextActions' viewport/cached
-      // scroll positioning, so selection and Context share one pointer owner.
+      // Annotation markers/cards are page evidence, not viewport furniture. Put
+      // their interactive root in the same document scroll tree as the selected
+      // page element; the canonical toolbar remains isolated in its normal root.
       const runtime = solid.createWorkspaceRuntime();
       const service = createService(runtime, solid.ownerDocument, solid.ownerWindow);
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
@@ -160,6 +161,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       let uiController: ContextActionsController | null = null;
       let disposeUi: (() => void) | null = null;
       let uiMount: { element: HTMLDivElement; dispose(): void } | null = null;
+      let directEditObserver: MutationObserver | null = null;
       const initialSelection = runtime.currentSelection();
       let previousSelection = {
         elements: [...initialSelection.elements],
@@ -188,10 +190,6 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
           region: nextSelection.region ? { ...nextSelection.region } : null,
         };
 
-        // A transient note draft is valid only while no Select gesture is
-        // active and the captured selection remains current. Do not depend on
-        // a cached false→true edge: every renderer-model notification is an
-        // opportunity to enforce the ownership invariant synchronously.
         if (runtime.selectGestureActive()) uiController?.abandonNoteComposer();
         else if (selectionChanged) uiController?.closeNoteComposer();
 
@@ -204,7 +202,19 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       ctx.command.register("context.copy", () => service.copyContext());
       ctx.command.register("context.copy-selection", () => service.copyContext({ scope: "selection" }));
 
+      const syncDirectEditSuppression = () => {
+        const mount = uiMount?.element;
+        if (!mount) return;
+        if (solid.rendererRoot?.hasAttribute(DIRECT_EDIT_ACTIVE_ATTRIBUTE)) {
+          mount.setAttribute(DIRECT_EDIT_ACTIVE_ATTRIBUTE, "true");
+        } else {
+          mount.removeAttribute(DIRECT_EDIT_ACTIVE_ATTRIBUTE);
+        }
+      };
+
       const destroyUi = () => {
+        directEditObserver?.disconnect();
+        directEditObserver = null;
         uiController = null;
         disposeUi?.();
         disposeUi = null;
@@ -214,14 +224,27 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
 
       const createUi = () => {
         if (uiMount) return;
-        uiMount = solid.createInspectorMount();
+        uiMount = createDocumentInspectorMount(solid);
         uiMount.element.dataset.mesurerLayer = "evidence";
         uiMount.element.dataset.mesurerContextRoot = "true";
+
+        if (solid.rendererRoot) {
+          // SAFETY: ownerWindow is the browsing-context global paired with rendererRoot.
+          const realm = solid.ownerWindow as Window & typeof globalThis;
+          const observer = new realm.MutationObserver(syncDirectEditSuppression);
+          directEditObserver = observer;
+          observer.observe(solid.rendererRoot, {
+            attributes: true,
+            attributeFilter: [DIRECT_EDIT_ACTIVE_ATTRIBUTE],
+          });
+          syncDirectEditSuppression();
+        }
+
         const actionProps: ContextActionsProps = {
           runtime,
           onCopy: service.copyContext,
           onController: (controller: ContextActionsController | null) => { uiController = controller; },
-          coordinateSpace: "viewport",
+          coordinateSpace: "document",
         };
         disposeUi = render(() => (
           <ContextActionsSelectOwnership

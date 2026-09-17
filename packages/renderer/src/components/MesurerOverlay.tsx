@@ -8,6 +8,7 @@ import type { SelectionSpacingStyle } from "../core/persistence";
 import type { Guide, InspectMeasurement, Rect } from "../core/types";
 import { formatValue } from "../core/utils";
 import type { MesurerModel } from "../model/create-mesurer-model";
+import { documentHoverPortalTarget } from "../runtime/document-hover-portal";
 import { hasNativeScrollAnchoring } from "../runtime/native-scroll-registry";
 import { DistanceOverlayItem, type SelectionSpacingInteraction } from "./DistanceOverlayItem";
 import { MeasurementBox } from "./MeasurementBox";
@@ -65,11 +66,30 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const guidePointerEvents = () => props.interactive && (props.model.state.toolMode !== "none" || props.model.state.rulersVisible);
   const outline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 80%, transparent)`;
   const fill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 8%, transparent)`;
-  const displayedMeasurements = createMemo(() => props.model.state.settings.multiMeasureEnabled && props.model.state.measurements.length > 0
-    ? props.model.state.measurements
-    : props.model.state.activeMeasurement ? [props.model.state.activeMeasurement] : []);
-  const displayedSelectedMeasurements = createMemo(() => props.displayedSelectedMeasurements);
+  // Upstream paints the active measurement and persistent selection on the same
+  // target. Keep one DOM box so it cannot become a scrolling/top-layer ghost,
+  // but preserve the resulting opacity: 1 - (1 - alpha)^2.
+  const selectedOutline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 96%, transparent)`;
+  const selectedFill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 15.36%, transparent)`;
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
+  const displayedMeasurements = createMemo(() => {
+    const measurements = props.model.state.settings.multiMeasureEnabled && props.model.state.measurements.length > 0
+      ? props.model.state.measurements
+      : props.model.state.activeMeasurement
+        ? [props.model.state.activeMeasurement]
+        : [];
+    const selectedElements = new Set(
+      selectedMeasurements()
+        .map((measurement) => measurement.elementRef)
+        .filter((element): element is HTMLElement => Boolean(element)),
+    );
+    return measurements.filter((measurement) => !measurement.elementRef || !selectedElements.has(measurement.elementRef));
+  });
+  const displayedSelectedMeasurements = createMemo(() => props.displayedSelectedMeasurements);
+  const hoverTargetsSelected = createMemo(() => {
+    const target = props.model.state.hoverElement;
+    return Boolean(target && selectedMeasurements().some((measurement) => measurement.elementRef === target));
+  });
   const heldDistances = createMemo(() => props.model.state.heldDistances);
   const measurementEdges = createMemo(() => getEdgeVisibilityForRects(displayedMeasurements().map((item) => item.rect)));
   const selectedEdges = createMemo(() => getEdgeVisibilityForRects(displayedSelectedMeasurements().map((item) => item.rect)));
@@ -95,24 +115,10 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       ...displayedSelectedMeasurements().map((item) => item.rect),
     ])[0] ?? null;
   };
-  const hoverPortalTarget = () => {
-    const overlay = overlayElement;
-    const target = props.model.state.hoverElement;
-    const ownerWindow = overlay?.ownerDocument.defaultView;
-    if (!overlay || !target?.isConnected || !ownerWindow || !overlay.ownerDocument.body) return null;
-    if (!(overlay.getRootNode() instanceof ownerWindow.ShadowRoot)) return null;
-    if (target.getRootNode() !== overlay.ownerDocument) return null;
-
-    // Ordinary Select hover stays inside the hardened top-layer island. A live
-    // document-backed inspector surface is the narrow exception: move hover
-    // chrome into the same document paint tree so Typography and Context note
-    // surfaces can occlude page chrome exactly like the persistent toolbar.
-    const protectedInspector = overlay.ownerDocument.querySelector<HTMLElement>(
-      "[data-mesurer-text-inspector-info='true'], [data-mesurer-annotation-composer='true'], [data-mesurer-annotation-panel='true']",
-    );
-    if (!protectedInspector?.isConnected || protectedInspector.getRootNode() !== overlay.ownerDocument) return null;
-    return overlay.ownerDocument.body;
-  };
+  const hoverPortalTarget = () => documentHoverPortalTarget(
+    overlayElement,
+    props.model.state.hoverElement,
+  );
   const hoverPortalOffset = () => {
     const target = props.model.state.hoverElement;
     const mount = hoverPortalTarget();
@@ -366,7 +372,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           <Tag axis="x" left={props.activeRect!.left + props.activeRect!.width / 2} top={props.activeRect!.top + props.activeRect!.height + MEASURE_LABEL_OFFSET}>{formatValue(props.activeRect!.width)} x {formatValue(props.activeRect!.height)}</Tag>
         </></Show>
 
-        <Show when={props.model.state.hoverRect && props.model.state.settings.hoverHighlightEnabled && selectedMeasurements().length <= 1}>
+        <Show when={props.model.state.hoverRect && props.model.state.settings.hoverHighlightEnabled && selectedMeasurements().length <= 1 && !hoverTargetsSelected()}>
           <Show when={hoverPortalTarget()} fallback={hoverSurface()}>
             {(mount) => <Portal mount={mount()}>{hoverSurface()}</Portal>}
           </Show>
@@ -384,7 +390,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       </Show>
 
       <Show when={selectionVisible()}>
-        <For each={displayedSelectedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={selectedEdges()[index()]} outlineColor={outline()} fillColor={fill()} />}</For>
+        <For each={displayedSelectedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={selectedEdges()[index()]} outlineColor={selectedOutline()} fillColor={selectedFill()} />}</For>
         <Show when={selectedMeasurements().length > 1}>
           <For each={selectedMeasurements()}>{(measurement) => (
             <div

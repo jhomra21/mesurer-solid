@@ -102,17 +102,20 @@ const contextOwnership = (page) => page.evaluate(() => {
   const island = islands[0] ?? null;
   const shadow = island instanceof HTMLElement ? island.shadowRoot : null;
   const root = shadow?.querySelector("[data-mesurer-root='true']") ?? null;
-  const contextRoot = root?.querySelector("[data-mesurer-context-root='true']") ?? null;
+  const contextRoot = document.querySelector("[data-mesurer-context-root='true']");
   const composer = contextRoot?.querySelector("[data-mesurer-annotation-composer='true']") ?? null;
   return {
     islandCount: islands.length,
     contextInsideCanonicalRoot: Boolean(root && contextRoot && root.contains(contextRoot)),
     composerInsideCanonicalRoot: Boolean(root && composer && root.contains(composer)),
+    contextInDocument: contextRoot?.getRootNode() === document,
+    composerInDocument: composer?.getRootNode() === document,
+    documentInspectorMount: contextRoot instanceof HTMLElement
+      ? contextRoot.dataset.mesurerDocumentInspectorMount ?? null
+      : null,
     coordinateSpace: composer instanceof HTMLElement
       ? composer.dataset.mesurerContextCoordinateSpace ?? null
       : null,
-    documentBackedContextCount: document.querySelectorAll("[data-mesurer-context-document-layer='true']").length,
-    documentRuntimeCount: document.querySelectorAll("[data-mesurer-document-inspector-runtime='true']").length,
     bodyComposerCount: document.body.querySelectorAll("[data-mesurer-annotation-composer='true']").length,
   };
 });
@@ -131,7 +134,7 @@ async function runCase(testCase) {
     if (testCase.injectPath) {
       await page.evaluate(() => {
         window.__MESURER_CONFIG__ = {
-          ...(window.__MESURER_CONFIG__ ?? {}),
+          ...window.__MESURER_CONFIG__,
           context: true,
           reuseExisting: false,
         };
@@ -144,10 +147,6 @@ async function runCase(testCase) {
     await page.evaluate(() => window.__MESURER__.command("builtin.select"));
     await settle(page);
 
-    // Match the real-consumer acceptance sequence: A itself is selected by a
-    // physical browser gesture. The old regression selected A through the public
-    // API and therefore skipped an entire Select start/end lifecycle before the
-    // draft was opened.
     const a = page.locator("#packed-adjacent-a");
     const aPoint = await center(a, `${testCase.name} adjacent A`);
     await page.mouse.click(aPoint.x, aPoint.y);
@@ -167,12 +166,13 @@ async function runCase(testCase) {
 
     const ownership = await contextOwnership(page);
     assert.equal(ownership.islandCount, 1, `${testCase.name} packed consumer must have exactly one public Mesurer island`);
-    assert.equal(ownership.contextInsideCanonicalRoot, true, `${testCase.name} Context must live under canonical Mesurer root`);
-    assert.equal(ownership.composerInsideCanonicalRoot, true, `${testCase.name} composer must live under canonical Mesurer root`);
-    assert.equal(ownership.coordinateSpace, "viewport", `${testCase.name} Context must use viewport ownership`);
-    assert.equal(ownership.documentBackedContextCount, 0, `${testCase.name} must not create document-backed Context UI`);
-    assert.equal(ownership.documentRuntimeCount, 0, `${testCase.name} must not create document-inspector bridge UI`);
-    assert.equal(ownership.bodyComposerCount, 0, `${testCase.name} must not portal the composer into document.body`);
+    assert.equal(ownership.contextInsideCanonicalRoot, false, `${testCase.name} page-owned Context must leave the viewport root`);
+    assert.equal(ownership.composerInsideCanonicalRoot, false, `${testCase.name} page-owned composer must leave the viewport root`);
+    assert.equal(ownership.contextInDocument, true, `${testCase.name} Context must share the host document scroll tree`);
+    assert.equal(ownership.composerInDocument, true, `${testCase.name} composer must share the host document scroll tree`);
+    assert.equal(ownership.documentInspectorMount, "true", `${testCase.name} Context must use one document inspector mount`);
+    assert.equal(ownership.coordinateSpace, "document", `${testCase.name} Context must use document ownership`);
+    assert.equal(ownership.bodyComposerCount, 1, `${testCase.name} must render exactly one document-backed composer`);
 
     const b = page.locator("#packed-adjacent-b");
     const bPoint = await center(b, `${testCase.name} adjacent B`);
@@ -198,11 +198,10 @@ async function runCase(testCase) {
       },
       bPoint,
     );
-    assert.equal(initialHit.island, true, `${testCase.name} canonical Mesurer island must own the initial hit`);
+    assert.equal(initialHit.island, true, `${testCase.name} canonical Mesurer island must own the initial page hit`);
 
-    // This is the release-critical path: real browser pointer input, not a
-    // hand-dispatched PointerEvent. The composer must be gone while the mouse is
-    // still down; only then may pointerup transfer Select ownership to B.
+    // Real browser pointer input must dismiss the document-backed draft while
+    // the pointer is still down; pointerup then transfers Select ownership to B.
     await page.mouse.move(bPoint.x, bPoint.y);
     await page.mouse.down();
     await composer.waitFor({ state: "detached", timeout: 1200 });
@@ -223,12 +222,9 @@ async function runCase(testCase) {
 
     console.log(`${testCase.name} adjacent annotation handoff: PASS`, {
       initialSelectionWasPhysical: true,
-      contextInsideCanonicalRoot: true,
-      composerInsideCanonicalRoot: true,
-      documentBackedContextCount: 0,
-      documentRuntimeCount: 0,
-      bodyComposerCount: 0,
-      coordinateSpace: "viewport",
+      documentContextRoot: true,
+      documentComposer: true,
+      coordinateSpace: "document",
       composerClearOfBCenter: true,
       initialHitOwnedByIsland: true,
       composerDismissedBeforePointerUp: true,

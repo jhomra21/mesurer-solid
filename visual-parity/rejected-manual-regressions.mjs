@@ -80,7 +80,7 @@ const shadowGeometry = async (trigger) => {
   });
   return {
     ...geometry,
-    surface: await box(trigger, "canonical-root annotation trigger"),
+    surface: await box(trigger, "document-owned annotation trigger"),
   };
 };
 
@@ -142,9 +142,9 @@ try {
 
   // Reproduce the annotation failure in the topology that used to escape the
   // green suite: inspected content in a different ShadowRoot and overflow
-  // scroller, while Mesurer remains isolated. Context now stays in Mesurer's
-  // canonical root, so locate it through Playwright's shadow-piercing locator
-  // rather than document.querySelector from the page tree.
+  // scroller, while Mesurer remains isolated. Context evidence is document-
+  // backed so window scrolling is native; the nested scroller is the only
+  // boundary that requires cached compensation.
   const shadowHost = page.locator("#shadow-scroll-host");
   await shadowHost.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await page.evaluate(() => {
@@ -164,14 +164,23 @@ try {
   });
   await page.mouse.click(shadow.x + shadow.width / 2, shadow.y + shadow.height / 2);
 
-  const annotationTrigger = page.locator(
-    "[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']",
-  );
+  const contextRoot = page.locator("[data-mesurer-context-root='true']");
+  const annotationTrigger = contextRoot.locator("[data-mesurer-annotation-trigger='true']");
   await annotationTrigger.waitFor({ state: "visible" });
   assert.equal(
     await annotationTrigger.getAttribute("data-mesurer-context-coordinate-space"),
-    "viewport",
-    "isolated annotation trigger must use canonical viewport ownership",
+    "document",
+    "isolated annotation trigger must use document ownership",
+  );
+  assert.equal(
+    await annotationTrigger.getAttribute("data-mesurer-annotation-scroll-mode"),
+    "document",
+    "isolated annotation trigger must leave window scrolling to the document",
+  );
+  assert.equal(
+    await contextRoot.getAttribute("data-mesurer-document-inspector-mount"),
+    "true",
+    "isolated annotation UI must use the document inspector mount",
   );
   let geometry = await shadowGeometry(annotationTrigger);
   let gap = boxGap(geometry.target, geometry.surface);
@@ -206,7 +215,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Manual rejection scenarios pass end-to-end: Typography cannot become the selected page target, and canonical-root annotation stays attached through real nested and window scrolling.");
+  console.log("Manual rejection scenarios pass end-to-end: Typography cannot become the selected page target, and document-owned annotation UI stays attached through real nested and window scrolling.");
 } finally {
   await browser.close();
 }
