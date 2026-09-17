@@ -163,6 +163,157 @@ describe("codex", () => {
     });
   });
 
+  it("lists app-server thread metadata through the bridge", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("http://127.0.0.1:47365/threads?limit=5&thread=thread-a");
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          thread: "thread-a",
+          threadDetails: [
+            { id: "thread-a", title: "Current task", updatedAt: 10, connected: true },
+            { id: "thread-b", title: "Recent task", updatedAt: 9, connected: false },
+          ],
+          hasMore: true,
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-list-threads",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex({ ui: false }));
+
+    const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
+    await expect(service?.listThreads({ limit: 5, thread: "thread-a" })).resolves.toEqual({
+      thread: "thread-a",
+      threads: [
+        { id: "thread-a", title: "Current task", updatedAt: 10, connected: true },
+        { id: "thread-b", title: "Recent task", updatedAt: 9, connected: false },
+      ],
+      hasMore: true,
+    });
+  });
+
+  it("pins the toolbar to its originating Codex thread and exposes five recent choices", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    const sendBodies: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            threads: ["thread-a"],
+          }),
+        };
+      }
+      if (url.includes("/threads?")) {
+        expect(url).toBe("http://127.0.0.1:47365/threads?limit=10&thread=thread-a");
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            threadDetails: [
+              { id: "thread-a", title: "Original task", updatedAt: 10, connected: true },
+              { id: "thread-b", title: "Second task", updatedAt: 9, connected: false },
+              { id: "thread-c", title: "Third task", updatedAt: 8, connected: false },
+              { id: "thread-d", title: "Fourth task", updatedAt: 7, connected: false },
+              { id: "thread-e", title: "Fifth task", updatedAt: 6, connected: false },
+              { id: "thread-f", title: "Sixth task", updatedAt: 5, connected: false },
+            ],
+            hasMore: false,
+          }),
+        };
+      }
+      if (url.endsWith("/send")) {
+        sendBodies.push(JSON.parse(String(init?.body)));
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ ok: true, thread: "thread-a", output: "queued" }),
+        };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-ui-thread-picker",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+
+    await vi.waitFor(() => {
+      const tool = host.tools().find((candidate) => candidate.id === "codex.send");
+      expect(tool?.label).toBe("Send to Codex");
+      expect(tool?.disabled?.()).toBe(false);
+      expect(tool?.menu?.items).toHaveLength(6);
+      expect(tool?.menu?.items[0]?.label).toBe("Current · Original task");
+      expect(tool?.menu?.items[5]?.label).toBe("Show 5 more…");
+    });
+
+    const tool = host.tools().find((candidate) => candidate.id === "codex.send");
+    await tool?.menu?.items.find((item) => item.id === "codex.thread.show-more")?.run();
+    const expanded = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(expanded?.menu?.items.map((item) => item.label)).toEqual([
+      "Current · Original task",
+      "Second task",
+      "Third task",
+      "Fourth task",
+      "Fifth task",
+      "Sixth task",
+    ]);
+
+    await host.command.execute("codex.send");
+    expect(sendBodies).toHaveLength(1);
+    expect(sendBodies[0]?.thread).toBe("thread-a");
+    host.dispose();
+  });
+
+  it("marks the toolbar unavailable while the bridge is down", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    }));
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-ui-offline",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+
+    await vi.waitFor(() => {
+      const tool = host.tools().find((candidate) => candidate.id === "codex.send");
+      expect(tool?.label).toBe("Codex unavailable");
+      expect(tool?.disabled?.()).toBe(true);
+      expect(tool?.menu).toBeUndefined();
+    });
+    host.dispose();
+  });
+
   it("can send one message to another registered thread without changing the default", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();

@@ -207,3 +207,81 @@ test("another Codex thread can register itself with a running bridge", async () 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("Codex bridge discovers recent same-project threads through app-server", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-discovery-"));
+  const argsPath = join(root, "args.jsonl");
+  const fakeCodex = join(root, "fake-codex.mjs");
+  const cwd = join(root, "project");
+  await writeFile(fakeCodex, `#!/usr/bin/env node\nimport { appendFileSync } from "node:fs";\nconst args = process.argv.slice(2);\nconst write = (value) => process.stdout.write(JSON.stringify(value) + "\\n");\nif (args[0] === "app-server") {\n  process.stdin.setEncoding("utf8");\n  let buffer = "";\n  process.stdin.on("data", (chunk) => {\n    buffer += chunk;\n    while (true) {\n      const newline = buffer.indexOf("\\n");\n      if (newline < 0) break;\n      const line = buffer.slice(0, newline).trim();\n      buffer = buffer.slice(newline + 1);\n      if (!line) continue;\n      const message = JSON.parse(line);\n      if (message.id === "mesurer-init") write({ id: message.id, result: { userAgent: "fake-codex" } });\n      if (message.id === "mesurer-thread-list") {\n        if (message.params?.cwd !== process.env.MESURER_EXPECT_CWD) {\n          write({ id: message.id, error: { message: "wrong cwd" } });\n          continue;\n        }\n        write({ id: message.id, result: {\n          data: [\n            { id: "thread-a", name: "Test Mesurer inject script", preview: "", recencyAt: 200 },\n            { id: "thread-c", name: null, preview: "Fix the account card spacing", recencyAt: 190 }\n          ],\n          nextCursor: null\n        } });\n      }\n    }\n  });\n} else if (args[0] === "queue") {\n  appendFileSync(process.env.MESURER_FAKE_CODEX_ARGS, JSON.stringify(args) + "\\n");\n  console.log("queued by fake codex");\n}\n`);
+  await chmod(fakeCodex, 0o755);
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--thread", "thread-a",
+    "--cwd", cwd,
+    "--codex", fakeCodex,
+  ], {
+    env: {
+      ...process.env,
+      MESURER_EXPECT_CWD: cwd,
+      MESURER_FAKE_CODEX_ARGS: argsPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+    const list = await fetch(`${bridgeUrl}/threads?thread=thread-a&limit=10`, {
+      headers: { Origin: "http://localhost:5173" },
+    });
+    assert.equal(list.status, 200, stderr);
+    assert.deepEqual(await list.json(), {
+      ok: true,
+      thread: "thread-a",
+      threadDetails: [
+        {
+          id: "thread-a",
+          title: "Test Mesurer inject script",
+          updatedAt: 200,
+          connected: true,
+        },
+        {
+          id: "thread-c",
+          title: "Fix the account card spacing",
+          updatedAt: 190,
+          connected: false,
+        },
+      ],
+      hasMore: false,
+    });
+
+    const send = await fetch(`${bridgeUrl}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173",
+      },
+      body: JSON.stringify({ message: "apply this feedback", thread: "thread-c" }),
+    });
+    assert.equal(send.status, 200, stderr);
+    assert.deepEqual(await send.json(), {
+      ok: true,
+      thread: "thread-c",
+      output: "queued by fake codex",
+    });
+    assert.deepEqual(await readInvocations(argsPath), [[
+      "queue",
+      "--thread",
+      "thread-c",
+      "--message",
+      "apply this feedback",
+    ]]);
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
