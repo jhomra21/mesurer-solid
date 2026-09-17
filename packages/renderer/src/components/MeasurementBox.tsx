@@ -24,16 +24,28 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   const edges = () => props.edgeVisibility ?? allEdges;
   const isSelectionGroup = () => Boolean(props.measurement?.id.startsWith("group-"));
   const isSelectedMeasurement = () => Boolean(props.measurement && "paddingRect" in props.measurement);
-  const transition = () => isSelectedMeasurement()
+  // The post-click active measurement intentionally mirrors upstream's second
+  // selection paint. MesurerOverlay suppresses that measurement's duplicate
+  // dimensions label, which gives this component a narrow signal that the
+  // ordinary Measurement is the selected target's paint companion rather than
+  // unrelated measurement chrome.
+  const isSelectionCompanion = () => Boolean(
+    props.measurement
+    && !("paddingRect" in props.measurement)
+    && props.showLabel === false
+    && props.measurement.elementRef?.isConnected,
+  );
+  const isSourceLinkedSelection = () => isSelectedMeasurement() || isSelectionCompanion();
+  const transition = () => isSourceLinkedSelection()
     ? "none"
     : `left ${MEASURE_TRANSITION_MS}ms ease, top ${MEASURE_TRANSITION_MS}ms ease, width ${MEASURE_TRANSITION_MS}ms ease, height ${MEASURE_TRANSITION_MS}ms ease`;
-  const labelTransition = () => isSelectedMeasurement()
+  const labelTransition = () => isSourceLinkedSelection()
     ? "none"
     : `left ${MEASURE_TRANSITION_MS}ms ease, top ${MEASURE_TRANSITION_MS}ms ease`;
 
   const liveSelectedTarget = () => {
     const measurement = props.measurement;
-    if (!measurement || !("paddingRect" in measurement)) return null;
+    if (!measurement || !isSourceLinkedSelection()) return null;
     const target = measurement.elementRef;
     return target?.isConnected ? target : null;
   };
@@ -52,12 +64,11 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     const rect = target.getBoundingClientRect();
     const ownerWindow = target.ownerDocument.defaultView;
     const selectionRoot = chromeElement.parentElement;
-    // A selected measurement is portaled to <body> for the document native-
-    // anchor path. Its absolute fallback therefore uses document coordinates,
-    // not viewport coordinates. Keeping this fallback correct prevents a
-    // transient native-anchor handoff during direct edit from subtracting the
-    // page scroll offset a second time. Local/Shadow DOM overlays keep the
-    // original viewport-coordinate behavior.
+    // Selected chrome and its transient upstream-parity paint companion share
+    // one document-backed source. Their absolute fallback therefore uses
+    // document coordinates rather than viewport coordinates. Keeping both on
+    // this path prevents the companion from becoming the fixed "ghost" box
+    // visible after the page scrolls.
     const documentLayer = Boolean(
       ownerWindow
       && selectionRoot?.parentNode === target.ownerDocument.body,
@@ -86,8 +97,9 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     // A selected page element can start inside Mesurer's isolated ShadowRoot,
     // while its source target still belongs to the document. Let Solid own the
     // move into <body> through <Portal>; imperatively reparenting this rendered
-    // root breaks the reconciler when direct editing changes reactive state.
-    // Targets that genuinely live in a ShadowRoot keep local overlay ownership.
+    // root breaks the reconciler when reactive state changes. The transient
+    // selection paint companion follows the same ownership rule so it cannot
+    // remain in the fixed top-layer island while the true selection scrolls.
     const documentBacked = target.getRootNode() === target.ownerDocument && Boolean(target.ownerDocument.body);
     if (documentBacked) setSelectionPortalTarget(target.ownerDocument.body);
 
@@ -101,9 +113,9 @@ export function MeasurementBox(props: MeasurementBoxProps) {
 
     let scrollFrame = 0;
     const syncOnScroll = () => {
-      // Once CSS Anchor Positioning owns the selected box, JavaScript does no
-      // work. During the short pre-anchor fallback, keep the event itself
-      // layout-free and coalesce geometry sampling to at most one frame.
+      // Once CSS Anchor Positioning owns the box, JavaScript does no work.
+      // During the short pre-anchor fallback, keep the event itself layout-free
+      // and coalesce geometry sampling to at most one frame.
       if (chromeElement?.dataset.mesurerNativeScrollAnchor === "box" || scrollFrame) return;
       scrollFrame = ownerWindow.requestAnimationFrame(() => {
         scrollFrame = 0;
@@ -112,11 +124,9 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       });
     };
 
-    // Selection geometry can change without a scroll or window resize (for
-    // example, a live Typography line-height edit). Observe only the selected
-    // source element and resample its box when its own rendered size changes;
-    // this avoids page-wide mutation/layout work while keeping portaled chrome
-    // frame-locked to the target.
+    // Source geometry can change without a scroll or window resize (for example,
+    // a live Typography line-height edit). Observe only the selected source
+    // element and resample its box when its own rendered size changes.
     const targetResizeObserver = new ownerWindow.ResizeObserver(syncSelectedGeometry);
 
     syncSelectedGeometry();
@@ -140,11 +150,11 @@ export function MeasurementBox(props: MeasurementBoxProps) {
         top: `${measurement().rect.top + selectedPortalOffset().y}px`,
         width: `${measurement().rect.width}px`,
         height: `${measurement().rect.height}px`,
-        "z-index": isSelectedMeasurement() ? SELECTED_CHROME_Z_INDEX : undefined,
+        "z-index": isSourceLinkedSelection() ? SELECTED_CHROME_Z_INDEX : undefined,
         "background-color": props.fillColor,
         transition: transition(),
-        "transition-property": isSelectedMeasurement() ? "none" : "left, top, width, height",
-        "transition-duration": isSelectedMeasurement() ? "0s" : `${MEASURE_TRANSITION_MS}ms`,
+        "transition-property": isSourceLinkedSelection() ? "none" : "left, top, width, height",
+        "transition-duration": isSourceLinkedSelection() ? "0s" : `${MEASURE_TRANSITION_MS}ms`,
         animation: "none",
         "animation-name": "none",
       }}>
@@ -158,10 +168,10 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       <div ref={labelElement} data-mesurer-measurement-label="true" class="msr:pointer-events-none msr:absolute msr:rounded msr:px-1 msr:py-0.5 msr:text-[10px] msr:text-ink-50 msr:tabular-nums msr:select-none msr:-translate-x-1/2 msr:bg-ink-900/90" style={{
         left: `${measurement().rect.left + selectedPortalOffset().x + measurement().rect.width / 2}px`,
         top: `${measurement().rect.top + selectedPortalOffset().y + measurement().rect.height + MEASURE_LABEL_OFFSET}px`,
-        "z-index": isSelectedMeasurement() ? SELECTED_CHROME_Z_INDEX : undefined,
+        "z-index": isSourceLinkedSelection() ? SELECTED_CHROME_Z_INDEX : undefined,
         transition: labelTransition(),
-        "transition-property": isSelectedMeasurement() ? "none" : "left, top",
-        "transition-duration": isSelectedMeasurement() ? "0s" : `${MEASURE_TRANSITION_MS}ms`,
+        "transition-property": isSourceLinkedSelection() ? "none" : "left, top",
+        "transition-duration": isSourceLinkedSelection() ? "0s" : `${MEASURE_TRANSITION_MS}ms`,
         animation: "none",
         "animation-name": "none",
       }}>
@@ -173,8 +183,14 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   return (
     <Show when={props.measurement}>
       {(measurement) => <Show
-        when={isSelectedMeasurement() && !isSelectionGroup() ? selectionPortalTarget() : null}
-        fallback={<div class="msr:pointer-events-none" data-mesurer-measurement="true" data-mesurer-selected-measurement={"paddingRect" in measurement() ? "true" : undefined} data-mesurer-selection-group={isSelectionGroup() ? "true" : undefined}>
+        when={isSourceLinkedSelection() && !isSelectionGroup() ? selectionPortalTarget() : null}
+        fallback={<div
+          class="msr:pointer-events-none"
+          data-mesurer-measurement="true"
+          data-mesurer-selected-measurement={isSelectedMeasurement() ? "true" : undefined}
+          data-mesurer-selection-companion={isSelectionCompanion() ? "true" : undefined}
+          data-mesurer-selection-group={isSelectionGroup() ? "true" : undefined}
+        >
           {surfaces(measurement)}
         </div>}
       >
@@ -182,7 +198,8 @@ export function MeasurementBox(props: MeasurementBoxProps) {
           <div
             class="msr:pointer-events-none"
             data-mesurer-measurement="true"
-            data-mesurer-selected-measurement="true"
+            data-mesurer-selected-measurement={isSelectedMeasurement() ? "true" : undefined}
+            data-mesurer-selection-companion={isSelectionCompanion() ? "true" : undefined}
             data-mesurer-inspector-ui="true"
           >
             {surfaces(measurement)}
