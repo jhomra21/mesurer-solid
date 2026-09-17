@@ -26,9 +26,12 @@ on:
       - "packages/renderer/test/document-hover-portal.test.ts"
       - "examples/basic/isolated-scroll.html"
       - "examples/basic/src/isolated-scroll.ts"
+      - "examples/basic/top-layer-context.html"
+      - "examples/basic/src/top-layer-context.ts"
       - "visual-parity/direct-edit-annotation-trigger-contract.mjs"
       - "visual-parity/isolated-annotation-draft-handoff-contract.mjs"
       - "visual-parity/isolated-hover-document-layer-contract.mjs"
+      - "visual-parity/top-layer-context-hover-occlusion-contract.mjs"
       - "visual-parity/isolated-selection-scroll-contract.mjs"
       - "visual-parity/selection-single-paint-contract.mjs"
       - "visual-parity/native-scroll-settle-contract.mjs"
@@ -68,7 +71,7 @@ jobs:
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
 
-      - name: Start public isolated fixture
+      - name: Start public fixtures
         shell: bash
         run: |
           (
@@ -76,18 +79,21 @@ jobs:
             bunx vite --host 127.0.0.1 --port 4174 --strictPort > ../../isolated-scroll-vite.log 2>&1 &
             echo $! > ../../isolated-scroll-vite.pid
           )
-          ready=0
-          for attempt in $(seq 1 45); do
-            if curl --fail --silent --show-error "http://127.0.0.1:4174/isolated-scroll.html" >/dev/null; then
-              ready=1
-              break
+          for path in isolated-scroll.html top-layer-context.html; do
+            ready=0
+            for attempt in $(seq 1 45); do
+              if curl --fail --silent --show-error "http://127.0.0.1:4174/${path}" >/dev/null; then
+                ready=1
+                break
+              fi
+              sleep 1
+            done
+            if [ "$ready" -ne 1 ]; then
+              echo "Fixture did not become ready: ${path}"
+              cat isolated-scroll-vite.log || true
+              exit 1
             fi
-            sleep 1
           done
-          if [ "$ready" -ne 1 ]; then
-            cat isolated-scroll-vite.log || true
-            exit 1
-          fi
 
       - name: Reproduce rejected manual inspector and annotation cases
         timeout-minutes: 2
@@ -112,6 +118,12 @@ jobs:
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun visual-parity/isolated-hover-document-layer-contract.mjs
+
+      - name: Occlude Select hover behind top-layer Context cards
+        timeout-minutes: 2
+        env:
+          TOP_LAYER_CONTEXT_URL: http://127.0.0.1:4174/top-layer-context.html
+        run: bun visual-parity/top-layer-context-hover-occlusion-contract.mjs
 
       - name: Exercise public isolated compositor scroll and toolbar avoidance
         env:
