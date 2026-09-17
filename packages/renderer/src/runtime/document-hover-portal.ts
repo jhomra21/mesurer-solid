@@ -3,17 +3,21 @@ export function documentHoverPortalTarget(
   target: HTMLElement | null,
 ): HTMLElement | null {
   const ownerDocument = overlay?.ownerDocument;
-  const ownerWindow = ownerDocument?.defaultView;
   const body = ownerDocument?.body;
-  if (!overlay || !target?.isConnected || !ownerDocument || !ownerWindow || !body) return null;
-  if (!(overlay.getRootNode() instanceof ownerWindow.ShadowRoot)) return null;
+  if (!overlay || !target?.isConnected || !ownerDocument || !body) return null;
   if (target.getRootNode() !== ownerDocument) return null;
 
   // A document-backed Context mount already installs Mesurer's styles into the
   // page scroll tree. Use that stable mount as the ownership signal instead of
-  // waiting for a particular annotation panel/composer node to exist. The old
-  // panel query was not reactive, so hover chrome could remain in the protected
-  // top-layer island and visually paint through a card that opened afterward.
+  // waiting for a particular annotation panel/composer node to exist.
+  //
+  // Do not require the renderer itself to live in a ShadowRoot. A non-isolated
+  // renderer can still be protected by a top-layer popover. In that topology,
+  // leaving Select hover inside the renderer makes the browser paint it above
+  // every ordinary document annotation card regardless of numeric z-index.
+  // Portaling the hover evidence into <body> gives it the same document paint
+  // plane as Context, where the lower hover tier can be occluded by panels and
+  // the Add Note composer.
   const documentContext = ownerDocument.querySelector<HTMLElement>(
     "[data-mesurer-document-inspector-mount='true'][data-mesurer-context-root='true']",
   );
