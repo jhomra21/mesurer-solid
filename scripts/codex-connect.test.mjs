@@ -27,8 +27,7 @@ const freePort = () => new Promise((resolve, reject) => {
   const server = createServer();
   server.once("error", reject);
   server.listen(0, "127.0.0.1", () => {
-    const address = server.address();
-    const port = typeof address === "object" && address ? address.port : null;
+    const port = server.address()?.port;
     server.close((error) => {
       if (error) reject(error);
       else if (!port) reject(new Error("Could not allocate a test port."));
