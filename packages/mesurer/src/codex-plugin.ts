@@ -88,10 +88,10 @@ export type MesurerCodexService = {
 };
 
 type BridgeThread = {
-  id?: unknown;
-  title?: unknown;
-  updatedAt?: unknown;
-  connected?: unknown;
+  id?: string;
+  title?: string;
+  updatedAt?: number | null;
+  connected?: boolean;
 };
 
 type BridgeResponse = {
@@ -155,7 +155,7 @@ const bridgeRequest = async (
 const bridgeHealth = (response: BridgeResponse): MesurerCodexHealth => ({
   thread: response.thread?.trim() || null,
   threads: Array.isArray(response.threads)
-    ? response.threads.filter((thread): thread is string => typeof thread === "string" && thread.length > 0)
+    ? response.threads.filter((thread) => thread.trim().length > 0)
     : [],
 });
 
@@ -163,15 +163,13 @@ const bridgeThreadList = (response: BridgeResponse): MesurerCodexThreadList => (
   thread: response.thread?.trim() || null,
   threads: Array.isArray(response.threadDetails)
     ? response.threadDetails.flatMap((thread) => {
-        const id = typeof thread.id === "string" ? thread.id.trim() : "";
+        const id = thread.id?.trim() ?? "";
         if (!id) return [];
-        const title = typeof thread.title === "string" && thread.title.trim()
-          ? thread.title.trim()
-          : id;
+        const title = thread.title?.trim() || id;
         return [{
           id,
           title,
-          updatedAt: typeof thread.updatedAt === "number" && Number.isFinite(thread.updatedAt)
+          updatedAt: thread.updatedAt != null && Number.isFinite(thread.updatedAt)
             ? thread.updatedAt
             : null,
           connected: thread.connected === true,

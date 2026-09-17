@@ -207,7 +207,7 @@ describe("codex", () => {
   it("pins the toolbar to its originating Codex thread and exposes five recent choices", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
-    const sendBodies: Array<Record<string, unknown>> = [];
+    const sendBodies: Array<{ message: string; thread?: string }> = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/health")) {

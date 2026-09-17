@@ -328,8 +328,8 @@ const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
 });
 
 const normalizeTitle = (value) => {
-  if (typeof value !== "string") return null;
-  const title = value.replace(/\s+/g, " ").trim();
+  if (value == null) return null;
+  const title = String(value).replace(/\s+/g, " ").trim();
   if (!title) return null;
   return title.length > 80 ? `${title.slice(0, 79)}…` : title;
 };
