@@ -60,7 +60,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
 
   const syncSelectedGeometry = () => {
     const target = liveSelectedTarget();
-    if (!target || !chromeElement || !labelElement) return;
+    if (!target || !chromeElement) return;
     const rect = target.getBoundingClientRect();
     const ownerWindow = target.ownerDocument.defaultView;
     const selectionRoot = chromeElement.parentElement;
@@ -83,10 +83,12 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       width: `${rect.width}px`,
       height: `${rect.height}px`,
     });
-    Object.assign(labelElement.style, {
-      left: `${left + rect.width / 2}px`,
-      top: `${top + rect.height + MEASURE_LABEL_OFFSET}px`,
-    });
+    if (labelElement) {
+      Object.assign(labelElement.style, {
+        left: `${left + rect.width / 2}px`,
+        top: `${top + rect.height + MEASURE_LABEL_OFFSET}px`,
+      });
+    }
   };
 
   onSettled(() => {
