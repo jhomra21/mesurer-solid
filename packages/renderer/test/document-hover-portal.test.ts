@@ -11,6 +11,21 @@ const setup = () => {
   return { host, shadow, overlay, target };
 };
 
+const setupDocumentOverlay = () => {
+  const overlay = document.createElement("div");
+  const target = document.createElement("div");
+  document.body.append(overlay, target);
+  return { overlay, target };
+};
+
+const addContextMount = () => {
+  const contextRoot = document.createElement("div");
+  contextRoot.dataset.mesurerDocumentInspectorMount = "true";
+  contextRoot.dataset.mesurerContextRoot = "true";
+  document.body.append(contextRoot);
+  return contextRoot;
+};
+
 afterEach(() => {
   document.body.replaceChildren();
 });
@@ -18,13 +33,17 @@ afterEach(() => {
 describe("documentHoverPortalTarget", () => {
   it("uses the stable document Context mount before any panel or composer exists", () => {
     const { overlay, target } = setup();
-    const contextRoot = document.createElement("div");
-    contextRoot.dataset.mesurerDocumentInspectorMount = "true";
-    contextRoot.dataset.mesurerContextRoot = "true";
-    document.body.append(contextRoot);
+    addContextMount();
 
     expect(document.querySelector("[data-mesurer-annotation-panel='true']")).toBeNull();
     expect(document.querySelector("[data-mesurer-annotation-composer='true']")).toBeNull();
+    expect(documentHoverPortalTarget(overlay, target)).toBe(document.body);
+  });
+
+  it("uses the Context document plane for non-isolated renderers too", () => {
+    const { overlay, target } = setupDocumentOverlay();
+    addContextMount();
+
     expect(documentHoverPortalTarget(overlay, target)).toBe(document.body);
   });
 
@@ -46,10 +65,7 @@ describe("documentHoverPortalTarget", () => {
     const { shadow, overlay } = setup();
     const target = document.createElement("div");
     shadow.append(target);
-    const contextRoot = document.createElement("div");
-    contextRoot.dataset.mesurerDocumentInspectorMount = "true";
-    contextRoot.dataset.mesurerContextRoot = "true";
-    document.body.append(contextRoot);
+    addContextMount();
 
     expect(documentHoverPortalTarget(overlay, target)).toBeNull();
   });
