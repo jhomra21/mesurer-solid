@@ -51,11 +51,11 @@ const waitForUnavailable = async (url, timeoutMs = 10_000) => {
   throw new Error("Detached bridge did not exit after its --once send.");
 };
 
-const runSessionStart = async ({ bridgeUrl, sessionId, codex }) => {
+const runSessionStart = async ({ bridgeUrl, sessionId, codex, env = {} }) => {
   const args = [connectScript.pathname, "--session-start", "--bridge", bridgeUrl];
   if (codex) args.push("--codex", codex, "--once");
   const child = spawn(process.execPath, args, {
-    env: { ...process.env, CODEX_THREAD_ID: "ignored-in-hook-mode" },
+    env: { ...process.env, ...env, CODEX_THREAD_ID: "ignored-in-hook-mode" },
     stdio: ["pipe", "pipe", "pipe"],
   });
   let stdout = "";
@@ -83,7 +83,12 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
   const bridgeUrl = `http://127.0.0.1:${port}`;
 
   try {
-    const first = await runSessionStart({ bridgeUrl, sessionId: "thread-hook-a", codex: fakeCodex });
+    const first = await runSessionStart({
+      bridgeUrl,
+      sessionId: "thread-hook-a",
+      codex: fakeCodex,
+      env: { MESURER_FAKE_CODEX_ARGS: argsPath },
+    });
     assert.equal(first.code, 0, first.stderr);
     assert.equal(first.stdout, "", "SessionStart success must not add developer context.");
 
