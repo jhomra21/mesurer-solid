@@ -13,6 +13,7 @@ on:
       - "packages/renderer/src/components/MeasurementBox.tsx"
       - "packages/renderer/src/components/MesurerOverlay.tsx"
       - "packages/renderer/src/components/Toolbar.tsx"
+      - "packages/renderer/src/runtime/document-hover-portal.ts"
       - "packages/renderer/src/runtime/document-scroll-anchoring.ts"
       - "packages/renderer/src/runtime/isolated-document-portal.ts"
       - "packages/renderer/src/runtime/native-scroll-stability.ts"
@@ -22,10 +23,12 @@ on:
       - "packages/renderer/src/runtime/text-editing-render-in-place.ts"
       - "packages/renderer/src/runtime/text-editing-unified-inspector.ts"
       - "packages/renderer/src/styles.css"
+      - "packages/renderer/test/document-hover-portal.test.ts"
       - "examples/basic/isolated-scroll.html"
       - "examples/basic/src/isolated-scroll.ts"
       - "visual-parity/direct-edit-annotation-trigger-contract.mjs"
       - "visual-parity/isolated-annotation-draft-handoff-contract.mjs"
+      - "visual-parity/isolated-hover-document-layer-contract.mjs"
       - "visual-parity/isolated-selection-scroll-contract.mjs"
       - "visual-parity/selection-single-paint-contract.mjs"
       - "visual-parity/native-scroll-settle-contract.mjs"
@@ -103,6 +106,12 @@ jobs:
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
         run: bun visual-parity/isolated-annotation-draft-handoff-contract.mjs
+
+      - name: Keep Select hover below document-backed inspectors
+        timeout-minutes: 2
+        env:
+          ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
+        run: bun visual-parity/isolated-hover-document-layer-contract.mjs
 
       - name: Exercise public isolated compositor scroll and toolbar avoidance
         env:
