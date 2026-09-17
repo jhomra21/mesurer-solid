@@ -7,7 +7,9 @@ description: Use Mesurer for frontend UI implementation, review, debugging, layo
 
 Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. The rendered page is the integration boundary.
 
-The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the harness already owns and read `window.__MESURER__` directly. The optional `codex()` plugin and `mesurer-codex` loopback companion are a separate human-initiated convenience for routing Context feedback to explicitly registered Codex threads; do not start or reconfigure that transport unless the user asks for Codex delivery.
+The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the harness already owns and read `window.__MESURER__` directly. The optional `codex()` plugin and local Codex companion are a separate human-initiated convenience for routing Context feedback to explicitly registered Codex threads.
+
+When the current agent is Codex and the user has explicitly asked for Codex delivery, or the live Mesurer instance already has `mesurer.codex` enabled, ensure the packaged local companion is ready from the Codex process. Do not expect browser JavaScript to spawn a local executable.
 
 A meaningful Mesurer step must return evidence the agent actually uses.
 
@@ -248,23 +250,33 @@ The optional Screenshot plugin is a separate human camera workflow. Preserve an 
 
 ## Optional Codex thread handoff
 
-Only use this path when the user has explicitly asked for Mesurer-to-Codex delivery or has already enabled the `codex()` plugin.
+Only use this path when the user has explicitly asked for Mesurer-to-Codex delivery or the live Mesurer instance already has `mesurer.codex` enabled. The browser plugin and the local companion have separate ownership: the Settings toggle can load or unload browser-side `codex()` immediately, but ordinary browser JavaScript cannot spawn `codex` or a Node/Bun child process.
 
-If the current task is running inside Codex and this Codex thread should receive future human Mesurer feedback, starting the companion from a Codex shell/tool command is enough:
+When this task is running inside Codex, make the handoff zero-manual from the user's perspective. First check whether the live plugin is enabled when a Mesurer instance already exists:
 
-```bash
-bunx mesurer-codex
+```js
+const codexEnabled = Boolean(
+  window.__MESURER_INSTANCE__?.pluginHost?.has("mesurer.codex")
+)
 ```
 
-Codex injects `CODEX_THREAD_ID` into its shell/tool environment. The companion reads it, registers that thread, and makes it the active destination.
-
-If a bridge is already running and this is a different or newly-created Codex thread that should receive Mesurer feedback, register the current thread with that bridge:
+If Codex delivery was requested or `codexEnabled` is true, run the installed companion helper from the Codex shell/tool environment:
 
 ```bash
-bunx mesurer-codex --register-current
+node .agents/skills/mesurer-ui/assets/codex-connect.mjs
 ```
 
-That registration is a local-process action. Browser pages may switch or send only among threads that Codex/the user already registered; they may not invent arbitrary Codex destinations.
+`mesurer-codex-connect` reads Codex's `CODEX_THREAD_ID`. It reuses a healthy bridge at `127.0.0.1:47365`, or starts the packaged `codex-bridge.mjs` companion when none is running, waits for it to become ready, then registers the current Codex thread as the active destination. In the Mesurer Solid repository itself, the equivalent source command is:
+
+```bash
+bun run mesurer-codex-connect
+```
+
+Do not ask the user to start a second bridge when this helper can ensure one. Do not use npm postinstall scripts, private Codex persistence, browser thread registration, or an arbitrary remote service as substitutes for the local companion.
+
+If the Codex plugin is later disabled in Mesurer Settings, its browser service, command, and toolbar action disappear. Do not kill the shared local companion solely because one page disabled its plugin: another page or registered Codex thread may still use it. The companion is inert until a page explicitly sends feedback, and re-enabling the browser plugin can use the already-running companion immediately.
+
+Browser pages may switch or send only among threads that a local Codex process or user already registered; they may not invent arbitrary Codex destinations. If `CODEX_THREAD_ID` is unavailable, do not weaken that boundary to make registration work from the page.
 
 When application code has mounted `codex()` next to `context()`, its typed `codex:v1` service supports `health()`, `useThread(thread)`, and `send({ thread })` for inspecting the registered set, changing the default, or routing one message to another registered thread. This transport is separate from the normal `window.__MESURER__` evidence workflow and must not replace browser-based verification.
 
