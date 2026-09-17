@@ -29,6 +29,38 @@ const removeProbe = () => page.evaluate(() => {
   document.querySelector("#mesurer-context-hover-occlusion-probe")?.remove();
 });
 
+const prepareFixture = async () => {
+  await page.goto(url, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => Boolean(window.__MESURER_TOP_LAYER_CONTEXT_TEST__?.subject));
+
+  const topology = await page.evaluate(() => {
+    const subject = window.__MESURER_TOP_LAYER_CONTEXT_TEST__?.subject;
+    const island = document.querySelector("[data-mesurer-island='true']");
+    return {
+      hostLayer: subject?.hostLayer ?? null,
+      isolated: subject?.root instanceof ShadowRoot,
+      islandTopLayer: island instanceof HTMLElement ? island.matches(":popover-open") : false,
+      contextMounts: document.querySelectorAll(
+        "[data-mesurer-document-inspector-mount='true'][data-mesurer-context-root='true']",
+      ).length,
+    };
+  });
+  assert.deepEqual(topology, {
+    hostLayer: "top-layer",
+    isolated: false,
+    islandTopLayer: true,
+    contextMounts: 1,
+  }, `contract must reproduce the non-isolated top-layer Context topology: ${JSON.stringify(topology)}`);
+
+  await page.evaluate(async () => {
+    const subject = window.__MESURER_TOP_LAYER_CONTEXT_TEST__?.subject;
+    if (!subject) throw new Error("Expected top-layer Context test subject");
+    await subject.select("#top-layer-context-target");
+  });
+  await settle();
+  return topology;
+};
+
 const assertSurfaceOccludesHover = async (surface, label) => {
   await surface.waitFor({ state: "visible", timeout: 3000 });
   const cardBox = await surface.boundingBox();
@@ -101,9 +133,7 @@ const assertSurfaceOccludesHover = async (surface, label) => {
     // A hover box that still belongs to the top layer will beat the document
     // card; a body-portaled evidence box will lose to the higher Context card.
     const suppressed = [];
-    if (island instanceof HTMLElement) {
-      suppressed.push(island, ...island.querySelectorAll("*"));
-    }
+    if (island instanceof HTMLElement) suppressed.push(island, ...island.querySelectorAll("*"));
     if (shadow) suppressed.push(...shadow.querySelectorAll("*"));
     const htmlSurfaces = suppressed.filter((element) => element instanceof HTMLElement);
     const original = htmlSurfaces.map((element) => [element, element.getAttribute("style")]);
@@ -149,46 +179,25 @@ const assertSurfaceOccludesHover = async (surface, label) => {
 };
 
 try {
-  await page.goto(url, { waitUntil: "networkidle" });
-  await page.waitForFunction(() => Boolean(window.__MESURER_TOP_LAYER_CONTEXT_TEST__?.subject));
-
-  const topology = await page.evaluate(() => {
-    const subject = window.__MESURER_TOP_LAYER_CONTEXT_TEST__?.subject;
-    const island = document.querySelector("[data-mesurer-island='true']");
-    return {
-      hostLayer: subject?.hostLayer ?? null,
-      isolated: subject?.root instanceof ShadowRoot,
-      islandTopLayer: island instanceof HTMLElement ? island.matches(":popover-open") : false,
-      contextMounts: document.querySelectorAll(
-        "[data-mesurer-document-inspector-mount='true'][data-mesurer-context-root='true']",
-      ).length,
-    };
-  });
-  assert.deepEqual(topology, {
-    hostLayer: "top-layer",
-    isolated: false,
-    islandTopLayer: true,
-    contextMounts: 1,
-  }, `contract must reproduce the non-isolated top-layer Context topology: ${JSON.stringify(topology)}`);
-
-  await page.evaluate(async () => {
-    const subject = window.__MESURER_TOP_LAYER_CONTEXT_TEST__?.subject;
-    if (!subject) throw new Error("Expected top-layer Context test subject");
-    await subject.select("#top-layer-context-target");
-  });
-  await settle();
-
-  const contextRoot = page.locator("[data-mesurer-context-root='true']");
-  const trigger = contextRoot.locator("[data-mesurer-annotation-trigger='true']");
-  const composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
+  const composerTopology = await prepareFixture();
+  let contextRoot = page.locator("[data-mesurer-context-root='true']");
+  let trigger = contextRoot.locator("[data-mesurer-annotation-trigger='true']");
+  let composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
   await clickDocumentUi(trigger, "Add Note trigger");
   await composer.waitFor({ state: "visible", timeout: 3000 });
   const composerOwnership = await assertSurfaceOccludesHover(composer, "new annotation composer");
 
-  // Saving is not the behavior under test here. Force the composer's own real
-  // input/click handlers so the synthetic top-layer hit plane cannot prevent
-  // us from independently testing the saved annotation card's paint order.
+  // A fresh page state keeps the saved-card proof independent from the overlap
+  // probe above. Seed the note before introducing any synthetic hover target so
+  // this gate tests paint ownership, while existing Context contracts continue
+  // to own physical annotation hit-testing and save behavior.
   await removeProbe();
+  const panelTopology = await prepareFixture();
+  contextRoot = page.locator("[data-mesurer-context-root='true']");
+  trigger = contextRoot.locator("[data-mesurer-annotation-trigger='true']");
+  composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
+  await clickDocumentUi(trigger, "Add Note trigger for saved-card state");
+  await composer.waitFor({ state: "visible", timeout: 3000 });
   await composer.locator("textarea").fill("Context hover occlusion contract", { force: true });
   await composer.getByRole("button", { name: "Add note", exact: true }).click({ force: true });
   await composer.waitFor({ state: "hidden", timeout: 3000 });
@@ -199,7 +208,8 @@ try {
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
   console.log("Top-layer Context hover occlusion: PASS", {
-    topology,
+    composerTopology,
+    panelTopology,
     composerHover: composerOwnership.hover,
     panelHover: panelOwnership.hover,
   });
