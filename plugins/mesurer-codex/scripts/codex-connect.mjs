@@ -154,7 +154,7 @@ try {
 
 if (!current) {
   const bridgeScript = fileURLToPath(new URL("./codex-bridge.mjs", import.meta.url));
-  const args = [bridgeScript, "--port", String(port)];
+  const args = [bridgeScript, "--port", String(port), "--thread", thread];
   if (values.codex?.trim()) args.push("--codex", values.codex.trim());
   if (values.once) args.push("--once");
 
