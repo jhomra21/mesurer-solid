@@ -109,6 +109,8 @@ type BridgeSendRequest = {
   thread?: string;
 };
 
+type BridgeAvailability = "unknown" | "available" | "unavailable";
+
 const endpointUrl = (endpoint: string, path: string) => {
   const base = endpoint.endsWith("/") ? endpoint : `${endpoint}/`;
   return new URL(path, base).toString();
@@ -226,6 +228,10 @@ const truncateLabel = (value: string, max = 42) => value.length > max
   ? `${value.slice(0, max - 1)}…`
   : value;
 
+const bridgeTransportUnavailable = (cause: unknown, endpoint: string) =>
+  cause instanceof Error
+  && cause.message === `Mesurer Codex bridge is unavailable at ${endpoint}. Start the local bridge before sending feedback.`;
+
 export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
   const endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
   const instruction = options.instruction?.trim() || DEFAULT_INSTRUCTION;
@@ -240,7 +246,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       const contextService = ctx.service.get<MesurerContextService>(CONTEXT_SERVICE_ID);
       if (!contextService) throw new Error("Mesurer Codex plugin requires context() from mesurer-solid/plugins.");
 
-      let bridgeAvailable = false;
+      let bridgeAvailability: BridgeAvailability = "unknown";
+      let everConnected = false;
       let originThread: string | null = null;
       let selectedThread: string | null = null;
       let lastBridgeThread: string | null = null;
@@ -250,7 +257,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       let visibleThreadCount = DEFAULT_VISIBLE_THREADS;
       let toolRegistration: Registration | undefined;
       let toolSignature = "";
-      let refreshRunning = false;
+      let refreshPromise: Promise<void> | null = null;
       let disposed = false;
 
       const fetchHealth = async () => bridgeHealth(await bridgeRequest(endpoint, "health"));
@@ -288,7 +295,19 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         return ordered;
       };
 
+      let refreshRuntime = (_allowUnknown = false): Promise<void> => Promise.resolve();
+
       const menuItems = (): ToolMenuItemContribution[] => {
+        if (bridgeAvailability !== "available") {
+          return [{
+            id: "codex.thread.connect",
+            label: bridgeAvailability === "unavailable"
+              ? "Retry Codex connection"
+              : "Choose Codex thread…",
+            run: () => refreshRuntime(true),
+          }];
+        }
+
         const threads = menuThreads();
         const visible = threads.slice(0, visibleThreadCount);
         const target = currentTarget();
@@ -325,19 +344,24 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       const syncTool = () => {
         if (!withUi || disposed) return;
         const target = currentTarget();
-        const items = bridgeAvailable ? menuItems() : [];
-        const canSend = bridgeAvailable && Boolean(target);
-        const label = !bridgeAvailable
+        const items = menuItems();
+        const canSend = bridgeAvailability !== "unavailable"
+          && (bridgeAvailability === "unknown" || Boolean(target));
+        const label = bridgeAvailability === "unavailable"
           ? "Codex unavailable"
-          : target
-            ? "Send to Codex"
-            : "No Codex thread";
+          : bridgeAvailability === "available" && !target
+            ? "No Codex thread"
+            : "Send to Codex";
         const signature = JSON.stringify({
-          bridgeAvailable,
+          bridgeAvailability,
           target,
           label,
           visibleThreadCount,
-          items: items.map((item) => ({ id: item.id, label: item.label, checked: item.checked?.() ?? null })),
+          items: items.map((item) => ({
+            id: item.id,
+            label: item.label,
+            checked: item.checked?.() ?? null,
+          })),
         });
         if (signature === toolSignature) return;
         toolSignature = signature;
@@ -354,8 +378,11 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       };
 
       const refreshRecent = async () => {
-        if (!bridgeAvailable) return;
-        const scope = originThread ?? lastBridgeThread;
+        if (bridgeAvailability !== "available") return;
+        const originStillRegistered = originThread
+          ? registeredThreadIds.includes(originThread)
+          : false;
+        const scope = originStillRegistered ? originThread : lastBridgeThread;
         try {
           const list = await fetchThreads({
             limit: RECENT_THREAD_LIMIT,
@@ -374,26 +401,33 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         }
       };
 
-      const refreshRuntime = async () => {
-        if (refreshRunning || disposed) return;
-        refreshRunning = true;
-        try {
-          const health = await fetchHealth();
-          const bridgeThreadChanged = health.thread !== lastBridgeThread;
-          bridgeAvailable = true;
-          lastBridgeThread = health.thread;
-          registeredThreadIds = health.threads;
-          if (!originThread && health.thread) {
-            originThread = health.thread;
-            selectedThread = health.thread;
+      refreshRuntime = (allowUnknown = false) => {
+        if (disposed) return Promise.resolve();
+        if (bridgeAvailability === "unknown" && !allowUnknown) return Promise.resolve();
+        if (refreshPromise) return refreshPromise;
+
+        refreshPromise = (async () => {
+          try {
+            const health = await fetchHealth();
+            const bridgeThreadChanged = health.thread !== lastBridgeThread;
+            bridgeAvailability = "available";
+            everConnected = true;
+            lastBridgeThread = health.thread;
+            registeredThreadIds = health.threads;
+            if (!originThread && health.thread) {
+              originThread = health.thread;
+              selectedThread = health.thread;
+            }
+            if (bridgeThreadChanged || recentThreads.length === 0) await refreshRecent();
+          } catch (cause) {
+            bridgeAvailability = "unavailable";
+            throw cause;
+          } finally {
+            refreshPromise = null;
+            syncTool();
           }
-          if (bridgeThreadChanged || recentThreads.length === 0) await refreshRecent();
-        } catch {
-          bridgeAvailable = false;
-        } finally {
-          refreshRunning = false;
-          syncTool();
-        }
+        })();
+        return refreshPromise;
       };
 
       const service: MesurerCodexService = {
@@ -410,7 +444,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           selectedThread = target;
           lastBridgeThread = health.thread;
           registeredThreadIds = health.threads;
-          bridgeAvailable = true;
+          bridgeAvailability = "available";
+          everConnected = true;
           syncTool();
           return health;
         },
@@ -420,20 +455,29 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           const thread = explicitThread || (withUi ? currentTarget() : null);
           const payload: BridgeSendRequest = { message };
           if (thread) payload.thread = thread;
-          const response = await bridgeRequest(endpoint, "send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          const sentThread = response.thread?.trim();
-          if (!sentThread) throw new Error("Mesurer Codex bridge did not report the destination thread.");
-          return { thread: sentThread, output: response.output ?? "" };
+          try {
+            const response = await bridgeRequest(endpoint, "send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            const sentThread = response.thread?.trim();
+            if (!sentThread) throw new Error("Mesurer Codex bridge did not report the destination thread.");
+            return { thread: sentThread, output: response.output ?? "" };
+          } catch (cause) {
+            if (withUi && bridgeTransportUnavailable(cause, endpoint)) {
+              bridgeAvailability = "unavailable";
+              syncTool();
+            }
+            throw cause;
+          }
         },
       };
 
       ctx.service.provide(MESURER_CODEX_SERVICE_ID, service);
       ctx.command.register("codex.send", async () => {
         try {
+          if (withUi && bridgeAvailability !== "available") await refreshRuntime(true);
           const result = await service.send();
           console.info(`[Mesurer] Sent feedback to Codex thread ${result.thread}.`);
         } catch (cause) {
@@ -445,8 +489,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       if (withUi) {
         syncTool();
-        void refreshRuntime();
-        const interval = globalThis.setInterval(() => { void refreshRuntime(); }, HEALTH_POLL_MS);
+        const interval = globalThis.setInterval(() => {
+          if (!everConnected) return;
+          void refreshRuntime().catch(() => undefined);
+        }, HEALTH_POLL_MS);
         ctx.lifecycle.onDispose(() => {
           disposed = true;
           globalThis.clearInterval(interval);

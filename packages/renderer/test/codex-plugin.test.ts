@@ -109,6 +109,7 @@ describe("codex", () => {
     expect(errorSpy).toHaveBeenCalledWith(
       "[Mesurer] Failed to send feedback to Codex: Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before sending feedback.",
     );
+    host.dispose();
   });
 
   it("can inspect and switch among threads registered by Codex", async () => {
@@ -262,6 +263,13 @@ describe("codex", () => {
     }));
     await host.load(codex());
 
+    expect(fetchMock).not.toHaveBeenCalled();
+    const initial = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(initial?.label).toBe("Send to Codex");
+    expect(initial?.disabled?.()).toBe(false);
+    expect(initial?.menu?.items.map((item) => item.label)).toEqual(["Choose Codex thread…"]);
+    await initial?.menu?.items[0]?.run();
+
     await vi.waitFor(() => {
       const tool = host.tools().find((candidate) => candidate.id === "codex.send");
       expect(tool?.label).toBe("Send to Codex");
@@ -289,12 +297,13 @@ describe("codex", () => {
     host.dispose();
   });
 
-  it("marks the toolbar unavailable while the bridge is down", async () => {
+  it("does not probe loopback until the user asks for Codex, then marks a missing bridge unavailable", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
-    vi.stubGlobal("fetch", vi.fn(async () => {
+    const fetchMock = vi.fn(async () => {
       throw new TypeError("fetch failed");
-    }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
       id: "test.context-ui-offline",
@@ -305,12 +314,21 @@ describe("codex", () => {
     }));
     await host.load(codex());
 
-    await vi.waitFor(() => {
-      const tool = host.tools().find((candidate) => candidate.id === "codex.send");
-      expect(tool?.label).toBe("Codex unavailable");
-      expect(tool?.disabled?.()).toBe(true);
-      expect(tool?.menu).toBeUndefined();
-    });
+    const initial = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(initial?.label).toBe("Send to Codex");
+    expect(initial?.disabled?.()).toBe(false);
+    expect(initial?.menu?.items.map((item) => item.label)).toEqual(["Choose Codex thread…"]);
+
+    await expect(host.command.execute("codex.send")).rejects.toThrow(
+      "Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before sending feedback.",
+    );
+
+    const unavailable = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(unavailable?.label).toBe("Codex unavailable");
+    expect(unavailable?.disabled?.()).toBe(true);
+    expect(unavailable?.menu?.items.map((item) => item.label)).toEqual(["Retry Codex connection"]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     host.dispose();
   });
 
