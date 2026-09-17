@@ -40,6 +40,12 @@ For an ordinary selected element, Mesurer can show a selection-adjacent Add Note
 
 The Add Note composer is owned by the selection that opened it. If the user selects a different element or region before saving, Mesurer closes the unsaved composer instead of moving it to the new target; the new selection gets its normal small Add Note button. Add Note and saved annotation cards are protected Mesurer inspector surfaces, so live page selection/hover chrome paints underneath them rather than crossing through the card.
 
+Annotation presentation is source-linked rather than viewport furniture. On normal window scroll, the Add Note trigger, composer, saved markers, open panel, and ownership edge live in the document scroll tree and move with the page target in the same painted frame. Nested overflow containers use the runtime's scroll compensation so the same UI stays attached there too. A saved panel keeps its target-relative page point and may leave the viewport with its source instead of being clamped back onto the screen.
+
+Several notes on one target keep separate nearby markers. Opening one note does not remove the Add Note trigger, so another note can be added without closing the current review first. The marker layout keeps repeated notes local to the owning target and avoids covering unrelated markers when a clear placement is available.
+
+Context also coordinates page evidence with inspector paint order. When Context owns the document-backed annotation UI, live Select hover evidence uses the lower document evidence layer even if Mesurer's outer host itself is in the browser top layer. This matters because a browser top-layer node outranks ordinary document `z-index`; keeping page evidence in the same document paint domain is what lets the opaque composer and saved cards fully occlude the blue hover fill and border.
+
 ## Read existing intent first
 
 A broad request such as “check Mesurer” can include several channels at once: current selection, annotations, Arrange intent, text/style intent, guides, measurements, rulers/X-ray state, and screenshot review state.
@@ -127,6 +133,8 @@ Annotations are target- or region-bound review context rather than freeform draw
 The Add Note button is only a convenience affordance. During an active direct text edit it is intentionally absent from the selected element, so agents and integrations must not use button visibility as a capability check. Durable annotation state remains available through `annotations()`, `context({ annotation })`, and `review()`.
 
 An unsaved composer is transient UI, not durable annotation state. Changing selection closes it by design; only a submitted note becomes a saved annotation that follows its own stored target/region baseline.
+
+When a saved note highlights its owning element, the temporary ownership emphasis reuses the same exact target bounds as selection. It does not add a second inner or outer rectangle, fill, glow, or rounded frame. Scrolling keeps that edge attached to the same source as the marker and panel.
 
 After source changes:
 

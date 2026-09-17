@@ -10,6 +10,8 @@ Do not manually edit the public package version, create release tags, or run `np
 
 When a user-facing feature changes the public package, keep its documentation current as part of the source PR. At minimum audit the root/package READMEs, feature-specific docs, `packages/mesurer/AGENT_INTEGRATION.md`, the repository and packaged `mesurer-ui` Agent Skill copies, and distribution-specific docs such as `extension/README.md` when the feature changes those surfaces.
 
+If a published release note omitted a shipped user-facing change, correct the matching changelog and release prose as documentation. Do not reuse, overwrite, or republish the npm version merely to repair release text.
+
 ## Stable documentation and upstream audit gate
 
 Before preparing a stable release, perform a final documentation sweep against the actual public artifact and feature set **and re-audit current upstream Mesurer**.
@@ -111,6 +113,8 @@ A GitHub deployment Environment can be added later as an additional approval bou
 ## Recovery
 
 If npm publication succeeds but a later tag/GitHub Release step fails, first rerun the failed GitHub Actions job/run. That preserves the original release commit and is the safest recovery path.
+
+npm can accept a publish and still take time to expose the new version, integrity metadata, or dist-tag consistently through `npm view`. If the publish step reports success but the following registry verification times out, rerun the failed publish job after registry propagation. The recovery path detects the existing version, requires its integrity to match the original packed artifact, verifies the expected dist-tag, and only then creates the Git tag and GitHub Release. Do not run `npm publish` again manually and do not create the release tag by hand while the registry is still catching up.
 
 `publish.yml` also supports direct `workflow_dispatch` for recovery of the version currently on `main`. Manual recovery is rejected from any other ref. It verifies the package source has not changed since the release commit and verifies any already-published npm integrity before doing post-publish work.
 

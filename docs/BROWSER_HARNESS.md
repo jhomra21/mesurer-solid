@@ -144,7 +144,7 @@ try {
 
 Use `{ scope: "selection" }` for unsaved selection evidence.
 
-The optional `mesurer-solid/screenshot` plugin is a separate person-facing camera tool. See [Screenshots](./SCREENSHOTS.md).
+The optional human camera is `screenshot()` from `mesurer-solid/plugins`. It is separate from agent screenshot evidence. See [Screenshots](./SCREENSHOTS.md).
 
 ## Focused API
 

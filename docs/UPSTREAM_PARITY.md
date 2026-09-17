@@ -90,7 +90,11 @@ Arrange records layout intent without changing application source. It activates 
 
 ### Context annotations
 
-Upstream now ships DOM-attached threaded comments. Mesurer Solid intentionally keeps its separate target- or region-bound Context note model with machine-readable target identity, geometry, measurements, styles, and review baselines. An unsaved composer belongs to the selection that opened it and is abandoned when another selection takes ownership; saved notes remain durable review objects. Direct text editing covers exact copy/type intent; screenshots remain visual evidence. See [Context](./CONTEXT_WORKFLOW.md).
+Upstream now ships DOM-attached threaded comments. Mesurer Solid intentionally keeps its separate target- or region-bound Context note model with machine-readable target identity, geometry, measurements, styles, and review baselines. An unsaved composer belongs to the selection that opened it and is abandoned when another selection takes ownership; saved notes remain durable review objects.
+
+Context annotation presentation is source-linked. Add Note, the composer, saved markers and panels, and the ownership edge stay attached to their page target through window and nested scrolling. Saved panels keep a target-relative page point, repeated-note markers stay nearby and separate, and Add Note remains available while another note is open. Context cards also occlude Select hover and selection evidence, including when Mesurer's outer host is in the browser top layer, so page evidence cannot paint through a saved card or the new-note composer.
+
+Direct text editing covers exact copy/type intent; screenshots remain visual evidence. See [Context](./CONTEXT_WORKFLOW.md).
 
 ### Screenshots
 

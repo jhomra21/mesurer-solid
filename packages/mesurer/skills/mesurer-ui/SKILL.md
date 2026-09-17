@@ -156,17 +156,20 @@ The user can open Settings with the gear button or `Cmd/Ctrl+,`. Changing either
 
 Mesurer UI is never inspected-page content. Treat `[data-mesurer-root]`, `[data-mesurer-island]`, and `[data-mesurer-inspector-ui]` surfaces as hard selection/hit-test boundaries. Do not look through a Typography card, annotation surface, toolbar, or inspector shell to select page content underneath it.
 
-An Add Note composer is transient and belongs to the exact selection that opened it. If the human changes selection before saving, Mesurer closes that unsaved composer and shows the normal small Add Note trigger for the new selection instead of carrying the draft card to another target. Add Note and saved annotation cards are protected inspector surfaces: live page hover/selection chrome paints underneath them, just as it does for Typography and the persistent toolbar.
+An Add Note composer is transient and belongs to the exact selection that opened it. If the human changes selection before saving, Mesurer closes that unsaved composer and shows the normal small Add Note trigger for the new selection instead of carrying the draft card to another target. Add Note, saved markers, saved annotation panels, and the composer are protected inspector UI: live page hover/selection chrome paints underneath them. Several notes on one target keep separate nearby markers, and Add Note remains available while a saved note is open.
 
 Scroll ownership is split deliberately:
 
-- page-linked selection boxes, edit rings, selected-text highlights, ordinary selection annotation affordances, and ordinary Typography cards follow the page element they describe;
+- page-linked selection boxes, edit rings, selected-text highlights, Add Note/composer, saved annotation markers/panels/ownership edge, and ordinary Typography cards follow the page source they describe;
+- saved annotation panels keep a target-relative page point and may leave the viewport with their source instead of following the viewport;
 - the transient selection annotation affordance is suppressed while direct text edit owns that source, but saved annotation markers/panels remain independent;
 - Typography remains Mesurer-owned for interaction even while its geometry follows the inspected element, so clicking the card cannot select either the card itself or page content underneath it;
 - an explicitly dragged pinned Typography card becomes a manual viewport placement and remains there until its pin lifecycle ends;
 - the global toolbar and Settings remain viewport-owned UI.
 
-Do not “fix” hit testing by making Typography viewport-fixed, and do not “fix” scrolling by allowing Select to look through Mesurer UI. Preserve the separate interaction-ownership and geometry-ownership contracts when changing selection, portals, CSS anchors, or z-index behavior.
+Context can therefore use a managed document inspector mount while the outer Mesurer host is still in the browser top layer. When it does, Select hover evidence must use the lower document evidence layer too. Do not move that page evidence back into the top-layer island while a Context card is document-backed, because browser top-layer ordering would let the blue hover fill or border paint through the card.
+
+Do not “fix” hit testing by making Typography or annotation panels viewport-fixed, and do not “fix” scrolling by allowing Select to look through Mesurer UI. Preserve the separate interaction-ownership, geometry-ownership, and paint-order contracts when changing selection, portals, CSS anchors, or z-index behavior.
 
 ## Acquire targets in the right order
 

@@ -225,7 +225,15 @@ The repository's browser harness is a reference/CI adapter, not the agent integr
 
 ## 3. Context and saved-intent agent contract
 
-The `/inject` and `/inject-script` entry points load removable `mesurer.context` by default. Source-mounted applications opt in with `plugins: [contextPlugin()]`.
+The `/inject` and `/inject-script` entry points load removable `mesurer.context` by default. Source-mounted applications opt in with `context()` from `mesurer-solid/plugins`:
+
+```ts
+import { context } from "mesurer-solid/plugins"
+
+mountMesurer({
+  plugins: [context()],
+})
+```
 
 Always wait for readiness before dynamic capabilities:
 
@@ -524,7 +532,7 @@ outer-harness screenshot    → pixels, composition, hierarchy, clipping, appear
 
 ### Human screenshot plugin
 
-`mesurer.screenshot` is an optional first-party plugin exposed from `mesurer-solid/screenshot`. Its camera tool lets the human drag a viewport region and captures a real PNG with HiDPI-aware CSS-to-bitmap cropping. It temporarily hides its own control chrome, restores the previous presentation, and then applies persistent best-effort copy/download preferences.
+`mesurer.screenshot` is an optional first-party plugin exposed as `screenshot()` from `mesurer-solid/plugins`. Its camera tool lets the human drag a viewport region and captures a real PNG with HiDPI-aware CSS-to-bitmap cropping. It temporarily hides its own control chrome, restores the previous presentation, and then applies persistent best-effort copy/download preferences.
 
 A successful capture leaves a persistent draggable thumbnail with native image right-click behavior and a dismiss control. Clicking it opens a larger viewer with Copy, Save, and Close actions; Escape/backdrop closes the viewer without discarding the thumbnail. Capture/output status is shown separately so an unavailable clipboard/download does not discard a valid image.
 
@@ -661,15 +669,19 @@ Mesurer does not provide or own the outer harness's general-purpose:
 
 Use the outer harness for those operations.
 
-Mesurer provides exact page inspection, programmatic selection, annotations/context/review, Arrange/text Desired intent, commands, plugin state/runtime management, the interactive UI, and—when explicitly enabled—the `mesurer.screenshot` human region-capture plugin. That plugin does not turn Mesurer into a browser driver or agent screenshot transport.
+Mesurer provides exact page inspection, programmatic selection, annotations/context/review, Arrange/text Desired intent, commands, plugin state/runtime management, the interactive UI, and, when explicitly enabled, the `mesurer.screenshot` human region-capture plugin. That plugin does not turn Mesurer into a browser driver or agent screenshot transport.
 
 ## 13. Host-page isolation rule
 
 Do not fix website-specific occlusion bugs with hostname checks or selectors for that website.
 
-The public mount boundary must defend against browser primitives. Current invariants include protected outer-host styles, ShadowRoot isolation, browser top-layer promotion, reassertion above later popovers/fullscreen changes, temporary reparenting into active modal dialogs, and a hardened fixed/max-z-index fallback.
+The public mount boundary must defend against browser primitives. Current invariants include protected outer-host styles, ShadowRoot isolation for the default/injected renderer, browser top-layer promotion, reassertion above later popovers/fullscreen changes, temporary reparenting into active modal dialogs, and a hardened fixed/max-z-index fallback.
 
-Plugin overlays/previews and transient direct-editor UI must obey the same isolation rules. The editor textarea, direct typography toolbar, semantic preset popup, and contextual Typography card must remain visible/interactable without becoming host-page targets or blockers. Screenshot selection, status, thumbnail, and viewer UI follow the same rule, and screenshot/capture presentation must exclude Mesurer control chrome from pixels before restoring prior presentation.
+Mesurer uses two managed paint domains. Viewport-owned controls such as the toolbar, Settings, Screenshot UI, and other global inspector chrome stay in the protected outer host/top-layer path. Source-linked inspector UI may use a managed document inspector mount so browser scrolling moves it with the page source. Context uses that document path for Add Note, its composer, saved markers/panels, and annotation ownership evidence; ordinary source-linked Typography may use the same model.
+
+Document-backed nodes are still Mesurer inspector UI and hard hit-test boundaries. When a document-backed inspector must occlude page evidence, the corresponding Select hover/selection paint must also use the lower document evidence layer. Do not leave Select hover in the browser top layer while a Context card is document-backed, because top-layer ordering beats ordinary document `z-index` and would let page evidence paint through the card.
+
+The editor textarea, direct typography controls, semantic preset popup, and contextual Typography card must remain visible/interactable without becoming host-page targets or blockers. Screenshot selection, status, thumbnail, and viewer UI follow the same ownership rule, and screenshot/capture presentation must exclude Mesurer control chrome from pixels before restoring prior presentation.
 
 When a host-page bug appears, reduce it to the browser primitive, add a regression, and fix the shared mount/runtime boundary. See [`docs/HOST_ISOLATION.md`](./docs/HOST_ISOLATION.md).
 
@@ -706,7 +718,7 @@ Distance is currently an overlay capability and does not expose `builtin.distanc
 
 Direct text editing is not another top-level built-in/command. It extends Select/Typography interaction in the renderer bridge and records intent through the `text-edit` service.
 
-Screenshot is intentionally **not** another permanent built-in. `screenshotPlugin()` contributes the camera tool through the normal plugin host.
+Screenshot is intentionally **not** another permanent built-in. `screenshot()` from `mesurer-solid/plugins` contributes the camera tool through the normal plugin host.
 
 `window.__MESURER__.select(...)` is different from the `builtin.select` tool command: it is a context-layer agent helper that selects exact rendered targets and returns scoped context.
 
@@ -742,7 +754,7 @@ Plugins may register tools, commands, hooks, overlays, settings contributions, s
 
 Prefer plugins for project-specific Mesurer extensions. Modify core only when behavior is genuinely a shared platform capability.
 
-`mesurer.screenshot` is a first-party example of the plugin architecture: camera tool, settings, service, capture resource, preview/viewer UI, and cleanup all belong to the plugin rather than permanent core state.
+`mesurer.screenshot` is a first-party example of the plugin architecture: camera tool, settings, service, capture resource, preview/viewer UI, and cleanup all belong to the plugin rather than permanent core state. Public consumers create it with `screenshot()` from `mesurer-solid/plugins`.
 
 Direct text editing is intentionally different: it extends shared renderer Select/Typography behavior and reuses `TypographyInspector` plus the existing internal `text-inspector` card renderer. The renderer bridge owns the direct-edit runtime, state/service connection, editor session, direct typography toolbar, and semantic preset popup; the Typography tool does **not** secretly own/restyle the direct editor after focus.
 
@@ -764,7 +776,9 @@ The public package does not expose private renderer workspace types. Request the
 
 Plugin service object values never enter history/persistence; `describe()` exposes service IDs only.
 
-Screenshot's region overlay, thumbnail, viewer, and status UI use renderer-owned mounts behind this opaque boundary. Public consumers import only `mesurer-solid/screenshot`.
+Screenshot's region overlay, thumbnail, viewer, and status UI use renderer-owned mounts behind this opaque boundary. Public consumers import `screenshot` and its public contracts from `mesurer-solid/plugins`.
+
+Context demonstrates the other renderer-aware ownership path: source-linked annotation UI can use the managed document inspector mount rather than the viewport island, while remaining Mesurer-owned for cleanup and hit testing.
 
 The direct text editor also uses a renderer-owned inspector mount. Its contextual Typography card is presentation derived from the active target, not a new plugin UI registration or persistent Typography pin.
 
@@ -772,7 +786,7 @@ The direct text editor also uses a renderer-owned inspector mount. Its contextua
 
 - Solid 1, Solid 2, React, Vue, Svelte, vanilla browser apps, and Electron renderer pages use the same public boundary.
 - There is no public framework-specific Mesurer package.
-- Mesurer's UI renderer remains Solid 2 internally but private to its isolated browser island.
+- Mesurer's UI renderer remains Solid 2 internally and private to Mesurer; default/injected UI uses an isolated ShadowRoot while supported source mounts may opt out of Shadow DOM isolation.
 - Direct text editing acts on rendered DOM/text/computed styles and therefore works across those host frameworks without knowing their component runtime.
 - Electron main-process code is not a DOM host; mount/inject only in renderer pages.
 - For packaged apps, prefer the ordinary artifact plus an existing renderer-evaluation/debug channel over a Mesurer-specific build.
@@ -784,15 +798,17 @@ One npm package is intended for users:
 
 ```text
 mesurer-solid
+mesurer-solid/plugins
 mesurer-solid/core
-mesurer-solid/screenshot
 mesurer-solid/inject
 mesurer-solid/inject-script
 ```
 
-The root export contains the mount API, agent/context and text-edit intent types, plugin helpers, and built-in plugin factories. `/core` is framework-neutral. `/screenshot` is the optional first-party screenshot plugin/service entry. `/inject` is the ES-module injector. `/inject-script` is the classic self-executing browser-evaluation payload.
+The root export contains the mount API, public domain types, and agent surface. `/plugins` contains all first-party plugin factories and plugin-specific public contracts. `/core` is framework-neutral. `/inject` is the ES-module injector. `/inject-script` is the classic self-executing browser-evaluation payload.
 
-The published artifact includes `AGENT_INTEGRATION.md`, the portable Agent Skill, and its injector asset.
+Public plugin factories use the feature name directly, including `context()`, `arrange()`, `screenshot()`, `codex()`, and explicit built-ins such as `select()` and `typography()`. Redundant public `*Plugin` factory names and one-plugin-per-subpath exports are not part of the package contract.
+
+The published artifact also includes the `mesurer-skill` and `mesurer-codex` binaries, `AGENT_INTEGRATION.md`, the portable Agent Skill, and its injector asset.
 
 ## 21. Repository architecture invariants
 
@@ -809,14 +825,16 @@ Internal workspaces are private implementation details:
 - built-in and external features use the same plugin host;
 - screenshot remains optional plugin state rather than permanent measurement-core state;
 - staged npm artifacts must not expose private workspace names or host runtime dependencies;
-- staged declarations must expose public-safe text-edit intent types/methods and the `./screenshot` entry;
+- staged declarations must expose public-safe text-edit intent types/methods and the `./plugins` entry;
+- first-party public plugin factories live under `mesurer-solid/plugins` and do not regain redundant one-plugin-per-subpath exports;
+- Context document-backed annotation UI must stay source-attached and preserve inspector hit ownership; related Select evidence must stay below it even when the outer host uses the browser top layer;
 - default rendering must retain pinned upstream visual/behavioral parity gates;
 - agent integrations must not require Playwright or another transport when the outer harness already has page execution;
 - agent integrations must preserve a live human Mesurer instance by default, including Arrange/text-edit/screenshot review state;
 - programmatic agent selection must use canonical renderer selection/measurement semantics and return structured context;
 - agent docs must teach full intent acquisition/consumption, text Live verification, and the screenshot boundary, not mere UI activation;
 - host-page occlusion fixes target browser primitives, not specific websites;
-- direct text editing and screenshot behavior remain covered by dedicated rendered browser contracts.
+- direct text editing, Context annotation ownership, and screenshot behavior remain covered by dedicated rendered browser contracts.
 
 ## 22. Repository contribution instructions
 
@@ -845,15 +863,16 @@ When changing public behavior:
 3. keep repository/package skill copies byte-identical;
 4. for direct-text changes, update `docs/TEXT_EDITING.md` plus Arrange/context/browser/host/upstream docs where their shared contract changes, and keep the dedicated Chromium text-edit contract authoritative;
 5. for screenshot changes, update `docs/SCREENSHOTS.md`, `extension/README.md`, architecture/browser/context docs, and screenshot-contract expectations where relevant;
-6. preserve the one-package public contract unless intentionally redesigning it;
-7. keep built-in command names stable when replacing implementation details;
-8. add regression coverage for silent failure modes;
-9. reduce host compatibility bugs to browser primitives rather than site-specific patches;
-10. do not bypass pinned visual/interaction parity gates for default-renderer changes;
-11. preserve upstream Mesurer/Julien Thibeaut attribution and `THIRD_PARTY_LICENSES.md`;
-12. keep direct existing-harness integration ahead of source integration in agent-facing docs;
-13. when Mesurer agent selection/context/text-intent semantics change, test both the public returned data and visible/live behavior;
-14. before stable releases, ensure canonical docs use stable install commands and no longer present `@beta` as the default path.
+6. for Context annotation geometry, scroll ownership, hit testing, or layering changes, update `docs/CONTEXT_WORKFLOW.md`, `docs/HOST_ISOLATION.md`, architecture, Agent Integration, both skill copies, and the relevant browser contracts;
+7. preserve the one-package public contract unless intentionally redesigning it;
+8. keep built-in command names stable when replacing implementation details;
+9. add regression coverage for silent failure modes;
+10. reduce host compatibility bugs to browser primitives rather than site-specific patches;
+11. do not bypass pinned visual/interaction parity gates for default-renderer changes;
+12. preserve upstream Mesurer/Julien Thibeaut attribution and `THIRD_PARTY_LICENSES.md`;
+13. keep direct existing-harness integration ahead of source integration in agent-facing docs;
+14. when Mesurer agent selection/context/text-intent semantics change, test both the public returned data and visible/live behavior;
+15. before stable releases, ensure canonical docs use stable install commands and no longer present `@beta` as the default path.
 
 For releases, follow [`RELEASING.md`](./RELEASING.md). Do not manually edit public package versions, create release tags, or manually `npm publish` as a substitute for the release workflow.
 
