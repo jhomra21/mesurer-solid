@@ -9,7 +9,8 @@
   "types": "./dist/index.d.ts",
   "bin": {
     "mesurer-skill": "scripts/install-skill.mjs",
-    "mesurer-codex": "scripts/codex-bridge.mjs"
+    "mesurer-codex": "scripts/codex-bridge.mjs",
+    "mesurer-codex-connect": "scripts/codex-connect.mjs"
   },
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
@@ -24,6 +25,7 @@
     "skills",
     "scripts/install-skill.mjs",
     "scripts/codex-bridge.mjs",
+    "scripts/codex-connect.mjs",
     "README.md",
     "AGENT_INTEGRATION.md",
     "LICENSE",
