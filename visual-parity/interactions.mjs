@@ -208,30 +208,30 @@ const cases = [
     await p.mouse.click(340, 290);
     await sleep(p, 180);
 
-    // A committed click keeps the transient measurement surface that upstream
-    // renders beneath the selected measurement. Verify both paint layers are
-    // present without mistaking the transient layer for another selection.
+    // Solid preserves upstream's two-pass selected visual weight in one
+    // document-owned box. Requiring the old transient duplicate would recreate
+    // the fixed-island ghost that can scroll independently and paint over
+    // document-backed annotation cards.
     if (implementation === "solid") {
-      const paintStack = await p.evaluate(() => {
+      const selectionPaint = await p.evaluate(() => {
         const surfaces = [...document.querySelectorAll('[data-mesurer-measurement-chrome="true"]')]
           .filter((node) => {
             const rect = node.getBoundingClientRect();
             return Math.abs(rect.x - 240) < 0.5 && Math.abs(rect.y - 240) < 0.5
               && Math.abs(rect.width - 200) < 0.5 && Math.abs(rect.height - 100) < 0.5;
           });
-        const selected = surfaces.find((node) => node.closest('[data-mesurer-selected-measurement="true"]'));
-        const transient = surfaces.find((node) => !node.dataset.mesurerNativeScrollAnchor);
-        if (surfaces.length !== 2 || !selected || !transient) return null;
-        const selectedRect = selected.getBoundingClientRect();
-        const transientRect = transient.getBoundingClientRect();
+        if (surfaces.length !== 1) return null;
+        const selected = surfaces[0];
+        if (!selected.closest('[data-mesurer-selected-measurement="true"]')) return null;
+        const rect = selected.getBoundingClientRect();
         return {
-          selected: { x: selectedRect.x, y: selectedRect.y, width: selectedRect.width, height: selectedRect.height },
-          transient: { x: transientRect.x, y: transientRect.y, width: transientRect.width, height: transientRect.height },
+          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+          nativeAnchor: selected.dataset.mesurerNativeScrollAnchor ?? null,
         };
       });
-      if (!paintStack) throw new Error("action-select-target: transient selected paint surface is missing or duplicated");
-      if (JSON.stringify(paintStack.selected) !== JSON.stringify(paintStack.transient)) {
-        throw new Error(`action-select-target: selected/transient paint geometry differs: ${JSON.stringify(paintStack)}`);
+      if (!selectionPaint) throw new Error("action-select-target: selected target must have exactly one paint surface");
+      if (selectionPaint.nativeAnchor !== "box") {
+        throw new Error(`action-select-target: selected paint lost document anchor ownership: ${JSON.stringify(selectionPaint)}`);
       }
 
       await p.mouse.move(620, 300);
