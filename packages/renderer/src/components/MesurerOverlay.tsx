@@ -65,14 +65,21 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const guidePointerEvents = () => props.interactive && (props.model.state.toolMode !== "none" || props.model.state.rulersVisible);
   const outline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 80%, transparent)`;
   const fill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 8%, transparent)`;
-  const displayedMeasurements = createMemo(() => props.model.state.settings.multiMeasureEnabled && props.model.state.measurements.length > 0
-    ? props.model.state.measurements
-    : props.model.state.activeMeasurement ? [props.model.state.activeMeasurement] : []);
-  const displayedSelectedMeasurements = createMemo(() => props.displayedSelectedMeasurements);
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
-  const showMeasurementLabel = (measurement: Measurement) => !selectedMeasurements().some((selected) => (
-    selected.elementRef && selected.elementRef === measurement.elementRef
-  ));
+  const displayedMeasurements = createMemo(() => {
+    const measurements = props.model.state.settings.multiMeasureEnabled && props.model.state.measurements.length > 0
+      ? props.model.state.measurements
+      : props.model.state.activeMeasurement
+        ? [props.model.state.activeMeasurement]
+        : [];
+    const selectedElements = new Set(
+      selectedMeasurements()
+        .map((measurement) => measurement.elementRef)
+        .filter((element): element is HTMLElement => Boolean(element)),
+    );
+    return measurements.filter((measurement) => !measurement.elementRef || !selectedElements.has(measurement.elementRef));
+  });
+  const displayedSelectedMeasurements = createMemo(() => props.displayedSelectedMeasurements);
   const hoverTargetsSelected = createMemo(() => {
     const target = props.model.state.hoverElement;
     return Boolean(target && selectedMeasurements().some((measurement) => measurement.elementRef === target));
@@ -361,7 +368,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       onPointerLeave={(event) => props.onPointerLeave(event)}
     >
       <Show when={selectionVisible()}>
-        <For each={displayedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={measurementEdges()[index()]} outlineColor={outline()} fillColor={fill()} showLabel={showMeasurementLabel(measurement)} />}</For>
+        <For each={displayedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={measurementEdges()[index()]} outlineColor={outline()} fillColor={fill()} />}</For>
 
         <Show when={props.activeRect && props.model.state.isDragging}><>
           <div class="msr:pointer-events-none msr:absolute" style={{ left: `${props.activeRect!.left}px`, top: `${props.activeRect!.top}px`, width: `${props.activeRect!.width}px`, height: `${props.activeRect!.height}px`, "background-color": fill() }}>
