@@ -198,8 +198,9 @@ try {
   composer = contextRoot.locator("[data-mesurer-annotation-composer='true']");
   await clickDocumentUi(trigger, "Add Note trigger for saved-card state");
   await composer.waitFor({ state: "visible", timeout: 3000 });
-  await composer.locator("textarea").fill("Context hover occlusion contract", { force: true });
-  await composer.getByRole("button", { name: "Add note", exact: true }).click({ force: true });
+  const textarea = composer.locator("textarea");
+  await textarea.fill("Context hover occlusion contract", { force: true });
+  await textarea.press("Control+Enter");
   await composer.waitFor({ state: "hidden", timeout: 3000 });
 
   const panel = contextRoot.locator("[data-mesurer-annotation-panel='true']");
