@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { parseArgs } from "node:util";
 
@@ -10,6 +11,9 @@ const MAX_MESSAGE_BYTES = 64 * 1024;
 const CODEX_TIMEOUT_MS = 30_000;
 const APP_SERVER_TIMEOUT_MS = 5_000;
 const MAX_DISCOVERED_THREADS = 10;
+const MAX_DELIVERIES = 100;
+const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
+const DELIVERY_TTL_MS = 2 * 60 * 60_000;
 
 const usage = `Usage:
   mesurer-codex [--thread <session-id-or-name>] [options]
@@ -125,6 +129,8 @@ const codexBin = values.codex?.trim() || process.env.CODEX_BIN?.trim() || "codex
 const additionalOrigins = new Set(values.origin ?? []);
 const registeredThreads = new Map();
 const discoveredThreads = new Map();
+const deliveries = new Map();
+const terminalTurnEvents = new Map();
 let activeThread = null;
 let activeCwd = null;
 
@@ -424,6 +430,86 @@ const threadPayload = () => ({
   threads: [...registeredThreads.keys()],
 });
 
+const hashMessage = (message) => createHash("sha256").update(message).digest("hex");
+const turnKey = (thread, turnId) => `${thread}:${turnId}`;
+const publicDelivery = (delivery) => ({
+  deliveryId: delivery.id,
+  thread: delivery.thread,
+  status: delivery.status,
+  turnId: delivery.turnId,
+  createdAt: delivery.createdAt,
+  updatedAt: delivery.updatedAt,
+});
+
+const pruneDeliveries = () => {
+  const now = Date.now();
+  for (const [id, delivery] of deliveries) {
+    const terminal = delivery.status === "completed" || delivery.status === "interrupted";
+    if (now - delivery.updatedAt > (terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS)) {
+      deliveries.delete(id);
+    }
+  }
+  for (const [key, event] of terminalTurnEvents) {
+    if (now - event.at > TERMINAL_DELIVERY_TTL_MS) terminalTurnEvents.delete(key);
+  }
+  if (deliveries.size <= MAX_DELIVERIES) return;
+  const oldest = [...deliveries.values()].sort((a, b) => a.updatedAt - b.updatedAt);
+  for (const delivery of oldest.slice(0, deliveries.size - MAX_DELIVERIES)) {
+    deliveries.delete(delivery.id);
+  }
+};
+
+const createDelivery = (thread, message) => {
+  pruneDeliveries();
+  const now = Date.now();
+  const delivery = {
+    id: randomUUID(),
+    thread,
+    messageHash: hashMessage(message),
+    status: "queued",
+    turnId: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  deliveries.set(delivery.id, delivery);
+  return delivery;
+};
+
+const markPromptStarted = (thread, turnId, prompt) => {
+  const promptHash = hashMessage(prompt);
+  const delivery = [...deliveries.values()]
+    .filter((candidate) =>
+      candidate.thread === thread
+      && candidate.messageHash === promptHash
+      && candidate.status === "queued")
+    .sort((a, b) => a.createdAt - b.createdAt)[0];
+  if (!delivery) return null;
+  delivery.status = "working";
+  delivery.turnId = turnId;
+  delivery.updatedAt = Date.now();
+  const terminal = terminalTurnEvents.get(turnKey(thread, turnId));
+  if (terminal) {
+    delivery.status = terminal.status;
+    delivery.updatedAt = Math.max(delivery.updatedAt, terminal.at);
+    terminalTurnEvents.delete(turnKey(thread, turnId));
+  }
+  return delivery;
+};
+
+const markTurnTerminal = (thread, turnId, status) => {
+  const delivery = [...deliveries.values()].find((candidate) =>
+    candidate.thread === thread
+    && candidate.turnId === turnId
+    && candidate.status === "working");
+  if (delivery) {
+    delivery.status = status;
+    delivery.updatedAt = Date.now();
+    return delivery;
+  }
+  terminalTurnEvents.set(turnKey(thread, turnId), { status, at: Date.now() });
+  return null;
+};
+
 let successfulSends = 0;
 const server = createServer(async (request, response) => {
   const originHeaderPresent = Object.hasOwn(request.headers, "origin");
@@ -441,6 +527,20 @@ const server = createServer(async (request, response) => {
 
   if (request.method === "GET" && request.url === "/health") {
     writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
+    return;
+  }
+
+  if (request.method === "GET" && request.url?.startsWith("/deliveries/")) {
+    pruneDeliveries();
+    const url = new URL(request.url, DEFAULT_BRIDGE);
+    const prefix = "/deliveries/";
+    const deliveryId = decodeURIComponent(url.pathname.slice(prefix.length));
+    const delivery = deliveries.get(deliveryId);
+    if (!delivery) {
+      writeJson(response, 404, { ok: false, error: `Codex delivery is not available: ${deliveryId}` }, origin);
+      return;
+    }
+    writeJson(response, 200, { ok: true, ...publicDelivery(delivery) }, origin);
     return;
   }
 
@@ -482,6 +582,53 @@ const server = createServer(async (request, response) => {
       }
       registerThread(thread, cwd);
       writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      writeJson(response, 400, { ok: false, error }, origin);
+    }
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/lifecycle") {
+    if (originHeaderPresent) {
+      writeJson(response, 403, {
+        ok: false,
+        error: "Codex lifecycle updates are available only to a local process, not a browser Origin.",
+      }, origin);
+      return;
+    }
+    try {
+      const body = await readJsonBody(request);
+      const event = body?.event;
+      const thread = normalizeThread(body?.sessionId);
+      const turnId = normalizeThread(body?.turnId);
+      if (!thread || !turnId) {
+        writeJson(response, 400, { ok: false, error: "sessionId and turnId are required." }, origin);
+        return;
+      }
+
+      let delivery = null;
+      if (event === "UserPromptSubmit") {
+        const prompt = typeof body?.prompt === "string" ? body.prompt : "";
+        if (!prompt) {
+          writeJson(response, 400, { ok: false, error: "UserPromptSubmit requires prompt." }, origin);
+          return;
+        }
+        delivery = markPromptStarted(thread, turnId, prompt);
+      } else if (event === "Stop") {
+        delivery = markTurnTerminal(thread, turnId, "completed");
+      } else if (event === "Interrupt") {
+        delivery = markTurnTerminal(thread, turnId, "interrupted");
+      } else {
+        writeJson(response, 400, { ok: false, error: `Unsupported Codex lifecycle event: ${event ?? "<missing>"}` }, origin);
+        return;
+      }
+      pruneDeliveries();
+      writeJson(response, 200, {
+        ok: true,
+        matched: Boolean(delivery),
+        ...(delivery ? publicDelivery(delivery) : {}),
+      }, origin);
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);
       writeJson(response, 400, { ok: false, error }, origin);
@@ -544,9 +691,22 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    const output = await runCodexQueue(thread, message);
+    const delivery = createDelivery(thread, message);
+    let output;
+    try {
+      output = await runCodexQueue(thread, message);
+    } catch (cause) {
+      deliveries.delete(delivery.id);
+      throw cause;
+    }
     successfulSends += 1;
-    writeJson(response, 200, { ok: true, thread, output, delivery: "queued" }, origin);
+    writeJson(response, 200, {
+      ok: true,
+      thread,
+      output,
+      delivery: "queued",
+      ...publicDelivery(delivery),
+    }, origin);
     if (values.once && successfulSends >= 1) setImmediate(() => server.close());
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : String(cause);

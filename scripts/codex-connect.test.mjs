@@ -8,6 +8,7 @@ import test from "node:test";
 
 const connectScript = new URL("../packages/mesurer/scripts/codex-connect.mjs", import.meta.url);
 const bridgeScript = new URL("../packages/mesurer/scripts/codex-bridge.mjs", import.meta.url);
+const lifecycleScript = new URL("../packages/mesurer/scripts/codex-lifecycle.mjs", import.meta.url);
 const pluginRoot = new URL("../plugins/mesurer-codex/", import.meta.url);
 
 const waitForExit = (child, timeoutMs = 10_000) => new Promise((resolve, reject) => {
@@ -113,12 +114,13 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
       body: JSON.stringify({ message: "implement the Mesurer feedback" }),
     });
     assert.equal(send.status, 200);
-    assert.deepEqual(await send.json(), {
-      ok: true,
-      thread: "thread-hook-b",
-      output: "queued by fake codex",
-      delivery: "queued",
-    });
+    const sent = await send.json();
+    assert.equal(sent.ok, true);
+    assert.equal(sent.thread, "thread-hook-b");
+    assert.equal(sent.output, "queued by fake codex");
+    assert.equal(sent.delivery, "queued");
+    assert.equal(sent.status, "queued");
+    assert.equal(typeof sent.deliveryId, "string");
 
     const invocations = (await readFile(argsPath, "utf8"))
       .trim()
@@ -164,6 +166,13 @@ test("repo Codex plugin packages the same companion and a bounded SessionStart h
   assert.match(sessionStart.hooks[0].command, /\$\{PLUGIN_ROOT\}\/scripts\/codex-connect\.mjs/);
   assert.match(sessionStart.hooks[0].command, /--session-start/);
 
+  for (const eventName of ["UserPromptSubmit", "Stop", "Interrupt"]) {
+    const lifecycle = hooks.hooks[eventName][0].hooks[0];
+    assert.equal(lifecycle.async, true);
+    assert.equal(lifecycle.timeout, 5);
+    assert.match(lifecycle.command, /\$\{PLUGIN_ROOT\}\/scripts\/codex-lifecycle\.mjs/);
+  }
+
   assert.equal(
     await readFile(new URL("scripts/codex-connect.mjs", pluginRoot), "utf8"),
     await readFile(connectScript, "utf8"),
@@ -171,5 +180,9 @@ test("repo Codex plugin packages the same companion and a bounded SessionStart h
   assert.equal(
     await readFile(new URL("scripts/codex-bridge.mjs", pluginRoot), "utf8"),
     await readFile(bridgeScript, "utf8"),
+  );
+  assert.equal(
+    await readFile(new URL("scripts/codex-lifecycle.mjs", pluginRoot), "utf8"),
+    await readFile(lifecycleScript, "utf8"),
   );
 });

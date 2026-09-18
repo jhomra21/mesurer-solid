@@ -13,10 +13,22 @@
     "mesurer-codex-connect": "scripts/codex-connect.mjs"
   },
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
-    "./plugins": { "types": "./dist/plugins.d.ts", "import": "./dist/plugins.js" },
-    "./core": { "types": "./dist/core.d.ts", "import": "./dist/core.js" },
-    "./inject": { "types": "./dist/inject.d.ts", "import": "./dist/inject.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./plugins": {
+      "types": "./dist/plugins.d.ts",
+      "import": "./dist/plugins.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./inject": {
+      "types": "./dist/inject.d.ts",
+      "import": "./dist/inject.js"
+    },
     "./inject-script": "./dist/inject-script.js",
     "./package.json": "./package.json"
   },
@@ -26,6 +38,7 @@
     "scripts/install-skill.mjs",
     "scripts/codex-bridge.mjs",
     "scripts/codex-connect.mjs",
+    "scripts/codex-lifecycle.mjs",
     "README.md",
     "AGENT_INTEGRATION.md",
     "LICENSE",
@@ -48,13 +61,28 @@
     "typescript": "^5.9.2",
     "vite": "^8.1.5"
   },
-  "keywords": ["measurement", "devtools", "agent", "playwright", "solid", "react", "vue", "svelte", "electron"],
+  "keywords": [
+    "measurement",
+    "devtools",
+    "agent",
+    "playwright",
+    "solid",
+    "react",
+    "vue",
+    "svelte",
+    "electron"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/jhomra21/mesurer-solid.git",
     "directory": "packages/mesurer"
   },
-  "bugs": { "url": "https://github.com/jhomra21/mesurer-solid/issues" },
+  "bugs": {
+    "url": "https://github.com/jhomra21/mesurer-solid/issues"
+  },
   "homepage": "https://github.com/jhomra21/mesurer-solid#readme",
-  "publishConfig": { "access": "public", "registry": "https://registry.npmjs.org/" }
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
 }

@@ -33,6 +33,7 @@ const annotation: MesurerAnnotation = {
 };
 
 const createContextService = () => {
+  const removeAnnotation = vi.fn(async (_annotationId: string) => {});
   const contextText = vi.fn(async (request?: MesurerContextRequest) => {
     if (request && "annotation" in request) return `annotation evidence ${request.annotation}`;
     if (request?.scope === "selection") return "selection evidence";
@@ -44,13 +45,16 @@ const createContextService = () => {
     copyContext: async () => {},
     select: async () => { throw new Error("select() is not needed by this contract"); },
     annotations: async () => [annotation],
+    removeAnnotation,
     review: async () => [],
     capturePlan: async () => { throw new Error("capturePlan() is not needed by this contract"); },
     prepareCapture: async () => {},
     finishCapture: async () => {},
   };
-  return { service, contextText };
+  return { service, contextText, removeAnnotation };
 };
+
+const DELIVERY_POLL_MS_FOR_TEST = 750;
 
 describe("codex", () => {
   it("sends saved Context evidence through the explicit loopback transport", async () => {
@@ -59,7 +63,7 @@ describe("codex", () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued" }),
+      text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued", deliveryId: "delivery-1", status: "queued" }),
     }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -74,7 +78,14 @@ describe("codex", () => {
 
     const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
     expect(service).toBeDefined();
-    await expect(service?.send()).resolves.toEqual({ thread: "thread-1", output: "queued", delivery: "queued" });
+    await expect(service?.send()).resolves.toEqual({
+      thread: "thread-1",
+      output: "queued",
+      delivery: "queued",
+      deliveryId: "delivery-1",
+      status: "queued",
+      annotationIds: ["note-1"],
+    });
 
     expect(contextText).toHaveBeenCalledWith({ annotation: "note-1" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -297,6 +308,110 @@ describe("codex", () => {
     host.dispose();
   });
 
+
+  it("shows queued work as busy, suppresses duplicate sends, and removes completed annotations", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService, removeAnnotation } = createContextService();
+    let sendCount = 0;
+    let deliveryReads = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ ok: true, thread: "thread-a", threads: ["thread-a"] }),
+        };
+      }
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            threadDetails: [{ id: "thread-a", title: "Current task", updatedAt: 10, connected: true }],
+            hasMore: false,
+          }),
+        };
+      }
+      if (url.endsWith("/send")) {
+        sendCount += 1;
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            output: "queued",
+            delivery: "queued",
+            deliveryId: "delivery-a",
+            status: "queued",
+          }),
+        };
+      }
+      if (url.endsWith("/deliveries/delivery-a")) {
+        deliveryReads += 1;
+        const status = deliveryReads === 1 ? "working" : "completed";
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            deliveryId: "delivery-a",
+            thread: "thread-a",
+            status,
+            turnId: "turn-a",
+            createdAt: 1,
+            updatedAt: 2 + deliveryReads,
+          }),
+        };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-delivery-lifecycle",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+
+    const first = host.command.execute("codex.send");
+    const second = host.command.execute("codex.send");
+    await Promise.all([first, second]);
+    expect(sendCount).toBe(1);
+
+    let tool = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(tool?.label).toBe("Queued for Codex");
+    expect(tool?.disabled?.()).toBe(true);
+    expect(tool?.menu?.items[0]?.label).toContain("Queued");
+    expect(tool?.menu?.items[0]?.disabled?.()).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    tool = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(tool?.label).toBe("Codex working…");
+    expect(removeAnnotation).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    tool = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(tool?.label).toBe("Codex finished");
+    expect(tool?.disabled?.()).toBe(true);
+    expect(removeAnnotation).toHaveBeenCalledTimes(1);
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    tool = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(tool?.label).toBe("Queue to Codex");
+    expect(tool?.disabled?.()).toBe(false);
+    host.dispose();
+    vi.useRealTimers();
+  });
+
   it("does not probe loopback until the user asks for Codex, then marks a missing bridge unavailable", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
@@ -338,7 +453,7 @@ describe("codex", () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ ok: true, thread: "thread-b", output: "queued" }),
+      text: async () => JSON.stringify({ ok: true, thread: "thread-b", output: "queued", deliveryId: "delivery-b", status: "queued" }),
     }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -356,6 +471,9 @@ describe("codex", () => {
       thread: "thread-b",
       output: "queued",
       delivery: "queued",
+      deliveryId: "delivery-b",
+      status: "queued",
+      annotationIds: ["note-1"],
     });
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
@@ -369,7 +487,7 @@ describe("codex", () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ ok: true, thread: "thread-2" }),
+      text: async () => JSON.stringify({ ok: true, thread: "thread-2", deliveryId: "delivery-2", status: "queued" }),
     }));
     vi.stubGlobal("fetch", fetchMock);
 

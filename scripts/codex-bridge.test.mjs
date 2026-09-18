@@ -136,12 +136,64 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
       body: JSON.stringify({ message: "fix thread b", thread: "thread-b" }),
     });
     assert.equal(sendToOther.status, 200, stderr);
-    assert.deepEqual(await sendToOther.json(), {
-      ok: true,
-      thread: "thread-b",
-      output: "queued by fake codex",
-      delivery: "queued",
+    const sent = await sendToOther.json();
+    assert.equal(sent.ok, true);
+    assert.equal(sent.thread, "thread-b");
+    assert.equal(sent.output, "queued by fake codex");
+    assert.equal(sent.delivery, "queued");
+    assert.equal(sent.status, "queued");
+    assert.equal(typeof sent.deliveryId, "string");
+
+    const queuedStatus = await fetch(`${bridgeUrl}/deliveries/${sent.deliveryId}`, {
+      headers: { Origin: "http://127.0.0.1:4255" },
     });
+    assert.equal(queuedStatus.status, 200);
+    assert.equal((await queuedStatus.json()).status, "queued");
+
+    const browserLifecycle = await fetch(`${bridgeUrl}/lifecycle`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://127.0.0.1:4255",
+      },
+      body: JSON.stringify({
+        event: "UserPromptSubmit",
+        sessionId: "thread-b",
+        turnId: "turn-b",
+        prompt: "fix thread b",
+      }),
+    });
+    assert.equal(browserLifecycle.status, 403);
+
+    const started = await fetch(`${bridgeUrl}/lifecycle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "UserPromptSubmit",
+        sessionId: "thread-b",
+        turnId: "turn-b",
+        prompt: "fix thread b",
+      }),
+    });
+    assert.equal(started.status, 200);
+    assert.equal((await started.json()).status, "working");
+
+    const completed = await fetch(`${bridgeUrl}/lifecycle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "Stop",
+        sessionId: "thread-b",
+        turnId: "turn-b",
+      }),
+    });
+    assert.equal(completed.status, 200);
+    assert.equal((await completed.json()).status, "completed");
+
+    const completedStatus = await fetch(`${bridgeUrl}/deliveries/${sent.deliveryId}`, {
+      headers: { Origin: "http://127.0.0.1:4255" },
+    });
+    assert.equal((await completedStatus.json()).status, "completed");
 
     const unknownThread = await fetch(`${bridgeUrl}/send`, {
       method: "POST",
@@ -268,12 +320,13 @@ test("Codex bridge discovers recent same-project threads through app-server", as
       body: JSON.stringify({ message: "apply this feedback", thread: "thread-c" }),
     });
     assert.equal(send.status, 200, stderr);
-    assert.deepEqual(await send.json(), {
-      ok: true,
-      thread: "thread-c",
-      output: "queued by fake codex",
-      delivery: "queued",
-    });
+    const sent = await send.json();
+    assert.equal(sent.ok, true);
+    assert.equal(sent.thread, "thread-c");
+    assert.equal(sent.output, "queued by fake codex");
+    assert.equal(sent.delivery, "queued");
+    assert.equal(sent.status, "queued");
+    assert.equal(typeof sent.deliveryId, "string");
     assert.deepEqual(await readInvocations(argsPath), [[
       "queue",
       "--thread",

@@ -14,6 +14,7 @@ if (command !== "install") {
   const injector = new URL("../dist/inject-script.js", import.meta.url);
   const codexBridge = new URL("./codex-bridge.mjs", import.meta.url);
   const codexConnect = new URL("./codex-connect.mjs", import.meta.url);
+  const codexLifecycle = new URL("./codex-lifecycle.mjs", import.meta.url);
   const destination = resolve(process.cwd(), ".agents/skills/mesurer-ui");
   const assets = resolve(destination, "assets");
   if (existsSync(destination) && !force) {
@@ -22,7 +23,7 @@ if (command !== "install") {
   } else if (!existsSync(injector)) {
     console.error("Mesurer inject-script asset is missing. Reinstall mesurer-solid and retry.");
     process.exitCode = 1;
-  } else if (!existsSync(codexBridge) || !existsSync(codexConnect)) {
+  } else if (!existsSync(codexBridge) || !existsSync(codexConnect) || !existsSync(codexLifecycle)) {
     console.error("Mesurer Codex companion assets are missing. Reinstall mesurer-solid and retry.");
     process.exitCode = 1;
   } else {
@@ -33,6 +34,7 @@ if (command !== "install") {
     cpSync(injector, resolve(assets, "inject-script.js"));
     cpSync(codexBridge, resolve(assets, "codex-bridge.mjs"));
     cpSync(codexConnect, resolve(assets, "codex-connect.mjs"));
+    cpSync(codexLifecycle, resolve(assets, "codex-lifecycle.mjs"));
     console.log(`Installed Mesurer Agent Skill and assets at ${destination}`);
   }
 }
