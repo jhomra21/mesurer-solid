@@ -29,7 +29,7 @@ curl http://127.0.0.1:47365/health
 
 The response should report the current Codex session as `thread` and include it in `threads`.
 
-Then enable Codex in Mesurer Settings and use **Queue to Codex**. No separate `mesurer-codex` terminal should be needed. Queue adds a follow-up without interrupting an active turn. If the shared Codex control socket is missing, the bridge runs the idempotent `codex app-server daemon start` command and retries; it does not bootstrap or install a daemon package. A cold `notLoaded` destination is then resumed so the message can dispatch, while already-loaded threads remain under Codex's scheduler. Codex's **Steer** control is a separate in-flight action.
+Then enable Codex in Mesurer Settings and use **Queue to Codex**. No separate `mesurer-codex` terminal should be needed. Queue adds a follow-up without interrupting an active turn. If the shared Codex control socket is missing, the bridge runs the idempotent `codex app-server daemon start` command and retries. Codex may prepare its managed daemon package from the current complete CLI during that official start. Mesurer does not call `daemon bootstrap` or enable remote control. A cold `notLoaded` destination is then resumed so the message can dispatch, while already-loaded threads remain under Codex's scheduler. Codex's **Steer** control is a separate in-flight action.
 
 While a tracked request is outstanding, Mesurer disables repeat queue submissions and visibly moves from Queueing to Queued to Working. A normal Stop briefly shows Finished and removes only the annotations included in that delivery. Interruptions keep those notes for retry.
 
