@@ -124,13 +124,19 @@ codex({ clearCompletedAnnotations: false })
 
 This is deliberately a lifecycle completion rule, not a semantic verifier. Mesurer knows that the matching Codex turn stopped; it does not independently prove that every sentence in the note was satisfied. The default queued instruction still tells Codex to verify the affected UI in the live page before claiming completion.
 
-Lifecycle tracking depends on the trusted local plugin hooks. If those hooks are not installed/trusted, or if the bridge is replaced mid-delivery and loses its bounded in-memory delivery record, Mesurer does not remove the annotation speculatively.
+Lifecycle tracking depends on the trusted local plugin hooks. The browser stores the active delivery id, destination thread, lifecycle state, and exact annotation ids in per-tab `sessionStorage` while a delivery is queued or working. If the page reloads, `codex()` resumes polling that exact bridge delivery and can still retire the exact annotations after the matching completion.
+
+If the hooks are not installed/trusted, or if the bridge is replaced mid-delivery and loses its bounded in-memory delivery record, Mesurer does not remove the annotation speculatively.
 
 ## Current-thread affinity and the recent-thread picker
 
-The first healthy bridge thread observed by one mounted `codex()` plugin becomes that page's originating Codex thread. Mesurer keeps sending to that thread even if another Codex session later runs `SessionStart` and becomes the bridge-wide default.
+The first unambiguous healthy bridge thread observed by one mounted `codex()` plugin becomes that page's originating Codex thread. Mesurer keeps sending to that thread even if another Codex session later runs `SessionStart` and becomes the bridge-wide default.
 
-This prevents an already-open Mesurer page from being silently stolen by whichever Codex session registered most recently.
+That page affinity is stored in browser `sessionStorage`, scoped to the configured bridge endpoint plus the page origin and pathname. It survives a reload in the same tab but does not become an account-wide or cross-tab default. A user-selected override is stored with the origin thread too, so reloading does not silently fall back to a different bridge-wide target.
+
+If a reloaded page has no saved affinity and the bridge has more than one registered Codex thread, Mesurer refuses to inherit the bridge's current default. The toolbar becomes **Choose Codex thread** until the user picks a destination. This is intentional: an ambiguous reload must fail closed instead of queueing feedback into an unrelated idle session.
+
+This prevents both an already-open Mesurer page and a reloaded page from being silently stolen by whichever Codex session registered most recently.
 
 Before the first successful bridge contact, the dropdown contains **Choose Codex thread…**. That action initializes the loopback connection and loads recent choices without sending feedback.
 

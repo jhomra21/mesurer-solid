@@ -166,7 +166,7 @@ mountMesurer({
 
 `codex()` does not probe loopback on mount. The first **Queue to Codex** press or **Choose Codex thread…** menu action establishes availability. If the bridge is missing, the action becomes **Codex unavailable** with an explicit retry. After a successful connection, Mesurer health-checks the known companion and recovers automatically if it returns.
 
-The page stays pinned to the Codex thread that originally connected it unless the user chooses another destination. The picker shows five recent same-project threads first and can expand once to ten with **Show 5 more…**. Recent metadata comes from Codex app-server and is scoped to the project directory registered by the trusted local connector.
+The page stays pinned to the Codex thread that originally connected it unless the user chooses another destination. That affinity is stored in per-tab `sessionStorage`, so a reload restores the same origin/selection instead of adopting a newly stale bridge default. If no page affinity exists and more than one thread is registered, the toolbar requires **Choose Codex thread** before queueing. The picker shows five recent same-project threads first and can expand once to ten with **Show 5 more…**. Recent metadata comes from Codex app-server and is scoped to the project directory registered by the trusted local connector.
 
 The bridge never creates a new Codex thread. Open or create it in Codex and let `SessionStart` register it. The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. Browser pages cannot register arbitrary Codex sessions or widen discovery to another project.
 
@@ -174,7 +174,7 @@ This uses Codex's own queued-user-message command. **Queue to Codex** does not i
 
 The toolbar disables the queue action as soon as one delivery starts, preventing duplicate double-click submissions. It then shows **Queued for Codex**, **Codex working…**, and **Codex finished** from the tracked Codex turn. The typed service also exposes `delivery(deliveryId)` and `send()` returns the bridge `deliveryId`, lifecycle `status`, and exact `annotationIds`.
 
-By default, saved annotations included in that delivery are removed only after the matching Codex turn reports completion. Interruptions keep them. Set `codex({ clearCompletedAnnotations: false })` to keep completed notes. Turn completion is a lifecycle signal, not an independent semantic verification of the rendered result.
+By default, saved annotations included in that delivery are removed only after the matching Codex turn reports completion. Interruptions keep them. While a delivery is queued or working, its delivery id, route, status, and exact annotation ids are stored per tab so a reload resumes tracking instead of losing cleanup state. Set `codex({ clearCompletedAnnotations: false })` to keep completed notes. Turn completion is a lifecycle signal, not an independent semantic verification of the rendered result.
 
 This does not replace the normal browser-harness agent workflow.
 
