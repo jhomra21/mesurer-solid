@@ -1369,6 +1369,8 @@ const markTurnTerminal = (thread, turnId, status) => {
   return null;
 };
 
+await loadDeliveryState();
+
 let successfulSends = 0;
 const server = createServer(async (request, response) => {
   const originHeaderPresent = Object.hasOwn(request.headers, "origin");
@@ -1423,6 +1425,7 @@ const server = createServer(async (request, response) => {
 
       const existing = deliveries.get(deliveryId);
       if (existing) {
+        if (existing.transport === "desktop-app") scheduleDesktopDispatch(existing.thread);
         writeJson(response, 200, { ok: true, restored: false, ...publicDelivery(existing) }, origin);
         return;
       }
@@ -1449,10 +1452,14 @@ const server = createServer(async (request, response) => {
 
       pruneDeliveries();
       const now = Date.now();
+      const record = registeredThreads.get(thread);
+      const transport = record?.appToolsPipe ? "desktop-app" : "codex-queue";
       const delivery = {
         id: deliveryId,
         thread,
+        message,
         messageHash: hashMessage(message),
+        transport,
         status: "queued",
         turnId: null,
         queuedSubmissionId: lookup.submission.id,
@@ -1462,15 +1469,24 @@ const server = createServer(async (request, response) => {
         updatedAt: now,
       };
       deliveries.set(delivery.id, delivery);
+      await persistDeliveryState();
 
-      try {
-        const wake = await resumeColdCodexThread(thread);
-        delivery.dispatch = wake.action;
+      if (transport === "desktop-app") {
+        delivery.dispatch = "desktop-local";
         delivery.updatedAt = Date.now();
-      } catch (cause) {
-        delivery.dispatch = "wake-failed";
-        delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
-        delivery.updatedAt = Date.now();
+        await persistDeliveryState();
+        scheduleDesktopDispatch(thread);
+      } else {
+        try {
+          const wake = await resumeColdCodexThread(thread);
+          delivery.dispatch = wake.action;
+          delivery.updatedAt = Date.now();
+        } catch (cause) {
+          delivery.dispatch = "wake-failed";
+          delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
+          delivery.updatedAt = Date.now();
+        }
+        persistDeliveryStateSoon();
       }
 
       writeJson(response, 200, {
@@ -1517,11 +1533,14 @@ const server = createServer(async (request, response) => {
       const body = await readJsonBody(request);
       const thread = normalizeThread(body?.thread);
       const cwd = normalizeCwd(body?.cwd);
+      const appToolsPipe = normalizeThread(body?.appToolsPipe);
+      const codexHome = normalizeCwd(body?.codexHome);
       if (!thread) {
         writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
         return;
       }
-      registerThread(thread, cwd);
+      registerThread(thread, cwd, { appToolsPipe, codexHome });
+      if (appToolsPipe) scheduleDesktopDispatch(thread);
       writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);
@@ -1558,8 +1577,10 @@ const server = createServer(async (request, response) => {
         delivery = markPromptStarted(thread, turnId, prompt);
       } else if (event === "Stop") {
         delivery = markTurnTerminal(thread, turnId, "completed");
+        scheduleDesktopDispatch(thread);
       } else if (event === "Interrupt") {
         delivery = markTurnTerminal(thread, turnId, "interrupted");
+        scheduleDesktopDispatch(thread);
       } else {
         writeJson(response, 400, { ok: false, error: `Unsupported Codex lifecycle event: ${event ?? "<missing>"}` }, origin);
         return;
@@ -1636,12 +1657,32 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    const delivery = createDelivery(thread, message);
+    const record = registeredThreads.get(thread);
+    if (record?.appToolsPipe) {
+      const delivery = createDelivery(thread, message, "desktop-app");
+      delivery.dispatch = "desktop-local";
+      delivery.updatedAt = Date.now();
+      await persistDeliveryState();
+      scheduleDesktopDispatch(thread);
+      successfulSends += 1;
+      writeJson(response, 200, {
+        ok: true,
+        thread,
+        output: "Queued in Mesurer for Codex Desktop.",
+        delivery: "queued",
+        ...publicDelivery(delivery),
+      }, origin);
+      if (values.once && successfulSends >= 1) setImmediate(() => server.close());
+      return;
+    }
+
+    const delivery = createDelivery(thread, message, "codex-queue");
     let output;
     try {
       output = await runCodexQueue(thread, message);
     } catch (cause) {
       deliveries.delete(delivery.id);
+      persistDeliveryStateSoon();
       throw cause;
     }
     delivery.queuedSubmissionId = queuedSubmissionFromOutput(output, thread);
@@ -1663,6 +1704,7 @@ const server = createServer(async (request, response) => {
       delivery.dispatchError = "Codex queue succeeded but did not return a queued submission id.";
       delivery.updatedAt = Date.now();
     }
+    persistDeliveryStateSoon();
 
     successfulSends += 1;
     writeJson(response, 200, {
@@ -1685,6 +1727,9 @@ server.on("error", (error) => {
 });
 
 server.listen(parsedPort, "127.0.0.1", () => {
+  for (const [thread, record] of registeredThreads) {
+    if (record.appToolsPipe) scheduleDesktopDispatch(thread);
+  }
   const address = server.address();
   const port = address?.port ?? parsedPort;
   const url = `http://127.0.0.1:${port}`;
