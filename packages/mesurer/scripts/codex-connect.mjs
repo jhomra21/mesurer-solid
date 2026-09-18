@@ -176,12 +176,18 @@ if (!current) {
   }
 }
 
+const registration = { thread, cwd };
+const appToolsPipe = process.env.CODEX_APP_TOOLS_PIPE_PATH?.trim();
+if (appToolsPipe) registration.appToolsPipe = appToolsPipe;
+const codexHome = process.env.CODEX_HOME?.trim();
+if (codexHome) registration.codexHome = codexHome;
+
 let response;
 try {
   response = await fetch(new URL("threads/register", bridgeUrl), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ thread, cwd }),
+    body: JSON.stringify(registration),
   });
 } catch (cause) {
   const error = cause instanceof Error ? cause.message : String(cause);
