@@ -458,14 +458,19 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         if (!delivery.id || !delivery.thread) {
           throw new Error("Cannot restore a Codex delivery without its id and thread.");
         }
+        const body: {
+          deliveryId: string;
+          thread: string;
+          queuedSubmissionId?: string;
+        } = {
+          deliveryId: delivery.id,
+          thread: delivery.thread,
+        };
+        if (delivery.queuedSubmissionId) body.queuedSubmissionId = delivery.queuedSubmissionId;
         return bridgeDelivery(await bridgeRequest(endpoint, "deliveries/restore", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            deliveryId: delivery.id,
-            thread: delivery.thread,
-            ...(delivery.queuedSubmissionId ? { queuedSubmissionId: delivery.queuedSubmissionId } : {}),
-          }),
+          body: JSON.stringify(body),
         }));
       };
       const fetchThreads = async (
