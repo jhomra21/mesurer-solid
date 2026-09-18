@@ -3,6 +3,8 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 
 const DEFAULT_PORT = 47365;
@@ -10,6 +12,7 @@ const DEFAULT_BRIDGE = `http://127.0.0.1:${DEFAULT_PORT}`;
 const MAX_MESSAGE_BYTES = 64 * 1024;
 const CODEX_TIMEOUT_MS = 30_000;
 const APP_SERVER_TIMEOUT_MS = 5_000;
+const DAEMON_RESUME_TIMEOUT_MS = 10_000;
 const MAX_DISCOVERED_THREADS = 10;
 const MAX_DELIVERIES = 100;
 const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
@@ -195,6 +198,144 @@ const readJsonBody = async (request) => {
   if (!text) return {};
   return JSON.parse(text);
 };
+
+const queuedSubmissionFromOutput = (output, thread) => {
+  const match = output.match(/Queued message (\\S+) for thread (\\S+)\\.?/);
+  if (!match) return null;
+  const queuedThread = match[2].replace(/\\.$/, "");
+  return queuedThread === thread ? match[1] : null;
+};
+
+const codexControlSocketPath = () => {
+  const codexHome = process.env.CODEX_HOME?.trim() || join(homedir(), ".codex");
+  return join(codexHome, "app-server-control", "app-server-control.sock");
+};
+
+const resumeColdCodexThread = (thread) => new Promise((resolve, reject) => {
+  if (process.platform === "win32") {
+    resolve({ action: "unsupported", threadStatus: null });
+    return;
+  }
+
+  const child = spawn(codexBin, ["stdio-to-uds", codexControlSocketPath()], {
+    env: process.env,
+    shell: false,
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  let stdoutBuffer = "";
+  let stderr = "";
+  let settled = false;
+  let timeout;
+
+  const finish = (error, result) => {
+    if (settled) return;
+    settled = true;
+    if (timeout) clearTimeout(timeout);
+    if (child.exitCode === null) child.kill("SIGTERM");
+    if (error) reject(error);
+    else resolve(result);
+  };
+
+  const send = (message) => {
+    child.stdin.write(`${JSON.stringify(message)}\\n`);
+  };
+
+  const statusType = (status) => {
+    if (typeof status === "string") return status;
+    return status?.type ?? null;
+  };
+
+  const handleMessage = (message) => {
+    if (message?.id === "mesurer-daemon-init") {
+      if (message.error) {
+        finish(new Error(message.error.message || "Codex daemon initialize failed."));
+        return;
+      }
+      send({ method: "initialized" });
+      send({
+        id: "mesurer-thread-read",
+        method: "thread/read",
+        params: {
+          threadId: thread,
+          includeTurns: false,
+        },
+      });
+      return;
+    }
+
+    if (message?.id === "mesurer-thread-read") {
+      if (message.error) {
+        finish(new Error(message.error.message || "Codex daemon thread/read failed."));
+        return;
+      }
+      const threadStatus = statusType(message.result?.thread?.status);
+      if (threadStatus !== "notLoaded") {
+        finish(null, { action: "already-loaded", threadStatus });
+        return;
+      }
+      send({
+        id: "mesurer-thread-resume",
+        method: "thread/resume",
+        params: { threadId: thread },
+      });
+      return;
+    }
+
+    if (message?.id === "mesurer-thread-resume") {
+      if (message.error) {
+        finish(new Error(message.error.message || "Codex daemon thread/resume failed."));
+        return;
+      }
+      finish(null, { action: "resumed", threadStatus: "notLoaded" });
+    }
+  };
+
+  child.stdout.on("data", (chunk) => {
+    stdoutBuffer += chunk.toString();
+    while (true) {
+      const newline = stdoutBuffer.indexOf("\\n");
+      if (newline < 0) break;
+      const line = stdoutBuffer.slice(0, newline).trim();
+      stdoutBuffer = stdoutBuffer.slice(newline + 1);
+      if (!line) continue;
+      try {
+        handleMessage(JSON.parse(line));
+      } catch {
+        // The relay carries app-server JSONL. Ignore unrelated stdout defensively.
+      }
+    }
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
+  });
+  child.on("error", (error) => finish(error));
+  child.on("close", (code, signal) => {
+    if (settled) return;
+    const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
+    finish(new Error(`Codex daemon relay exited before thread resume check completed: ${detail}`));
+  });
+
+  timeout = setTimeout(() => {
+    child.kill("SIGTERM");
+    finish(new Error(`Codex daemon resume check timed out after ${DAEMON_RESUME_TIMEOUT_MS}ms.`));
+  }, DAEMON_RESUME_TIMEOUT_MS);
+
+  send({
+    id: "mesurer-daemon-init",
+    method: "initialize",
+    params: {
+      clientInfo: {
+        name: "mesurer-solid",
+        title: "Mesurer Solid",
+        version: "1",
+      },
+      capabilities: {
+        experimentalApi: false,
+      },
+    },
+  });
+});
 
 const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
   const child = spawn(codexBin, ["queue", "--thread", thread, "--message", message], {
@@ -437,6 +578,9 @@ const publicDelivery = (delivery) => ({
   thread: delivery.thread,
   status: delivery.status,
   turnId: delivery.turnId,
+  queuedSubmissionId: delivery.queuedSubmissionId,
+  dispatch: delivery.dispatch,
+  dispatchError: delivery.dispatchError,
   createdAt: delivery.createdAt,
   updatedAt: delivery.updatedAt,
 });
@@ -468,6 +612,9 @@ const createDelivery = (thread, message) => {
     messageHash: hashMessage(message),
     status: "queued",
     turnId: null,
+    queuedSubmissionId: null,
+    dispatch: "persisting",
+    dispatchError: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -703,6 +850,26 @@ const server = createServer(async (request, response) => {
       deliveries.delete(delivery.id);
       throw cause;
     }
+    delivery.queuedSubmissionId = queuedSubmissionFromOutput(output, thread);
+    delivery.dispatch = "persisted";
+    delivery.updatedAt = Date.now();
+
+    if (delivery.queuedSubmissionId) {
+      try {
+        const wake = await resumeColdCodexThread(thread);
+        delivery.dispatch = wake.action;
+        delivery.updatedAt = Date.now();
+      } catch (cause) {
+        delivery.dispatch = "wake-failed";
+        delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
+        delivery.updatedAt = Date.now();
+      }
+    } else {
+      delivery.dispatch = "untracked";
+      delivery.dispatchError = "Codex queue succeeded but did not return a queued submission id.";
+      delivery.updatedAt = Date.now();
+    }
+
     successfulSends += 1;
     writeJson(response, 200, {
       ok: true,
