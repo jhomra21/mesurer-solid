@@ -170,7 +170,7 @@ The page stays pinned to the Codex thread that originally connected it unless th
 
 The bridge never creates a new Codex thread. Open or create it in Codex and let `SessionStart` register it. The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. Browser pages cannot register arbitrary Codex sessions or widen discovery to another project.
 
-This uses Codex's own queued-user-message command. **Queue to Codex** does not interrupt an active turn. Codex's separate **Steer** action targets an in-flight turn and Mesurer does not invoke it today. Programmatic `send()` resolves with `delivery: "queued"`.
+This uses Codex's own queued-user-message command. **Queue to Codex** does not interrupt an active turn. After durable queue acceptance, the bridge checks the same shared app-server daemon and resumes only a cold `notLoaded` destination; already-loaded threads keep Codex's normal queue scheduling. Codex's separate **Steer** action targets an in-flight turn and Mesurer does not invoke it today. Programmatic `send()` resolves with `delivery: "queued"` and, on current Codex builds, includes the durable queued-submission id plus bridge dispatch metadata.
 
 The toolbar disables the queue action as soon as one delivery starts, preventing duplicate double-click submissions. It then shows **Queued for Codex**, **Codex working…**, and **Codex finished** from the tracked Codex turn. The typed service also exposes `delivery(deliveryId)` and `send()` returns the bridge `deliveryId`, lifecycle `status`, and exact `annotationIds`.
 
