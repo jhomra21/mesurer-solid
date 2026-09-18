@@ -193,19 +193,15 @@ const readBrowserState = (endpoint: string): PersistedCodexUiState | null => {
   try {
     const raw = globalThis.sessionStorage?.getItem(key);
     if (!raw) return null;
-    const value = JSON.parse(raw) as Partial<PersistedCodexUiState>;
+    // SAFETY: this key is written only by writeBrowserState. Foreign or malformed JSON shapes
+    // can still throw while normalizing below; the surrounding boundary rejects them as no state.
+    const value = JSON.parse(raw) as PersistedCodexUiState;
     if (value.version !== 1) return null;
-    const originThread = typeof value.originThread === "string" && value.originThread.trim()
-      ? value.originThread.trim()
-      : null;
-    const selectedThread = typeof value.selectedThread === "string" && value.selectedThread.trim()
-      ? value.selectedThread.trim()
-      : null;
+    const originThread = value.originThread?.trim() || null;
+    const selectedThread = value.selectedThread?.trim() || null;
     const delivery = value.delivery;
     const persistedDelivery = delivery
-      && typeof delivery.id === "string"
       && delivery.id.trim()
-      && typeof delivery.thread === "string"
       && delivery.thread.trim()
       && (delivery.status === "queued" || delivery.status === "working")
       && Array.isArray(delivery.annotationIds)
@@ -213,8 +209,7 @@ const readBrowserState = (endpoint: string): PersistedCodexUiState | null => {
           id: delivery.id.trim(),
           thread: delivery.thread.trim(),
           status: delivery.status,
-          annotationIds: delivery.annotationIds.filter((id): id is string =>
-            typeof id === "string" && id.trim().length > 0),
+          annotationIds: delivery.annotationIds.filter((id) => id.trim().length > 0),
         }
       : null;
     return {
