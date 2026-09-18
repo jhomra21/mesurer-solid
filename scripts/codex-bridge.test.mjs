@@ -822,7 +822,7 @@ process.stdin.on("data", (chunk) => {
   await chmod(fakeDesktopMcp, 0o755);
 
   await writeFile(
-    join(pluginDirectory, "desktop-mcp.json"),
+    join(pluginDirectory, ".mcp.json"),
     JSON.stringify({
       mcpServers: {
         codex_app: {
