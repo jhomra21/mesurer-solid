@@ -906,7 +906,7 @@ const codexAppMcpConfig = async (record) => {
       : [];
     const cwd = resolve(directory, normalizeCwd(server?.cwd) ?? ".");
     const env = {};
-    if (server?.env && typeof server.env === "object" && !Array.isArray(server.env)) {
+    if (server?.env?.constructor === Object) {
       for (const [name, value] of Object.entries(server.env)) {
         if (value != null) env[name] = String(value);
       }
@@ -926,7 +926,7 @@ const mcpToolPayload = (result) => {
       : "";
     throw new Error(detail || "Codex Desktop app tool returned an error.");
   }
-  if (result?.structuredContent && typeof result.structuredContent === "object") {
+  if (result?.structuredContent?.constructor === Object) {
     return result.structuredContent;
   }
   const text = Array.isArray(result?.content)
