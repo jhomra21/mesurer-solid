@@ -60,12 +60,26 @@ export type MesurerCodexSendRequest = {
 };
 
 export type MesurerCodexDeliveryStatus = "queued" | "working" | "completed" | "interrupted";
+export type MesurerCodexDispatchStatus =
+  | "persisting"
+  | "persisted"
+  | "resumed"
+  | "already-loaded"
+  | "unsupported"
+  | "wake-failed"
+  | "untracked";
 
 export type MesurerCodexDelivery = {
   id: string;
   thread: string;
   status: MesurerCodexDeliveryStatus;
   turnId: string | null;
+  /** Codex's durable queue identity when the current CLI reports it. */
+  queuedSubmissionId?: string | null;
+  /** Bridge-side dispatch action after Codex durably accepted the queue item. */
+  dispatch?: MesurerCodexDispatchStatus;
+  /** Non-fatal wake diagnostic when persistence succeeded but dispatch could not be verified. */
+  dispatchError?: string | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -78,6 +92,12 @@ export type MesurerCodexSendResult = {
   /** Bridge lifecycle id. Null only when talking to an older compatible bridge. */
   deliveryId: string | null;
   status: MesurerCodexDeliveryStatus;
+  /** Codex's durable queue identity when the current CLI reports it. */
+  queuedSubmissionId?: string | null;
+  /** Bridge-side dispatch action after Codex durably accepted the queue item. */
+  dispatch?: MesurerCodexDispatchStatus;
+  /** Non-fatal wake diagnostic when persistence succeeded but dispatch could not be verified. */
+  dispatchError?: string | null;
   /** Exact saved annotations included in this queued request. */
   annotationIds: string[];
 };
@@ -146,6 +166,9 @@ type BridgeResponse = {
   deliveryId?: string;
   status?: MesurerCodexDeliveryStatus;
   turnId?: string | null;
+  queuedSubmissionId?: string | null;
+  dispatch?: MesurerCodexDispatchStatus;
+  dispatchError?: string | null;
   createdAt?: number;
   updatedAt?: number;
   error?: string;
@@ -293,6 +316,13 @@ const bridgeDelivery = (response: BridgeResponse): MesurerCodexDelivery => {
     thread,
     status,
     turnId: response.turnId?.trim() || null,
+    ...(response.queuedSubmissionId !== undefined
+      ? { queuedSubmissionId: response.queuedSubmissionId?.trim() || null }
+      : {}),
+    ...(response.dispatch !== undefined ? { dispatch: response.dispatch } : {}),
+    ...(response.dispatchError !== undefined
+      ? { dispatchError: response.dispatchError?.trim() || null }
+      : {}),
     createdAt: Number.isFinite(response.createdAt) ? Number(response.createdAt) : 0,
     updatedAt: Number.isFinite(response.updatedAt) ? Number(response.updatedAt) : 0,
   };
@@ -771,6 +801,13 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               delivery: "queued",
               deliveryId: response.deliveryId?.trim() || null,
               status: response.status ?? "queued",
+              ...(response.queuedSubmissionId !== undefined
+                ? { queuedSubmissionId: response.queuedSubmissionId?.trim() || null }
+                : {}),
+              ...(response.dispatch !== undefined ? { dispatch: response.dispatch } : {}),
+              ...(response.dispatchError !== undefined
+                ? { dispatchError: response.dispatchError?.trim() || null }
+                : {}),
               annotationIds: feedback.annotationIds,
             };
           } catch (cause) {
