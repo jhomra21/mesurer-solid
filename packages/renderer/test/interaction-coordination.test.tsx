@@ -342,17 +342,7 @@ describe("page interaction coordination", () => {
       expect(value).toBeTruthy();
       return value!;
     });
-    root.getBoundingClientRect = () => ({
-      x: 260,
-      y: 136,
-      left: 260,
-      right: 312,
-      top: 136,
-      bottom: 176,
-      width: 52,
-      height: 40,
-      toJSON: () => ({}),
-    } as DOMRect);
+    root.getBoundingClientRect = () => new DOMRect(260, 136, 52, 40);
 
     document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-trigger="tall-plugin-menu"]')!.click();
     const menu = await vi.waitFor(() => {
