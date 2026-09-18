@@ -142,7 +142,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     assert.equal(sent.output, "queued by fake codex");
     assert.equal(sent.delivery, "queued");
     assert.equal(sent.status, "queued");
-    assert.equal(typeof sent.deliveryId, "string");
+    assert.match(sent.deliveryId, /^[0-9a-f-]{36}$/);
 
     const queuedStatus = await fetch(`${bridgeUrl}/deliveries/${sent.deliveryId}`, {
       headers: { Origin: "http://127.0.0.1:4255" },
@@ -326,7 +326,7 @@ test("Codex bridge discovers recent same-project threads through app-server", as
     assert.equal(sent.output, "queued by fake codex");
     assert.equal(sent.delivery, "queued");
     assert.equal(sent.status, "queued");
-    assert.equal(typeof sent.deliveryId, "string");
+    assert.match(sent.deliveryId, /^[0-9a-f-]{36}$/);
     assert.deepEqual(await readInvocations(argsPath), [[
       "queue",
       "--thread",

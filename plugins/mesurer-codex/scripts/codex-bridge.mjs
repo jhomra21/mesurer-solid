@@ -609,7 +609,7 @@ const server = createServer(async (request, response) => {
 
       let delivery = null;
       if (event === "UserPromptSubmit") {
-        const prompt = typeof body?.prompt === "string" ? body.prompt : "";
+        const prompt = body?.prompt?.trim?.() ?? "";
         if (!prompt) {
           writeJson(response, 400, { ok: false, error: "UserPromptSubmit requires prompt." }, origin);
           return;
@@ -624,11 +624,15 @@ const server = createServer(async (request, response) => {
         return;
       }
       pruneDeliveries();
-      writeJson(response, 200, {
-        ok: true,
-        matched: Boolean(delivery),
-        ...(delivery ? publicDelivery(delivery) : {}),
-      }, origin);
+      if (delivery) {
+        writeJson(response, 200, {
+          ok: true,
+          matched: true,
+          ...publicDelivery(delivery),
+        }, origin);
+      } else {
+        writeJson(response, 200, { ok: true, matched: false }, origin);
+      }
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);
       writeJson(response, 400, { ok: false, error }, origin);

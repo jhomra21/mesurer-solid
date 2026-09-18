@@ -120,7 +120,7 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
     assert.equal(sent.output, "queued by fake codex");
     assert.equal(sent.delivery, "queued");
     assert.equal(sent.status, "queued");
-    assert.equal(typeof sent.deliveryId, "string");
+    assert.match(sent.deliveryId, /^[0-9a-f-]{36}$/);
 
     const invocations = (await readFile(argsPath, "utf8"))
       .trim()
