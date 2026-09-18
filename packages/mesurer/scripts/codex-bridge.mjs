@@ -764,6 +764,409 @@ const queuedSubmissionMessage = (submission) => {
 };
 
 
+
+const runCodexQueueDelete = (thread, queuedSubmissionId) => new Promise((resolveDelete, rejectDelete) => {
+  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+    env: process.env,
+    shell: false,
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  let stdoutBuffer = "";
+  let stderr = "";
+  let settled = false;
+  let timeout;
+
+  const finish = (error, result) => {
+    if (settled) return;
+    settled = true;
+    if (timeout) clearTimeout(timeout);
+    if (child.exitCode === null) child.kill("SIGTERM");
+    if (error) rejectDelete(error);
+    else resolveDelete(result);
+  };
+
+  const send = (message) => {
+    child.stdin.write(`${JSON.stringify(message)}\n`);
+  };
+
+  const handleMessage = (message) => {
+    if (message?.id === "mesurer-queue-delete-init") {
+      if (message.error) {
+        finish(new Error(message.error.message || "Codex app-server initialize failed."));
+        return;
+      }
+      send({ method: "initialized" });
+      send({
+        id: "mesurer-queue-delete",
+        method: "thread/queue/delete",
+        params: {
+          threadId: thread,
+          queuedSubmissionId,
+        },
+      });
+      return;
+    }
+
+    if (message?.id === "mesurer-queue-delete") {
+      if (message.error) {
+        finish(new Error(message.error.message || "Codex app-server thread/queue/delete failed."));
+        return;
+      }
+      if (message.result?.deleted !== true) {
+        finish(new Error(`Codex queued submission was not deleted: ${queuedSubmissionId}`));
+        return;
+      }
+      finish(null, true);
+    }
+  };
+
+  child.stdout.on("data", (chunk) => {
+    stdoutBuffer += chunk.toString();
+    while (true) {
+      const newline = stdoutBuffer.indexOf("\n");
+      if (newline < 0) break;
+      const line = stdoutBuffer.slice(0, newline).trim();
+      stdoutBuffer = stdoutBuffer.slice(newline + 1);
+      if (!line) continue;
+      try {
+        handleMessage(JSON.parse(line));
+      } catch {
+        // App-server protocol is JSONL; ignore unrelated stdout defensively.
+      }
+    }
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
+  });
+  child.on("error", (error) => finish(error));
+  child.on("close", (code, signal) => {
+    if (settled) return;
+    const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
+    finish(new Error(`Codex app-server exited before thread/queue/delete completed: ${detail}`));
+  });
+
+  timeout = setTimeout(() => {
+    child.kill("SIGTERM");
+    finish(new Error(`Codex app-server thread/queue/delete timed out after ${APP_SERVER_TIMEOUT_MS}ms.`));
+  }, APP_SERVER_TIMEOUT_MS);
+
+  send({
+    id: "mesurer-queue-delete-init",
+    method: "initialize",
+    params: {
+      clientInfo: {
+        name: "mesurer-solid",
+        title: "Mesurer Solid",
+        version: "1",
+      },
+      capabilities: {
+        experimentalApi: true,
+      },
+    },
+  });
+});
+
+const codexAppMcpConfig = async (record) => {
+  if (!record?.appToolsPipe) {
+    throw new Error("Codex Desktop app-tools transport is not registered for this thread.");
+  }
+  const codexHome = record.codexHome ?? defaultCodexHome;
+  const packageRoot = join(
+    codexHome,
+    "plugins",
+    "cache",
+    "openai-bundled",
+    "codex-app-tools",
+  );
+  const entries = await readdir(packageRoot, { withFileTypes: true });
+  const versions = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
+
+  for (const version of versions) {
+    const directory = join(packageRoot, version);
+    const configPath = join(directory, "desktop-mcp.json");
+    let text;
+    try {
+      text = await readFile(configPath, "utf8");
+    } catch (cause) {
+      if (cause?.code === "ENOENT") continue;
+      throw cause;
+    }
+    const config = JSON.parse(text);
+    const server = config?.mcpServers?.codex_app;
+    const command = normalizeThread(server?.command);
+    if (!command) continue;
+    const args = Array.isArray(server?.args)
+      ? server.args.map((value) => String(value))
+      : [];
+    const cwd = resolve(directory, normalizeCwd(server?.cwd) ?? ".");
+    const env = {};
+    if (server?.env && typeof server.env === "object" && !Array.isArray(server.env)) {
+      for (const [name, value] of Object.entries(server.env)) {
+        if (value != null) env[name] = String(value);
+      }
+    }
+    return { command, args, cwd, env };
+  }
+
+  throw new Error(
+    `Codex Desktop app-tools MCP config was not found under ${packageRoot}.`,
+  );
+};
+
+const mcpToolPayload = (result) => {
+  if (result?.isError === true) {
+    const detail = Array.isArray(result.content)
+      ? result.content.map((item) => item?.text ?? "").filter(Boolean).join("\n")
+      : "";
+    throw new Error(detail || "Codex Desktop app tool returned an error.");
+  }
+  if (result?.structuredContent && typeof result.structuredContent === "object") {
+    return result.structuredContent;
+  }
+  const text = Array.isArray(result?.content)
+    ? result.content.find((item) => item?.type === "text" && item.text)?.text
+    : null;
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { text };
+  }
+};
+
+const runCodexAppTool = async (record, toolName, baseArguments) => {
+  const config = await codexAppMcpConfig(record);
+  return new Promise((resolveTool, rejectTool) => {
+    const env = { ...process.env, ...config.env };
+    env.CODEX_APP_TOOLS_PIPE_PATH = record.appToolsPipe;
+    const child = spawn(config.command, config.args, {
+      cwd: config.cwd,
+      env,
+      shell: false,
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    let stdoutBuffer = "";
+    let stderr = "";
+    let settled = false;
+    let timeout;
+
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      if (child.exitCode === null) child.kill("SIGTERM");
+      if (error) rejectTool(error);
+      else resolveTool(result);
+    };
+
+    const send = (message) => {
+      child.stdin.write(`${JSON.stringify(message)}\n`);
+    };
+
+    const handleMessage = (message) => {
+      if (message?.id === "mesurer-desktop-init") {
+        if (message.error) {
+          finish(new Error(message.error.message || "Codex Desktop MCP initialize failed."));
+          return;
+        }
+        send({
+          jsonrpc: "2.0",
+          method: "notifications/initialized",
+          params: {},
+        });
+        send({
+          jsonrpc: "2.0",
+          id: "mesurer-desktop-tools",
+          method: "tools/list",
+          params: {},
+        });
+        return;
+      }
+
+      if (message?.id === "mesurer-desktop-tools") {
+        if (message.error) {
+          finish(new Error(message.error.message || "Codex Desktop MCP tools/list failed."));
+          return;
+        }
+        const tools = Array.isArray(message.result?.tools) ? message.result.tools : [];
+        const tool = tools.find((candidate) => candidate?.name === toolName);
+        if (!tool) {
+          finish(new Error(`Codex Desktop app tool is unavailable: ${toolName}`));
+          return;
+        }
+        const argumentsForTool = {};
+        for (const [name, value] of Object.entries(baseArguments)) {
+          argumentsForTool[name] = value;
+        }
+        const properties = tool?.inputSchema?.properties;
+        if (properties && Object.hasOwn(properties, "hostId")) {
+          argumentsForTool.hostId = "local";
+        }
+        send({
+          jsonrpc: "2.0",
+          id: "mesurer-desktop-call",
+          method: "tools/call",
+          params: {
+            name: toolName,
+            arguments: argumentsForTool,
+          },
+        });
+        return;
+      }
+
+      if (message?.id === "mesurer-desktop-call") {
+        if (message.error) {
+          finish(new Error(message.error.message || `Codex Desktop ${toolName} failed.`));
+          return;
+        }
+        try {
+          finish(null, mcpToolPayload(message.result));
+        } catch (cause) {
+          finish(cause);
+        }
+      }
+    };
+
+    child.stdout.on("data", (chunk) => {
+      stdoutBuffer += chunk.toString();
+      while (true) {
+        const newline = stdoutBuffer.indexOf("\n");
+        if (newline < 0) break;
+        const line = stdoutBuffer.slice(0, newline).trim();
+        stdoutBuffer = stdoutBuffer.slice(newline + 1);
+        if (!line) continue;
+        try {
+          handleMessage(JSON.parse(line));
+        } catch {
+          // MCP stdio is JSONL; ignore unrelated stdout defensively.
+        }
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
+    });
+    child.on("error", (error) => finish(error));
+    child.on("close", (code, signal) => {
+      if (settled) return;
+      const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
+      finish(new Error(`Codex Desktop MCP exited before ${toolName} completed: ${detail}`));
+    });
+
+    timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      finish(new Error(`Codex Desktop ${toolName} timed out after ${DESKTOP_MCP_TIMEOUT_MS}ms.`));
+    }, DESKTOP_MCP_TIMEOUT_MS);
+
+    send({
+      jsonrpc: "2.0",
+      id: "mesurer-desktop-init",
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: {
+          name: "mesurer-solid",
+          version: "1",
+        },
+      },
+    });
+  });
+};
+
+const desktopThreadStatus = async (record, thread) => {
+  const payload = await runCodexAppTool(record, "read_thread", { threadId: thread });
+  return normalizeThread(payload?.thread?.status?.type ?? payload?.status?.type);
+};
+
+const sendDesktopThreadMessage = async (record, thread, message) => {
+  const payload = await runCodexAppTool(record, "send_message_to_thread", {
+    threadId: thread,
+    prompt: message,
+  });
+  const sentThread = normalizeThread(payload?.threadId);
+  if (sentThread && sentThread !== thread) {
+    throw new Error(`Codex Desktop sent feedback to unexpected thread ${sentThread}.`);
+  }
+  return payload;
+};
+
+let maybeDispatchDesktopThread = async (_thread) => {};
+
+const scheduleDesktopDispatch = (thread, delay = 0) => {
+  if (desktopDispatchTimers.has(thread)) return;
+  const timer = setTimeout(() => {
+    desktopDispatchTimers.delete(thread);
+    void maybeDispatchDesktopThread(thread);
+  }, delay);
+  desktopDispatchTimers.set(thread, timer);
+};
+
+maybeDispatchDesktopThread = async (thread) => {
+  const record = registeredThreads.get(thread);
+  if (!record?.appToolsPipe) return;
+  const delivery = [...deliveries.values()]
+    .filter((candidate) =>
+      candidate.thread === thread
+      && candidate.transport === "desktop-app"
+      && candidate.status === "queued"
+      && candidate.dispatch !== "desktop-sent"
+      && candidate.dispatch !== "desktop-send-uncertain")
+    .sort((left, right) => left.createdAt - right.createdAt)[0];
+  if (!delivery) return;
+
+  try {
+    const status = await desktopThreadStatus(record, thread);
+    if (status === "active") {
+      delivery.dispatch = "waiting-active";
+      delivery.dispatchError = null;
+      delivery.updatedAt = Date.now();
+      persistDeliveryStateSoon();
+      scheduleDesktopDispatch(thread, DESKTOP_DISPATCH_POLL_MS);
+      return;
+    }
+    if (status === "systemError") {
+      throw new Error("Codex Desktop reports a systemError state for the target thread.");
+    }
+    if (status !== "idle" && status !== "notLoaded") {
+      throw new Error(`Codex Desktop returned unsupported thread status: ${status ?? "<missing>"}`);
+    }
+
+    if (delivery.queuedSubmissionId) {
+      await runCodexQueueDelete(thread, delivery.queuedSubmissionId);
+      delivery.queuedSubmissionId = null;
+      delivery.dispatch = "desktop-local";
+      delivery.dispatchError = null;
+      delivery.updatedAt = Date.now();
+      await persistDeliveryState();
+    }
+
+    try {
+      await sendDesktopThreadMessage(record, thread, delivery.message);
+    } catch (cause) {
+      delivery.dispatch = "desktop-send-uncertain";
+      delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
+      delivery.updatedAt = Date.now();
+      persistDeliveryStateSoon();
+      return;
+    }
+
+    delivery.dispatch = "desktop-sent";
+    delivery.dispatchError = null;
+    delivery.updatedAt = Date.now();
+    persistDeliveryStateSoon();
+  } catch (cause) {
+    delivery.dispatch = "desktop-wait-failed";
+    delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
+    delivery.updatedAt = Date.now();
+    persistDeliveryStateSoon();
+  }
+};
+
 const normalizeTitle = (value) => {
   if (value == null) return null;
   const title = String(value).replace(/\s+/g, " ").trim();
