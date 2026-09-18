@@ -198,6 +198,8 @@ type UiDeliveryState = {
   status: UiDeliveryStatus;
   annotationIds: string[];
   queuedSubmissionId: string | null;
+  dispatch: MesurerCodexDispatchStatus | null;
+  dispatchError: string | null;
 };
 
 type PersistedCodexUiState = {
@@ -210,6 +212,8 @@ type PersistedCodexUiState = {
     status: "queued" | "working";
     annotationIds: string[];
     queuedSubmissionId?: string | null;
+    dispatch?: MesurerCodexDispatchStatus | null;
+    dispatchError?: string | null;
   } | null;
 };
 
@@ -247,6 +251,8 @@ const readBrowserState = (endpoint: string): PersistedCodexUiState | null => {
           status: delivery.status,
           annotationIds: delivery.annotationIds.filter((id) => id.trim().length > 0),
           queuedSubmissionId: delivery.queuedSubmissionId?.trim() || null,
+          dispatch: delivery.dispatch ?? null,
+          dispatchError: delivery.dispatchError?.trim() || null,
         }
       : null;
     return {
@@ -455,6 +461,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             status: persistedUiState.delivery.status,
             annotationIds: persistedUiState.delivery.annotationIds,
             queuedSubmissionId: persistedUiState.delivery.queuedSubmissionId ?? null,
+            dispatch: persistedUiState.delivery.dispatch ?? null,
+            dispatchError: persistedUiState.delivery.dispatchError ?? null,
           }
         : null;
       let deliveryPollTimer = 0;
@@ -501,6 +509,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               status: activeDelivery.status,
               annotationIds: [...activeDelivery.annotationIds],
               queuedSubmissionId: activeDelivery.queuedSubmissionId,
+              dispatch: activeDelivery.dispatch,
+              dispatchError: activeDelivery.dispatchError,
             }
           : null;
         writeBrowserState(endpoint, {
@@ -520,6 +530,9 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       };
       const deliveryBusy = () => activeDelivery !== null
         && ["queueing", "queued", "working", "completed"].includes(activeDelivery.status);
+      const deliveryBlocked = () => activeDelivery?.status === "queued"
+        && (activeDelivery.dispatch === "desktop-send-uncertain"
+          || activeDelivery.dispatch === "desktop-wait-failed");
       const deliveryStatusText = (status: UiDeliveryStatus) => {
         if (status === "queueing") return "Queueing…";
         if (status === "queued") return "Queued";
@@ -531,6 +544,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       const deliveryToolLabel = () => {
         if (!activeDelivery) return null;
         if (activeDelivery.status === "queueing") return "Queueing to Codex…";
+        if (deliveryBlocked()) return "Codex delivery blocked";
         if (activeDelivery.status === "queued") return "Queued for Codex";
         if (activeDelivery.status === "working") return "Codex working…";
         if (activeDelivery.status === "completed") return "Codex finished";
@@ -589,7 +603,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               ? "Connected · "
               : "";
           const deliverySuffix = activeDelivery?.thread === thread.id
-            ? ` · ${deliveryStatusText(activeDelivery.status)}`
+            ? ` · ${deliveryBlocked() ? "Blocked" : deliveryStatusText(activeDelivery.status)}`
             : "";
           return {
             id: `codex.thread.${thread.id}`,
@@ -757,6 +771,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           thread: delivery.thread,
           status: delivery.status,
           queuedSubmissionId: delivery.queuedSubmissionId ?? activeDelivery.queuedSubmissionId,
+          dispatch: delivery.dispatch ?? activeDelivery.dispatch,
+          dispatchError: delivery.dispatchError ?? activeDelivery.dispatchError,
         };
         persistUiState();
         if (delivery.status === "completed") {
@@ -880,6 +896,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           status: "queueing",
           annotationIds: [],
           queuedSubmissionId: null,
+          dispatch: null,
+          dispatchError: null,
         };
         syncTool();
 
@@ -893,6 +911,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               status: result.status,
               annotationIds: result.annotationIds,
               queuedSubmissionId: result.queuedSubmissionId ?? null,
+              dispatch: result.dispatch ?? null,
+              dispatchError: result.dispatchError ?? null,
             };
             bindPageThread(result.thread, !originThread);
             persistUiState();
