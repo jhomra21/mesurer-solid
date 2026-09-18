@@ -516,12 +516,17 @@ if (args[0] === "queue") {
     assert.equal(sent.dispatchError, null);
 
     const invocations = await readInvocations(argsPath);
-    assert.deepEqual(invocations.map((args) => args.slice(0, 3)), [
-      ["queue", "--thread", "thread-cold"],
-      ["stdio-to-uds", invocations[1][1]],
-      ["app-server", "daemon", "start"],
-      ["stdio-to-uds", invocations[3][1]],
+    assert.deepEqual(invocations[0], [
+      "queue",
+      "--thread",
+      "thread-cold",
+      "--message",
+      "wake without a preexisting daemon",
     ]);
+    assert.equal(invocations[1][0], "stdio-to-uds");
+    assert.deepEqual(invocations[2], ["app-server", "daemon", "start"]);
+    assert.equal(invocations[3][0], "stdio-to-uds");
+    assert.equal(invocations[1][1], invocations[3][1]);
 
     const protocol = await readInvocations(protocolPath);
     assert.deepEqual(
