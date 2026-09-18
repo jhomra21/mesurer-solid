@@ -3,8 +3,9 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
+import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 const DEFAULT_PORT = 47365;
@@ -14,6 +15,9 @@ const CODEX_TIMEOUT_MS = 30_000;
 const APP_SERVER_TIMEOUT_MS = 5_000;
 const DAEMON_RESUME_TIMEOUT_MS = 10_000;
 const DAEMON_START_TIMEOUT_MS = 15_000;
+const DESKTOP_MCP_TIMEOUT_MS = 10_000;
+const DESKTOP_DISPATCH_POLL_MS = 1_000;
+const DELIVERY_STATE_VERSION = 1;
 const MAX_DISCOVERED_THREADS = 10;
 const MAX_DELIVERIES = 100;
 const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
@@ -129,28 +133,40 @@ if (!Number.isInteger(parsedPort) || parsedPort < 0 || parsedPort > 65_535) {
 
 const initialThread = normalizeThread(values.thread) ?? envThread;
 const initialCwd = initialThread ? (normalizeCwd(values.cwd) ?? process.cwd()) : null;
+const initialAppToolsPipe = normalizeThread(process.env.CODEX_APP_TOOLS_PIPE_PATH);
+const initialCodexHome = normalizeCwd(process.env.CODEX_HOME);
 const codexBin = values.codex?.trim() || process.env.CODEX_BIN?.trim() || "codex";
 const additionalOrigins = new Set(values.origin ?? []);
 const registeredThreads = new Map();
 const discoveredThreads = new Map();
 const deliveries = new Map();
 const terminalTurnEvents = new Map();
+const desktopDispatchTimers = new Map();
 let activeThread = null;
 let activeCwd = null;
 
-const registerThread = (thread, cwd) => {
+const registerThread = (thread, cwd, registration = {}) => {
   const previous = registeredThreads.get(thread);
   const nextCwd = normalizeCwd(cwd) ?? previous?.cwd ?? null;
+  const appToolsPipe = normalizeThread(registration.appToolsPipe) ?? previous?.appToolsPipe ?? null;
+  const codexHome = normalizeCwd(registration.codexHome) ?? previous?.codexHome ?? null;
   registeredThreads.set(thread, {
     id: thread,
     cwd: nextCwd,
+    appToolsPipe,
+    codexHome,
     seenAt: Date.now(),
   });
   activeThread = thread;
   if (nextCwd) activeCwd = nextCwd;
 };
 
-if (initialThread) registerThread(initialThread, initialCwd);
+if (initialThread) {
+  registerThread(initialThread, initialCwd, {
+    appToolsPipe: initialAppToolsPipe,
+    codexHome: initialCodexHome,
+  });
+}
 
 const isLoopbackOrigin = (origin) => {
   try {
