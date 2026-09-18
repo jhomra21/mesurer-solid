@@ -408,7 +408,7 @@ export function Toolbar(props: ToolbarProps) {
             aria-checked={item.checked ? (item.checked() ? "true" : "false") : undefined}
             data-mesurer-tool-menu-item={item.id}
             disabled={item.disabled?.() ?? false}
-            class="msr:flex msr:h-7 msr:w-full msr:min-w-0 msr:items-center msr:gap-2 msr:overflow-hidden msr:rounded-md msr:px-2 msr:text-left msr:text-[12px] msr:text-ink-700 msr:outline-none msr:whitespace-nowrap msr:hover:bg-[#0d99ff] msr:hover:text-white msr:focus-visible:bg-[#0d99ff] msr:focus-visible:text-white msr:disabled:opacity-40"
+            class="msr:flex msr:h-7 msr:w-full msr:min-w-0 msr:shrink-0 msr:items-center msr:gap-2 msr:overflow-hidden msr:rounded-md msr:px-2 msr:text-left msr:text-[12px] msr:text-ink-700 msr:outline-none msr:whitespace-nowrap msr:hover:bg-[#0d99ff] msr:hover:text-white msr:focus-visible:bg-[#0d99ff] msr:focus-visible:text-white msr:disabled:opacity-40"
             onClick={() => {
               props.onPluginToolMenuItem?.(tool, item);
               setPluginMenuOpenId(null);
