@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Keep generic plugin split menus inside the browser viewport: choose the side with usable space, clamp horizontal placement, and make tall destination lists scroll instead of extending off-screen.
+- Keep generic plugin split menus inside the browser viewport: choose the side with usable space, clamp horizontal placement, widen for long labels up to a bounded desktop width, keep selected rows filling the menu, prevent horizontal scrolling, and make tall destination lists scroll vertically instead of extending off-screen.
 - Rename the human Codex action to **Queue to Codex**, return `delivery: "queued"` from programmatic delivery, and document Queue versus in-flight **Steer** semantics instead of implying that Mesurer interrupts an active Codex turn.
 - Add a Codex destination picker that keeps each Mesurer page pinned to the Codex thread that originally connected it, then shows five recent same-project Codex threads from app-server with one **Show 5 more…** expansion to ten.
 - Make **Queue to Codex** health- and CSP-aware: mounting `codex()` does not probe loopback, the first send or thread chooser establishes availability, a missing bridge becomes **Codex unavailable** with an explicit retry, and successful connections continue health-checking for automatic recovery; the trusted SessionStart connector records the project directory used to scope recent-thread discovery.

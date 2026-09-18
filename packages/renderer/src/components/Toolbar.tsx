@@ -36,7 +36,10 @@ export type ToolbarProps = {
 
 const TOOLBAR_DRAG_SLOP = 6;
 const GUIDE_MENU_WIDTH = 176;
-const TOOL_MENU_WIDTH = 224;
+const TOOL_MENU_MIN_WIDTH = 224;
+const TOOL_MENU_MAX_WIDTH = 360;
+const TOOL_MENU_CHARACTER_WIDTH = 6.5;
+const TOOL_MENU_INLINE_CHROME = 52;
 const TOOL_MENU_ITEM_HEIGHT = 28;
 const TOOL_MENU_CHROME_HEIGHT = 8;
 const TOOL_MENU_GAP = 8;
@@ -243,14 +246,30 @@ export function Toolbar(props: ToolbarProps) {
     setMenuAlign("right");
   };
 
+  const pluginMenuIdealWidth = (tool: ToolContribution) => {
+    const longest = (tool.menu?.items ?? []).reduce((length, item) => {
+      const shortcut = props.model.state.settings.shortcutsEnabled && item.shortcut
+        ? item.shortcut.length + 2
+        : 0;
+      return Math.max(length, item.label.length + shortcut);
+    }, 0);
+    return Math.min(
+      TOOL_MENU_MAX_WIDTH,
+      Math.max(
+        TOOL_MENU_MIN_WIDTH,
+        Math.ceil(longest * TOOL_MENU_CHARACTER_WIDTH + TOOL_MENU_INLINE_CHROME),
+      ),
+    );
+  };
+
   const pluginMenuGeometry = (tool: ToolContribution) => {
     position();
     viewportRevision();
     const anchor = pluginMenuAnchorElement?.getBoundingClientRect();
-    const viewportWidth = props.ownerWindow.innerWidth || TOOL_MENU_WIDTH + VIEWPORT_PADDING * 2;
+    const viewportWidth = props.ownerWindow.innerWidth || TOOL_MENU_MIN_WIDTH + VIEWPORT_PADDING * 2;
     const height = viewportHeight();
     const width = Math.min(
-      TOOL_MENU_WIDTH,
+      pluginMenuIdealWidth(tool),
       Math.max(0, viewportWidth - VIEWPORT_PADDING * 2),
     );
     if (!anchor) {
@@ -366,7 +385,7 @@ export function Toolbar(props: ToolbarProps) {
       <div
         data-mesurer-tool-menu={tool.id}
         data-mesurer-menu-side={pluginMenuGeometry(tool).side}
-        class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:flex msr:flex-col msr:gap-px msr:overflow-y-auto ${pluginMenuGeometry(tool).side === "top" ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"}`}
+        class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:flex msr:flex-col msr:gap-px msr:overflow-x-hidden msr:overflow-y-auto ${pluginMenuGeometry(tool).side === "top" ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"}`}
         style={{
           left: `${pluginMenuGeometry(tool).left}px`,
           right: "auto",
@@ -389,7 +408,7 @@ export function Toolbar(props: ToolbarProps) {
             aria-checked={item.checked ? (item.checked() ? "true" : "false") : undefined}
             data-mesurer-tool-menu-item={item.id}
             disabled={item.disabled?.() ?? false}
-            class="msr:flex msr:h-7 msr:w-full msr:items-center msr:gap-2 msr:rounded-md msr:px-2 msr:text-left msr:text-[12px] msr:text-ink-700 msr:outline-none msr:whitespace-nowrap msr:hover:bg-[#0d99ff] msr:hover:text-white msr:focus-visible:bg-[#0d99ff] msr:focus-visible:text-white msr:disabled:opacity-40"
+            class="msr:flex msr:h-7 msr:w-full msr:min-w-0 msr:items-center msr:gap-2 msr:overflow-hidden msr:rounded-md msr:px-2 msr:text-left msr:text-[12px] msr:text-ink-700 msr:outline-none msr:whitespace-nowrap msr:hover:bg-[#0d99ff] msr:hover:text-white msr:focus-visible:bg-[#0d99ff] msr:focus-visible:text-white msr:disabled:opacity-40"
             onClick={() => {
               props.onPluginToolMenuItem?.(tool, item);
               setPluginMenuOpenId(null);
@@ -398,7 +417,7 @@ export function Toolbar(props: ToolbarProps) {
             <span class="msr:flex msr:w-3 msr:shrink-0 msr:justify-center">
               <CheckIcon size={12} class={item.checked?.() ? "msr:opacity-100" : "msr:opacity-0"} />
             </span>
-            <span class="msr:flex-1 msr:whitespace-nowrap">{item.label}</span>
+            <span class="msr:min-w-0 msr:flex-1 msr:overflow-hidden msr:text-ellipsis msr:whitespace-nowrap">{item.label}</span>
             <Show when={props.model.state.settings.shortcutsEnabled && item.shortcut}><span class="msr:shrink-0 msr:text-[10px] msr:opacity-60">{item.shortcut}</span></Show>
           </button>
         )}</For>
