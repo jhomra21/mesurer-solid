@@ -117,6 +117,7 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
       ok: true,
       thread: "thread-hook-b",
       output: "queued by fake codex",
+      delivery: "queued",
     });
 
     const invocations = (await readFile(argsPath, "utf8"))
