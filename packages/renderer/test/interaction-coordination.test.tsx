@@ -39,6 +39,26 @@ const installStaticEyeDropper = (color = "#123456") => {
   });
 };
 
+const tallPluginMenuFixture = defineMesurerPlugin({
+  id: "test.tall-plugin-menu",
+  setup(ctx) {
+    ctx.command.register("test.tall-plugin-menu.run", () => undefined);
+    ctx.tool.register({
+      id: "tall-plugin-menu",
+      label: "Tall menu",
+      command: "test.tall-plugin-menu.run",
+      menu: {
+        label: "Tall menu options",
+        items: Array.from({ length: 10 }, (_, index) => ({
+          id: `item-${index + 1}`,
+          label: `Menu item ${index + 1}`,
+          run: () => undefined,
+        })),
+      },
+    });
+  },
+});
+
 const arrangeInteractionFixture = defineMesurerPlugin({
   id: "test.arrange-interaction",
   setup(ctx) {
@@ -300,6 +320,52 @@ describe("page interaction coordination", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "A", shiftKey: true, bubbles: true, cancelable: true }));
     await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]')?.getAttribute("aria-pressed")).toBe("true"));
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("keeps tall plugin menus inside the viewport and scrolls their contents", async () => {
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(320);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(180);
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const dispose = render(
+      () => <ComposableMesurer
+        persistKey="interaction-plugin-menu-bounds"
+        plugins={[tallPluginMenuFixture]}
+      />,
+      host,
+    );
+    mounted.push(dispose);
+
+    const root = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLElement>('[data-mesurer-plugin-menu-root="true"]');
+      expect(value).toBeTruthy();
+      return value!;
+    });
+    root.getBoundingClientRect = () => ({
+      x: 260,
+      y: 136,
+      left: 260,
+      right: 312,
+      top: 136,
+      bottom: 176,
+      width: 52,
+      height: 40,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-trigger="tall-plugin-menu"]')!.click();
+    const menu = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLElement>('[data-mesurer-tool-menu="tall-plugin-menu"]');
+      expect(value).toBeTruthy();
+      return value!;
+    });
+
+    expect(menu.dataset.mesurerMenuSide).toBe("top");
+    expect(menu.style.left).toBe("-172px");
+    expect(menu.style.width).toBe("224px");
+    expect(menu.style.maxHeight).toBe("120px");
+    expect(menu.className).toContain("msr:overflow-y-auto");
   });
 
   it("reserves page-interaction tools for Arrange and closes its quick menu after a choice", async () => {

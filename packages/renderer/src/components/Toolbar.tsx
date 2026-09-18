@@ -37,6 +37,9 @@ export type ToolbarProps = {
 const TOOLBAR_DRAG_SLOP = 6;
 const GUIDE_MENU_WIDTH = 176;
 const TOOL_MENU_WIDTH = 224;
+const TOOL_MENU_ITEM_HEIGHT = 28;
+const TOOL_MENU_CHROME_HEIGHT = 8;
+const TOOL_MENU_GAP = 8;
 const SETTINGS_MENU_WIDTH = 272;
 const VIEWPORT_PADDING = 8;
 const GUIDE_MENU_IDEAL_HEIGHT = 72;
@@ -134,7 +137,6 @@ export function Toolbar(props: ToolbarProps) {
   const [position, setPosition] = createSignal({ x: 16, y: 16 });
   const [guideMenuOpen, setGuideMenuOpen] = createSignal(false);
   const [pluginMenuOpenId, setPluginMenuOpenId] = createSignal<string | null>(null);
-  const [pluginMenuAlign, setPluginMenuAlign] = createSignal<"left" | "right">("right");
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
   const [menuAlign, setMenuAlign] = createSignal<"left" | "right">("right");
   const [compact, setCompact] = createSignal(false);
@@ -143,6 +145,7 @@ export function Toolbar(props: ToolbarProps) {
   let toolbarElement: HTMLDivElement | undefined;
   let settingsElement: HTMLDivElement | undefined;
   let guideMenuElement: HTMLDivElement | undefined;
+  let pluginMenuAnchorElement: HTMLElement | undefined;
   let suppressClick = false;
   let previousUserSelect: string | null = null;
   const [colorPickerSupported, setColorPickerSupported] = createSignal(false);
@@ -240,13 +243,62 @@ export function Toolbar(props: ToolbarProps) {
     setMenuAlign("right");
   };
 
+  const pluginMenuGeometry = (tool: ToolContribution) => {
+    position();
+    viewportRevision();
+    const anchor = pluginMenuAnchorElement?.getBoundingClientRect();
+    const viewportWidth = props.ownerWindow.innerWidth || TOOL_MENU_WIDTH + VIEWPORT_PADDING * 2;
+    const height = viewportHeight();
+    const width = Math.min(
+      TOOL_MENU_WIDTH,
+      Math.max(0, viewportWidth - VIEWPORT_PADDING * 2),
+    );
+    if (!anchor) {
+      return {
+        side: nearBottom() ? "top" as const : "bottom" as const,
+        left: 0,
+        width,
+        maxHeight: Math.max(0, height - VIEWPORT_PADDING * 2),
+      };
+    }
+
+    const itemCount = tool.menu?.items.length ?? 0;
+    const idealHeight = itemCount * TOOL_MENU_ITEM_HEIGHT + TOOL_MENU_CHROME_HEIGHT;
+    const below = Math.max(
+      0,
+      height - anchor.bottom - VIEWPORT_PADDING - TOOL_MENU_GAP,
+    );
+    const above = Math.max(
+      0,
+      anchor.top - VIEWPORT_PADDING - TOOL_MENU_GAP,
+    );
+    const side = below >= idealHeight || below >= above ? "bottom" as const : "top" as const;
+    const maxHeight = side === "bottom" ? below : above;
+    const idealViewportLeft = anchor.right - width;
+    const maxViewportLeft = Math.max(
+      VIEWPORT_PADDING,
+      viewportWidth - VIEWPORT_PADDING - width,
+    );
+    const viewportLeft = Math.min(
+      maxViewportLeft,
+      Math.max(VIEWPORT_PADDING, idealViewportLeft),
+    );
+
+    return {
+      side,
+      left: viewportLeft - anchor.left,
+      width,
+      maxHeight,
+    };
+  };
+
   const togglePluginMenu = (toolId: string, anchor: HTMLElement) => {
     if (pluginMenuOpenId() === toolId) {
       setPluginMenuOpenId(null);
+      pluginMenuAnchorElement = undefined;
       return;
     }
-    const rect = anchor.getBoundingClientRect();
-    setPluginMenuAlign(rect.right - TOOL_MENU_WIDTH < VIEWPORT_PADDING ? "left" : "right");
+    pluginMenuAnchorElement = anchor;
     setPluginMenuOpenId(toolId);
   };
 
@@ -313,7 +365,14 @@ export function Toolbar(props: ToolbarProps) {
     <Show when={pluginMenuOpenId() === tool.id}>
       <div
         data-mesurer-tool-menu={tool.id}
-        class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:w-56 msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:flex msr:flex-col msr:gap-px ${nearBottom() ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"} ${pluginMenuAlign() === "left" ? "msr:left-0" : "msr:right-0"}`}
+        data-mesurer-menu-side={pluginMenuGeometry(tool).side}
+        class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:flex msr:flex-col msr:gap-px msr:overflow-y-auto ${pluginMenuGeometry(tool).side === "top" ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"}`}
+        style={{
+          left: `${pluginMenuGeometry(tool).left}px`,
+          right: "auto",
+          width: `${pluginMenuGeometry(tool).width}px`,
+          "max-height": `${pluginMenuGeometry(tool).maxHeight}px`,
+        }}
         role="menu"
         aria-label={tool.menu?.label ?? `${tool.label} options`}
         onKeyDown={(event) => {
