@@ -204,7 +204,7 @@ for (const contractName of [
   }
 }
 
-for (const codexMember of ["listThreads", "useThread", "thread?: string", "threads: string[]"]) {
+for (const codexMember of ["listThreads", "useThread", "thread?: string", "threads: string[]", 'delivery: "queued"']) {
   if (!codexDeclarations.includes(codexMember)) {
     throw new Error(`Published Codex plugin declarations are missing thread-routing contract: ${codexMember}.`);
   }

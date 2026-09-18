@@ -28,7 +28,7 @@ export type MesurerCodexPluginOptions = {
   endpoint?: string;
   /** Default instruction prepended to Mesurer evidence. */
   instruction?: string;
-  /** Show the Send to Codex toolbar action. Defaults to true. */
+  /** Show the Queue to Codex toolbar action. Defaults to true. */
   ui?: boolean;
 };
 
@@ -44,6 +44,8 @@ export type MesurerCodexSendRequest = {
 export type MesurerCodexSendResult = {
   thread: string;
   output: string;
+  /** Mesurer currently delivers feedback as a queued Codex follow-up, never as an in-flight steer. */
+  delivery: "queued";
 };
 
 export type MesurerCodexHealth = {
@@ -83,7 +85,10 @@ export type MesurerCodexService = {
   listThreads(options?: MesurerCodexThreadListOptions): Promise<MesurerCodexThreadList>;
   /** Switch the bridge default target to an already-registered thread. */
   useThread(thread: string): Promise<MesurerCodexHealth>;
-  /** Send Context to the page-pinned/default target or one explicit bridge-visible thread. */
+  /**
+   * Queue Context for the page-pinned/default target or one explicit bridge-visible thread.
+   * This does not steer or interrupt an in-flight Codex turn.
+   */
   send(request?: MesurerCodexSendRequest): Promise<MesurerCodexSendResult>;
 };
 
@@ -101,6 +106,7 @@ type BridgeResponse = {
   threadDetails?: BridgeThread[];
   hasMore?: boolean;
   output?: string;
+  delivery?: "queued";
   error?: string;
 };
 
@@ -146,7 +152,7 @@ const bridgeRequest = async (
       throw new Error("Mesurer Codex bridge timed out.");
     }
     if (cause instanceof TypeError) {
-      throw new Error(`Mesurer Codex bridge is unavailable at ${endpoint}. Start the local bridge before sending feedback.`);
+      throw new Error(`Mesurer Codex bridge is unavailable at ${endpoint}. Start the local bridge before queueing feedback.`);
     }
     throw cause;
   } finally {
@@ -230,7 +236,7 @@ const truncateLabel = (value: string, max = 42) => value.length > max
 
 const bridgeTransportUnavailable = (cause: unknown, endpoint: string) =>
   cause instanceof Error
-  && cause.message === `Mesurer Codex bridge is unavailable at ${endpoint}. Start the local bridge before sending feedback.`;
+  && cause.message === `Mesurer Codex bridge is unavailable at ${endpoint}. Start the local bridge before queueing feedback.`;
 
 export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
   const endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
@@ -351,7 +357,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           ? "Codex unavailable"
           : bridgeAvailability === "available" && !target
             ? "No Codex thread"
-            : "Send to Codex";
+            : "Queue to Codex";
         const signature = JSON.stringify({
           bridgeAvailability,
           target,
@@ -373,7 +379,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           order: 73,
           icon: SEND_ICON,
           disabled: () => !canSend,
-          menu: items.length ? { label: "Codex thread", items } : undefined,
+          menu: items.length ? { label: "Codex destination", items } : undefined,
         });
       };
 
@@ -463,7 +469,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             });
             const sentThread = response.thread?.trim();
             if (!sentThread) throw new Error("Mesurer Codex bridge did not report the destination thread.");
-            return { thread: sentThread, output: response.output ?? "" };
+            return { thread: sentThread, output: response.output ?? "", delivery: "queued" };
           } catch (cause) {
             if (withUi && bridgeTransportUnavailable(cause, endpoint)) {
               bridgeAvailability = "unavailable";
@@ -479,10 +485,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         try {
           if (withUi && bridgeAvailability !== "available") await refreshRuntime(true);
           const result = await service.send();
-          console.info(`[Mesurer] Sent feedback to Codex thread ${result.thread}.`);
+          console.info(`[Mesurer] Queued feedback for Codex thread ${result.thread}.`);
         } catch (cause) {
           const message = cause instanceof Error ? cause.message : String(cause);
-          console.error(`[Mesurer] Failed to send feedback to Codex: ${message}`);
+          console.error(`[Mesurer] Failed to queue feedback for Codex: ${message}`);
           throw cause;
         }
       });

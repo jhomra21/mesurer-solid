@@ -74,7 +74,7 @@ describe("codex", () => {
 
     const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
     expect(service).toBeDefined();
-    await expect(service?.send()).resolves.toEqual({ thread: "thread-1", output: "queued" });
+    await expect(service?.send()).resolves.toEqual({ thread: "thread-1", output: "queued", delivery: "queued" });
 
     expect(contextText).toHaveBeenCalledWith({ annotation: "note-1" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -104,10 +104,10 @@ describe("codex", () => {
     await host.load(codex({ endpoint: "http://127.0.0.1:47365" }));
 
     await expect(host.command.execute("codex.send")).rejects.toThrow(
-      "Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before sending feedback.",
+      "Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before queueing feedback.",
     );
     expect(errorSpy).toHaveBeenCalledWith(
-      "[Mesurer] Failed to send feedback to Codex: Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before sending feedback.",
+      "[Mesurer] Failed to queue feedback for Codex: Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before queueing feedback.",
     );
     host.dispose();
   });
@@ -265,14 +265,14 @@ describe("codex", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     const initial = host.tools().find((candidate) => candidate.id === "codex.send");
-    expect(initial?.label).toBe("Send to Codex");
+    expect(initial?.label).toBe("Queue to Codex");
     expect(initial?.disabled?.()).toBe(false);
     expect(initial?.menu?.items.map((item) => item.label)).toEqual(["Choose Codex thread…"]);
     await initial?.menu?.items[0]?.run();
 
     await vi.waitFor(() => {
       const tool = host.tools().find((candidate) => candidate.id === "codex.send");
-      expect(tool?.label).toBe("Send to Codex");
+      expect(tool?.label).toBe("Queue to Codex");
       expect(tool?.disabled?.()).toBe(false);
       expect(tool?.menu?.items).toHaveLength(6);
       expect(tool?.menu?.items[0]?.label).toBe("Current · Original task");
@@ -316,12 +316,12 @@ describe("codex", () => {
 
     const initial = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(initial?.label).toBe("Send to Codex");
+    expect(initial?.label).toBe("Queue to Codex");
     expect(initial?.disabled?.()).toBe(false);
     expect(initial?.menu?.items.map((item) => item.label)).toEqual(["Choose Codex thread…"]);
 
     await expect(host.command.execute("codex.send")).rejects.toThrow(
-      "Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before sending feedback.",
+      "Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before queueing feedback.",
     );
 
     const unavailable = host.tools().find((candidate) => candidate.id === "codex.send");
@@ -355,6 +355,7 @@ describe("codex", () => {
     await expect(service?.send({ thread: "thread-b" })).resolves.toEqual({
       thread: "thread-b",
       output: "queued",
+      delivery: "queued",
     });
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));

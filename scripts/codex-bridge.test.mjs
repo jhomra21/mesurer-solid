@@ -140,6 +140,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
       ok: true,
       thread: "thread-b",
       output: "queued by fake codex",
+      delivery: "queued",
     });
 
     const unknownThread = await fetch(`${bridgeUrl}/send`, {
@@ -271,6 +272,7 @@ test("Codex bridge discovers recent same-project threads through app-server", as
       ok: true,
       thread: "thread-c",
       output: "queued by fake codex",
+      delivery: "queued",
     });
     assert.deepEqual(await readInvocations(argsPath), [[
       "queue",

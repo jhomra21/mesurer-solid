@@ -546,7 +546,7 @@ const server = createServer(async (request, response) => {
 
     const output = await runCodexQueue(thread, message);
     successfulSends += 1;
-    writeJson(response, 200, { ok: true, thread, output }, origin);
+    writeJson(response, 200, { ok: true, thread, output, delivery: "queued" }, origin);
     if (values.once && successfulSends >= 1) setImmediate(() => server.close());
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : String(cause);
