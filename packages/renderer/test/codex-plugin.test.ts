@@ -567,6 +567,113 @@ describe("codex", () => {
     host.dispose();
   });
 
+  it("surfaces an uncertain Codex Desktop send as blocked while continuing lifecycle polling", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService, removeAnnotation } = createContextService();
+    let deliveryReads = 0;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-desktop",
+            threads: ["thread-desktop"],
+          }),
+        };
+      }
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-desktop",
+            threadDetails: [{
+              id: "thread-desktop",
+              title: "Desktop task",
+              updatedAt: 10,
+              connected: true,
+            }],
+            hasMore: false,
+          }),
+        };
+      }
+      if (url.endsWith("/send")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-desktop",
+            output: "Queued in Mesurer for Codex Desktop.",
+            delivery: "queued",
+            deliveryId: "delivery-desktop-blocked",
+            status: "queued",
+            queuedSubmissionId: null,
+            dispatch: "desktop-local",
+            dispatchError: null,
+          }),
+        };
+      }
+      if (url.endsWith("/deliveries/delivery-desktop-blocked")) {
+        deliveryReads += 1;
+        const blocked = deliveryReads === 1;
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            deliveryId: "delivery-desktop-blocked",
+            thread: "thread-desktop",
+            status: blocked ? "queued" : "working",
+            turnId: blocked ? null : "turn-desktop-blocked",
+            queuedSubmissionId: null,
+            dispatch: blocked ? "desktop-send-uncertain" : "desktop-sent",
+            dispatchError: blocked ? "Desktop acknowledgement could not be verified." : null,
+            createdAt: 1,
+            updatedAt: 1 + deliveryReads,
+          }),
+        };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-desktop-blocked",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await host.command.execute("codex.send");
+
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queued for Codex");
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    let tool = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(tool?.label).toBe("Codex delivery blocked");
+    expect(tool?.disabled?.()).toBe(true);
+    expect(tool?.menu?.items[0]?.label).toContain("Blocked");
+    expect(removeAnnotation).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    tool = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(tool?.label).toBe("Codex working…");
+    expect(tool?.disabled?.()).toBe(true);
+    expect(removeAnnotation).not.toHaveBeenCalled();
+
+    host.dispose();
+    vi.useRealTimers();
+  });
+
   it("reattaches a queued delivery after the bridge restarts without sending the feedback twice", async () => {
     vi.useFakeTimers();
     const firstHost = createMesurerPluginHost();
