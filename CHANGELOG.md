@@ -4,6 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep Codex queue delivery live for cold destinations: retain Codex's durable queued-submission id, inspect the same shared app-server daemon after `codex queue`, resume only `notLoaded` threads so persisted feedback can dispatch, and expose non-fatal dispatch diagnostics without turning an accepted queue into a duplicate-prone send failure.
 - Preserve saved Context annotations across same-tab reloads, restore their exact ids/baselines, and conservatively rebind element targets from stored selector/fingerprint identity instead of losing review state when the page refreshes.
 - Preserve page-local Codex routing across browser reloads with per-tab affinity state, refuse to inherit a bridge-wide default when multiple registered threads make the destination ambiguous, and resume exact queued/working delivery tracking after reload so annotation completion cleanup is not lost.
 - Add tracked **Queue to Codex** lifecycle feedback: disable the action before submission to suppress double-click duplicates, show Queueing/Queued/Working/Finished or Interrupted states in the tool and destination row, correlate the exact queued prompt to trusted Codex `UserPromptSubmit` + `Stop`/`Interrupt` hooks, and remove only the annotations included in a successfully completed turn by default.
