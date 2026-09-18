@@ -254,7 +254,7 @@ const missingDaemonSocket = (cause) => {
   if (!(cause instanceof Error)) return false;
   return cause.message.includes("No such file or directory")
     || cause.message.includes("ENOENT")
-    || cause.message.includes("failed to connect to socket");
+    || cause.message.includes("os error 2");
 };
 
 const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject) => {
