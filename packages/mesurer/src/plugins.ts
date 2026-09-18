@@ -64,6 +64,8 @@ export {
   MESURER_CODEX_SERVICE_ID,
 } from "./codex-plugin";
 export type {
+  MesurerCodexDelivery,
+  MesurerCodexDeliveryStatus,
   MesurerCodexHealth,
   MesurerCodexPluginOptions,
   MesurerCodexSendRequest,
