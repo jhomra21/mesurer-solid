@@ -185,7 +185,7 @@ mountMesurer({
 
 Mounting `codex()` does not contact localhost. The first **Queue to Codex** press or **Choose Codex thread…** menu action establishes the connection. If the bridge is unavailable, the action becomes disabled as **Codex unavailable** and the dropdown offers **Retry Codex connection**. After one successful connection, Mesurer health-checks the known companion and recovers automatically if it restarts.
 
-**Queue to Codex** is literal: it adds a follow-up without interrupting the active Codex turn. Codex may show its own **Steer** action on that queued message; Mesurer does not invoke `turn/steer` today. Programmatic `send()` reports `delivery: "queued"` so callers do not have to infer the delivery mode.
+**Queue to Codex** is literal: it adds a follow-up without interrupting the active Codex turn. After Codex durably accepts the queue item, the companion checks the same shared app-server daemon and resumes only a cold `notLoaded` destination so the persisted queue can dispatch. Already-loaded threads stay under Codex's scheduler. Codex may show its own **Steer** action on that queued message; Mesurer does not invoke `turn/steer` today. Programmatic `send()` reports `delivery: "queued"` and exposes Codex's queued-submission id plus dispatch metadata when available.
 
 Queue delivery has visible lifecycle state. The action disables immediately while it is queueing so a double-click cannot submit the same review twice, then changes through **Queued for Codex**, **Codex working…**, and **Codex finished** as the trusted Codex hooks correlate that exact queued prompt with its turn. The selected destination row shows the same state.
 
