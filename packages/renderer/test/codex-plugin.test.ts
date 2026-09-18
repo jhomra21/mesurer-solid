@@ -65,7 +65,7 @@ describe("codex", () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued", deliveryId: "delivery-1", status: "queued" }),
+      text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued", deliveryId: "delivery-1", status: "queued", queuedSubmissionId: "queue-1", dispatch: "resumed", dispatchError: null }),
     }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -86,6 +86,9 @@ describe("codex", () => {
       delivery: "queued",
       deliveryId: "delivery-1",
       status: "queued",
+      queuedSubmissionId: "queue-1",
+      dispatch: "resumed",
+      dispatchError: null,
       annotationIds: ["note-1"],
     });
 
