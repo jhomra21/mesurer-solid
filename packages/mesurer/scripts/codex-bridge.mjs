@@ -200,9 +200,9 @@ const readJsonBody = async (request) => {
 };
 
 const queuedSubmissionFromOutput = (output, thread) => {
-  const match = output.match(/Queued message (\\S+) for thread (\\S+)\\.?/);
+  const match = output.match(/Queued message (\S+) for thread (\S+)\.?/);
   if (!match) return null;
-  const queuedThread = match[2].replace(/\\.$/, "");
+  const queuedThread = match[2].replace(/\.$/, "");
   return queuedThread === thread ? match[1] : null;
 };
 
@@ -238,7 +238,7 @@ const resumeColdCodexThread = (thread) => new Promise((resolve, reject) => {
   };
 
   const send = (message) => {
-    child.stdin.write(`${JSON.stringify(message)}\\n`);
+    child.stdin.write(`${JSON.stringify(message)}\n`);
   };
 
   const statusType = (status) => {
@@ -294,7 +294,7 @@ const resumeColdCodexThread = (thread) => new Promise((resolve, reject) => {
   child.stdout.on("data", (chunk) => {
     stdoutBuffer += chunk.toString();
     while (true) {
-      const newline = stdoutBuffer.indexOf("\\n");
+      const newline = stdoutBuffer.indexOf("\n");
       if (newline < 0) break;
       const line = stdoutBuffer.slice(0, newline).trim();
       stdoutBuffer = stdoutBuffer.slice(newline + 1);
