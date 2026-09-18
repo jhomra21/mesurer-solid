@@ -525,6 +525,145 @@ const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
   });
 });
 
+const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((resolve, reject) => {
+  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+    env: process.env,
+    shell: false,
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  let stdoutBuffer = "";
+  let stderr = "";
+  let settled = false;
+  let timeout;
+  let cursor = null;
+  let page = 0;
+
+  const finish = (error, result) => {
+    if (settled) return;
+    settled = true;
+    if (timeout) clearTimeout(timeout);
+    if (child.exitCode === null) child.kill("SIGTERM");
+    if (error) reject(error);
+    else resolve(result);
+  };
+
+  const send = (message) => {
+    child.stdin.write(`${JSON.stringify(message)}\n`);
+  };
+
+  const requestPage = () => {
+    page += 1;
+    send({
+      id: `mesurer-queue-list-${page}`,
+      method: "thread/queue/list",
+      params: {
+        threadId: thread,
+        limit: queuedSubmissionId ? 100 : 2,
+        ...(cursor ? { cursor } : {}),
+      },
+    });
+  };
+
+  const handleMessage = (message) => {
+    if (message?.id === "mesurer-queue-init") {
+      if (message.error) {
+        finish(new Error(message.error.message || "Codex app-server initialize failed."));
+        return;
+      }
+      send({ method: "initialized" });
+      requestPage();
+      return;
+    }
+
+    if (typeof message?.id !== "string" || !message.id.startsWith("mesurer-queue-list-")) return;
+    if (message.error) {
+      finish(new Error(message.error.message || "Codex app-server thread/queue/list failed."));
+      return;
+    }
+
+    const data = Array.isArray(message.result?.data) ? message.result.data : [];
+    const nextCursor = normalizeThread(message.result?.nextCursor);
+    if (queuedSubmissionId) {
+      const submission = data.find((candidate) => candidate?.id === queuedSubmissionId);
+      if (submission) {
+        finish(null, { submission, ambiguous: false });
+        return;
+      }
+      if (nextCursor) {
+        cursor = nextCursor;
+        requestPage();
+        return;
+      }
+      finish(null, { submission: null, ambiguous: false });
+      return;
+    }
+
+    if (data.length === 1 && !nextCursor) {
+      finish(null, { submission: data[0], ambiguous: false });
+      return;
+    }
+    finish(null, {
+      submission: null,
+      ambiguous: data.length > 1 || Boolean(nextCursor),
+    });
+  };
+
+  child.stdout.on("data", (chunk) => {
+    stdoutBuffer += chunk.toString();
+    while (true) {
+      const newline = stdoutBuffer.indexOf("\n");
+      if (newline < 0) break;
+      const line = stdoutBuffer.slice(0, newline).trim();
+      stdoutBuffer = stdoutBuffer.slice(newline + 1);
+      if (!line) continue;
+      try {
+        handleMessage(JSON.parse(line));
+      } catch {
+        // App-server protocol is JSONL; ignore unrelated stdout defensively.
+      }
+    }
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
+  });
+  child.on("error", (error) => finish(error));
+  child.on("close", (code, signal) => {
+    if (settled) return;
+    const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
+    finish(new Error(`Codex app-server exited before thread/queue/list completed: ${detail}`));
+  });
+
+  timeout = setTimeout(() => {
+    child.kill("SIGTERM");
+    finish(new Error(`Codex app-server thread/queue/list timed out after ${APP_SERVER_TIMEOUT_MS}ms.`));
+  }, APP_SERVER_TIMEOUT_MS);
+
+  send({
+    id: "mesurer-queue-init",
+    method: "initialize",
+    params: {
+      clientInfo: {
+        name: "mesurer-solid",
+        title: "Mesurer Solid",
+        version: "1",
+      },
+      capabilities: {
+        experimentalApi: true,
+      },
+    },
+  });
+});
+
+const queuedSubmissionMessage = (submission) => {
+  if (!Array.isArray(submission?.input) || submission.input.length !== 1) return null;
+  const input = submission.input[0];
+  return input?.type === "text" && typeof input.text === "string" && input.text.trim()
+    ? input.text
+    : null;
+};
+
+
 const normalizeTitle = (value) => {
   if (value == null) return null;
   const title = String(value).replace(/\s+/g, " ").trim();
@@ -739,6 +878,88 @@ const server = createServer(async (request, response) => {
       return;
     }
     writeJson(response, 200, { ok: true, ...publicDelivery(delivery) }, origin);
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/deliveries/restore") {
+    try {
+      const body = await readJsonBody(request);
+      const deliveryId = normalizeThread(body?.deliveryId);
+      const thread = normalizeThread(body?.thread);
+      const queuedSubmissionId = normalizeThread(body?.queuedSubmissionId);
+      if (!deliveryId || !thread) {
+        writeJson(response, 400, { ok: false, error: "deliveryId and thread are required." }, origin);
+        return;
+      }
+      if (!registeredThreads.has(thread) && !discoveredThreads.has(thread)) {
+        writeJson(response, 409, {
+          ok: false,
+          error: `Codex thread is not available to this bridge: ${thread}`,
+        }, origin);
+        return;
+      }
+
+      const existing = deliveries.get(deliveryId);
+      if (existing) {
+        writeJson(response, 200, { ok: true, restored: false, ...publicDelivery(existing) }, origin);
+        return;
+      }
+
+      const lookup = await runCodexQueueLookup(thread, queuedSubmissionId);
+      if (!lookup.submission) {
+        const error = lookup.ambiguous
+          ? "Multiple queued Codex submissions exist for this thread; an exact queuedSubmissionId is required to restore the delivery safely."
+          : queuedSubmissionId
+            ? `Codex queued submission is not available: ${queuedSubmissionId}`
+            : "No queued Codex submission is available to restore for this thread.";
+        writeJson(response, 409, { ok: false, error }, origin);
+        return;
+      }
+
+      const message = queuedSubmissionMessage(lookup.submission);
+      if (!message) {
+        writeJson(response, 409, {
+          ok: false,
+          error: "The queued Codex submission is not a single text message and cannot be restored safely.",
+        }, origin);
+        return;
+      }
+
+      pruneDeliveries();
+      const now = Date.now();
+      const delivery = {
+        id: deliveryId,
+        thread,
+        messageHash: hashMessage(message),
+        status: "queued",
+        turnId: null,
+        queuedSubmissionId: lookup.submission.id,
+        dispatch: "persisted",
+        dispatchError: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      deliveries.set(delivery.id, delivery);
+
+      try {
+        const wake = await resumeColdCodexThread(thread);
+        delivery.dispatch = wake.action;
+        delivery.updatedAt = Date.now();
+      } catch (cause) {
+        delivery.dispatch = "wake-failed";
+        delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
+        delivery.updatedAt = Date.now();
+      }
+
+      writeJson(response, 200, {
+        ok: true,
+        restored: true,
+        ...publicDelivery(delivery),
+      }, origin);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      writeJson(response, 502, { ok: false, error }, origin);
+    }
     return;
   }
 
