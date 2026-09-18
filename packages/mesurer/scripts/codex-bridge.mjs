@@ -241,11 +241,6 @@ const resumeColdCodexThread = (thread) => new Promise((resolve, reject) => {
     child.stdin.write(`${JSON.stringify(message)}\n`);
   };
 
-  const statusType = (status) => {
-    if (typeof status === "string") return status;
-    return status?.type ?? null;
-  };
-
   const handleMessage = (message) => {
     if (message?.id === "mesurer-daemon-init") {
       if (message.error) {
@@ -269,7 +264,7 @@ const resumeColdCodexThread = (thread) => new Promise((resolve, reject) => {
         finish(new Error(message.error.message || "Codex daemon thread/read failed."));
         return;
       }
-      const threadStatus = statusType(message.result?.thread?.status);
+      const threadStatus = message.result?.thread?.status?.type ?? null;
       if (threadStatus !== "notLoaded") {
         finish(null, { action: "already-loaded", threadStatus });
         return;
