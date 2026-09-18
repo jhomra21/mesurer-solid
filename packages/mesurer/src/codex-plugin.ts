@@ -784,6 +784,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           let failure = cause;
           if (activeDelivery.status === "queued" && activeDelivery.thread) {
             try {
+              if (bridgeAvailability !== "available") await refreshRuntime(true);
               const restored = await restoreDelivery(activeDelivery);
               await finishDelivery(restored);
               return;
