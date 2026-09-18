@@ -567,6 +567,164 @@ describe("codex", () => {
     host.dispose();
   });
 
+  it("reattaches a queued delivery after the bridge restarts without sending the feedback twice", async () => {
+    vi.useFakeTimers();
+    const firstHost = createMesurerPluginHost();
+    const { service: firstContext } = createContextService();
+    let phase: "first" | "second" = "first";
+    let sendCount = 0;
+    let deliveryReads = 0;
+    const restoreBodies: Array<{
+      deliveryId: string;
+      thread: string;
+      queuedSubmissionId?: string;
+    }> = [];
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ ok: true, thread: "thread-a", threads: ["thread-a"] }),
+        };
+      }
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            threadDetails: [{ id: "thread-a", title: "Current task", updatedAt: 10, connected: true }],
+            hasMore: false,
+          }),
+        };
+      }
+      if (url.endsWith("/send")) {
+        sendCount += 1;
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            output: "Queued message queue-restart-1 for thread thread-a.",
+            delivery: "queued",
+            deliveryId: "delivery-restart-1",
+            status: "queued",
+            queuedSubmissionId: "queue-restart-1",
+            dispatch: "wake-failed",
+            dispatchError: "failed to connect to socket: No such file or directory",
+          }),
+        };
+      }
+      if (url.endsWith("/deliveries/restore")) {
+        const body = JSON.parse(String(init?.body));
+        restoreBodies.push(body);
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            restored: true,
+            deliveryId: "delivery-restart-1",
+            thread: "thread-a",
+            status: "queued",
+            turnId: null,
+            queuedSubmissionId: "queue-restart-1",
+            dispatch: "resumed",
+            dispatchError: null,
+            createdAt: 3,
+            updatedAt: 3,
+          }),
+        };
+      }
+      if (url.endsWith("/deliveries/delivery-restart-1")) {
+        if (phase === "first") throw new Error("first host must be disposed before polling");
+        deliveryReads += 1;
+        if (deliveryReads === 1) {
+          return {
+            ok: false,
+            status: 404,
+            text: async () => JSON.stringify({
+              ok: false,
+              error: "Codex delivery is not available: delivery-restart-1",
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            deliveryId: "delivery-restart-1",
+            thread: "thread-a",
+            status: deliveryReads === 2 ? "working" : "completed",
+            turnId: "turn-restart-1",
+            queuedSubmissionId: "queue-restart-1",
+            dispatch: "resumed",
+            dispatchError: null,
+            createdAt: 3,
+            updatedAt: 3 + deliveryReads,
+          }),
+        };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await firstHost.load(defineMesurerPlugin({
+      id: "test.context-bridge-restart-first",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", firstContext);
+      },
+    }));
+    await firstHost.load(codex());
+    await firstHost.command.execute("codex.send");
+    expect(sendCount).toBe(1);
+    expect(firstHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queued for Codex");
+    firstHost.dispose();
+
+    phase = "second";
+    const secondHost = createMesurerPluginHost();
+    const { service: secondContext, removeAnnotation } = createContextService();
+    await secondHost.load(defineMesurerPlugin({
+      id: "test.context-bridge-restart-second",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", secondContext);
+      },
+    }));
+    await secondHost.load(codex());
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sendCount).toBe(1);
+    expect(restoreBodies).toEqual([{
+      deliveryId: "delivery-restart-1",
+      thread: "thread-a",
+      queuedSubmissionId: "queue-restart-1",
+    }]);
+    expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queued for Codex");
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Codex working…");
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Codex finished");
+    expect(removeAnnotation).toHaveBeenCalledTimes(1);
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(sendCount).toBe(1);
+
+    secondHost.dispose();
+    vi.useRealTimers();
+  });
+
   it("resumes an in-flight tracked delivery after a page reload and retires its exact annotation on completion", async () => {
     vi.useFakeTimers();
     const firstHost = createMesurerPluginHost();
