@@ -14,48 +14,40 @@ saved Mesurer notes / current selection
               | HTTP on loopback
               v
         mesurer-codex
-          |             |
-          |             +--> bounded same-project thread discovery
-          |
-          +--> Codex Desktop: app-owned codex_app MCP
-          |      local durable Mesurer queue
-          |      wait for target idle
-          |      send_message_to_thread
-          |
-          +--> CLI/TUI shared-daemon environments:
-                 codex queue --thread ... --message ...
-                 native Codex durable queue
+              |
+              +--> codex queue --thread ... --message ...
+              |       Codex native durable queue
+              |
+              +--> Codex Desktop owner
+              |       codex://threads/<threadId>
+              |       Desktop loads/resumes the existing thread
+              |       Codex queue watcher drains when the thread is safe
+              |
+              +--> CLI/TUI shared-daemon owner
+                      resume notLoaded thread when needed
 ```
 
-There are two pieces with different jobs.
+The browser plugin, `codex()`, adds the service, command, **Queue to Codex** toolbar action, and bounded thread picker. The local companion owns process access; a normal web page cannot start Codex or open a Desktop protocol URL itself.
 
-The browser plugin, `codex()`, adds the service, command, **Queue to Codex** toolbar action, and a bounded thread picker. Settings can load or remove this plugin without a page refresh.
+Mesurer always persists human feedback through Codex's native queued-user-message path first. The returned queued-submission id is the durable identity for the request. This keeps Queue semantics inside Codex instead of reconstructing them in Mesurer.
 
-The local companion owns process access and chooses the transport registered by the trusted Codex session. A normal web page cannot start Codex, Node, Bun, or another operating-system process, so browser Settings cannot create this local process by itself.
+When trusted `SessionStart` metadata identifies a Codex Desktop-owned thread, Mesurer uses that fact only to choose the wake mechanism. It does **not** use the app-tools pipe as the delivery transport. After Codex accepts the queue item, the bridge opens `codex://threads/<threadId>`, the same existing-thread deep link used by Codex itself. Desktop then owns loading or resuming the thread.
 
-When the trusted `SessionStart` environment includes `CODEX_APP_TOOLS_PIPE_PATH`, the destination belongs to Codex Desktop. The connector registers that app-tools pipe and `CODEX_HOME` with the loopback companion. The bridge discovers Desktop's installed `codex_app` MCP launcher from the bundled `codex-app-tools` plugin manifest. Current Desktop installs use `.mcp.json`; `desktop-mcp.json` remains a compatibility fallback. The bridge then talks to the app-owned thread instead of starting a separate app-server daemon.
+Codex's queue service watches durable external queue changes for loaded threads and dispatches queued input only when the thread can accept it. A cold thread starts its persisted queued message when resumed. If the thread is already active, the queued item remains queued until Codex's own lifecycle reaches a safe point. Mesurer never converts this action into `turn/steer`.
 
-Desktop delivery is durable in Mesurer before dispatch. Outstanding Desktop messages are stored locally under `$CODEX_HOME/mesurer/codex-deliveries.json`, survive a bridge restart, and are removed from active tracking only by the normal bounded delivery lifecycle. The file contains the feedback text needed to resume delivery and stays on the local machine.
+For bridge-restart recovery, Mesurer keeps bounded local delivery tracking under `$CODEX_HOME/mesurer/codex-deliveries.json`. That file is not a second user-message queue; the actual request remains in Codex's native queue. Existing queued-submission ids are preserved and never deleted merely to change Desktop transports.
 
-For a Desktop-owned thread, **Queue to Codex** checks `read_thread`. While the target is `active`, Mesurer leaves the message queued locally and does not call `send_message_to_thread`. Once the target reports `idle` or `notLoaded`, Mesurer sends the message through the app-owned `codex_app.send_message_to_thread` transport. This preserves the current turn in the state Mesurer can observe; Mesurer does not knowingly steer an active Desktop turn.
-
-Codex Desktop currently does not expose an atomic queue-only cross-thread app-tool call. Thread state can change between Mesurer's idle check and the send call, so Desktop queue semantics are best-effort rather than a stronger atomic guarantee. If the app reports an error after send, Mesurer immediately reads the thread and verifies whether the exact feedback arrived before deciding the delivery is uncertain. It never blindly retries an uncertain send. The toolbar shows **Codex delivery blocked** while delivery cannot be confirmed and keeps lifecycle polling active.
-
-If a prior Mesurer version already placed the same feedback in Codex's native durable queue, recovery first validates the exact queued-submission id, persists the full message locally, then deletes only that exact old queue item before Desktop dispatch. This prevents the abandoned native item from running later as a duplicate.
-
-When no Desktop app-tools pipe is registered, the bridge keeps the CLI/TUI path: `codex queue --thread ... --message ...` provides Codex's durable queued-submission id. In shared-daemon environments the bridge may inspect the shared local app-server and resume only a `notLoaded` thread so Codex can drain that native queue. The standalone daemon path is a fallback for that environment; **Mesurer does not bootstrap or require it for Codex Desktop**.
-
-The short-lived app-server process used for bounded `thread/list` discovery or exact native queue migration is not treated as the owner of a Desktop turn.
+When the destination is a CLI/TUI shared-daemon environment instead of Desktop, the same native Codex queue remains the source of truth. The bridge may inspect the shared local app-server and resume only a `notLoaded` thread so Codex can drain its own queue. Mesurer does not require or bootstrap that standalone daemon for Desktop.
 
 ## Queue versus Steer
 
-Mesurer implements **Queue**, not an explicit **Steer** action.
+Mesurer implements **Queue**, not **Steer**.
 
-- **Desktop:** Mesurer owns a local durable queue, waits while `read_thread` reports the destination active, then submits through the app-owned transport after it observes idle/not-loaded state.
-- **CLI/TUI shared-daemon environments:** Mesurer uses Codex's native durable queue.
-- **Steer:** changing an already in-flight turn remains a separate Codex operation and is never selected by the Mesurer toolbar.
+- **Queue:** Codex durably stores the follow-up and runs it when the destination thread is ready.
+- **Desktop wake:** Mesurer opens the existing thread with `codex://threads/<threadId>`; this does not replace the queued message with another send.
+- **Steer:** changing an already in-flight turn remains a separate Codex operation and is never invoked by Mesurer.
 
-For Desktop, the idle-check/send pair is not atomic because the current app-tools surface does not expose a queue-only cross-thread call. Do not describe it as an absolute guarantee that no race can ever become a steer. Mesurer's safety behavior is to wait for idle, avoid blind retries, keep uncertain feedback durable, and surface blocked delivery rather than silently duplicating work.
+This means Desktop delivery no longer depends on the `codex_app` MCP pipe being open. A closed app-tools pipe does not invalidate a queued Mesurer request.
 
 ## Automatic connection from Codex
 
