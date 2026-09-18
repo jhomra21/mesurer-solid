@@ -165,6 +165,11 @@ codex()
              │      └─ SessionStart / mesurer-codex-connect
              │          session id + project cwd
              │
+             ├─ delivery lifecycle
+             │      ▲
+             │      └─ UserPromptSubmit / Stop / Interrupt
+             │          exact queued turn state
+             │
              └─ codex queue --thread … --message …
 ```
 
@@ -181,6 +186,10 @@ Mesurer does not create a Codex thread or start a new app-server turn. That woul
 This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser harness. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and asks a known Codex thread to act on that feedback.
 
 The integration sends text because Codex's queued-user-message CLI currently accepts text input. It does not use a second app-server writer, MCP/ACP, or private Codex Desktop IPC.
+
+Each queue request has a bounded bridge delivery record. The browser enters a busy state before the request starts, so repeat clicks cannot create duplicate submissions. The bridge correlates the exact queued prompt to `UserPromptSubmit`, then records matching `Stop` or `Interrupt` by thread and turn id. Out-of-order terminal hook delivery is tolerated. Browser polling reads only that delivery record.
+
+Context exposes an internal first-party `removeAnnotation(id)` service operation for completion cleanup. It is not added to the generic `window.__MESURER__` agent harness. On a completed tracked delivery, Codex removes only the annotation ids that were serialized into that request; interruption/failure preserves them. Applications may disable this cleanup with `clearCompletedAnnotations: false`. A Stop event is treated as workflow completion, not as independent proof that the requested visual change is semantically correct.
 
 See [Queue Context feedback to Codex](./docs/CODEX.md).
 ## Screenshot

@@ -20,6 +20,7 @@ The installer writes a self-contained skill and injection artifact:
 └── assets/
     ├── inject-script.js
     ├── codex-connect.mjs
+    ├── codex-lifecycle.mjs
     └── codex-bridge.mjs
 ```
 
@@ -221,7 +222,11 @@ The browser plugin is intentionally lazy. Mounting `codex()` performs no loopbac
 
 The first healthy thread observed by one Mesurer page becomes that page's originating destination. Later `SessionStart` registrations do not silently steal the page. The bridge uses Codex app-server `thread/list`, scoped to the trusted project directory, to expose at most ten recent same-project threads. The browser may send to a locally registered thread or to one of those bridge-discovered same-project threads, but it cannot supply an arbitrary project directory or invent an arbitrary session id.
 
-The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. `useThread(thread)` changes the bridge default only for a locally registered thread; a page-specific `send({ thread })` can target any thread the bridge has already registered or discovered for the scoped project.
+The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `send({ thread })`. `useThread(thread)` changes the bridge default only for a locally registered thread; a page-specific `send({ thread })` can target any thread the bridge has already registered or discovered for the scoped project.
+
+The human queue control owns duplicate suppression and visible delivery state. It disables before the request starts, then tracks Queueing → Queued → Working → Finished/Interrupted from trusted Codex lifecycle hooks. Do not add an agent-side second queue merely because the human presses the control twice.
+
+When a queued request contains saved annotations, `codex()` remembers those exact ids. By default it removes them only after the matching Codex turn reports `Stop`; `Interrupt` and delivery failure preserve them. This is completion cleanup, not semantic proof. The coding agent must still verify the rendered result before finishing, and must not manually clear unrelated Mesurer review state.
 
 Mesurer does not create a new Codex thread or start a new app-server turn. New threads should be created or opened in Codex, where the client that owns the turn can surface command and file approval requests. The trusted `SessionStart` path then registers the thread automatically. See [Queue Context feedback to Codex](../../docs/CODEX.md).
 ## Revalidate after source edits

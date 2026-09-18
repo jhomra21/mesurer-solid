@@ -4,6 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Add tracked **Queue to Codex** lifecycle feedback: disable the action before submission to suppress double-click duplicates, show Queueing/Queued/Working/Finished or Interrupted states in the tool and destination row, correlate the exact queued prompt to trusted Codex `UserPromptSubmit` + `Stop`/`Interrupt` hooks, and remove only the annotations included in a successfully completed turn by default.
 - Keep generic plugin split menus inside the browser viewport: choose the side with usable space, clamp horizontal placement, widen for long labels up to a bounded desktop width, keep selected rows filling the menu, prevent horizontal scrolling, and make tall destination lists scroll vertically instead of extending off-screen.
 - Rename the human Codex action to **Queue to Codex**, return `delivery: "queued"` from programmatic delivery, and document Queue versus in-flight **Steer** semantics instead of implying that Mesurer interrupts an active Codex turn.
 - Add a Codex destination picker that keeps each Mesurer page pinned to the Codex thread that originally connected it, then shows five recent same-project Codex threads from app-server with one **Show 5 more…** expansion to ten.

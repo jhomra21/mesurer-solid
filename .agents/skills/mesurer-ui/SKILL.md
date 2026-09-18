@@ -282,7 +282,11 @@ The first healthy bridge thread observed by a Mesurer page is that page's origin
 
 Browser pages may send only to locally registered threads or to recent same-project threads that the bridge itself discovered through Codex app-server. They may not supply an arbitrary cwd or invent arbitrary Codex destinations. If `CODEX_THREAD_ID` is unavailable, do not weaken the local registration boundary to make registration work from the page.
 
-When application code has mounted `codex()` next to `context()`, its typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. `useThread(thread)` is for a locally registered bridge default; `send({ thread })` may target any bridge-visible same-project thread.
+When application code has mounted `codex()` next to `context()`, its typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `send({ thread })`. `useThread(thread)` is for a locally registered bridge default; `send({ thread })` may target any bridge-visible same-project thread.
+
+The human queue action is single-flight. It disables before queue submission, then moves through Queueing, Queued, Working, and Finished/Interrupted using the trusted `UserPromptSubmit`, `Stop`, and `Interrupt` hook reports. Do not work around that guard by issuing a duplicate queue request.
+
+If the queued evidence contains saved annotations, the browser tracks the exact ids that were sent and removes only those ids after the matching turn reports Stop. Interrupted/failed work keeps the note. Do not manually delete unrelated annotations, and do not describe lifecycle completion as semantic verification: still inspect the live rendered result before claiming the request is done.
 
 Do not create a new Codex thread from the Mesurer bridge. A new app-server turn can produce command or file approval requests that belong to the client owning that turn. Create or open the thread in Codex and let the trusted `SessionStart` path register it automatically.
 

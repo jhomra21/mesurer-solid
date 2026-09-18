@@ -172,6 +172,10 @@ The bridge never creates a new Codex thread. Open or create it in Codex and let 
 
 This uses Codex's own queued-user-message command. **Queue to Codex** does not interrupt an active turn. Codex's separate **Steer** action targets an in-flight turn and Mesurer does not invoke it today. Programmatic `send()` resolves with `delivery: "queued"`.
 
+The toolbar disables the queue action as soon as one delivery starts, preventing duplicate double-click submissions. It then shows **Queued for Codex**, **Codex working…**, and **Codex finished** from the tracked Codex turn. The typed service also exposes `delivery(deliveryId)` and `send()` returns the bridge `deliveryId`, lifecycle `status`, and exact `annotationIds`.
+
+By default, saved annotations included in that delivery are removed only after the matching Codex turn reports completion. Interruptions keep them. Set `codex({ clearCompletedAnnotations: false })` to keep completed notes. Turn completion is a lifecycle signal, not an independent semantic verification of the rendered result.
+
 This does not replace the normal browser-harness agent workflow.
 
 See [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md).

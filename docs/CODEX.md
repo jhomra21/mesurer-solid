@@ -102,6 +102,30 @@ The user's enabled preference stays separate from temporary bridge availability.
 
 A plain browser-only application still cannot start a missing local companion. The trusted Codex `SessionStart` hook or another local host with process access must do that work.
 
+## Delivery state and completed annotations
+
+The queue action has one page-local delivery state machine:
+
+1. **Queueing to Codex…** starts immediately on the first press. The action and destination choices are disabled before the network request begins, so a fast double-click cannot create a duplicate queue entry.
+2. **Queued for Codex** means the bridge accepted the request.
+3. **Codex working…** means the trusted `UserPromptSubmit` lifecycle hook matched the exact queued prompt to a Codex turn.
+4. **Codex finished** means the matching `Stop` hook reported that turn finished. The action shows its completion state briefly, then becomes available again.
+5. **Codex interrupted** means the matching `Interrupt` hook fired. The action becomes available for retry and the annotation is preserved.
+
+The bridge gives every queued request a random delivery id and stores only bounded lifecycle metadata. It hashes the queued message to correlate `UserPromptSubmit` without adding a hidden marker to the text the user sees in Codex. The browser polls only that delivery id while work is outstanding.
+
+When the queued request contains saved Mesurer annotations, the browser retains the exact annotation ids used to construct the message. After the matching turn reaches **Codex finished**, `codex()` removes only those saved annotations. Notes created later, notes that were not part of the queued message, and annotations from interrupted turns remain untouched.
+
+Automatic removal defaults on. Disable it per mount when review history should remain:
+
+```ts
+codex({ clearCompletedAnnotations: false })
+```
+
+This is deliberately a lifecycle completion rule, not a semantic verifier. Mesurer knows that the matching Codex turn stopped; it does not independently prove that every sentence in the note was satisfied. The default queued instruction still tells Codex to verify the affected UI in the live page before claiming completion.
+
+Lifecycle tracking depends on the trusted local plugin hooks. If those hooks are not installed/trusted, or if the bridge is replaced mid-delivery and loses its bounded in-memory delivery record, Mesurer does not remove the annotation speculatively.
+
 ## Current-thread affinity and the recent-thread picker
 
 The first healthy bridge thread observed by one mounted `codex()` plugin becomes that page's originating Codex thread. Mesurer keeps sending to that thread even if another Codex session later runs `SessionStart` and becomes the bridge-wide default.
@@ -124,7 +148,7 @@ A thread returned by app-server is not described as "currently open" merely beca
 
 ## Permissions and privacy
 
-Local Codex app-server thread listing does not have a separate per-request approval prompt. Installing the Mesurer Codex plugin and trusting its local `SessionStart` hook is the existing host-side trust boundary.
+Local Codex app-server thread listing does not have a separate per-request approval prompt. Installing the Mesurer Codex plugin and trusting its local hooks is the host-side trust boundary. `SessionStart` owns bridge bootstrap/registration; asynchronous `UserPromptSubmit`, `Stop`, and `Interrupt` hooks report lifecycle state to the already-local bridge. These lifecycle handlers produce no Codex prompt output and do not make browser pages capable of registering sessions.
 
 Mesurer intentionally does not expose an account-wide conversation browser to arbitrary pages. Recent discovery is limited to the project directory associated with the originating registered thread and to at most ten entries. The browser receives only the thread id, a bounded display title, recency timestamp, and whether the bridge has seen a trusted local registration for that thread.
 
@@ -158,7 +182,7 @@ codex app-server --help
 
 `codex queue` targets an existing session by UUID or exact session name. The bridge uses app-server `thread/list` only for bounded, same-project discovery and keeps `codex queue` as the message-delivery path.
 
-Current Codex hook events expose the running session id and working directory. `mesurer-codex-connect` uses both when started from the trusted `SessionStart` hook.
+Current Codex hook events expose the session/turn ids needed by this lifecycle. `mesurer-codex-connect` uses the session id and working directory from trusted `SessionStart`; the packaged `codex-lifecycle.mjs` helper forwards `UserPromptSubmit`, `Stop`, and `Interrupt` events to the loopback bridge on a best-effort basis.
 
 The current queue accepts text input. Mesurer sends structured Context text in this integration, not image attachments.
 
@@ -315,7 +339,9 @@ Delivery is explicit. A send fails if the companion is unavailable, the Codex ex
 
 The first explicit send or thread-chooser attempt is the availability boundary. If Mesurer cannot reach the companion, the toolbar changes to disabled **Codex unavailable** state and its dropdown offers **Retry Codex connection**. Mesurer does not keep probing a bridge it has never reached, so restrictive-CSP hosts do not accumulate automatic loopback errors. Once a connection has succeeded, health polling continues and recovery is automatic if the companion later disappears and returns.
 
-The toolbar reports delivery failures to the browser console with a `[Mesurer] Failed to send feedback to Codex: ...` diagnostic and propagates the failure through the plugin error path. Programmatic `send()` calls reject with the same underlying error.
+The toolbar reports queue failures to the browser console with a `[Mesurer] Failed to queue feedback for Codex: ...` diagnostic and propagates the failure through the plugin error path. Programmatic `send()` calls reject with the same underlying error.
+
+A queue request that was accepted but cannot be lifecycle-tracked is never treated as completed merely to clear the UI. Mesurer keeps the saved annotation rather than deleting review evidence without a matching completion event.
 
 `mesurer-codex-connect` reports bootstrap or registration failures to the local Codex process. It does not fall back to browser-side process creation or unrestricted browser-side thread registration.
 

@@ -187,6 +187,10 @@ Mounting `codex()` does not contact localhost. The first **Queue to Codex** pres
 
 **Queue to Codex** is literal: it adds a follow-up without interrupting the active Codex turn. Codex may show its own **Steer** action on that queued message; Mesurer does not invoke `turn/steer` today. Programmatic `send()` reports `delivery: "queued"` so callers do not have to infer the delivery mode.
 
+Queue delivery has visible lifecycle state. The action disables immediately while it is queueing so a double-click cannot submit the same review twice, then changes through **Queued for Codex**, **Codex working…**, and **Codex finished** as the trusted Codex hooks correlate that exact queued prompt with its turn. The selected destination row shows the same state.
+
+When a completed delivery included saved annotations, `codex()` removes only those exact annotation ids after Codex reports the matching turn finished. An interrupted turn keeps its annotations for retry. Set `clearCompletedAnnotations: false` when an application wants completed notes to remain visible. This completion signal tracks the Codex turn lifecycle; it is not an independent semantic proof that the requested UI change is correct.
+
 Each Mesurer page keeps the Codex thread that originally connected it as its default destination. The split menu shows that thread first, then up to four recent same-project Codex threads discovered through Codex app-server. **Show 5 more…** expands the list to at most ten. Selecting another thread changes only that page's destination.
 
 Mesurer does not create new Codex threads. Create or open a new thread in Codex; the trusted `SessionStart` path registers it automatically. Programmatic callers can use `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. Browser pages cannot register arbitrary sessions, provide an arbitrary project directory, or target a thread the bridge has not registered or discovered for that project.
