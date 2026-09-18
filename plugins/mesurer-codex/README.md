@@ -29,9 +29,9 @@ curl http://127.0.0.1:47365/health
 
 The response should report the current Codex session as `thread` and include it in `threads`.
 
-Then enable Codex in Mesurer Settings and use **Queue to Codex**. No separate `mesurer-codex` terminal should be needed. In Codex Desktop, SessionStart registers the app-tools pipe with the bridge. Mesurer stores the feedback locally, waits while the destination is active, then uses Desktop's own `codex_app` transport after the thread reports idle/not-loaded. It does not start the standalone app-server daemon for Desktop. If the bridge restarts, the local Desktop queue is reloaded automatically.
+Then enable Codex in Mesurer Settings and use **Queue to Codex**. No separate `mesurer-codex` terminal should be needed. Desktop delivery uses Codex's native durable queue, not the app-tools pipe: Mesurer queues once, retains the queued-submission id, then opens the existing thread through `codex://threads/<threadId>`. Desktop loads or resumes the thread and Codex's queue watcher runs the item when safe.
 
-CLI/TUI shared-daemon environments keep Codex's native `codex queue` transport. Desktop currently has no atomic queue-only cross-thread app-tool call, so the idle check/send is best-effort; Mesurer avoids knowingly steering, never blindly retries an uncertain send, and shows blocked delivery rather than encouraging a duplicate.
+CLI/TUI shared-daemon environments use the same native queue. Mesurer does not start the standalone daemon for Desktop, does not delete an existing queued item during recovery, and never invokes `turn/steer`.
 
 While a tracked request is outstanding, Mesurer disables repeat queue submissions and visibly moves from Queueing to Queued to Working. A normal Stop briefly shows Finished and removes only the annotations included in that delivery. Interruptions keep those notes for retry.
 
