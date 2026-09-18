@@ -1,4 +1,4 @@
-import { defineMesurerPlugin } from "@jhomra21/mesurer-solid-core";
+import { defineMesurerPlugin } from "../../../packages/mesurer/src/core";
 import { mountMesurer } from "../../../packages/mesurer/src/index";
 
 const threadMenu = defineMesurerPlugin({
