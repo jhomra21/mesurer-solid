@@ -179,6 +179,12 @@ type BridgeSendRequest = {
   thread?: string;
 };
 
+type BridgeRestoreRequest = {
+  deliveryId: string;
+  thread: string;
+  queuedSubmissionId?: string;
+};
+
 type BridgeAvailability = "unknown" | "available" | "unavailable";
 type UiDeliveryStatus = "queueing" | MesurerCodexDeliveryStatus | "failed";
 type UiDeliveryState = {
@@ -458,11 +464,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         if (!delivery.id || !delivery.thread) {
           throw new Error("Cannot restore a Codex delivery without its id and thread.");
         }
-        const body: {
-          deliveryId: string;
-          thread: string;
-          queuedSubmissionId?: string;
-        } = {
+        const body: BridgeRestoreRequest = {
           deliveryId: delivery.id,
           thread: delivery.thread,
         };
