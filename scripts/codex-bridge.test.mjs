@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -48,6 +48,21 @@ const waitForExit = (child, timeoutMs = 10_000) => new Promise((resolve, reject)
 const readInvocations = async (path) => {
   const text = await readFile(path, "utf8");
   return text.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+};
+
+const waitForDelivery = async (bridgeUrl, deliveryId, predicate, timeoutMs = 10_000) => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const response = await fetch(`${bridgeUrl}/deliveries/${deliveryId}`, {
+      headers: { Origin: "http://localhost:5173" },
+    });
+    if (response.ok) {
+      const delivery = await response.json();
+      if (predicate(delivery)) return delivery;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Timed out waiting for delivery ${deliveryId}.`);
 };
 
 test("Codex bridge auto-binds the launching thread and routes only registered threads", async () => {
@@ -428,6 +443,290 @@ if (args[0] === "queue") {
       protocol.filter((message) => message.id).map((message) => message.method),
       ["initialize", "thread/read", "thread/resume"],
     );
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Codex bridge migrates an existing queued item into the owning Codex Desktop app without a duplicate queue", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-desktop-migrate-"));
+  const argsPath = join(root, "codex-args.jsonl");
+  const protocolPath = join(root, "codex-protocol.jsonl");
+  const mcpCallsPath = join(root, "desktop-mcp-calls.jsonl");
+  const fakeCodex = join(root, "fake-codex.mjs");
+  const fakeDesktopMcp = join(root, "fake-desktop-mcp.mjs");
+  const pluginDirectory = join(
+    root,
+    "plugins",
+    "cache",
+    "openai-bundled",
+    "codex-app-tools",
+    "0.1.3",
+  );
+  await mkdir(pluginDirectory, { recursive: true });
+
+  await writeFile(fakeCodex, `#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+const args = process.argv.slice(2);
+appendFileSync(process.env.MESURER_FAKE_CODEX_ARGS, JSON.stringify(args) + "\\n");
+const write = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
+
+if (args[0] === "app-server" && args[1] === "--listen") {
+  process.stdin.setEncoding("utf8");
+  let buffer = "";
+  process.stdin.on("data", (chunk) => {
+    buffer += chunk;
+    while (true) {
+      const newline = buffer.indexOf("\\n");
+      if (newline < 0) break;
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (!line) continue;
+      const message = JSON.parse(line);
+      appendFileSync(process.env.MESURER_FAKE_CODEX_PROTOCOL, JSON.stringify(message) + "\\n");
+      if (message.id === "mesurer-queue-init") {
+        write({ id: message.id, result: { userAgent: "fake-codex" } });
+      } else if (String(message.id).startsWith("mesurer-queue-list-")) {
+        write({
+          id: message.id,
+          result: {
+            data: [{
+              id: "queue-desktop-old-1",
+              input: [{ type: "text", text: "recover this exact desktop feedback", text_elements: [] }],
+              clientUserMessageId: "client-desktop-old-1",
+            }],
+            nextCursor: null,
+          },
+        });
+      } else if (message.id === "mesurer-queue-delete-init") {
+        write({ id: message.id, result: { userAgent: "fake-codex" } });
+      } else if (message.id === "mesurer-queue-delete") {
+        write({ id: message.id, result: { deleted: true } });
+      }
+    }
+  });
+} else if (args[0] === "queue") {
+  process.stderr.write("Desktop migration must not enqueue a second native queue item\\n");
+  process.exit(99);
+} else if (args[0] === "stdio-to-uds") {
+  process.stderr.write("Desktop migration must not use the managed daemon socket\\n");
+  process.exit(99);
+} else if (args[0] === "app-server" && args[1] === "daemon") {
+  process.stderr.write("Desktop migration must not start the managed daemon\\n");
+  process.exit(99);
+}
+`);
+  await chmod(fakeCodex, 0o755);
+
+  await writeFile(fakeDesktopMcp, `#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+const write = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
+process.stdin.setEncoding("utf8");
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk;
+  while (true) {
+    const newline = buffer.indexOf("\\n");
+    if (newline < 0) break;
+    const line = buffer.slice(0, newline).trim();
+    buffer = buffer.slice(newline + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
+    if (message.id === "mesurer-desktop-init") {
+      write({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          protocolVersion: "2025-06-18",
+          capabilities: { tools: {} },
+          serverInfo: { name: "fake-codex-app-tools", version: "1" },
+        },
+      });
+    } else if (message.id === "mesurer-desktop-tools") {
+      write({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          tools: [
+            {
+              name: "read_thread",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  threadId: { type: "string" },
+                  hostId: { type: "string" },
+                },
+                required: ["threadId", "hostId"],
+              },
+            },
+            {
+              name: "send_message_to_thread",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  threadId: { type: "string" },
+                  hostId: { type: "string" },
+                  prompt: { type: "string" },
+                },
+                required: ["threadId", "hostId", "prompt"],
+              },
+            },
+          ],
+        },
+      });
+    } else if (message.id === "mesurer-desktop-call") {
+      appendFileSync(
+        process.env.MESURER_FAKE_DESKTOP_MCP_CALLS,
+        JSON.stringify(message.params) + "\\n",
+      );
+      if (message.params.name === "read_thread") {
+        write({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                thread: {
+                  id: "thread-desktop",
+                  status: { type: "idle" },
+                },
+              }),
+            }],
+          },
+        });
+      } else if (message.params.name === "send_message_to_thread") {
+        write({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ threadId: "thread-desktop" }),
+            }],
+          },
+        });
+      }
+    }
+  }
+});
+`);
+  await chmod(fakeDesktopMcp, 0o755);
+
+  await writeFile(
+    join(pluginDirectory, "desktop-mcp.json"),
+    JSON.stringify({
+      mcpServers: {
+        codex_app: {
+          command: process.execPath,
+          args: [fakeDesktopMcp],
+          cwd: root,
+          enabled: true,
+        },
+      },
+    }),
+  );
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--thread", "thread-desktop",
+    "--codex", fakeCodex,
+  ], {
+    env: {
+      ...process.env,
+      CODEX_HOME: root,
+      CODEX_APP_TOOLS_PIPE_PATH: join(root, "fake-app-tools.pipe"),
+      MESURER_FAKE_CODEX_ARGS: argsPath,
+      MESURER_FAKE_CODEX_PROTOCOL: protocolPath,
+      MESURER_FAKE_DESKTOP_MCP_CALLS: mcpCallsPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
+    const restore = await fetch(`${bridgeUrl}/deliveries/restore`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173",
+      },
+      body: JSON.stringify({
+        deliveryId: "delivery-desktop-restored-1",
+        thread: "thread-desktop",
+        queuedSubmissionId: "queue-desktop-old-1",
+      }),
+    });
+    assert.equal(restore.status, 200, stderr);
+    const restored = await restore.json();
+    assert.equal(restored.transport, "desktop-app");
+    assert.equal(restored.status, "queued");
+    assert.equal(restored.queuedSubmissionId, "queue-desktop-old-1");
+
+    const dispatched = await waitForDelivery(
+      bridgeUrl,
+      "delivery-desktop-restored-1",
+      (delivery) => delivery.dispatch === "desktop-sent",
+    );
+    assert.equal(dispatched.queuedSubmissionId, null);
+    assert.equal(dispatched.transport, "desktop-app");
+
+    const codexInvocations = await readInvocations(argsPath);
+    assert.equal(codexInvocations.some((args) => args[0] === "queue"), false);
+    assert.equal(codexInvocations.some((args) => args[0] === "stdio-to-uds"), false);
+    assert.equal(
+      codexInvocations.some((args) => args[0] === "app-server" && args[1] === "daemon"),
+      false,
+    );
+    assert.equal(
+      codexInvocations.filter((args) => args[0] === "app-server" && args[1] === "--listen").length,
+      2,
+    );
+
+    const desktopCalls = await readInvocations(mcpCallsPath);
+    assert.deepEqual(desktopCalls.map((call) => call.name), [
+      "read_thread",
+      "send_message_to_thread",
+    ]);
+    assert.deepEqual(desktopCalls[0].arguments, {
+      threadId: "thread-desktop",
+      hostId: "local",
+    });
+    assert.deepEqual(desktopCalls[1].arguments, {
+      threadId: "thread-desktop",
+      prompt: "recover this exact desktop feedback",
+      hostId: "local",
+    });
+
+    const started = await fetch(`${bridgeUrl}/lifecycle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "UserPromptSubmit",
+        sessionId: "thread-desktop",
+        turnId: "turn-desktop-1",
+        prompt: "<codex_delegation>\n<input>recover this exact desktop feedback</input>\n</codex_delegation>",
+      }),
+    });
+    assert.equal(started.status, 200);
+    assert.equal((await started.json()).status, "working");
+
+    const completed = await fetch(`${bridgeUrl}/lifecycle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "Stop",
+        sessionId: "thread-desktop",
+        turnId: "turn-desktop-1",
+      }),
+    });
+    assert.equal(completed.status, 200);
+    assert.equal((await completed.json()).status, "completed");
   } finally {
     if (child.exitCode === null) child.kill("SIGKILL");
     await waitForExit(child).catch(() => {});
