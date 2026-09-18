@@ -12,6 +12,7 @@ import type { MesurerAnnotation, MesurerContextRequest } from "../../mesurer/src
 import type { MesurerContextService } from "../../mesurer/src/context-plugin";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });

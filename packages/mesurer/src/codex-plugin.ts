@@ -695,7 +695,12 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               }
             } else {
               // Older companion: queue acceptance is known, lifecycle completion is not.
-              resetCompletedDeliveryLater();
+              completedVisibleTimer = globalThis.setTimeout(() => {
+                completedVisibleTimer = 0;
+                if (activeDelivery?.id !== null || activeDelivery?.status !== "queued") return;
+                activeDelivery = null;
+                syncTool();
+              }, COMPLETED_VISIBLE_MS);
             }
           } catch (cause) {
             activeDelivery = null;
