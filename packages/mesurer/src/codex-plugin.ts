@@ -67,7 +67,12 @@ export type MesurerCodexDispatchStatus =
   | "already-loaded"
   | "unsupported"
   | "wake-failed"
-  | "untracked";
+  | "untracked"
+  | "desktop-local"
+  | "waiting-active"
+  | "desktop-sent"
+  | "desktop-send-uncertain"
+  | "desktop-wait-failed";
 
 export type MesurerCodexDelivery = {
   id: string;
