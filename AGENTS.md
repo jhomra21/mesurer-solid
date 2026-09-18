@@ -827,7 +827,7 @@ Internal workspaces are private implementation details:
 - staged npm artifacts must not expose private workspace names or host runtime dependencies;
 - staged declarations must expose public-safe text-edit intent types/methods and the `./plugins` entry;
 - first-party public plugin factories live under `mesurer-solid/plugins` and do not regain redundant one-plugin-per-subpath exports;
-- Context document-backed annotation UI must stay source-attached and preserve inspector hit ownership; related Select evidence must stay below it even when the outer host uses the browser top layer;
+- Context document-backed annotation UI must stay source-attached and preserve inspector hit ownership; saved annotations must survive same-tab reloads through conservative target rebinding, and related Select evidence must stay below Context UI even when the outer host uses the browser top layer;
 - Codex delivery lifecycle must stay single-flight in the browser, keep hook registration local-process-only, preserve page-local routing and in-flight delivery state across same-tab reloads, refuse ambiguous multi-thread defaults, and remove only exact sent annotation ids after a matched completed turn; interruption or uncertain lifecycle state must preserve review evidence;
 - default rendering must retain pinned upstream visual/behavioral parity gates;
 - agent integrations must not require Playwright or another transport when the outer harness already has page execution;

@@ -123,7 +123,7 @@ The removable `mesurer.context` plugin owns annotations and the human/agent cont
 ```text
 context()
   ├─ Copy Context / Copy Selection / Add Note
-  ├─ annotation state + conservative rebinding
+  ├─ session-scoped annotation state + conservative rebinding
   ├─ context/select/review/capture-plan operations
   └─ service: context:v1
 ```
@@ -133,6 +133,8 @@ Injection enables Context by default. Source-mounted applications opt in with `c
 `window.__MESURER__` remains the shared browser-state boundary for ordinary coding-agent work. Context itself does not know about Codex, sessions, local processes, or transport. Arrange and text-edit intent remain separate structured channels so they retain their own Before/Desired/Live semantics.
 
 The selection Add Note button is only transient UI. Its temporary suppression during direct editing does not disable Context or remove saved annotations.
+
+Context's owning workspace may opt into session-scoped annotation persistence. The first-party Context plugin does so using a page-scoped namespace. Reload restores serialized annotation records before presentation mounts, then the runtime applies the same conservative selector/fingerprint rebind used for ordinary DOM replacement. Other workspace runtimes remain ephemeral unless their owner explicitly supplies a persistence namespace.
 
 Page-linked Context UI uses one managed document inspector mount. The Add Note trigger, composer, saved markers, open panel, and ownership edge use document coordinates for ordinary window scrolling, so the browser moves them with their source in the same frame. Nested overflow boundaries use cached scroll compensation. Saved panels keep a stable target-relative page point instead of re-clamping to the viewport, and repeated notes use a nearby marker layout that keeps each marker separate.
 

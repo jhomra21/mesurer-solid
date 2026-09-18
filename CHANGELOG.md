@@ -4,6 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Preserve saved Context annotations across same-tab reloads, restore their exact ids/baselines, and conservatively rebind element targets from stored selector/fingerprint identity instead of losing review state when the page refreshes.
 - Preserve page-local Codex routing across browser reloads with per-tab affinity state, refuse to inherit a bridge-wide default when multiple registered threads make the destination ambiguous, and resume exact queued/working delivery tracking after reload so annotation completion cleanup is not lost.
 - Add tracked **Queue to Codex** lifecycle feedback: disable the action before submission to suppress double-click duplicates, show Queueing/Queued/Working/Finished or Interrupted states in the tool and destination row, correlate the exact queued prompt to trusted Codex `UserPromptSubmit` + `Stop`/`Interrupt` hooks, and remove only the annotations included in a successfully completed turn by default.
 - Keep generic plugin split menus inside the browser viewport: choose the side with usable space, clamp horizontal placement, widen for long labels up to a bounded desktop width, keep selected rows filling the menu, prevent horizontal scrolling, and make tall destination lists scroll vertically instead of extending off-screen.

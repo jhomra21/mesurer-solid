@@ -76,7 +76,7 @@ The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typograp
 - **Typography** — inspect rendered type and directly preview reversible copy and typography changes.
 - **Arrange** — drag selected UI into a Desired layout without writing application source.
 - **Screenshots** — capture a dragged visible-tab region with the optional screenshot plugin.
-- **Context and annotations** — expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotation UI stays attached to its target through scrolling, repeated-note markers remain local, Add Note remains available while a saved note is open, and annotation cards/composers occlude Select hover and selection chrome.
+- **Context and annotations** — expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotations persist across same-tab reloads, conservatively rebind to their original DOM targets, stay attached through scrolling, keep repeated-note markers local, leave Add Note available while a saved note is open, and keep cards/composers above Select hover and selection chrome.
 - **Plugins** — add tools, commands, overlays, settings, state, hooks, and services at runtime.
 - **Compact toolbar** — collapse inactive controls while every active tool remains visible; expanding restores the same stable toolbar and order.
 - **Color Picker** — use the browser's native `EyeDropper` when it is operational. Unsupported hosts do not advertise the tool.

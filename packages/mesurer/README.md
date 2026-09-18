@@ -82,7 +82,7 @@ For explicit plugin composition, `mesurer-solid/plugins` also exports `select`, 
 - Arrange selected UI into a Desired position without changing source.
 - Capture visible-tab regions through the optional Screenshot plugin.
 - Read selection, measurements, guides, annotations, layout, styles, and saved human intent through Context and agent APIs.
-- Keep saved annotation markers, cards, and ownership evidence attached to their target through scrolling; repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
+- Keep saved annotations across same-tab reloads and conservatively rebind them to their original DOM targets; markers, cards, and ownership evidence stay attached through scrolling, repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
 - Extend the runtime with tools, settings, overlays, commands, hooks, state, and services.
 - Compact the toolbar to active controls without changing tool state or order.
 
