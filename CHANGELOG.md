@@ -4,13 +4,15 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep generic plugin split menus inside the browser viewport: choose the side with usable space, clamp horizontal placement, and make tall destination lists scroll instead of extending off-screen.
+- Rename the human Codex action to **Queue to Codex**, return `delivery: "queued"` from programmatic delivery, and document Queue versus in-flight **Steer** semantics instead of implying that Mesurer interrupts an active Codex turn.
 - Add a Codex destination picker that keeps each Mesurer page pinned to the Codex thread that originally connected it, then shows five recent same-project Codex threads from app-server with one **Show 5 more…** expansion to ten.
-- Make **Send to Codex** health- and CSP-aware: mounting `codex()` does not probe loopback, the first send or thread chooser establishes availability, a missing bridge becomes **Codex unavailable** with an explicit retry, and successful connections continue health-checking for automatic recovery; the trusted SessionStart connector records the project directory used to scope recent-thread discovery.
+- Make **Queue to Codex** health- and CSP-aware: mounting `codex()` does not probe loopback, the first send or thread chooser establishes availability, a missing bridge becomes **Codex unavailable** with an explicit retry, and successful connections continue health-checking for automatic recovery; the trusted SessionStart connector records the project directory used to scope recent-thread discovery.
 
 ## 0.1.8-beta.0 - 2026-09-17
 
 - Consolidate first-party plugin factories under `mesurer-solid/plugins` with concise feature names such as `context()`, `arrange()`, `screenshot()`, and `codex()`, and remove the redundant public `*Plugin` factory names and one-plugin-per-subpath exports.
-- Add optional **Send to Codex** delivery that can auto-bind to the Codex thread that starts the bridge through `CODEX_THREAD_ID`, register later existing or newly-created Codex threads locally, switch among registered destinations, and send saved Context, selection evidence, or workspace Context through Codex's queued-user-message command.
+- Add optional **Queue to Codex** delivery that can auto-bind to the Codex thread that starts the bridge through `CODEX_THREAD_ID`, register later existing or newly-created Codex threads locally, switch among registered destinations, and send saved Context, selection evidence, or workspace Context through Codex's queued-user-message command.
 - Keep Context annotations attached to their page targets through window and nested scrolling. Add Note, the composer, saved markers and panels, and the ownership edge move with their source without one-frame catch-up; saved panels keep their page-relative point and multiple notes stay local to the target.
 - Keep Add Note available while an existing note is open, allow repeated notes on the same selected element, and keep annotation ownership to one clean exact-bound edge without duplicate selection or ghost paint.
 - Keep Select hover and selection evidence below Context cards and fixed Mesurer chrome, including non-isolated browser top-layer hosts, so blue page evidence cannot paint through the new-note composer or a saved annotation card.

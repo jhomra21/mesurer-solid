@@ -1,4 +1,4 @@
-# Send Context feedback to Codex
+# Queue Context feedback to Codex
 
 Mesurer can queue human visual feedback into Codex threads.
 
@@ -26,11 +26,26 @@ saved Mesurer notes / current selection
 
 There are two pieces with different jobs.
 
-The browser plugin, `codex()`, adds the service, command, **Send to Codex** toolbar action, and a bounded thread picker. Settings can load or remove this plugin without a page refresh.
+The browser plugin, `codex()`, adds the service, command, **Queue to Codex** toolbar action, and a bounded thread picker. Settings can load or remove this plugin without a page refresh.
 
 The local companion owns process access. It listens on `127.0.0.1`, keeps the locally connected thread set, asks Codex app-server for recent threads in the same project directory, and invokes `codex queue`. A normal web page cannot start `codex`, Node, Bun, or another operating-system process, so browser Settings cannot create this local process by itself.
 
 The package includes the companion and an idempotent connector. When Codex is controlling the project, the Mesurer skill uses that connector from the Codex process so the person does not need to start a second terminal command by hand.
+
+## Queue versus Steer
+
+Mesurer currently implements **Queue**, not **Steer**.
+
+- **Queue** adds the Mesurer feedback as a follow-up for the selected Codex thread. If that thread is already working, its current turn keeps running and the queued message waits behind it.
+- **Steer** changes an already in-flight turn. Codex models that separately through app-server `turn/steer`.
+
+Mesurer's bridge intentionally calls `codex queue --thread ... --message ...`. Current Codex routes that command through its shared app-server queue path, `thread/queue/add`, so queue delivery stays associated with the existing thread rather than opening a second writer.
+
+The short-lived app-server process Mesurer starts for `thread/list` is only for bounded same-project discovery. It is not the app-server instance that owns another client's active turn, so it is not a safe steering channel.
+
+When a queued message targets a thread that is currently working, Codex may show its own **Steer** affordance on that queued item. Choosing it in Codex is a separate action that promotes the follow-up into the active turn. Mesurer does not do that automatically.
+
+True Mesurer-driven steering would require a trusted connection to the shared/owning Codex app-server plus active-turn state, followed by an explicit `turn/steer` request. That should be a separate delivery mode rather than silently changing Queue semantics.
 
 ## Automatic connection from Codex
 
@@ -79,7 +94,7 @@ Turning Codex on in **Settings -> Plugins** loads `codex()` immediately. No refr
 
 Disabling the browser plugin does not stop the local companion. The companion can be shared by more than one page or registered Codex thread, and stopping it when one page toggles Codex off could break another client. While no page sends feedback, the companion waits on loopback and does no Codex work.
 
-Loading `codex()` does not probe `127.0.0.1` by itself. The first **Send to Codex** press or **Choose Codex thread…** menu action performs the initial bridge check. This keeps ordinary Mesurer mounts free of ambient loopback traffic and avoids CSP console errors on pages that never use Codex delivery.
+Loading `codex()` does not probe `127.0.0.1` by itself. The first **Queue to Codex** press or **Choose Codex thread…** menu action performs the initial bridge check. This keeps ordinary Mesurer mounts free of ambient loopback traffic and avoids CSP console errors on pages that never use Codex delivery.
 
 If that first contact fails, the action becomes disabled and is labelled **Codex unavailable**. Its dropdown offers **Retry Codex connection**. After one successful bridge contact, Mesurer health-checks that known companion; if it disappears, the action disables, and it re-enables automatically when the bridge returns.
 
@@ -95,13 +110,13 @@ This prevents an already-open Mesurer page from being silently stolen by whichev
 
 Before the first successful bridge contact, the dropdown contains **Choose Codex thread…**. That action initializes the loopback connection and loads recent choices without sending feedback.
 
-The dropdown beside **Send to Codex** shows:
+The dropdown beside **Queue to Codex** shows:
 
 1. the originating/current page thread first;
 2. up to four more recent same-project Codex threads;
 3. **Show 5 more…** when another five are available.
 
-After **Show 5 more…**, the picker is bounded at ten entries. Selecting another entry changes only that Mesurer page's send target. The main **Send to Codex** button queues to the selected target.
+After **Show 5 more…**, the picker is bounded at ten entries. Selecting another entry changes only that Mesurer page's send target. The main **Queue to Codex** button queues to the selected target.
 
 Recent metadata comes from Codex app-server `thread/list`, sorted by Codex recency and scoped to the project directory captured by the trusted Codex connection. Mesurer uses Codex's user-facing thread name when present, otherwise the thread preview, and falls back to a shortened id.
 
@@ -225,7 +240,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-`codex()` adds a **Send to Codex** split action immediately but performs no loopback request on mount. The first send, or **Choose Codex thread…**, establishes bridge availability and then populates the thread choices.
+`codex()` adds a **Queue to Codex** split action immediately but performs no loopback request on mount. The first send, or **Choose Codex thread…**, establishes bridge availability and then populates the thread choices.
 
 When clicked:
 
@@ -265,13 +280,16 @@ await service?.useThread("other-connected-thread")
 await service?.send()
 ```
 
-Or send one Context message to a bridge-visible thread without changing the bridge default:
+Or queue one Context message for a bridge-visible thread without changing the bridge default:
 
 ```ts
-await service?.send({
+const result = await service?.send({
   thread: "recent-thread-id",
 })
+// result.delivery === "queued"
 ```
+
+The historical method name is generic, but the result is not: Mesurer returns `delivery: "queued"` and does not claim that the active turn was steered.
 
 Send only particular saved annotations:
 

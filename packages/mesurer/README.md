@@ -137,7 +137,7 @@ The skill preserves existing human state, reads Arrange/text/annotation intent b
 
 See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/packages/mesurer/AGENT_INTEGRATION.md).
 
-### Optional Send to Codex
+### Optional Queue to Codex
 
 For Codex-controlled local projects, `mesurer-codex-connect` is the normal bootstrap path. The trusted Codex `SessionStart` integration supplies the current session id and project directory, reuses the bridge at `127.0.0.1:47365` when healthy, or starts the packaged companion when needed.
 
@@ -164,15 +164,17 @@ mountMesurer({
 })
 ```
 
-`codex()` does not probe loopback on mount. The first **Send to Codex** press or **Choose Codex thread…** menu action establishes availability. If the bridge is missing, the action becomes **Codex unavailable** with an explicit retry. After a successful connection, Mesurer health-checks the known companion and recovers automatically if it returns.
+`codex()` does not probe loopback on mount. The first **Queue to Codex** press or **Choose Codex thread…** menu action establishes availability. If the bridge is missing, the action becomes **Codex unavailable** with an explicit retry. After a successful connection, Mesurer health-checks the known companion and recovers automatically if it returns.
 
 The page stays pinned to the Codex thread that originally connected it unless the user chooses another destination. The picker shows five recent same-project threads first and can expand once to ten with **Show 5 more…**. Recent metadata comes from Codex app-server and is scoped to the project directory registered by the trusted local connector.
 
 The bridge never creates a new Codex thread. Open or create it in Codex and let `SessionStart` register it. The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. Browser pages cannot register arbitrary Codex sessions or widen discovery to another project.
 
-This uses Codex's own queued-user-message command. It does not replace the normal browser-harness agent workflow.
+This uses Codex's own queued-user-message command. **Queue to Codex** does not interrupt an active turn. Codex's separate **Steer** action targets an in-flight turn and Mesurer does not invoke it today. Programmatic `send()` resolves with `delivery: "queued"`.
 
-See [Send Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md).
+This does not replace the normal browser-harness agent workflow.
+
+See [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md).
 ## Documentation
 
 - [Getting started](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md)
@@ -180,7 +182,7 @@ See [Send Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/b
 - [Arrange](https://github.com/jhomra21/mesurer-solid/blob/main/docs/ARRANGE.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
-- [Send Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md)
+- [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md)
 - [Browser harness](https://github.com/jhomra21/mesurer-solid/blob/main/docs/BROWSER_HARNESS.md)
 - [Host isolation](https://github.com/jhomra21/mesurer-solid/blob/main/docs/HOST_ISOLATION.md)
 - [Trusted Types](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TRUSTED_TYPES.md)

@@ -11,8 +11,8 @@
   "keywords": ["mesurer", "codex", "ui-review", "feedback"],
   "interface": {
     "displayName": "Mesurer Codex",
-    "shortDescription": "Connect Mesurer feedback to the current Codex thread",
-    "longDescription": "Starts or reuses Mesurer's loopback Codex companion at session start and registers the current Codex session for Send to Codex.",
+    "shortDescription": "Queue Mesurer feedback to the current Codex thread",
+    "longDescription": "Starts or reuses Mesurer's loopback Codex companion at session start and registers the current Codex session for Queue to Codex.",
     "developerName": "Mesurer Solid",
     "category": "Developer Tools",
     "capabilities": [],

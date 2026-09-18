@@ -156,7 +156,7 @@ npx --yes --package=mesurer-solid mesurer-skill install
 
 See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the packaged [`mesurer-ui` skill](./.agents/skills/mesurer-ui/SKILL.md).
 
-### Send human feedback to Codex
+### Queue human feedback to Codex
 
 The optional Codex transport keeps Context as the feedback source and uses Codex's queued-user-message path. In a Codex-controlled local project, the trusted `SessionStart` integration runs `mesurer-codex-connect`, which starts or reuses the loopback companion and registers the current Codex session together with its project directory. A separate bridge terminal is not required.
 
@@ -183,13 +183,15 @@ mountMesurer({
 })
 ```
 
-Mounting `codex()` does not contact localhost. The first **Send to Codex** press or **Choose Codex thread…** menu action establishes the connection. If the bridge is unavailable, the action becomes disabled as **Codex unavailable** and the dropdown offers **Retry Codex connection**. After one successful connection, Mesurer health-checks the known companion and recovers automatically if it restarts.
+Mounting `codex()` does not contact localhost. The first **Queue to Codex** press or **Choose Codex thread…** menu action establishes the connection. If the bridge is unavailable, the action becomes disabled as **Codex unavailable** and the dropdown offers **Retry Codex connection**. After one successful connection, Mesurer health-checks the known companion and recovers automatically if it restarts.
+
+**Queue to Codex** is literal: it adds a follow-up without interrupting the active Codex turn. Codex may show its own **Steer** action on that queued message; Mesurer does not invoke `turn/steer` today. Programmatic `send()` reports `delivery: "queued"` so callers do not have to infer the delivery mode.
 
 Each Mesurer page keeps the Codex thread that originally connected it as its default destination. The split menu shows that thread first, then up to four recent same-project Codex threads discovered through Codex app-server. **Show 5 more…** expands the list to at most ten. Selecting another thread changes only that page's destination.
 
 Mesurer does not create new Codex threads. Create or open a new thread in Codex; the trusted `SessionStart` path registers it automatically. Programmatic callers can use `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. Browser pages cannot register arbitrary sessions, provide an arbitrary project directory, or target a thread the bridge has not registered or discovered for that project.
 
-See [Send Context feedback to Codex](./docs/CODEX.md).
+See [Queue Context feedback to Codex](./docs/CODEX.md).
 ## Documentation
 
 Start with the [documentation index](./docs/README.md).
@@ -199,7 +201,7 @@ Start with the [documentation index](./docs/README.md).
 - [Arrange](./docs/ARRANGE.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
 - [Context workflow](./docs/CONTEXT_WORKFLOW.md)
-- [Send Context feedback to Codex](./docs/CODEX.md)
+- [Queue Context feedback to Codex](./docs/CODEX.md)
 - [Browser harness](./docs/BROWSER_HARNESS.md)
 - [Host isolation](./docs/HOST_ISOLATION.md)
 - [Trusted Types](./docs/TRUSTED_TYPES.md)

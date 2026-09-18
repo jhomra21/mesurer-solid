@@ -149,7 +149,7 @@ context:v1
    │
    ▼
 codex()
-   ├─ Send to Codex tool / command
+   ├─ Queue to Codex tool / command
    ├─ service: codex:v1
    └─ browser HTTP only after send / chooser / explicit service call
                   │
@@ -176,13 +176,13 @@ The first healthy thread observed by a page becomes that page's origin. Later lo
 
 Thread registration remains a local-process capability. Browser code cannot register an arbitrary thread id, choose an arbitrary discovery directory, or widen the bridge to account-wide history. It may send to a locally registered thread or to a same-project recent thread that the bridge already discovered. The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`.
 
-Mesurer does not create a Codex thread or start a new app-server turn. That would make the bridge responsible for surfacing command/file approval requests from the new turn. New threads are created or opened in Codex, whose trusted `SessionStart` path can then register them. The delivery path continues to use `codex queue` and does not take a second writer lock.
+Mesurer does not create a Codex thread or start a new app-server turn. That would make the bridge responsible for surfacing command/file approval requests from the new turn. New threads are created or opened in Codex, whose trusted `SessionStart` path can then register them. The delivery path continues to use `codex queue` and does not take a second writer lock. Queue and Steer are separate Codex operations: current `codex queue` routes through the shared app-server `thread/queue/add` path, while in-flight steering is `turn/steer`. Mesurer does not currently attach to the active-turn owner, so it must not present queue delivery as steering.
 
 This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser harness. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and asks a known Codex thread to act on that feedback.
 
 The integration sends text because Codex's queued-user-message CLI currently accepts text input. It does not use a second app-server writer, MCP/ACP, or private Codex Desktop IPC.
 
-See [Send Context feedback to Codex](./docs/CODEX.md).
+See [Queue Context feedback to Codex](./docs/CODEX.md).
 ## Screenshot
 
 `mesurer.screenshot` is an optional first-party plugin exposed as `screenshot()` from `mesurer-solid/plugins`.

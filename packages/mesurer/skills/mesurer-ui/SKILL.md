@@ -274,7 +274,9 @@ bun run mesurer-codex-connect
 
 Do not ask the user to start a second bridge when this helper can ensure one. Do not use npm postinstall scripts, private Codex persistence, browser thread registration, or an arbitrary remote service as substitutes for the local companion.
 
-The browser plugin must not probe loopback merely because it is mounted. The human's first **Send to Codex** press or **Choose Codex thread…** action establishes bridge availability. If first contact fails, the tool becomes **Codex unavailable** and offers **Retry Codex connection**. After one successful connection, background health checks may keep that known connection honest and recover it after a bridge restart. Do not add unconditional mount-time polling; strict CSP hosts must remain clean when Codex delivery is unused.
+Mesurer delivery is Queue, not Steer. Queue preserves the current Codex turn and adds the feedback behind it. Codex's own **Steer** affordance promotes a queued follow-up into an active turn; the Mesurer bridge does not perform `turn/steer` today. Do not tell the user that Queue interrupted or redirected an in-flight response.
+
+The browser plugin must not probe loopback merely because it is mounted. The human's first **Queue to Codex** press or **Choose Codex thread…** action establishes bridge availability. If first contact fails, the tool becomes **Codex unavailable** and offers **Retry Codex connection**. After one successful connection, background health checks may keep that known connection honest and recover it after a bridge restart. Do not add unconditional mount-time polling; strict CSP hosts must remain clean when Codex delivery is unused.
 
 The first healthy bridge thread observed by a Mesurer page is that page's origin. Later Codex sessions may register with the shared companion without silently retargeting the existing page. The bridge may ask Codex app-server for at most ten recent threads in the origin project's working directory. The picker shows the origin/current thread first, four more recent same-project threads, then one **Show 5 more…** expansion.
 
