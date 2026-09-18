@@ -71,6 +71,7 @@ export type MesurerCodexDispatchStatus =
   | "desktop-local"
   | "waiting-active"
   | "desktop-sent"
+  | "desktop-opened"
   | "desktop-send-uncertain"
   | "desktop-wait-failed";
 
