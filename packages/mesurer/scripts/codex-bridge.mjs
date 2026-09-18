@@ -1080,10 +1080,31 @@ const runCodexAppTool = async (record, toolName, baseArguments) => {
   });
 };
 
-const desktopThreadStatus = async (record, thread) => {
-  const payload = await runCodexAppTool(record, "read_thread", { threadId: thread });
-  return normalizeThread(payload?.thread?.status?.type ?? payload?.status?.type);
+const readDesktopThread = (record, thread) =>
+  runCodexAppTool(record, "read_thread", { threadId: thread });
+
+const desktopStatusFromRead = (payload) => {
+  const status = payload?.thread?.status ?? payload?.status;
+  return normalizeThread(status?.type ?? status);
 };
+
+const desktopPayloadContains = (value, expected) => {
+  if (value == null) return false;
+  if (Array.isArray(value)) {
+    return value.some((item) => desktopPayloadContains(item, expected));
+  }
+  if (value?.constructor === Object) {
+    return Object.values(value).some((item) => desktopPayloadContains(item, expected));
+  }
+  return String(value).includes(expected);
+};
+
+const desktopReadConfirmsMessage = (payload, message) =>
+  desktopPayloadContains(payload, message)
+  || desktopPayloadContains(payload, xmlEscape(message));
+
+const desktopThreadStatus = async (record, thread) =>
+  desktopStatusFromRead(await readDesktopThread(record, thread));
 
 const sendDesktopThreadMessage = async (record, thread, message) => {
   const payload = await runCodexAppTool(record, "send_message_to_thread", {
@@ -1149,16 +1170,32 @@ maybeDispatchDesktopThread = async (thread) => {
 
     try {
       await sendDesktopThreadMessage(record, thread, delivery.message);
+      delivery.dispatchError = null;
     } catch (cause) {
-      delivery.dispatch = "desktop-send-uncertain";
-      delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
-      delivery.updatedAt = Date.now();
-      persistDeliveryStateSoon();
-      return;
+      const sendError = cause instanceof Error ? cause.message : String(cause);
+      try {
+        const verification = await readDesktopThread(record, thread);
+        if (!desktopReadConfirmsMessage(verification, delivery.message)) {
+          delivery.dispatch = "desktop-send-uncertain";
+          delivery.dispatchError = sendError;
+          delivery.updatedAt = Date.now();
+          persistDeliveryStateSoon();
+          return;
+        }
+        delivery.dispatchError = `Codex Desktop delivered the message but its acknowledgement failed: ${sendError}`;
+      } catch (verificationCause) {
+        const verificationError = verificationCause instanceof Error
+          ? verificationCause.message
+          : String(verificationCause);
+        delivery.dispatch = "desktop-send-uncertain";
+        delivery.dispatchError = `${sendError}; delivery verification failed: ${verificationError}`;
+        delivery.updatedAt = Date.now();
+        persistDeliveryStateSoon();
+        return;
+      }
     }
 
     delivery.dispatch = "desktop-sent";
-    delivery.dispatchError = null;
     delivery.updatedAt = Date.now();
     persistDeliveryStateSoon();
   } catch (cause) {
@@ -1331,7 +1368,8 @@ const xmlEscape = (value) => value
 const promptMatchesDelivery = (delivery, prompt) => {
   if (delivery.messageHash === hashMessage(prompt)) return true;
   if (delivery.transport !== "desktop-app" || !delivery.message) return false;
-  return prompt.includes(`<input>${xmlEscape(delivery.message)}</input>`);
+  return prompt.includes(delivery.message)
+    || prompt.includes(`<input>${xmlEscape(delivery.message)}</input>`);
 };
 
 const markPromptStarted = (thread, turnId, prompt) => {
