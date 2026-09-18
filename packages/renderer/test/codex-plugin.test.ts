@@ -13,6 +13,7 @@ import type { MesurerContextService } from "../../mesurer/src/context-plugin";
 
 afterEach(() => {
   vi.useRealTimers();
+  sessionStorage.clear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -411,6 +412,247 @@ describe("codex", () => {
     expect(tool?.disabled?.()).toBe(false);
     host.dispose();
     vi.useRealTimers();
+  });
+
+  it("keeps the page-pinned Codex thread across a reload even when the bridge default changes", async () => {
+    const firstHost = createMesurerPluginHost();
+    const { service: firstContext } = createContextService();
+    let phase: "first" | "second" = "first";
+    const sendBodies: Array<{ message: string; thread?: string }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify(phase === "first"
+            ? { ok: true, thread: "thread-a", threads: ["thread-a"] }
+            : { ok: true, thread: "thread-b", threads: ["thread-a", "thread-b"] }),
+        };
+      }
+      if (url.includes("/threads?")) {
+        const scoped = new URL(url).searchParams.get("thread");
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: scoped,
+            threadDetails: [
+              { id: "thread-a", title: "Original task", updatedAt: 10, connected: true },
+              { id: "thread-b", title: "Other task", updatedAt: 9, connected: true },
+            ],
+            hasMore: false,
+          }),
+        };
+      }
+      if (url.endsWith("/send")) {
+        const body = JSON.parse(String(init?.body));
+        sendBodies.push(body);
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: body.thread,
+            output: "queued",
+            delivery: "queued",
+            status: "queued",
+          }),
+        };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await firstHost.load(defineMesurerPlugin({
+      id: "test.context-affinity-first",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", firstContext);
+      },
+    }));
+    await firstHost.load(codex());
+    const chooser = firstHost.tools()
+      .find((candidate) => candidate.id === "codex.send")
+      ?.menu?.items[0];
+    await chooser?.run();
+    firstHost.dispose();
+
+    phase = "second";
+    const secondHost = createMesurerPluginHost();
+    const { service: secondContext } = createContextService();
+    await secondHost.load(defineMesurerPlugin({
+      id: "test.context-affinity-second",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", secondContext);
+      },
+    }));
+    await secondHost.load(codex());
+    await secondHost.command.execute("codex.send");
+
+    expect(sendBodies).toHaveLength(1);
+    expect(sendBodies[0]?.thread).toBe("thread-a");
+    secondHost.dispose();
+  });
+
+  it("requires an explicit destination instead of inheriting a stale bridge default when multiple threads are registered", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    let sendCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-stale",
+            threads: ["thread-correct", "thread-stale"],
+          }),
+        };
+      }
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-stale",
+            threadDetails: [
+              { id: "thread-correct", title: "Correct task", updatedAt: 10, connected: true },
+              { id: "thread-stale", title: "Unrelated idle task", updatedAt: 9, connected: true },
+            ],
+            hasMore: false,
+          }),
+        };
+      }
+      if (url.endsWith("/send")) {
+        sendCount += 1;
+        throw new Error("send should not run before the user chooses a thread");
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-ambiguous-route",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+
+    await host.tools()
+      .find((candidate) => candidate.id === "codex.send")
+      ?.menu?.items[0]?.run();
+
+    const tool = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(tool?.label).toBe("Choose Codex thread");
+    expect(tool?.disabled?.()).toBe(true);
+    expect(tool?.menu?.items.map((item) => item.label)).toContain("Connected · Correct task");
+    expect(tool?.menu?.items.map((item) => item.label)).toContain("Connected · Unrelated idle task");
+    expect(sendCount).toBe(0);
+
+    await tool?.menu?.items.find((item) => item.id === "codex.thread.thread-correct")?.run();
+    const selected = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(selected?.label).toBe("Queue to Codex");
+    expect(selected?.disabled?.()).toBe(false);
+    host.dispose();
+  });
+
+  it("resumes an in-flight tracked delivery after a page reload and retires its exact annotation on completion", async () => {
+    vi.useFakeTimers();
+    const firstHost = createMesurerPluginHost();
+    const { service: firstContext } = createContextService();
+    let deliveryReads = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ ok: true, thread: "thread-a", threads: ["thread-a"] }),
+        };
+      }
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            threadDetails: [{ id: "thread-a", title: "Current task", updatedAt: 10, connected: true }],
+            hasMore: false,
+          }),
+        };
+      }
+      if (url.endsWith("/send")) {
+        const body = JSON.parse(String(init?.body));
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: body.thread,
+            output: "queued",
+            delivery: "queued",
+            deliveryId: "delivery-reload",
+            status: "queued",
+          }),
+        };
+      }
+      if (url.endsWith("/deliveries/delivery-reload")) {
+        deliveryReads += 1;
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            deliveryId: "delivery-reload",
+            thread: "thread-a",
+            status: "completed",
+            turnId: "turn-reload",
+            createdAt: 1,
+            updatedAt: 2,
+          }),
+        };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await firstHost.load(defineMesurerPlugin({
+      id: "test.context-reload-first",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", firstContext);
+      },
+    }));
+    await firstHost.load(codex());
+    await firstHost.command.execute("codex.send");
+    firstHost.dispose();
+
+    const secondHost = createMesurerPluginHost();
+    const { service: secondContext, removeAnnotation } = createContextService();
+    await secondHost.load(defineMesurerPlugin({
+      id: "test.context-reload-second",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", secondContext);
+      },
+    }));
+    await secondHost.load(codex());
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(deliveryReads).toBe(1);
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(secondHost.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Codex finished");
+    secondHost.dispose();
   });
 
   it("does not probe loopback until the user asks for Codex, then marks a missing bridge unavailable", async () => {

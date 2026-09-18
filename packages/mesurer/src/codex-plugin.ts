@@ -165,6 +165,79 @@ type UiDeliveryState = {
   annotationIds: string[];
 };
 
+type PersistedCodexUiState = {
+  version: 1;
+  originThread: string | null;
+  selectedThread: string | null;
+  delivery: {
+    id: string;
+    thread: string;
+    status: "queued" | "working";
+    annotationIds: string[];
+  } | null;
+};
+
+const browserStateStorageKey = (endpoint: string) => {
+  try {
+    const location = globalThis.location;
+    if (!location?.origin) return null;
+    return `mesurer-codex-ui:v1:${endpoint}:${location.origin}${location.pathname}`;
+  } catch {
+    return null;
+  }
+};
+
+const readBrowserState = (endpoint: string): PersistedCodexUiState | null => {
+  const key = browserStateStorageKey(endpoint);
+  if (!key) return null;
+  try {
+    const raw = globalThis.sessionStorage?.getItem(key);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<PersistedCodexUiState>;
+    if (value.version !== 1) return null;
+    const originThread = typeof value.originThread === "string" && value.originThread.trim()
+      ? value.originThread.trim()
+      : null;
+    const selectedThread = typeof value.selectedThread === "string" && value.selectedThread.trim()
+      ? value.selectedThread.trim()
+      : null;
+    const delivery = value.delivery;
+    const persistedDelivery = delivery
+      && typeof delivery.id === "string"
+      && delivery.id.trim()
+      && typeof delivery.thread === "string"
+      && delivery.thread.trim()
+      && (delivery.status === "queued" || delivery.status === "working")
+      && Array.isArray(delivery.annotationIds)
+      ? {
+          id: delivery.id.trim(),
+          thread: delivery.thread.trim(),
+          status: delivery.status,
+          annotationIds: delivery.annotationIds.filter((id): id is string =>
+            typeof id === "string" && id.trim().length > 0),
+        }
+      : null;
+    return {
+      version: 1,
+      originThread,
+      selectedThread,
+      delivery: persistedDelivery,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const writeBrowserState = (endpoint: string, state: PersistedCodexUiState) => {
+  const key = browserStateStorageKey(endpoint);
+  if (!key) return;
+  try {
+    globalThis.sessionStorage?.setItem(key, JSON.stringify(state));
+  } catch {
+    // Session storage is optional. Routing still works for the current page lifetime.
+  }
+};
+
 const endpointUrl = (endpoint: string, path: string) => {
   const base = endpoint.endsWith("/") ? endpoint : `${endpoint}/`;
   return new URL(path, base).toString();
@@ -319,10 +392,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       const contextService = ctx.service.get<MesurerContextService>(CONTEXT_SERVICE_ID);
       if (!contextService) throw new Error("Mesurer Codex plugin requires context() from mesurer-solid/plugins.");
 
+      const persistedUiState = withUi ? readBrowserState(endpoint) : null;
       let bridgeAvailability: BridgeAvailability = "unknown";
       let everConnected = false;
-      let originThread: string | null = null;
-      let selectedThread: string | null = null;
+      let originThread: string | null = persistedUiState?.originThread ?? null;
+      let selectedThread: string | null = persistedUiState?.selectedThread
+        ?? persistedUiState?.originThread
+        ?? null;
+      let routeNeedsSelection = false;
       let lastBridgeThread: string | null = null;
       let registeredThreadIds: string[] = [];
       let recentThreads: MesurerCodexThread[] = [];
@@ -331,7 +408,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       let toolRegistration: Registration | undefined;
       let toolSignature = "";
       let refreshPromise: Promise<void> | null = null;
-      let activeDelivery: UiDeliveryState | null = null;
+      let activeDelivery: UiDeliveryState | null = persistedUiState?.delivery
+        ? {
+            id: persistedUiState.delivery.id,
+            thread: persistedUiState.delivery.thread,
+            status: persistedUiState.delivery.status,
+            annotationIds: persistedUiState.delivery.annotationIds,
+          }
+        : null;
       let deliveryPollTimer = 0;
       let completedVisibleTimer = 0;
       let uiSendPromise: Promise<void> | null = null;
@@ -350,7 +434,33 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         return bridgeThreadList(await bridgeRequest(endpoint, `threads?${params.toString()}`));
       };
 
-      const currentTarget = () => selectedThread ?? originThread ?? lastBridgeThread;
+      const currentTarget = () => selectedThread ?? originThread ?? (routeNeedsSelection ? null : lastBridgeThread);
+      const persistUiState = () => {
+        if (!withUi) return;
+        const persistedDelivery = activeDelivery?.id
+          && (activeDelivery.status === "queued" || activeDelivery.status === "working")
+          ? {
+              id: activeDelivery.id,
+              thread: activeDelivery.thread ?? currentTarget() ?? "",
+              status: activeDelivery.status,
+              annotationIds: [...activeDelivery.annotationIds],
+            }
+          : null;
+        writeBrowserState(endpoint, {
+          version: 1,
+          originThread,
+          selectedThread,
+          delivery: persistedDelivery?.thread ? persistedDelivery : null,
+        });
+      };
+      const bindPageThread = (thread: string, makeOrigin = false) => {
+        const target = thread.trim();
+        if (!target) return;
+        if (makeOrigin || !originThread) originThread = target;
+        selectedThread = target;
+        routeNeedsSelection = false;
+        persistUiState();
+      };
       const deliveryBusy = () => activeDelivery !== null
         && ["queueing", "queued", "working", "completed"].includes(activeDelivery.status);
       const deliveryStatusText = (status: UiDeliveryStatus) => {
@@ -431,7 +541,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             disabled: () => deliveryBusy(),
             run() {
               if (deliveryBusy()) return;
-              selectedThread = thread.id;
+              bindPageThread(thread.id, !originThread);
               syncTool();
             },
           };
@@ -455,16 +565,18 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         const target = currentTarget();
         const items = menuItems();
         const canSend = !deliveryBusy()
+          && !routeNeedsSelection
           && bridgeAvailability !== "unavailable"
           && (bridgeAvailability === "unknown" || Boolean(target));
         const label = deliveryToolLabel()
           ?? (bridgeAvailability === "unavailable"
             ? "Codex unavailable"
-            : bridgeAvailability === "available" && !target
-              ? "No Codex thread"
+            : routeNeedsSelection || (bridgeAvailability === "available" && !target)
+              ? "Choose Codex thread"
               : "Queue to Codex");
         const signature = JSON.stringify({
           bridgeAvailability,
+          routeNeedsSelection,
           target,
           label,
           visibleThreadCount,
@@ -527,11 +639,27 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             everConnected = true;
             lastBridgeThread = health.thread;
             registeredThreadIds = health.threads;
-            if (!originThread && health.thread) {
-              originThread = health.thread;
-              selectedThread = health.thread;
+
+            const restoredTarget = selectedThread ?? originThread;
+            if (restoredTarget) {
+              routeNeedsSelection = !health.threads.includes(restoredTarget);
+            } else if (health.threads.length === 1) {
+              bindPageThread(health.threads[0]!, true);
+            } else if (health.threads.length > 1) {
+              routeNeedsSelection = true;
+            } else {
+              routeNeedsSelection = true;
             }
-            if (bridgeThreadChanged || recentThreads.length === 0) await refreshRecent();
+
+            if (bridgeThreadChanged || recentThreads.length === 0 || routeNeedsSelection) {
+              await refreshRecent();
+            }
+
+            if (routeNeedsSelection && restoredTarget
+              && recentThreads.some((thread) => thread.id === restoredTarget)) {
+              routeNeedsSelection = false;
+              persistUiState();
+            }
           } catch (cause) {
             bridgeAvailability = "unavailable";
             throw cause;
@@ -560,6 +688,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           completedVisibleTimer = 0;
           if (activeDelivery?.status !== "completed") return;
           activeDelivery = null;
+          persistUiState();
           syncTool();
         }, COMPLETED_VISIBLE_MS);
       };
@@ -567,17 +696,20 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       const finishDelivery = async (delivery: MesurerCodexDelivery) => {
         if (!activeDelivery || activeDelivery.id !== delivery.id) return;
         activeDelivery = { ...activeDelivery, thread: delivery.thread, status: delivery.status };
+        persistUiState();
         if (delivery.status === "completed") {
           if (clearCompletedAnnotations) {
             for (const annotationId of activeDelivery.annotationIds) {
               await contextService.removeAnnotation(annotationId);
             }
           }
+          persistUiState();
           syncTool();
           resetCompletedDeliveryLater();
           return;
         }
         if (delivery.status === "interrupted") {
+          persistUiState();
           syncTool();
           return;
         }
@@ -595,6 +727,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         } catch (cause) {
           if (activeDelivery?.id !== deliveryId) return;
           activeDelivery = { ...activeDelivery, status: "failed" };
+          persistUiState();
           if (bridgeTransportUnavailable(cause, endpoint)) bridgeAvailability = "unavailable";
           syncTool();
         }
@@ -612,7 +745,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ thread: target }),
           }));
-          selectedThread = target;
+          bindPageThread(target, !originThread);
           lastBridgeThread = health.thread;
           registeredThreadIds = health.threads;
           bridgeAvailability = "available";
@@ -624,6 +757,9 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           const feedback = await feedbackPayload(contextService, request, instruction);
           const explicitThread = request?.thread?.trim();
           const thread = explicitThread || (withUi ? currentTarget() : null);
+          if (withUi && !explicitThread && (routeNeedsSelection || !thread)) {
+            throw new Error("Choose a Codex thread before queueing feedback.");
+          }
           const payload: BridgeSendRequest = { message: feedback.message };
           if (thread) payload.thread = thread;
           try {
@@ -674,6 +810,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               status: result.status,
               annotationIds: result.annotationIds,
             };
+            bindPageThread(result.thread, !originThread);
+            persistUiState();
             syncTool();
             console.info(`[Mesurer] Queued feedback for Codex thread ${result.thread}.`);
 
@@ -699,11 +837,13 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
                 completedVisibleTimer = 0;
                 if (activeDelivery?.id !== null || activeDelivery?.status !== "queued") return;
                 activeDelivery = null;
+                persistUiState();
                 syncTool();
               }, COMPLETED_VISIBLE_MS);
             }
           } catch (cause) {
             activeDelivery = null;
+            persistUiState();
             syncTool();
             const message = cause instanceof Error ? cause.message : String(cause);
             console.error(`[Mesurer] Failed to queue feedback for Codex: ${message}`);
@@ -717,6 +857,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       if (withUi) {
         syncTool();
+        if (activeDelivery?.id) {
+          everConnected = true;
+          deliveryPollTimer = globalThis.setTimeout(() => {
+            deliveryPollTimer = 0;
+            if (!activeDelivery?.id) return;
+            void pollDelivery(activeDelivery.id);
+          }, 0);
+        }
         const interval = globalThis.setInterval(() => {
           if (!everConnected) return;
           void refreshRuntime().catch(() => undefined);
