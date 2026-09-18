@@ -887,35 +887,38 @@ const codexAppMcpConfig = async (record) => {
     .map((entry) => entry.name)
     .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
 
+  const manifestNames = [".mcp.json", "desktop-mcp.json"];
   for (const version of versions) {
     const directory = join(packageRoot, version);
-    const configPath = join(directory, "desktop-mcp.json");
-    let text;
-    try {
-      text = await readFile(configPath, "utf8");
-    } catch (cause) {
-      if (cause?.code === "ENOENT") continue;
-      throw cause;
-    }
-    const config = JSON.parse(text);
-    const server = config?.mcpServers?.codex_app;
-    const command = normalizeThread(server?.command);
-    if (!command) continue;
-    const args = Array.isArray(server?.args)
-      ? server.args.map((value) => String(value))
-      : [];
-    const cwd = resolve(directory, normalizeCwd(server?.cwd) ?? ".");
-    const env = {};
-    if (server?.env?.constructor === Object) {
-      for (const [name, value] of Object.entries(server.env)) {
-        if (value != null) env[name] = String(value);
+    for (const manifestName of manifestNames) {
+      const configPath = join(directory, manifestName);
+      let text;
+      try {
+        text = await readFile(configPath, "utf8");
+      } catch (cause) {
+        if (cause?.code === "ENOENT") continue;
+        throw cause;
       }
+      const config = JSON.parse(text);
+      const server = config?.mcpServers?.codex_app;
+      const command = normalizeThread(server?.command);
+      if (!command) continue;
+      const args = Array.isArray(server?.args)
+        ? server.args.map((value) => String(value))
+        : [];
+      const cwd = resolve(directory, normalizeCwd(server?.cwd) ?? ".");
+      const env = {};
+      if (server?.env?.constructor === Object) {
+        for (const [name, value] of Object.entries(server.env)) {
+          if (value != null) env[name] = String(value);
+        }
+      }
+      return { command, args, cwd, env };
     }
-    return { command, args, cwd, env };
   }
 
   throw new Error(
-    `Codex Desktop app-tools MCP config was not found under ${packageRoot}.`,
+    `Codex Desktop app-tools MCP config (.mcp.json or desktop-mcp.json) was not found under ${packageRoot}.`,
   );
 };
 
