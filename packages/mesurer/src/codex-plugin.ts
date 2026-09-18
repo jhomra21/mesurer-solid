@@ -311,21 +311,22 @@ const bridgeDelivery = (response: BridgeResponse): MesurerCodexDelivery => {
   const thread = response.thread?.trim();
   const status = response.status;
   if (!id || !thread || !status) throw new Error("Mesurer Codex bridge returned an invalid delivery state.");
-  return {
+  const delivery: MesurerCodexDelivery = {
     id,
     thread,
     status,
     turnId: response.turnId?.trim() || null,
-    ...(response.queuedSubmissionId !== undefined
-      ? { queuedSubmissionId: response.queuedSubmissionId?.trim() || null }
-      : {}),
-    ...(response.dispatch !== undefined ? { dispatch: response.dispatch } : {}),
-    ...(response.dispatchError !== undefined
-      ? { dispatchError: response.dispatchError?.trim() || null }
-      : {}),
     createdAt: Number.isFinite(response.createdAt) ? Number(response.createdAt) : 0,
     updatedAt: Number.isFinite(response.updatedAt) ? Number(response.updatedAt) : 0,
   };
+  if (response.queuedSubmissionId !== undefined) {
+    delivery.queuedSubmissionId = response.queuedSubmissionId?.trim() || null;
+  }
+  if (response.dispatch !== undefined) delivery.dispatch = response.dispatch;
+  if (response.dispatchError !== undefined) {
+    delivery.dispatchError = response.dispatchError?.trim() || null;
+  }
+  return delivery;
 };
 
 const bridgeThreadList = (response: BridgeResponse): MesurerCodexThreadList => ({
@@ -795,21 +796,22 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             });
             const sentThread = response.thread?.trim();
             if (!sentThread) throw new Error("Mesurer Codex bridge did not report the destination thread.");
-            return {
+            const result: MesurerCodexSendResult = {
               thread: sentThread,
               output: response.output ?? "",
               delivery: "queued",
               deliveryId: response.deliveryId?.trim() || null,
               status: response.status ?? "queued",
-              ...(response.queuedSubmissionId !== undefined
-                ? { queuedSubmissionId: response.queuedSubmissionId?.trim() || null }
-                : {}),
-              ...(response.dispatch !== undefined ? { dispatch: response.dispatch } : {}),
-              ...(response.dispatchError !== undefined
-                ? { dispatchError: response.dispatchError?.trim() || null }
-                : {}),
               annotationIds: feedback.annotationIds,
             };
+            if (response.queuedSubmissionId !== undefined) {
+              result.queuedSubmissionId = response.queuedSubmissionId?.trim() || null;
+            }
+            if (response.dispatch !== undefined) result.dispatch = response.dispatch;
+            if (response.dispatchError !== undefined) {
+              result.dispatchError = response.dispatchError?.trim() || null;
+            }
+            return result;
           } catch (cause) {
             if (withUi && bridgeTransportUnavailable(cause, endpoint)) {
               bridgeAvailability = "unavailable";
