@@ -39,7 +39,7 @@ Mesurer currently implements **Queue**, not **Steer**.
 - **Queue** adds the Mesurer feedback as a follow-up for the selected Codex thread. If that thread is already working, its current turn keeps running and the queued message waits behind it.
 - **Steer** changes an already in-flight turn. Codex models that separately through app-server `turn/steer`.
 
-Mesurer's bridge intentionally calls `codex queue --thread ... --message ...`. Current Codex routes that command through its shared app-server queue path, `thread/queue/add`, so queue delivery stays associated with the existing thread rather than opening a second writer.
+Mesurer's bridge intentionally calls `codex queue --thread ... --message ...`. Current Codex routes that command through its shared app-server queue path, `thread/queue/add`, so queue delivery stays associated with the existing thread rather than opening a second writer. The bridge retains Codex's returned queued-submission id, then talks to that same shared daemon through Codex's stdio-to-UDS relay. If `thread/read` reports `notLoaded`, Mesurer sends `thread/resume` on the shared daemon so Codex can dispatch the persisted queue in order. Loaded idle/active threads are left to Codex's normal queue scheduler.
 
 The short-lived app-server process Mesurer starts for `thread/list` is only for bounded same-project discovery. It is not the app-server instance that owns another client's active turn, so it is not a safe steering channel.
 
@@ -107,12 +107,12 @@ A plain browser-only application still cannot start a missing local companion. T
 The queue action has one page-local delivery state machine:
 
 1. **Queueing to Codex…** starts immediately on the first press. The action and destination choices are disabled before the network request begins, so a fast double-click cannot create a duplicate queue entry.
-2. **Queued for Codex** means the bridge accepted the request.
+2. **Queued for Codex** means Codex durably accepted the request. The bridge also records Codex's queued-submission id and wakes a cold `notLoaded` destination through the same shared daemon; it does not steer or interrupt an active turn.
 3. **Codex working…** means the trusted `UserPromptSubmit` lifecycle hook matched the exact queued prompt to a Codex turn.
 4. **Codex finished** means the matching `Stop` hook reported that turn finished. The action shows its completion state briefly, then becomes available again.
 5. **Codex interrupted** means the matching `Interrupt` hook fired. The action becomes available for retry and the annotation is preserved.
 
-The bridge gives every queued request a random delivery id and stores only bounded lifecycle metadata. It hashes the queued message to correlate `UserPromptSubmit` without adding a hidden marker to the text the user sees in Codex. The browser polls only that delivery id while work is outstanding.
+The bridge gives every queued request a random delivery id and stores only bounded lifecycle metadata. It also keeps Codex's durable queued-submission id and dispatch diagnostic (`resumed`, `already-loaded`, or a non-fatal wake failure) when the current Codex CLI exposes that identity. It hashes the queued message to correlate `UserPromptSubmit` without adding a hidden marker to the text the user sees in Codex. The browser polls only that Mesurer delivery id while work is outstanding.
 
 When the queued request contains saved Mesurer annotations, the browser retains the exact annotation ids used to construct the message. After the matching turn reaches **Codex finished**, `codex()` removes only those saved annotations. Notes created later, notes that were not part of the queued message, and annotations from interrupted turns remain untouched.
 
@@ -164,7 +164,7 @@ If a future UI offers **All Codex projects**, that should be an explicit user op
 
 Codex app-server can create threads and start turns, but Mesurer does not do that automatically.
 
-The current integration uses `codex queue` for existing threads. Codex's queue command routes through the shared app server and can durably enqueue a user message for an existing non-archived thread. If that thread is not currently loaded, the queued message may wait until Codex resumes it.
+The current integration uses `codex queue` for existing threads. Codex's queue command routes through the shared app server and durably enqueues a user message for an existing non-archived thread. After persistence, Mesurer checks that same daemon and resumes only a `notLoaded` destination; this is Codex's own cold-queue dispatch path. An already-loaded thread is never resumed or steered by Mesurer and continues draining its queue under Codex's scheduler.
 
 Starting a brand-new app-server turn is a different responsibility: a turn can generate command/file approval requests that must be surfaced by the client that owns that app-server connection. Mesurer's small loopback bridge is not an approval UI and must not auto-approve those requests or strand them invisibly.
 
@@ -186,7 +186,7 @@ codex queue --help
 codex app-server --help
 ```
 
-`codex queue` targets an existing session by UUID or exact session name. The bridge uses app-server `thread/list` only for bounded, same-project discovery and keeps `codex queue` as the message-delivery path.
+`codex queue` targets an existing session by UUID or exact session name. The bridge uses app-server `thread/list` only for bounded, same-project discovery and keeps `codex queue` as the message-persistence path. After a successful queue response, it uses Codex's local stdio-to-UDS relay only to inspect the shared daemon and resume a cold destination.
 
 Current Codex hook events expose the session/turn ids needed by this lifecycle. `mesurer-codex-connect` uses the session id and working directory from trusted `SessionStart`; the packaged `codex-lifecycle.mjs` helper forwards `UserPromptSubmit`, `Stop`, and `Interrupt` events to the loopback bridge on a best-effort basis.
 
@@ -347,7 +347,7 @@ The first explicit send or thread-chooser attempt is the availability boundary. 
 
 The toolbar reports queue failures to the browser console with a `[Mesurer] Failed to queue feedback for Codex: ...` diagnostic and propagates the failure through the plugin error path. Programmatic `send()` calls reject with the same underlying error.
 
-A queue request that was accepted but cannot be lifecycle-tracked is never treated as completed merely to clear the UI. Mesurer keeps the saved annotation rather than deleting review evidence without a matching completion event.
+A queue request that Codex durably accepted is never reported as a failed send merely because the follow-up daemon wake check failed; doing so would invite a duplicate retry. Its delivery metadata records the non-fatal wake diagnostic and Mesurer keeps the saved annotation until a matching lifecycle completion event arrives. A request that cannot be lifecycle-tracked is never treated as completed merely to clear the UI.
 
 `mesurer-codex-connect` reports bootstrap or registration failures to the local Codex process. It does not fall back to browser-side process creation or unrestricted browser-side thread registration.
 
