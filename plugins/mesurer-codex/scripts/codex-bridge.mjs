@@ -13,6 +13,7 @@ const MAX_MESSAGE_BYTES = 64 * 1024;
 const CODEX_TIMEOUT_MS = 30_000;
 const APP_SERVER_TIMEOUT_MS = 5_000;
 const DAEMON_RESUME_TIMEOUT_MS = 10_000;
+const DAEMON_START_TIMEOUT_MS = 15_000;
 const MAX_DISCOVERED_THREADS = 10;
 const MAX_DELIVERIES = 100;
 const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
@@ -211,7 +212,52 @@ const codexControlSocketPath = () => {
   return join(codexHome, "app-server-control", "app-server-control.sock");
 };
 
-const resumeColdCodexThread = (thread) => new Promise((resolve, reject) => {
+const runCodexDaemonStart = () => new Promise((resolve, reject) => {
+  const child = spawn(codexBin, ["app-server", "daemon", "start"], {
+    env: process.env,
+    shell: false,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  let stdout = "";
+  let stderr = "";
+  let settled = false;
+  let timeout;
+
+  const finish = (error, output) => {
+    if (settled) return;
+    settled = true;
+    if (timeout) clearTimeout(timeout);
+    if (error) reject(error);
+    else resolve(output);
+  };
+
+  child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
+  child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+  child.on("error", (error) => finish(error));
+  child.on("close", (code, signal) => {
+    if (code === 0) {
+      finish(null, stdout.trim());
+      return;
+    }
+    const detail = stderr.trim() || stdout.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
+    finish(new Error(`codex app-server daemon start failed: ${detail}`));
+  });
+
+  timeout = setTimeout(() => {
+    child.kill("SIGTERM");
+    finish(new Error(`codex app-server daemon start timed out after ${DAEMON_START_TIMEOUT_MS}ms.`));
+  }, DAEMON_START_TIMEOUT_MS);
+});
+
+const missingDaemonSocket = (cause) => {
+  if (!(cause instanceof Error)) return false;
+  return cause.message.includes("No such file or directory")
+    || cause.message.includes("ENOENT")
+    || cause.message.includes("failed to connect to socket");
+};
+
+const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject) => {
   if (process.platform === "win32") {
     resolve({ action: "unsupported", threadStatus: null });
     return;
@@ -331,6 +377,16 @@ const resumeColdCodexThread = (thread) => new Promise((resolve, reject) => {
     },
   });
 });
+
+const resumeColdCodexThread = async (thread) => {
+  try {
+    return await resumeColdCodexThreadViaDaemon(thread);
+  } catch (cause) {
+    if (!missingDaemonSocket(cause)) throw cause;
+    await runCodexDaemonStart();
+    return resumeColdCodexThreadViaDaemon(thread);
+  }
+};
 
 const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
   const child = spawn(codexBin, ["queue", "--thread", thread, "--message", message], {
