@@ -29,7 +29,7 @@ curl http://127.0.0.1:47365/health
 
 The response should report the current Codex session as `thread` and include it in `threads`.
 
-Then enable Codex in Mesurer Settings and use **Queue to Codex**. No separate `mesurer-codex` terminal should be needed. Queue adds a follow-up without interrupting an active turn; Codex's **Steer** control is a separate in-flight action.
+Then enable Codex in Mesurer Settings and use **Queue to Codex**. No separate `mesurer-codex` terminal should be needed. Queue adds a follow-up without interrupting an active turn. If the destination is cold, the bridge resumes that `notLoaded` thread on the same shared Codex daemon after queue persistence so the message can dispatch; already-loaded threads remain under Codex's scheduler. Codex's **Steer** control is a separate in-flight action.
 
 While a tracked request is outstanding, Mesurer disables repeat queue submissions and visibly moves from Queueing to Queued to Working. A normal Stop briefly shows Finished and removes only the annotations included in that delivery. Interruptions keep those notes for retry.
 
