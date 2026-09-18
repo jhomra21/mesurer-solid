@@ -79,7 +79,9 @@ Turning Codex on in **Settings -> Plugins** loads `codex()` immediately. No refr
 
 Disabling the browser plugin does not stop the local companion. The companion can be shared by more than one page or registered Codex thread, and stopping it when one page toggles Codex off could break another client. While no page sends feedback, the companion waits on loopback and does no Codex work.
 
-The browser plugin health-checks the companion while its toolbar UI is mounted. If the bridge disappears, **Send to Codex** becomes disabled and is labelled **Codex unavailable** instead of remaining as a no-op control. When the bridge comes back, the action re-enables automatically without a page refresh or plugin retoggle.
+Loading `codex()` does not probe `127.0.0.1` by itself. The first **Send to Codex** press or **Choose Codex thread…** menu action performs the initial bridge check. This keeps ordinary Mesurer mounts free of ambient loopback traffic and avoids CSP console errors on pages that never use Codex delivery.
+
+If that first contact fails, the action becomes disabled and is labelled **Codex unavailable**. Its dropdown offers **Retry Codex connection**. After one successful bridge contact, Mesurer health-checks that known companion; if it disappears, the action disables, and it re-enables automatically when the bridge returns.
 
 The user's enabled preference stays separate from temporary bridge availability. A transient bridge outage therefore does not silently rewrite Settings.
 
@@ -90,6 +92,8 @@ A plain browser-only application still cannot start a missing local companion. T
 The first healthy bridge thread observed by one mounted `codex()` plugin becomes that page's originating Codex thread. Mesurer keeps sending to that thread even if another Codex session later runs `SessionStart` and becomes the bridge-wide default.
 
 This prevents an already-open Mesurer page from being silently stolen by whichever Codex session registered most recently.
+
+Before the first successful bridge contact, the dropdown contains **Choose Codex thread…**. That action initializes the loopback connection and loads recent choices without sending feedback.
 
 The dropdown beside **Send to Codex** shows:
 
@@ -142,6 +146,8 @@ codex app-server --help
 Current Codex hook events expose the running session id and working directory. `mesurer-codex-connect` uses both when started from the trusted `SessionStart` hook.
 
 The current queue accepts text input. Mesurer sends structured Context text in this integration, not image attachments.
+
+If the host page uses Content Security Policy, using browser-side Codex delivery requires `connect-src` permission for the configured loopback endpoint. Merely mounting `codex()` does not make a loopback request, so pages that block localhost still load Mesurer cleanly. An explicit send, thread chooser, or programmatic Codex service call fails through the normal delivery error path when policy blocks the connection.
 
 ## Start the foreground bridge manually
 
@@ -219,7 +225,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-The toolbar gets a **Send to Codex** split action when the bridge is available.
+`codex()` adds a **Send to Codex** split action immediately but performs no loopback request on mount. The first send, or **Choose Codex thread…**, establishes bridge availability and then populates the thread choices.
 
 When clicked:
 
@@ -289,7 +295,7 @@ A thread override that is neither locally registered nor returned by same-projec
 
 Delivery is explicit. A send fails if the companion is unavailable, the Codex executable is missing, no target thread is available, the requested thread is unknown, the browser origin is not authorized, or `codex queue` rejects the request.
 
-The toolbar no longer presents an enabled no-op action while the bridge is down. It becomes unavailable and automatically recovers when `/health` returns again.
+The first explicit send or thread-chooser attempt is the availability boundary. If Mesurer cannot reach the companion, the toolbar changes to disabled **Codex unavailable** state and its dropdown offers **Retry Codex connection**. Mesurer does not keep probing a bridge it has never reached, so restrictive-CSP hosts do not accumulate automatic loopback errors. Once a connection has succeeded, health polling continues and recovery is automatic if the companion later disappears and returns.
 
 The toolbar reports delivery failures to the browser console with a `[Mesurer] Failed to send feedback to Codex: ...` diagnostic and propagates the failure through the plugin error path. Programmatic `send()` calls reject with the same underlying error.
 
@@ -308,6 +314,7 @@ The integration keeps local authority outside the browser:
 Other boundaries remain in place:
 
 - The bridge listens on loopback only.
+- Browser-side loopback traffic starts only after an explicit send, thread-chooser action, or programmatic Codex service call; after a successful UI connection, health polling is limited to that known endpoint.
 - It invokes Codex without a shell.
 - Non-loopback browser origins are denied unless explicitly allowed.
 - Request bodies are size-limited.

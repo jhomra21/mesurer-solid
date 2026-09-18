@@ -5,7 +5,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 ## Unreleased
 
 - Add a Codex destination picker that keeps each Mesurer page pinned to the Codex thread that originally connected it, then shows five recent same-project Codex threads from app-server with one **Show 5 more…** expansion to ten.
-- Make **Send to Codex** health-aware: the toolbar action becomes unavailable when the local bridge is down and automatically recovers when it returns, while the trusted SessionStart connector now records the project directory used to scope recent-thread discovery.
+- Make **Send to Codex** health- and CSP-aware: mounting `codex()` does not probe loopback, the first send or thread chooser establishes availability, a missing bridge becomes **Codex unavailable** with an explicit retry, and successful connections continue health-checking for automatic recovery; the trusted SessionStart connector records the project directory used to scope recent-thread discovery.
 
 ## 0.1.8-beta.0 - 2026-09-17
 

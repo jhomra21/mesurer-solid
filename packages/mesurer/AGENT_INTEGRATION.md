@@ -18,7 +18,9 @@ The installer writes a self-contained skill and injection artifact:
 .agents/skills/mesurer-ui/
 ├── SKILL.md
 └── assets/
-    └── inject-script.js
+    ├── inject-script.js
+    ├── codex-connect.mjs
+    └── codex-bridge.mjs
 ```
 
 ## Reuse a live instance
@@ -211,10 +213,15 @@ The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separ
 
 A source-mounted page may opt into `codex()` from `mesurer-solid/plugins` alongside `context()`. This is not an agent integration requirement and does not add a generic send capability to `window.__MESURER__`.
 
-When the current Codex thread starts `mesurer-codex`, the companion reads Codex's `CODEX_THREAD_ID`, registers that thread, and makes it the default destination. That means a Codex session that starts or uses Mesurer can route later human Context feedback back to the same thread without copying an id by hand. A normal shell may still select the initial session explicitly with `mesurer-codex --thread <SESSION>`.
+For a Codex-controlled local project, the preferred lifecycle is the trusted `SessionStart` connector. `mesurer-codex-connect` reads the current Codex session id and project directory, starts or reuses the packaged loopback companion, and registers that pair locally. The browser cannot spawn this process and must not be given a browser-side registration escape hatch.
 
-A different or newly-created Codex thread can join an already-running bridge with `mesurer-codex --register-current`. Registration is accepted only from a local process without a browser Origin. The bridge keeps previously registered threads; the `codex:v1` service can inspect them with `health()`, switch the default with `useThread(thread)`, or send one message to another registered destination with `send({ thread })`. Mesurer does not create or resume Codex threads itself. See [Send Context feedback to Codex](../../docs/CODEX.md).
+The browser plugin is intentionally lazy. Mounting `codex()` performs no loopback request. The human's first **Send to Codex** action or **Choose Codex thread…** menu action establishes bridge availability. A failed first contact becomes **Codex unavailable** with an explicit retry. After one successful connection, Mesurer may health-check that known companion so it can disable and recover the action if the bridge later stops or restarts.
 
+The first healthy thread observed by one Mesurer page becomes that page's originating destination. Later `SessionStart` registrations do not silently steal the page. The bridge uses Codex app-server `thread/list`, scoped to the trusted project directory, to expose at most ten recent same-project threads. The browser may send to a locally registered thread or to one of those bridge-discovered same-project threads, but it cannot supply an arbitrary project directory or invent an arbitrary session id.
+
+The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. `useThread(thread)` changes the bridge default only for a locally registered thread; a page-specific `send({ thread })` can target any thread the bridge has already registered or discovered for the scoped project.
+
+Mesurer does not create a new Codex thread or start a new app-server turn. New threads should be created or opened in Codex, where the client that owns the turn can surface command and file approval requests. The trusted `SessionStart` path then registers the thread automatically. See [Send Context feedback to Codex](../../docs/CODEX.md).
 ## Revalidate after source edits
 
 After HMR or reload settles:

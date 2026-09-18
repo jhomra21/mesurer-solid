@@ -190,6 +190,9 @@ for (const contractName of [
   "ArrangeCapturePlan",
   "MesurerArrangeService",
   "MesurerCodexHealth",
+  "MesurerCodexThread",
+  "MesurerCodexThreadList",
+  "MesurerCodexThreadListOptions",
   "MesurerCodexService",
   "MesurerCodexSendRequest",
   "MesurerCodexSendResult",
@@ -201,7 +204,7 @@ for (const contractName of [
   }
 }
 
-for (const codexMember of ["useThread", "thread?: string", "threads: string[]"]) {
+for (const codexMember of ["listThreads", "useThread", "thread?: string", "threads: string[]"]) {
   if (!codexDeclarations.includes(codexMember)) {
     throw new Error(`Published Codex plugin declarations are missing thread-routing contract: ${codexMember}.`);
   }

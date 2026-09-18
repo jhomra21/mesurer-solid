@@ -158,19 +158,21 @@ See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the package
 
 ### Send human feedback to Codex
 
-The optional Codex transport keeps Context as the feedback source and uses Codex's own queued-user-message command. When Codex starts the bridge itself, `mesurer-codex` reads `CODEX_THREAD_ID`, so feedback naturally routes back to the same Codex thread:
+The optional Codex transport keeps Context as the feedback source and uses Codex's queued-user-message path. In a Codex-controlled local project, the trusted `SessionStart` integration runs `mesurer-codex-connect`, which starts or reuses the loopback companion and registers the current Codex session together with its project directory. A separate bridge terminal is not required.
+
+From a Codex shell or tool environment, the packaged connector can also be run directly:
 
 ```bash
-bunx mesurer-codex
+bunx mesurer-codex-connect
 ```
 
-A manual shell can still choose the initial destination explicitly:
+The low-level `mesurer-codex` command remains available for diagnostics or explicit foreground process ownership:
 
 ```bash
-bunx mesurer-codex --thread <SESSION>
+bunx mesurer-codex --thread <SESSION> --cwd <PROJECT_DIRECTORY>
 ```
 
-Then mount Codex alongside Context:
+Mount Codex alongside Context:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -181,18 +183,13 @@ mountMesurer({
 })
 ```
 
-Mesurer adds **Send to Codex**. Saved annotation Context is sent first; when there are no saved notes, it falls back to the current selection or workspace Context.
+Mounting `codex()` does not contact localhost. The first **Send to Codex** press or **Choose Codex thread…** menu action establishes the connection. If the bridge is unavailable, the action becomes disabled as **Codex unavailable** and the dropdown offers **Retry Codex connection**. After one successful connection, Mesurer health-checks the known companion and recovers automatically if it restarts.
 
-A different or newly-created Codex thread can take over the same bridge by running:
+Each Mesurer page keeps the Codex thread that originally connected it as its default destination. The split menu shows that thread first, then up to four recent same-project Codex threads discovered through Codex app-server. **Show 5 more…** expands the list to at most ten. Selecting another thread changes only that page's destination.
 
-```bash
-bunx mesurer-codex --register-current
-```
-
-The bridge retains previously registered threads. Programmatic callers can use `health()`, `useThread(thread)`, or `send({ thread })` to switch or route to another registered destination. Browser pages cannot register arbitrary Codex threads themselves.
+Mesurer does not create new Codex threads. Create or open a new thread in Codex; the trusted `SessionStart` path registers it automatically. Programmatic callers can use `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. Browser pages cannot register arbitrary sessions, provide an arbitrary project directory, or target a thread the bridge has not registered or discovered for that project.
 
 See [Send Context feedback to Codex](./docs/CODEX.md).
-
 ## Documentation
 
 Start with the [documentation index](./docs/README.md).

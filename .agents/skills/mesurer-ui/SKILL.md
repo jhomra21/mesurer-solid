@@ -250,9 +250,9 @@ The optional Screenshot plugin is a separate human camera workflow. Preserve an 
 
 ## Optional Codex thread handoff
 
-Only use this path when the user has explicitly asked for Mesurer-to-Codex delivery or the live Mesurer instance already has `mesurer.codex` enabled. The browser plugin and the local companion have separate ownership: the Settings toggle can load or unload browser-side `codex()` immediately, but ordinary browser JavaScript cannot spawn `codex` or a Node/Bun child process.
+Only use this path when the user has explicitly asked for Mesurer-to-Codex delivery or the live Mesurer instance already has `mesurer.codex` enabled. The browser plugin and the local companion have separate ownership: Settings can load or unload browser-side `codex()` immediately, but ordinary browser JavaScript cannot spawn `codex` or a Node/Bun child process.
 
-When this task is running inside Codex, make the handoff zero-manual from the user's perspective. First check whether the live plugin is enabled when a Mesurer instance already exists:
+When this task is running inside Codex, make the local companion zero-manual from the user's perspective. First check whether the live plugin is enabled when a Mesurer instance already exists:
 
 ```js
 const codexEnabled = Boolean(
@@ -266,7 +266,7 @@ If Codex delivery was requested or `codexEnabled` is true, run the installed com
 node .agents/skills/mesurer-ui/assets/codex-connect.mjs
 ```
 
-`mesurer-codex-connect` reads Codex's `CODEX_THREAD_ID`. It reuses a healthy bridge at `127.0.0.1:47365`, or starts the packaged `codex-bridge.mjs` companion when none is running, waits for it to become ready, then registers the current Codex thread as the active destination. In the Mesurer Solid repository itself, the equivalent source command is:
+`mesurer-codex-connect` reads Codex's `CODEX_THREAD_ID` and, when invoked from the trusted `SessionStart` hook, the project working directory. It reuses a healthy bridge at `127.0.0.1:47365`, or starts the packaged `codex-bridge.mjs` companion when none is running, waits for it to become ready, then registers the current session and project directory. In the Mesurer Solid repository itself, the equivalent source command is:
 
 ```bash
 bun run mesurer-codex-connect
@@ -274,12 +274,19 @@ bun run mesurer-codex-connect
 
 Do not ask the user to start a second bridge when this helper can ensure one. Do not use npm postinstall scripts, private Codex persistence, browser thread registration, or an arbitrary remote service as substitutes for the local companion.
 
-If the Codex plugin is later disabled in Mesurer Settings, its browser service, command, and toolbar action disappear. Do not kill the shared local companion solely because one page disabled its plugin: another page or registered Codex thread may still use it. The companion is inert until a page explicitly sends feedback, and re-enabling the browser plugin can use the already-running companion immediately.
+The browser plugin must not probe loopback merely because it is mounted. The human's first **Send to Codex** press or **Choose Codex thread…** action establishes bridge availability. If first contact fails, the tool becomes **Codex unavailable** and offers **Retry Codex connection**. After one successful connection, background health checks may keep that known connection honest and recover it after a bridge restart. Do not add unconditional mount-time polling; strict CSP hosts must remain clean when Codex delivery is unused.
 
-Browser pages may switch or send only among threads that a local Codex process or user already registered; they may not invent arbitrary Codex destinations. If `CODEX_THREAD_ID` is unavailable, do not weaken that boundary to make registration work from the page.
+The first healthy bridge thread observed by a Mesurer page is that page's origin. Later Codex sessions may register with the shared companion without silently retargeting the existing page. The bridge may ask Codex app-server for at most ten recent threads in the origin project's working directory. The picker shows the origin/current thread first, four more recent same-project threads, then one **Show 5 more…** expansion.
 
-When application code has mounted `codex()` next to `context()`, its typed `codex:v1` service supports `health()`, `useThread(thread)`, and `send({ thread })` for inspecting the registered set, changing the default, or routing one message to another registered thread. This transport is separate from the normal `window.__MESURER__` evidence workflow and must not replace browser-based verification.
+Browser pages may send only to locally registered threads or to recent same-project threads that the bridge itself discovered through Codex app-server. They may not supply an arbitrary cwd or invent arbitrary Codex destinations. If `CODEX_THREAD_ID` is unavailable, do not weaken the local registration boundary to make registration work from the page.
 
+When application code has mounted `codex()` next to `context()`, its typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. `useThread(thread)` is for a locally registered bridge default; `send({ thread })` may target any bridge-visible same-project thread.
+
+Do not create a new Codex thread from the Mesurer bridge. A new app-server turn can produce command or file approval requests that belong to the client owning that turn. Create or open the thread in Codex and let the trusted `SessionStart` path register it automatically.
+
+If the Codex plugin is later disabled in Mesurer Settings, its browser service, command, and toolbar action disappear. Do not kill the shared local companion solely because one page disabled its plugin: another page or Codex thread may still use it.
+
+This transport is separate from the normal `window.__MESURER__` evidence workflow and must not replace browser-based verification.
 ## Completion
 
 Do not call every Mesurer method after every edit. Measure what matters to the request.

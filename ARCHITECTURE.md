@@ -42,7 +42,7 @@ Users install `mesurer-solid`.
 | `mesurer-solid/inject` | Programmatic injection helper |
 | `mesurer-solid/inject-script` | Self-contained classic browser payload |
 
-The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, and the optional `mesurer-codex` loopback companion. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
+The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, the optional `mesurer-codex` loopback companion, and `mesurer-codex-connect` for trusted session bootstrap. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
 
 Public first-party plugin factories use their feature name directly. Applications import `context`, `arrange`, `screenshot`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
 
@@ -151,31 +151,38 @@ context:v1
 codex()
    ├─ Send to Codex tool / command
    ├─ service: codex:v1
-   └─ HTTP to an explicitly started loopback companion
-                  │
-        ┌─────────┴──────────┐
-        ▼                    ▼
- CODEX_THREAD_ID       --register-current
- / --thread            from another Codex thread
-        │                    │
-        └─────────┬──────────┘
-                  ▼
-        registered thread set
+   └─ browser HTTP only after send / chooser / explicit service call
                   │
                   ▼
-       codex queue --thread … --message …
+          loopback companion
+             │          │
+             │          └─ codex app-server thread/list
+             │                 │
+             │                 └─ recent threads scoped to trusted cwd
+             │
+             ├─ trusted local registration
+             │      ▲
+             │      └─ SessionStart / mesurer-codex-connect
+             │          session id + project cwd
+             │
+             └─ codex queue --thread … --message …
 ```
 
-The companion is outside the browser because a framework-agnostic web package cannot spawn the local Codex executable. It binds to `127.0.0.1`, limits request size and browser origins, and invokes Codex without a shell. When Codex starts it, `CODEX_THREAD_ID` supplies the initial thread automatically; a user can instead pass `--thread` explicitly. Another existing or newly-created Codex thread can register itself later with `--register-current`.
+The companion is outside the browser because a framework-agnostic web package cannot spawn the local Codex executable. It binds to `127.0.0.1`, limits request size and browser origins, and invokes Codex without a shell. `mesurer-codex-connect` is the normal Codex-controlled lifecycle: it reuses or starts the companion and registers the trusted session id plus project directory. The low-level `mesurer-codex` foreground command remains available for diagnostics and explicit ownership.
 
-Thread registration is deliberately a local-process capability. Browser requests may inspect the registered set, switch the active destination, or send one message to another registered thread, but they cannot register an arbitrary thread id. The `codex:v1` service exposes this as `health()`, `useThread(thread)`, and `send({ thread })`. Mesurer never creates, resumes, or takes the writer lock of a Codex thread.
+The browser plugin performs no loopback request merely because it is mounted. The first send or **Choose Codex thread…** action establishes availability. A failed first contact becomes **Codex unavailable** with explicit retry rather than generating periodic CSP/network errors. After one successful contact, the page may health-check that known companion so a later outage disables the action and a restart restores it automatically.
 
-This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser harness. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and asks a registered Codex CLI/App thread to act on that feedback.
+The first healthy thread observed by a page becomes that page's origin. Later local registrations update the shared companion without silently retargeting the page. The bridge uses Codex app-server `thread/list` with the trusted project directory to expose at most ten recent same-project threads, while the page picker starts with five and can expand once to ten.
 
-The integration sends text because Codex's queued-user-message CLI currently accepts text input. It does not use `thread/resume`, a second app-server writer, MCP/ACP, or private Codex Desktop IPC.
+Thread registration remains a local-process capability. Browser code cannot register an arbitrary thread id, choose an arbitrary discovery directory, or widen the bridge to account-wide history. It may send to a locally registered thread or to a same-project recent thread that the bridge already discovered. The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`.
+
+Mesurer does not create a Codex thread or start a new app-server turn. That would make the bridge responsible for surfacing command/file approval requests from the new turn. New threads are created or opened in Codex, whose trusted `SessionStart` path can then register them. The delivery path continues to use `codex queue` and does not take a second writer lock.
+
+This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser harness. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and asks a known Codex thread to act on that feedback.
+
+The integration sends text because Codex's queued-user-message CLI currently accepts text input. It does not use a second app-server writer, MCP/ACP, or private Codex Desktop IPC.
 
 See [Send Context feedback to Codex](./docs/CODEX.md).
-
 ## Screenshot
 
 `mesurer.screenshot` is an optional first-party plugin exposed as `screenshot()` from `mesurer-solid/plugins`.

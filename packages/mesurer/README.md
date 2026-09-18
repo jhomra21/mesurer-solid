@@ -71,6 +71,7 @@ For explicit plugin composition, `mesurer-solid/plugins` also exports `select`, 
 | `mesurer-solid/inject-script` | Built classic injection artifact |
 | `mesurer-skill` | Install the portable coding-agent skill |
 | `mesurer-codex` | Run the optional loopback Codex queue companion |
+| `mesurer-codex-connect` | Start or reuse the Codex companion and register the current Codex session |
 
 ## Features
 
@@ -138,16 +139,18 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 
 ### Optional Send to Codex
 
-When Codex starts the loopback companion itself, `mesurer-codex` reads `CODEX_THREAD_ID`, so Mesurer feedback naturally routes back to that same Codex CLI/App thread:
+For Codex-controlled local projects, `mesurer-codex-connect` is the normal bootstrap path. The trusted Codex `SessionStart` integration supplies the current session id and project directory, reuses the bridge at `127.0.0.1:47365` when healthy, or starts the packaged companion when needed.
+
+From a Codex shell or tool environment:
 
 ```bash
-bunx mesurer-codex
+bunx mesurer-codex-connect
 ```
 
-A normal shell can still choose the initial thread explicitly:
+The low-level foreground bridge remains available for diagnostics:
 
 ```bash
-bunx mesurer-codex --thread <SESSION>
+bunx mesurer-codex --thread <SESSION> --cwd <PROJECT_DIRECTORY>
 ```
 
 Mount the optional transport next to Context:
@@ -161,18 +164,15 @@ mountMesurer({
 })
 ```
 
-A different or newly-created Codex thread can register itself with the running bridge and become the active target:
+`codex()` does not probe loopback on mount. The first **Send to Codex** press or **Choose Codex thread…** menu action establishes availability. If the bridge is missing, the action becomes **Codex unavailable** with an explicit retry. After a successful connection, Mesurer health-checks the known companion and recovers automatically if it returns.
 
-```bash
-bunx mesurer-codex --register-current
-```
+The page stays pinned to the Codex thread that originally connected it unless the user chooses another destination. The picker shows five recent same-project threads first and can expand once to ten with **Show 5 more…**. Recent metadata comes from Codex app-server and is scoped to the project directory registered by the trusted local connector.
 
-The bridge remembers registered threads. `codex:v1` exposes `health()`, `useThread(thread)`, and `send({ thread })` for switching or one-off routing among those registered destinations. Browser pages cannot register arbitrary Codex sessions themselves.
+The bridge never creates a new Codex thread. Open or create it in Codex and let `SessionStart` register it. The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. Browser pages cannot register arbitrary Codex sessions or widen discovery to another project.
 
-This uses Codex's own queued-user-message command. It does not replace the normal browser-harness agent workflow, and it does not resume or take ownership of a target Codex thread.
+This uses Codex's own queued-user-message command. It does not replace the normal browser-harness agent workflow.
 
 See [Send Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md).
-
 ## Documentation
 
 - [Getting started](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md)

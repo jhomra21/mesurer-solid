@@ -808,7 +808,7 @@ The root export contains the mount API, public domain types, and agent surface. 
 
 Public plugin factories use the feature name directly, including `context()`, `arrange()`, `screenshot()`, `codex()`, and explicit built-ins such as `select()` and `typography()`. Redundant public `*Plugin` factory names and one-plugin-per-subpath exports are not part of the package contract.
 
-The published artifact also includes the `mesurer-skill` and `mesurer-codex` binaries, `AGENT_INTEGRATION.md`, the portable Agent Skill, and its injector asset.
+The published artifact also includes the `mesurer-skill`, `mesurer-codex`, and `mesurer-codex-connect` binaries, `AGENT_INTEGRATION.md`, the portable Agent Skill, and its injector/Codex connector assets.
 
 ## 21. Repository architecture invariants
 
