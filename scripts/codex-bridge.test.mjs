@@ -540,6 +540,71 @@ if (args[0] === "queue") {
   }
 });
 
+test("Codex bridge does not start the daemon for non-missing relay errors", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-daemon-fail-closed-"));
+  const argsPath = join(root, "args.jsonl");
+  const fakeCodex = join(root, "fake-codex.mjs");
+  await writeFile(fakeCodex, `#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+const args = process.argv.slice(2);
+appendFileSync(process.env.MESURER_FAKE_CODEX_ARGS, JSON.stringify(args) + "\\n");
+if (args[0] === "queue") {
+  console.log("Queued message queue-fail-closed-1 for thread thread-cold.");
+} else if (args[0] === "stdio-to-uds") {
+  process.stderr.write("failed to connect to socket: Permission denied\\n");
+  process.exit(1);
+} else if (args[0] === "app-server" && args[1] === "daemon" && args[2] === "start") {
+  process.stderr.write("daemon start must not run\\n");
+  process.exit(99);
+}
+`);
+  await chmod(fakeCodex, 0o755);
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--thread", "thread-cold",
+    "--codex", fakeCodex,
+  ], {
+    env: {
+      ...process.env,
+      MESURER_FAKE_CODEX_ARGS: argsPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+    const send = await fetch(`${bridgeUrl}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173",
+      },
+      body: JSON.stringify({ message: "do not widen the fallback" }),
+    });
+    assert.equal(send.status, 200);
+    const sent = await send.json();
+    assert.equal(sent.queuedSubmissionId, "queue-fail-closed-1");
+    assert.equal(sent.dispatch, "wake-failed");
+    assert.match(sent.dispatchError, /Permission denied/);
+
+    const invocations = await readInvocations(argsPath);
+    assert.equal(invocations.length, 2);
+    assert.deepEqual(invocations[0], [
+      "queue",
+      "--thread",
+      "thread-cold",
+      "--message",
+      "do not widen the fallback",
+    ]);
+    assert.equal(invocations[1][0], "stdio-to-uds");
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Codex bridge does not resume an already-loaded queued thread", async () => {
   for (const status of ["idle", "active"]) {
     const root = await mkdtemp(join(tmpdir(), `mesurer-codex-loaded-${status}-`));
