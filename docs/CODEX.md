@@ -33,7 +33,7 @@ The browser plugin, `codex()`, adds the service, command, **Queue to Codex** too
 
 The local companion owns process access and chooses the transport registered by the trusted Codex session. A normal web page cannot start Codex, Node, Bun, or another operating-system process, so browser Settings cannot create this local process by itself.
 
-When the trusted `SessionStart` environment includes `CODEX_APP_TOOLS_PIPE_PATH`, the destination belongs to Codex Desktop. The connector registers that app-tools pipe and `CODEX_HOME` with the loopback companion. The bridge then discovers Desktop's installed `codex_app` MCP launcher from its bundled `codex-app-tools/*/desktop-mcp.json` and talks to the app-owned thread instead of starting a separate app-server daemon.
+When the trusted `SessionStart` environment includes `CODEX_APP_TOOLS_PIPE_PATH`, the destination belongs to Codex Desktop. The connector registers that app-tools pipe and `CODEX_HOME` with the loopback companion. The bridge discovers Desktop's installed `codex_app` MCP launcher from the bundled `codex-app-tools` plugin manifest. Current Desktop installs use `.mcp.json`; `desktop-mcp.json` remains a compatibility fallback. The bridge then talks to the app-owned thread instead of starting a separate app-server daemon.
 
 Desktop delivery is durable in Mesurer before dispatch. Outstanding Desktop messages are stored locally under `$CODEX_HOME/mesurer/codex-deliveries.json`, survive a bridge restart, and are removed from active tracking only by the normal bounded delivery lifecycle. The file contains the feedback text needed to resume delivery and stays on the local machine.
 
