@@ -216,6 +216,89 @@ const readJsonBody = async (request) => {
   return JSON.parse(text);
 };
 
+const defaultCodexHome = normalizeCwd(process.env.CODEX_HOME) ?? join(homedir(), ".codex");
+const deliveryStatePath = join(defaultCodexHome, "mesurer", "codex-deliveries.json");
+let deliveryStateWrite = Promise.resolve();
+
+const persistedDelivery = (delivery) => ({
+  id: delivery.id,
+  thread: delivery.thread,
+  message: delivery.message,
+  messageHash: delivery.messageHash,
+  transport: delivery.transport,
+  status: delivery.status,
+  turnId: delivery.turnId,
+  queuedSubmissionId: delivery.queuedSubmissionId,
+  dispatch: delivery.dispatch,
+  dispatchError: delivery.dispatchError,
+  createdAt: delivery.createdAt,
+  updatedAt: delivery.updatedAt,
+});
+
+const persistDeliveryState = () => {
+  const state = {
+    version: DELIVERY_STATE_VERSION,
+    deliveries: [...deliveries.values()].map(persistedDelivery),
+  };
+  deliveryStateWrite = deliveryStateWrite.then(async () => {
+    const directory = join(defaultCodexHome, "mesurer");
+    await mkdir(directory, { recursive: true });
+    const temporaryPath = `${deliveryStatePath}.${process.pid}.tmp`;
+    await writeFile(temporaryPath, `${JSON.stringify(state)}\n`, "utf8");
+    await rename(temporaryPath, deliveryStatePath);
+  });
+  return deliveryStateWrite;
+};
+
+const persistDeliveryStateSoon = () => {
+  void persistDeliveryState().catch((cause) => {
+    const error = cause instanceof Error ? cause.message : String(cause);
+    process.stderr.write(`Mesurer Codex bridge could not persist delivery state: ${error}\n`);
+  });
+};
+
+const loadDeliveryState = async () => {
+  let text;
+  try {
+    text = await readFile(deliveryStatePath, "utf8");
+  } catch (cause) {
+    if (cause?.code === "ENOENT") return;
+    throw cause;
+  }
+
+  const state = JSON.parse(text);
+  if (state?.version !== DELIVERY_STATE_VERSION || !Array.isArray(state.deliveries)) return;
+  const now = Date.now();
+  for (const value of state.deliveries) {
+    const id = normalizeThread(value?.id);
+    const thread = normalizeThread(value?.thread);
+    const message = value?.message == null ? "" : String(value.message);
+    const transport = value?.transport === "desktop-app" ? "desktop-app" : "codex-queue";
+    const status = value?.status;
+    const createdAt = Number(value?.createdAt);
+    const updatedAt = Number(value?.updatedAt);
+    if (!id || !thread || !message.trim()) continue;
+    if (!["queued", "working", "completed", "interrupted"].includes(status)) continue;
+    if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) continue;
+    const terminal = status === "completed" || status === "interrupted";
+    if (now - updatedAt > (terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS)) continue;
+    deliveries.set(id, {
+      id,
+      thread,
+      message,
+      messageHash: normalizeThread(value?.messageHash) ?? createHash("sha256").update(message).digest("hex"),
+      transport,
+      status,
+      turnId: normalizeThread(value?.turnId),
+      queuedSubmissionId: normalizeThread(value?.queuedSubmissionId),
+      dispatch: normalizeThread(value?.dispatch) ?? "persisted",
+      dispatchError: normalizeThread(value?.dispatchError),
+      createdAt,
+      updatedAt,
+    });
+  }
+};
+
 const queuedSubmissionFromOutput = (output, thread) => {
   const match = output.match(/Queued message (\S+) for thread (\S+)\.?/);
   if (!match) return null;
@@ -783,6 +866,7 @@ const turnKey = (thread, turnId) => `${thread}:${turnId}`;
 const publicDelivery = (delivery) => ({
   deliveryId: delivery.id,
   thread: delivery.thread,
+  transport: delivery.transport,
   status: delivery.status,
   turnId: delivery.turnId,
   queuedSubmissionId: delivery.queuedSubmissionId,
@@ -810,13 +894,15 @@ const pruneDeliveries = () => {
   }
 };
 
-const createDelivery = (thread, message) => {
+const createDelivery = (thread, message, transport = "codex-queue") => {
   pruneDeliveries();
   const now = Date.now();
   const delivery = {
     id: randomUUID(),
     thread,
+    message,
     messageHash: hashMessage(message),
+    transport,
     status: "queued",
     turnId: null,
     queuedSubmissionId: null,
@@ -826,26 +912,41 @@ const createDelivery = (thread, message) => {
     updatedAt: now,
   };
   deliveries.set(delivery.id, delivery);
+  persistDeliveryStateSoon();
   return delivery;
 };
 
+const xmlEscape = (value) => value
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;")
+  .replaceAll('"', "&quot;")
+  .replaceAll("'", "&apos;");
+
+const promptMatchesDelivery = (delivery, prompt) => {
+  if (delivery.messageHash === hashMessage(prompt)) return true;
+  if (delivery.transport !== "desktop-app" || !delivery.message) return false;
+  return prompt.includes(`<input>${xmlEscape(delivery.message)}</input>`);
+};
+
 const markPromptStarted = (thread, turnId, prompt) => {
-  const promptHash = hashMessage(prompt);
   const delivery = [...deliveries.values()]
     .filter((candidate) =>
       candidate.thread === thread
-      && candidate.messageHash === promptHash
+      && promptMatchesDelivery(candidate, prompt)
       && candidate.status === "queued")
     .sort((a, b) => a.createdAt - b.createdAt)[0];
   if (!delivery) return null;
   delivery.status = "working";
   delivery.turnId = turnId;
   delivery.updatedAt = Date.now();
+  persistDeliveryStateSoon();
   const terminal = terminalTurnEvents.get(turnKey(thread, turnId));
   if (terminal) {
     delivery.status = terminal.status;
     delivery.updatedAt = Math.max(delivery.updatedAt, terminal.at);
     terminalTurnEvents.delete(turnKey(thread, turnId));
+    persistDeliveryStateSoon();
   }
   return delivery;
 };
@@ -858,6 +959,7 @@ const markTurnTerminal = (thread, turnId, status) => {
   if (delivery) {
     delivery.status = status;
     delivery.updatedAt = Date.now();
+    persistDeliveryStateSoon();
     return delivery;
   }
   terminalTurnEvents.set(turnKey(thread, turnId), { status, at: Date.now() });
