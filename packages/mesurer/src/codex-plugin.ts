@@ -186,6 +186,7 @@ type UiDeliveryState = {
   thread: string | null;
   status: UiDeliveryStatus;
   annotationIds: string[];
+  queuedSubmissionId: string | null;
 };
 
 type PersistedCodexUiState = {
@@ -197,6 +198,7 @@ type PersistedCodexUiState = {
     thread: string;
     status: "queued" | "working";
     annotationIds: string[];
+    queuedSubmissionId?: string | null;
   } | null;
 };
 
@@ -233,6 +235,7 @@ const readBrowserState = (endpoint: string): PersistedCodexUiState | null => {
           thread: delivery.thread.trim(),
           status: delivery.status,
           annotationIds: delivery.annotationIds.filter((id) => id.trim().length > 0),
+          queuedSubmissionId: delivery.queuedSubmissionId?.trim() || null,
         }
       : null;
     return {
@@ -440,6 +443,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             thread: persistedUiState.delivery.thread,
             status: persistedUiState.delivery.status,
             annotationIds: persistedUiState.delivery.annotationIds,
+            queuedSubmissionId: persistedUiState.delivery.queuedSubmissionId ?? null,
           }
         : null;
       let deliveryPollTimer = 0;
@@ -450,6 +454,20 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       const fetchHealth = async () => bridgeHealth(await bridgeRequest(endpoint, "health"));
       const fetchDelivery = async (deliveryId: string) =>
         bridgeDelivery(await bridgeRequest(endpoint, `deliveries/${encodeURIComponent(deliveryId)}`));
+      const restoreDelivery = async (delivery: UiDeliveryState) => {
+        if (!delivery.id || !delivery.thread) {
+          throw new Error("Cannot restore a Codex delivery without its id and thread.");
+        }
+        return bridgeDelivery(await bridgeRequest(endpoint, "deliveries/restore", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            deliveryId: delivery.id,
+            thread: delivery.thread,
+            ...(delivery.queuedSubmissionId ? { queuedSubmissionId: delivery.queuedSubmissionId } : {}),
+          }),
+        }));
+      };
       const fetchThreads = async (
         listOptions: MesurerCodexThreadListOptions = {},
       ): Promise<MesurerCodexThreadList> => {
@@ -470,6 +488,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               thread: activeDelivery.thread ?? currentTarget() ?? "",
               status: activeDelivery.status,
               annotationIds: [...activeDelivery.annotationIds],
+              queuedSubmissionId: activeDelivery.queuedSubmissionId,
             }
           : null;
         writeBrowserState(endpoint, {
@@ -721,7 +740,12 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       const finishDelivery = async (delivery: MesurerCodexDelivery) => {
         if (!activeDelivery || activeDelivery.id !== delivery.id) return;
-        activeDelivery = { ...activeDelivery, thread: delivery.thread, status: delivery.status };
+        activeDelivery = {
+          ...activeDelivery,
+          thread: delivery.thread,
+          status: delivery.status,
+          queuedSubmissionId: delivery.queuedSubmissionId ?? activeDelivery.queuedSubmissionId,
+        };
         persistUiState();
         if (delivery.status === "completed") {
           if (clearCompletedAnnotations) {
@@ -752,9 +776,20 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           await finishDelivery(await fetchDelivery(deliveryId));
         } catch (cause) {
           if (activeDelivery?.id !== deliveryId) return;
+          let failure = cause;
+          if (activeDelivery.status === "queued" && activeDelivery.thread) {
+            try {
+              const restored = await restoreDelivery(activeDelivery);
+              await finishDelivery(restored);
+              return;
+            } catch (restoreCause) {
+              failure = restoreCause;
+            }
+          }
+          if (activeDelivery?.id !== deliveryId) return;
           activeDelivery = { ...activeDelivery, status: "failed" };
           persistUiState();
-          if (bridgeTransportUnavailable(cause, endpoint)) bridgeAvailability = "unavailable";
+          if (bridgeTransportUnavailable(failure, endpoint)) bridgeAvailability = "unavailable";
           syncTool();
         }
       };
@@ -831,6 +866,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           thread: target,
           status: "queueing",
           annotationIds: [],
+          queuedSubmissionId: null,
         };
         syncTool();
 
@@ -843,6 +879,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               thread: result.thread,
               status: result.status,
               annotationIds: result.annotationIds,
+              queuedSubmissionId: result.queuedSubmissionId ?? null,
             };
             bindPageThread(result.thread, !originThread);
             persistUiState();
