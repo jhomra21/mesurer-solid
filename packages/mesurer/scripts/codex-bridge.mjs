@@ -554,14 +554,15 @@ const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((
 
   const requestPage = () => {
     page += 1;
+    const params = {
+      threadId: thread,
+      limit: queuedSubmissionId ? 100 : 2,
+    };
+    if (cursor) params.cursor = cursor;
     send({
       id: `mesurer-queue-list-${page}`,
       method: "thread/queue/list",
-      params: {
-        threadId: thread,
-        limit: queuedSubmissionId ? 100 : 2,
-        ...(cursor ? { cursor } : {}),
-      },
+      params,
     });
   };
 
@@ -576,7 +577,8 @@ const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((
       return;
     }
 
-    if (typeof message?.id !== "string" || !message.id.startsWith("mesurer-queue-list-")) return;
+    const messageId = message?.id == null ? "" : String(message.id);
+    if (!messageId.startsWith("mesurer-queue-list-")) return;
     if (message.error) {
       finish(new Error(message.error.message || "Codex app-server thread/queue/list failed."));
       return;
@@ -658,9 +660,8 @@ const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((
 const queuedSubmissionMessage = (submission) => {
   if (!Array.isArray(submission?.input) || submission.input.length !== 1) return null;
   const input = submission.input[0];
-  return input?.type === "text" && typeof input.text === "string" && input.text.trim()
-    ? input.text
-    : null;
+  const text = String(input?.text ?? "");
+  return input?.type === "text" && text.trim() ? text : null;
 };
 
 
