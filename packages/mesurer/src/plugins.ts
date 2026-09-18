@@ -69,6 +69,9 @@ export type {
   MesurerCodexSendRequest,
   MesurerCodexSendResult,
   MesurerCodexService,
+  MesurerCodexThread,
+  MesurerCodexThreadList,
+  MesurerCodexThreadListOptions,
 } from "./codex-plugin";
 export {
   MESURER_CONTEXT_PLUGIN_ID,
