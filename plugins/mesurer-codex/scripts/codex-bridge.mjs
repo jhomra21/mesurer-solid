@@ -238,7 +238,9 @@ const persistedDelivery = (delivery) => ({
 const persistDeliveryState = () => {
   const state = {
     version: DELIVERY_STATE_VERSION,
-    deliveries: [...deliveries.values()].map(persistedDelivery),
+    deliveries: [...deliveries.values()]
+      .filter((delivery) => delivery.transport === "desktop-app")
+      .map(persistedDelivery),
   };
   deliveryStateWrite = deliveryStateWrite.then(async () => {
     const directory = join(defaultCodexHome, "mesurer");
@@ -1315,7 +1317,7 @@ const createDelivery = (thread, message, transport = "codex-queue") => {
     updatedAt: now,
   };
   deliveries.set(delivery.id, delivery);
-  persistDeliveryStateSoon();
+  if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
   return delivery;
 };
 
@@ -1343,13 +1345,13 @@ const markPromptStarted = (thread, turnId, prompt) => {
   delivery.status = "working";
   delivery.turnId = turnId;
   delivery.updatedAt = Date.now();
-  persistDeliveryStateSoon();
+  if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
   const terminal = terminalTurnEvents.get(turnKey(thread, turnId));
   if (terminal) {
     delivery.status = terminal.status;
     delivery.updatedAt = Math.max(delivery.updatedAt, terminal.at);
     terminalTurnEvents.delete(turnKey(thread, turnId));
-    persistDeliveryStateSoon();
+    if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
   }
   return delivery;
 };
@@ -1362,7 +1364,7 @@ const markTurnTerminal = (thread, turnId, status) => {
   if (delivery) {
     delivery.status = status;
     delivery.updatedAt = Date.now();
-    persistDeliveryStateSoon();
+    if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
     return delivery;
   }
   terminalTurnEvents.set(turnKey(thread, turnId), { status, at: Date.now() });
