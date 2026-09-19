@@ -1219,7 +1219,7 @@ const reconcileDesktopDelivery = async (delivery) => {
   if (!turn) return;
 
   const turnId = normalizeThread(turn.id);
-  const ended = Number.isFinite(Number(turn.completedAt));
+  const ended = turn.completedAt != null && Number.isFinite(Number(turn.completedAt));
   let nextStatus = null;
   if (turn.status === "inProgress") nextStatus = "working";
   if (turn.status === "interrupted" && !ended) nextStatus = "working";
