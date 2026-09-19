@@ -163,8 +163,14 @@ const isExactBridge = (payload) =>
 
 const waitForBridgeToStop = async () => {
   const deadline = Date.now() + START_TIMEOUT_MS;
+  let unavailableChecks = 0;
   while (Date.now() < deadline) {
-    if (!(await health())) return;
+    if (await health()) {
+      unavailableChecks = 0;
+    } else {
+      unavailableChecks += 1;
+      if (unavailableChecks >= 3) return;
+    }
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
   throw new Error(`Stale Mesurer Codex bridge did not stop at ${bridgeUrl.origin}.`);
