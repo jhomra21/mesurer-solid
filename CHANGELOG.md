@@ -4,7 +4,14 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Keep **Queue to Codex** on Codex's native durable queue for every client. Desktop ownership now uses `codex://threads/<threadId>` to load or resume the real app-owned thread, so delivery no longer depends on the `codex_app` MCP pipe; existing queued-submission ids are preserved across bridge restarts and recovery instead of being deleted and resent.
+- Preserve saved Context annotations across same-tab reloads, restore their exact ids/baselines, and conservatively rebind element targets from stored selector/fingerprint identity instead of losing review state when the page refreshes.
+- Preserve page-local Codex routing across browser reloads with per-tab affinity state, refuse to inherit a bridge-wide default when multiple registered threads make the destination ambiguous, and resume exact queued/working delivery tracking after reload so annotation completion cleanup is not lost.
+- Add tracked **Queue to Codex** lifecycle feedback: disable the action before submission to suppress double-click duplicates, show Queueing/Queued/Working/Finished or Interrupted states in the tool and destination row, correlate the exact queued prompt with bounded Codex history, reject synthetic unfinished Interrupt states produced by separate history readers, keep Interrupted deliveries reconcilable for backend corrections, and remove only the annotations included in a successfully completed turn by default.
+- Keep generic plugin split menus inside the browser viewport: choose the side with usable space, clamp horizontal placement, widen for long labels up to a bounded desktop width, keep selected rows filling the menu, prevent horizontal scrolling, and make tall destination lists scroll vertically instead of extending off-screen.
+- Rename the human Codex action to **Queue to Codex**, return `delivery: "queued"` from programmatic delivery, and document Queue versus in-flight **Steer** semantics instead of implying that Mesurer interrupts an active Codex turn.
+- Add a Codex destination picker that keeps each Mesurer page pinned to the Codex thread that originally connected it, then shows five recent same-project Codex threads from app-server with one **Show 5 more…** expansion to ten.
+- Make **Queue to Codex** health- and CSP-aware: mounting `codex()` does not probe loopback, the first send or thread chooser establishes availability, a missing bridge becomes **Codex unavailable** with an explicit retry, and successful connections continue health-checking for automatic recovery; the trusted SessionStart connector records the project directory used to scope recent-thread discovery.
 
 ## 0.1.8-beta.0 - 2026-09-17
 
@@ -81,31 +88,128 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 - Keep direct text editing visually anchored to the rendered host element: the keyboard textarea stays transparent at the host's exact bounds, a subtle inset ring marks edit state, the initially selected text is visibly highlighted for immediate replacement, a blinking caret follows collapsed selections, and text runs around inline markup such as shortcut badges remain editable without flattening those children.
 - Unify contextual Typography information and direct formatting into one always-visible interactive inspector. Family, Size, Weight, Line, and Tracking become live controls alongside Bold/Italic/Underline, rendered-page and custom colors, and Text/Heading presets; the old second floating text toolbar/menu no longer renders as a competing surface, and the unified inspector repositions or constrains itself within available viewport space rather than covering the active edit field.
 - Keep selected and inspected element chrome locked to its host while scrolling instead of easing or catching up after the page moves; direct-edit rings follow the same frame-locked geometry.
-
-## 0.1.7-beta.0 - 2026-09-06
-
 - Add a persisted global **Shortcuts** switch under Settings → General, defaulting on and available as `shortcutsEnabled`. Turning it off gates built-in and plugin shortcuts while leaving toolbar controls, editor-local keys, and Escape/cancel behavior available.
 - Add one stable compactable toolbar with full-height separators and 150ms reduced-motion-aware transitions. Compact mode hides inactive controls while keeping every active tool visible, and expanding restores the same order and state without introducing toolbar modes.
 - Tighten Arrange and Typography interaction: Arrange can be activated before Select and enables it automatically; turning Arrange off leaves Select active while turning Select off exits Arrange; direct text editing shows one live Typography card even when Typography was already selected.
 - Make preview ownership safe across history and teardown. Text/style undo and redo now update still-owned Desired values without overwriting host changes, inherited `contenteditable` regions remain native with nested `contenteditable="false"` boundaries respected, Arrange preserves host-authored transform updates, and async plugin setup is cancelled cleanly without disposing unrelated plugins on shared hosts.
 
-## 0.1.6 - 2026-09-04
+## 0.1.7-beta.0 - 2026-09-09
 
-- Extend direct text editing to Select/Arrange workflows with full-text replacement and touch/pen double-tap support; rename the human-facing Text Inspector tool to **Typography** while retaining the internal `text-inspector` compatibility id, keep B/I/U/Font/Size/Weight/rendered colors as direct editing controls, separate page-derived Text/H1/H2/H3 semantic presets into their own popup, and show contextual Typography information for the edited field without interrupting Select or Arrange.
-- Expose saved Before/Desired text and style intent through the agent `textEdit` capability and `textEdits()` / `textEdit(id)` APIs, and teach the portable Agent Skill to include those edits in broad Mesurer-context sweeps and verify the real source-rendered result with Mesurer's preview inactive.
+- Keep nested inline text fragments selectable as geometry-only targets while Select mode is active, including inside buttons and links, without allowing direct text editing on those child fragments.
+- Render hover and selection outlines as true 1px outside strokes without changing measured box geometry, and keep the current hover/selection state visible when toggling rulers, x-ray, guides, typography, or Context instead of clearing it as a side effect.
+- Keep host-page keyboard shortcuts inactive while focus is inside inputs, textareas, selects, or editable content, while Escape remains available for cancel/cleanup.
+- Keep plugin-owned tools fully generic by routing each toolbar contribution through its registered command instead of hard-coding first-party ids, and only gate declared `shortcut` values rather than listening to plugin commands from the shell.
+- Add generic plugin tool menus: a plugin can attach `menu.items` to any toolbar contribution and the renderer provides the split-menu interaction, checked state, disabled state, and stable plugin-owned callbacks without special-casing first-party ids.
+- Add runtime plugin lifecycle controls (`plugin(id)`, `listPlugins()`, `cancelLoad(plugin)`, `remove(id)`, `replace(plugin)`) and optional `plugins` / `pluginSettings` inputs on `mountMesurer()`, while keeping `context()`, `arrange()`, `screenshot()`, and `codex()` as explicit first-party plugin exports.
+- Add plugin-driven Settings controls for enabling/disabling available plugins at runtime, persist enabled state in the Mesurer Settings snapshot, and keep enable/disable race-safe when async plugin setup is still pending.
+- Add a generic plugin persistence adapter with one namespaced JSON snapshot per mount, defaulting to `localStorage`, restoring only plugin-owned `persist` slices and Settings plugin enablement, and coalescing same-tick writes without letting host/storage failures break runtime interaction.
+- Keep plugin Settings usable in non-isolated mounts by placing Settings into the browser top layer while open, matching the toolbar's protected interaction boundary instead of allowing host stacking contexts to paint over it.
+- Keep compact mode reactive to plugin activation: active plugin tools remain visible beside active built-ins, inactive plugin tools collapse, and dividers appear only when they still separate visible groups.
 
-## 0.1.5 - 2026-09-02
+## 0.1.6 - 2026-09-06
 
-- Simplify the development-only Mesurer mounting examples to use explicit `if` blocks instead of ternaries, `undefined`, and optional-chained cleanup, while preserving the same Vite development and HMR behavior.
+- Add framework-neutral Context inspection through `window.__MESURER__.context(...)` and `contextText(...)`, backed by pure `@jhomra21/mesurer-solid-dom` extractors rather than framework-specific internals.
+- Expose Context selection through `window.__MESURER__.select(...)` for stable browser-driven agent workflows.
+- Add first-class saved Context annotations: with Select + Context enabled, **Add Note** opens a source-attached note composer and saved notes persist as numbered page markers with one open card; `window.__MESURER__.context({ annotation })` returns the note plus current target connectivity/geometry and baseline/current UI evidence.
+- Add plugin-neutral annotation access through `window.__MESURER__.annotations()`, plus `context({ annotation })`, `contextText({ annotation })`, and annotation capture planning so coding agents can discover, read, and screenshot human review notes without renderer-private selectors.
+- Add Context review classification through `window.__MESURER__.review()` with explicit `pass`, `review`, and `stale` states, including per-item displacement/resizing diagnostics relative to the saved baseline.
+- Add native screenshot capture plans through `window.__MESURER__.capturePlan(...)`, `prepareCapture(...)`, and `finishCapture()`: region, target, viewport, and full-page plans use CSS-pixel clipping metadata while capture prep hides Mesurer UI without mutating the host page.
+- Add generic runtime read surfaces through `window.__MESURER__.describe()`, `state()`, `commands()`, `plugins()`, and `review()` so browser agents can inspect plugin state without relying on renderer-private DOM.
+- Add `packages/mesurer-browser-fixture` plus `scripts/browser-harness.mjs` as the canonical disposable browser verification harness: `bun run browser:harness` starts the fixture on an ephemeral localhost port, launches or attaches a browser with CDP, writes `browser-session.json`, and stays alive until terminated.
+- Add explicit `isolation: "shadow" | "none"` support. `"shadow"` remains the default; `"none"` renders the same Mesurer UI into a plain child of the resolved mount target, using `.msr\:*` utility classes and without leaking baseline/global CSS into the host document.
+- Make plugin state semantics explicit: transient renderer state remains memory-only; plugin persistence stores only declared `persist` slices plus Settings plugin enablement; history stores only declared `history` slices, with first-party edit/arrange Desired state participating in undo/redo while Context notes and screenshot capture state do not.
 
-## 0.1.4 - 2026-09-02
+## 0.1.6-beta.12 - 2026-09-05
 
-- Clarify that Mesurer can mount directly in an application's existing browser entry, add concrete React, Solid, Vue, Svelte/vanilla, Electron, and SSR placement examples, and present `src/dev/mesurer.ts` as an optional organization pattern rather than a required or preferred location.
+- Keep non-isolated Mesurer visually equivalent to the default shadow-root mount across selection chrome, toolbar, dimensions labels, Context annotation UI, and Typography direct-edit controls, with automated visual-parity and interaction guards for accidental host/global CSS leakage.
 
-## 0.1.3 - 2026-09-02
+## 0.1.6-beta.11 - 2026-09-05
 
-- Refresh the public docs for the current Arrange, Screenshot, shortcuts, Color Picker, Text Inspector, plugin, and client-mounting workflows, including Arrange as a human/designer visual specification that coding agents verify against Before/Desired/Live state.
-- Update the portable `mesurer-ui` Agent Skill and agent-integration guide so broad requests to check Mesurer/context inspect the combined live human intent—workspace, selection, target-bound annotations, Arrange intents, guides, measurements, distances, and preserved screenshot state—before editing source; document upstream drawing annotations as an intentional product divergence rather than a missing stable feature.
-- Add first-party toolbar shortcuts for Select, X-ray, Color Picker, Rulers, Text Inspector, Guides, Arrange, Screenshot, Context actions, Settings, and Mesurer visibility, while coordinating Arrange with Select and disabling conflicting page-interaction tools while Arrange is active.
-- Extend Text Inspector with reversible Desired-text editing on double-click, keep Arrange and Select state in sync, and make Arrange/Screenshot split-button quick menus match Guides geometry and close after a choice.
-- Keep Color Picker faithful to the native `EyeDropper` contract: hide it when native sampling is unavailable or the current Codex host bridge is present, keep `P` inert in those hosts, preserve upstream button toggle-off versus fresh `P`-key picking behavior, and avoid a DOM/CSS sampling fallback.
+- Fix non-isolated CSS delivery by injecting generated Mesurer renderer CSS into the owner document with ref-counted style ownership, so `isolation: "none"` works from both bundled and source consumers without a manual CSS import.
+
+## 0.1.6-beta.10 - 2026-09-04
+
+- No user-facing changes.
+
+## 0.1.6-beta.9 - 2026-09-04
+
+- No user-facing changes.
+
+## 0.1.6-beta.8 - 2026-09-04
+
+- Keep the first-party renderer and source consumer on `solid-js@2.0.0-rc.0` and `@solidjs/vite-plugin@3.0.0-next.29`, while the public package remains framework-runtime-free for React, Vue, Svelte, Solid 1, Solid 2, browser-eval, and Electron hosts.
+
+## 0.1.6-beta.7 - 2026-09-04
+
+- No user-facing changes.
+
+## 0.1.6-beta.6 - 2026-09-04
+
+- Fix Solid 2 RC source-consumer rendering under `jsxImportSource: "solid-js"` by marking `solid-js` and `solid-js/web` as package side effects, so cross-package tree-shaking cannot erase delegated DOM event registration before the app mounts.
+
+## 0.1.6-beta.5 - 2026-09-04
+
+- Fix packed-package runtime isolation so consuming `mesurer-solid` no longer resolves through a nested Solid runtime or bundles Solid into its shipped injection assets. Package staging now strips workspace-only dependencies, the published manifest has no runtime `dependencies`/`peerDependencies`, and clean packed-package React, Solid 1, Solid 2, browser-eval, and Electron consumers share the host runtime correctly.
+
+## 0.1.6-beta.4 - 2026-09-03
+
+- Fix the packed public package so the default `mesurer-solid` import mounts the full renderer through the bundled injection path in React, Solid, and browser-eval consumers instead of resolving renderer-only source imports.
+
+## 0.1.6-beta.3 - 2026-09-03
+
+- Bring renderer smoke coverage in line with the reference app by including Select/Measure, X-ray, Rulers, Typography, Guides, settings toggles, Clear Data confirmation, and toolbar drag/viewport behavior in the same top-level package test surface.
+- Reject app-bundle/runtime-local `solid-js` copies in package staging so the packed artifact cannot accidentally ship nested Solid runtime internals.
+
+## 0.1.6-beta.2 - 2026-09-03
+
+- No user-facing changes.
+
+## 0.1.6-beta.1 - 2026-09-03
+
+- Make Solid 2 RC the source contract for renderer development and add a compiled Solid 2 clean-consumer gate alongside the existing framework-neutral React and Solid 1 packaged-consumer gates.
+
+## 0.1.6-beta.0 - 2026-09-03
+
+- Restore framework-neutral injection from the built renderer bundle in Vite-based consumers, expose a stable global `window.__MESURER__` handle for browser-driving agents, remove host-framework runtime imports from the injector, and add packed-package browser gates for React, Solid 1, and browser-eval consumers.
+
+## 0.1.5 - 2026-09-03
+
+- Unify the browser-agent contract around `window.__MESURER__`, add metadata-rich context payloads with layout/typography/connectivity evidence, make `contextText()` the canonical Markdown serializer, and add a public `version` plus a validation-safe `window.__MESURER__.validate()` contract.
+- Add the portable `mesurer-ui` Agent Skill for browser-driven Codex and other coding agents, package a deterministic `mesurer-skill install` CLI, and verify the installed skill/injector from clean packed-package consumers.
+- Give `contextText({ scope: "selection" })` a deterministic fallback: when nothing is selected it now returns the full workspace Context instead of failing.
+- Add capture-state primitives for agents: `capturePlan(...)`, `prepareCapture(...)`, and `finishCapture()` with full-page/viewport/region clip metadata plus reversible Mesurer UI hiding, so screenshot workflows do not need to infer coordinates or mutate the host page.
+- Make the browser controller's public `select(...)` command return a deterministic command result, including the selected target count, while preserving the same command invocation path.
+- Add a public `commands()` discovery surface and document the current stable command ids alongside `describe()`, `state()`, and `review()` so agents can inspect available command/state features before mutating the page.
+- Add a stable `context:v1` plugin service with `context()`, `contextText()`, `copyContext()`, `select()`, annotation APIs, and capture APIs, so extensions can consume Context without reaching through controller internals.
+- Add opt-in static package metadata helpers `MESURER_VERSION`, `MESURER_PLUGIN_API_VERSION`, and `describeMesurerPackage()` so tooling can inspect release/plugin capabilities without mounting the browser runtime.
+- Treat `connect-src` as the explicit CSP boundary for optional loopback Codex delivery and keep the default Mesurer runtime free of outbound requests unless the Codex plugin is enabled.
+- Add a standalone `mesurer-codex` loopback companion plus optional `codex()` plugin that sends saved Context, current selection, or workspace Context through `codex queue`, with explicit origin controls and opt-in packaging.
+
+## 0.1.4 - 2026-09-01
+
+- Add current-selection Context copy from the toolbar, hide Mesurer UI from clipboard context capture, and add a 2-second "Copied" confirmation without changing selection or tool state.
+- Make toolbar drag finish stable under normal pointer movement by restoring host selection state immediately on pointer release and suppressing only the synthetic post-drag click instead of carrying a one-shot suppression flag into later unrelated clicks.
+- Keep the dimensions label attached to the viewport-visible edge of a partially clipped selected element and clear it once the target is fully offscreen, without clamping the selection border or changing measured geometry.
+- Keep the selected target's blue highlight visible while using the Context popover, while preventing Mesurer's toolbar/popover UI from becoming a selection or measurement target.
+- Keep the dimensions label and Context popover above overlapping host-page content in isolated and non-isolated mounts, without coupling their placement to host stacking contexts.
+- Keep the Context popover available in plugin-driven mounts without requiring a hard-coded shell flag, and expose selection/workspace Context through the public `window.__MESURER__` API.
+- Keep Context extraction bounded to the selected semantic target and its immediate layout relationships, with stable DOM-path and geometry evidence rather than framework-specific component internals.
+
+## 0.1.3 - 2026-09-01
+
+- Port the remaining top-layer overlays to the Solid renderer and remove the legacy React renderer package from the runtime path.
+
+## 0.1.2 - 2026-08-31
+
+- Switch the default renderer path from React to Solid while keeping the package's public injection API stable.
+- Keep the default Mesurer export framework-neutral by routing it through the renderer bundle instead of importing `solid-js` from the public entry.
+- Add host-compat CI that verifies the package can be loaded into React, Solid, Vue, Svelte, vanilla HTML, browser-eval, and Electron-style consumers without framework coupling.
+
+## 0.1.1 - 2026-08-31
+
+- Match the canonical `ibelick/mesurer` toolbar and measurement visuals while preserving the Solid port's framework-neutral package API.
+- Keep the historical `@jhomra21/mesurer-solid` package name as a compatibility alias while publishing the canonical npm package as `mesurer-solid`.
+
+## 0.1.0 - 2026-08-30
+
+- Initial public beta line for the Solid port.

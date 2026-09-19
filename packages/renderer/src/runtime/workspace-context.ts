@@ -72,6 +72,31 @@ type InlineDisplayState = {
   priority: string;
 };
 
+type StoredWorkspaceAnnotations = {
+  version: 1;
+  annotations: MesurerAnnotation[];
+};
+
+const WORKSPACE_ANNOTATION_STORAGE_VERSION = 1;
+
+const readStoredAnnotations = (
+  ownerWindow: Window,
+  persistenceKey: string | undefined,
+): MesurerAnnotation[] => {
+  if (!persistenceKey) return [];
+  try {
+    const raw = ownerWindow.sessionStorage.getItem(persistenceKey);
+    if (!raw) return [];
+    // SAFETY: this namespaced sessionStorage entry is written only by persistAnnotations below.
+    // Malformed or incompatible values are rejected by the version/array gates or the boundary catch.
+    const stored = JSON.parse(raw) as StoredWorkspaceAnnotations;
+    if (stored.version !== WORKSPACE_ANNOTATION_STORAGE_VERSION || !Array.isArray(stored.annotations)) return [];
+    return stored.annotations.map(copyAnnotation);
+  } catch {
+    return [];
+  }
+};
+
 const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => ({
   ...annotation,
   anchor: annotation.anchor.kind === "elements"
@@ -131,6 +156,8 @@ export function createMesurerWorkspaceRuntime(options: {
   ownerWindow: Window;
   uiRoot?: ParentNode;
   pageTarget?: HTMLElement | ShadowRoot;
+  /** Optional session-scoped key used by the owning feature to preserve annotations across reloads. */
+  persistenceKey?: string;
 }): MesurerWorkspaceRuntime {
   const { model, ownerDocument, ownerWindow, uiRoot } = options;
   // SAFETY: ownerWindow is the browsing-context global for ownerDocument, so it carries that realm's DOM constructors.
@@ -143,7 +170,7 @@ export function createMesurerWorkspaceRuntime(options: {
     ? targetTreeRoot
     : ownerDocument;
   const observationRoot: Node = pageTarget;
-  const annotations: MesurerAnnotation[] = [];
+  const annotations = readStoredAnnotations(ownerWindow, options.persistenceKey);
   const listeners = new Set<() => void>();
   const hidden = new Map<HTMLElement, InlineDisplayState>();
   const liveTargets = new Map<string, HTMLElement>();
@@ -167,6 +194,23 @@ export function createMesurerWorkspaceRuntime(options: {
       }
     }
     return matches;
+  };
+
+  const persistAnnotations = () => {
+    const key = options.persistenceKey;
+    if (!key) return;
+    try {
+      if (annotations.length === 0) {
+        ownerWindow.sessionStorage.removeItem(key);
+        return;
+      }
+      ownerWindow.sessionStorage.setItem(key, JSON.stringify({
+        version: WORKSPACE_ANNOTATION_STORAGE_VERSION,
+        annotations: annotations.map(copyAnnotation),
+      } satisfies StoredWorkspaceAnnotations));
+    } catch {
+      // Persistence is best-effort. Live annotation state remains authoritative.
+    }
   };
 
   const notify = () => {
@@ -237,7 +281,10 @@ export function createMesurerWorkspaceRuntime(options: {
         }
       }
     }
-    if (changed) notify();
+    if (changed) {
+      persistAnnotations();
+      notify();
+    }
   };
 
   const scheduleRefresh = () => {
@@ -274,6 +321,11 @@ export function createMesurerWorkspaceRuntime(options: {
     if (mutationFrame) ownerWindow.cancelAnimationFrame(mutationFrame);
     mutationFrame = 0;
   };
+
+  if (annotations.length > 0) {
+    refreshAnnotations();
+    startWatching();
+  }
 
   const modelUnsubscribe = model.subscribe(notify);
 
@@ -341,6 +393,7 @@ export function createMesurerWorkspaceRuntime(options: {
       });
     }
     startWatching();
+    persistAnnotations();
     notify();
     return copyAnnotation(annotation);
   };
@@ -474,6 +527,7 @@ export function createMesurerWorkspaceRuntime(options: {
         }
       }
       if (annotations.length === 0) stopWatching();
+      persistAnnotations();
       notify();
     },
     subscribe(listener) {

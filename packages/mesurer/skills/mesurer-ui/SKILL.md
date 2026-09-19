@@ -7,7 +7,9 @@ description: Use Mesurer for frontend UI implementation, review, debugging, layo
 
 Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. The rendered page is the integration boundary.
 
-The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the harness already owns and read `window.__MESURER__` directly. The optional `codex()` plugin and `mesurer-codex` loopback companion are a separate human-initiated convenience for routing Context feedback to explicitly registered Codex threads; do not start or reconfigure that transport unless the user asks for Codex delivery.
+The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the harness already owns and read `window.__MESURER__` directly. The optional `codex()` plugin and local Codex companion are a separate human-initiated convenience for routing Context feedback to explicitly registered Codex threads.
+
+When the current agent is Codex and the user has explicitly asked for Codex delivery, or the live Mesurer instance already has `mesurer.codex` enabled, ensure the packaged local companion is ready from the Codex process. Do not expect browser JavaScript to spawn a local executable.
 
 A meaningful Mesurer step must return evidence the agent actually uses.
 
@@ -156,7 +158,7 @@ The user can open Settings with the gear button or `Cmd/Ctrl+,`. Changing either
 
 Mesurer UI is never inspected-page content. Treat `[data-mesurer-root]`, `[data-mesurer-island]`, and `[data-mesurer-inspector-ui]` surfaces as hard selection/hit-test boundaries. Do not look through a Typography card, annotation surface, toolbar, or inspector shell to select page content underneath it.
 
-An Add Note composer is transient and belongs to the exact selection that opened it. If the human changes selection before saving, Mesurer closes that unsaved composer and shows the normal small Add Note trigger for the new selection instead of carrying the draft card to another target. Add Note, saved markers, saved annotation panels, and the composer are protected inspector UI: live page hover/selection chrome paints underneath them. Several notes on one target keep separate nearby markers, and Add Note remains available while a saved note is open.
+An Add Note composer is transient and belongs to the exact selection that opened it. If the human changes selection before saving, Mesurer closes that unsaved composer and shows the normal small Add Note trigger for the new selection instead of carrying the draft card to another target. Saved annotations survive same-tab reloads and conservatively rebind through stored selector/fingerprint identity; do not re-create or duplicate a note merely because the host page reloaded. Add Note, saved markers, saved annotation panels, and the composer are protected inspector UI: live page hover/selection chrome paints underneath them. Several notes on one target keep separate nearby markers, and Add Note remains available while a saved note is open.
 
 Scroll ownership is split deliberately:
 
@@ -248,26 +250,55 @@ The optional Screenshot plugin is a separate human camera workflow. Preserve an 
 
 ## Optional Codex thread handoff
 
-Only use this path when the user has explicitly asked for Mesurer-to-Codex delivery or has already enabled the `codex()` plugin.
+Only use this path when the user has explicitly asked for Mesurer-to-Codex delivery or the live Mesurer instance already has `mesurer.codex` enabled. The browser plugin and the local companion have separate ownership: Settings can load or unload browser-side `codex()` immediately, but ordinary browser JavaScript cannot spawn `codex` or a Node/Bun child process.
 
-If the current task is running inside Codex and this Codex thread should receive future human Mesurer feedback, starting the companion from a Codex shell/tool command is enough:
+When this task is running inside Codex, make the local companion zero-manual from the user's perspective. First check whether the live plugin is enabled when a Mesurer instance already exists:
 
-```bash
-bunx mesurer-codex
+```js
+const codexEnabled = Boolean(
+  window.__MESURER_INSTANCE__?.pluginHost?.has("mesurer.codex")
+)
 ```
 
-Codex injects `CODEX_THREAD_ID` into its shell/tool environment. The companion reads it, registers that thread, and makes it the active destination.
-
-If a bridge is already running and this is a different or newly-created Codex thread that should receive Mesurer feedback, register the current thread with that bridge:
+If Codex delivery was requested or `codexEnabled` is true, run the installed companion helper from the Codex shell/tool environment:
 
 ```bash
-bunx mesurer-codex --register-current
+node .agents/skills/mesurer-ui/assets/codex-connect.mjs
 ```
 
-That registration is a local-process action. Browser pages may switch or send only among threads that Codex/the user already registered; they may not invent arbitrary Codex destinations.
+`mesurer-codex-connect` reads Codex's `CODEX_THREAD_ID` and, when invoked from the trusted `SessionStart` hook, the project working directory. It reuses a healthy bridge at `127.0.0.1:47365`, or starts the packaged `codex-bridge.mjs` companion when none is running, waits for it to become ready, then registers the current session and project directory. In the Mesurer Solid repository itself, the equivalent source command is:
 
-When application code has mounted `codex()` next to `context()`, its typed `codex:v1` service supports `health()`, `useThread(thread)`, and `send({ thread })` for inspecting the registered set, changing the default, or routing one message to another registered thread. This transport is separate from the normal `window.__MESURER__` evidence workflow and must not replace browser-based verification.
+```bash
+bun run mesurer-codex-connect
+```
 
+Do not ask the user to start a second bridge when this helper can ensure one. Do not use npm postinstall scripts, private Codex persistence, browser thread registration, or an arbitrary remote service as substitutes for the local companion.
+
+Mesurer delivery is Queue, not Steer. Queue preserves the current Codex turn and adds the feedback behind it. Codex's own **Steer** affordance promotes a queued follow-up into an active turn; the Mesurer bridge does not perform `turn/steer` today. Do not tell the user that Queue interrupted or redirected an in-flight response.
+
+Use Codex's native durable queue as the source of truth for every Mesurer delivery. For Codex Desktop, the trusted SessionStart registration identifies the owner, but do not use the app-tools pipe for delivery. Queue the message once, retain Codex's queued-submission id, then open the existing thread through `codex://threads/<threadId>`. Desktop loads or resumes that thread and Codex's queue watcher dispatches the persisted item when the thread can accept it.
+
+For CLI/TUI shared-daemon sessions, keep the same native `codex queue` identity and resume only a cold `notLoaded` destination when needed. Bridge restart state under `$CODEX_HOME/mesurer/codex-deliveries.json` is lifecycle tracking, not a second user-message queue. Never delete and resend an existing native queue item merely to change wake mechanisms.
+
+Mesurer delivery is Queue, not Steer. Do not invoke `turn/steer`, and do not depend on the Codex Desktop app-tools pipe being open.
+
+The browser plugin must not probe loopback merely because it is mounted. The human's first **Queue to Codex** press or **Choose Codex thread…** action establishes bridge availability. If first contact fails, the tool becomes **Codex unavailable** and offers **Retry Codex connection**. After one successful connection, background health checks may keep that known connection honest and recover it after a bridge restart. Do not add unconditional mount-time polling; strict CSP hosts must remain clean when Codex delivery is unused.
+
+The first unambiguous healthy bridge thread observed by a Mesurer page is that page's origin. The browser keeps that origin and any explicit destination override in per-tab `sessionStorage`, so reloading the page does not adopt a different bridge-wide target. Later Codex sessions may register with the shared companion without silently retargeting the existing page. If a page has no saved affinity and more than one registered thread is available, require the human to choose a destination rather than guessing from the bridge default. The bridge may ask Codex app-server for at most ten recent threads in the origin project's working directory. The picker shows the origin/current thread first, four more recent same-project threads, then one **Show 5 more…** expansion.
+
+Browser pages may send only to locally registered threads or to recent same-project threads that the bridge itself discovered through Codex app-server. They may not supply an arbitrary cwd or invent arbitrary Codex destinations. If `CODEX_THREAD_ID` is unavailable, do not weaken the local registration boundary to make registration work from the page.
+
+When application code has mounted `codex()` next to `context()`, its typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `send({ thread })`. `useThread(thread)` is for a locally registered bridge default; `send({ thread })` may target any bridge-visible same-project thread.
+
+The human queue action is single-flight. It disables before queue submission, then moves through Queueing, Queued, Working, and Finished/Interrupted by matching the exact queued Mesurer payload against bounded read-only Codex turn history. Current lifecycle tracking does not require `UserPromptSubmit`, `Stop`, or `Interrupt` hook trust. Do not work around that guard by issuing a duplicate queue request.
+
+If the queued evidence contains saved annotations, the browser tracks the exact ids that were sent and removes only those ids after the exact matched turn reports `completed`. Queued/working delivery state survives a same-tab reload, so do not requeue merely because the page refreshed. Interrupted, failed, or uncertain work keeps the note. Do not manually delete unrelated annotations, and do not describe lifecycle completion as semantic verification: still inspect the live rendered result before claiming the request is done.
+
+Do not create a new Codex thread from the Mesurer bridge. A new app-server turn can produce command or file approval requests that belong to the client owning that turn. Create or open the thread in Codex and let the trusted `SessionStart` path register it automatically.
+
+If the Codex plugin is later disabled in Mesurer Settings, its browser service, command, and toolbar action disappear. Do not kill the shared local companion solely because one page disabled its plugin: another page or Codex thread may still use it.
+
+This transport is separate from the normal `window.__MESURER__` evidence workflow and must not replace browser-based verification.
 ## Completion
 
 Do not call every Mesurer method after every edit. Measure what matters to the request.

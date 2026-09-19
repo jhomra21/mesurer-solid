@@ -808,7 +808,7 @@ The root export contains the mount API, public domain types, and agent surface. 
 
 Public plugin factories use the feature name directly, including `context()`, `arrange()`, `screenshot()`, `codex()`, and explicit built-ins such as `select()` and `typography()`. Redundant public `*Plugin` factory names and one-plugin-per-subpath exports are not part of the package contract.
 
-The published artifact also includes the `mesurer-skill` and `mesurer-codex` binaries, `AGENT_INTEGRATION.md`, the portable Agent Skill, and its injector asset.
+The published artifact also includes the `mesurer-skill`, `mesurer-codex`, and `mesurer-codex-connect` binaries, `AGENT_INTEGRATION.md`, the portable Agent Skill, and its injector/Codex connector/lifecycle assets.
 
 ## 21. Repository architecture invariants
 
@@ -827,7 +827,8 @@ Internal workspaces are private implementation details:
 - staged npm artifacts must not expose private workspace names or host runtime dependencies;
 - staged declarations must expose public-safe text-edit intent types/methods and the `./plugins` entry;
 - first-party public plugin factories live under `mesurer-solid/plugins` and do not regain redundant one-plugin-per-subpath exports;
-- Context document-backed annotation UI must stay source-attached and preserve inspector hit ownership; related Select evidence must stay below it even when the outer host uses the browser top layer;
+- Context document-backed annotation UI must stay source-attached and preserve inspector hit ownership; saved annotations must survive same-tab reloads through conservative target rebinding, and related Select evidence must stay below Context UI even when the outer host uses the browser top layer;
+- Codex delivery lifecycle must stay single-flight in the browser, keep `SessionStart` registration local-process-only, verify bridge source identity before process reuse, correlate Desktop lifecycle through exact queued-prompt matches in read-only Codex turn history without requiring extra trusted hooks, preserve page-local routing and in-flight delivery state across same-tab reloads, refuse ambiguous multi-thread defaults, and remove only exact sent annotation ids after a matched completed turn; interruption, failure, or uncertain lifecycle state must preserve review evidence;
 - default rendering must retain pinned upstream visual/behavioral parity gates;
 - agent integrations must not require Playwright or another transport when the outer harness already has page execution;
 - agent integrations must preserve a live human Mesurer instance by default, including Arrange/text-edit/screenshot review state;

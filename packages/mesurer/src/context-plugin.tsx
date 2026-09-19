@@ -58,6 +58,8 @@ export type MesurerContextService = {
   copyContext(request?: MesurerContextRequest): Promise<void>;
   select(selectors: string | string[]): Promise<MesurerContextV1>;
   annotations(): Promise<MesurerAnnotation[]>;
+  /** Remove one saved annotation after a trusted workflow has completed it. */
+  removeAnnotation(annotationId: string): Promise<void>;
   review(annotationId?: string): Promise<MesurerReviewV1 | MesurerReviewV1[]>;
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
   prepareCapture(): Promise<void>;
@@ -88,6 +90,10 @@ const createService = (
     return context({ scope: "selection" });
   };
   const annotations = async () => runtime.annotations();
+  const removeAnnotation = async (annotationId: string) => {
+    runtime.removeAnnotation(annotationId);
+    await stable(ownerDocument, ownerWindow);
+  };
   const review = async (annotationId?: string): Promise<MesurerReviewV1 | MesurerReviewV1[]> => {
     await stable(ownerDocument, ownerWindow);
     if (annotationId) {
@@ -113,6 +119,7 @@ const createService = (
     copyContext,
     select,
     annotations,
+    removeAnnotation,
     review,
     capturePlan,
     prepareCapture,
@@ -138,7 +145,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       // Annotation markers/cards are page evidence, not viewport furniture. Put
       // their interactive root in the same document scroll tree as the selected
       // page element; the canonical toolbar remains isolated in its normal root.
-      const runtime = solid.createWorkspaceRuntime();
+      const runtime = solid.createWorkspaceRuntime(MESURER_CONTEXT_PLUGIN_ID);
       const service = createService(runtime, solid.ownerDocument, solid.ownerWindow);
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
 

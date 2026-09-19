@@ -38,7 +38,7 @@ export type MesurerSolidRuntimeService = {
   rendererRoot?: HTMLElement;
   /** Current canonical page-targeting tool when exposed by the renderer bridge. */
   currentToolMode?(): MesurerModel["state"]["toolMode"];
-  createWorkspaceRuntime(): MesurerWorkspaceRuntime;
+  createWorkspaceRuntime(persistenceNamespace?: string): MesurerWorkspaceRuntime;
   /** Create Mesurer-owned DOM that is automatically excluded from inspection/X-ray. */
   createInspectorMount(): { element: HTMLDivElement; dispose(): void };
 };
@@ -377,12 +377,15 @@ export default function ComposableMesurer(props: MesurerProps) {
       };
     };
 
-    const createWorkspaceRuntime = () => createMesurerWorkspaceRuntime({
+    const createWorkspaceRuntime = (persistenceNamespace?: string) => createMesurerWorkspaceRuntime({
       model: requireModel(),
       ownerDocument,
       ownerWindow,
       uiRoot: target,
       pageTarget,
+      persistenceKey: persistenceNamespace
+        ? `${input.persistKey ?? DEFAULT_PLUGIN_STORAGE_KEY}:${persistenceNamespace}:${ownerWindow.location.origin}${ownerWindow.location.pathname}`
+        : undefined,
     });
 
     const visibilityStyle = ownerDocument.createElement("style");

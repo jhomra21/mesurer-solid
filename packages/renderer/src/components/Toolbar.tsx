@@ -36,7 +36,13 @@ export type ToolbarProps = {
 
 const TOOLBAR_DRAG_SLOP = 6;
 const GUIDE_MENU_WIDTH = 176;
-const TOOL_MENU_WIDTH = 224;
+const TOOL_MENU_MIN_WIDTH = 224;
+const TOOL_MENU_MAX_WIDTH = 360;
+const TOOL_MENU_CHARACTER_WIDTH = 6.5;
+const TOOL_MENU_INLINE_CHROME = 52;
+const TOOL_MENU_ITEM_HEIGHT = 28;
+const TOOL_MENU_CHROME_HEIGHT = 8;
+const TOOL_MENU_GAP = 8;
 const SETTINGS_MENU_WIDTH = 272;
 const VIEWPORT_PADDING = 8;
 const GUIDE_MENU_IDEAL_HEIGHT = 72;
@@ -134,7 +140,6 @@ export function Toolbar(props: ToolbarProps) {
   const [position, setPosition] = createSignal({ x: 16, y: 16 });
   const [guideMenuOpen, setGuideMenuOpen] = createSignal(false);
   const [pluginMenuOpenId, setPluginMenuOpenId] = createSignal<string | null>(null);
-  const [pluginMenuAlign, setPluginMenuAlign] = createSignal<"left" | "right">("right");
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
   const [menuAlign, setMenuAlign] = createSignal<"left" | "right">("right");
   const [compact, setCompact] = createSignal(false);
@@ -143,6 +148,7 @@ export function Toolbar(props: ToolbarProps) {
   let toolbarElement: HTMLDivElement | undefined;
   let settingsElement: HTMLDivElement | undefined;
   let guideMenuElement: HTMLDivElement | undefined;
+  let pluginMenuAnchorElement: HTMLElement | undefined;
   let suppressClick = false;
   let previousUserSelect: string | null = null;
   const [colorPickerSupported, setColorPickerSupported] = createSignal(false);
@@ -240,13 +246,78 @@ export function Toolbar(props: ToolbarProps) {
     setMenuAlign("right");
   };
 
+  const pluginMenuIdealWidth = (tool: ToolContribution) => {
+    const longest = (tool.menu?.items ?? []).reduce((length, item) => {
+      const shortcut = props.model.state.settings.shortcutsEnabled && item.shortcut
+        ? item.shortcut.length + 2
+        : 0;
+      return Math.max(length, item.label.length + shortcut);
+    }, 0);
+    return Math.min(
+      TOOL_MENU_MAX_WIDTH,
+      Math.max(
+        TOOL_MENU_MIN_WIDTH,
+        Math.ceil(longest * TOOL_MENU_CHARACTER_WIDTH + TOOL_MENU_INLINE_CHROME),
+      ),
+    );
+  };
+
+  const pluginMenuGeometry = (tool: ToolContribution) => {
+    position();
+    viewportRevision();
+    const anchor = pluginMenuAnchorElement?.getBoundingClientRect();
+    const viewportWidth = props.ownerWindow.innerWidth || TOOL_MENU_MIN_WIDTH + VIEWPORT_PADDING * 2;
+    const height = viewportHeight();
+    const width = Math.min(
+      pluginMenuIdealWidth(tool),
+      Math.max(0, viewportWidth - VIEWPORT_PADDING * 2),
+    );
+    if (!anchor) {
+      return {
+        side: nearBottom() ? "top" as const : "bottom" as const,
+        left: 0,
+        width,
+        maxHeight: Math.max(0, height - VIEWPORT_PADDING * 2),
+      };
+    }
+
+    const itemCount = tool.menu?.items.length ?? 0;
+    const idealHeight = itemCount * TOOL_MENU_ITEM_HEIGHT + TOOL_MENU_CHROME_HEIGHT;
+    const below = Math.max(
+      0,
+      height - anchor.bottom - VIEWPORT_PADDING - TOOL_MENU_GAP,
+    );
+    const above = Math.max(
+      0,
+      anchor.top - VIEWPORT_PADDING - TOOL_MENU_GAP,
+    );
+    const side = below >= idealHeight || below >= above ? "bottom" as const : "top" as const;
+    const maxHeight = side === "bottom" ? below : above;
+    const idealViewportLeft = anchor.right - width;
+    const maxViewportLeft = Math.max(
+      VIEWPORT_PADDING,
+      viewportWidth - VIEWPORT_PADDING - width,
+    );
+    const viewportLeft = Math.min(
+      maxViewportLeft,
+      Math.max(VIEWPORT_PADDING, idealViewportLeft),
+    );
+
+    return {
+      side,
+      left: viewportLeft - anchor.left,
+      width,
+      maxHeight,
+    };
+  };
+
   const togglePluginMenu = (toolId: string, anchor: HTMLElement) => {
     if (pluginMenuOpenId() === toolId) {
       setPluginMenuOpenId(null);
+      pluginMenuAnchorElement = undefined;
       return;
     }
-    const rect = anchor.getBoundingClientRect();
-    setPluginMenuAlign(rect.right - TOOL_MENU_WIDTH < VIEWPORT_PADDING ? "left" : "right");
+    pluginMenuAnchorElement = anchor;
     setPluginMenuOpenId(toolId);
   };
 
@@ -313,7 +384,14 @@ export function Toolbar(props: ToolbarProps) {
     <Show when={pluginMenuOpenId() === tool.id}>
       <div
         data-mesurer-tool-menu={tool.id}
-        class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:w-56 msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:flex msr:flex-col msr:gap-px ${nearBottom() ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"} ${pluginMenuAlign() === "left" ? "msr:left-0" : "msr:right-0"}`}
+        data-mesurer-menu-side={pluginMenuGeometry(tool).side}
+        class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:flex msr:flex-col msr:gap-px msr:overflow-x-hidden msr:overflow-y-auto ${pluginMenuGeometry(tool).side === "top" ? "msr:bottom-full msr:mb-2" : "msr:top-full msr:mt-2"}`}
+        style={{
+          left: `${pluginMenuGeometry(tool).left}px`,
+          right: "auto",
+          width: `${pluginMenuGeometry(tool).width}px`,
+          "max-height": `${pluginMenuGeometry(tool).maxHeight}px`,
+        }}
         role="menu"
         aria-label={tool.menu?.label ?? `${tool.label} options`}
         onKeyDown={(event) => {
@@ -330,7 +408,7 @@ export function Toolbar(props: ToolbarProps) {
             aria-checked={item.checked ? (item.checked() ? "true" : "false") : undefined}
             data-mesurer-tool-menu-item={item.id}
             disabled={item.disabled?.() ?? false}
-            class="msr:flex msr:h-7 msr:w-full msr:items-center msr:gap-2 msr:rounded-md msr:px-2 msr:text-left msr:text-[12px] msr:text-ink-700 msr:outline-none msr:whitespace-nowrap msr:hover:bg-[#0d99ff] msr:hover:text-white msr:focus-visible:bg-[#0d99ff] msr:focus-visible:text-white msr:disabled:opacity-40"
+            class="msr:flex msr:h-7 msr:w-full msr:min-w-0 msr:shrink-0 msr:items-center msr:gap-2 msr:overflow-hidden msr:rounded-md msr:px-2 msr:text-left msr:text-[12px] msr:text-ink-700 msr:outline-none msr:whitespace-nowrap msr:hover:bg-[#0d99ff] msr:hover:text-white msr:focus-visible:bg-[#0d99ff] msr:focus-visible:text-white msr:disabled:opacity-40"
             onClick={() => {
               props.onPluginToolMenuItem?.(tool, item);
               setPluginMenuOpenId(null);
@@ -339,7 +417,7 @@ export function Toolbar(props: ToolbarProps) {
             <span class="msr:flex msr:w-3 msr:shrink-0 msr:justify-center">
               <CheckIcon size={12} class={item.checked?.() ? "msr:opacity-100" : "msr:opacity-0"} />
             </span>
-            <span class="msr:flex-1 msr:whitespace-nowrap">{item.label}</span>
+            <span class="msr:min-w-0 msr:flex-1 msr:overflow-hidden msr:text-ellipsis msr:whitespace-nowrap">{item.label}</span>
             <Show when={props.model.state.settings.shortcutsEnabled && item.shortcut}><span class="msr:shrink-0 msr:text-[10px] msr:opacity-60">{item.shortcut}</span></Show>
           </button>
         )}</For>
