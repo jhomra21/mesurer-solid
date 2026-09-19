@@ -33,7 +33,7 @@ Then enable Codex in Mesurer Settings and use **Queue to Codex**. No separate `m
 
 CLI/TUI shared-daemon environments use the same native queue. Mesurer does not start the standalone daemon for Desktop, does not delete an existing queued item during recovery, and never invokes `turn/steer`.
 
-While a tracked request is outstanding, Mesurer disables repeat queue submissions and visibly moves from Queueing to Queued to Working. A normal Stop briefly shows Finished and removes only the annotations included in that delivery. Interruptions keep those notes for retry.
+While a tracked request is outstanding, Mesurer disables repeat queue submissions and visibly moves from Queueing to Queued to Working. A matched `completed` turn briefly shows Finished and removes only the annotations included in that delivery. `interrupted` or failed turns keep those notes for retry.
 
 The low-level bridge and connector remain available for diagnostics:
 
