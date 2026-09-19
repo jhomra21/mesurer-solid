@@ -1183,8 +1183,8 @@ const turnUserMessages = (turn) => {
   return turn.items.flatMap((item) => {
     if (item?.type !== "userMessage" || !Array.isArray(item.content)) return [];
     const text = item.content
-      .filter((input) => input?.type === "text" && typeof input.text === "string")
-      .map((input) => input.text)
+      .filter((input) => input?.type === "text")
+      .map((input) => String(input.text ?? ""))
       .join("\n")
       .trim();
     return text ? [text] : [];
