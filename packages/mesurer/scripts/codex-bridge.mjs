@@ -32,6 +32,9 @@ const MAX_DISCOVERED_THREADS = 10;
 const MAX_DELIVERIES = 100;
 const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
 const DELIVERY_TTL_MS = 2 * 60 * 60_000;
+const DESKTOP_LIFECYCLE_POLL_MS = 1_000;
+const DESKTOP_TURN_HISTORY_LIMIT = 10;
+const DELIVERY_TURN_START_SKEW_MS = 60_000;
 
 const usage = `Usage:
   mesurer-codex [--thread <session-id-or-name>] [options]
@@ -152,6 +155,8 @@ const discoveredThreads = new Map();
 const deliveries = new Map();
 const terminalTurnEvents = new Map();
 const desktopDispatchTimers = new Map();
+const desktopLifecycleChecks = new Map();
+const desktopLifecycleLastCheckedAt = new Map();
 let activeThread = null;
 let activeCwd = null;
 
@@ -775,7 +780,121 @@ const queuedSubmissionMessage = (submission) => {
   return input?.type === "text" && text.trim() ? text : null;
 };
 
+const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
+  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+    env: process.env,
+    shell: false,
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  let stdoutBuffer = "";
+  let stderr = "";
+  let settled = false;
+  let timeout;
 
+  const finish = (error, turns) => {
+    if (settled) return;
+    settled = true;
+    if (timeout) clearTimeout(timeout);
+    if (child.exitCode === null) child.kill("SIGTERM");
+    if (error) reject(error);
+    else resolve(turns);
+  };
+
+  const send = (message) => {
+    child.stdin.write(`${JSON.stringify(message)}\n`);
+  };
+
+  const handleMessage = (message) => {
+    if (message?.id === "mesurer-history-init") {
+      if (message.error) {
+        finish(new Error(message.error.message || "Codex app-server initialize failed."));
+        return;
+      }
+      send({ method: "initialized" });
+      send({
+        id: "mesurer-history-turns",
+        method: "thread/turns/list",
+        params: {
+          threadId: thread,
+          limit: DESKTOP_TURN_HISTORY_LIMIT,
+          sortDirection: "desc",
+          itemsView: "summary",
+        },
+      });
+      return;
+    }
+
+    if (message?.id === "mesurer-history-turns") {
+      if (message.error) {
+        send({
+          id: "mesurer-history-read",
+          method: "thread/read",
+          params: {
+            threadId: thread,
+            includeTurns: true,
+          },
+        });
+        return;
+      }
+      finish(null, Array.isArray(message.result?.data) ? message.result.data : []);
+      return;
+    }
+
+    if (message?.id === "mesurer-history-read") {
+      if (message.error) {
+        finish(new Error(message.error.message || "Codex app-server thread history read failed."));
+        return;
+      }
+      finish(null, Array.isArray(message.result?.thread?.turns) ? message.result.thread.turns : []);
+    }
+  };
+
+  child.stdout.on("data", (chunk) => {
+    stdoutBuffer += chunk.toString();
+    while (true) {
+      const newline = stdoutBuffer.indexOf("\n");
+      if (newline < 0) break;
+      const line = stdoutBuffer.slice(0, newline).trim();
+      stdoutBuffer = stdoutBuffer.slice(newline + 1);
+      if (!line) continue;
+      try {
+        handleMessage(JSON.parse(line));
+      } catch {
+        // App-server protocol is JSONL; ignore unrelated stdout defensively.
+      }
+    }
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
+  });
+  child.on("error", (error) => finish(error));
+  child.on("close", (code, signal) => {
+    if (settled) return;
+    const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
+    finish(new Error(`Codex app-server exited before lifecycle history completed: ${detail}`));
+  });
+
+  timeout = setTimeout(() => {
+    child.kill("SIGTERM");
+    finish(new Error(`Codex app-server lifecycle history timed out after ${APP_SERVER_TIMEOUT_MS}ms.`));
+  }, APP_SERVER_TIMEOUT_MS);
+
+  send({
+    id: "mesurer-history-init",
+    method: "initialize",
+    params: {
+      clientInfo: {
+        name: "mesurer-solid",
+        title: "Mesurer Solid",
+        version: "1",
+      },
+      capabilities: {
+        experimentalApi: true,
+      },
+    },
+  });
+});
 
 const openDesktopThread = (thread) => new Promise((resolveOpen, rejectOpen) => {
   const url = `codex://threads/${thread}`;
@@ -1009,6 +1128,8 @@ const pruneDeliveries = () => {
     const terminal = delivery.status === "completed" || delivery.status === "interrupted";
     if (now - delivery.updatedAt > (terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS)) {
       deliveries.delete(id);
+      desktopLifecycleChecks.delete(id);
+      desktopLifecycleLastCheckedAt.delete(id);
     }
   }
   for (const [key, event] of terminalTurnEvents) {
@@ -1055,6 +1176,92 @@ const promptMatchesDelivery = (delivery, prompt) => {
   if (delivery.transport !== "desktop-app" || !delivery.message) return false;
   return prompt.includes(delivery.message)
     || prompt.includes(`<input>${xmlEscape(delivery.message)}</input>`);
+};
+
+const turnUserMessages = (turn) => {
+  if (!Array.isArray(turn?.items)) return [];
+  return turn.items.flatMap((item) => {
+    if (item?.type !== "userMessage" || !Array.isArray(item.content)) return [];
+    const text = item.content
+      .filter((input) => input?.type === "text" && typeof input.text === "string")
+      .map((input) => input.text)
+      .join("\n")
+      .trim();
+    return text ? [text] : [];
+  });
+};
+
+const deliveryTurn = (delivery, turns) => {
+  if (delivery.turnId) {
+    return turns.find((turn) => normalizeThread(turn?.id) === delivery.turnId) ?? null;
+  }
+
+  const earliestStartedAt = delivery.createdAt - DELIVERY_TURN_START_SKEW_MS;
+  const matches = turns.filter((turn) => {
+    const turnId = normalizeThread(turn?.id);
+    const startedAt = Number(turn?.startedAt);
+    if (!turnId || !Number.isFinite(startedAt) || startedAt * 1_000 < earliestStartedAt) {
+      return false;
+    }
+    return turnUserMessages(turn).some((prompt) => promptMatchesDelivery(delivery, prompt));
+  });
+  return matches.length === 1 ? matches[0] : null;
+};
+
+const reconcileDesktopDelivery = async (delivery) => {
+  if (delivery.transport !== "desktop-app"
+    || delivery.dispatch !== "desktop-opened"
+    || (delivery.status !== "queued" && delivery.status !== "working")) {
+    return;
+  }
+
+  const turns = await runCodexTurnHistory(delivery.thread);
+  if (deliveries.get(delivery.id) !== delivery) return;
+  const turn = deliveryTurn(delivery, turns);
+  if (!turn) return;
+
+  const turnId = normalizeThread(turn.id);
+  let nextStatus = null;
+  if (turn.status === "inProgress") nextStatus = "working";
+  if (turn.status === "completed") nextStatus = "completed";
+  if (turn.status === "interrupted" || turn.status === "failed") nextStatus = "interrupted";
+  if (!turnId || !nextStatus) return;
+
+  const failed = turn.status === "failed";
+  const failureMessage = normalizeThread(turn?.error?.message) ?? "Codex turn failed.";
+  const changed = delivery.turnId !== turnId
+    || delivery.status !== nextStatus
+    || (failed && delivery.dispatchError !== failureMessage);
+  if (!changed) return;
+
+  delivery.turnId = turnId;
+  delivery.status = nextStatus;
+  if (failed) delivery.dispatchError = failureMessage;
+  delivery.updatedAt = Date.now();
+  await persistDeliveryState();
+};
+
+const scheduleDesktopLifecycleCheck = (delivery) => {
+  if (delivery.transport !== "desktop-app"
+    || delivery.dispatch !== "desktop-opened"
+    || (delivery.status !== "queued" && delivery.status !== "working")
+    || desktopLifecycleChecks.has(delivery.id)) {
+    return;
+  }
+
+  const now = Date.now();
+  const lastCheckedAt = desktopLifecycleLastCheckedAt.get(delivery.id) ?? 0;
+  if (now - lastCheckedAt < DESKTOP_LIFECYCLE_POLL_MS) return;
+  desktopLifecycleLastCheckedAt.set(delivery.id, now);
+
+  const check = reconcileDesktopDelivery(delivery)
+    .catch(() => undefined)
+    .finally(() => {
+      if (desktopLifecycleChecks.get(delivery.id) === check) {
+        desktopLifecycleChecks.delete(delivery.id);
+      }
+    });
+  desktopLifecycleChecks.set(delivery.id, check);
 };
 
 const markPromptStarted = (thread, turnId, prompt) => {
@@ -1141,6 +1348,7 @@ const server = createServer(async (request, response) => {
       writeJson(response, 404, { ok: false, error: `Codex delivery is not available: ${deliveryId}` }, origin);
       return;
     }
+    scheduleDesktopLifecycleCheck(delivery);
     writeJson(response, 200, { ok: true, ...publicDelivery(delivery) }, origin);
     return;
   }

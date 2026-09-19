@@ -255,12 +255,7 @@ test("repo Codex plugin packages the same companion and a bounded SessionStart h
   assert.match(sessionStart.hooks[0].command, /\$\{PLUGIN_ROOT\}\/scripts\/codex-connect\.mjs/);
   assert.match(sessionStart.hooks[0].command, /--session-start/);
 
-  for (const eventName of ["UserPromptSubmit", "Stop", "Interrupt"]) {
-    const lifecycle = hooks.hooks[eventName][0].hooks[0];
-    assert.equal(lifecycle.async, true);
-    assert.equal(lifecycle.timeout, 5);
-    assert.match(lifecycle.command, /\$\{PLUGIN_ROOT\}\/scripts\/codex-lifecycle\.mjs/);
-  }
+  assert.deepEqual(Object.keys(hooks.hooks), ["SessionStart"]);
 
   assert.equal(
     await readFile(new URL("scripts/codex-connect.mjs", pluginRoot), "utf8"),

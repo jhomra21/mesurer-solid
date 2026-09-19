@@ -1,5 +1,5 @@
 {
-  "description": "Keep Mesurer's local Codex feedback companion ready and report queued-turn lifecycle state.",
+  "description": "Keep Mesurer's local Codex feedback companion ready for the current session.",
   "hooks": {
     "SessionStart": [
       {
@@ -11,45 +11,6 @@
             "commandWindows": "node \"%PLUGIN_ROOT%\\\\scripts\\\\codex-connect.mjs\" --session-start",
             "timeout": 15,
             "statusMessage": "Connecting Mesurer to this Codex thread"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/scripts/codex-lifecycle.mjs\"",
-            "commandWindows": "node \"%PLUGIN_ROOT%\\\\scripts\\\\codex-lifecycle.mjs\"",
-            "timeout": 5,
-            "async": true
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/scripts/codex-lifecycle.mjs\"",
-            "commandWindows": "node \"%PLUGIN_ROOT%\\\\scripts\\\\codex-lifecycle.mjs\"",
-            "timeout": 5,
-            "async": true
-          }
-        ]
-      }
-    ],
-    "Interrupt": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/scripts/codex-lifecycle.mjs\"",
-            "commandWindows": "node \"%PLUGIN_ROOT%\\\\scripts\\\\codex-lifecycle.mjs\"",
-            "timeout": 5,
-            "async": true
           }
         ]
       }

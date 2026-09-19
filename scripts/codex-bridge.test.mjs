@@ -590,6 +590,210 @@ appendFileSync(
   }
 });
 
+test("Codex Desktop reconciles exact delivery lifecycle from turn history without lifecycle hooks", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-desktop-history-"));
+  const argsPath = join(root, "codex-args.jsonl");
+  const openPath = join(root, "desktop-open.jsonl");
+  const turnsPath = join(root, "turns.json");
+  const fakeCodex = join(root, "fake-codex.mjs");
+  const fakeOpen = join(root, "fake-open.mjs");
+
+  await writeFile(turnsPath, "[]");
+  await writeFile(fakeCodex, `#!/usr/bin/env node
+import { appendFileSync, readFileSync } from "node:fs";
+const args = process.argv.slice(2);
+appendFileSync(process.env.MESURER_FAKE_CODEX_ARGS, JSON.stringify(args) + "\\n");
+const write = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
+
+if (args[0] === "queue") {
+  const messageIndex = args.indexOf("--message");
+  const message = messageIndex >= 0 ? args[messageIndex + 1] : "";
+  const queueId = message.includes("interrupt") ? "queue-history-interrupt" : "queue-history-complete";
+  console.log(\`Queued message \${queueId} for thread thread-history.\`);
+} else if (args[0] === "app-server" && args[1] === "--listen") {
+  process.stdin.setEncoding("utf8");
+  let buffer = "";
+  process.stdin.on("data", (chunk) => {
+    buffer += chunk;
+    while (true) {
+      const newline = buffer.indexOf("\\n");
+      if (newline < 0) break;
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (!line) continue;
+      const message = JSON.parse(line);
+      if (message.id === "mesurer-history-init") {
+        write({ id: message.id, result: { userAgent: "fake-codex" } });
+      } else if (message.id === "mesurer-history-turns") {
+        write({
+          id: message.id,
+          result: {
+            data: JSON.parse(readFileSync(process.env.MESURER_FAKE_TURNS, "utf8")),
+            nextCursor: null,
+            backwardsCursor: null,
+          },
+        });
+      } else if (message.id === "mesurer-history-read") {
+        write({
+          id: message.id,
+          result: { thread: { turns: JSON.parse(readFileSync(process.env.MESURER_FAKE_TURNS, "utf8")) } },
+        });
+      }
+    }
+  });
+} else if (args[0] === "stdio-to-uds" || (args[0] === "app-server" && args[1] === "daemon")) {
+  process.stderr.write("Desktop history reconciliation must not use the managed daemon\\n");
+  process.exit(99);
+}
+`);
+  await chmod(fakeCodex, 0o755);
+
+  await writeFile(fakeOpen, `#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.argv.slice(2)) + "\\n");
+`);
+  await chmod(fakeOpen, 0o755);
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--thread", "thread-history",
+    "--codex", fakeCodex,
+  ], {
+    env: {
+      ...process.env,
+      CODEX_HOME: root,
+      CODEX_APP_TOOLS_PIPE_PATH: join(root, "desktop-owner.pipe"),
+      MESURER_CODEX_DESKTOP_OPEN_BIN: fakeOpen,
+      MESURER_FAKE_CODEX_ARGS: argsPath,
+      MESURER_FAKE_DESKTOP_OPEN: openPath,
+      MESURER_FAKE_TURNS: turnsPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  const userTurn = (id, text, status) => ({
+    id,
+    items: [{
+      type: "userMessage",
+      id: `user-${id}`,
+      clientId: null,
+      content: [{ type: "text", text, text_elements: [] }],
+    }],
+    itemsView: "summary",
+    status,
+    error: null,
+    startedAt: Math.floor(Date.now() / 1_000),
+    completedAt: status === "inProgress" ? null : Math.floor(Date.now() / 1_000),
+    durationMs: status === "inProgress" ? null : 10,
+  });
+
+  try {
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+
+    const sendCompleted = await fetch(`${bridgeUrl}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173",
+      },
+      body: JSON.stringify({ message: "complete this exact Mesurer feedback" }),
+    });
+    assert.equal(sendCompleted.status, 200, stderr);
+    const completedDelivery = await sendCompleted.json();
+    await waitForDelivery(
+      bridgeUrl,
+      completedDelivery.deliveryId,
+      (delivery) => delivery.dispatch === "desktop-opened",
+    );
+
+    await writeFile(turnsPath, JSON.stringify([
+      userTurn("turn-unrelated", "some unrelated prompt", "completed"),
+    ]));
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    const stillQueued = await waitForDelivery(
+      bridgeUrl,
+      completedDelivery.deliveryId,
+      (delivery) => delivery.status === "queued",
+    );
+    assert.equal(stillQueued.turnId, null);
+
+    await writeFile(turnsPath, JSON.stringify([
+      userTurn("turn-history-complete", "complete this exact Mesurer feedback", "inProgress"),
+      userTurn("turn-unrelated", "some unrelated prompt", "completed"),
+    ]));
+    const working = await waitForDelivery(
+      bridgeUrl,
+      completedDelivery.deliveryId,
+      (delivery) => delivery.status === "working",
+    );
+    assert.equal(working.turnId, "turn-history-complete");
+
+    await writeFile(turnsPath, JSON.stringify([
+      userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
+      userTurn("turn-unrelated", "some unrelated prompt", "completed"),
+    ]));
+    const completed = await waitForDelivery(
+      bridgeUrl,
+      completedDelivery.deliveryId,
+      (delivery) => delivery.status === "completed",
+    );
+    assert.equal(completed.turnId, "turn-history-complete");
+
+    const sendInterrupted = await fetch(`${bridgeUrl}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173",
+      },
+      body: JSON.stringify({ message: "interrupt this exact Mesurer feedback" }),
+    });
+    assert.equal(sendInterrupted.status, 200, stderr);
+    const interruptedDelivery = await sendInterrupted.json();
+    await waitForDelivery(
+      bridgeUrl,
+      interruptedDelivery.deliveryId,
+      (delivery) => delivery.dispatch === "desktop-opened",
+    );
+
+    await writeFile(turnsPath, JSON.stringify([
+      userTurn("turn-history-interrupt", "interrupt this exact Mesurer feedback", "inProgress"),
+      userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
+    ]));
+    const interruptWorking = await waitForDelivery(
+      bridgeUrl,
+      interruptedDelivery.deliveryId,
+      (delivery) => delivery.status === "working",
+    );
+    assert.equal(interruptWorking.turnId, "turn-history-interrupt");
+
+    await writeFile(turnsPath, JSON.stringify([
+      userTurn("turn-history-interrupt", "interrupt this exact Mesurer feedback", "interrupted"),
+      userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
+    ]));
+    const interrupted = await waitForDelivery(
+      bridgeUrl,
+      interruptedDelivery.deliveryId,
+      (delivery) => delivery.status === "interrupted",
+    );
+    assert.equal(interrupted.turnId, "turn-history-interrupt");
+
+    const invocations = await readInvocations(argsPath);
+    assert.equal(invocations.filter((args) => args[0] === "queue").length, 2);
+    assert.equal(invocations.some((args) => args[0] === "stdio-to-uds"), false);
+    assert.equal(invocations.some((args) => args[0] === "app-server" && args[1] === "daemon"), false);
+    assert.deepEqual(await readInvocations(openPath), [
+      ["codex://threads/thread-history"],
+      ["codex://threads/thread-history"],
+    ]);
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Codex bridge wakes an existing native Desktop queue item without deleting or duplicating it", async () => {
   const root = await mkdtemp(join(tmpdir(), "mesurer-codex-desktop-recover-"));
   const argsPath = join(root, "codex-args.jsonl");
