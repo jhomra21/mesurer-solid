@@ -128,7 +128,7 @@ This is deliberately a lifecycle completion rule, not a semantic verifier. Mesur
 
 Current lifecycle tracking does not require `UserPromptSubmit`, `Stop`, or `Interrupt` hooks. The trusted `SessionStart` hook is only responsible for local bridge bootstrap, project scope, and thread registration. The browser stores the active delivery id, destination thread, lifecycle state, and exact annotation ids in per-tab `sessionStorage` while a delivery is queued or working. If the page reloads, `codex()` resumes polling that exact bridge delivery and can still retire the exact annotations after the matching completion.
 
-If Codex history cannot be read or the exact queued prompt cannot be correlated unambiguously, Mesurer leaves the delivery and annotation intact. It never infers completion from a missing queue item or an unrelated newer turn.
+If Codex history cannot be read or the exact queued prompt cannot be correlated unambiguously, Mesurer leaves the delivery and annotation intact. It never infers completion from a missing queue item or an unrelated newer turn. On bridge startup, persisted Desktop records are rechecked against the authoritative turn when possible, so an older bridge's premature terminal state can be corrected after upgrading.
 
 ## Current-thread affinity and the recent-thread picker
 

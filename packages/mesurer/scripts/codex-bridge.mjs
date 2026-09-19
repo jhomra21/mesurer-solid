@@ -1209,9 +1209,7 @@ const deliveryTurn = (delivery, turns) => {
 };
 
 const reconcileDesktopDelivery = async (delivery) => {
-  if (delivery.transport !== "desktop-app"
-    || delivery.dispatch !== "desktop-opened"
-    || (delivery.status !== "queued" && delivery.status !== "working")) {
+  if (delivery.transport !== "desktop-app" || delivery.dispatch !== "desktop-opened") {
     return;
   }
 
@@ -1244,7 +1242,6 @@ const reconcileDesktopDelivery = async (delivery) => {
 const scheduleDesktopLifecycleCheck = (delivery) => {
   if (delivery.transport !== "desktop-app"
     || delivery.dispatch !== "desktop-opened"
-    || (delivery.status !== "queued" && delivery.status !== "working")
     || desktopLifecycleChecks.has(delivery.id)) {
     return;
   }
@@ -1307,6 +1304,7 @@ const desktopOwnsLifecycle = (thread) =>
     delivery.thread === thread && delivery.transport === "desktop-app");
 
 await loadDeliveryState();
+for (const delivery of deliveries.values()) scheduleDesktopLifecycleCheck(delivery);
 
 let successfulSends = 0;
 const server = createServer(async (request, response) => {

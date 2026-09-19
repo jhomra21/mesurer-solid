@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -806,6 +806,134 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       ["codex://threads/thread-history"],
       ["codex://threads/thread-history"],
     ]);
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+    await waitForExit(child).catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Codex Desktop corrects a persisted premature interrupt from authoritative turn history", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-desktop-terminal-recovery-"));
+  const argsPath = join(root, "codex-args.jsonl");
+  const fakeCodex = join(root, "fake-codex.mjs");
+  const message = "recover this prematurely interrupted delivery";
+  const now = Date.now();
+
+  await mkdir(join(root, "mesurer"), { recursive: true });
+  await writeFile(join(root, "mesurer", "codex-deliveries.json"), `${JSON.stringify({
+    version: 1,
+    deliveries: [{
+      id: "delivery-premature-interrupt",
+      thread: "thread-terminal-recovery",
+      message,
+      transport: "desktop-app",
+      status: "interrupted",
+      turnId: "turn-terminal-recovery",
+      queuedSubmissionId: "queue-terminal-recovery",
+      dispatch: "desktop-opened",
+      dispatchError: null,
+      createdAt: now - 2_000,
+      updatedAt: now - 1_000,
+    }],
+  })}\n`);
+
+  await writeFile(fakeCodex, `#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+const args = process.argv.slice(2);
+appendFileSync(process.env.MESURER_FAKE_CODEX_ARGS, JSON.stringify(args) + "\\n");
+const write = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
+
+if (args[0] === "app-server" && args[1] === "--listen") {
+  process.stdin.setEncoding("utf8");
+  let buffer = "";
+  process.stdin.on("data", (chunk) => {
+    buffer += chunk;
+    while (true) {
+      const newline = buffer.indexOf("\\n");
+      if (newline < 0) break;
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (!line) continue;
+      const request = JSON.parse(line);
+      if (request.id === "mesurer-history-init") {
+        write({ id: request.id, result: { userAgent: "fake-codex" } });
+      } else if (request.id === "mesurer-history-turns") {
+        write({
+          id: request.id,
+          result: {
+            data: [{
+              id: "turn-terminal-recovery",
+              items: [{
+                type: "userMessage",
+                id: "user-terminal-recovery",
+                clientId: null,
+                content: [{
+                  type: "text",
+                  text: "recover this prematurely interrupted delivery",
+                  text_elements: [],
+                }],
+              }],
+              itemsView: "summary",
+              status: "completed",
+              error: null,
+              startedAt: Math.floor(Date.now() / 1_000) - 1,
+              completedAt: Math.floor(Date.now() / 1_000),
+              durationMs: 1_000,
+            }],
+            nextCursor: null,
+            backwardsCursor: null,
+          },
+        });
+      }
+    }
+  });
+} else if (args[0] === "queue") {
+  process.stderr.write("terminal recovery must not enqueue another message\\n");
+  process.exit(99);
+}
+`);
+  await chmod(fakeCodex, 0o755);
+
+  const child = spawn(process.execPath, [bridgeScript.pathname,
+    "--port", "0",
+    "--thread", "thread-terminal-recovery",
+    "--codex", fakeCodex,
+  ], {
+    env: {
+      ...process.env,
+      CODEX_HOME: root,
+      CODEX_APP_TOOLS_PIPE_PATH: join(root, "desktop-owner.pipe"),
+      MESURER_FAKE_CODEX_ARGS: argsPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
+    const recovered = await waitForDelivery(
+      bridgeUrl,
+      "delivery-premature-interrupt",
+      (delivery) => delivery.status === "completed",
+    );
+    assert.equal(recovered.turnId, "turn-terminal-recovery");
+    assert.equal(recovered.queuedSubmissionId, "queue-terminal-recovery");
+
+    const persisted = JSON.parse(await readFile(
+      join(root, "mesurer", "codex-deliveries.json"),
+      "utf8",
+    ));
+    assert.equal(persisted.deliveries[0]?.status, "completed");
+    assert.equal(persisted.deliveries[0]?.turnId, "turn-terminal-recovery");
+
+    const invocations = await readInvocations(argsPath);
+    assert.equal(invocations.some((args) => args[0] === "queue"), false);
+    assert.equal(
+      invocations.some((args) => args[0] === "app-server" && args[1] === "--listen"),
+      true,
+    );
   } finally {
     if (child.exitCode === null) child.kill("SIGKILL");
     await waitForExit(child).catch(() => {});
