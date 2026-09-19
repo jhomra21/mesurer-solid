@@ -290,7 +290,7 @@ Browser pages may send only to locally registered threads or to recent same-proj
 
 When application code has mounted `codex()` next to `context()`, its typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `send({ thread })`. `useThread(thread)` is for a locally registered bridge default; `send({ thread })` may target any bridge-visible same-project thread.
 
-The human queue action is single-flight. It disables before queue submission, then moves through Queueing, Queued, Working, and Finished/Interrupted using the trusted `UserPromptSubmit`, `Stop`, and `Interrupt` hook reports. Do not work around that guard by issuing a duplicate queue request.
+The human queue action is single-flight. It disables before queue submission, then moves through Queueing, Queued, Working, and Finished/Interrupted by matching the exact queued Mesurer payload against bounded read-only Codex turn history. Current lifecycle tracking does not require `UserPromptSubmit`, `Stop`, or `Interrupt` hook trust. Do not work around that guard by issuing a duplicate queue request.
 
 If the queued evidence contains saved annotations, the browser tracks the exact ids that were sent and removes only those ids after the matching turn reports Stop. Queued/working delivery state survives a same-tab reload, so do not requeue merely because the page refreshed. Interrupted/failed work keeps the note. Do not manually delete unrelated annotations, and do not describe lifecycle completion as semantic verification: still inspect the live rendered result before claiming the request is done.
 
