@@ -168,9 +168,8 @@ codex()
              │          session id + project cwd
              │
              ├─ delivery lifecycle
-             │      ▲
-             │      └─ UserPromptSubmit / Stop / Interrupt
-             │          exact queued turn state
+             │      └─ codex app-server thread/turns/list
+             │          exact queued prompt + turn status
              │
              └─ codex queue --thread … --message …
 ```
@@ -195,9 +194,9 @@ Queue and Steer remain separate Codex operations. Mesurer never invokes `turn/st
 
 This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser harness. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and asks a known Codex thread to act on that feedback.
 
-Each queue request has a bounded bridge delivery record. The browser enters a busy state before the request starts, so repeat clicks cannot create duplicate submissions. The bridge correlates the exact queued prompt to `UserPromptSubmit`, then records matching `Stop` or `Interrupt` by thread and turn id. Out-of-order terminal hook delivery is tolerated. Browser polling reads only that delivery record. While a delivery is queued or working, the browser also persists the delivery id, destination, state, and exact annotation ids in per-tab `sessionStorage`; a reload resumes polling that same record instead of forgetting completion cleanup.
+Each queue request has a bounded bridge delivery record. The browser enters a busy state before the request starts, so repeat clicks cannot create duplicate submissions. For Desktop, bridge polling reads bounded recent Codex turn history and accepts a turn only when its user message matches the exact queued Mesurer payload. `inProgress`, `completed`, and `interrupted` statuses drive the visible lifecycle; a failed turn uses retry-preserving terminal behavior. The legacy local `/lifecycle` endpoint remains a compatible fast path, but current correctness does not require turn hooks. Browser polling reads only the Mesurer delivery record. While a delivery is queued or working, the browser also persists the delivery id, destination, state, and exact annotation ids in per-tab `sessionStorage`; a reload resumes polling that same record instead of forgetting completion cleanup.
 
-Context exposes an internal first-party `removeAnnotation(id)` service operation for completion cleanup. It is not added to the generic `window.__MESURER__` agent harness. On a completed tracked delivery, Codex removes only the annotation ids that were serialized into that request; interruption/failure preserves them. Applications may disable this cleanup with `clearCompletedAnnotations: false`. A Stop event is treated as workflow completion, not as independent proof that the requested visual change is semantically correct.
+Context exposes an internal first-party `removeAnnotation(id)` service operation for completion cleanup. It is not added to the generic `window.__MESURER__` agent harness. On a completed tracked delivery, Codex removes only the annotation ids that were serialized into that request; interruption/failure preserves them. Applications may disable this cleanup with `clearCompletedAnnotations: false`. A matched completed turn is treated as workflow completion, not as independent proof that the requested visual change is semantically correct.
 
 See [Queue Context feedback to Codex](./docs/CODEX.md).
 ## Screenshot

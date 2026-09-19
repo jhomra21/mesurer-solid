@@ -110,11 +110,11 @@ The queue action has one page-local delivery state machine:
 
 1. **Queueing to Codex…** starts immediately on the first press. The action and destination choices are disabled before the network request begins, so a fast double-click cannot create a duplicate queue entry.
 2. **Queued for Codex** means Codex durably accepted the request. The bridge also records Codex's queued-submission id and wakes a cold `notLoaded` destination through the same shared daemon; it does not steer or interrupt an active turn.
-3. **Codex working…** means the trusted `UserPromptSubmit` lifecycle hook matched the exact queued prompt to a Codex turn.
-4. **Codex finished** means the matching `Stop` hook reported that turn finished. The action shows its completion state briefly, then becomes available again.
-5. **Codex interrupted** means the matching `Interrupt` hook fired. The action becomes available for retry and the annotation is preserved.
+3. **Codex working…** means read-only Codex turn history contains one recent turn whose user message matches the exact queued Mesurer payload and whose status is `inProgress`.
+4. **Codex finished** means that exact matched turn reports `completed`. The action shows its completion state briefly, then becomes available again.
+5. **Codex interrupted** means that exact matched turn reports `interrupted`. A failed turn uses the same retry-preserving terminal behavior. The action becomes available again and the annotation is preserved.
 
-The bridge gives every queued request a random delivery id and stores only bounded lifecycle metadata. It also keeps Codex's durable queued-submission id and dispatch diagnostic (`resumed`, `already-loaded`, or a non-fatal wake failure) when the current Codex CLI exposes that identity. It hashes the queued message to correlate `UserPromptSubmit` without adding a hidden marker to the text the user sees in Codex. The browser polls only that Mesurer delivery id while work is outstanding.
+The bridge gives every queued request a random delivery id and stores only bounded lifecycle metadata. It also keeps Codex's durable queued-submission id and dispatch diagnostic (`resumed`, `already-loaded`, or a non-fatal wake failure) when the current Codex CLI exposes that identity. For Desktop deliveries, bridge polling reads bounded recent turn history from Codex app-server and matches the exact queued message before accepting a turn id or terminal state. It does not add a hidden marker to the user-visible prompt. Older trusted lifecycle-hook reports remain accepted as a compatibility fast path.
 
 When the queued request contains saved Mesurer annotations, the browser retains the exact annotation ids used to construct the message. After the matching turn reaches **Codex finished**, `codex()` removes only those saved annotations. Notes created later, notes that were not part of the queued message, and annotations from interrupted turns remain untouched.
 
@@ -126,9 +126,9 @@ codex({ clearCompletedAnnotations: false })
 
 This is deliberately a lifecycle completion rule, not a semantic verifier. Mesurer knows that the matching Codex turn stopped; it does not independently prove that every sentence in the note was satisfied. The default queued instruction still tells Codex to verify the affected UI in the live page before claiming completion.
 
-Lifecycle tracking depends on the trusted local plugin hooks. The browser stores the active delivery id, destination thread, lifecycle state, and exact annotation ids in per-tab `sessionStorage` while a delivery is queued or working. If the page reloads, `codex()` resumes polling that exact bridge delivery and can still retire the exact annotations after the matching completion.
+Current lifecycle tracking does not require `UserPromptSubmit`, `Stop`, or `Interrupt` hooks. The trusted `SessionStart` hook is only responsible for local bridge bootstrap, project scope, and thread registration. The browser stores the active delivery id, destination thread, lifecycle state, and exact annotation ids in per-tab `sessionStorage` while a delivery is queued or working. If the page reloads, `codex()` resumes polling that exact bridge delivery and can still retire the exact annotations after the matching completion.
 
-If the hooks are not installed/trusted, or if the bridge is replaced mid-delivery and loses its bounded in-memory delivery record, Mesurer does not remove the annotation speculatively.
+If Codex history cannot be read or the exact queued prompt cannot be correlated unambiguously, Mesurer leaves the delivery and annotation intact. It never infers completion from a missing queue item or an unrelated newer turn.
 
 ## Current-thread affinity and the recent-thread picker
 
@@ -156,7 +156,7 @@ A thread returned by app-server is not described as "currently open" merely beca
 
 ## Permissions and privacy
 
-Local Codex app-server thread listing does not have a separate per-request approval prompt. Installing the Mesurer Codex plugin and trusting its local hooks is the host-side trust boundary. `SessionStart` owns bridge bootstrap/registration; asynchronous `UserPromptSubmit`, `Stop`, and `Interrupt` hooks report lifecycle state to the already-local bridge. These lifecycle handlers produce no Codex prompt output and do not make browser pages capable of registering sessions.
+Local Codex app-server reads do not have a separate per-request approval prompt. Installing the Mesurer Codex plugin and trusting its `SessionStart` hook is the host-side trust boundary for bridge bootstrap and thread/project registration. Lifecycle reconciliation then uses read-only app-server history from that local companion. Browser pages still cannot register sessions or widen project scope.
 
 Mesurer intentionally does not expose an account-wide conversation browser to arbitrary pages. Recent discovery is limited to the project directory associated with the originating registered thread and to at most ten entries. The browser receives only the thread id, a bounded display title, recency timestamp, and whether the bridge has seen a trusted local registration for that thread.
 
@@ -190,7 +190,7 @@ codex app-server --help
 
 `codex queue` targets an existing session by UUID or exact session name. The bridge uses app-server `thread/list` only for bounded, same-project discovery and keeps `codex queue` as the message-persistence path. After a successful queue response, it uses Codex's local stdio-to-UDS relay only to inspect the shared daemon and resume a cold destination.
 
-Current Codex hook events expose the session/turn ids needed by this lifecycle. `mesurer-codex-connect` uses the session id and working directory from trusted `SessionStart`; the packaged `codex-lifecycle.mjs` helper forwards `UserPromptSubmit`, `Stop`, and `Interrupt` events to the loopback bridge on a best-effort basis.
+Current Codex app-server exposes `thread/turns/list` with turn status and summary items. Mesurer uses that read-only history to correlate the exact queued user message to its turn, with `thread/read` as a compatibility fallback when paginated turn history is unavailable. `mesurer-codex-connect` still uses the session id and working directory from trusted `SessionStart`. The packaged `codex-lifecycle.mjs` helper remains for compatibility with older trusted installs, but current correctness does not depend on it.
 
 The current queue accepts text input. Mesurer sends structured Context text in this integration, not image attachments.
 
