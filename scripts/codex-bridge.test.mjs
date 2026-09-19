@@ -557,30 +557,27 @@ appendFileSync(
       "codex://threads/thread-desktop-restart",
     ]]);
 
-    const started = await fetch(`${secondUrl}/lifecycle`, {
+    const staleLifecycle = await fetch(`${secondUrl}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        event: "UserPromptSubmit",
+        event: "Interrupt",
         sessionId: "thread-desktop-restart",
         turnId: "turn-desktop-restart-1",
-        prompt: "persist this desktop queue across restart",
       }),
     });
-    assert.equal(started.status, 200);
-    assert.equal((await started.json()).status, "working");
+    assert.equal(staleLifecycle.status, 200);
+    assert.deepEqual(await staleLifecycle.json(), {
+      ok: true,
+      matched: false,
+      ignored: "desktop-history-authoritative",
+    });
 
-    const completed = await fetch(`${secondUrl}/lifecycle`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event: "Stop",
-        sessionId: "thread-desktop-restart",
-        turnId: "turn-desktop-restart-1",
-      }),
+    const stillQueued = await fetch(`${secondUrl}/deliveries/${sent.deliveryId}`, {
+      headers: { Origin: "http://localhost:5173" },
     });
-    assert.equal(completed.status, 200);
-    assert.equal((await completed.json()).status, "completed");
+    assert.equal(stillQueued.status, 200);
+    assert.equal((await stillQueued.json()).status, "queued");
   } finally {
     if (first.exitCode === null) first.kill("SIGKILL");
     if (second?.exitCode === null) second.kill("SIGKILL");
@@ -729,6 +726,28 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       (delivery) => delivery.status === "working",
     );
     assert.equal(working.turnId, "turn-history-complete");
+
+    const staleInterrupt = await fetch(`${bridgeUrl}/lifecycle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "Interrupt",
+        sessionId: "thread-history",
+        turnId: "turn-history-complete",
+      }),
+    });
+    assert.equal(staleInterrupt.status, 200);
+    assert.deepEqual(await staleInterrupt.json(), {
+      ok: true,
+      matched: false,
+      ignored: "desktop-history-authoritative",
+    });
+
+    const remainsWorking = await fetch(`${bridgeUrl}/deliveries/${completedDelivery.deliveryId}`, {
+      headers: { Origin: "http://localhost:5173" },
+    });
+    assert.equal(remainsWorking.status, 200);
+    assert.equal((await remainsWorking.json()).status, "working");
 
     await writeFile(turnsPath, JSON.stringify([
       userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
@@ -928,7 +947,7 @@ appendFileSync(
       "codex://threads/thread-desktop",
     ]]);
 
-    const started = await fetch(`${bridgeUrl}/lifecycle`, {
+    const staleLifecycle = await fetch(`${bridgeUrl}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -938,20 +957,12 @@ appendFileSync(
         prompt: "recover this exact desktop feedback",
       }),
     });
-    assert.equal(started.status, 200);
-    assert.equal((await started.json()).status, "working");
-
-    const completed = await fetch(`${bridgeUrl}/lifecycle`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event: "Stop",
-        sessionId: "thread-desktop",
-        turnId: "turn-desktop-1",
-      }),
+    assert.equal(staleLifecycle.status, 200);
+    assert.deepEqual(await staleLifecycle.json(), {
+      ok: true,
+      matched: false,
+      ignored: "desktop-history-authoritative",
     });
-    assert.equal(completed.status, 200);
-    assert.equal((await completed.json()).status, "completed");
   } finally {
     if (child.exitCode === null) child.kill("SIGKILL");
     await waitForExit(child).catch(() => {});

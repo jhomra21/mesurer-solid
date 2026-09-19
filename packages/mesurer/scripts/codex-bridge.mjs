@@ -1301,6 +1301,11 @@ const markTurnTerminal = (thread, turnId, status) => {
   return null;
 };
 
+const desktopOwnsLifecycle = (thread) =>
+  Boolean(registeredThreads.get(thread)?.appToolsPipe)
+  || [...deliveries.values()].some((delivery) =>
+    delivery.thread === thread && delivery.transport === "desktop-app");
+
 await loadDeliveryState();
 
 let successfulSends = 0;
@@ -1512,6 +1517,15 @@ const server = createServer(async (request, response) => {
       const turnId = normalizeThread(body?.turnId);
       if (!thread || !turnId) {
         writeJson(response, 400, { ok: false, error: "sessionId and turnId are required." }, origin);
+        return;
+      }
+
+      if (desktopOwnsLifecycle(thread)) {
+        writeJson(response, 200, {
+          ok: true,
+          matched: false,
+          ignored: "desktop-history-authoritative",
+        }, origin);
         return;
       }
 
