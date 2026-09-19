@@ -592,12 +592,10 @@ test("Codex Desktop reconciles exact delivery lifecycle from turn history withou
   const argsPath = join(root, "codex-args.jsonl");
   const openPath = join(root, "desktop-open.jsonl");
   const turnsPath = join(root, "turns.json");
-  const liveTurnsPath = join(root, "live-turns.json");
   const fakeCodex = join(root, "fake-codex.mjs");
   const fakeOpen = join(root, "fake-open.mjs");
 
   await writeFile(turnsPath, "[]");
-  await writeFile(liveTurnsPath, "[]");
   await writeFile(fakeCodex, `#!/usr/bin/env node
 import { appendFileSync, readFileSync } from "node:fs";
 const args = process.argv.slice(2);
@@ -635,7 +633,7 @@ if (args[0] === "queue") {
       } else if (message.id === "mesurer-history-read") {
         write({
           id: message.id,
-          result: { thread: { turns: JSON.parse(readFileSync(process.env.MESURER_FAKE_LIVE_TURNS, "utf8")) } },
+          result: { thread: { turns: JSON.parse(readFileSync(process.env.MESURER_FAKE_TURNS, "utf8")) } },
         });
       }
     }
@@ -666,7 +664,6 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       MESURER_FAKE_CODEX_ARGS: argsPath,
       MESURER_FAKE_DESKTOP_OPEN: openPath,
       MESURER_FAKE_TURNS: turnsPath,
-      MESURER_FAKE_LIVE_TURNS: liveTurnsPath,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -711,9 +708,6 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
     await writeFile(turnsPath, JSON.stringify([
       userTurn("turn-unrelated", "some unrelated prompt", "completed"),
     ]));
-    await writeFile(liveTurnsPath, JSON.stringify([
-      userTurn("turn-unrelated", "some unrelated prompt", "completed"),
-    ]));
     await new Promise((resolve) => setTimeout(resolve, 1_100));
     const stillQueued = await waitForDelivery(
       bridgeUrl,
@@ -726,10 +720,6 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       userTurn("turn-history-complete", "complete this exact Mesurer feedback", "inProgress"),
       userTurn("turn-unrelated", "some unrelated prompt", "completed"),
     ]));
-    await writeFile(liveTurnsPath, JSON.stringify([
-      userTurn("turn-history-complete", "complete this exact Mesurer feedback", "inProgress"),
-      userTurn("turn-unrelated", "some unrelated prompt", "completed"),
-    ]));
     const working = await waitForDelivery(
       bridgeUrl,
       completedDelivery.deliveryId,
@@ -737,23 +727,24 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
     );
     assert.equal(working.turnId, "turn-history-complete");
 
+    const syntheticInterrupted = userTurn(
+      "turn-history-complete",
+      "complete this exact Mesurer feedback",
+      "interrupted",
+    );
+    syntheticInterrupted.completedAt = null;
+    syntheticInterrupted.durationMs = null;
     await writeFile(turnsPath, JSON.stringify([
-      userTurn("turn-history-complete", "complete this exact Mesurer feedback", "interrupted"),
-      userTurn("turn-unrelated", "some unrelated prompt", "completed"),
-    ]));
-    await writeFile(liveTurnsPath, JSON.stringify([
-      userTurn("turn-history-complete", "complete this exact Mesurer feedback", "inProgress"),
+      syntheticInterrupted,
       userTurn("turn-unrelated", "some unrelated prompt", "completed"),
     ]));
     await new Promise((resolve) => setTimeout(resolve, 1_100));
-    await fetch(`${bridgeUrl}/deliveries/${completedDelivery.deliveryId}`, {
-      headers: { Origin: "http://localhost:5173" },
-    });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    const liveStillWorking = await fetch(`${bridgeUrl}/deliveries/${completedDelivery.deliveryId}`, {
-      headers: { Origin: "http://localhost:5173" },
-    });
-    assert.equal((await liveStillWorking.json()).status, "working");
+    const stillWorkingAfterSyntheticInterrupt = await waitForDelivery(
+      bridgeUrl,
+      completedDelivery.deliveryId,
+      (delivery) => delivery.status === "working",
+    );
+    assert.equal(stillWorkingAfterSyntheticInterrupt.turnId, "turn-history-complete");
 
     const staleInterrupt = await fetch(`${bridgeUrl}/lifecycle`, {
       method: "POST",
@@ -778,10 +769,6 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
     assert.equal((await remainsWorking.json()).status, "working");
 
     await writeFile(turnsPath, JSON.stringify([
-      userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
-      userTurn("turn-unrelated", "some unrelated prompt", "completed"),
-    ]));
-    await writeFile(liveTurnsPath, JSON.stringify([
       userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
       userTurn("turn-unrelated", "some unrelated prompt", "completed"),
     ]));
@@ -812,10 +799,6 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
       userTurn("turn-history-interrupt", "interrupt this exact Mesurer feedback", "inProgress"),
       userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
     ]));
-    await writeFile(liveTurnsPath, JSON.stringify([
-      userTurn("turn-history-interrupt", "interrupt this exact Mesurer feedback", "inProgress"),
-      userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
-    ]));
     const interruptWorking = await waitForDelivery(
       bridgeUrl,
       interruptedDelivery.deliveryId,
@@ -824,10 +807,6 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
     assert.equal(interruptWorking.turnId, "turn-history-interrupt");
 
     await writeFile(turnsPath, JSON.stringify([
-      userTurn("turn-history-interrupt", "interrupt this exact Mesurer feedback", "interrupted"),
-      userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
-    ]));
-    await writeFile(liveTurnsPath, JSON.stringify([
       userTurn("turn-history-interrupt", "interrupt this exact Mesurer feedback", "interrupted"),
       userTurn("turn-history-complete", "complete this exact Mesurer feedback", "completed"),
     ]));
