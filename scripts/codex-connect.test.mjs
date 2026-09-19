@@ -203,8 +203,12 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
     }
     if (request.method === "POST" && request.url === "/shutdown") {
       shutdowns += 1;
+      response.setHeader("Connection", "close");
+      response.once("finish", () => {
+        staleServer.close();
+        staleServer.closeAllConnections?.();
+      });
       response.end(JSON.stringify({ ok: true }));
-      staleServer.close();
       return;
     }
     response.statusCode = 404;

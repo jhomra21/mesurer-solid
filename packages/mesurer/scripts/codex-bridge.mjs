@@ -1116,8 +1116,13 @@ const server = createServer(async (request, response) => {
       writeJson(response, 403, { ok: false, error: "Bridge shutdown is local-process-only." }, origin);
       return;
     }
+    response.setHeader("Connection", "close");
+    response.once("finish", () => {
+      server.close();
+      server.closeAllConnections?.();
+      setImmediate(() => process.exit(0));
+    });
     writeJson(response, 200, { ok: true }, origin);
-    server.close(() => process.exit(0));
     return;
   }
 
