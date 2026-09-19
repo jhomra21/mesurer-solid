@@ -925,6 +925,33 @@ if (args[0] === "app-server" && args[1] === "--listen") {
             backwardsCursor: null,
           },
         });
+      } else if (request.id === "mesurer-history-read") {
+        write({
+          id: request.id,
+          result: {
+            thread: {
+              turns: [{
+                id: "turn-terminal-recovery",
+                items: [{
+                  type: "userMessage",
+                  id: "user-terminal-recovery",
+                  clientId: null,
+                  content: [{
+                    type: "text",
+                    text: "recover this prematurely interrupted delivery",
+                    text_elements: [],
+                  }],
+                }],
+                itemsView: "full",
+                status: "completed",
+                error: null,
+                startedAt: Math.floor(Date.now() / 1_000) - 1,
+                completedAt: Math.floor(Date.now() / 1_000),
+                durationMs: 1_000,
+              }],
+            },
+          },
+        });
       }
     }
   });
