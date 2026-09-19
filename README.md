@@ -76,7 +76,7 @@ The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typograp
 - **Typography** — inspect rendered type and directly preview reversible copy and typography changes.
 - **Arrange** — drag selected UI into a Desired layout without writing application source.
 - **Screenshots** — capture a dragged visible-tab region with the optional screenshot plugin.
-- **Context and annotations** — expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotation UI stays attached to its target through scrolling, repeated-note markers remain local, Add Note remains available while a saved note is open, and annotation cards/composers occlude Select hover and selection chrome.
+- **Context and annotations** — expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotations persist across same-tab reloads, conservatively rebind to their original DOM targets, stay attached through scrolling, keep repeated-note markers local, leave Add Note available while a saved note is open, and keep cards/composers above Select hover and selection chrome.
 - **Plugins** — add tools, commands, overlays, settings, state, hooks, and services at runtime.
 - **Compact toolbar** — collapse inactive controls while every active tool remains visible; expanding restores the same stable toolbar and order.
 - **Color Picker** — use the browser's native `EyeDropper` when it is operational. Unsupported hosts do not advertise the tool.
@@ -156,21 +156,23 @@ npx --yes --package=mesurer-solid mesurer-skill install
 
 See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the packaged [`mesurer-ui` skill](./.agents/skills/mesurer-ui/SKILL.md).
 
-### Send human feedback to Codex
+### Queue human feedback to Codex
 
-The optional Codex transport keeps Context as the feedback source and uses Codex's own queued-user-message command. When Codex starts the bridge itself, `mesurer-codex` reads `CODEX_THREAD_ID`, so feedback naturally routes back to the same Codex thread:
+The optional Codex transport keeps Context as the feedback source and uses Codex's queued-user-message path. In a Codex-controlled local project, the trusted `SessionStart` integration runs `mesurer-codex-connect`, which starts or reuses the matching loopback companion and registers the current Codex session together with its project directory. The connector verifies the companion's packaged source identity before reusing it, so a healthy but stale bridge cannot silently own lifecycle tracking. A separate bridge terminal is not required.
 
-```bash
-bunx mesurer-codex
-```
-
-A manual shell can still choose the initial destination explicitly:
+From a Codex shell or tool environment, the packaged connector can also be run directly:
 
 ```bash
-bunx mesurer-codex --thread <SESSION>
+bunx mesurer-codex-connect
 ```
 
-Then mount Codex alongside Context:
+The low-level `mesurer-codex` command remains available for diagnostics or explicit foreground process ownership:
+
+```bash
+bunx mesurer-codex --thread <SESSION> --cwd <PROJECT_DIRECTORY>
+```
+
+Mount Codex alongside Context:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -181,18 +183,21 @@ mountMesurer({
 })
 ```
 
-Mesurer adds **Send to Codex**. Saved annotation Context is sent first; when there are no saved notes, it falls back to the current selection or workspace Context.
+Mounting `codex()` does not contact localhost. The first **Queue to Codex** press or **Choose Codex thread…** menu action establishes the connection. If the bridge is unavailable, the action becomes disabled as **Codex unavailable** and the dropdown offers **Retry Codex connection**. After one successful connection, Mesurer health-checks the known companion and recovers automatically if it restarts.
 
-A different or newly-created Codex thread can take over the same bridge by running:
+**Queue to Codex** now keeps Codex's native durable queue as the source of truth on every client. For Codex Desktop, Mesurer queues the message once, retains its queued-submission id, then opens the existing destination with `codex://threads/<threadId>`. Desktop loads or resumes the thread and Codex's own queue watcher dispatches the item when the thread is ready. No `codex_app` MCP pipe or standalone daemon is required for Desktop.
 
-```bash
-bunx mesurer-codex --register-current
-```
+For CLI/TUI shared-daemon environments, the same native queue is used and a cold `notLoaded` destination may be resumed through the shared daemon. Bridge restart state is tracking metadata only; Mesurer does not delete and resend an existing queued item. Programmatic `send()` reports `delivery: "queued"` plus the durable queued-submission id and dispatch metadata.
 
-The bridge retains previously registered threads. Programmatic callers can use `health()`, `useThread(thread)`, or `send({ thread })` to switch or route to another registered destination. Browser pages cannot register arbitrary Codex threads themselves.
+Queue delivery has visible lifecycle state. The action disables immediately while it is queueing so a double-click cannot submit the same review twice, then changes through **Queued for Codex**, **Codex working…**, and **Codex finished** as the bridge matches that exact queued prompt against read-only Codex turn history. The selected destination row shows the same state. Current lifecycle tracking needs only the trusted `SessionStart` hook used for local registration; it does not require separate prompt/stop/interrupt hook trust.
 
-See [Send Context feedback to Codex](./docs/CODEX.md).
+When a completed delivery included saved annotations, `codex()` removes only those exact annotation ids after Codex reports the matching turn finished. An interrupted turn keeps its annotations for retry. Active delivery state is saved per tab so a page reload can resume the same tracked delivery rather than losing its completion/cleanup state. Set `clearCompletedAnnotations: false` when an application wants completed notes to remain visible. This completion signal tracks the Codex turn lifecycle; it is not an independent semantic proof that the requested UI change is correct.
 
+Each Mesurer page keeps the Codex thread that originally connected it as its default destination. That page affinity survives reloads in the same browser tab. If there is no saved page affinity and the bridge exposes multiple registered threads, Mesurer requires an explicit destination instead of inheriting a stale bridge-wide default. The split menu shows the originating/current thread first, then up to four recent same-project Codex threads discovered through Codex app-server. **Show 5 more…** expands the list to at most ten. Selecting another thread changes only that page's destination.
+
+Mesurer does not create new Codex threads. Create or open a new thread in Codex; the trusted `SessionStart` path registers it automatically. Programmatic callers can use `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. Browser pages cannot register arbitrary sessions, provide an arbitrary project directory, or target a thread the bridge has not registered or discovered for that project.
+
+See [Queue Context feedback to Codex](./docs/CODEX.md).
 ## Documentation
 
 Start with the [documentation index](./docs/README.md).
@@ -202,7 +207,7 @@ Start with the [documentation index](./docs/README.md).
 - [Arrange](./docs/ARRANGE.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
 - [Context workflow](./docs/CONTEXT_WORKFLOW.md)
-- [Send Context feedback to Codex](./docs/CODEX.md)
+- [Queue Context feedback to Codex](./docs/CODEX.md)
 - [Browser harness](./docs/BROWSER_HARNESS.md)
 - [Host isolation](./docs/HOST_ISOLATION.md)
 - [Trusted Types](./docs/TRUSTED_TYPES.md)

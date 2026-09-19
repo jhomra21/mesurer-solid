@@ -155,6 +155,66 @@ describe("createMesurerWorkspaceRuntime", () => {
     host.remove();
   });
 
+  it("persists annotations per tab and rebinds their DOM targets after reload", () => {
+    const storageKey = "workspace-context:persistence";
+    sessionStorage.removeItem(storageKey);
+
+    const original = document.createElement("h1");
+    original.id = "persisted-annotation-target";
+    original.textContent = "Hello";
+    document.body.append(original);
+
+    const firstModel = createMesurerModel({ initialEnabled: true });
+    firstModel.setSelectedMeasurements([selectionFor(original)]);
+    const firstRuntime = createMesurerWorkspaceRuntime({
+      model: firstModel,
+      ownerDocument: document,
+      ownerWindow: window,
+      persistenceKey: storageKey,
+    });
+    const saved = firstRuntime.addSelectionAnnotation("Reload persistence smoke");
+    expect(firstRuntime.annotations()).toHaveLength(1);
+
+    firstRuntime.dispose();
+    firstModel.dispose();
+    original.remove();
+
+    const replacement = document.createElement("h1");
+    replacement.id = "persisted-annotation-target";
+    replacement.textContent = "Hello";
+    selectionFor(replacement);
+    document.body.append(replacement);
+
+    const secondModel = createMesurerModel({ initialEnabled: true });
+    const secondRuntime = createMesurerWorkspaceRuntime({
+      model: secondModel,
+      ownerDocument: document,
+      ownerWindow: window,
+      persistenceKey: storageKey,
+    });
+
+    expect(secondRuntime.annotations().map((annotation) => annotation.id)).toEqual([saved.id]);
+    expect(secondRuntime.annotation(saved.id)?.resolvedTargets[0]?.element).toBe(replacement);
+
+    secondRuntime.removeAnnotation(saved.id);
+    secondRuntime.dispose();
+    secondModel.dispose();
+    replacement.remove();
+
+    const thirdModel = createMesurerModel({ initialEnabled: true });
+    const thirdRuntime = createMesurerWorkspaceRuntime({
+      model: thirdModel,
+      ownerDocument: document,
+      ownerWindow: window,
+      persistenceKey: storageKey,
+    });
+    expect(thirdRuntime.annotations()).toEqual([]);
+
+    thirdRuntime.dispose();
+    thirdModel.dispose();
+    sessionStorage.removeItem(storageKey);
+  });
+
   it("restores the exact inline display value and priority after capture", () => {
     const uiRoot = document.createElement("div");
     const chrome = document.createElement("div");

@@ -7,6 +7,20 @@ export type PluginValue = PluginScalar | PluginValue[] | { [key: string]: Plugin
 export type PluginStateSnapshot = { [id: string]: PluginValue };
 export type PluginStateScope = "all" | "history" | "persist";
 
+export type ToolMenuItemContribution = {
+  id: string;
+  label: string;
+  shortcut?: string;
+  checked?: () => boolean;
+  disabled?: () => boolean;
+  run(): void | Promise<void>;
+};
+
+export type ToolMenuContribution = {
+  label?: string;
+  items: ToolMenuItemContribution[];
+};
+
 export type ToolContribution = {
   id: string;
   label: string;
@@ -18,6 +32,7 @@ export type ToolContribution = {
   active?: () => boolean;
   disabled?: () => boolean;
   hidden?: () => boolean;
+  menu?: ToolMenuContribution;
 };
 
 export type SettingsToggleContribution = {

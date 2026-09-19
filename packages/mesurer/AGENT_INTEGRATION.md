@@ -18,7 +18,10 @@ The installer writes a self-contained skill and injection artifact:
 .agents/skills/mesurer-ui/
 ├── SKILL.md
 └── assets/
-    └── inject-script.js
+    ├── inject-script.js
+    ├── codex-connect.mjs
+    ├── codex-lifecycle.mjs
+    └── codex-bridge.mjs
 ```
 
 ## Reuse a live instance
@@ -176,7 +179,7 @@ A saved annotation carries target-bound intent and an immutable baseline:
 const context = await window.__MESURER__.context({ annotation: annotationId })
 ```
 
-Saved annotation UI is source-linked presentation, not the durable state itself. Add Note, its composer, saved markers and panels, and the ownership edge move with their target through window and nested scrolling. A saved panel keeps its target-relative page point and may leave the viewport with its source. Several notes on one target keep separate nearby markers, and Add Note remains available while an existing note is open.
+Saved annotation UI is source-linked presentation, not the durable state itself. Saved annotations survive a same-tab reload and conservatively rebind through their stored selector/fingerprint identity; ambiguous targets remain unresolved rather than attaching to a different element. Add Note, its composer, saved markers and panels, and the ownership edge move with their target through window and nested scrolling. A saved panel keeps its target-relative page point and may leave the viewport with its source. Several notes on one target keep separate nearby markers, and Add Note remains available while an existing note is open.
 
 Do not infer that an annotation disappeared because its card or marker is currently offscreen. Read `annotations()` and annotation-scoped `context()` instead. When a note is highlighted, the temporary ownership emphasis uses one exact target boundary rather than a second fill, glow, or rounded frame.
 
@@ -211,10 +214,23 @@ The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separ
 
 A source-mounted page may opt into `codex()` from `mesurer-solid/plugins` alongside `context()`. This is not an agent integration requirement and does not add a generic send capability to `window.__MESURER__`.
 
-When the current Codex thread starts `mesurer-codex`, the companion reads Codex's `CODEX_THREAD_ID`, registers that thread, and makes it the default destination. That means a Codex session that starts or uses Mesurer can route later human Context feedback back to the same thread without copying an id by hand. A normal shell may still select the initial session explicitly with `mesurer-codex --thread <SESSION>`.
+For a Codex-controlled local project, the preferred lifecycle is the trusted `SessionStart` connector. `mesurer-codex-connect` reads the current Codex session id and project directory, starts or reuses the packaged loopback companion, and registers that pair locally. The browser cannot spawn this process and must not be given a browser-side registration escape hatch.
 
-A different or newly-created Codex thread can join an already-running bridge with `mesurer-codex --register-current`. Registration is accepted only from a local process without a browser Origin. The bridge keeps previously registered threads; the `codex:v1` service can inspect them with `health()`, switch the default with `useThread(thread)`, or send one message to another registered destination with `send({ thread })`. Mesurer does not create or resume Codex threads itself. See [Send Context feedback to Codex](../../docs/CODEX.md).
+Delivery remains Queue, not Steer. Codex's native queued-user-message store is the durable transport for every destination. A Desktop SessionStart marks the thread as Desktop-owned, but Mesurer does not call the app-tools pipe. After queue acceptance, it opens `codex://threads/<threadId>`; Desktop loads or resumes that existing thread and Codex's queue watcher dispatches the persisted item only when the thread can accept it.
 
+For CLI/TUI shared-daemon sessions, the same `codex queue` identity is retained and a cold `notLoaded` thread may be resumed through the shared daemon. Bridge restart state is only lifecycle tracking; never delete and resend an existing native queue item merely to change wake mechanisms. Mesurer never invokes `turn/steer`.
+
+The browser plugin is intentionally lazy. Mounting `codex()` performs no loopback request. The human's first **Queue to Codex** action or **Choose Codex thread…** menu action establishes bridge availability. A failed first contact becomes **Codex unavailable** with an explicit retry. After one successful connection, Mesurer may health-check that known companion so it can disable and recover the action if the bridge later stops or restarts.
+
+The first unambiguous healthy thread observed by one Mesurer page becomes that page's originating destination. The browser persists that origin plus any explicit destination override in per-tab `sessionStorage`, so a reload keeps the same route. Later `SessionStart` registrations do not silently steal the page. When a page has no saved affinity and multiple registered threads are visible, Mesurer requires the human to choose one instead of inheriting the bridge-wide default. The bridge uses Codex app-server `thread/list`, scoped to the trusted project directory, to expose at most ten recent same-project threads. The browser may send to a locally registered thread or to one of those bridge-discovered same-project threads, but it cannot supply an arbitrary project directory or invent an arbitrary session id.
+
+The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `send({ thread })`. `useThread(thread)` changes the bridge default only for a locally registered thread; a page-specific `send({ thread })` can target any thread the bridge has already registered or discovered for the scoped project.
+
+The human queue control owns duplicate suppression and visible delivery state. It disables before the request starts, then tracks Queueing → Queued → Working → Finished/Interrupted by correlating the exact queued Mesurer payload with bounded read-only Codex turn history. Do not add an agent-side second queue merely because the human presses the control twice.
+
+When a queued request contains saved annotations, `codex()` remembers those exact ids. Queued/working delivery state is persisted per tab so a reload resumes the same delivery id rather than losing its cleanup contract. By default it removes the exact sent annotation ids only after the exact matched Codex turn reports `completed`; interrupted, failed, ambiguous, or unreadable lifecycle state preserves them. This is completion cleanup, not semantic proof. The coding agent must still verify the rendered result before finishing, and must not manually clear unrelated Mesurer review state.
+
+Mesurer does not create a new Codex thread or start a new app-server turn. New threads should be created or opened in Codex, where the client that owns the turn can surface command and file approval requests. The trusted `SessionStart` path then registers the thread automatically. See [Queue Context feedback to Codex](../../docs/CODEX.md).
 ## Revalidate after source edits
 
 After HMR or reload settles:
