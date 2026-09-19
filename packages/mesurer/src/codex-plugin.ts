@@ -10,6 +10,8 @@ const DEFAULT_ENDPOINT = "http://127.0.0.1:47365";
 const HEALTH_POLL_MS = 2_000;
 const DELIVERY_POLL_MS = 750;
 const COMPLETED_VISIBLE_MS = 1_800;
+const INTERRUPTED_RECONCILE_POLL_MS = 2_000;
+const INTERRUPTED_RECONCILE_WINDOW_MS = 2 * 60_000;
 const RECENT_THREAD_LIMIT = 10;
 const DEFAULT_VISIBLE_THREADS = 5;
 const DEFAULT_INSTRUCTION = [
@@ -210,7 +212,7 @@ type PersistedCodexUiState = {
   delivery: {
     id: string;
     thread: string;
-    status: "queued" | "working";
+    status: "queued" | "working" | "interrupted";
     annotationIds: string[];
     queuedSubmissionId?: string | null;
     dispatch?: MesurerCodexDispatchStatus | null;
@@ -244,7 +246,9 @@ const readBrowserState = (endpoint: string): PersistedCodexUiState | null => {
     const persistedDelivery = delivery
       && delivery.id.trim()
       && delivery.thread.trim()
-      && (delivery.status === "queued" || delivery.status === "working")
+      && (delivery.status === "queued"
+        || delivery.status === "working"
+        || delivery.status === "interrupted")
       && Array.isArray(delivery.annotationIds)
       ? {
           id: delivery.id.trim(),
@@ -503,7 +507,9 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       const persistUiState = () => {
         if (!withUi) return;
         const persistedDelivery = activeDelivery?.id
-          && (activeDelivery.status === "queued" || activeDelivery.status === "working")
+          && (activeDelivery.status === "queued"
+            || activeDelivery.status === "working"
+            || activeDelivery.status === "interrupted")
           ? {
               id: activeDelivery.id,
               thread: activeDelivery.thread ?? currentTarget() ?? "",
@@ -790,6 +796,13 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         if (delivery.status === "interrupted") {
           persistUiState();
           syncTool();
+          const updatedAt = delivery.updatedAt > 0 ? delivery.updatedAt : Date.now();
+          if (Date.now() - updatedAt < INTERRUPTED_RECONCILE_WINDOW_MS) {
+            deliveryPollTimer = globalThis.setTimeout(() => {
+              deliveryPollTimer = 0;
+              void pollDelivery(delivery.id);
+            }, INTERRUPTED_RECONCILE_POLL_MS);
+          }
           return;
         }
         syncTool();
@@ -817,6 +830,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             }
           }
           if (activeDelivery?.id !== deliveryId) return;
+          if (activeDelivery.status === "interrupted") {
+            syncTool();
+            return;
+          }
           activeDelivery = { ...activeDelivery, status: "failed" };
           persistUiState();
           if (bridgeTransportUnavailable(failure, endpoint)) bridgeAvailability = "unavailable";
@@ -890,6 +907,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       ctx.service.provide(MESURER_CODEX_SERVICE_ID, service);
       ctx.command.register("codex.send", async () => {
         if (uiSendPromise || deliveryBusy()) return;
+        clearDeliveryTimers();
         const target = currentTarget();
         activeDelivery = {
           id: null,

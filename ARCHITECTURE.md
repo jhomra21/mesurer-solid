@@ -168,8 +168,10 @@ codex()
              │          session id + project cwd
              │
              ├─ delivery lifecycle
-             │      └─ codex app-server thread/turns/list
-             │          exact queued prompt + turn status
+             │      ├─ codex app-server thread/turns/list
+             │      │   exact queued prompt + bounded history
+             │      └─ thread/read(includeTurns=true)
+             │          live validation before terminal state
              │
              └─ codex queue --thread … --message …
 ```

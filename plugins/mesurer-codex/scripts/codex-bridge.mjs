@@ -780,7 +780,7 @@ const queuedSubmissionMessage = (submission) => {
   return input?.type === "text" && text.trim() ? text : null;
 };
 
-const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
+const runCodexTurnHistory = (thread, { live = false } = {}) => new Promise((resolve, reject) => {
   const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
     env: process.env,
     shell: false,
@@ -812,16 +812,27 @@ const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
         return;
       }
       send({ method: "initialized" });
-      send({
-        id: "mesurer-history-turns",
-        method: "thread/turns/list",
-        params: {
-          threadId: thread,
-          limit: DESKTOP_TURN_HISTORY_LIMIT,
-          sortDirection: "desc",
-          itemsView: "summary",
-        },
-      });
+      if (live) {
+        send({
+          id: "mesurer-history-read",
+          method: "thread/read",
+          params: {
+            threadId: thread,
+            includeTurns: true,
+          },
+        });
+      } else {
+        send({
+          id: "mesurer-history-turns",
+          method: "thread/turns/list",
+          params: {
+            threadId: thread,
+            limit: DESKTOP_TURN_HISTORY_LIMIT,
+            sortDirection: "desc",
+            itemsView: "summary",
+          },
+        });
+      }
       return;
     }
 
@@ -1215,8 +1226,16 @@ const reconcileDesktopDelivery = async (delivery) => {
 
   const turns = await runCodexTurnHistory(delivery.thread);
   if (deliveries.get(delivery.id) !== delivery) return;
-  const turn = deliveryTurn(delivery, turns);
+  let turn = deliveryTurn(delivery, turns);
   if (!turn) return;
+
+  if (turn.status === "completed" || turn.status === "interrupted" || turn.status === "failed") {
+    const liveTurns = await runCodexTurnHistory(delivery.thread, { live: true });
+    if (deliveries.get(delivery.id) !== delivery) return;
+    const liveTurn = deliveryTurn(delivery, liveTurns);
+    if (!liveTurn) return;
+    turn = liveTurn;
+  }
 
   const turnId = normalizeThread(turn.id);
   let nextStatus = null;

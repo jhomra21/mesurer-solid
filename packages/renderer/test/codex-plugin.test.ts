@@ -417,6 +417,111 @@ describe("codex", () => {
     vi.useRealTimers();
   });
 
+  it("keeps reconciling an interrupted delivery and follows a later backend completion correction", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService, removeAnnotation } = createContextService();
+    let sendCount = 0;
+    let deliveryReads = 0;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ ok: true, thread: "thread-a", threads: ["thread-a"] }),
+        };
+      }
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            threadDetails: [{ id: "thread-a", title: "Current task", updatedAt: 10, connected: true }],
+            hasMore: false,
+          }),
+        };
+      }
+      if (url.endsWith("/send")) {
+        sendCount += 1;
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-a",
+            output: "queued",
+            delivery: "queued",
+            deliveryId: "delivery-corrected-terminal",
+            status: "queued",
+            queuedSubmissionId: "queue-corrected-terminal",
+            dispatch: "desktop-opened",
+          }),
+        };
+      }
+      if (url.endsWith("/deliveries/delivery-corrected-terminal")) {
+        deliveryReads += 1;
+        const status = deliveryReads === 1
+          ? "working"
+          : deliveryReads === 2
+            ? "interrupted"
+            : "completed";
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            deliveryId: "delivery-corrected-terminal",
+            thread: "thread-a",
+            status,
+            turnId: "turn-corrected-terminal",
+            queuedSubmissionId: "queue-corrected-terminal",
+            dispatch: "desktop-opened",
+            dispatchError: null,
+            createdAt: Date.now() - 5_000,
+            updatedAt: Date.now(),
+          }),
+        };
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-terminal-correction",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await host.command.execute("codex.send");
+    expect(sendCount).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Codex working…");
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
+    let tool = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(tool?.label).toBe("Codex interrupted");
+    expect(tool?.disabled?.()).toBe(false);
+    expect(removeAnnotation).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    tool = host.tools().find((candidate) => candidate.id === "codex.send");
+    expect(tool?.label).toBe("Codex finished");
+    expect(removeAnnotation).toHaveBeenCalledTimes(1);
+    expect(removeAnnotation).toHaveBeenCalledWith("note-1");
+    expect(sendCount).toBe(1);
+
+    host.dispose();
+    vi.useRealTimers();
+  });
+
   it("keeps the page-pinned Codex thread across a reload even when the bridge default changes", async () => {
     const firstHost = createMesurerPluginHost();
     const { service: firstContext } = createContextService();
