@@ -71,7 +71,7 @@ For explicit plugin composition, `mesurer-solid/plugins` also exports `select`, 
 | `mesurer-solid/inject-script` | Built classic injection artifact |
 | `mesurer-skill` | Install the portable coding-agent skill |
 | `mesurer-codex` | Run the optional loopback Codex queue companion |
-| `mesurer-codex-connect` | Start or reuse the Codex companion and register the current Codex session |
+| `mesurer-codex-connect` | Start or reuse the matching Codex companion and register the current Codex session |
 
 ## Features
 
@@ -139,7 +139,7 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 
 ### Optional Queue to Codex
 
-For Codex-controlled local projects, `mesurer-codex-connect` is the normal bootstrap path. The trusted Codex `SessionStart` integration supplies the current session id and project directory, reuses the bridge at `127.0.0.1:47365` when healthy, or starts the packaged companion when needed.
+For Codex-controlled local projects, `mesurer-codex-connect` is the normal bootstrap path. The trusted Codex `SessionStart` integration supplies the current session id and project directory, reuses the bridge at `127.0.0.1:47365` only when its source identity matches the packaged companion, replaces stale self-identifying companions, or starts the packaged companion when needed.
 
 From a Codex shell or tool environment:
 

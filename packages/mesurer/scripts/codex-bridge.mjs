@@ -10,6 +10,18 @@ import { parseArgs } from "node:util";
 
 const DEFAULT_PORT = 47365;
 const DEFAULT_BRIDGE = `http://127.0.0.1:${DEFAULT_PORT}`;
+const BRIDGE_NAME = "mesurer-codex";
+const BRIDGE_PROTOCOL_VERSION = 1;
+const BRIDGE_SOURCE_HASH = createHash("sha256")
+  .update(await readFile(new URL(import.meta.url)))
+  .digest("hex");
+const BRIDGE_IDENTITY = Object.freeze({
+  name: BRIDGE_NAME,
+  protocol: BRIDGE_PROTOCOL_VERSION,
+  sourceHash: BRIDGE_SOURCE_HASH,
+  pid: process.pid,
+  canShutdown: true,
+});
 const MAX_MESSAGE_BYTES = 64 * 1024;
 const CODEX_TIMEOUT_MS = 30_000;
 const APP_SERVER_TIMEOUT_MS = 5_000;
@@ -1099,8 +1111,18 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "POST" && request.url === "/shutdown") {
+    if (originHeaderPresent) {
+      writeJson(response, 403, { ok: false, error: "Bridge shutdown is local-process-only." }, origin);
+      return;
+    }
+    writeJson(response, 200, { ok: true }, origin);
+    server.close(() => process.exit(0));
+    return;
+  }
+
   if (request.method === "GET" && request.url === "/health") {
-    writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
+    writeJson(response, 200, { ok: true, bridge: BRIDGE_IDENTITY, ...threadPayload() }, origin);
     return;
   }
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -27,7 +28,7 @@ const waitForExit = (child, timeoutMs = 10_000) => new Promise((resolve, reject)
 });
 
 const freePort = () => new Promise((resolve, reject) => {
-  const server = createServer();
+  const server = createNetServer();
   server.once("error", reject);
   server.listen(0, "127.0.0.1", () => {
     const port = server.address()?.port;
@@ -99,11 +100,15 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
 
     const health = await fetch(`${bridgeUrl}/health`);
     assert.equal(health.status, 200);
-    assert.deepEqual(await health.json(), {
-      ok: true,
-      thread: "thread-hook-b",
-      threads: ["thread-hook-a", "thread-hook-b"],
-    });
+    const healthPayload = await health.json();
+    assert.equal(healthPayload.ok, true);
+    assert.equal(healthPayload.thread, "thread-hook-b");
+    assert.deepEqual(healthPayload.threads, ["thread-hook-a", "thread-hook-b"]);
+    assert.equal(healthPayload.bridge?.name, "mesurer-codex");
+    assert.equal(healthPayload.bridge?.protocol, 1);
+    assert.match(healthPayload.bridge?.sourceHash, /^[0-9a-f]{64}$/);
+    assert.equal(Number.isInteger(healthPayload.bridge?.pid), true);
+    assert.equal(healthPayload.bridge?.canShutdown, true);
 
     const send = await fetch(`${bridgeUrl}/send`, {
       method: "POST",
@@ -145,6 +150,86 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
       });
     } catch {}
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Codex SessionStart refuses a legacy healthy bridge instead of silently reusing it", async () => {
+  const port = await freePort();
+  const bridgeUrl = `http://127.0.0.1:${port}`;
+  let registrations = 0;
+  const server = createHttpServer((request, response) => {
+    response.setHeader("Content-Type", "application/json");
+    if (request.method === "GET" && request.url === "/health") {
+      response.end(JSON.stringify({ ok: true, thread: "legacy-thread", threads: ["legacy-thread"] }));
+      return;
+    }
+    if (request.method === "POST" && request.url === "/threads/register") {
+      registrations += 1;
+      response.end(JSON.stringify({ ok: true }));
+      return;
+    }
+    response.statusCode = 404;
+    response.end(JSON.stringify({ ok: false }));
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", resolve);
+  });
+  try {
+    const result = await runSessionStart({ bridgeUrl, sessionId: "thread-current" });
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /older Mesurer Codex bridge/);
+    assert.equal(registrations, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("Codex SessionStart replaces a stale self-identifying bridge with its packaged bridge", async () => {
+  const port = await freePort();
+  const bridgeUrl = `http://127.0.0.1:${port}`;
+  let shutdowns = 0;
+  const staleServer = createHttpServer((request, response) => {
+    response.setHeader("Content-Type", "application/json");
+    if (request.method === "GET" && request.url === "/health") {
+      response.end(JSON.stringify({
+        ok: true,
+        thread: "stale-thread",
+        threads: ["stale-thread"],
+        bridge: { name: "mesurer-codex", protocol: 1, sourceHash: "stale", pid: process.pid, canShutdown: true },
+      }));
+      return;
+    }
+    if (request.method === "POST" && request.url === "/shutdown") {
+      shutdowns += 1;
+      response.end(JSON.stringify({ ok: true }));
+      staleServer.close();
+      return;
+    }
+    response.statusCode = 404;
+    response.end(JSON.stringify({ ok: false }));
+  });
+  await new Promise((resolve, reject) => {
+    staleServer.once("error", reject);
+    staleServer.listen(port, "127.0.0.1", resolve);
+  });
+  try {
+    const result = await runSessionStart({ bridgeUrl, sessionId: "thread-current" });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stdout, "");
+    assert.equal(shutdowns, 1);
+    const health = await fetch(`${bridgeUrl}/health`);
+    assert.equal(health.status, 200);
+    const healthPayload = await health.json();
+    assert.equal(healthPayload.bridge?.name, "mesurer-codex");
+    assert.equal(healthPayload.bridge?.protocol, 1);
+    assert.match(healthPayload.bridge?.sourceHash, /^[0-9a-f]{64}$/);
+    assert.notEqual(healthPayload.bridge?.sourceHash, "stale");
+    assert.equal(healthPayload.thread, "thread-current");
+  } finally {
+    try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
+    await waitForUnavailable(bridgeUrl);
   }
 });
 

@@ -70,8 +70,8 @@ bunx mesurer-codex-connect
 
 1. Reads the current Codex session id.
 2. Reads the current project directory from the trusted `SessionStart` hook event when available.
-3. Reuses the bridge at `http://127.0.0.1:47365` when it is already healthy.
-4. Starts the packaged bridge as a detached local process when no bridge is running.
+3. Reuses the bridge at `http://127.0.0.1:47365` only when that process reports the exact packaged bridge source identity. A stale self-identifying Mesurer bridge is stopped and replaced; legacy/unidentified occupants are rejected instead of silently reused.
+4. Starts the packaged bridge as a detached local process when no compatible bridge is running.
 5. Registers the current Codex thread and project directory and makes that thread the bridge default.
 
 The portable `mesurer-ui` skill installs the same connector and bridge beside its injector. A Codex agent using that skill should run:
@@ -244,7 +244,7 @@ bunx mesurer-codex --register-current
 
 Run that from a Codex shell or tool command in the destination thread. It reads that thread's `CODEX_THREAD_ID`, registers it with the current working directory, and makes it the bridge default.
 
-`mesurer-codex-connect` also handles this case. If the bridge is already running, calling the connector from another Codex thread reuses the process and registers the new thread without forgetting earlier registrations.
+`mesurer-codex-connect` also handles this case. If the matching bridge is already running, calling the connector from another Codex thread reuses that exact process and registers the new thread without forgetting earlier registrations. If the packaged bridge source changed, a self-identifying older bridge is replaced before registration; pre-identity legacy bridges fail closed and must be stopped once rather than receiving new lifecycle traffic.
 
 If you already know an existing session UUID or exact name, a normal local shell can register it explicitly:
 

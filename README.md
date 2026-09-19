@@ -158,7 +158,7 @@ See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the package
 
 ### Queue human feedback to Codex
 
-The optional Codex transport keeps Context as the feedback source and uses Codex's queued-user-message path. In a Codex-controlled local project, the trusted `SessionStart` integration runs `mesurer-codex-connect`, which starts or reuses the loopback companion and registers the current Codex session together with its project directory. A separate bridge terminal is not required.
+The optional Codex transport keeps Context as the feedback source and uses Codex's queued-user-message path. In a Codex-controlled local project, the trusted `SessionStart` integration runs `mesurer-codex-connect`, which starts or reuses the matching loopback companion and registers the current Codex session together with its project directory. The connector verifies the companion's packaged source identity before reusing it, so a healthy but stale bridge cannot silently own lifecycle tracking. A separate bridge terminal is not required.
 
 From a Codex shell or tool environment, the packaged connector can also be run directly:
 

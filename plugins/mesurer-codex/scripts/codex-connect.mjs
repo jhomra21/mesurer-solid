@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 const DEFAULT_BRIDGE = "http://127.0.0.1:47365";
+const BRIDGE_NAME = "mesurer-codex";
+const BRIDGE_PROTOCOL_VERSION = 1;
 const START_TIMEOUT_MS = 10_000;
 const POLL_INTERVAL_MS = 100;
 
@@ -111,6 +115,11 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
   fail(`Invalid bridge port in ${bridge}.`, 2);
 }
 
+const bridgeScript = fileURLToPath(new URL("./codex-bridge.mjs", import.meta.url));
+const expectedSourceHash = createHash("sha256")
+  .update(await readFile(bridgeScript))
+  .digest("hex");
+
 const readPayload = async (response) => {
   const text = await response.text();
   if (!text) return {};
@@ -147,6 +156,37 @@ const waitForBridge = async () => {
   throw new Error(`Mesurer Codex bridge did not become ready at ${bridgeUrl.origin}.`);
 };
 
+const isExactBridge = (payload) =>
+  payload?.bridge?.name === BRIDGE_NAME
+  && payload.bridge.protocol === BRIDGE_PROTOCOL_VERSION
+  && payload.bridge.sourceHash === expectedSourceHash;
+
+const waitForBridgeToStop = async () => {
+  const deadline = Date.now() + START_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (!(await health())) return;
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  }
+  throw new Error(`Stale Mesurer Codex bridge did not stop at ${bridgeUrl.origin}.`);
+};
+
+const replaceStaleBridge = async (payload) => {
+  if (payload?.bridge?.name !== BRIDGE_NAME || payload.bridge.canShutdown !== true) return false;
+  let response;
+  try {
+    response = await fetch(new URL("shutdown", bridgeUrl), { method: "POST" });
+  } catch (cause) {
+    const error = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(`Could not stop stale Mesurer Codex bridge at ${bridgeUrl.origin}: ${error}`);
+  }
+  const body = await readPayload(response);
+  if (!response.ok || body.ok === false) {
+    throw new Error(body.error || `Stale Mesurer Codex bridge returned HTTP ${response.status} while stopping.`);
+  }
+  await waitForBridgeToStop();
+  return true;
+};
+
 let current;
 try {
   current = await health();
@@ -154,8 +194,27 @@ try {
   fail(cause instanceof Error ? cause.message : String(cause));
 }
 
+if (current && !isExactBridge(current)) {
+  let replaced = false;
+  try {
+    replaced = await replaceStaleBridge(current);
+  } catch (cause) {
+    fail(cause instanceof Error ? cause.message : String(cause));
+  }
+  if (replaced) {
+    current = null;
+  } else if (!current.bridge && Array.isArray(current.threads)) {
+    fail(
+      `An older Mesurer Codex bridge is already running at ${bridgeUrl.origin}. Stop that legacy bridge once, then rerun mesurer-codex-connect. Refusing to reuse it because its source identity cannot be verified.`,
+    );
+  } else {
+    fail(
+      `An incompatible service is already running at ${bridgeUrl.origin}. Refusing to register this Codex session with an unverified bridge.`,
+    );
+  }
+}
+
 if (!current) {
-  const bridgeScript = fileURLToPath(new URL("./codex-bridge.mjs", import.meta.url));
   const args = [bridgeScript, "--port", String(port), "--thread", thread, "--cwd", cwd];
   if (values.codex?.trim()) args.push("--codex", values.codex.trim());
   if (values.once) args.push("--once");
@@ -173,6 +232,9 @@ if (!current) {
     current = await waitForBridge();
   } catch (cause) {
     fail(cause instanceof Error ? cause.message : String(cause));
+  }
+  if (!isExactBridge(current)) {
+    fail(`Mesurer Codex bridge at ${bridgeUrl.origin} started with an unexpected source identity.`);
   }
 }
 
