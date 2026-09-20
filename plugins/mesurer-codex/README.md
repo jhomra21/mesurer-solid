@@ -29,7 +29,7 @@ curl http://127.0.0.1:47365/health
 
 The response should report the current Codex session as `thread` and include it in `threads`.
 
-Then enable Codex in Mesurer Settings and use **Queue to Codex**. No separate `mesurer-codex` terminal should be needed. Desktop delivery uses Codex's native durable queue, not the app-tools pipe: Mesurer queues once, retains the queued-submission id, then opens the existing thread through `codex://threads/<threadId>`. Desktop loads or resumes the thread and Codex's queue watcher runs the item when safe.
+Then enable Codex in Mesurer Settings and use **Queue to Codex**. No separate `mesurer-codex` terminal should be needed. Desktop delivery uses Codex's native durable queue, not the app-tools pipe. Mesurer queues once, retains the queued-submission id, then opens the existing thread through `codex://threads/<threadId>`. Desktop loads or resumes the thread and Codex's queue watcher runs the item when safe.
 
 CLI/TUI shared-daemon environments use the same native queue. Mesurer does not start the standalone daemon for Desktop, does not delete an existing queued item during recovery, and never invokes `turn/steer`.
 
@@ -41,3 +41,16 @@ The low-level bridge and connector remain available for diagnostics:
 bun run mesurer-codex
 bun run mesurer-codex-connect
 ```
+
+## Repository maintenance
+
+The implementation lives in `packages/mesurer/codex/`. The files under `plugins/mesurer-codex/scripts/` are generated so this plugin can install without depending on paths outside its own directory.
+
+After changing the canonical companion, run:
+
+```bash
+bun run sync:codex-plugin
+bun run check:codex-plugin
+```
+
+Do not edit the generated plugin scripts directly.

@@ -45,6 +45,7 @@ export const intersectionArea = (rectA: Rect, rectB: Rect) => {
   const y2 = Math.min(rectA.top + rectA.height, rectB.top + rectB.height);
   const width = Math.max(0, x2 - x1);
   const height = Math.max(0, y2 - y1);
+
   return width * height;
 };
 
@@ -59,5 +60,6 @@ export const getDistanceToRect = (point: Point, rect: Rect) => {
   const bottom = rect.top + rect.height;
   const dx = point.x < rect.left ? rect.left - point.x : point.x > right ? point.x - right : 0;
   const dy = point.y < rect.top ? rect.top - point.y : point.y > bottom ? point.y - bottom : 0;
+
   return Math.hypot(dx, dy);
 };

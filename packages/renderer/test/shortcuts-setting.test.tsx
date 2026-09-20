@@ -41,6 +41,7 @@ describe("Shortcuts setting", () => {
       ),
       host,
     );
+
     mounted.push(dispose);
 
     const arrangeButton = () => document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="arrange"]');
@@ -56,6 +57,7 @@ describe("Shortcuts setting", () => {
       bubbles: true,
       cancelable: true,
     });
+
     window.dispatchEvent(arrangeShortcut);
     await settle();
     expect(arrangeShortcut.defaultPrevented).toBe(false);
@@ -67,6 +69,7 @@ describe("Shortcuts setting", () => {
       bubbles: true,
       cancelable: true,
     });
+
     window.dispatchEvent(screenshotShortcut);
     await settle();
     expect(screenshotShortcut.defaultPrevented).toBe(false);
@@ -78,11 +81,14 @@ describe("Shortcuts setting", () => {
     await vi.waitFor(() => expect(arrangeButton()?.getAttribute("aria-pressed")).toBe("false"));
 
     screenshotButton()!.click();
+
     const screenshotOverlay = await vi.waitFor(() => {
       const overlay = document.querySelector<HTMLElement>("[data-mesurer-screenshot-select='true']");
       expect(overlay?.style.display).toBe("block");
+
       return overlay!;
     });
+
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
     await vi.waitFor(() => expect(screenshotOverlay.style.display).toBe("none"));
   });

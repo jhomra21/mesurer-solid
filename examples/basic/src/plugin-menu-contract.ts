@@ -25,6 +25,7 @@ const threadMenu = defineMesurerPlugin({
 });
 
 const root = document.getElementById("root");
+
 if (!root) throw new Error("Plugin menu bounds fixture root is missing.");
 
 mountMesurer({

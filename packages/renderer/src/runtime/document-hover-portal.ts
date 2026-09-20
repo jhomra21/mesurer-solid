@@ -4,7 +4,9 @@ export function documentHoverPortalTarget(
 ): HTMLElement | null {
   const ownerDocument = overlay?.ownerDocument;
   const body = ownerDocument?.body;
+
   if (!overlay || !target?.isConnected || !ownerDocument || !body) return null;
+
   if (target.getRootNode() !== ownerDocument) return null;
 
   // A document-backed Context mount already installs Mesurer's styles into the
@@ -21,10 +23,13 @@ export function documentHoverPortalTarget(
   const documentContext = ownerDocument.querySelector<HTMLElement>(
     "[data-mesurer-document-inspector-mount='true'][data-mesurer-context-root='true']",
   );
+
   const textInspector = ownerDocument.querySelector<HTMLElement>(
     "[data-mesurer-text-inspector-info='true']",
   );
+
   const documentInspector = documentContext ?? textInspector;
+
   if (!documentInspector?.isConnected || documentInspector.getRootNode() !== ownerDocument) return null;
 
   return body;

@@ -14,6 +14,7 @@ type CompensationOptions = {
 };
 
 const X_VARIABLE = "--mesurer-nested-scroll-x";
+
 const Y_VARIABLE = "--mesurer-nested-scroll-y";
 
 /**
@@ -54,12 +55,14 @@ export const installNestedScrollCompensation = (
   const composedParent = (element: HTMLElement): HTMLElement | null => {
     if (element.parentElement) return element.parentElement;
     const root = element.getRootNode();
+
     return root instanceof realm.ShadowRoot && root.host instanceof realm.HTMLElement
       ? root.host
       : null;
   };
 
   let ancestor = composedParent(target);
+
   while (ancestor) {
     if (ancestor !== ownerDocument.body && ancestor !== ownerDocument.documentElement) {
       positions.set(ancestor, {
@@ -67,6 +70,7 @@ export const installNestedScrollCompensation = (
         top: ancestor.scrollTop,
       });
     }
+
     ancestor = composedParent(ancestor);
   }
 
@@ -74,37 +78,46 @@ export const installNestedScrollCompensation = (
     left: ownerWindow.scrollX,
     top: ownerWindow.scrollY,
   };
+
   let offsetX = 0;
   let offsetY = 0;
   let disposed = false;
 
   const currentSurfaces = () => {
     const values = new Set<HTMLElement>();
+
     for (const surface of surfaces()) {
       if (surface?.isConnected) values.add(surface);
     }
+
     return values;
   };
 
   const syncVariable = (surface: HTMLElement, property: string, offset: number) => {
     const current = surface.style.getPropertyValue(property);
+
     if (offset === 0) {
       // Every consumer already uses a `var(..., 0px)` fallback. Keep the zero
       // state implicit so attaching/revalidating compensation cannot create
       // main-thread style mutations during ordinary compositor-owned scrolling.
       if (current) surface.style.removeProperty(property);
+
       return;
     }
+
     const value = `${offset}px`;
+
     if (current !== value) surface.style.setProperty(property, value);
   };
 
   const sync = () => {
     if (disposed) return;
+
     for (const surface of currentSurfaces()) {
       if (surface.dataset.mesurerNestedScrollCompensation !== "true") {
         surface.dataset.mesurerNestedScrollCompensation = "true";
       }
+
       syncVariable(surface, X_VARIABLE, offsetX);
       syncVariable(surface, Y_VARIABLE, offsetY);
     }
@@ -113,11 +126,13 @@ export const installNestedScrollCompensation = (
   const applyDelta = (previous: ScrollPosition, left: number, top: number) => {
     const deltaX = left - previous.left;
     const deltaY = top - previous.top;
+
     if (deltaX === 0 && deltaY === 0) return false;
     previous.left = left;
     previous.top = top;
     offsetX -= deltaX;
     offsetY -= deltaY;
+
     return true;
   };
 
@@ -125,6 +140,7 @@ export const installNestedScrollCompensation = (
     if (disposed || !(event.currentTarget instanceof realm.HTMLElement)) return;
     const element = event.currentTarget;
     const previous = positions.get(element);
+
     if (!previous || !applyDelta(previous, element.scrollLeft, element.scrollTop)) return;
     sync();
   };
@@ -141,6 +157,7 @@ export const installNestedScrollCompensation = (
   for (const element of positions.keys()) {
     element.addEventListener("scroll", onElementScroll, { capture: true, passive: true });
   }
+
   if (trackWindow) ownerWindow.addEventListener("scroll", onWindowScroll, { capture: true, passive: true });
   sync();
 
@@ -148,10 +165,12 @@ export const installNestedScrollCompensation = (
     sync,
     rebase() {
       if (disposed) return;
+
       for (const [element, position] of positions) {
         position.left = element.scrollLeft;
         position.top = element.scrollTop;
       }
+
       windowPosition = {
         left: ownerWindow.scrollX,
         top: ownerWindow.scrollY,
@@ -163,15 +182,19 @@ export const installNestedScrollCompensation = (
     release() {
       if (disposed) return;
       disposed = true;
+
       if (trackWindow) ownerWindow.removeEventListener("scroll", onWindowScroll, true);
+
       for (const element of positions.keys()) {
         element.removeEventListener("scroll", onElementScroll, true);
       }
+
       for (const surface of currentSurfaces()) {
         delete surface.dataset.mesurerNestedScrollCompensation;
         surface.style.removeProperty(X_VARIABLE);
         surface.style.removeProperty(Y_VARIABLE);
       }
+
       positions.clear();
     },
   };

@@ -1,6 +1,8 @@
 const nextValue = (argv, index, flag) => {
   const value = argv[index + 1];
+
   if (!value || value.startsWith("--")) throw new Error(`${flag} requires a value`);
+
   return value;
 };
 
@@ -20,6 +22,7 @@ export function parseBrowserHarnessArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+
     if (arg === "--help" || arg === "-h") options.help = true;
     else if (arg === "--headless") options.headless = true;
     else if (arg === "--headed") options.headless = false;

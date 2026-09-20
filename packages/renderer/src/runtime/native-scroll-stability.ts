@@ -2,6 +2,7 @@ import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 
 const FALLBACK_SETTLE_MS = 48;
+
 const HIGHLIGHT_SELECTOR = "[data-mesurer-text-selection-highlight='true']";
 
 type ScrollBaseline = {
@@ -55,7 +56,9 @@ export function installNativeScrollStability(
 
   const registerNode = (node: Node) => {
     if (!(node instanceof realm.HTMLElement)) return;
+
     if (node.matches(HIGHLIGHT_SELECTOR)) registerHighlight(node);
+
     for (const highlight of node.querySelectorAll<HTMLElement>(HIGHLIGHT_SELECTOR)) {
       registerHighlight(highlight);
     }
@@ -70,11 +73,14 @@ export function installNativeScrollStability(
       for (const node of record.addedNodes) registerNode(node);
     }
   });
+
   if (ownerDocument.body) observer.observe(ownerDocument.body, { childList: true, subtree: true });
 
   const reconcileFallbacks = () => {
     settleTimer = 0;
+
     if (disposed) return;
+
     for (const [highlight, baseline] of Array.from(highlights)) {
       if (!highlight.isConnected) {
         highlights.delete(highlight);
@@ -85,12 +91,16 @@ export function installNativeScrollStability(
       const deltaY = latestY - baseline.y;
       baseline.x = latestX;
       baseline.y = latestY;
+
       if (deltaX === 0 && deltaY === 0) continue;
+
       if (highlight.dataset.mesurerNativeScrollAnchor !== "offset") continue;
 
       const left = Number.parseFloat(highlight.style.left);
       const top = Number.parseFloat(highlight.style.top);
+
       if (Number.isFinite(left)) highlight.style.left = `${left - deltaX}px`;
+
       if (Number.isFinite(top)) highlight.style.top = `${top - deltaY}px`;
     }
   };
@@ -99,6 +109,7 @@ export function installNativeScrollStability(
     if (disposed) return;
     latestX = ownerWindow.scrollX;
     latestY = ownerWindow.scrollY;
+
     if (settleTimer) ownerWindow.clearTimeout(settleTimer);
     settleTimer = ownerWindow.setTimeout(reconcileFallbacks, FALLBACK_SETTLE_MS);
   };
@@ -108,6 +119,7 @@ export function installNativeScrollStability(
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
+
     if (settleTimer) ownerWindow.clearTimeout(settleTimer);
     ownerWindow.removeEventListener("scroll", onScroll, true);
     highlights.clear();

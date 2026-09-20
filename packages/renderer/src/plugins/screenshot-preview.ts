@@ -5,9 +5,13 @@ import {
 } from "../core/screenshot";
 
 const PREVIEW_WIDTH = 144;
+
 const PREVIEW_HEIGHT = 96;
+
 const VIEWPORT_PADDING = 8;
+
 const DRAG_THRESHOLD = 4;
+
 const TOAST_DURATION_MS = 1800;
 
 type ScreenshotPreviewStatus = {
@@ -86,6 +90,7 @@ const createViewerButton = (
     "font-weight": "500",
     cursor: "pointer",
   });
+
   return button;
 };
 
@@ -96,13 +101,21 @@ const captureStatusText = ({
   downloadFailed,
 }: ScreenshotPreviewStatus) => {
   if (copied && downloaded) return "Copied and saved screenshot";
+
   if (copied && downloadFailed) return "Copied screenshot · Save unavailable";
+
   if (downloaded && copyFailed) return "Saved screenshot · Copy unavailable";
+
   if (copied) return "Copied screenshot";
+
   if (downloaded) return "Saved screenshot";
+
   if (copyFailed && downloadFailed) return "Screenshot captured · Copy and save unavailable";
+
   if (copyFailed) return "Screenshot captured · Copy unavailable";
+
   if (downloadFailed) return "Screenshot captured · Save unavailable";
+
   return "Screenshot captured";
 };
 
@@ -117,6 +130,7 @@ export const createScreenshotPreviewController = ({
 }: ScreenshotPreviewControllerOptions): ScreenshotPreviewController => {
   const rendererRoot = root.closest<HTMLElement>("[data-mesurer-root='true']");
   const interactionParent = rendererRoot?.parentNode ?? root.parentNode;
+
   if (!isInteractionParent(interactionParent)) {
     throw new Error("Screenshot preview requires a mounted Mesurer host.");
   }
@@ -364,7 +378,9 @@ export const createScreenshotPreviewController = ({
 
   const copyCurrent = async () => {
     const blob = currentBlob;
+
     if (!blob) return;
+
     try {
       await copyPngToClipboard(Promise.resolve(blob), ownerWindow);
       showToast("Copied screenshot");
@@ -375,7 +391,9 @@ export const createScreenshotPreviewController = ({
 
   const saveCurrent = () => {
     const blob = currentBlob;
+
     if (!blob) return;
+
     try {
       downloadPng(blob, createScreenshotFilename(), ownerDocument, ownerWindow);
       showToast("Saved screenshot");
@@ -401,24 +419,30 @@ export const createScreenshotPreviewController = ({
       moved: false,
     };
     preview.style.cursor = "grabbing";
+
     return true;
   };
 
   const movePreviewDrag = (clientX: number, clientY: number) => {
     const drag = previewDrag;
+
     if (!drag) return;
     const dx = clientX - drag.startX;
     const dy = clientY - drag.startY;
+
     if (!drag.moved && Math.hypot(dx, dy) >= DRAG_THRESHOLD) drag.moved = true;
+
     if (!drag.moved) return;
     applyPreviewPosition({ left: drag.left + dx, top: drag.top + dy });
   };
 
   const finishPreviewDrag = () => {
     const drag = previewDrag;
+
     if (!drag) return;
     previewDrag = null;
     preview.style.cursor = "grab";
+
     if (!drag.moved) openViewer();
   };
 
@@ -445,6 +469,7 @@ export const createScreenshotPreviewController = ({
 
   const onPreviewPointerDown = (event: PointerEvent) => {
     if (event.pointerType === "mouse" || event.button !== 0) return;
+
     if (!beginPreviewDrag(event.clientX, event.clientY, event.pointerId)) return;
     preview.setPointerCapture?.(event.pointerId);
     event.preventDefault();
@@ -452,20 +477,25 @@ export const createScreenshotPreviewController = ({
 
   const onWindowPointerMove = (event: PointerEvent) => {
     const pointerId = previewDrag?.pointerId;
+
     if (pointerId === null || pointerId === undefined || pointerId !== event.pointerId) return;
     movePreviewDrag(event.clientX, event.clientY);
   };
 
   const onWindowPointerUp = (event: PointerEvent) => {
     const pointerId = previewDrag?.pointerId;
+
     if (pointerId === null || pointerId === undefined || pointerId !== event.pointerId) return;
+
     if (preview.hasPointerCapture?.(event.pointerId)) preview.releasePointerCapture(event.pointerId);
     finishPreviewDrag();
   };
 
   const onWindowPointerCancel = (event: PointerEvent) => {
     const pointerId = previewDrag?.pointerId;
+
     if (pointerId === null || pointerId === undefined || pointerId !== event.pointerId) return;
+
     if (preview.hasPointerCapture?.(event.pointerId)) preview.releasePointerCapture(event.pointerId);
     cancelPreviewDrag();
   };
@@ -527,6 +557,7 @@ export const createScreenshotPreviewController = ({
       preview.style.display = "block";
       applyPreviewPosition(previewPosition ?? defaultPosition());
       showToast(captureStatusText(status));
+
       if (previewDurationMs > 0) {
         previewTimer = ownerWindow.setTimeout(dismiss, previewDurationMs);
       }

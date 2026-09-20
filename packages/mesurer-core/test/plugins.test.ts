@@ -5,6 +5,7 @@ describe("Mesurer plugin host", () => {
   it("loads, describes, executes, histories, persists, removes, and replaces plugins", async () => {
     const host = createMesurerPluginHost();
     let calls = 0;
+
     const plugin = defineMesurerPlugin({
       id: "example",
       provides: ["tool:example"],
@@ -53,9 +54,11 @@ describe("Mesurer plugin host", () => {
           stateNotifications += 1;
         });
         const enabled = () => ctx.state.get<{ enabled: boolean }>("settings.example")?.enabled ?? false;
+
         const setEnabled = (value: boolean) => {
           ctx.state.update<{ enabled: boolean }>("settings.example", (current) => ({ ...current, enabled: value }));
         };
+
         ctx.tool.register({
           id: "settings.example",
           label: "Example",

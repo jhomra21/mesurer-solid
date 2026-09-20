@@ -1,6 +1,6 @@
 # @jhomra21/mesurer-solid-core
 
-Framework-neutral Mesurer state and plugin primitives. This workspace has no Solid, React, Vue, Electron, DOM, or browser dependency.
+Framework-neutral Mesurer state and plugin contracts. This workspace has no Solid, React, Vue, Electron, DOM, or browser dependency.
 
 It owns observable state, events, plugin registration, commands, hooks, services, history-enabled state slices, scoped disposal, and shared domain contracts used by renderer and host adapters.
 

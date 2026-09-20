@@ -77,8 +77,10 @@ export const createPluginRegistry = (
   const hasExplicitSet = plugins !== undefined;
   const explicitPlugins = new Map((plugins ?? []).map((plugin) => [plugin.id, plugin]));
   const firstPartyIds = new Set(MESURER_FIRST_PARTY_PLUGINS.map((entry) => entry.id));
+
   const registry: MesurerPluginRegistryEntry[] = MESURER_FIRST_PARTY_PLUGINS.map((entry) => {
     const explicit = explicitPlugins.get(entry.id);
+
     return {
       ...entry,
       settingsIds: entry.settingsIds ? [...entry.settingsIds] : undefined,

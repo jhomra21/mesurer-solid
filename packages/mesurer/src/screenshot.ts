@@ -62,9 +62,13 @@ export type MesurerScreenshotService = {
 };
 
 export const MESURER_SCREENSHOT_ACTIVE_STATE_ID: string = rendererActiveStateId;
+
 export const MESURER_SCREENSHOT_PLUGIN_ID: string = rendererPluginId;
+
 export const MESURER_SCREENSHOT_SERVICE_ID: string = rendererServiceId;
+
 export const MESURER_SCREENSHOT_SETTINGS_STATE_ID: string = rendererSettingsStateId;
+
 export const MIN_SCREENSHOT_SELECTION: number = rendererMinSelection;
 
 export const captureVisibleTabPng: ScreenshotCaptureProvider = rendererCaptureVisibleTabPng;

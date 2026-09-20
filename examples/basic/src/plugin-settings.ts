@@ -12,8 +12,11 @@ import {
 } from "../../../packages/mesurer/src/plugins";
 
 const pluginStorageKey = "mesurer-plugin-settings";
+
 const pluginAvailabilityStorageKey = `${pluginStorageKey}:availability`;
+
 const url = new URL(window.location.href);
+
 if (url.searchParams.get("reset") === "1") {
   window.localStorage.removeItem(pluginStorageKey);
   window.localStorage.removeItem(pluginAvailabilityStorageKey);
@@ -29,11 +32,14 @@ type CapturePresentation = {
 };
 
 const captures: CapturePresentation[] = [];
+
 let captureRoots: ParentNode[] = [document];
 
 const visibleInLayout = (element: Element) => element.getClientRects().length > 0;
+
 const visibleMeasurement = (element: HTMLElement) => {
   if (visibleInLayout(element)) return true;
+
   // Selected measurement roots in the document-native anchor layer are
   // intentionally zero-height containers. Their absolutely positioned chrome
   // and label are the rendered presentation, so inspect those direct surfaces
@@ -45,6 +51,7 @@ const visibleMeasurement = (element: HTMLElement) => {
     && getComputedStyle(child).visibility !== "hidden"
   ));
 };
+
 const presentationVisible = (
   selector: string,
   isVisible: (element: HTMLElement) => boolean = visibleInLayout,
@@ -62,11 +69,13 @@ const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, 
   canvas.width = ownerWindow.innerWidth;
   canvas.height = ownerWindow.innerHeight;
   const context2d = canvas.getContext("2d");
+
   if (!context2d) throw new Error("Plugin settings fixture canvas unavailable");
   context2d.fillStyle = "#f8fafc";
   context2d.fillRect(0, 0, canvas.width, canvas.height);
   context2d.fillStyle = "#0f172a";
   context2d.fillRect(96, 96, 280, 160);
+
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
@@ -91,7 +100,9 @@ const subject = mountMesurer({
 });
 
 await subject.ready;
+
 captureRoots = [subject.root, document];
+
 const screenshotService = () => subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
 
 type PluginSettingsHarness = {

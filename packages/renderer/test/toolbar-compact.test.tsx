@@ -41,10 +41,12 @@ describe("compact toolbar", () => {
   it("hides only inactive tools and never changes active tool/plugin state", async () => {
     const host = document.createElement("div");
     document.body.append(host);
+
     const dispose = render(
       () => <ComposableMesurer persistKey="compact-toolbar-test" plugins={[activePlugin]} />,
       host,
     );
+
     mounted.push(dispose);
 
     const pluginButton = await waitForButton('button[aria-label="Active plugin"]');
@@ -85,11 +87,13 @@ describe("compact toolbar", () => {
 
 async function waitForButton(selector: string) {
   await waitFor(() => document.querySelector<HTMLButtonElement>(selector) !== null);
+
   return document.querySelector<HTMLButtonElement>(selector)!;
 }
 
 async function waitFor(predicate: () => boolean, timeout = 1000) {
   const started = Date.now();
+
   while (!predicate()) {
     if (Date.now() - started > timeout) throw new Error("Timed out waiting for compact toolbar state");
     await new Promise((resolve) => setTimeout(resolve, 10));

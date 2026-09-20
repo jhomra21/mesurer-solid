@@ -8,8 +8,8 @@ on:
       - "packages/renderer/test/toolbar-compact.test.tsx"
       - "examples/basic/plugin-menu-contract.html"
       - "examples/basic/src/plugin-menu-contract.ts"
-      - "visual-parity/toolbar-compact-contract.mjs"
-      - "visual-parity/plugin-menu-bounds-contract.mjs"
+      - "tests/visual-parity/toolbar-compact-contract.mjs"
+      - "tests/visual-parity/plugin-menu-bounds-contract.mjs"
       - ".github/workflows/toolbar-contract.yml"
   workflow_dispatch:
 
@@ -69,9 +69,9 @@ jobs:
       - name: Exercise compact toolbar geometry and motion
         env:
           TOOLBAR_COMPACT_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/toolbar-compact-contract.mjs
+        run: bun tests/visual-parity/toolbar-compact-contract.mjs
 
       - name: Keep tall plugin menus inside the viewport
         env:
           PLUGIN_MENU_BOUNDS_URL: http://127.0.0.1:4174/plugin-menu-contract.html
-        run: bun visual-parity/plugin-menu-bounds-contract.mjs
+        run: bun tests/visual-parity/plugin-menu-bounds-contract.mjs

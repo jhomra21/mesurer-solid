@@ -19,6 +19,7 @@ export function createObservableStore<T>(
   const publish = () => {
     const next = snapshot(current);
     const queue = Array.from(listeners);
+
     for (const listener of queue) listener(next);
   };
 
@@ -37,7 +38,9 @@ export function createObservableStore<T>(
     },
     subscribe(listener, options) {
       listeners.add(listener);
+
       if (options?.emitCurrent) listener(snapshot(current));
+
       return () => listeners.delete(listener);
     },
     dispose() {

@@ -73,12 +73,14 @@ const mountContextActions = () => {
     unobserve() {}
     disconnect() {}
   }
+
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
 
   const model = createMesurerModel({ initialEnabled: true, initialToolMode: "select" });
   const measurementA = getInspectMeasurement(a, window);
   const measurementB = getInspectMeasurement(b, window);
   model.setSelectedMeasurements([measurementA], measurementA);
+
   const runtime = createMesurerWorkspaceRuntime({
     model,
     ownerDocument: document,
@@ -88,6 +90,7 @@ const mountContextActions = () => {
   });
 
   let controller: ContextActionsController | null = null;
+
   const dispose = render(() => (
     <ContextActions
       runtime={runtime}
@@ -96,6 +99,7 @@ const mountContextActions = () => {
       onController={(value) => { controller = value; }}
     />
   ), host);
+
   mounted.push(() => {
     dispose();
     runtime.dispose();

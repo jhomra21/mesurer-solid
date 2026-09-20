@@ -3,7 +3,7 @@ import { createMesurerPluginHost, defineMesurerPlugin } from "@jhomra21/mesurer-
 import type { MesurerSolidRuntimeService } from "../src/ComposableMesurer";
 import { getInspectMeasurement } from "../src/core/dom";
 import { createMesurerModel } from "../src/model/create-mesurer-model";
-import { installDirectEditSelectionChromeOwnership } from "../src/runtime/text-editing-selection-chrome";
+import { installDirectEditSelectionChromeOwnership } from "../src/runtime/text-editing/selection-chrome";
 import { createMesurerWorkspaceRuntime } from "../src/runtime/workspace-context";
 
 const mountedHosts: Array<ReturnType<typeof createMesurerPluginHost>> = [];
@@ -18,15 +18,19 @@ afterEach(() => {
 const selectedRoot = (opacity?: string) => {
   const root = document.createElement("div");
   root.dataset.mesurerSelectedMeasurement = "true";
+
   if (opacity) root.style.opacity = opacity;
   root.append(document.createElement("div"));
+
   return root;
 };
 
 const hoverRoot = (opacity?: string) => {
   const root = document.createElement("div");
   root.dataset.mesurerHoverMeasurement = "true";
+
   if (opacity) root.style.opacity = opacity;
+
   return root;
 };
 
@@ -66,6 +70,7 @@ describe("direct text-edit selection chrome ownership", () => {
       uiRoot: document.body,
       pageTarget,
     });
+
     const runtime: MesurerSolidRuntimeService = {
       ownerDocument: document,
       ownerWindow: window,
@@ -76,6 +81,7 @@ describe("direct text-edit selection chrome ownership", () => {
         const element = document.createElement("div");
         element.dataset.mesurerInspectorUi = "true";
         document.body.append(element);
+
         return { element, dispose: () => element.remove() };
       },
     };
@@ -104,6 +110,7 @@ describe("direct text-edit selection chrome ownership", () => {
         expect(root.style.getPropertyPriority("opacity")).toBe("important");
         expect(root.dataset.mesurerDirectEditSelectionSuppressed).toBe("true");
       }
+
       for (const root of [documentHover, isolatedHover]) {
         expect(root.style.opacity).toBe("0");
         expect(root.style.getPropertyPriority("opacity")).toBe("important");
@@ -166,10 +173,12 @@ describe("direct text-edit selection chrome ownership", () => {
       expect(replacementIsolated.style.opacity).toBe("");
       expect(documentHover.style.opacity).toBe("0.7");
       expect(isolatedHover.style.opacity).toBe("0.75");
+
       for (const root of [documentSelection, isolatedSelection, replacementDocument, replacementIsolated]) {
         expect(root.style.getPropertyPriority("opacity")).toBe("");
         expect(root.dataset.mesurerDirectEditSelectionSuppressed).toBeUndefined();
       }
+
       for (const root of [documentHover, isolatedHover]) {
         expect(root.style.getPropertyPriority("opacity")).toBe("");
         expect(root.dataset.mesurerDirectEditHoverSuppressed).toBeUndefined();

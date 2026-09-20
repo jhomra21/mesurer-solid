@@ -7,20 +7,26 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
-const connectScript = new URL("../packages/mesurer/scripts/codex-connect.mjs", import.meta.url);
-const bridgeScript = new URL("../packages/mesurer/scripts/codex-bridge.mjs", import.meta.url);
-const lifecycleScript = new URL("../packages/mesurer/scripts/codex-lifecycle.mjs", import.meta.url);
+const connectScript = new URL("../packages/mesurer/codex/codex-connect.mjs", import.meta.url);
+
+const bridgeScript = new URL("../packages/mesurer/codex/codex-bridge.mjs", import.meta.url);
+
+const lifecycleScript = new URL("../packages/mesurer/codex/codex-lifecycle.mjs", import.meta.url);
+
 const pluginRoot = new URL("../plugins/mesurer-codex/", import.meta.url);
 
 const waitForExit = (child, timeoutMs = 10_000) => new Promise((resolve, reject) => {
   if (child.exitCode !== null) {
     resolve(child.exitCode);
+
     return;
   }
+
   const timeout = setTimeout(() => {
     child.kill("SIGKILL");
     reject(new Error("Codex connect helper did not exit in time."));
   }, timeoutMs);
+
   child.once("exit", (code) => {
     clearTimeout(timeout);
     resolve(code);
@@ -42,24 +48,30 @@ const freePort = () => new Promise((resolve, reject) => {
 
 const waitForUnavailable = async (url, timeoutMs = 10_000) => {
   const deadline = Date.now() + timeoutMs;
+
   while (Date.now() < deadline) {
     try {
       await fetch(`${url}/health`);
     } catch {
       return;
     }
+
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
+
   throw new Error("Detached bridge did not exit after its --once send.");
 };
 
 const runSessionStart = async ({ bridgeUrl, sessionId, codex, env = {} }) => {
   const args = [connectScript.pathname, "--session-start", "--bridge", bridgeUrl];
+
   if (codex) args.push("--codex", codex, "--once");
+
   const child = spawn(process.execPath, args, {
     env: { ...process.env, ...env, CODEX_THREAD_ID: "ignored-in-hook-mode" },
     stdio: ["pipe", "pipe", "pipe"],
   });
+
   let stdout = "";
   let stderr = "";
   child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
@@ -71,6 +83,7 @@ const runSessionStart = async ({ bridgeUrl, sessionId, codex, env = {} }) => {
     source: "startup",
   }));
   const code = await waitForExit(child);
+
   return { code, stdout, stderr };
 };
 
@@ -91,6 +104,7 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
       codex: fakeCodex,
       env: { MESURER_FAKE_CODEX_ARGS: argsPath },
     });
+
     assert.equal(first.code, 0, first.stderr);
     assert.equal(first.stdout, "", "SessionStart success must not add developer context.");
 
@@ -118,6 +132,7 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
       },
       body: JSON.stringify({ message: "implement the Mesurer feedback" }),
     });
+
     assert.equal(send.status, 200);
     const sent = await send.json();
     assert.equal(sent.ok, true);
@@ -132,6 +147,7 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
       .split(/\r?\n/)
       .filter(Boolean)
       .map((line) => JSON.parse(line));
+
     assert.deepEqual(invocations, [[
       "queue",
       "--thread",
@@ -149,6 +165,7 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
         body: JSON.stringify({ message: "test cleanup" }),
       });
     } catch {}
+
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -157,24 +174,32 @@ test("Codex SessionStart refuses a legacy healthy bridge instead of silently reu
   const port = await freePort();
   const bridgeUrl = `http://127.0.0.1:${port}`;
   let registrations = 0;
+
   const server = createHttpServer((request, response) => {
     response.setHeader("Content-Type", "application/json");
+
     if (request.method === "GET" && request.url === "/health") {
       response.end(JSON.stringify({ ok: true, thread: "legacy-thread", threads: ["legacy-thread"] }));
+
       return;
     }
+
     if (request.method === "POST" && request.url === "/threads/register") {
       registrations += 1;
       response.end(JSON.stringify({ ok: true }));
+
       return;
     }
+
     response.statusCode = 404;
     response.end(JSON.stringify({ ok: false }));
   });
+
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, "127.0.0.1", resolve);
   });
+
   try {
     const result = await runSessionStart({ bridgeUrl, sessionId: "thread-current" });
     assert.equal(result.code, 1);
@@ -190,8 +215,10 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
   const port = await freePort();
   const bridgeUrl = `http://127.0.0.1:${port}`;
   let shutdowns = 0;
+
   const staleServer = createHttpServer((request, response) => {
     response.setHeader("Content-Type", "application/json");
+
     if (request.method === "GET" && request.url === "/health") {
       response.end(JSON.stringify({
         ok: true,
@@ -199,8 +226,10 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
         threads: ["stale-thread"],
         bridge: { name: "mesurer-codex", protocol: 1, sourceHash: "stale", pid: process.pid, canShutdown: true },
       }));
+
       return;
     }
+
     if (request.method === "POST" && request.url === "/shutdown") {
       shutdowns += 1;
       response.setHeader("Connection", "close");
@@ -209,15 +238,19 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
         staleServer.closeAllConnections?.();
       });
       response.end(JSON.stringify({ ok: true }));
+
       return;
     }
+
     response.statusCode = 404;
     response.end(JSON.stringify({ ok: false }));
   });
+
   await new Promise((resolve, reject) => {
     staleServer.once("error", reject);
     staleServer.listen(port, "127.0.0.1", resolve);
   });
+
   try {
     const result = await runSessionStart({ bridgeUrl, sessionId: "thread-current" });
     assert.equal(result.code, 0, result.stderr);
@@ -233,11 +266,12 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
     assert.equal(healthPayload.thread, "thread-current");
   } finally {
     try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
+
     await waitForUnavailable(bridgeUrl);
   }
 });
 
-test("repo Codex plugin packages the same companion and a bounded SessionStart hook", async () => {
+test("generated Codex plugin distribution mirrors the canonical companion and keeps a bounded SessionStart hook", async () => {
   const marketplace = JSON.parse(await readFile(new URL("../.agents/plugins/marketplace.json", import.meta.url), "utf8"));
   const manifest = JSON.parse(await readFile(new URL(".codex-plugin/plugin.json", pluginRoot), "utf8"));
   const hooks = JSON.parse(await readFile(new URL("hooks/hooks.json", pluginRoot), "utf8"));

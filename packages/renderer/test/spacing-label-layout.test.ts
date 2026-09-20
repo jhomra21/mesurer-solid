@@ -3,9 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import { layoutSpacingLabels } from "../src/components/spacing-label-layout";
 
 const COLLISION_X = "--mesurer-spacing-label-collision-x";
+
 const COLLISION_Y = "--mesurer-spacing-label-collision-y";
+
 const INLINE_FAN_X_STEP = 22;
+
 const INLINE_FAN_Y_STEP = 16;
+
 type RectInput = { left: number; top: number; width: number; height: number };
 
 const domRect = ({ left, top, width, height }: RectInput): DOMRect => ({
@@ -29,6 +33,7 @@ const setup = () => {
   root.setAttribute("data-mesurer-distance-kind", "selection-spacing");
   scope.append(root);
   document.body.append(scope);
+
   return { scope, root };
 };
 
@@ -49,6 +54,7 @@ const label = (
     top: rect.top + (axis === "x" ? index * INLINE_FAN_Y_STEP : 0) + offset(element, COLLISION_Y),
   }));
   root.append(element);
+
   return element;
 };
 

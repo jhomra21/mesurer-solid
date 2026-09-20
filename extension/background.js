@@ -6,6 +6,7 @@ async function run(tabId, options) {
     world: "MAIN",
     ...options,
   });
+
   return result[0]?.result;
 }
 
@@ -17,12 +18,15 @@ async function toggleMesurer(tab) {
       func: () => {
         const globalObject = globalThis;
         const instance = globalObject.__MESURER_INSTANCE__;
+
         if (!instance) return false;
         instance.dispose();
         delete globalObject.__MESURER_INSTANCE__;
+
         return true;
       },
     });
+
     if (disposed) return;
 
     await chrome.scripting.executeScript({
@@ -53,12 +57,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const windowId = sender.tab?.windowId;
   chrome.tabs.captureVisibleTab(windowId, { format: "png" }, (dataUrl) => {
     const error = chrome.runtime.lastError?.message;
+
     if (error || !dataUrl) {
       sendResponse({ ok: false, error: error ?? "Capture failed" });
+
       return;
     }
+
     sendResponse({ ok: true, dataUrl });
   });
+
   return true;
 });
 

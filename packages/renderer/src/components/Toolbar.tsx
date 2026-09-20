@@ -35,17 +35,29 @@ export type ToolbarProps = {
 };
 
 const TOOLBAR_DRAG_SLOP = 6;
+
 const GUIDE_MENU_WIDTH = 176;
+
 const TOOL_MENU_MIN_WIDTH = 224;
+
 const TOOL_MENU_MAX_WIDTH = 360;
+
 const TOOL_MENU_CHARACTER_WIDTH = 6.5;
+
 const TOOL_MENU_INLINE_CHROME = 52;
+
 const TOOL_MENU_ITEM_HEIGHT = 28;
+
 const TOOL_MENU_CHROME_HEIGHT = 8;
+
 const TOOL_MENU_GAP = 8;
+
 const SETTINGS_MENU_WIDTH = 272;
+
 const VIEWPORT_PADDING = 8;
+
 const GUIDE_MENU_IDEAL_HEIGHT = 72;
+
 const SETTINGS_MENU_IDEAL_HEIGHT = 360;
 
 type ToolbarButtonProps = {
@@ -70,7 +82,9 @@ function ToolbarButton(props: ToolbarButtonProps) {
   const inactiveClass = () => props.disabled
     ? "msr:bg-transparent msr:text-black/30 msr:cursor-default"
     : "msr:bg-transparent msr:text-black msr:hover:bg-black/4";
+
   const visibleShortcut = () => props.shortcutsEnabled ? props.shortcut : undefined;
+
   return (
     <div
       class="msr:relative"
@@ -112,6 +126,7 @@ function CompactItem(props: { visible: boolean; children: any }) {
 
 function ToolbarDivider(props: { visible?: boolean; marker?: string }) {
   const visible = () => props.visible ?? true;
+
   return (
     <div
       data-mesurer-toolbar-divider={props.marker ?? "true"}
@@ -155,6 +170,7 @@ export function Toolbar(props: ToolbarProps) {
   let colorPickerConfirmTimer = 0;
   let colorPickerCapabilityRevision = 0;
   const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;
+
   const commitColorPickerCapability = (supported: boolean, revision: number) => {
     colorPickerOwnerWindow().queueMicrotask(() => {
       if (revision !== colorPickerCapabilityRevision) return;
@@ -162,19 +178,25 @@ export function Toolbar(props: ToolbarProps) {
       flush();
     });
   };
+
   const refreshColorPickerCapability = () => {
     const candidateWindow = colorPickerOwnerWindow();
     const revision = ++colorPickerCapabilityRevision;
+
     if (colorPickerConfirmTimer) {
       candidateWindow.clearTimeout(colorPickerConfirmTimer);
       colorPickerConfirmTimer = 0;
     }
+
     if (!supportsNativeColorPicker(candidateWindow)) {
       commitColorPickerCapability(false, revision);
+
       return;
     }
+
     colorPickerConfirmTimer = candidateWindow.setTimeout(() => {
       colorPickerConfirmTimer = 0;
+
       if (revision !== colorPickerCapabilityRevision) return;
       commitColorPickerCapability(
         supportsNativeColorPicker(colorPickerOwnerWindow()),
@@ -193,9 +215,11 @@ export function Toolbar(props: ToolbarProps) {
   const pluginActive = () => (props.pluginTools ?? []).some((tool) => tool.active?.() ?? false);
   const builtinActive = () => selectActive() || xrayActive() || colorPickerActive() || rulersActive() || typographyActive() || guidesActive();
   const visibleInToolbar = (active: boolean) => !compact() || active;
+
   const pluginDividerVisible = () =>
     (props.pluginTools?.length ?? 0) > 0
     && (!compact() || (builtinActive() && pluginActive()));
+
   const compactDividerVisible = () =>
     !compact() || builtinActive() || pluginActive() || settingsActive();
 
@@ -205,44 +229,61 @@ export function Toolbar(props: ToolbarProps) {
   const nearTop = () => position().y < 56;
   const nearBottom = () => viewportHeight() > 0 && position().y > viewportHeight() - 56;
   const tooltipSide = (): "top" | "bottom" => nearTop() && !nearBottom() ? "bottom" : "top";
+
   const guideMenuSide = (): "top" | "bottom" => {
     position();
     const rect = guideMenuElement?.getBoundingClientRect();
+
     if (!rect) return nearBottom() ? "top" : "bottom";
     const below = Math.max(0, viewportHeight() - rect.bottom - VIEWPORT_PADDING);
     const above = Math.max(0, rect.top - VIEWPORT_PADDING);
+
     return below >= GUIDE_MENU_IDEAL_HEIGHT || below >= above ? "bottom" : "top";
   };
+
   const settingsMenuSide = (): "top" | "bottom" => {
     position();
     const rect = toolbarElement?.getBoundingClientRect();
+
     if (!rect) return nearBottom() ? "top" : "bottom";
     const below = Math.max(0, viewportHeight() - rect.bottom - VIEWPORT_PADDING);
     const above = Math.max(0, rect.top - VIEWPORT_PADDING);
+
     return below >= SETTINGS_MENU_IDEAL_HEIGHT || below >= above ? "bottom" : "top";
   };
+
   const settingsMenuLeft = () => {
     position();
     compact();
     settingsActive();
     viewportRevision();
     const anchor = settingsElement?.getBoundingClientRect();
+
     if (!anchor) return 0;
     const viewportWidth = props.ownerWindow.innerWidth || SETTINGS_MENU_WIDTH + VIEWPORT_PADDING * 2;
     const width = Math.min(SETTINGS_MENU_WIDTH, Math.max(0, viewportWidth - VIEWPORT_PADDING * 2));
     const idealViewportLeft = anchor.right + 4 - width;
     const maxViewportLeft = Math.max(VIEWPORT_PADDING, viewportWidth - VIEWPORT_PADDING - width);
     const viewportLeft = Math.min(maxViewportLeft, Math.max(VIEWPORT_PADDING, idealViewportLeft));
+
     return viewportLeft - anchor.left;
   };
 
   const updateMenuAlign = () => {
     const anchorRect = guideMenuElement?.getBoundingClientRect();
+
     if (!anchorRect) return;
     const rightAlignedLeft = anchorRect.right - GUIDE_MENU_WIDTH;
     const leftAlignedRight = anchorRect.left + GUIDE_MENU_WIDTH;
-    if (rightAlignedLeft < VIEWPORT_PADDING) { setMenuAlign("left"); return; }
-    if (leftAlignedRight > props.ownerWindow.innerWidth - VIEWPORT_PADDING) { setMenuAlign("right"); return; }
+
+    if (rightAlignedLeft < VIEWPORT_PADDING) { setMenuAlign("left");
+
+ return; }
+
+    if (leftAlignedRight > props.ownerWindow.innerWidth - VIEWPORT_PADDING) { setMenuAlign("right");
+
+ return; }
+
     setMenuAlign("right");
   };
 
@@ -251,8 +292,10 @@ export function Toolbar(props: ToolbarProps) {
       const shortcut = props.model.state.settings.shortcutsEnabled && item.shortcut
         ? item.shortcut.length + 2
         : 0;
+
       return Math.max(length, item.label.length + shortcut);
     }, 0);
+
     return Math.min(
       TOOL_MENU_MAX_WIDTH,
       Math.max(
@@ -268,10 +311,12 @@ export function Toolbar(props: ToolbarProps) {
     const anchor = pluginMenuAnchorElement?.getBoundingClientRect();
     const viewportWidth = props.ownerWindow.innerWidth || TOOL_MENU_MIN_WIDTH + VIEWPORT_PADDING * 2;
     const height = viewportHeight();
+
     const width = Math.min(
       pluginMenuIdealWidth(tool),
       Math.max(0, viewportWidth - VIEWPORT_PADDING * 2),
     );
+
     if (!anchor) {
       return {
         side: nearBottom() ? "top" as const : "bottom" as const,
@@ -283,21 +328,26 @@ export function Toolbar(props: ToolbarProps) {
 
     const itemCount = tool.menu?.items.length ?? 0;
     const idealHeight = itemCount * TOOL_MENU_ITEM_HEIGHT + TOOL_MENU_CHROME_HEIGHT;
+
     const below = Math.max(
       0,
       height - anchor.bottom - VIEWPORT_PADDING - TOOL_MENU_GAP,
     );
+
     const above = Math.max(
       0,
       anchor.top - VIEWPORT_PADDING - TOOL_MENU_GAP,
     );
+
     const side = below >= idealHeight || below >= above ? "bottom" as const : "top" as const;
     const maxHeight = side === "bottom" ? below : above;
     const idealViewportLeft = anchor.right - width;
+
     const maxViewportLeft = Math.max(
       VIEWPORT_PADDING,
       viewportWidth - VIEWPORT_PADDING - width,
     );
+
     const viewportLeft = Math.min(
       maxViewportLeft,
       Math.max(VIEWPORT_PADDING, idealViewportLeft),
@@ -315,8 +365,10 @@ export function Toolbar(props: ToolbarProps) {
     if (pluginMenuOpenId() === toolId) {
       setPluginMenuOpenId(null);
       pluginMenuAnchorElement = undefined;
+
       return;
     }
+
     pluginMenuAnchorElement = anchor;
     setPluginMenuOpenId(toolId);
   };
@@ -324,10 +376,12 @@ export function Toolbar(props: ToolbarProps) {
   const onToolbarPointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
     if (event.button !== 0) return;
     const root = props.ownerWindow.document.documentElement;
+
     if (previousUserSelect === null) {
       previousUserSelect = root.style.userSelect;
       root.style.setProperty("user-select", "none", "important");
     }
+
     const startX = event.clientX;
     const startY = event.clientY;
     const origin = position();
@@ -340,24 +394,30 @@ export function Toolbar(props: ToolbarProps) {
       if (next.pointerId !== pointerId) return;
       const dx = next.clientX - startX;
       const dy = next.clientY - startY;
+
       if (!active) active = Math.abs(dx) > TOOLBAR_DRAG_SLOP || Math.abs(dy) > TOOLBAR_DRAG_SLOP;
+
       if (!active) return;
       didDrag = true;
       const maxX = Math.max(8, props.ownerWindow.innerWidth - rect.width - 8);
       const maxY = Math.max(8, props.ownerWindow.innerHeight - rect.height - 8);
       setPosition({ x: Math.min(maxX, Math.max(8, origin.x + dx)), y: Math.min(maxY, Math.max(8, origin.y + dy)) });
     };
+
     const end = (next: PointerEvent) => {
       if (next.pointerId !== pointerId) return;
       suppressClick = didDrag;
+
       if (previousUserSelect !== null) {
         root.style.userSelect = previousUserSelect;
         previousUserSelect = null;
       }
+
       props.ownerWindow.removeEventListener("pointermove", move);
       props.ownerWindow.removeEventListener("pointerup", end);
       props.ownerWindow.removeEventListener("pointercancel", end);
     };
+
     props.ownerWindow.addEventListener("pointermove", move);
     props.ownerWindow.addEventListener("pointerup", end);
     props.ownerWindow.addEventListener("pointercancel", end);
@@ -365,6 +425,7 @@ export function Toolbar(props: ToolbarProps) {
 
   const selectGuideOrientation = (orientation: "vertical" | "horizontal") => {
     props.model.setEnabled(true);
+
     if (props.model.current.toolMode !== "guides") props.model.toggleToolMode("guides");
     props.model.setGuideOrientation(orientation, true);
     setGuideMenuOpen(false);
@@ -372,10 +433,12 @@ export function Toolbar(props: ToolbarProps) {
 
   const toggleCompact = () => {
     const next = !compact();
+
     if (next) {
       setGuideMenuOpen(false);
       setPluginMenuOpenId(null);
     }
+
     setCompact(next);
     props.ownerWindow.setTimeout(() => setViewportRevision((value) => value + 1), 170);
   };
@@ -429,31 +492,40 @@ export function Toolbar(props: ToolbarProps) {
     refreshColorPickerCapability();
     const capabilityInterval = props.ownerWindow.setInterval(refreshColorPickerCapability, 500);
     const handleCapabilityRefresh = () => refreshColorPickerCapability();
+
     const handlePointerDown = (event: PointerEvent) => {
       const path = event.composedPath();
+
       if (guideMenuOpen() && guideMenuElement && !path.includes(guideMenuElement)) setGuideMenuOpen(false);
+
       const insidePluginMenu = path.some((entry) =>
         entry instanceof Element
         && entry.getAttribute("data-mesurer-plugin-menu-root") === "true");
+
       if (pluginMenuOpenId() && !insidePluginMenu) setPluginMenuOpenId(null);
+
       if (props.model.current.settingsOpen && settingsElement && !path.includes(settingsElement)) props.model.setTransient({ settingsOpen: false });
     };
+
     const handleClickCapture = (event: MouseEvent) => {
       if (!suppressClick) return;
       event.preventDefault();
       event.stopPropagation();
       suppressClick = false;
     };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || !pluginMenuOpenId()) return;
       event.preventDefault();
       event.stopPropagation();
       setPluginMenuOpenId(null);
     };
+
     const resize = () => {
       if (guideMenuOpen()) updateMenuAlign();
       setViewportRevision((value) => value + 1);
     };
+
     const keyboardTarget = props.ownerWindow.document;
     props.ownerWindow.addEventListener("pointerdown", handlePointerDown);
     props.ownerWindow.addEventListener("focus", handleCapabilityRefresh);
@@ -462,13 +534,16 @@ export function Toolbar(props: ToolbarProps) {
     keyboardTarget.addEventListener("keydown", handleKeyDown, true);
     props.ownerWindow.addEventListener("resize", resize);
     toolbarElement?.addEventListener("click", handleClickCapture, true);
+
     return () => {
       props.ownerWindow.clearInterval(capabilityInterval);
       colorPickerCapabilityRevision += 1;
+
       if (colorPickerConfirmTimer) {
         colorPickerOwnerWindow().clearTimeout(colorPickerConfirmTimer);
         colorPickerConfirmTimer = 0;
       }
+
       props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);
       props.ownerWindow.removeEventListener("focus", handleCapabilityRefresh);
       props.ownerWindow.removeEventListener("pageshow", handleCapabilityRefresh);
@@ -476,6 +551,7 @@ export function Toolbar(props: ToolbarProps) {
       keyboardTarget.removeEventListener("keydown", handleKeyDown, true);
       props.ownerWindow.removeEventListener("resize", resize);
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
+
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
     };
   });
@@ -528,7 +604,9 @@ export function Toolbar(props: ToolbarProps) {
               aria-label="Guide orientation menu"
               disabled={builtinDisabled("guides")}
               class={`msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none ${builtinDisabled("guides") ? "msr:cursor-default msr:text-black/30" : "msr:hover:bg-black/10"} ${guideMenuOpen() ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
-              onClick={() => { setGuideMenuOpen((open) => { if (!open) { setActiveMenuIndex(props.model.state.guideOrientation === "horizontal" ? 0 : 1); updateMenuAlign(); } return !open; }); }}
+              onClick={() => { setGuideMenuOpen((open) => { if (!open) { setActiveMenuIndex(props.model.state.guideOrientation === "horizontal" ? 0 : 1); updateMenuAlign(); }
+
+ return !open; }); }}
             ><CaretDownIcon size={8} /></button>
             <Tooltip
               label="Orientation Guide"
@@ -543,6 +621,7 @@ export function Toolbar(props: ToolbarProps) {
                 tabindex={0}
                 onKeyDown={(event) => {
                   const key = event.key.toLowerCase();
+
                   if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setActiveMenuIndex((index) => (index + 1) % 2); }
                   else if (event.key === "Enter") { event.preventDefault(); selectGuideOrientation(activeMenuIndex() === 0 ? "horizontal" : "vertical"); }
                   else if (key === "h" || key === "v") { event.preventDefault(); selectGuideOrientation(key === "h" ? "horizontal" : "vertical"); }

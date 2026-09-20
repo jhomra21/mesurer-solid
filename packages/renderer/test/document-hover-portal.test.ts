@@ -8,6 +8,7 @@ const setup = () => {
   const target = document.createElement("div");
   shadow.append(overlay);
   document.body.append(host, target);
+
   return { host, shadow, overlay, target };
 };
 
@@ -15,6 +16,7 @@ const setupDocumentOverlay = () => {
   const overlay = document.createElement("div");
   const target = document.createElement("div");
   document.body.append(overlay, target);
+
   return { overlay, target };
 };
 
@@ -23,6 +25,7 @@ const addContextMount = () => {
   contextRoot.dataset.mesurerDocumentInspectorMount = "true";
   contextRoot.dataset.mesurerContextRoot = "true";
   document.body.append(contextRoot);
+
   return contextRoot;
 };
 

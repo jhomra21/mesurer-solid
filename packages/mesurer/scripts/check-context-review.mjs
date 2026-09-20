@@ -1,6 +1,7 @@
 import { reviewMesurerAnnotation } from "../src/context.ts";
 
 const region = { left: 0, top: 0, width: 100, height: 100 };
+
 const baseline = {
   targets: [],
   guides: [{ id: "guide-1", orientation: "vertical", position: 50 }],
@@ -13,6 +14,7 @@ const baseline = {
     vertical: { y1: 20, y2: 40, x: 15, value: 20 },
   }],
 };
+
 const annotation = {
   id: "annotation-1",
   note: "Keep review evidence identity stable",
@@ -44,7 +46,9 @@ const runtime = {
   annotation: (id) => id === annotation.id ? { ...annotation, resolvedTargets: [] } : null,
   annotationRect: (id) => id === annotation.id ? region : null,
 };
+
 const ownerDocument = { URL: "https://example.test/", title: "Context review check" };
+
 const ownerWindow = {
   location: { href: "https://example.test/" },
   innerWidth: 800,
@@ -57,15 +61,23 @@ const ownerWindow = {
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
+
 const change = (review, kind, label) => review.changes.find((item) => item.kind === kind && item.label === label);
 
 const moved = reviewMesurerAnnotation({ runtime, ownerDocument, ownerWindow, annotationId: annotation.id });
+
 assert(moved.current.visualContext.guides.length === 0, "Moved guide should leave scoped current context.");
+
 assert(moved.current.visualContext.measurements.length === 0, "Moved measurement should leave scoped current context.");
+
 assert(moved.current.visualContext.distances.length === 0, "Moved distance should leave scoped current context.");
+
 assert(!moved.changes.some((item) => item.kind === "missing"), "Live evidence outside the current scope must not be reported missing.");
+
 assert(change(moved, "guide", "vertical guide guide-1")?.delta === 250, "Review should compare the moved guide by stable id.");
+
 assert(change(moved, "measurement", "measurement-1 width")?.delta === 10, "Review should compare the moved measurement by stable id.");
+
 assert(change(moved, "distance", "distance-1 vertical")?.delta === 4, "Review should compare the moved distance by stable id.");
 
 snapshot = {
@@ -74,7 +86,9 @@ snapshot = {
   measurements: [],
   heldDistances: [],
 };
+
 const removed = reviewMesurerAnnotation({ runtime, ownerDocument, ownerWindow, annotationId: annotation.id });
+
 for (const [evidence, id] of [["guide", "guide-1"], ["measurement", "measurement-1"], ["distance", "distance-1"]]) {
   assert(
     removed.changes.some((item) => item.kind === "missing" && item.evidence === evidence && item.id === id),

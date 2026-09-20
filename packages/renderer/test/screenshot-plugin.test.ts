@@ -54,6 +54,7 @@ describe("screenshotPlugin", () => {
     document.body.append(rendererRoot);
 
     const model = createMesurerModel({ initialEnabled: true });
+
     const workspace = createMesurerWorkspaceRuntime({
       model,
       ownerDocument: document,
@@ -61,6 +62,7 @@ describe("screenshotPlugin", () => {
       uiRoot: document.body,
       pageTarget: document.body,
     });
+
     const runtime: MesurerSolidRuntimeService = {
       ownerDocument: document,
       ownerWindow: window,
@@ -70,6 +72,7 @@ describe("screenshotPlugin", () => {
         const element = document.createElement("div");
         element.dataset.mesurerInspectorUi = "true";
         document.body.append(element);
+
         return {
           element,
           dispose() {
@@ -120,12 +123,14 @@ describe("screenshotPlugin", () => {
     const { host, toolbar, runtime, workspace } = createTestRuntime();
     const workspaceDispose = vi.spyOn(workspace, "dispose");
     let mountDisposed = false;
+
     const trackedRuntime: MesurerSolidRuntimeService = {
       ...runtime,
       createInspectorMount() {
         const element = document.createElement("div");
         element.dataset.mesurerInspectorUi = "true";
         document.body.append(element);
+
         return {
           element,
           dispose() {
@@ -213,6 +218,7 @@ describe("screenshotPlugin", () => {
         capturedVisibility = overlay?.style.visibility ?? "";
         capturedChildStyles = Array.from(overlay?.querySelectorAll<HTMLElement>("div") ?? [])
           .map((element) => element.getAttribute("style") ?? "");
+
         return new Blob(["png"], { type: "image/png" });
       },
     }));
@@ -222,6 +228,7 @@ describe("screenshotPlugin", () => {
     await service?.start();
     const overlay = document.querySelector<HTMLElement>("[data-mesurer-screenshot-select='true']");
     expect(overlay?.style.visibility).toBe("visible");
+
     if (overlay) dragScreenshot(overlay);
 
     await vi.waitFor(() => expect(capturedVisibility).toBe("hidden"));
@@ -243,6 +250,7 @@ describe("screenshotPlugin", () => {
           measurement: measurementLayer.style.display,
           rulers: rulers.style.display,
         });
+
         return new Blob(["png"], { type: "image/png" });
       },
     }));
@@ -251,6 +259,7 @@ describe("screenshotPlugin", () => {
     expect(service).toBeDefined();
     await service?.start();
     const overlay = document.querySelector<HTMLElement>("[data-mesurer-screenshot-select='true']");
+
     if (overlay) dragScreenshot(overlay);
 
     await vi.waitFor(() => expect(captureStates).toHaveLength(1));
@@ -262,6 +271,7 @@ describe("screenshotPlugin", () => {
 
     service?.setSettings({ includeMeasurements: true });
     await service?.start();
+
     if (overlay) dragScreenshot(overlay);
     await vi.waitFor(() => expect(captureStates).toHaveLength(2));
     expect(captureStates[1]).toEqual({ measurement: "", rulers: "" });

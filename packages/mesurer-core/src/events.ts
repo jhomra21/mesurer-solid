@@ -10,7 +10,9 @@ export type EventBus<Events extends object> = {
 
 export function createEventBus<Events extends object>(): EventBus<Events> {
   type EventName = keyof Events & string;
+
   type EventValue = Events[EventName];
+
   const listeners = new Map<EventName, Set<EventListener<EventValue>>>();
 
   return {
@@ -18,13 +20,16 @@ export function createEventBus<Events extends object>(): EventBus<Events> {
       const bucket = listeners.get(type) ?? new Set<EventListener<EventValue>>();
       bucket.add(listener);
       listeners.set(type, bucket);
+
       return () => {
         bucket.delete(listener);
+
         if (bucket.size === 0) listeners.delete(type);
       };
     },
     async emit(type, event) {
       const queue = Array.from(listeners.get(type) ?? []);
+
       for (const listener of queue) await listener(event);
     },
     clear() {

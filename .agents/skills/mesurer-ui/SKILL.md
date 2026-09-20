@@ -7,11 +7,21 @@ description: Use Mesurer for frontend UI implementation, review, debugging, layo
 
 Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. The rendered page is the integration boundary.
 
-The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the harness already owns and read `window.__MESURER__` directly. The optional `codex()` plugin and local Codex companion are a separate human-initiated convenience for routing Context feedback to explicitly registered Codex threads.
+The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the browser controller already provides and read `window.__MESURER__` directly. The optional `codex()` plugin and local Codex companion are a separate human-initiated convenience for routing Context feedback to explicitly registered Codex threads.
 
 When the current agent is Codex and the user has explicitly asked for Codex delivery, or the live Mesurer instance already has `mesurer.codex` enabled, ensure the packaged local companion is ready from the Codex process. Do not expect browser JavaScript to spawn a local executable.
 
 A meaningful Mesurer step must return evidence the agent actually uses.
+
+## Know the available capabilities
+
+The base inspector has Select, X-ray, Rulers, Typography, Guides, Distance, and Settings. Color Picker is available when the browser exposes a working `EyeDropper`.
+
+Optional first-party plugins add Context, Arrange, Screenshot, and Codex delivery. Context carries annotations and structured evidence. Arrange carries Before/Desired/Live geometry intent. Screenshot is a human capture tool. Codex is an optional human queue transport, not the normal agent protocol.
+
+The JSON-safe `window.__MESURER__` object exposes the full agent API. Lifecycle and discovery methods are `ready()`, `capabilities()`, `describe()`, `state()`, and `stable()`. Inspection methods are `inspect()`, `inspectAll()`, `at()`, `distance()`, `viewport()`, and `feedback()`. `command()` runs registered Mesurer commands.
+
+Context adds `context()`, `contextText()`, `select()`, `annotations()`, `review()`, `capturePlan()`, `prepareCapture()`, and `finishCapture()`. Arrange adds `arrangements()`, `arrange()`, `showArrange()`, `arrangeCapturePlan()`, and `reviewArrange()`. Text intent is available through `textEdits()` and `textEdit()`. Use the narrowest method that answers the task without replacing human selection or saved intent.
 
 ## Reuse the live instance
 
@@ -32,7 +42,7 @@ if (hasMesurer) {
 
 If Mesurer exists, use that exact instance.
 
-If it is absent, evaluate the packaged `assets/inject-script.js` through the browser control the harness already has. Do not add Mesurer to application source, create another browser/CDP connection, or start a Mesurer-specific server merely to inspect a page that is already controllable.
+If it is absent, evaluate the packaged `assets/inject-script.js` through the browser controller already available. Do not add Mesurer to application source, create another browser/CDP connection, or start a Mesurer-specific server merely to inspect a page that is already controllable.
 
 Injection reuses a connected instance by default. `window.__MESURER_CONFIG__ = { reuseExisting: false }` is destructive and belongs only in explicit testing/tooling scenarios.
 
@@ -40,7 +50,7 @@ Normal injection leaves the optional human Screenshot plugin disabled. If that c
 
 ## Inventory broad Mesurer requests
 
-If the user says “check Mesurer,” “check Measure,” “look at Mesurer context,” or otherwise refers broadly to what they selected, moved, annotated, measured, or edited, do not assume `context()` is the whole message.
+If the user says "check Mesurer," "check Measure," "look at Mesurer context," or otherwise refers broadly to what they selected, moved, annotated, measured, or edited, do not assume `context()` is the whole message.
 
 Collect the live channels first:
 
@@ -97,7 +107,7 @@ A 96px Desired offset does not mean production CSS should use `transform: transl
 
 Arrange can be activated before a selection exists and enables Select automatically. Turning Arrange off leaves Select active; turning Select off exits Arrange.
 
-Before source edits, retain the Arrange id, exact target identity, Before geometry, and Desired geometry. Capture Before/Desired through the existing harness when screenshots materially help.
+Before source edits, retain the Arrange id, exact target identity, Before geometry, and Desired geometry. Capture Before/Desired through the existing browser controller when screenshots materially help.
 
 After source edits:
 
@@ -128,11 +138,11 @@ The target boundary follows browser editability semantics:
 - a nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer direct-text target when the ordinary one-unambiguous-direct-text-node rules pass;
 - ambiguous mixed/nested rich text is not turned into a fake rich-text editor.
 
-If Typography was already explicitly selected, the direct-edit session suppresses the older hover/pinned Typography surface so there is one live Typography card for the field. Closing the editor restores the normal surface without deselecting Typography.
+If Typography was already explicitly selected, the direct-edit session suppresses the older hover/pinned Typography UI so there is one live Typography card for the field. Closing the editor restores the normal Typography UI without deselecting Typography.
 
-Direct edit also owns the field's visible selection lane. The ordinary selected MeasurementBox stays logically mounted but its duplicate border is paint-suppressed, the selected dimensions pill remains available, and the source-linked Typography card must not move merely because the pointer moves. The selection-adjacent Add Note button is intentionally hidden only while the editor is active and returns afterward. Existing saved annotations remain durable; do not infer that Context disappeared because this transient button is absent.
+Direct edit also owns the field's visible selection lane. The ordinary selected MeasurementBox stays logically mounted but its duplicate border is paint-suppressed, the selected dimensions pill remains available, and the source-linked Typography card must not move merely because the pointer moves. The selection-adjacent Add Note button is hidden only while the editor is active and returns afterward. Existing saved annotations remain durable; do not infer that Context disappeared because this transient button is absent.
 
-In constrained viewports the Typography card may scroll internally. Its custom Family, Size, and Weight popup stays attached to the trigger inside that scrolling card and remains part of the same Mesurer interaction surface; page scrolling still moves the source-linked card and popup together. Do not “fix” a popup by making it independent viewport furniture or by adding page-scroll geometry work.
+In constrained viewports the Typography card may scroll internally. Its custom Family, Size, and Weight popup stays attached to the trigger inside that scrolling card and remains part of the same Mesurer interaction UI; page scrolling still moves the source-linked card and popup together. Do not "fix" a popup by making it independent viewport furniture or by adding page-scroll geometry work.
 
 For normal application work, read saved intent instead of automating the editor UI:
 
@@ -151,12 +161,12 @@ Final verification must use Live source with the Desired preview inactive. Keep 
 
 Saved intent and visible presentation are separate. By default, both human presentation switches are OFF:
 
-- **Settings → General → Keep text changes**: OFF means Typography shows saved Desired text/style while it owns presentation, but Select/other tools restore the original page. ON keeps saved text/style visible outside Typography.
-- **Settings → General → Keep Arrange changes**: OFF means Arrange shows saved Desired transforms while it owns presentation, but Select/other tools restore the original page. ON keeps saved Arrange presentation visible outside Arrange.
+- **Settings > General > Keep text changes.** When OFF, Typography shows saved Desired text/style while it owns presentation, but Select and other tools restore the original page. ON keeps saved text/style visible outside Typography.
+- **Settings > General > Keep Arrange changes.** When OFF, Arrange shows saved Desired transforms while it owns presentation, but Select and other tools restore the original page. ON keeps saved Arrange presentation visible outside Arrange.
 
-The user can open Settings with the gear button or `Cmd/Ctrl+,`. Changing either switch changes presentation policy only; it must not delete or rewrite saved intent/history. Do not mistake an Original-looking page in Select for missing intent—read the saved Text/Arrange records first.
+The user can open Settings with the gear button or `Cmd/Ctrl+,`. Changing either switch changes presentation policy only; it must not delete or rewrite saved intent/history. Do not treat an Original-looking page in Select as missing intent. Read the saved Text/Arrange records first.
 
-Mesurer UI is never inspected-page content. Treat `[data-mesurer-root]`, `[data-mesurer-island]`, and `[data-mesurer-inspector-ui]` surfaces as hard selection/hit-test boundaries. Do not look through a Typography card, annotation surface, toolbar, or inspector shell to select page content underneath it.
+Mesurer UI is never inspected-page content. Treat `[data-mesurer-root]`, `[data-mesurer-island]`, and `[data-mesurer-inspector-ui]` as hard selection and hit-test boundaries. Do not look through a Typography card, annotation UI, toolbar, or inspector shell to select page content underneath it.
 
 An Add Note composer is transient and belongs to the exact selection that opened it. If the human changes selection before saving, Mesurer closes that unsaved composer and shows the normal small Add Note trigger for the new selection instead of carrying the draft card to another target. Saved annotations survive same-tab reloads and conservatively rebind through stored selector/fingerprint identity; do not re-create or duplicate a note merely because the host page reloaded. Add Note, saved markers, saved annotation panels, and the composer are protected inspector UI: live page hover/selection chrome paints underneath them. Several notes on one target keep separate nearby markers, and Add Note remains available while a saved note is open.
 
@@ -171,7 +181,28 @@ Scroll ownership is split deliberately:
 
 Context can therefore use a managed document inspector mount while the outer Mesurer host is still in the browser top layer. When it does, Select hover evidence must use the lower document evidence layer too. Do not move that page evidence back into the top-layer island while a Context card is document-backed, because browser top-layer ordering would let the blue hover fill or border paint through the card.
 
-Do not “fix” hit testing by making Typography or annotation panels viewport-fixed, and do not “fix” scrolling by allowing Select to look through Mesurer UI. Preserve the separate interaction-ownership, geometry-ownership, and paint-order contracts when changing selection, portals, CSS anchors, or z-index behavior.
+Do not "fix" hit testing by making Typography or annotation panels viewport-fixed, and do not "fix" scrolling by allowing Select to look through Mesurer UI. Preserve the separate interaction-ownership, geometry-ownership, and paint-order contracts when changing selection, portals, CSS anchors, or z-index behavior.
+
+## Use the low-level agent API when needed
+
+Context and saved intent should drive normal UI work. Use the lower-level methods when they answer a narrower question without changing human state:
+
+```js
+const one = window.__MESURER__.inspect("#pricing-card")
+const many = window.__MESURER__.inspectAll(".pricing-card", 8)
+const hit = window.__MESURER__.at(320, 240)
+const gap = window.__MESURER__.distance("#pricing-card", "#pricing-cta")
+const viewport = window.__MESURER__.viewport()
+const snapshot = await window.__MESURER__.feedback([
+  "#pricing-card",
+  "#pricing-cta",
+])
+const pluginState = await window.__MESURER__.state()
+```
+
+`describe()` reports the loaded plugin contract. `command(id, args?)` executes a registered Mesurer command. Use these only when the task requires plugin-level control; do not replace a human selection or saved intent with commands just because commands are available.
+
+`contextText()` returns a text form of Context when structured JSON is not useful. `capturePlan()`, `prepareCapture()`, and `finishCapture()` coordinate external screenshots. Arrange also exposes `arrangeCapturePlan()`.
 
 ## Acquire targets in the right order
 
@@ -208,7 +239,7 @@ Use exact Mesurer geometry for numeric claims. Screenshots are for composition a
 
 Mesurer previews and saved intent describe outcomes. Implement those outcomes through the application's real architecture.
 
-Prefer existing component APIs, design-system tokens, layout primitives, classes, CSS variables, and stylesheet rules over hard-coded replicas of computed/preview values. Preserve unrelated human Mesurer state while HMR updates the application.
+Prefer existing component APIs, design-system tokens, layout APIs, classes, CSS variables, and stylesheet rules over hard-coded replicas of computed/preview values. Preserve unrelated human Mesurer state while HMR updates the application.
 
 ## Verify Live after every meaningful source change
 
@@ -232,13 +263,13 @@ Do not destroy guides, measurements, annotations, Arrange intent, text-edit inte
 
 ## Screenshots
 
-For coding-agent evidence, the outer harness owns screenshot bytes while Mesurer prepares presentation:
+For coding-agent evidence, the browser controller owns screenshot bytes while Mesurer prepares presentation:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
 await window.__MESURER__.prepareCapture()
 try {
-  // harness screenshot
+  // browser-controller screenshot
 } finally {
   await window.__MESURER__.finishCapture()
 }
@@ -250,9 +281,9 @@ The optional Screenshot plugin is a separate human camera workflow. Preserve an 
 
 ## Optional Codex thread handoff
 
-Only use this path when the user has explicitly asked for Mesurer-to-Codex delivery or the live Mesurer instance already has `mesurer.codex` enabled. The browser plugin and the local companion have separate ownership: Settings can load or unload browser-side `codex()` immediately, but ordinary browser JavaScript cannot spawn `codex` or a Node/Bun child process.
+Use this only when the user asked for Mesurer-to-Codex delivery or the live Mesurer instance already has `mesurer.codex` enabled. Normal agent work still uses `window.__MESURER__` and browser verification.
 
-When this task is running inside Codex, make the local companion zero-manual from the user's perspective. First check whether the live plugin is enabled when a Mesurer instance already exists:
+When this task is running inside Codex, check whether the live page already has the plugin:
 
 ```js
 const codexEnabled = Boolean(
@@ -260,49 +291,38 @@ const codexEnabled = Boolean(
 )
 ```
 
-If Codex delivery was requested or `codexEnabled` is true, run the installed companion helper from the Codex shell/tool environment:
+If delivery was requested or `codexEnabled` is true, start or reuse the packaged companion from the Codex shell or tool environment:
 
 ```bash
 node .agents/skills/mesurer-ui/assets/codex-connect.mjs
 ```
 
-`mesurer-codex-connect` reads Codex's `CODEX_THREAD_ID` and, when invoked from the trusted `SessionStart` hook, the project working directory. It reuses a healthy bridge at `127.0.0.1:47365`, or starts the packaged `codex-bridge.mjs` companion when none is running, waits for it to become ready, then registers the current session and project directory. In the Mesurer Solid repository itself, the equivalent source command is:
+Inside the Mesurer Solid repository, use:
 
 ```bash
 bun run mesurer-codex-connect
 ```
 
-Do not ask the user to start a second bridge when this helper can ensure one. Do not use npm postinstall scripts, private Codex persistence, browser thread registration, or an arbitrary remote service as substitutes for the local companion.
+Keep these delivery rules:
 
-Mesurer delivery is Queue, not Steer. Queue preserves the current Codex turn and adds the feedback behind it. Codex's own **Steer** affordance promotes a queued follow-up into an active turn; the Mesurer bridge does not perform `turn/steer` today. Do not tell the user that Queue interrupted or redirected an in-flight response.
+- Mesurer uses Queue, never `turn/steer`.
+- Codex's native durable queue is the message source of truth.
+- Desktop delivery queues once, keeps the queued-submission id, and opens the existing `codex://threads/<threadId>` destination. Do not use the Desktop app-tools pipe as a second delivery path.
+- Do not delete and resend a queued item after a bridge restart. The bridge persistence file tracks lifecycle; it is not another message queue.
+- The browser plugin connects lazily when the human first queues feedback or opens the thread picker. Do not add mount-time loopback polling.
+- Each page keeps its originating or explicitly chosen thread in per-tab state. If routing is ambiguous, require a human choice.
+- Queue submission is single-flight. Do not bypass duplicate suppression with a second request.
+- A completed matched turn may remove only the annotation ids included in that delivery. Interrupted, failed, or uncertain work keeps them.
+- Mesurer does not create Codex threads. Create or open the thread in Codex and let the trusted `SessionStart` connector register it.
 
-Use Codex's native durable queue as the source of truth for every Mesurer delivery. For Codex Desktop, the trusted SessionStart registration identifies the owner, but do not use the app-tools pipe for delivery. Queue the message once, retain Codex's queued-submission id, then open the existing thread through `codex://threads/<threadId>`. Desktop loads or resumes that thread and Codex's queue watcher dispatches the persisted item when the thread can accept it.
+The typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `send({ thread })`.
 
-For CLI/TUI shared-daemon sessions, keep the same native `codex queue` identity and resume only a cold `notLoaded` destination when needed. Bridge restart state under `$CODEX_HOME/mesurer/codex-deliveries.json` is lifecycle tracking, not a second user-message queue. Never delete and resend an existing native queue item merely to change wake mechanisms.
+Codex delivery tracks transport and turn lifecycle. It does not prove that the UI change is correct. Verify the rendered result through Mesurer before completing the task.
 
-Mesurer delivery is Queue, not Steer. Do not invoke `turn/steer`, and do not depend on the Codex Desktop app-tools pipe being open.
-
-The browser plugin must not probe loopback merely because it is mounted. The human's first **Queue to Codex** press or **Choose Codex thread…** action establishes bridge availability. If first contact fails, the tool becomes **Codex unavailable** and offers **Retry Codex connection**. After one successful connection, background health checks may keep that known connection honest and recover it after a bridge restart. Do not add unconditional mount-time polling; strict CSP hosts must remain clean when Codex delivery is unused.
-
-The first unambiguous healthy bridge thread observed by a Mesurer page is that page's origin. The browser keeps that origin and any explicit destination override in per-tab `sessionStorage`, so reloading the page does not adopt a different bridge-wide target. Later Codex sessions may register with the shared companion without silently retargeting the existing page. If a page has no saved affinity and more than one registered thread is available, require the human to choose a destination rather than guessing from the bridge default. The bridge may ask Codex app-server for at most ten recent threads in the origin project's working directory. The picker shows the origin/current thread first, four more recent same-project threads, then one **Show 5 more…** expansion.
-
-Browser pages may send only to locally registered threads or to recent same-project threads that the bridge itself discovered through Codex app-server. They may not supply an arbitrary cwd or invent arbitrary Codex destinations. If `CODEX_THREAD_ID` is unavailable, do not weaken the local registration boundary to make registration work from the page.
-
-When application code has mounted `codex()` next to `context()`, its typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `send({ thread })`. `useThread(thread)` is for a locally registered bridge default; `send({ thread })` may target any bridge-visible same-project thread.
-
-The human queue action is single-flight. It disables before queue submission, then moves through Queueing, Queued, Working, and Finished/Interrupted by matching the exact queued Mesurer payload against bounded read-only Codex turn history. Current lifecycle tracking does not require `UserPromptSubmit`, `Stop`, or `Interrupt` hook trust. Do not work around that guard by issuing a duplicate queue request.
-
-If the queued evidence contains saved annotations, the browser tracks the exact ids that were sent and removes only those ids after the exact matched turn reports `completed`. Queued/working delivery state survives a same-tab reload, so do not requeue merely because the page refreshed. Interrupted, failed, or uncertain work keeps the note. Do not manually delete unrelated annotations, and do not describe lifecycle completion as semantic verification: still inspect the live rendered result before claiming the request is done.
-
-Do not create a new Codex thread from the Mesurer bridge. A new app-server turn can produce command or file approval requests that belong to the client owning that turn. Create or open the thread in Codex and let the trusted `SessionStart` path register it automatically.
-
-If the Codex plugin is later disabled in Mesurer Settings, its browser service, command, and toolbar action disappear. Do not kill the shared local companion solely because one page disabled its plugin: another page or Codex thread may still use it.
-
-This transport is separate from the normal `window.__MESURER__` evidence workflow and must not replace browser-based verification.
 ## Completion
 
 Do not call every Mesurer method after every edit. Measure what matters to the request.
 
 A completion should be evidence-based: exact target geometry or relationships where relevant, Live copy/typography when text intent exists, review deltas when Arrange/annotations exist, and a real browser screenshot when composition matters.
 
-If the evidence still disagrees with the requested result, continue working rather than explaining why the source “should” be correct.
+If the evidence still disagrees with the requested result, continue working rather than explaining why the source "should" be correct.

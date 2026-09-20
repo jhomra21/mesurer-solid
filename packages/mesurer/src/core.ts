@@ -1,10 +1,15 @@
 import { createMesurerPluginHost as createInternalPluginHost } from "@jhomra21/mesurer-solid-core";
 
 export type Registration = { readonly dispose: () => void };
+
 export type PluginId = string;
+
 export type PluginScalar = string | number | boolean | null;
+
 export type PluginValue = PluginScalar | PluginValue[] | { [key: string]: PluginValue };
+
 export type PluginStateSnapshot = { [id: string]: PluginValue };
+
 export type PluginStateScope = "all" | "history" | "persist";
 
 export type ToolMenuItemContribution = {
@@ -46,6 +51,7 @@ export type SettingsToggleContribution = {
 };
 
 export type SettingsControlContribution = SettingsToggleContribution;
+
 export type SettingsContribution = {
   id: string;
   label: string;
@@ -53,6 +59,7 @@ export type SettingsContribution = {
   builtin?: string;
   controls?: SettingsControlContribution[];
 };
+
 export type SettingsControlDescription = {
   type: "toggle";
   id: string;
@@ -61,6 +68,7 @@ export type SettingsControlDescription = {
   value: boolean;
   disabled: boolean;
 };
+
 export type SettingsDescription = {
   id: string;
   label: string;
@@ -68,8 +76,11 @@ export type SettingsDescription = {
   builtin?: string;
   controls: SettingsControlDescription[];
 };
+
 export type OverlayContribution = { id: string; order?: number; builtin?: string };
+
 export type CommandHandler = (args: PluginValue | undefined, context: { source?: PluginValue }) => void | Promise<void>;
+
 export type HookHandler = (event: PluginValue) => void | Promise<void>;
 
 export type StateSliceDefinition<T extends PluginValue = PluginValue> = {
@@ -169,6 +180,8 @@ export async function createMesurerRuntime(
   options: { plugins?: MesurerPlugin[] } = {},
 ): Promise<MesurerPluginHost> {
   const host = createMesurerPluginHost();
+
   for (const plugin of options.plugins ?? []) await host.load(plugin);
+
   return host;
 }

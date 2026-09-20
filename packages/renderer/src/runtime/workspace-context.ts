@@ -84,13 +84,17 @@ const readStoredAnnotations = (
   persistenceKey: string | undefined,
 ): MesurerAnnotation[] => {
   if (!persistenceKey) return [];
+
   try {
     const raw = ownerWindow.sessionStorage.getItem(persistenceKey);
+
     if (!raw) return [];
     // SAFETY: this namespaced sessionStorage entry is written only by persistAnnotations below.
     // Malformed or incompatible values are rejected by the version/array gates or the boundary catch.
     const stored = JSON.parse(raw) as StoredWorkspaceAnnotations;
+
     if (stored.version !== WORKSPACE_ANNOTATION_STORAGE_VERSION || !Array.isArray(stored.annotations)) return [];
+
     return stored.annotations.map(copyAnnotation);
   } catch {
     return [];
@@ -133,20 +137,26 @@ const copyAnnotation = (annotation: MesurerAnnotation): MesurerAnnotation => ({
 const randomId = (ownerWindow: Window, prefix: string) => {
   const value = ownerWindow.crypto?.randomUUID?.()
     ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
   return `${prefix}-${value}`;
 };
 
 const selectedElements = (model: MesurerModel) => {
   const seen = new Set<HTMLElement>();
   const elements: HTMLElement[] = [];
+
   for (const measurement of model.current.selectedMeasurements) {
     const element = measurement.elementRef;
+
     if (!element?.isConnected || seen.has(element)) continue;
     seen.add(element);
     elements.push(element);
   }
+
   const primary = model.current.selectedMeasurement?.elementRef;
+
   if (primary?.isConnected && !seen.has(primary)) elements.push(primary);
+
   return elements;
 };
 
@@ -163,12 +173,15 @@ export function createMesurerWorkspaceRuntime(options: {
   // SAFETY: ownerWindow is the browsing-context global for ownerDocument, so it carries that realm's DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
   const pageTarget = options.pageTarget ?? ownerDocument.body ?? ownerDocument.documentElement;
+
   const targetTreeRoot = pageTarget instanceof realm.ShadowRoot
     ? pageTarget
     : pageTarget.getRootNode();
+
   const queryRoot: ParentNode = targetTreeRoot instanceof realm.ShadowRoot
     ? targetTreeRoot
     : ownerDocument;
+
   const observationRoot: Node = pageTarget;
   const annotations = readStoredAnnotations(ownerWindow, options.persistenceKey);
   const listeners = new Set<() => void>();
@@ -185,25 +198,32 @@ export function createMesurerWorkspaceRuntime(options: {
 
   const queryCandidates = (selector: string): HTMLElement[] => {
     const matches: HTMLElement[] = [];
+
     if (pageTarget instanceof realm.HTMLElement && pageTarget.matches(selector)) {
       matches.push(pageTarget);
     }
+
     for (const candidate of queryRoot.querySelectorAll(selector)) {
       if (candidate instanceof realm.HTMLElement && isInPageTarget(candidate)) {
         matches.push(candidate);
       }
     }
+
     return matches;
   };
 
   const persistAnnotations = () => {
     const key = options.persistenceKey;
+
     if (!key) return;
+
     try {
       if (annotations.length === 0) {
         ownerWindow.sessionStorage.removeItem(key);
+
         return;
       }
+
       ownerWindow.sessionStorage.setItem(key, JSON.stringify({
         version: WORKSPACE_ANNOTATION_STORAGE_VERSION,
         annotations: annotations.map(copyAnnotation),
@@ -221,22 +241,26 @@ export function createMesurerWorkspaceRuntime(options: {
     if (!isElementFingerprintRebindable(target.fingerprint)) return null;
 
     let selectorMatches: HTMLElement[] = [];
+
     try {
       selectorMatches = queryCandidates(target.selector)
         .filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
     } catch {
       return null;
     }
+
     if (selectorMatches.length !== 1) return null;
 
     if (!target.fingerprint.id && !target.fingerprint.testId) {
       let fingerprintMatches: HTMLElement[] = [];
+
       try {
         fingerprintMatches = queryCandidates(target.fingerprint.tag)
           .filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
       } catch {
         return null;
       }
+
       if (fingerprintMatches.length !== 1 || fingerprintMatches[0] !== selectorMatches[0]) {
         return null;
       }
@@ -248,28 +272,37 @@ export function createMesurerWorkspaceRuntime(options: {
   const resolveTarget = (annotationId: string, target: MesurerAnnotationTarget) => {
     const key = targetKey(annotationId, target.id);
     const live = liveTargets.get(key);
+
     if (live?.isConnected && isInPageTarget(live)) return live;
+
     if (live) liveTargets.delete(key);
 
     const rebound = uniqueRebindCandidate(target);
+
     if (rebound) liveTargets.set(key, rebound);
+
     return rebound;
   };
 
   const refreshAnnotations = () => {
     let changed = false;
+
     for (const annotation of annotations) {
       if (annotation.anchor.kind !== "elements") continue;
+
       for (const target of annotation.anchor.targets) {
         const key = targetKey(annotation.id, target.id);
         const element = resolveTarget(annotation.id, target);
         const resolved = Boolean(element);
+
         if (targetResolution.get(key) !== resolved) {
           targetResolution.set(key, resolved);
           changed = true;
         }
+
         if (!element) continue;
         const value = getRectFromDom(element);
+
         if (
           value.left !== target.lastRect.left
           || value.top !== target.lastRect.top
@@ -281,6 +314,7 @@ export function createMesurerWorkspaceRuntime(options: {
         }
       }
     }
+
     if (changed) {
       persistAnnotations();
       notify();
@@ -318,6 +352,7 @@ export function createMesurerWorkspaceRuntime(options: {
     ownerWindow.removeEventListener("resize", scheduleRefresh);
     ownerWindow.removeEventListener("scroll", scheduleRefresh, true);
     pageTarget.removeEventListener("scroll", scheduleRefresh, true);
+
     if (mutationFrame) ownerWindow.cancelAnimationFrame(mutationFrame);
     mutationFrame = 0;
   };
@@ -354,22 +389,36 @@ export function createMesurerWorkspaceRuntime(options: {
   });
 
   const select = (selectors: string[]) => {
-    const normalized = [...new Set(selectors.map((selector) => selector.trim()).filter(Boolean))];
+    const normalized: string[] = [];
+    const seen = new Set<string>();
+
+    for (const selector of selectors) {
+      const value = selector.trim();
+
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      normalized.push(value);
+    }
+
     if (!normalized.length) throw new Error("Mesurer select() requires at least one selector.");
 
     const elements = normalized.map((selector) => {
       let matches: HTMLElement[];
+
       try {
         matches = queryCandidates(selector);
       } catch {
         throw new Error(`Invalid Mesurer selection selector: ${selector}`);
       }
+
       if (matches.length === 0) {
         throw new Error(`Mesurer selection target not found: ${selector}`);
       }
+
       if (matches.length > 1) {
         throw new Error(`Mesurer selection target is ambiguous (${matches.length} matches): ${selector}`);
       }
+
       return matches[0];
     });
 
@@ -379,29 +428,36 @@ export function createMesurerWorkspaceRuntime(options: {
     const measurements = elements.map((element) => getInspectMeasurement<HTMLElement>(element, ownerWindow));
     model.setSelectedMeasurements(measurements, measurements.at(-1) ?? null);
     model.setTransient({ selectionOriginRect: null });
+
     return elements;
   };
 
   const pushAnnotation = (annotation: MesurerAnnotation, elements: HTMLElement[] = []) => {
     annotations.push(annotation);
+
     if (annotation.anchor.kind === "elements") {
       annotation.anchor.targets.forEach((target, index) => {
         const element = elements[index];
         const key = targetKey(annotation.id, target.id);
+
         if (element && isInPageTarget(element)) liveTargets.set(key, element);
         targetResolution.set(key, Boolean(element && isInPageTarget(element)));
       });
     }
+
     startWatching();
     persistAnnotations();
     notify();
+
     return copyAnnotation(annotation);
   };
 
   const addRegionAnnotation = (note: string, value: Rect) => {
     const text = note.trim();
+
     if (!text) throw new Error("Annotation note cannot be empty.");
     const region = cloneMesurerRect(value);
+
     return pushAnnotation({
       id: randomId(ownerWindow, "annotation"),
       note: text,
@@ -413,16 +469,22 @@ export function createMesurerWorkspaceRuntime(options: {
 
   const addSelectionAnnotation = (note: string) => {
     const value = note.trim();
+
     if (!value) throw new Error("Annotation note cannot be empty.");
     const elements = selectedElements(model).filter(isInPageTarget);
+
     const region = model.current.selectionOriginRect
       ? cloneMesurerRect(model.current.selectionOriginRect)
       : null;
+
     if (!elements.length) {
       if (!region) throw new Error("Select a page element or drag a region before adding an annotation.");
+
       return addRegionAnnotation(value, region);
     }
+
     const targets = elements.map(makeTarget);
+
     return pushAnnotation({
       id: randomId(ownerWindow, "annotation"),
       note: value,
@@ -440,6 +502,7 @@ export function createMesurerWorkspaceRuntime(options: {
         element.style.removeProperty("display");
       }
     }
+
     hidden.clear();
   };
 
@@ -483,9 +546,11 @@ export function createMesurerWorkspaceRuntime(options: {
     },
     annotation(id) {
       const annotation = annotations.find((item) => item.id === id);
+
       if (!annotation) return null;
       const copy = copyAnnotation(annotation);
       let resolvedTargets: MesurerResolvedAnnotation["resolvedTargets"] = [];
+
       if (copy.anchor.kind === "elements" && annotation.anchor.kind === "elements") {
         const sourceTargets = annotation.anchor.targets;
         resolvedTargets = copy.anchor.targets.map((target, index) => ({
@@ -493,19 +558,26 @@ export function createMesurerWorkspaceRuntime(options: {
           element: resolveTarget(annotation.id, sourceTargets[index]),
         }));
       }
+
       return { ...copy, resolvedTargets };
     },
     annotationRect(id) {
       const annotation = annotations.find((item) => item.id === id);
+
       if (!annotation) return null;
+
       if (annotation.anchor.kind === "region") return cloneMesurerRect(annotation.anchor.rect);
+
       const rects = annotation.anchor.targets
         .map((target) => resolveTarget(annotation.id, target)?.getBoundingClientRect())
         .filter((value): value is DOMRect => value !== undefined);
+
       if (!rects.length) {
         const fallback = unionMesurerRects(annotation.anchor.targets.map((target) => target.lastRect));
+
         return fallback ? cloneMesurerRect(fallback) : null;
       }
+
       return unionMesurerRects(rects.map((value) => ({
         left: value.left,
         top: value.top,
@@ -517,8 +589,10 @@ export function createMesurerWorkspaceRuntime(options: {
     addRegionAnnotation,
     removeAnnotation(id) {
       const index = annotations.findIndex((annotation) => annotation.id === id);
+
       if (index < 0) return;
       const [removed] = annotations.splice(index, 1);
+
       if (removed.anchor.kind === "elements") {
         for (const target of removed.anchor.targets) {
           const key = targetKey(removed.id, target.id);
@@ -526,12 +600,14 @@ export function createMesurerWorkspaceRuntime(options: {
           targetResolution.delete(key);
         }
       }
+
       if (annotations.length === 0) stopWatching();
       persistAnnotations();
       notify();
     },
     subscribe(listener) {
       listeners.add(listener);
+
       return () => listeners.delete(listener);
     },
     prepareCapture() {
@@ -542,6 +618,7 @@ export function createMesurerWorkspaceRuntime(options: {
         "[data-mesurer-inspector-ui='true']:not([data-mesurer-layer='evidence'])",
         ".mesurer-color-picker",
       ].join(",");
+
       // Isolated public mounts can safely Portal selected measurement chrome
       // into the document layer so Solid keeps ownership while CSS Anchor
       // Positioning follows page scroll. Capture cleanup therefore has two UI
@@ -549,8 +626,10 @@ export function createMesurerWorkspaceRuntime(options: {
       // Hide both without moving either tree; finishCapture restores the exact
       // previous inline display state.
       const captureRoots = new Set<ParentNode>();
+
       if (uiRoot) captureRoots.add(uiRoot);
       captureRoots.add(ownerDocument);
+
       for (const captureRoot of captureRoots) {
         for (const element of captureRoot.querySelectorAll<HTMLElement>(selector)) {
           if (hidden.has(element)) continue;

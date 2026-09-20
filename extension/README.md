@@ -35,7 +35,7 @@ With Select or Typography active, double-click ordinary direct text to edit it i
 
 Mesurer keeps native editing boundaries intact. Form controls and descendants that inherit `contenteditable` remain under the page/browser editor. A nested `contenteditable="false"` boundary ends inherited editability and can use Mesurer direct editing when the normal direct-text rules pass.
 
-If Typography was already selected, the edit session uses one live Typography card rather than stacking the normal hover/pinned surface with a second card. The normal Typography surface returns when editing ends.
+If Typography was already selected, the edit session uses one live Typography card rather than stacking the normal hover/pinned Typography UI with a second card. The normal Typography UI returns when editing ends.
 
 During an active edit, direct-edit chrome owns the selected field: the duplicate ordinary selected border is suppressed, the dimensions pill stays available, and Typography stays source-relative without moving in response to ordinary pointer motion. The selection-adjacent Add Note button is hidden only while the editor is active and returns on exit; existing saved annotation markers and panels remain available.
 
@@ -58,7 +58,7 @@ The normal Screenshot behavior still applies:
 - click-to-open Copy/Save viewer;
 - short capture/output status feedback.
 
-Mesurer chrome is hidden while pixels are captured and restored afterward. Agent/harness screenshot evidence remains separate: agents use `capturePlan()`, `prepareCapture()`, and `finishCapture()` with the harness's own screenshot primitive.
+Mesurer chrome is hidden while pixels are captured and restored afterward. Agent screenshot evidence remains separate. Agents use `capturePlan()`, `prepareCapture()`, and `finishCapture()` with the browser controller's screenshot command.
 
 See [Screenshots](../docs/SCREENSHOTS.md).
 

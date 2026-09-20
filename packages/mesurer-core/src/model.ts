@@ -73,6 +73,7 @@ const stripMeasurement = <ElementRef>(measurement: Measurement<ElementRef>): Mea
   ...measurement,
   elementRef: undefined,
 });
+
 const stripDistance = <ElementRef>(distance: DistanceOverlay<ElementRef>): DistanceOverlay<ElementRef> => ({
   ...distance,
   elementRefA: undefined,
@@ -81,6 +82,7 @@ const stripDistance = <ElementRef>(distance: DistanceOverlay<ElementRef>): Dista
 
 export function createMesurerModelCore<ElementRef = unknown>(options: MesurerModelOptions = {}) {
   const defaults = DEFAULT_MESURER_SETTINGS;
+
   const baseSettings = cloneSettings({
     ...defaults,
     ...options.settings,
@@ -144,6 +146,7 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
   const snapshotSignature = (snapshot: HistorySnapshot<ElementRef>) => {
     const serializeRect = (rect: Rect) =>
       `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
+
     return [
       snapshot.enabled ? "1" : "0",
       snapshot.toolMode,
@@ -179,49 +182,63 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
 
   const pushHistory = (snapshot: HistorySnapshot<ElementRef>) => {
     const signature = snapshotSignature(snapshot);
+
     if (historySignature === signature) return;
     history.push(snapshot);
     future.length = 0;
     historySignature = signature;
+
     if (history.length > HISTORY_LIMIT) history.shift();
   };
 
   const checkpoint = () => pushHistory(snapshotHistory());
+
   const beginAction = () => {
     const snapshot = snapshotHistory();
     let committed = false;
+
     return () => {
       if (committed) return;
       pushHistory(snapshot);
       committed = true;
     };
   };
+
   const endAction = () => {};
 
   const undo = () => {
     const previous = history.pop();
+
     if (!previous) return false;
     future.push(snapshotHistory());
+
     if (future.length > HISTORY_LIMIT) future.shift();
     historySignature = null;
     restoreHistory(previous);
+
     return true;
   };
+
   const redo = () => {
     const next = future.pop();
+
     if (!next) return false;
     history.push(snapshotHistory());
+
     if (history.length > HISTORY_LIMIT) history.shift();
     historySignature = null;
     restoreHistory(next);
+
     return true;
   };
 
   const setEnabled = (enabled: boolean, withHistory = false) => {
     if (enabled === current.enabled) return enabled;
+
     if (withHistory) checkpoint();
     mutate((draft) => {
       draft.enabled = enabled;
+
       if (!enabled) {
         draft.hoverRect = null;
         draft.hoverElement = null;
@@ -229,12 +246,15 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
         draft.altPressed = false;
       }
     });
+
     return enabled;
   };
+
   const toggleEnabled = (withHistory = true) => setEnabled(!current.enabled, withHistory);
 
   const setToolMode = (toolMode: ToolMode, withHistory = false) => {
     if (current.toolMode === toolMode) return toolMode;
+
     if (withHistory) checkpoint();
     mutate((draft) => {
       draft.toolMode = toolMode;
@@ -243,31 +263,41 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
       draft.hoverElement = null;
       draft.hoverPointer = null;
       draft.guidePreview = null;
+
       if (toolMode !== "select") {
         draft.selectedMeasurement = null;
         draft.selectedMeasurements = [];
         draft.selectionOriginRect = null;
       }
     });
+
     return toolMode;
   };
+
   const toggleToolMode = (toolMode: ToolMode) =>
     setToolMode(current.toolMode === toolMode ? "none" : toolMode, true);
 
   const setRulersVisible = (visible: boolean) => mutate((draft) => { draft.rulersVisible = visible; });
+
   const toggleRulers = () => {
     const next = !current.rulersVisible;
     setRulersVisible(next);
+
     return next;
   };
+
   const setXrayVisible = (visible: boolean) => mutate((draft) => { draft.xrayVisible = visible; });
+
   const toggleXray = () => {
     const next = !current.xrayVisible;
     setXrayVisible(next);
+
     return next;
   };
+
   const setGuideOrientation = (orientation: Guide["orientation"], withHistory = false) => {
     if (current.guideOrientation === orientation) return;
+
     if (withHistory) checkpoint();
     mutate((draft) => { draft.guideOrientation = orientation; });
   };
@@ -289,9 +319,11 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
     "toolbarActive" | "settingsOpen" | "settingsTab" | "colorPickerActive" |
     "colorPickerSample" | "colorPickerUnsupported"
   >;
+
   const setTransient = (patch: Partial<TransientState>) => mutate((draft) => {
     const openingSettings = patch.settingsOpen === true && !draft.settingsOpen && patch.settingsTab === undefined;
     Object.assign(draft, patch);
+
     if (openingSettings) draft.settingsTab = initialSettingsTab(draft);
   });
 
@@ -300,15 +332,18 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
       draft.selectedMeasurements = [...values];
       draft.selectedMeasurement = primary === undefined ? values.at(-1) ?? null : primary;
     });
+
   const setHoverTarget = (element: ElementRef | null, rect: Rect | null) =>
     mutate((draft) => { draft.hoverElement = element; draft.hoverRect = rect; });
 
   const setGuides = (guides: Guide[]) => mutate((draft) => { draft.guides = [...guides]; });
   const setSelectedGuideIds = (ids: string[]) => mutate((draft) => { draft.selectedGuideIds = [...ids]; });
   const addGuide = (guide: Guide) => mutate((draft) => { draft.guides = [...draft.guides, guide]; });
+
   const updateGuide = (id: string, patch: Partial<Omit<Guide, "id">>) => mutate((draft) => {
     draft.guides = draft.guides.map((guide) => guide.id === id ? { ...guide, ...patch } : guide);
   });
+
   const removeGuides = (ids: string[]) => {
     if (!ids.length) return;
     checkpoint();
@@ -323,6 +358,7 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
   const setActiveMeasurement = (measurement: Measurement<ElementRef> | null) => mutate((draft) => { draft.activeMeasurement = measurement; });
   const setHeldDistances = (distances: DistanceOverlay<ElementRef>[]) => mutate((draft) => { draft.heldDistances = [...distances]; });
   const addHeldDistance = (distance: DistanceOverlay<ElementRef>) => mutate((draft) => { draft.heldDistances = [...draft.heldDistances, distance]; });
+
   const removeHeldDistance = (id: string) => {
     checkpoint();
     mutate((draft) => { draft.heldDistances = draft.heldDistances.filter((distance) => distance.id !== id); });
@@ -337,6 +373,7 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
       rulerSettings: { ...draft.settings.rulerSettings, ...patch.rulerSettings },
     });
   });
+
   const resetSettings = () => mutate((draft) => { draft.settings = cloneSettings(baseSettings); });
 
   const clearAll = (record = true) => {
@@ -390,18 +427,31 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
 
   const applyStoredSettings = (stored: MesurerStoredSettings) => {
     const patch: Partial<MesurerSettings> = {};
+
     if (stored.highlightColor !== undefined) patch.highlightColor = stored.highlightColor;
+
     if (stored.guideColor !== undefined) patch.guideColor = stored.guideColor;
+
     if (stored.hoverHighlightEnabled !== undefined) patch.hoverHighlightEnabled = stored.hoverHighlightEnabled;
+
     if (stored.persistOnReload !== undefined) patch.persistOnReload = stored.persistOnReload;
+
     if (stored.shortcutsEnabled !== undefined) patch.shortcutsEnabled = stored.shortcutsEnabled;
+
     if (stored.colorPickerFormats !== undefined) patch.colorPickerFormats = stored.colorPickerFormats;
+
     if (stored.colorPickerClickFormat !== undefined) patch.colorPickerClickFormat = stored.colorPickerClickFormat;
+
     if (stored.snapEnabled !== undefined) patch.snapEnabled = stored.snapEnabled;
+
     if (stored.snapGuidesEnabled !== undefined) patch.snapGuidesEnabled = stored.snapGuidesEnabled;
+
     if (stored.selectNewGuideEnabled !== undefined) patch.selectNewGuideEnabled = stored.selectNewGuideEnabled;
+
     if (stored.multiMeasureEnabled !== undefined) patch.multiMeasureEnabled = stored.multiMeasureEnabled;
+
     if (stored.guideStyle !== undefined) patch.guideStyle = { ...baseSettings.guideStyle, ...stored.guideStyle };
+
     if (stored.rulerSettings !== undefined) patch.rulerSettings = { ...baseSettings.rulerSettings, ...stored.rulerSettings };
     updateSettings(patch);
   };

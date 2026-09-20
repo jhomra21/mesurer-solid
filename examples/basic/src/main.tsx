@@ -68,6 +68,7 @@ function App() {
 }
 
 const root = document.getElementById("root")!;
+
 render(() => <App />, root);
 
 // Use the public mount path so the playground exercises the same default

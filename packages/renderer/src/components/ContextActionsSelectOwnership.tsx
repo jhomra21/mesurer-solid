@@ -12,9 +12,11 @@ export type ContextActionsSelectOwnershipProps = ContextActionsProps & {
 
 export function ContextActionsSelectOwnership(props: ContextActionsSelectOwnershipProps) {
   let controller: ContextActionsController | null = null;
+
   const unsubscribe = subscribeMesurerSelectGestureStart(props.ownerWindow, () => {
     controller?.abandonNoteComposer();
   });
+
   onCleanup(unsubscribe);
 
   return (

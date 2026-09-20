@@ -50,9 +50,9 @@ When X-ray is visible and **Prefer X-ray edges** is enabled, the visible X-ray b
 
 Arrange keeps three presentations separate:
 
-- **Before** — geometry before a saved Arrange action.
-- **Desired** — the human-arranged result.
-- **Live** — the application page with Arrange preview removed.
+- **Before.** Geometry before a saved Arrange action.
+- **Desired.** The human-arranged result.
+- **Live.** The application page with Arrange preview removed.
 
 Each completed drag records target identity, Before and Desired rectangles, offsets, page scope, and creation time. Intent participates in Mesurer history and can persist when the target can be rebound safely.
 
@@ -98,7 +98,7 @@ await window.__MESURER__.showArrange(intent.id, "desired")
 await window.__MESURER__.showArrange(intent.id, "live")
 ```
 
-Get capture geometry for an outer browser harness:
+Get capture geometry for an browser controller:
 
 ```js
 const plan = await window.__MESURER__.arrangeCapturePlan(
@@ -107,11 +107,28 @@ const plan = await window.__MESURER__.arrangeCapturePlan(
 )
 ```
 
-Mesurer supplies the reproducible state and geometry; the harness owns screenshot bytes.
+Mesurer supplies the reproducible state and geometry; the browser controller owns screenshot bytes.
+
+## Typed Arrange service
+
+Application code with access to the plugin host can resolve `MesurerArrangeService` from service id `arrange`.
+
+| Method | Result |
+| --- | --- |
+| `active()` | Report whether Arrange is active. |
+| `intents()` | List saved Arrange intents. |
+| `intent(id)` | Read one saved intent or `null`. |
+| `show(id, state)` | Show Before, Desired, or Live presentation for one intent. |
+| `showCurrent()` | Restore the presentation that current Arrange state calls for. |
+| `capturePlan(id, state)` | Return screenshot regions for one presentation. |
+| `review(id, tolerance?)` | Compare Live geometry with Desired. |
+| `clear()` | Clear saved Arrange intent through the plugin service. |
+
+The agent-facing methods use the longer names `arrangements()`, `arrange()`, `showArrange()`, `arrangeCapturePlan()`, and `reviewArrange()` so they remain unambiguous on `window.__MESURER__`.
 
 ## Implement and review
 
-Desired describes the visual result, not the source-level implementation. A 96px preview offset might ultimately be implemented with flex/grid alignment, gap, sizing, ordering, margins, or component structure rather than a production transform.
+Desired describes the visual result, not the source-level implementation. A 96px preview offset is only evidence about the requested result. The application may implement it with flex or grid alignment, gap, sizing, ordering, margins, or component structure.
 
 After editing source:
 
@@ -127,7 +144,7 @@ If the task also contains direct text-edit intent, verify Live copy and typograp
 
 ## Scope
 
-Arrange is a layout-intent tool, not a general DOM/CSS editor. It focuses on repositioning with edge, center, guide, ruler, and X-ray alignment. The preview does not reflow siblings and never claims to be the final source implementation.
+Arrange records layout intent. It supports repositioning with edge, center, guide, ruler, and X-ray alignment. Its preview does not reflow siblings and is not a source-code implementation.
 
 Targets are rebound conservatively. Ambiguous targets remain unresolved rather than being guessed.
 

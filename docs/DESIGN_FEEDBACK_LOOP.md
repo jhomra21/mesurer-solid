@@ -1,146 +1,55 @@
 # Design feedback loop
 
-Mesurer is most useful when the rendered page stays in the loop while UI work is happening.
+Mesurer turns rendered UI state and human visual intent into evidence that can be consumed before and after source edits.
 
-The rule is simple: source intent is not proof of the rendered result. Measure the page the user is actually looking at, preserve the visual intent they already expressed there, then verify the Live result after the source changes.
+For the exact agent procedure and APIs, use [Agent Integration](../packages/mesurer/AGENT_INTEGRATION.md). This guide describes the review model rather than duplicating the operational steps.
 
 ## The loop
 
-```text
-human selects / measures / annotates / arranges / edits text
-        ↓
-agent reuses the existing Mesurer instance
-        ↓
-agent reads selection + context + saved intent
-        ↓
-agent edits normal application source
-        ↓
-real page renders / HMR settles
-        ↓
-agent verifies Live geometry, copy, typography, and appearance
-        ↓
-repeat only where the evidence is still wrong
-```
+A complete visual change has four phases:
 
-If Mesurer is absent, inject it through the browser evaluation channel the harness already owns. Do not create a second browser, Mesurer server, or delivery protocol.
+1. **Read intent.** Preserve the existing selection, annotations, Arrange Desired state, text and typography Desired state, measurements, guides, and relevant screenshot context.
+2. **Edit source.** Change the application through its normal workflow. Do not mutate Mesurer evidence to make the page appear correct.
+3. **Observe Live.** Wait for the rendered page to settle and inspect the affected targets again.
+4. **Compare.** Evaluate Live against the original problem and any saved Desired or baseline evidence.
 
-## Read before editing
+The loop ends on rendered evidence, not on a successful build.
 
-A broad Mesurer request should preserve all relevant human state before HMR can replace DOM targets:
+## Evidence types
 
-```js
-await window.__MESURER__.ready()
+Use the evidence that matches the request:
 
-const capabilities = window.__MESURER__.capabilities().capabilities
-const workspace = await window.__MESURER__.context()
-const annotations = await window.__MESURER__.annotations()
-const arrangements = capabilities.arrange
-  ? await window.__MESURER__.arrangements()
-  : []
-const textEdits = capabilities.textEdit
-  ? await window.__MESURER__.textEdits()
-  : []
+- **Context/selection** for exact geometry, typography, overflow, and relationships.
+- **Annotations** for target-bound notes with before/current review.
+- **Arrange** for Before/Desired/Live geometry.
+- **Text editing** for Before/Desired/Live copy and typography.
+- **Measurements/guides** for alignment and spacing relationships.
+- **Screenshots** for visual context that structured measurements do not express well.
 
-let selection = null
-try {
-  selection = await window.__MESURER__.context({ scope: "selection" })
-} catch {}
-```
+Do not substitute one evidence type for another merely because it is easier to automate.
 
-The human may already be communicating through several channels:
+## Relationships matter
 
-| State | Meaning |
-| --- | --- |
-| Selection | “This is what I mean.” |
-| Multi-selection | Compare these targets and their relationships. |
-| Guides / held distances / measurements | Rendered alignment and spacing evidence. |
-| Annotation | Durable target-bound note plus review baseline. |
-| Arrange Desired | Requested layout geometry. |
-| Text/style Desired | Requested copy and typography. |
-| Screenshot preview | Human visual review state to preserve. |
+Visual requests often concern relationships rather than isolated elements: shared edges, gaps, baselines, repeated dimensions, overflow, hierarchy, or alignment across a group.
 
-Rulers and X-ray are inspection context. Annotation, Arrange, and text/style Desired state are explicit intent.
+For multi-selection work, inspect pairwise/relational evidence and verify the same relationship after the source change.
 
-## Measure relationships, not just elements
+## Desired is not Live
 
-For a multi-selection, inspect every target and the relevant pairwise relationships. Use `selection.visualContext.distances` first, then `distance(a, b)` when a needed pair is missing.
+Arrange and direct text editing can preview Desired state without changing application source. That preview is intent, not completion evidence.
 
-Exact geometry comes from Mesurer. Screenshots are for composition, hierarchy, clipping, overlap, and other visual judgment. Do not estimate pixel distances from screenshots when Mesurer can report them.
+After editing source, compare against the real Live rendering with the preview inactive or through the relevant review API.
 
-## Validate the right thing
+## Browser evidence
 
-For layout and spacing, compare target rectangles, box model, guides, held distances, and pair gaps.
+A screenshot can prove appearance that structured geometry cannot, but it should not replace exact measurements when the request is numeric or relational.
 
-For typography, compare rendered family, size, weight, line height, tracking, alignment, and color. If the human saved a direct text edit, compare `textEdit(id)` Desired copy/style with **Live source while the Desired preview is inactive**.
-
-For Arrange, compare the real application layout with Desired using Live/review:
-
-```js
-await window.__MESURER__.stable()
-await window.__MESURER__.showArrange(arrangeId, "live")
-const review = await window.__MESURER__.reviewArrange(arrangeId)
-```
-
-A temporary Arrange transform is a visual specification, not production CSS. Implement the outcome through the application's real layout system.
-
-Both preview systems are ownership-aware. If the host application changes a text/style value or Arrange transform itself, Mesurer preserves that host value instead of restoring an obsolete preview over it.
-
-## Typography while arranging
-
-Arrange keeps Select active, so a reviewer can move an element and then double-click its text without leaving the layout workflow. The edit adds separate text/style Desired intent and a contextual Typography card.
-
-If Typography was already selected, the direct-edit session uses one live Typography card rather than stacking two surfaces. Direct edit also becomes the sole visible border owner for the edited field, keeps the dimensions pill available, and suppresses only the transient selection Add Note button until editing ends. Existing saved annotations remain intact. Closing the edit restores the normal Typography surface and selection annotation affordance.
-
-The source-linked Typography card should remain visually stationary during ordinary pointer movement and continue following the edited source through scrolling, including fully offscreen and back. If a layout fix causes pointer-driven card motion or duplicate selection chrome, treat that as a regression rather than expected visual noise.
-
-Read Arrange and text-edit intent together before implementing either outcome. See [Arrange](./ARRANGE.md) and [Direct text editing and Typography](./TEXT_EDITING.md).
-
-## Annotation review
-
-A saved annotation carries an immutable baseline. Read it before source changes:
-
-```js
-const context = await window.__MESURER__.context({ annotation: annotationId })
-```
-
-After the page settles:
-
-```js
-await window.__MESURER__.stable()
-const review = await window.__MESURER__.review(annotationId)
-```
-
-A review can turn a visual note into exact evidence such as a gap moving from 37px to 24px or an edge mismatch reaching 0px.
-
-## Screenshot evidence
-
-For coding-agent verification, the outer harness should own screenshot bytes while Mesurer owns capture presentation:
-
-```js
-const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
-await window.__MESURER__.prepareCapture()
-try {
-  // outer harness screenshot
-} finally {
-  await window.__MESURER__.finishCapture()
-}
-```
-
-The optional Screenshot plugin is a separate human camera workflow. Preserve an existing preview unless the task is specifically about that feature. See [Screenshots](./SCREENSHOTS.md).
+Use the browser controller for ordinary task screenshots. Use Mesurer's screenshot plugin when the task is specifically about the human capture feature.
 
 ## Completion
 
-A UI task is ready when the evidence that matters to the request is correct. A useful completion report cites concrete results, for example:
+A visual task is complete when the relevant Live evidence matches the requested outcome and the exercised browser path is clean.
 
-```text
-card left edge: 312px
-heading left edge: 312px
-button/card right gap: 24px
-document horizontal overflow: false
-requested label and typography match saved Desired intent in Live source
-screenshot: no clipping or overlap
-```
+A passing build or a CSS declaration is implementation evidence. It does not prove the rendered result.
 
-Do not call every Mesurer method after every edit. Preserve the user's state, measure the relevant targets and relationships, and verify the actual rendered result.
-
-See [Browser and agent integration](./BROWSER_HARNESS.md) for the transport boundary and [Context workflow](./CONTEXT_WORKFLOW.md) for structured review state.
+See [Context](./CONTEXT_WORKFLOW.md), [Arrange](./ARRANGE.md), [Text Editing](./TEXT_EDITING.md), and [Screenshots](./SCREENSHOTS.md) for feature-specific behavior.

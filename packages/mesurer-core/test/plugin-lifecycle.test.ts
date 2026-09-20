@@ -3,9 +3,11 @@ import { createMesurerPluginHost, defineMesurerPlugin } from "../src/plugins";
 
 const deferred = <T = void>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
+
   const promise = new Promise<T>((resolvePromise) => {
     resolve = resolvePromise;
   });
+
   return { promise, resolve };
 };
 

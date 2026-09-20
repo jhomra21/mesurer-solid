@@ -1,0 +1,449 @@
+import { chromium } from "playwright";
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
+
+const url = process.env.SELF_HOST_URL;
+
+const outputDir = process.env.SELF_HOST_OUT;
+
+const deviceScaleFactor = Number.parseFloat(process.env.SELF_HOST_DPR ?? "3");
+
+if (!url || !outputDir) {
+  throw new Error("SELF_HOST_URL and SELF_HOST_OUT are required");
+}
+
+if (!Number.isFinite(deviceScaleFactor) || deviceScaleFactor <= 0) {
+  throw new Error(`SELF_HOST_DPR must be positive, received ${process.env.SELF_HOST_DPR}`);
+}
+
+await fs.mkdir(outputDir, { recursive: true });
+
+const browser = await chromium.launch({ headless: true });
+
+const context = await browser.newContext({
+  viewport: { width: 1280, height: 720 },
+  deviceScaleFactor,
+});
+
+const page = await context.newPage();
+
+const boxGap = (a, b) => {
+  const horizontal = Math.max(0, Math.max(a.x, b.x) - Math.min(a.x + a.width, b.x + b.width));
+  const vertical = Math.max(0, Math.max(a.y, b.y) - Math.min(a.y + a.height, b.y + b.height));
+
+  return Math.hypot(horizontal, vertical);
+};
+
+const captureAround = async (boxes, name, padding = 24) => {
+  const left = Math.min(...boxes.map((box) => box.x));
+  const top = Math.min(...boxes.map((box) => box.y));
+  const right = Math.max(...boxes.map((box) => box.x + box.width));
+  const bottom = Math.max(...boxes.map((box) => box.y + box.height));
+  const clipX = Math.max(0, left - padding);
+  const clipY = Math.max(0, top - padding);
+  await page.screenshot({
+    path: path.join(outputDir, `${name}-${deviceScaleFactor}x.png`),
+    clip: {
+      x: clipX,
+      y: clipY,
+      width: Math.min(1280 - clipX, right - left + padding * 2),
+      height: Math.min(720 - clipY, bottom - top + padding * 2),
+    },
+  });
+};
+
+const clickByCoordinates = async (locator, label) => {
+  const box = await locator.boundingBox();
+  assert(box, `${label} must have a bounding box`);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+};
+
+try {
+  await page.goto(url, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => Boolean(window.__MESURER_SELF_HOSTING__?.subject));
+
+  const target = page.locator("[data-self-host-target]");
+  const targetBox = await target.boundingBox();
+  assert(targetBox, "Self-host selection target must have a bounding box");
+
+  await page.evaluate(async () => {
+    const harness = window.__MESURER_SELF_HOSTING__;
+    await harness.subject.select("[data-self-host-target]");
+  });
+
+  await page.waitForFunction(() => {
+    const button = document.querySelector("button[data-mesurer-tool-id='context.copy-selection']");
+
+    return button instanceof HTMLButtonElement && !button.disabled;
+  });
+
+  const annotationTrigger = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-trigger='true']");
+  await annotationTrigger.waitFor({ state: "visible" });
+  const triggerBox = await annotationTrigger.boundingBox();
+  assert(triggerBox, "Annotation trigger must have a bounding box");
+  assert.equal(triggerBox.width, 24, "Annotation trigger width");
+  assert.equal(triggerBox.height, 24, "Annotation trigger height");
+  const triggerGap = boxGap(targetBox, triggerBox);
+  assert(
+    triggerGap >= 5.5 && triggerGap <= 6.5,
+    `Annotation trigger must keep its intended 6px clearance from the selected element; gap was ${triggerGap.toFixed(2)}px`,
+  );
+  assert.equal(
+    await annotationTrigger.evaluate((element) => getComputedStyle(element).position),
+    "absolute",
+    "Document-owned annotation trigger must use absolute positioning",
+  );
+  assert.equal(
+    await annotationTrigger.getAttribute("data-mesurer-context-coordinate-space"),
+    "document",
+    "Annotation trigger must expose document coordinate ownership",
+  );
+  assert.equal(
+    await annotationTrigger.getAttribute("data-mesurer-annotation-scroll-mode"),
+    "document",
+    "Annotation trigger must leave window scrolling to the document",
+  );
+
+  const ownership = await annotationTrigger.evaluate((element) => {
+    const contextRoot = element.closest("[data-mesurer-context-root='true']");
+
+    return {
+      rootIsDocument: contextRoot?.getRootNode() === document,
+      documentMount: contextRoot instanceof HTMLElement
+        ? contextRoot.dataset.mesurerDocumentInspectorMount ?? null
+        : null,
+      insideCanonicalRoot: Boolean(contextRoot?.closest("[data-mesurer-root='true']")),
+    };
+  });
+
+  assert.deepEqual(ownership, {
+    rootIsDocument: true,
+    documentMount: "true",
+    insideCanonicalRoot: false,
+  }, `Context page evidence must use one document scroll plane: ${JSON.stringify(ownership)}`);
+
+  const annotationScrollProbe = await annotationTrigger.evaluate(async (trigger) => {
+    const targetElement = trigger.ownerDocument.querySelector("[data-self-host-target]");
+
+    if (!(targetElement instanceof HTMLElement)) throw new Error("Missing annotation scroll target");
+
+    const snapshot = (element) => {
+      const rect = element.getBoundingClientRect();
+
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+
+    const read = () => ({
+      target: snapshot(targetElement),
+      trigger: snapshot(trigger),
+      cachedY: trigger.style.getPropertyValue("--mesurer-nested-scroll-y"),
+    });
+
+    document.body.style.minHeight = "1400px";
+    const before = read();
+    window.scrollBy({ top: 80, behavior: "instant" });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const firstPaint = read();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    return {
+      before,
+      firstPaint,
+      settled: read(),
+      mode: trigger.dataset.mesurerAnnotationScrollMode ?? null,
+      coordinateSpace: trigger.dataset.mesurerContextCoordinateSpace ?? null,
+      position: getComputedStyle(trigger).position,
+    };
+  });
+
+  const triggerOffset = (snapshot) => ({
+    x: snapshot.trigger.x - snapshot.target.x,
+    y: snapshot.trigger.y - snapshot.target.y,
+  });
+
+  const triggerOffsetBefore = triggerOffset(annotationScrollProbe.before);
+  assert.equal(annotationScrollProbe.mode, "document", "Annotation trigger must use document scroll ownership");
+  assert.equal(annotationScrollProbe.coordinateSpace, "document", "Annotation trigger must remain document-owned");
+  assert.equal(annotationScrollProbe.position, "absolute", "Annotation trigger must remain absolute in the document plane");
+
+  for (const [label, sample] of [["first paint", annotationScrollProbe.firstPaint], ["settled", annotationScrollProbe.settled]]) {
+    const offset = triggerOffset(sample);
+    assert(
+      Math.abs(offset.x - triggerOffsetBefore.x) <= 0.75
+        && Math.abs(offset.y - triggerOffsetBefore.y) <= 0.75,
+      `Annotation trigger must stay source-attached at ${label}; offset moved from ${JSON.stringify(triggerOffsetBefore)} to ${JSON.stringify(offset)}`,
+    );
+    assert.equal(sample.cachedY, "", `Window scrolling must not write JS compensation at ${label}`);
+  }
+
+  await page.evaluate(() => new Promise((resolve) => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.body.style.minHeight = "";
+      resolve();
+    }));
+  }));
+
+  await clickByCoordinates(annotationTrigger, "Annotation trigger");
+  const composer = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-composer='true']");
+  await composer.waitFor({ state: "visible" });
+  const composerBox = await composer.boundingBox();
+  assert(composerBox, "Annotation composer must have a bounding box");
+  assert(boxGap(targetBox, composerBox) <= 8.5, `Annotation composer should stay beside the selected element; gap was ${boxGap(targetBox, composerBox).toFixed(2)}px`);
+  assert(composerBox.width <= 272.5, `Annotation composer should remain compact; width was ${composerBox.width}px`);
+  assert.equal(
+    await composer.evaluate((element) => element.closest("[data-mesurer-context-root='true']")?.getRootNode() === document),
+    true,
+    "Annotation composer must share the host document scroll tree",
+  );
+
+  const noteText = "Increase the spacing above this control to 24px.";
+  await composer.locator("textarea").fill(noteText);
+  await page.screenshot({
+    path: path.join(outputDir, `annotation-composer-${deviceScaleFactor}x.png`),
+    fullPage: false,
+  });
+  await captureAround([targetBox, composerBox], "annotation-composer-detail", 28);
+
+  await clickByCoordinates(composer.getByRole("button", { name: "Add note" }), "Add note button");
+  const annotationPanel = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-panel='true']");
+  const annotationMarker = page.locator("[data-mesurer-context-root='true'] [data-mesurer-annotation-marker='true']");
+  await annotationPanel.waitFor({ state: "visible" });
+  await annotationMarker.waitFor({ state: "visible" });
+  const panelBox = await annotationPanel.boundingBox();
+  const markerBox = await annotationMarker.boundingBox();
+  assert(panelBox && markerBox, "Saved annotation panel and marker must have bounding boxes");
+  assert.equal(markerBox.width, 24, "Saved annotation marker width");
+  assert.equal(markerBox.height, 24, "Saved annotation marker height");
+  assert(boxGap(targetBox, markerBox) <= 8.5, `Saved annotation marker should hug its target; gap was ${boxGap(targetBox, markerBox).toFixed(2)}px`);
+  assert(boxGap(markerBox, panelBox) <= 8.5, `Saved annotation panel should clear the marker by one compact gap; gap was ${boxGap(markerBox, panelBox).toFixed(2)}px`);
+  assert.equal((await annotationPanel.textContent())?.includes(noteText), true, "Saved annotation should render the note text");
+  await captureAround([targetBox, markerBox, panelBox], "annotation-panel-detail", 28);
+  await clickByCoordinates(annotationPanel.getByRole("button", { name: "Close annotation" }), "Close annotation button");
+
+  await page.evaluate(async () => {
+    await window.__MESURER_SELF_HOSTING__.mountObserver();
+  });
+
+  const toolIds = [
+    "context.copy",
+    "context.copy-selection",
+    "context.add-note",
+  ];
+
+  const measurements = await page.evaluate((ids) => {
+    const harness = window.__MESURER_SELF_HOSTING__;
+    const observer = harness.observer;
+
+    if (!observer) throw new Error("Observer Mesurer did not mount.");
+
+    const center = (value) => ({
+      x: value.left + value.width / 2,
+      y: value.top + value.height / 2,
+    });
+
+    const tools = ids.map((id) => {
+      const button = observer.agent.inspect(`[data-mesurer-tool-id='${id}'] button`);
+      const svg = observer.agent.inspect(`[data-mesurer-tool-id='${id}'] button svg`);
+      const glyph = observer.agent.inspect(`[data-mesurer-tool-id='${id}'] button svg path`);
+
+      if (!button || !svg || !glyph) throw new Error(`Missing rendered geometry for ${id}`);
+      const buttonCenter = center(button.rect);
+      const svgCenter = center(svg.rect);
+      const glyphCenter = center(glyph.rect);
+
+      return {
+        id,
+        button: button.rect,
+        svg: svg.rect,
+        glyph: glyph.rect,
+        buttonCenter,
+        svgCenter,
+        glyphCenter,
+        svgCenterDelta: {
+          x: svgCenter.x - buttonCenter.x,
+          y: svgCenter.y - buttonCenter.y,
+        },
+        opticalCenterDelta: {
+          x: glyphCenter.x - svgCenter.x,
+          y: glyphCenter.y - svgCenter.y,
+        },
+      };
+    });
+
+    const builtins = [];
+
+    for (const id of ["select", "xray", "color-picker", "rulers", "text-inspector", "guides", "settings"]) {
+      const button = observer.agent.inspect(`[data-mesurer-builtin='${id}'] button`);
+      const svg = observer.agent.inspect(`[data-mesurer-builtin='${id}'] button svg`);
+
+      if (button && svg) builtins.push({ id, button: button.rect, svg: svg.rect });
+    }
+
+    return {
+      viewport: observer.agent.viewport(),
+      tools,
+      builtins,
+    };
+  }, toolIds);
+
+  const close = (actual, expected, tolerance, message) => {
+    assert(Math.abs(actual - expected) <= tolerance, `${message}: expected ${expected}±${tolerance}, got ${actual}`);
+  };
+
+  const toolbarCenterY = measurements.tools[0].buttonCenter.y;
+  let maxOpticalOffset = 0;
+
+  for (const tool of measurements.tools) {
+    close(tool.button.width, 32, 0.05, `${tool.id} button width`);
+    close(tool.button.height, 32, 0.05, `${tool.id} button height`);
+    close(tool.svg.width, 20, 0.05, `${tool.id} SVG width`);
+    close(tool.svg.height, 20, 0.05, `${tool.id} SVG height`);
+    close(tool.svgCenterDelta.x, 0, 0.05, `${tool.id} horizontal centering`);
+    close(tool.svgCenterDelta.y, 0, 0.05, `${tool.id} vertical centering`);
+    close(tool.buttonCenter.y, toolbarCenterY, 0.05, `${tool.id} toolbar center line`);
+    assert(tool.glyph.width >= 11 && tool.glyph.width <= 18.5, `${tool.id} glyph width ${tool.glyph.width} is outside the existing toolbar icon envelope`);
+    assert(tool.glyph.height >= 11 && tool.glyph.height <= 18.5, `${tool.id} glyph height ${tool.glyph.height} is outside the existing toolbar icon envelope`);
+    const opticalOffset = Math.hypot(tool.opticalCenterDelta.x, tool.opticalCenterDelta.y);
+    maxOpticalOffset = Math.max(maxOpticalOffset, opticalOffset);
+    assert(opticalOffset <= 1.5, `${tool.id} optical center offset ${opticalOffset.toFixed(3)}px exceeds 1.5px`);
+  }
+
+  await page.evaluate(async () => {
+    const harness = window.__MESURER_SELF_HOSTING__;
+    const observer = harness.observer;
+
+    if (!observer) throw new Error("Observer Mesurer did not mount.");
+    await observer.agent.command("builtin.select");
+  });
+
+  const copyButton = page.locator("button[data-mesurer-tool-id='context.copy']").first();
+  const copyBox = await copyButton.boundingBox();
+  assert(copyBox, "Copy context button must have a bounding box");
+  await page.mouse.click(copyBox.x + 3, copyBox.y + copyBox.height / 2);
+
+  await page.waitForFunction(async () => {
+    const observer = window.__MESURER_SELF_HOSTING__?.observer;
+    const copy = document.querySelector("button[data-mesurer-tool-id='context.copy']");
+
+    if (!observer || !(copy instanceof HTMLElement)) return false;
+
+    try {
+      const context = await observer.context({ scope: "selection" });
+      const region = context.regions[0];
+
+      if (!region) return false;
+      const copyRect = copy.getBoundingClientRect();
+
+      const sameRect = (rect) => Math.max(
+        Math.abs(rect.left - copyRect.left),
+        Math.abs(rect.top - copyRect.top),
+        Math.abs(rect.width - copyRect.width),
+        Math.abs(rect.height - copyRect.height),
+      ) <= 1.5;
+
+      if (!sameRect(region)) return false;
+
+      return Array.from(document.querySelectorAll("[data-mesurer-selected-measurement='true']"))
+        .map((root) => root.children.item(0))
+        .some((chrome) => chrome instanceof HTMLElement && sameRect(chrome.getBoundingClientRect()));
+    } catch {
+      return false;
+    }
+  });
+
+  const summaryLines = [
+    `context buttons: ${measurements.tools.length} × 32×32px`,
+    "context SVG boxes: 20×20px, centered in every button",
+    `max glyph optical-center offset: ${maxOpticalOffset.toFixed(2)}px`,
+    "annotation trigger: 24×24px with 6px clearance; document-owned window scrolling",
+    "annotation composer: compact, target-adjacent surface in the page scroll tree",
+    "saved marker: clear between target and note panel",
+    "observer selection: Copy context button",
+  ];
+
+  await page.evaluate((lines) => window.__MESURER_SELF_HOSTING__.setReport(lines), summaryLines);
+
+  const evidence = {
+    deviceScaleFactor,
+    assertions: {
+      buttonBox: "32x32 ± 0.05px",
+      svgBox: "20x20 ± 0.05px",
+      svgCenterDelta: "≤ 0.05px per axis",
+      toolbarCenterLineDelta: "≤ 0.05px",
+      glyphEnvelope: "11–18.5px per axis",
+      opticalCenterOffset: "≤ 1.5px",
+      annotationOwnership: "Context root is a single document-backed page-evidence plane outside the viewport root",
+      annotationTrigger: "24x24px, 6px clearance from selection (±0.5px), absolute document scroll ownership",
+      annotationComposer: "≤272.5px wide, ≤8.5px from selection, document-owned",
+      annotationPanel: "marker ≤8.5px from target; panel ≤8.5px from marker",
+      observerSelection: "canonical selection context + matching body-level selection chrome",
+    },
+    maxOpticalOffset,
+    annotation: {
+      ownership,
+      target: targetBox,
+      trigger: triggerBox,
+      scroll: annotationScrollProbe,
+      composer: composerBox,
+      marker: markerBox,
+      panel: panelBox,
+      note: noteText,
+    },
+    measurements,
+  };
+
+  await fs.writeFile(
+    path.join(outputDir, "self-hosting-measurements.json"),
+    `${JSON.stringify(evidence, null, 2)}\n`,
+  );
+
+  await page.screenshot({
+    path: path.join(outputDir, `mesurer-inspecting-mesurer-${deviceScaleFactor}x.png`),
+    fullPage: false,
+  });
+
+  const subjectToolbarRect = await page.evaluate(() => {
+    const toolbar = window.__MESURER_SELF_HOSTING__.subject.element.querySelector("[data-mesurer-toolbar='true']");
+
+    if (!(toolbar instanceof HTMLElement)) return null;
+    const rect = toolbar.getBoundingClientRect();
+
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  });
+
+  assert(subjectToolbarRect, "Subject toolbar must exist for detail capture");
+  const padding = 24;
+  const clipX = Math.max(0, subjectToolbarRect.x - padding);
+  const clipY = Math.max(0, subjectToolbarRect.y - padding);
+  await page.screenshot({
+    path: path.join(outputDir, `context-toolbar-detail-${deviceScaleFactor}x.png`),
+    clip: {
+      x: clipX,
+      y: clipY,
+      width: Math.min(1280 - clipX, subjectToolbarRect.width + padding * 2),
+      height: Math.min(720 - clipY, subjectToolbarRect.height + padding * 2),
+    },
+  });
+
+  console.log(JSON.stringify({
+    result: "PASS",
+    toolIds,
+    maxOpticalOffset,
+    contextDocumentOwned: ownership.rootIsDocument && ownership.documentMount === "true",
+    contextInsideCanonicalRoot: ownership.insideCanonicalRoot,
+    annotationTriggerGap: triggerGap,
+    annotationComposerGap: boxGap(targetBox, composerBox),
+    annotationMarkerGap: boxGap(targetBox, markerBox),
+    annotationPanelGap: boxGap(markerBox, panelBox),
+    annotationFirstPaintOffsetDelta: {
+      x: triggerOffset(annotationScrollProbe.firstPaint).x - triggerOffsetBefore.x,
+      y: triggerOffset(annotationScrollProbe.firstPaint).y - triggerOffsetBefore.y,
+    },
+    outputDir,
+  }, null, 2));
+} finally {
+  await context.close();
+  await browser.close();
+}

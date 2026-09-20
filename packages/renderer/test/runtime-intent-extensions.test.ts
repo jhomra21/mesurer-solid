@@ -17,10 +17,12 @@ import {
 import { createMesurerWorkspaceRuntime } from "../src/runtime/workspace-context";
 
 const mountedHosts: Array<ReturnType<typeof createMesurerPluginHost>> = [];
+
 const originalElementsFromPoint = document.elementsFromPoint?.bind(document);
 
 afterEach(() => {
   while (mountedHosts.length) mountedHosts.pop()?.dispose();
+
   if (originalElementsFromPoint) {
     Object.defineProperty(document, "elementsFromPoint", {
       configurable: true,
@@ -29,6 +31,7 @@ afterEach(() => {
   } else {
     Reflect.deleteProperty(document, "elementsFromPoint");
   }
+
   document.body.replaceChildren();
   localStorage.clear();
   vi.restoreAllMocks();
@@ -51,6 +54,7 @@ const setup = async () => {
   const pageTarget = document.createElement("main");
   document.body.append(pageTarget);
   const model = createMesurerModel({ initialEnabled: true });
+
   const createWorkspaceRuntime = () => createMesurerWorkspaceRuntime({
     model,
     ownerDocument: document,
@@ -58,6 +62,7 @@ const setup = async () => {
     uiRoot: document.body,
     pageTarget,
   });
+
   const runtime: MesurerSolidRuntimeService = {
     ownerDocument: document,
     ownerWindow: window,
@@ -69,6 +74,7 @@ const setup = async () => {
       const element = document.createElement("div");
       element.dataset.mesurerInspectorUi = "true";
       document.body.append(element);
+
       return { element, dispose: () => element.remove() };
     },
   };
@@ -93,6 +99,7 @@ const setup = async () => {
 const select = (model: ReturnType<typeof createMesurerModel>, elements: HTMLElement[]) => {
   const measurements = elements.map((element, index) =>
     getInspectMeasurement(element, window, `selection-${index + 1}`));
+
   model.setSelectedMeasurements(measurements, measurements.at(-1) ?? null);
 };
 

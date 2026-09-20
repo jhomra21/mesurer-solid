@@ -13,6 +13,7 @@ const mounted: Array<() => void> = [];
 const mount = (onPluginsReady: (host: MesurerPluginHost) => void) => {
   const element = document.createElement("div");
   document.body.append(element);
+
   const dispose = render(
     () => (
       <ComposableMesurer
@@ -22,6 +23,7 @@ const mount = (onPluginsReady: (host: MesurerPluginHost) => void) => {
     ),
     element,
   );
+
   mounted.push(dispose);
 };
 

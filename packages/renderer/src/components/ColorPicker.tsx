@@ -13,23 +13,28 @@ export function ColorPicker(props: { model: MesurerModel; ownerWindow: Window })
     void props.ownerWindow.navigator.clipboard?.writeText(value).catch(() => undefined);
     tooltip.onTooltipLeave();
     setCopiedId(id);
+
     if (copyTimeout !== null) props.ownerWindow.clearTimeout(copyTimeout);
     copyTimeout = props.ownerWindow.setTimeout(() => { copyTimeout = null; setCopiedId(null); }, 1500);
   };
+
   const tooltipEnter = (id: string) => {
     if (copiedId() !== null && copiedId() !== id) {
       if (copyTimeout !== null) props.ownerWindow.clearTimeout(copyTimeout);
       copyTimeout = null;
       setCopiedId(null);
     }
+
     tooltip.onTooltipEnter(id);
   };
 
   onSettled(() => {
     let frame = 0;
+
     const update = () => {
       if (props.model.current.colorPickerActive && panel) {
         const toolbar = panel.closest("[data-mesurer-root='true']")?.querySelector<HTMLElement>("[data-mesurer-toolbar='true']") ?? null;
+
         if (toolbar) {
           const toolbarRect = toolbar.getBoundingClientRect();
           const panelRect = panel.getBoundingClientRect();
@@ -41,11 +46,15 @@ export function ColorPicker(props: { model: MesurerModel; ownerWindow: Window })
           panel.style.top = `${top}px`;
         }
       }
+
       frame = props.ownerWindow.requestAnimationFrame(update);
     };
+
     frame = props.ownerWindow.requestAnimationFrame(update);
+
     return () => {
       props.ownerWindow.cancelAnimationFrame(frame);
+
       if (copyTimeout !== null) props.ownerWindow.clearTimeout(copyTimeout);
     };
   });
@@ -58,6 +67,7 @@ export function ColorPicker(props: { model: MesurerModel; ownerWindow: Window })
   const CopyValue = (input: { id: string; value: string; class: string }) => {
     const copied = () => copiedId() === input.id;
     const showTooltip = () => tooltip.visibleTooltipId() === input.id || (copied() && tooltip.visibleTooltipId() === null);
+
     return (
       <span class="msr:relative msr:inline-flex" onMouseLeave={tooltip.onTooltipLeave}>
         <button type="button" class={input.class} onMouseEnter={() => tooltipEnter(input.id)} onFocus={() => tooltipEnter(input.id)} onBlur={tooltip.onTooltipLeave} onClick={() => copyValue(input.id, input.value)}>{input.value}</button>

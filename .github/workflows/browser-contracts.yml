@@ -28,13 +28,8 @@ on:
       - "packages/renderer/src/runtime/document-scroll-anchoring.ts"
       - "packages/renderer/src/runtime/nested-scroll-compensation.ts"
       - "packages/renderer/src/runtime/presentation-preferences.ts"
-      - "packages/renderer/src/runtime/text-editing.ts"
-      - "packages/renderer/src/runtime/text-editing-core.ts"
-      - "packages/renderer/src/runtime/text-editing-presentation.ts"
-      - "packages/renderer/src/runtime/text-editing-unified-inspector.ts"
-      - "packages/renderer/src/runtime/text-editing-unified-select-layer.ts"
-      - "packages/renderer/src/runtime/text-inspector.ts"
-      - "packages/renderer/src/runtime/text-presentation-policy-runtime.ts"
+      - "packages/renderer/src/runtime/text-editing/**"
+      - "packages/renderer/src/runtime/typography/**"
       - "packages/renderer/src/styles.css"
       - "packages/renderer/test/arrange-plugin.test.ts"
       - "packages/renderer/test/distances.test.ts"
@@ -49,20 +44,20 @@ on:
       - "examples/basic/src/multi-spacing.ts"
       - "examples/basic/plugin-settings.html"
       - "examples/basic/src/plugin-settings.ts"
-      - "visual-parity/annotation-surface-ownership-contract.mjs"
-      - "visual-parity/arrange-contract.mjs"
-      - "visual-parity/arrange-presentation-policy-contract.mjs"
-      - "visual-parity/color-picker-contract.mjs"
-      - "visual-parity/presentation-settings-contract.mjs"
-      - "visual-parity/selection-scroll-contract.mjs"
-      - "visual-parity/shortcuts-setting-contract.mjs"
-      - "visual-parity/text-editing-contract.mjs"
-      - "visual-parity/typography-editing-layout-contract.mjs"
-      - "visual-parity/typography-inspector-ownership-contract.mjs"
-      - "visual-parity/typography-select-scroll-contract.mjs"
-      - "visual-parity/self-hosting-context.mjs"
-      - "visual-parity/multi-spacing.mjs"
-      - "visual-parity/plugin-settings-contract.mjs"
+      - "tests/visual-parity/annotation-surface-ownership-contract.mjs"
+      - "tests/visual-parity/arrange-contract.mjs"
+      - "tests/visual-parity/arrange-presentation-policy-contract.mjs"
+      - "tests/visual-parity/color-picker-contract.mjs"
+      - "tests/visual-parity/presentation-settings-contract.mjs"
+      - "tests/visual-parity/selection-scroll-contract.mjs"
+      - "tests/visual-parity/shortcuts-setting-contract.mjs"
+      - "tests/visual-parity/text-editing-contract.mjs"
+      - "tests/visual-parity/typography-editing-layout-contract.mjs"
+      - "tests/visual-parity/typography-inspector-ownership-contract.mjs"
+      - "tests/visual-parity/typography-select-scroll-contract.mjs"
+      - "tests/visual-parity/self-hosting-context.mjs"
+      - "tests/visual-parity/multi-spacing.mjs"
+      - "tests/visual-parity/plugin-settings-contract.mjs"
       - ".github/workflows/browser-contracts.yml"
   workflow_dispatch:
 
@@ -124,76 +119,76 @@ jobs:
       - name: Exercise Arrange toolbar and drag
         env:
           ARRANGE_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/arrange-contract.mjs
+        run: bun tests/visual-parity/arrange-contract.mjs
 
       - name: Exercise Arrange presentation preference
         env:
           ARRANGE_PRESENTATION_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/arrange-presentation-policy-contract.mjs
+        run: bun tests/visual-parity/arrange-presentation-policy-contract.mjs
 
       - name: Exercise presentation Settings discoverability
         env:
           PRESENTATION_SETTINGS_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/presentation-settings-contract.mjs
+        run: bun tests/visual-parity/presentation-settings-contract.mjs
 
       - name: Exercise global Shortcuts setting
         env:
           SHORTCUTS_SETTING_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/shortcuts-setting-contract.mjs
+        run: bun tests/visual-parity/shortcuts-setting-contract.mjs
 
       - name: Exercise direct text editing and page style suggestions
         env:
           TEXT_EDITING_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/text-editing-contract.mjs
+        run: bun tests/visual-parity/text-editing-contract.mjs
 
       - name: Exercise Typography layout and contextual activation
         env:
           TYPOGRAPHY_EDITING_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/typography-editing-layout-contract.mjs
+        run: bun tests/visual-parity/typography-editing-layout-contract.mjs
 
       - name: Exercise Typography inspector ownership and occlusion
         env:
           TYPOGRAPHY_OWNERSHIP_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/typography-inspector-ownership-contract.mjs
+        run: bun tests/visual-parity/typography-inspector-ownership-contract.mjs
 
       - name: Exercise Typography select scroll ownership
         env:
           TYPOGRAPHY_SELECT_SCROLL_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/typography-select-scroll-contract.mjs
+        run: bun tests/visual-parity/typography-select-scroll-contract.mjs
 
       - name: Exercise selection scroll anchoring
         env:
           SELECTION_SCROLL_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/selection-scroll-contract.mjs
+        run: bun tests/visual-parity/selection-scroll-contract.mjs
 
       - name: Exercise Color Picker capability
         env:
           COLOR_PICKER_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/color-picker-contract.mjs
+        run: bun tests/visual-parity/color-picker-contract.mjs
 
       - name: Measure Mesurer with Mesurer
         env:
           SELF_HOST_URL: http://127.0.0.1:4174/self-hosting.html
           SELF_HOST_OUT: self-hosting-artifacts
           SELF_HOST_DPR: 3
-        run: bun visual-parity/self-hosting-context.mjs
+        run: bun tests/visual-parity/self-hosting-context.mjs
 
       - name: Exercise annotation surface ownership
         env:
           ANNOTATION_OWNERSHIP_URL: http://127.0.0.1:4174/self-hosting.html
-        run: bun visual-parity/annotation-surface-ownership-contract.mjs
+        run: bun tests/visual-parity/annotation-surface-ownership-contract.mjs
 
       - name: Measure multi-selection spacing
         env:
           MULTI_SPACING_URL: http://127.0.0.1:4174/multi-spacing.html
           MULTI_SPACING_OUT: multi-spacing-artifacts
           MULTI_SPACING_DPR: 3
-        run: bun visual-parity/multi-spacing.mjs
+        run: bun tests/visual-parity/multi-spacing.mjs
 
       - name: Exercise plugin-contributed Settings controls
         env:
           PLUGIN_SETTINGS_URL: http://127.0.0.1:4174/plugin-settings.html
-        run: bun visual-parity/plugin-settings-contract.mjs
+        run: bun tests/visual-parity/plugin-settings-contract.mjs
 
       - name: Add rendered contract summary
         if: always()

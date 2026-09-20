@@ -22,14 +22,21 @@ import {
 import { createScreenshotPreviewController } from "./screenshot-preview";
 
 export const MESURER_SCREENSHOT_PLUGIN_ID = "mesurer.screenshot";
+
 export const MESURER_SCREENSHOT_SERVICE_ID = "screenshot";
+
 export const MESURER_SCREENSHOT_SETTINGS_STATE_ID = "mesurer.screenshot.settings";
+
 export const MESURER_SCREENSHOT_ACTIVE_STATE_ID = "mesurer.screenshot.active";
 
 const RUNTIME_SERVICE_ID = "runtime:solid";
+
 const SCREENSHOT_COMMAND = "screenshot.toggle";
+
 const ERROR_DURATION_MS = 2500;
+
 const DEFAULT_PREVIEW_DURATION_MS = 0;
+
 const MEASUREMENT_MARKER_SELECTOR = [
   "[data-mesurer-measurement='true']",
   "[data-mesurer-selected-measurement='true']",
@@ -37,6 +44,7 @@ const MEASUREMENT_MARKER_SELECTOR = [
   "[data-mesurer-guide='true']",
   "[data-mesurer-distance='true']",
 ].join(",");
+
 const MEASUREMENT_PRESENTATION_SELECTOR = `${MEASUREMENT_MARKER_SELECTOR},[data-mesurer-rulers='true']`;
 
 export type MesurerScreenshotSettings = {
@@ -113,6 +121,7 @@ const setRectStyle = (
 ) => {
   for (const property of ["left", "top", "right", "bottom", "width", "height"] as const) {
     const value = rect[property];
+
     if (value === undefined) element.style.removeProperty(property);
     else element.style.setProperty(property, `${value}px`);
   }
@@ -122,6 +131,7 @@ const readSettings = (
   get: <T extends PluginValue>(id: string) => T | undefined,
 ): MesurerScreenshotSettings => {
   const stored = get<ScreenshotStateValue>(MESURER_SCREENSHOT_SETTINGS_STATE_ID);
+
   return {
     toolEnabled: stored?.toolEnabled ?? true,
     copy: stored?.copy ?? true,
@@ -145,9 +155,11 @@ const restoreDisplay = (element: HTMLElement, display: InlineStyleSnapshot) => {
 
 const directRendererChild = (element: HTMLElement, rendererRoot: HTMLElement) => {
   let current = element;
+
   while (current.parentElement && current.parentElement !== rendererRoot) {
     current = current.parentElement;
   }
+
   return current.parentElement === rendererRoot ? current : null;
 };
 
@@ -155,24 +167,31 @@ const hideMeasurementPresentation = (
   portalTarget: HTMLElement | ShadowRoot,
 ): (() => void) => {
   const rendererRoot = portalTarget.querySelector<HTMLElement>("[data-mesurer-root='true']");
+
   if (!rendererRoot) return () => undefined;
 
   const targets = new Set<HTMLElement>();
+
   for (const ruler of rendererRoot.querySelectorAll<HTMLElement>("[data-mesurer-rulers='true']")) {
     const root = directRendererChild(ruler, rendererRoot);
+
     if (root) targets.add(root);
   }
+
   for (const marker of rendererRoot.querySelectorAll<HTMLElement>(MEASUREMENT_MARKER_SELECTOR)) {
     const root = directRendererChild(marker, rendererRoot);
+
     if (root) targets.add(root);
   }
 
   const hidden: HiddenCaptureElement[] = [];
+
   for (const element of targets) {
     if (element.dataset.mesurerInspectorUi === "true") continue;
     hidden.push({ element, display: captureDisplay(element) });
     element.style.setProperty("display", "none", "important");
   }
+
   return () => {
     for (const item of hidden) restoreDisplay(item.element, item.display);
   };
@@ -201,6 +220,7 @@ export const screenshotPlugin = (
   provides: ["tool:screenshot", "capture:screenshot", "settings:screenshot"],
   setup(ctx) {
     const runtime = ctx.service.get<MesurerSolidRuntimeService>(RUNTIME_SERVICE_ID);
+
     if (!runtime) throw new Error("Screenshot plugin requires the Solid renderer runtime.");
 
     const { ownerDocument, ownerWindow } = runtime;
@@ -258,6 +278,7 @@ export const screenshotPlugin = (
         "pointer-events": "none",
       });
       overlay.append(element);
+
       return element;
     });
 
@@ -334,10 +355,15 @@ export const screenshotPlugin = (
     const updateSettings = (patch: Partial<MesurerScreenshotSettings>) => {
       ctx.state.update<ScreenshotStateValue>(MESURER_SCREENSHOT_SETTINGS_STATE_ID, (current) => {
         const next = { ...current };
+
         if (patch.toolEnabled !== undefined) next.toolEnabled = patch.toolEnabled;
+
         if (patch.copy !== undefined) next.copy = patch.copy;
+
         if (patch.download !== undefined) next.download = patch.download;
+
         if (patch.includeMeasurements !== undefined) next.includeMeasurements = patch.includeMeasurements;
+
         return next;
       });
     };
@@ -350,6 +376,7 @@ export const screenshotPlugin = (
     const hideToolbar = () => {
       if (toolbarVisibility) return;
       const toolbar = runtime.portalTarget.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
+
       if (!toolbar) return;
       toolbarVisibility = {
         element: toolbar,
@@ -365,6 +392,7 @@ export const screenshotPlugin = (
       if (!toolbarVisibility) return;
       const { element, visibility } = toolbarVisibility;
       toolbarVisibility = null;
+
       if (visibility.value || visibility.priority) {
         element.style.setProperty("visibility", visibility.value, visibility.priority);
       } else {
@@ -375,13 +403,17 @@ export const screenshotPlugin = (
     const renderSelection = (rect: ScreenshotRect | null) => {
       const viewportWidth = ownerWindow.innerWidth;
       const viewportHeight = ownerWindow.innerHeight;
+
       if (!rect || rect.width <= 0 || rect.height <= 0) {
         setRectStyle(shade[0], { left: 0, top: 0, width: viewportWidth, height: viewportHeight });
+
         for (const element of shade.slice(1)) setRectStyle(element, { left: 0, top: 0, width: 0, height: 0 });
         outline.style.display = "none";
         sizeTag.style.display = "none";
+
         return;
       }
+
       setRectStyle(shade[0], { left: 0, top: 0, width: viewportWidth, height: rect.top });
       setRectStyle(shade[1], { left: 0, top: rect.top, width: rect.left, height: rect.height });
       setRectStyle(shade[2], {
@@ -422,13 +454,17 @@ export const screenshotPlugin = (
       const width = Math.max(140, element.offsetWidth || 140);
       const height = Math.max(26, element.offsetHeight || 26);
       const padding = 8;
+
       const left = anchor
         ? Math.min(ownerWindow.innerWidth - width - padding, Math.max(padding, anchor.left + anchor.width / 2 - width / 2))
         : padding;
+
       const below = anchor ? anchor.bottom + 8 : padding;
+
       const top = below + height <= ownerWindow.innerHeight - padding
         ? below
         : Math.max(padding, (anchor?.top ?? ownerWindow.innerHeight) - height - 8);
+
       element.style.left = `${left}px`;
       element.style.top = `${top}px`;
     };
@@ -461,19 +497,25 @@ export const screenshotPlugin = (
 
     const capture = async (rect: ScreenshotRect): Promise<MesurerScreenshotResult> => {
       if (capturing) throw new Error("A screenshot capture is already running.");
+
       if (rect.width < MIN_SCREENSHOT_SELECTION || rect.height < MIN_SCREENSHOT_SELECTION) {
         throw new Error(`Screenshot selection must be at least ${MIN_SCREENSHOT_SELECTION}px by ${MIN_SCREENSHOT_SELECTION}px.`);
       }
+
       capturing = true;
       const operationId = ++operation;
       const captureSettings = settings();
+
       const includedMeasurementPresentation = captureSettings.includeMeasurements
         ? snapshotIncludedMeasurementPresentation(ownerDocument)
         : [];
+
       const restoreMeasurements = captureSettings.includeMeasurements
         ? () => undefined
         : hideMeasurementPresentation(runtime.portalTarget);
+
       workspace.prepareCapture();
+
       if (captureSettings.includeMeasurements) {
         // Generic capture cleanup hides document-level inspector UI, including
         // Solid-owned selected measurement roots that are safely portaled out
@@ -482,6 +524,7 @@ export const screenshotPlugin = (
         // explicitly requested measurement evidence in the PNG.
         restoreIncludedMeasurementPresentation(includedMeasurementPresentation);
       }
+
       try {
         // The selection chrome is part of the inspector UI, not the captured page.
         // Hide it before waiting for the browser capture frame so the blue outline,
@@ -489,28 +532,34 @@ export const screenshotPlugin = (
         overlay.style.visibility = "hidden";
         await waitForNextPaint(ownerWindow);
         const full = await captureVisibleTab({ ownerDocument, ownerWindow } satisfies ScreenshotCaptureContext);
+
         const cropped = await cropPngToViewportRect(
           full,
           rect,
           { width: ownerWindow.innerWidth, height: ownerWindow.innerHeight },
           ownerDocument,
         );
+
         if (operation !== operationId) throw new Error("Screenshot capture was cancelled.");
 
         let copied = false;
         let downloaded = false;
+
         const copyResult = captureSettings.copy
           ? copyPngToClipboard(Promise.resolve(cropped), ownerWindow).then(() => { copied = true; })
           : Promise.resolve();
+
         const downloadResult = captureSettings.download
           ? Promise.resolve().then(() => {
               downloadPng(cropped, createScreenshotFilename(), ownerDocument, ownerWindow);
               downloaded = true;
             })
           : Promise.resolve();
+
         const results = await Promise.allSettled([copyResult, downloadResult]);
         const copyFailed = captureSettings.copy && results[0]?.status === "rejected";
         const downloadFailed = captureSettings.download && results[1]?.status === "rejected";
+
         if (operation !== operationId) throw new Error("Screenshot capture was cancelled.");
 
         previewController.show(cropped, {
@@ -524,6 +573,7 @@ export const screenshotPlugin = (
           copied,
           downloaded,
         });
+
         return { blob: cropped, rect: { ...rect }, copied, downloaded };
       } catch (cause) {
         if (operation === operationId) flashError();
@@ -538,17 +588,22 @@ export const screenshotPlugin = (
 
     const start = async () => {
       if (!settings().toolEnabled) return;
+
       if (active()) {
         cancel();
+
         return;
       }
+
       if (preparing) return;
       preparing = true;
       previewController.dismiss();
+
       try {
         if (options.captureVisibleTab === undefined) {
           await prepareScreenshotCapture(ownerDocument, ownerWindow);
         }
+
         if (disposed) return;
         hideToolbar();
         renderSelection(null);
@@ -558,6 +613,7 @@ export const screenshotPlugin = (
         setActive(true);
       } catch (cause) {
         const aborted = cause instanceof Error && cause.name === "AbortError";
+
         if (!aborted) flashError();
         throw cause;
       } finally {
@@ -590,18 +646,25 @@ export const screenshotPlugin = (
     const onPointerUp = (event: PointerEvent) => {
       const startPoint = origin;
       origin = null;
+
       if (!active() || !startPoint) return;
+
       if (overlay.hasPointerCapture?.(event.pointerId)) overlay.releasePointerCapture(event.pointerId);
+
       const rect = normalizeScreenshotRect(
         startPoint,
         { x: event.clientX, y: event.clientY },
         { width: ownerWindow.innerWidth, height: ownerWindow.innerHeight },
       );
+
       renderSelection(rect);
+
       if (rect.width < MIN_SCREENSHOT_SELECTION || rect.height < MIN_SCREENSHOT_SELECTION) {
         renderSelection(null);
+
         return;
       }
+
       void capture(rect)
         .catch(() => undefined)
         .finally(() => {
@@ -611,6 +674,7 @@ export const screenshotPlugin = (
 
     const onPointerCancel = (event: PointerEvent) => {
       origin = null;
+
       if (overlay.hasPointerCapture?.(event.pointerId)) overlay.releasePointerCapture(event.pointerId);
       renderSelection(null);
     };
@@ -683,6 +747,7 @@ export const screenshotPlugin = (
           value: () => settings().toolEnabled,
           set: (toolEnabled) => {
             updateSettings({ toolEnabled });
+
             if (!toolEnabled && active()) cancel();
           },
         },
@@ -722,6 +787,7 @@ export const screenshotPlugin = (
       overlay.removeEventListener("pointerup", onPointerUp);
       overlay.removeEventListener("pointercancel", onPointerCancel);
       ownerWindow.removeEventListener("keydown", onKeyDown, true);
+
       if (errorTimer) ownerWindow.clearTimeout(errorTimer);
       previewController.dispose();
       restoreToolbar();

@@ -51,6 +51,7 @@ const installArrangePresentationPolicy = (
 
   const readSnapshot = (): PresentationSnapshot => {
     const active = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+
     return {
       visible: active || presentationPreferences(ctx).keepArrangeChanges,
       intents: ctx.state.get<ArrangeStateRef>(MESURER_ARRANGE_STATE_ID)?.intents ?? [],
@@ -62,28 +63,35 @@ const installArrangePresentationPolicy = (
 
   const apply = (snapshot: PresentationSnapshot) => {
     applied = snapshot;
+
     if (snapshot.visible) {
       service.showCurrent();
+
       return;
     }
 
     const latest = snapshot.intents.at(-1);
+
     if (latest) service.show(latest.id, "live");
   };
 
   const flush = () => {
     frame = 0;
+
     if (disposed || !pending) return;
     const snapshot = pending;
     pending = null;
+
     if (!sameSnapshot(applied, snapshot)) apply(snapshot);
   };
 
   const scheduleIfChanged = () => {
     if (disposed) return;
     const next = readSnapshot();
+
     if (sameSnapshot(pending ?? applied, next)) return;
     pending = next;
+
     if (!frame) frame = ownerWindow.requestAnimationFrame(flush);
   };
 
@@ -92,6 +100,7 @@ const installArrangePresentationPolicy = (
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
+
     if (frame) ownerWindow.cancelAnimationFrame(frame);
     frame = 0;
     pending = null;
@@ -109,7 +118,9 @@ const DOCUMENT_SELECTED_MEASUREMENT = [
   "[data-mesurer-selected-measurement='true']",
   "[data-mesurer-inspector-ui='true']",
 ].join("");
+
 const TEXT_EDIT_RUNTIME = "[data-mesurer-text-edit-runtime='true']";
+
 const TEXT_EDITOR = "[data-mesurer-text-editor='true']";
 
 /**
@@ -125,6 +136,7 @@ const installArrangeDocumentMeasurementGuard = (
   runtime: MesurerSolidRuntimeService,
 ) => {
   const body = runtime.ownerDocument.body;
+
   if (!body) return;
 
   // SAFETY: runtime.ownerWindow is the DOM realm that owns body, portalTarget, and the document-backed text runtime.
@@ -147,12 +159,14 @@ const installArrangeDocumentMeasurementGuard = (
   const restoreMeasurements = () => {
     for (const [element, previous] of hiddenMeasurements) {
       if (!element.isConnected) continue;
+
       if (previous.value || previous.priority) {
         element.style.setProperty("visibility", previous.value, previous.priority);
       } else {
         element.style.removeProperty("visibility");
       }
     }
+
     hiddenMeasurements.clear();
   };
 
@@ -160,12 +174,14 @@ const installArrangeDocumentMeasurementGuard = (
 
   const hideMeasurement = (element: HTMLElement) => {
     if (!active || directEditActive() || !isDocumentMeasurement(element)) return;
+
     if (!hiddenMeasurements.has(element)) {
       hiddenMeasurements.set(element, {
         value: element.style.getPropertyValue("visibility"),
         priority: element.style.getPropertyPriority("visibility"),
       });
     }
+
     if (
       element.style.getPropertyValue("visibility") !== "hidden"
       || element.style.getPropertyPriority("visibility") !== "important"
@@ -176,6 +192,7 @@ const installArrangeDocumentMeasurementGuard = (
 
   const hideCurrentMeasurements = () => {
     if (!active || directEditActive()) return;
+
     for (const candidate of body.querySelectorAll(DOCUMENT_SELECTED_MEASUREMENT)) {
       if (candidate instanceof realm.HTMLElement) hideMeasurement(candidate);
     }
@@ -191,10 +208,13 @@ const installArrangeDocumentMeasurementGuard = (
     textObserver?.disconnect();
     textObserver = null;
     textRuntimeMount = mount;
+
     if (!mount) {
       syncMeasurements();
+
       return;
     }
+
     textObserver = new realm.MutationObserver(syncMeasurements);
     textObserver.observe(mount, { childList: true, subtree: true });
     syncMeasurements();
@@ -202,34 +222,43 @@ const installArrangeDocumentMeasurementGuard = (
 
   const latestTextRuntimeMount = () => {
     const mounts = body.querySelectorAll<HTMLElement>(TEXT_EDIT_RUNTIME);
+
     return mounts.item(mounts.length - 1);
   };
+
   observeTextRuntime(latestTextRuntimeMount());
 
   // Both the Solid-selected MeasurementBox portal and the isolated text runtime
   // are direct body children. Keep this observer out of the host page subtree.
   const bodyObserver = new realm.MutationObserver((records) => {
     let runtimeMayHaveChanged = false;
+
     for (const record of records) {
       for (const node of record.addedNodes) {
         if (!(node instanceof realm.HTMLElement)) continue;
+
         if (node.matches(TEXT_EDIT_RUNTIME)) runtimeMayHaveChanged = true;
         hideMeasurement(node);
       }
+
       for (const node of record.removedNodes) {
         if (node === textRuntimeMount) runtimeMayHaveChanged = true;
       }
     }
+
     if (runtimeMayHaveChanged) observeTextRuntime(latestTextRuntimeMount());
   });
+
   bodyObserver.observe(body, { childList: true });
 
   const subscription = ctx.state.subscribe(() => {
     const next = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+
     if (next === active) return;
     active = next;
     syncMeasurements();
   });
+
   syncMeasurements();
 
   ctx.lifecycle.onDispose(() => {
@@ -243,13 +272,16 @@ const installArrangeDocumentMeasurementGuard = (
 
 export const arrangePlugin = (): MesurerPlugin => {
   const core = arrangeCorePlugin();
+
   return {
     ...core,
     async setup(ctx) {
       await core.setup(ctx);
       const service = ctx.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+
       if (!service) throw new Error("Arrange presentation policy requires the Arrange service.");
       const runtime = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
+
       if (!runtime) throw new Error("Arrange presentation policy requires the Solid renderer runtime.");
       installArrangePresentationPolicy(ctx, service, runtime.ownerWindow);
       installArrangeDocumentMeasurementGuard(ctx, runtime);

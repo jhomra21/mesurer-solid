@@ -35,6 +35,7 @@ const rootProbePlugin = (id: string, probes: Map<string, Probe>): MesurerPlugin 
   id: `test.root-owner.${id}`,
   setup(ctx) {
     const runtime = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
+
     if (!runtime) throw new Error(`Missing runtime:solid for ${id}`);
     const mount = runtime.createInspectorMount();
     mount.element.dataset.testRendererOwner = id;
@@ -50,6 +51,7 @@ const rootProbePlugin = (id: string, probes: Map<string, Probe>): MesurerPlugin 
 const readyPromise = () => {
   let resolve!: (host: MesurerPluginHost) => void;
   const promise = new Promise<MesurerPluginHost>((next) => { resolve = next; });
+
   return { promise, resolve };
 };
 
@@ -73,6 +75,7 @@ describe("renderer runtime root ownership", () => {
         onPluginsReady={firstReady.resolve}
       />
     ), firstHost);
+
     mounted.push(disposeFirst);
     await firstReady.promise;
     await settle();
@@ -86,6 +89,7 @@ describe("renderer runtime root ownership", () => {
         onPluginsReady={secondReady.resolve}
       />
     ), secondHost);
+
     mounted.push(disposeSecond);
     await secondReady.promise;
     await settle();

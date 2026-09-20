@@ -38,11 +38,13 @@ describe("ContextActions cross-instance Select ownership", () => {
       unobserve() {}
       disconnect() {}
     }
+
     vi.stubGlobal("ResizeObserver", TestResizeObserver);
 
     const model = createMesurerModel({ initialEnabled: true, initialToolMode: "select" });
     const measurementA = getInspectMeasurement(a, window);
     model.setSelectedMeasurements([measurementA], measurementA);
+
     const runtime = createMesurerWorkspaceRuntime({
       model,
       ownerDocument: document,
@@ -52,6 +54,7 @@ describe("ContextActions cross-instance Select ownership", () => {
     });
 
     let controller: ContextActionsController | null = null;
+
     const dispose = render(() => (
       <ContextActionsSelectOwnership
         runtime={runtime}
@@ -61,6 +64,7 @@ describe("ContextActions cross-instance Select ownership", () => {
         onController={(value) => { controller = value; }}
       />
     ), host);
+
     mounted.push(() => {
       dispose();
       runtime.dispose();

@@ -1,6 +1,7 @@
 import type { MesurerPluginContext, PluginValue } from "@jhomra21/mesurer-solid-core";
 
 export const MESURER_PRESENTATION_PREFERENCES_STATE_ID = "mesurer.presentation.preferences";
+
 export const MESURER_PRESENTATION_SETTINGS_ID = "presentation";
 
 export type MesurerPresentationPreferences = {
@@ -23,6 +24,7 @@ export const presentationPreferences = (
   ctx: MesurerPluginContext,
 ): MesurerPresentationPreferences => {
   const value = ctx.state.get<PresentationPreferenceState>(MESURER_PRESENTATION_PREFERENCES_STATE_ID);
+
   return value ?? DEFAULT_MESURER_PRESENTATION_PREFERENCES;
 };
 

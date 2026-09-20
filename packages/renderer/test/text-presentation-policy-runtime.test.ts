@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createTextPresentationPolicyWindow } from "../src/runtime/text-presentation-policy-runtime";
+import { createTextPresentationPolicyWindow } from "../src/runtime/text-editing/presentation-policy";
 
 describe("text presentation policy window", () => {
   it("keeps viewport dimensions live after the facade is created", () => {
@@ -14,6 +14,7 @@ describe("text presentation policy window", () => {
         window,
         window.requestAnimationFrame.bind(window),
       );
+
       expect(policyWindow.innerWidth).toBe(1280);
       expect(policyWindow.innerHeight).toBe(900);
 
@@ -25,6 +26,7 @@ describe("text presentation policy window", () => {
     } finally {
       if (originalInnerWidth) Object.defineProperty(window, "innerWidth", originalInnerWidth);
       else Reflect.deleteProperty(window, "innerWidth");
+
       if (originalInnerHeight) Object.defineProperty(window, "innerHeight", originalInnerHeight);
       else Reflect.deleteProperty(window, "innerHeight");
     }

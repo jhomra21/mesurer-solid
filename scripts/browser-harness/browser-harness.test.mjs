@@ -10,6 +10,7 @@ test("argument parser keeps launch and attach modes small", () => {
     "--page", "Docs",
     "--inject", "/tmp/inject-script.js",
   ]);
+
   assert.equal(options.url, "https://example.com");
   assert.equal(options.cdp, "http://127.0.0.1:9222");
   assert.equal(options.page, "Docs");

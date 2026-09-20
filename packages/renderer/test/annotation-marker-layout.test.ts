@@ -32,6 +32,7 @@ const distanceToRect = (
   const bottom = rect.top + rect.height;
   const dx = x < rect.left ? rect.left - x : x > right ? x - right : 0;
   const dy = y < rect.top ? rect.top - y : y > bottom ? y - bottom : 0;
+
   return Math.hypot(dx, dy);
 };
 
@@ -49,6 +50,7 @@ describe("layoutAnnotationMarkers", () => {
   it("does not place a note inside an adjacent target", () => {
     const beta = { left: 10, top: 76, width: 540, height: 296 };
     const gamma = { left: 550, top: 76, width: 540, height: 296 };
+
     const placements = layoutAnnotationMarkers([
       { id: "beta", rect: beta },
       { id: "gamma", rect: gamma },
@@ -56,8 +58,10 @@ describe("layoutAnnotationMarkers", () => {
 
     const betaMarker = box(placements.find((placement) => placement.id === "beta")!.left,
       placements.find((placement) => placement.id === "beta")!.top);
+
     const gammaMarker = box(placements.find((placement) => placement.id === "gamma")!.left,
       placements.find((placement) => placement.id === "gamma")!.top);
+
     expect(overlaps(betaMarker, rectBox(gamma))).toBe(false);
     expect(overlaps(gammaMarker, rectBox(beta))).toBe(false);
   });
@@ -65,6 +69,7 @@ describe("layoutAnnotationMarkers", () => {
   it("avoids transient selection and note-trigger obstacles", () => {
     const target = { left: 80, top: 80, width: 220, height: 150 };
     const obstacle = { left: 306, top: 80, width: 24, height: 24 };
+
     const [placement] = layoutAnnotationMarkers([
       { id: "saved-note", rect: target },
     ], { width: 520, height: 320 }, { obstacles: [obstacle] });
@@ -76,25 +81,30 @@ describe("layoutAnnotationMarkers", () => {
   it("tries another nearby side before drifting down one edge", () => {
     const target = { left: 120, top: 100, width: 180, height: 120 };
     const rightSideObstacle = { left: 306, top: 70, width: 40, height: 190 };
+
     const [placement] = layoutAnnotationMarkers([
       { id: "owned", rect: target },
     ], { width: 600, height: 400 }, { obstacles: [rightSideObstacle] });
 
     expect(placement).toBeDefined();
+
     const markerCenter = {
       x: placement!.left + 12,
       y: placement!.top + 12,
     };
+
     const targetCenter = {
       x: target.left + target.width / 2,
       y: target.top + target.height / 2,
     };
+
     expect(Math.hypot(markerCenter.x - targetCenter.x, markerCenter.y - targetCenter.y)).toBeLessThan(180);
     expect(overlaps(box(placement!.left, placement!.top), rectBox(rightSideObstacle))).toBe(false);
   });
 
   it("keeps repeated notes in a tight non-overlapping cluster beside one target", () => {
     const target = { left: 31, top: 310, width: 441, height: 71 };
+
     const placements = layoutAnnotationMarkers([
       { id: "note-1", rect: target },
       { id: "note-2", rect: target },
@@ -102,9 +112,11 @@ describe("layoutAnnotationMarkers", () => {
     ], { width: 1062, height: 830 });
 
     expect(placements).toHaveLength(3);
+
     for (const placement of placements) {
       expect(distanceToRect(placement, target)).toBeLessThanOrEqual(64);
     }
+
     for (let left = 0; left < placements.length; left += 1) {
       for (let right = left + 1; right < placements.length; right += 1) {
         expect(overlaps(
@@ -118,11 +130,13 @@ describe("layoutAnnotationMarkers", () => {
   it("keeps source-relative offsets invariant under page scrolling", () => {
     const beforeTarget = { left: 31, top: 310, width: 441, height: 71 };
     const afterTarget = { ...beforeTarget, top: 70 };
+
     const before = layoutAnnotationMarkers([
       { id: "note-1", rect: beforeTarget },
       { id: "note-2", rect: beforeTarget },
       { id: "note-3", rect: beforeTarget },
     ], { width: 1062, height: 830 });
+
     const after = layoutAnnotationMarkers([
       { id: "note-1", rect: afterTarget },
       { id: "note-2", rect: afterTarget },
@@ -155,6 +169,7 @@ describe("layoutAnnotationMarkers", () => {
       id: `note-${index + 1}`,
       rect: { left: 80, top: 80, width: 120, height: 80 },
     }));
+
     const viewport = { width: 420, height: 320 };
 
     expect(layoutAnnotationMarkers(items, viewport)).toEqual(layoutAnnotationMarkers(items, viewport));

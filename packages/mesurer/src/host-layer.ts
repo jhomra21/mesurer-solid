@@ -66,10 +66,12 @@ function supportsPopover(container: HTMLDivElement): container is PopoverHost {
 }
 
 const hasToggleState = (event: Event): event is ToggleStateEvent => "newState" in event;
+
 const isDialog = (element: Element): element is HTMLDialogElement => element.localName === "dialog";
 
 function isModalDialog(element: Element): element is HTMLDialogElement {
   if (!isDialog(element) || !element.open) return false;
+
   try {
     return element.matches(":modal");
   } catch {
@@ -126,6 +128,7 @@ export function mountMesurerHost(
     try {
       container.showPopover();
       topLayer = container.matches(":popover-open");
+
       if (topLayer) mode = "top-layer";
     } catch {
       container.removeAttribute("popover");
@@ -134,6 +137,7 @@ export function mountMesurerHost(
 
   const showTopLayer = () => {
     if (!topLayer || !supportsPopover(container)) return;
+
     try {
       if (!container.matches(":popover-open")) container.showPopover();
     } catch {
@@ -145,6 +149,7 @@ export function mountMesurerHost(
   const moveHost = (parent: HTMLElement | ShadowRoot) => {
     if (container.parentNode === parent) return;
     const wasOpen = topLayer && supportsPopover(container) && container.matches(":popover-open");
+
     if (wasOpen && supportsPopover(container)) {
       try {
         container.hidePopover();
@@ -152,8 +157,10 @@ export function mountMesurerHost(
         // Continue with the DOM move; showTopLayer() below is best effort.
       }
     }
+
     parent.append(container);
     hardenHost(container);
+
     if (wasOpen) showTopLayer();
   };
 
@@ -175,6 +182,7 @@ export function mountMesurerHost(
 
   const bringToFront = () => {
     if (disposed || !topLayer || !supportsPopover(container)) return;
+
     try {
       if (container.matches(":popover-open")) container.hidePopover();
       container.showPopover();
@@ -196,6 +204,7 @@ export function mountMesurerHost(
     if (!topLayer || event.target === container) return;
     const newState = hasToggleState(event) ? event.newState : undefined;
     const element = event.target;
+
     if (!(element instanceof ownerWindow.Element)) return;
 
     if (isDialog(element)) {
@@ -207,6 +216,7 @@ export function mountMesurerHost(
       } else if (newState === "open") {
         scheduleBringToFront();
       }
+
       return;
     }
 
@@ -217,6 +227,7 @@ export function mountMesurerHost(
 
   const handleClose = (event: Event) => {
     const element = event.target;
+
     if (element instanceof ownerWindow.Element && isDialog(element)) deactivateModal(element);
   };
 
@@ -226,6 +237,7 @@ export function mountMesurerHost(
 
   const scanForModals = (root: Element) => {
     if (isModalDialog(root)) activateModal(root);
+
     for (const dialog of root.querySelectorAll("dialog")) {
       if (isModalDialog(dialog)) activateModal(dialog);
     }
@@ -233,17 +245,21 @@ export function mountMesurerHost(
 
   const observer = new ownerWindow.MutationObserver((records) => {
     if (!topLayer) return;
+
     for (const record of records) {
       if (record.type === "attributes") {
         const element = record.target;
+
         if (element instanceof ownerWindow.Element && isDialog(element)) {
           if (isModalDialog(element)) activateModal(element);
           else deactivateModal(element);
         }
       }
+
       for (const node of record.addedNodes) {
         if (node instanceof ownerWindow.Element) scanForModals(node);
       }
+
       if (modalStack.some((dialog) => !dialog.isConnected)) syncModalParent();
     }
   });
@@ -267,11 +283,13 @@ export function mountMesurerHost(
     dispose() {
       if (disposed) return;
       disposed = true;
+
       if (reassertFrame) ownerWindow.cancelAnimationFrame(reassertFrame);
       ownerDocument.removeEventListener("toggle", handleToggle, true);
       ownerDocument.removeEventListener("close", handleClose, true);
       ownerDocument.removeEventListener("fullscreenchange", handleFullscreenChange, true);
       observer.disconnect();
+
       if (topLayer && supportsPopover(container) && container.matches(":popover-open")) {
         try {
           container.hidePopover();
@@ -279,6 +297,7 @@ export function mountMesurerHost(
           // Removing the host below also removes it from the top layer.
         }
       }
+
       modalStack = [];
     },
   };

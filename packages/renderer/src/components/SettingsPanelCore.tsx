@@ -8,8 +8,10 @@ import { CaretDownIcon } from "./Icons";
 import { Tooltip, createTooltip } from "./Tooltip";
 
 const COLOR_FORMATS: ColorPickerFormat[] = ["hex", "rgb", "hsl", "oklch"];
+
 const isColorPickerFormat = (value: string): value is ColorPickerFormat =>
   COLOR_FORMATS.some((format) => format === value);
+
 const GUIDE_PATTERNS: Array<{ value: GuideStyle["pattern"]; label: string }> = [
   { value: "solid", label: "Solid" },
   { value: "dashed", label: "Dashed" },
@@ -71,6 +73,7 @@ function SliderControl(props: {
   let sliderElement: HTMLDivElement | undefined;
   const percentage = () => ((props.value - props.min) / (props.max - props.min)) * 100;
   const setClamped = (value: number) => props.onChange(Number(Math.min(props.max, Math.max(props.min, value)).toFixed(4)));
+
   const updateFromPointer = (event: PointerEvent, element: HTMLDivElement) => {
     event.stopPropagation();
     const rect = element.getBoundingClientRect();
@@ -82,11 +85,15 @@ function SliderControl(props: {
 
   onSettled(() => {
     const element = sliderElement;
+
     if (!element) return;
+
     const handlePointerMove = (event: PointerEvent) => {
       if (element.hasPointerCapture(event.pointerId)) updateFromPointer(event, element);
     };
+
     element.addEventListener("pointermove", handlePointerMove);
+
     return () => element.removeEventListener("pointermove", handlePointerMove);
   });
 
@@ -101,8 +108,12 @@ function SliderControl(props: {
             style={{ height: "20px" }}
             data-slider-container="true"
             onPointerDown={(event) => { event.stopPropagation(); trySetPointerCapture(event.currentTarget, event.pointerId); updateFromPointer(event, event.currentTarget); }}
-            onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
-            onPointerCancel={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
+            onPointerUp={(event) => { event.stopPropagation();
+
+ if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
+            onPointerCancel={(event) => { event.stopPropagation();
+
+ if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
           >
             <div class="msr:absolute msr:left-[8px] msr:right-[8px] msr:rounded-full" style={{ top: "8px", height: "4px", "background-color": "rgba(15, 23, 42, 0.16)" }} />
             <div class="msr:absolute msr:left-[8px] msr:rounded-full" style={{ top: "8px", width: `calc(${percentage()}% - ${percentage() * 0.16}px)`, height: "4px", "background-color": "#0d99ff" }} />
@@ -117,6 +128,7 @@ function SliderControl(props: {
               aria-valuenow={props.value}
               onKeyDown={(event) => {
                 const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0;
+
                 if (event.key === "Home") setClamped(props.min);
                 else if (event.key === "End") setClamped(props.max);
                 else if (direction) setClamped(props.value + direction * props.step);
@@ -135,10 +147,16 @@ function SliderControl(props: {
             style={{ "box-sizing": "border-box", "border-radius": "0 5px 5px 0", "line-height": "1rem" }}
             value={editing() ? draft() : formatValue(props.value)}
             onFocus={() => { setDraft(formatValue(props.value)); setEditing(true); }}
-            onInput={(event) => { setDraft(event.currentTarget.value); const next = parseInput(event.currentTarget.value); if (Number.isFinite(next)) setClamped(next); }}
-            onBlur={() => { const next = parseInput(draft()); if (Number.isFinite(next)) setClamped(next); setEditing(false); }}
+            onInput={(event) => { setDraft(event.currentTarget.value); const next = parseInput(event.currentTarget.value);
+
+ if (Number.isFinite(next)) setClamped(next); }}
+            onBlur={() => { const next = parseInput(draft());
+
+ if (Number.isFinite(next)) setClamped(next); setEditing(false); }}
             onPointerDown={(event) => event.stopPropagation()}
-            onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Enter") event.currentTarget.blur(); }}
+            onKeyDown={(event) => { event.stopPropagation();
+
+ if (event.key === "Enter") event.currentTarget.blur(); }}
           />
         }
       />
@@ -149,21 +167,29 @@ function SliderControl(props: {
 function ColorField(props: { label: string; value: string; fallback: string; ownerWindow: Window; onChange: (value: string) => void }) {
   const sample = () => {
     const parsed = parseCssColor(props.value);
+
     if (parsed) return parsed;
     const canvas = props.ownerWindow.document.createElement("canvas");
     const context = canvas.getContext("2d");
+
     if (!context) return null;
     context.fillStyle = props.value;
+
     return parseCssColor(String(context.fillStyle));
   };
+
   const hex = () => {
     const color = sample();
+
     return color ? colorToHex({ ...color, alpha: 1 }).slice(1).toUpperCase() : props.fallback.slice(1).toUpperCase();
   };
+
   const alpha = () => {
     const color = sample();
+
     return color ? Math.round(color.alpha * 100) : 100;
   };
+
   const inputValue = () => `#${hex().slice(0, 6)}`;
   const supportsColor = () => props.ownerWindow.document.defaultView?.CSS?.supports("color", props.value) === true;
   const swatch = () => supportsColor() ? props.value : props.fallback;
@@ -171,9 +197,11 @@ function ColorField(props: { label: string; value: string; fallback: string; own
   const [alphaDraft, setAlphaDraft] = createSignal("");
   const [hexFocused, setHexFocused] = createSignal(false);
   const [alphaFocused, setAlphaFocused] = createSignal(false);
+
   const updateColor = (nextHex: string, nextAlpha: number) => {
     if (!/^[\da-f]{6}$/i.test(nextHex)) return;
     const parsed = parseCssColor(`#${nextHex}`);
+
     if (!parsed) return;
     props.onChange(colorToHex({ ...parsed, alpha: Math.min(100, Math.max(0, nextAlpha)) / 100 }));
   };
@@ -210,7 +238,9 @@ function ColorField(props: { label: string; value: string; fallback: string; own
             class="msr:h-full msr:w-full msr:bg-transparent msr:px-1 msr:text-center msr:font-mono msr:text-[12px] msr:tabular-nums msr:text-ink-700 msr:outline-none"
             onFocus={() => { setAlphaDraft(String(alpha())); setAlphaFocused(true); }}
             onBlur={() => { setAlphaFocused(false); }}
-            onInput={(event) => { const next = event.currentTarget.value.replace(/[^\d]/g, "").slice(0, 3); setAlphaDraft(next); const numeric = Number(next); if (Number.isFinite(numeric)) updateColor(hexFocused() ? hexDraft() : hex(), numeric); }}
+            onInput={(event) => { const next = event.currentTarget.value.replace(/[^\d]/g, "").slice(0, 3); setAlphaDraft(next); const numeric = Number(next);
+
+ if (Number.isFinite(numeric)) updateColor(hexFocused() ? hexDraft() : hex(), numeric); }}
             onPointerDown={(event) => event.stopPropagation()}
           />
         }
@@ -226,19 +256,23 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
   const pluginSettings = useMesurerPluginSettings();
   const pluginEntries = () => pluginSettings?.plugins() ?? [];
   const version = () => pluginSettings?.version() ?? "0.1.0";
+
   const resetSettings = () => {
     props.onResetSettings();
     void pluginSettings?.reset();
   };
+
   const setTab = (tab: SettingsTab) => props.model.setTransient({ settingsTab: tab });
   const settings = () => props.model.state.settings;
   const updateGuide = (patch: Partial<GuideStyle>) => props.model.updateSettings({ guideStyle: { ...props.model.current.settings.guideStyle, ...patch } });
   const updateSpacing = (patch: Partial<SelectionSpacingStyle>) => props.onSelectionSpacingStyleChange(patch);
+
   const toggleFormat = (format: ColorPickerFormat) => {
     const current = props.model.current.settings.colorPickerFormats;
     const next = current.includes(format) ? current.filter((item) => item !== format) : [...current, format];
     props.model.updateSettings({ colorPickerFormats: next.length ? next : ["hex"] });
   };
+
   const tabs: Array<[SettingsTab, string]> = [
     ["guides", "Guides"],
     ["select", "Select"],
@@ -271,6 +305,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
               <For each={GUIDE_PATTERNS}>{({ value, label }) => {
                 const selected = () => settings().guideStyle.pattern === value;
                 const tooltipId = `guide-pattern-${value}`;
+
                 return (
                   <button
                     type="button"
@@ -317,6 +352,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
               <For each={GUIDE_PATTERNS}>{({ value, label }) => {
                 const selected = () => props.selectionSpacingStyle.pattern === value;
                 const tooltipId = `spacing-pattern-${value}`;
+
                 return (
                   <button
                     type="button"
@@ -363,6 +399,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
             Copy
             <select value={settings().colorPickerClickFormat} class="msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-1.5 msr:py-1 msr:text-[11px] msr:outline-none msr:focus:shadow-[inset_0_0_0_1px_#0d99ff]" onChange={(event) => {
               const value = event.currentTarget.value;
+
               if (isColorPickerFormat(value)) props.model.updateSettings({ colorPickerClickFormat: value });
             }}>
               <For each={COLOR_FORMATS}>{(format) => <option value={format}>{format}</option>}</For>
@@ -403,6 +440,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                   <For each={pluginEntries()}>{(plugin) => {
                     const expanded = () => expandedPluginSections().includes(plugin.id);
                     const canExpand = () => plugin.enabled && plugin.sections.length > 0;
+
                     const toggleExpanded = () => {
                       if (!canExpand()) return;
                       setExpandedPluginSections((current) =>
@@ -410,9 +448,11 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                           ? current.filter((id) => id !== plugin.id)
                           : [...current, plugin.id]);
                     };
+
                     const setEnabled = (enabled: boolean) => {
                       pluginSettings?.setEnabled(plugin.id, enabled);
                     };
+
                     return (
                       <div data-mesurer-plugin-settings-section={plugin.id} class="msr:relative">
                         <div class="msr:grid msr:h-7 msr:w-full msr:grid-cols-[minmax(0,1fr)_28px_34px] msr:items-center msr:hover:bg-ink-50">

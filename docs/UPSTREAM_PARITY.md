@@ -10,7 +10,7 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Previous upstream audit | `b14c2bed932f1f97321885c279a4fd52148e62ac` (`main`, audited 2026-09-13) |
 | Current upstream audit | `19446bd845a957cfc96e76b4393916b8153ab8e0` (`main`, audited 2026-09-15) |
 
-The current upstream delta is one large commit after the previous audit: `19446bd...`, **“feat: add comment mode (#27)”**, released upstream as `0.1.5`. It introduces DOM-attached threaded comments, iframe-aware selection/commenting, a configurable Inspect information card, additional guide/measurement interactions, feature flags and initial workspace state, plus a broad pass over keyboard ownership, overlay placement, host-page isolation, and extension screenshot capture.
+The current upstream delta is one large commit after the previous audit: `19446bd...`, **"feat: add comment mode (#27)"**, released upstream as `0.1.5`. It introduces DOM-attached threaded comments, iframe-aware selection/commenting, a configurable Inspect information card, additional guide/measurement interactions, feature flags and initial workspace state, plus a broad pass over keyboard ownership, overlay placement, host-page isolation, and extension screenshot capture.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
@@ -20,7 +20,7 @@ For each meaningful upstream change, decide whether Mesurer Solid should **adopt
 | --- | --- | --- |
 | DOM-attached comment threads, replies, all-comments panel, persistence, and agent copy/export | **Intentional divergence** for `0.1.7` | Mesurer Solid already ships the separately designed Context annotation model: target- or region-bound review notes with machine-readable baselines and agent APIs. The accepted stable candidate does not claim upstream threaded-comment parity, and replacing that model immediately before stable promotion would invalidate the real-consumer acceptance that just passed. |
 | Iframe-aware selection, X-ray, and comment targeting | **Intentional divergence** for `0.1.7` | The stable candidate does not claim cross-frame inspection parity. Adopting upstream's shared document-tree targeting requires a separate host/isolation and browser-contract cycle rather than a release-only backport. |
-| Configurable Inspect info card, copyable values, and upstream Typography presentation changes | **Intentional divergence** for `0.1.7` | Mesurer Solid has its own Typography/direct-edit surface and current inspection presentation. No public docs promise the new upstream card UX. Revisit in the next source-first UI cycle. |
+| Configurable Inspect info card, copyable values, and upstream Typography presentation changes | **Intentional divergence** for `0.1.7` | Mesurer Solid has its own Typography/direct-edit UI and inspection presentation. No public docs promise the new upstream card UX. Revisit in the next source-first UI cycle. |
 | Guide context menus, multi-guide removal, guide-linked measurements, and the refined `Option+S` pin workflow | **Intentional divergence** for `0.1.7` | Mesurer Solid retains its currently shipped Guides/Distance workflow and does not claim `Option+S` pinning. These interactions should be adopted together, not partially, after stable. |
 | Configurable upstream feature flags and unified initial workspace/menu state | **Not applicable as a direct port** | Mesurer Solid exposes tools through its plugin runtime, mount options, and persisted workspace/settings contracts instead of upstream's React component feature-flag API. Equivalent product needs should be evaluated through those public APIs. |
 | Keyboard ownership, shortcut gating, host-menu protection, scoped styles, and page-focus isolation fixes | **Adopted outcome; independently implemented and validated** | These are already stable requirements in Mesurer Solid's host-isolation architecture. The accepted candidate passed host compatibility, browser contracts, plugin persistence, toolbar, Trusted/isolated interaction, and real-consumer tests without importing upstream's React-specific implementation. |
@@ -28,15 +28,15 @@ For each meaningful upstream change, decide whether Mesurer Solid should **adopt
 | Extension screenshot capture bridge removal | **Not applicable to the stable package contract** | Mesurer Solid's screenshot plugin and extension integration use a different capture architecture and already have their own package/extension documentation and contracts. No upstream capture-bridge compatibility is claimed. |
 | Upstream visual polish such as floating-card radii, cursor behavior, and hover-lightening | **Intentional divergence unless separately adopted** | Mesurer Solid keeps source-first shared behavior where it is part of the adopted contract, but its plugin-owned Context/Typography/Arrange surfaces have independent visual ownership and parity tests. Cosmetic upstream changes are not silently treated as stable requirements. |
 
-This classification satisfies the stable-readiness upstream gate without silently adding a large new interaction surface after the accepted beta candidate. A newer upstream feature is not automatically a blocker when the product difference is explicit and the public package does not claim the capability.
+This classification satisfies the stable-readiness upstream gate without adding a large new interaction model after the accepted beta candidate. A newer upstream feature is not automatically a blocker when the product difference is explicit and the public package does not claim the capability.
 
 ### 2026-09-13 delta classification
 
-The previous audit covered `b14c2bed...`, **“feat: pin option measurements with option+s (#25)”**.
+The previous audit covered `b14c2bed...`, **"feat: pin option measurements with option+s (#25)"**.
 
 | Upstream delta | Decision | Reason for this release |
 | --- | --- | --- |
-| `Option+S` pins the current Option-distance preview | **Intentional divergence** for the `0.1.7` release train | Mesurer Solid already exposes persisted held distances through its own measurement/workspace model and documents `Alt` / `Option` as the Distance overlay modifier. This stable candidate does not claim an `Option+S` pin shortcut, and adding a new global shortcut immediately before stable promotion would expand the manually tested interaction surface. Revisit in the next source-first feature cycle. |
+| `Option+S` pins the current Option-distance preview | **Intentional divergence** for the `0.1.7` release train | Mesurer Solid already exposes persisted held distances through its own measurement/workspace model and documents `Alt` / `Option` as the Distance overlay modifier. This stable candidate does not claim an `Option+S` pin shortcut, and adding a new global shortcut immediately before stable promotion would expand the manually tested interactions. Revisit in the next source-first feature cycle. |
 | Upstream stops Alt-click distance holding from consuming Guide clicks | **Intentional divergence** for the `0.1.7` release train | The behavior belongs to the same pinned-distance interaction redesign. Mesurer Solid keeps its currently shipped held-distance interaction for this release rather than partially importing one side of the upstream model. |
 | Cursor/element attachment and live refresh for the new pins | **Not applicable until pinning is adopted** | Mesurer Solid should adopt these geometry rules together with the pin interaction if/when the feature is ported, not as detached internal machinery. |
 
@@ -66,7 +66,7 @@ Upstream has continued evolving its grouped Inspect/Annotate toolbar, floating c
 
 The shipping toolbar keeps one stable tool order. Compact presentation hides inactive controls, preserves every active control and its state, and expands back to the same toolbar. Motion uses a 150ms interruptible transition and respects reduced motion. Arrange remains a normal plugin contribution.
 
-The historical `605d202` parity suite still owns shared page/result and Settings behavior, but it predates the current toolbar shell. Toolbar chrome is excluded only from that historical geometry comparison and is covered by a dedicated current Chromium toolbar contract instead.
+The historical `605d202` parity suite still covers shared page/result and Settings behavior, but it predates the current toolbar shell. Toolbar chrome is excluded only from that historical geometry comparison and is covered by a dedicated current Chromium toolbar contract instead.
 
 ## Keyboard boundary
 
@@ -82,7 +82,7 @@ Upstream does not define Mesurer Solid's plugin shortcut model, direct-edit mode
 
 Mesurer Solid exposes the upstream Text Inspector concept as **Typography** and adds reversible direct copy/type editing. The internal `text-inspector` id, `A` shortcut, icon, and coordination contract remain compatible.
 
-Direct editing follows native browser editability, records Before/Desired copy and style intent, and relinquishes preview ownership when the host application changes the value itself. It also owns one visible edit/selection lane: duplicate ordinary selected chrome is paint-suppressed, the dimensions pill remains measurable, source-linked Typography stays stable under pointer motion and follows the source through scroll/offscreen movement, and the transient selection annotation trigger is hidden only for the active edit. See [Direct text editing and Typography](./TEXT_EDITING.md).
+Direct editing follows native browser editability and records Before/Desired copy and style intent. If the application changes the value, Mesurer stops managing that preview value. It also owns one visible edit/selection lane: duplicate ordinary selected chrome is paint-suppressed, the dimensions pill remains measurable, source-linked Typography stays stable under pointer motion and follows the source through scroll/offscreen movement, and the transient selection annotation trigger is hidden only for the active edit. See [Direct text editing and Typography](./TEXT_EDITING.md).
 
 ### Arrange
 

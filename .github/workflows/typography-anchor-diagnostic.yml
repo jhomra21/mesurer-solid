@@ -3,7 +3,7 @@ name: typography-anchor-diagnostic
 on:
   pull_request:
     paths:
-      - "visual-parity/typography-anchor-diagnostic.mjs"
+      - "tests/visual-parity/typography-anchor-diagnostic.mjs"
       - ".github/workflows/typography-anchor-diagnostic.yml"
       - "packages/renderer/src/runtime/document-scroll-anchoring.ts"
       - "packages/renderer/src/runtime/native-scroll-stability.ts"
@@ -50,7 +50,7 @@ jobs:
       - name: Inspect Typography anchor state
         env:
           TYPOGRAPHY_ANCHOR_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/typography-anchor-diagnostic.mjs
+        run: bun tests/visual-parity/typography-anchor-diagnostic.mjs
       - name: Stop playground
         if: always()
         shell: bash

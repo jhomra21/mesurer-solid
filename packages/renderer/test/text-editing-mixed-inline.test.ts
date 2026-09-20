@@ -10,12 +10,16 @@ type CaretDocument = Document & {
 };
 
 const caretDocument: CaretDocument = document;
+
 const mountedHosts: Array<ReturnType<typeof createMesurerPluginHost>> = [];
+
 const originalElementsFromPoint = document.elementsFromPoint?.bind(document);
+
 const originalCaretRangeFromPoint = caretDocument.caretRangeFromPoint;
 
 afterEach(() => {
   while (mountedHosts.length) mountedHosts.pop()?.dispose();
+
   if (originalElementsFromPoint) {
     Object.defineProperty(document, "elementsFromPoint", {
       configurable: true,
@@ -24,6 +28,7 @@ afterEach(() => {
   } else {
     Reflect.deleteProperty(document, "elementsFromPoint");
   }
+
   if (originalCaretRangeFromPoint) {
     Object.defineProperty(document, "caretRangeFromPoint", {
       configurable: true,
@@ -32,6 +37,7 @@ afterEach(() => {
   } else {
     Reflect.deleteProperty(document, "caretRangeFromPoint");
   }
+
   document.body.replaceChildren();
   localStorage.clear();
   vi.restoreAllMocks();
@@ -43,6 +49,7 @@ const setup = async () => {
   const pageTarget = document.createElement("main");
   document.body.append(pageTarget);
   const model = createMesurerModel({ initialEnabled: true });
+
   const createWorkspaceRuntime = () => createMesurerWorkspaceRuntime({
     model,
     ownerDocument: document,
@@ -50,6 +57,7 @@ const setup = async () => {
     uiRoot: document.body,
     pageTarget,
   });
+
   const runtime: MesurerSolidRuntimeService = {
     ownerDocument: document,
     ownerWindow: window,
@@ -61,6 +69,7 @@ const setup = async () => {
       const element = document.createElement("div");
       element.dataset.mesurerInspectorUi = "true";
       document.body.append(element);
+
       return { element, dispose: () => element.remove() };
     },
   };
@@ -92,6 +101,7 @@ const installHitTest = (
       const range = document.createRange();
       range.setStart(textNode, Math.min(1, textNode.length));
       range.collapse(true);
+
       return range;
     },
   });

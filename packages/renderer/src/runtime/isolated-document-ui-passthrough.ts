@@ -9,6 +9,7 @@ type CachedUiRect = {
 };
 
 const DOCUMENT_UI_SELECTOR = "[data-mesurer-inspector-ui='true'], [data-mesurer-annotation-marker='true']";
+
 const SCROLL_IDLE_MS = 80;
 
 const isDocumentBackedRuntime = (
@@ -54,10 +55,12 @@ export function installIsolatedDocumentUiPassthrough(
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
   // SAFETY: ownerWindow is the browsing-context global for ownerDocument and portalTarget.
   const realm = ownerWindow as Window & typeof globalThis;
+
   if (!ownerDocument.body || !isDocumentBackedRuntime(runtime, realm)) return;
 
   const rendererRoot = runtime.rendererRoot
     ?? portalTarget.querySelector<HTMLElement>("[data-mesurer-root='true']");
+
   if (!rendererRoot) return;
 
   const style = ownerDocument.createElement("style");
@@ -90,26 +93,35 @@ export function installIsolatedDocumentUiPassthrough(
   const applyPointer = () => {
     if (!pointer) {
       setPassthrough(false);
+
       return;
     }
+
     setPassthrough(cachedRects.some((rect) => containsPoint(rect, pointer!.x, pointer!.y)));
   };
 
   const capture = () => {
     captureFrame = 0;
     geometryStale = false;
+
     if (disposed) return;
     const next: CachedUiRect[] = [];
+
     for (const element of ownerDocument.body.querySelectorAll<HTMLElement>(DOCUMENT_UI_SELECTOR)) {
       if (!element.isConnected || element.getRootNode() !== ownerDocument) continue;
+
       if (element.getAttribute("aria-hidden") === "true") continue;
       const computed = ownerWindow.getComputedStyle(element);
+
       if (computed.display === "none" || computed.visibility === "hidden" || computed.pointerEvents === "none") continue;
       const rect = element.getBoundingClientRect();
+
       if (rect.width <= 0 || rect.height <= 0) continue;
+
       if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= ownerWindow.innerWidth || rect.top >= ownerWindow.innerHeight) continue;
       next.push({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom });
     }
+
     cachedRects = next;
     windowScrollX = ownerWindow.scrollX;
     windowScrollY = ownerWindow.scrollY;
@@ -123,14 +135,17 @@ export function installIsolatedDocumentUiPassthrough(
 
   const flushStaleGeometry = () => {
     if (!geometryStale && !captureFrame) return false;
+
     if (captureFrame) ownerWindow.cancelAnimationFrame(captureFrame);
     captureFrame = 0;
     capture();
+
     return true;
   };
 
   const isMesurerUiNode = (node: Node) => {
     if (!(node instanceof realm.Element)) return false;
+
     return node.matches(DOCUMENT_UI_SELECTOR)
       || Boolean(node.closest(DOCUMENT_UI_SELECTOR))
       || Boolean(node.querySelector(DOCUMENT_UI_SELECTOR));
@@ -139,11 +154,15 @@ export function installIsolatedDocumentUiPassthrough(
   const observer = new realm.MutationObserver((records) => {
     const relevant = records.some((record) => {
       if (record.type === "attributes") return isMesurerUiNode(record.target);
+
       if (isMesurerUiNode(record.target)) return true;
+
       return [...record.addedNodes, ...record.removedNodes].some(isMesurerUiNode);
     });
+
     if (relevant) scheduleCapture();
   });
+
   observer.observe(ownerDocument.body, {
     subtree: true,
     childList: true,
@@ -153,13 +172,17 @@ export function installIsolatedDocumentUiPassthrough(
 
   const applyPointerEvent = (event: PointerEvent) => {
     pointer = { x: event.clientX, y: event.clientY };
+
     if (!flushStaleGeometry()) applyPointer();
   };
+
   const onPointerLeave = () => {
     pointer = null;
     setPassthrough(false);
   };
+
   const onResize = () => scheduleCapture();
+
   const onScroll = () => {
     const nextX = ownerWindow.scrollX;
     const nextY = ownerWindow.scrollY;
@@ -204,7 +227,9 @@ export function installIsolatedDocumentUiPassthrough(
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
+
     if (captureFrame) ownerWindow.cancelAnimationFrame(captureFrame);
+
     if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
     ownerWindow.removeEventListener("pointermove", applyPointerEvent, true);
     ownerWindow.removeEventListener("pointerover", applyPointerEvent, true);

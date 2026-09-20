@@ -6,10 +6,12 @@ import type { DistanceOverlay } from "../src/core/types";
 import { render } from "../src/solid-dom";
 
 const disposers: Array<() => void> = [];
+
 const GROUP_KEY = "shared-horizontal-gap";
 
 afterEach(() => {
   vi.useRealTimers();
+
   while (disposers.length) disposers.pop()?.();
   document.body.replaceChildren();
 });
@@ -39,6 +41,7 @@ const setup = () => {
   document.body.append(host);
   const [expandedKey, setExpandedKey] = createSignal<string | null>(null);
   const [pinnedKey, setPinnedKey] = createSignal<string | null>(null);
+
   const interaction: SelectionSpacingInteraction = {
     expandedKey,
     setExpandedKey,
@@ -65,6 +68,7 @@ const setup = () => {
   expect(labels).toHaveLength(2);
   const primary = labels.find((label) => label.getAttribute("data-mesurer-distance-label-state") === "primary");
   const duplicate = labels.find((label) => label.getAttribute("data-mesurer-distance-label-state") === "duplicate");
+
   if (!primary || !duplicate) throw new Error("Expected primary and duplicate spacing labels");
 
   primary.getBoundingClientRect = () => ({
@@ -87,6 +91,7 @@ const invokeMouseHandler = (
 ) => {
   const handler = target[property];
   expect(handler).toBeTypeOf("function");
+
   if (!handler) throw new Error(`Expected ${property} handler`);
   const event = new MouseEvent(type, { clientX: 110, clientY: 108, ...init });
   Object.defineProperty(event, "currentTarget", { value: target });

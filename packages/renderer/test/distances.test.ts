@@ -50,6 +50,7 @@ describe("multi-selection spacing", () => {
       selected("b", { left: 124, top: 40, width: 100, height: 60 }),
       selected("c", { left: 260, top: 40, width: 100, height: 60 }),
     ]);
+
     const values = axisValues(overlays);
     const visible = visibleAxisValues(overlays);
 
@@ -67,6 +68,7 @@ describe("multi-selection spacing", () => {
       selected("c", { left: 40, top: 132, width: 100, height: 60 }),
       selected("d", { left: 164, top: 132, width: 100, height: 60 }),
     ]);
+
     const values = axisValues(overlays);
     const visible = visibleAxisValues(overlays);
     const diagonals = overlays.flatMap((item) => item.diagonal ? [item.diagonal] : []);
@@ -86,6 +88,7 @@ describe("multi-selection spacing", () => {
       "selection-spacing:pair:c:d",
     ]);
     expect(overlays.filter((item) => item.horizontal && item.vertical)).toHaveLength(2);
+
     for (const id of ["selection-spacing:pair:a:d", "selection-spacing:pair:b:c"]) {
       const overlay = overlays.find((item) => item.id === id);
       expect(overlay?.horizontal?.showLine).toBe(false);
@@ -118,6 +121,7 @@ describe("multi-selection spacing", () => {
       selected("a", { left: 40, top: 40, width: 100, height: 60 }),
       selected("b", { left: 164, top: 40, width: 100, height: 60 }),
     ]);
+
     const aToB = overlays.find((item) => item.id === "selection-spacing:pair:a:b");
 
     expect(aToB?.horizontal?.value).toBe(24);
@@ -142,6 +146,7 @@ describe("multi-selection spacing", () => {
       selected("parent", { left: 20, top: 20, width: 100, height: 100 }),
       selected("child", { left: 40, top: 50, width: 40, height: 60 }),
     ]);
+
     const edges = new Map(overlays[0].edgeDistances?.map((edge) => [edge.side, edge.value]));
 
     expect(edges).toEqual(new Map([
@@ -191,6 +196,7 @@ describe("multi-selection spacing", () => {
     const parent = selected("parent", { left: 20, top: 720, width: 100, height: 100 });
     const child = selected("child", { left: 40, top: 750, width: 40, height: 60 });
     const before = getSelectionSpacingOverlays([parent, child]);
+
     const after = getSelectionSpacingOverlays([
       translated(parent, 0, -600),
       translated(child, 0, -600),

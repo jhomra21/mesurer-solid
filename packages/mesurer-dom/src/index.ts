@@ -13,6 +13,7 @@ export type DomHost = {
 export function createDomHost(target?: HTMLElement | ShadowRoot): DomHost {
   const ownerDocument = target?.ownerDocument ?? document;
   const ownerWindow = ownerDocument.defaultView ?? window;
+
   return { ownerWindow, ownerDocument, portalTarget: target ?? ownerDocument.body };
 }
 
@@ -20,6 +21,7 @@ export function createPortalMount(host: DomHost, attribute = "data-mesurer-host"
   const mount = host.ownerDocument.createElement("div");
   mount.setAttribute(attribute, "true");
   host.portalTarget.append(mount);
+
   return { mount, dispose: () => mount.remove() };
 }
 
@@ -63,6 +65,7 @@ export type DomInspectionRect = {
 };
 
 export type DomEdges = { top: number; right: number; bottom: number; left: number };
+
 export type DomElementFingerprint = MesurerElementFingerprint;
 
 export type DomElementInspection = {
@@ -140,24 +143,29 @@ export type DomStyleReader<ElementRef extends DomInspectableElement> = {
 };
 
 const parseEdge = (value: string) => Number.parseFloat(value) || 0;
+
 let inspectionId = 0;
 
 const escapeCss = (value: string, ownerWindow: Window) => {
   // SAFETY: ownerWindow is the browser realm that owns the inspected document and therefore exposes that realm's CSS namespace.
   const css = (ownerWindow as Window & typeof globalThis).CSS;
+
   return css?.escape ? css.escape(value) : value.replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`);
 };
 
 const normalizedFingerprintText = (element: Element) => {
   const text = (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+
   return text || null;
 };
 
 const isDocument = (value: Node): value is Document => value.nodeType === 9;
+
 const isShadowRoot = (value: Node): value is ShadowRoot => value.nodeType === 11;
 
 export function getRectFromDom(element: Element): Rect {
   const rect = element.getBoundingClientRect();
+
   return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
 }
 
@@ -165,12 +173,14 @@ export type DomHitTestTarget = Document | HTMLElement | ShadowRoot;
 
 export function getDomTreeRoot(element: Element): Document | ShadowRoot {
   const root = element.getRootNode();
+
   return isShadowRoot(root) ? root : element.ownerDocument;
 }
 
 const pointRoot = (target: DomHitTestTarget, ownerDocument: Document): Document | ShadowRoot => {
   if (isDocument(target) || isShadowRoot(target)) return target;
   const root = getDomTreeRoot(target);
+
   return isShadowRoot(root) ? root : ownerDocument;
 };
 
@@ -181,35 +191,44 @@ export function getDeepestElementAtPoint(
   ownerDocument: Document = isDocument(target) ? target : target.ownerDocument ?? document,
 ): Element | null {
   let current = pointRoot(target, ownerDocument).elementFromPoint(point.x, point.y);
+
   while (current?.shadowRoot) {
     const nested = current.shadowRoot.elementFromPoint(point.x, point.y);
+
     if (!nested || nested === current) break;
     current = nested;
   }
+
   return current;
 }
 
 export function isElementWithinDomTarget(element: Element, target: DomHitTestTarget): boolean {
   if (isDocument(target)) return true;
   let current: Element | null = element;
+
   while (current) {
     if (target === current || target.contains(current)) return true;
     const root = current.getRootNode();
+
     if (!isShadowRoot(root)) return false;
     current = root.host;
   }
+
   return false;
 }
 
 export function withPointerEventsDisabled<T>(element: HTMLElement | null, operation: () => T): T {
   if (!element) return operation();
   const elements = [element, ...element.querySelectorAll<HTMLElement>("*")];
+
   const previous = elements.map((current) => [
     current,
     current.style.getPropertyValue("pointer-events"),
     current.style.getPropertyPriority("pointer-events"),
   ] as const);
+
   for (const current of elements) current.style.setProperty("pointer-events", "none", "important");
+
   try {
     return operation();
   } finally {
@@ -222,23 +241,30 @@ export function withPointerEventsDisabled<T>(element: HTMLElement | null, operat
 
 export function getElementSelector(element: Element): string {
   const ownerWindow = element.ownerDocument.defaultView ?? window;
+
   if (element.id) return `#${escapeCss(element.id, ownerWindow)}`;
   const testId = element.getAttribute("data-testid");
+
   if (testId) return `[data-testid=${JSON.stringify(testId)}]`;
 
   const parts: string[] = [];
   let current: Element | null = element;
+
   while (current && parts.length < 5) {
     let part = current.localName;
     const currentName = current.localName;
     const parent: Element | null = current.parentElement;
+
     if (parent) {
       const siblings = [...parent.children].filter((candidate) => candidate.localName === currentName);
+
       if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`;
     }
+
     parts.unshift(part);
     current = parent;
   }
+
   return parts.join(" > ");
 }
 
@@ -267,16 +293,23 @@ export function isElementFingerprintRebindable(fingerprint: DomElementFingerprin
 
 export function isElementFingerprintCompatible(element: Element, fingerprint: DomElementFingerprint): boolean {
   if (element.localName !== fingerprint.tag) return false;
+
   if (fingerprint.id && element.id !== fingerprint.id) return false;
+
   if (fingerprint.testId && element.getAttribute("data-testid") !== fingerprint.testId) return false;
+
   if (fingerprint.role && element.getAttribute("role") !== fingerprint.role) return false;
+
   if (fingerprint.ariaLabel && element.getAttribute("aria-label") !== fingerprint.ariaLabel) return false;
 
   const hasStrongIdentity = Boolean(fingerprint.id || fingerprint.testId);
+
   if (hasStrongIdentity) return true;
 
   if (fingerprint.classes.some((className) => !element.classList.contains(className))) return false;
+
   if (fingerprint.text && normalizedFingerprintText(element) !== fingerprint.text) return false;
+
   return isElementFingerprintRebindable(fingerprint);
 }
 
@@ -291,34 +324,40 @@ export function getInspectMeasurement<ElementRef extends DomInspectableElement>(
 ): InspectMeasurement<ElementRef> {
   const rect = element.getBoundingClientRect();
   const style = styleReader.getComputedStyle(element);
+
   const padding = {
     top: parseEdge(style.paddingTop),
     right: parseEdge(style.paddingRight),
     bottom: parseEdge(style.paddingBottom),
     left: parseEdge(style.paddingLeft),
   };
+
   const margin = {
     top: parseEdge(style.marginTop),
     right: parseEdge(style.marginRight),
     bottom: parseEdge(style.marginBottom),
     left: parseEdge(style.marginLeft),
   };
+
   const paddingRect = {
     left: rect.left + padding.left,
     top: rect.top + padding.top,
     width: Math.max(0, rect.width - padding.left - padding.right),
     height: Math.max(0, rect.height - padding.top - padding.bottom),
   };
+
   const marginRect = {
     left: rect.left - margin.left,
     top: rect.top - margin.top,
     width: rect.width + margin.left + margin.right,
     height: rect.height + margin.top + margin.bottom,
   };
+
   const tag = element.tagName.toLowerCase();
   const elementId = element.id ? `#${element.id}` : "";
   const firstClass = element.classList.item(0);
   const className = firstClass ? `.${firstClass}` : "";
+
   return {
     id,
     rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
@@ -339,10 +378,13 @@ export function inspectDomElement(element: Element): DomElementInspection {
   const html = element instanceof HTMLElementCtor ? element : null;
   const bounding = element.getBoundingClientRect();
   const canonical = html ? getInspectMeasurement(html, ownerWindow) : null;
+
   const number = (value: string) => {
     const parsed = Number.parseFloat(value);
+
     return Number.isFinite(parsed) ? parsed : 0;
   };
+
   const edges = (prefix: "margin" | "padding" | "border"): DomEdges => ({
     top: number(style.getPropertyValue(`${prefix}-top${prefix === "border" ? "-width" : ""}`)),
     right: number(style.getPropertyValue(`${prefix}-right${prefix === "border" ? "-width" : ""}`)),

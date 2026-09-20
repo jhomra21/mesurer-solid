@@ -36,14 +36,18 @@ export function createMesurerModel(options: MesurerModelOptions = {}): MesurerMo
   const disposeCore = core.dispose;
   let disposed = false;
   let model!: MesurerModel;
+
   const activeSelection = createMemo(
     () => state.selectedMeasurement ?? state.selectedMeasurements.at(-1) ?? null,
   );
+
   const setGuides: typeof core.setGuides = (guides) => {
     const current = core.current.guides;
+
     const unchanged = current.length === guides.length
       && current.every((guide, index) => {
         const next = guides[index];
+
         return Boolean(
           next
           && next.id === guide.id
@@ -51,15 +55,19 @@ export function createMesurerModel(options: MesurerModelOptions = {}): MesurerMo
           && next.position === guide.position,
         );
       });
+
     if (unchanged) return;
     core.setGuides(guides);
   };
+
   const setTransient: typeof core.setTransient = (update) => {
     const wasSelectGestureActive = core.current.toolMode === "select" && core.current.start !== null;
     core.setTransient(update);
     const selectGestureActive = core.current.toolMode === "select" && core.current.start !== null;
+
     if (!wasSelectGestureActive && selectGestureActive) {
       const ownerWindow = model.rendererRoot?.ownerDocument.defaultView;
+
       if (ownerWindow) publishMesurerSelectGestureStart(ownerWindow);
     }
   };
@@ -83,6 +91,8 @@ export function createMesurerModel(options: MesurerModelOptions = {}): MesurerMo
   }
 
   registerModel(model);
+
   if (owner) onCleanup(dispose);
+
   return model;
 }

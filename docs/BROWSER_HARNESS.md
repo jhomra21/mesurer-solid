@@ -1,183 +1,75 @@
 # Browser and agent integration
 
-Mesurer uses the browser control a coding agent already has. It does not create a second browser, CDP stack, RPC server, or message-delivery layer.
+Mesurer does not own browser automation. It reads and presents page state through the browser evaluation channel already available to the coding tool.
+
+For the full agent workflow, use [Agent Integration](../packages/mesurer/AGENT_INTEGRATION.md). That guide covers preserving human state, reading intent, editing source, and verifying Live output. This document defines only the browser boundary.
+
+## Preferred integration order
+
+Use the least invasive path available:
+
+1. reuse a live `window.__MESURER__` instance;
+2. inject the packaged `mesurer-solid/inject-script` through an existing browser-evaluation channel;
+3. attach through an existing browser/Electron debug channel and inject only when absent;
+4. mount Mesurer in application source only when persistent embedded tooling is explicitly wanted or no external evaluation path exists.
+
+Do not create a Mesurer-specific browser process, dev server, CDP client, Electron main/preload path, or alternate application build when the existing browser controller can already evaluate JavaScript in the rendered page.
+
+## Injection artifact
+
+The portable classic-script artifact is:
 
 ```text
-human reviewer
-    ↕
-Mesurer in the real page
-    ↕
-window.__MESURER__
-    ↕
-existing browser evaluate / screenshot
-    ↕
-coding agent
+mesurer-solid/inject-script
 ```
 
-## Reuse before injecting
+The repository helper prints the same built artifact:
 
-A live Mesurer instance may already contain selection, guides, measurements, annotations, Arrange intent, text/style intent, plugin state, or screenshot review state. Preserve it.
-
-```js
-const hasMesurer = await browser.evaluate(() => Boolean(
-  window.__MESURER__ &&
-  window.__MESURER_INSTANCE__?.element?.isConnected
-))
-
-if (hasMesurer) {
-  await browser.evaluate(() => window.__MESURER__.ready())
-}
+```bash
+bun run browser:inject-script
 ```
 
-If the instance exists, use it. Inject only when it is absent.
+The ES-module `mesurer-solid/inject` entry is available to browser tools that support module injection.
 
-The self-contained payload is published at `mesurer-solid/inject-script`:
+Injected Mesurer carries its own isolated Solid 2 renderer/runtime. It does not require the host application's framework runtime.
 
-```js
-import { readFile } from "node:fs/promises"
-import { fileURLToPath } from "node:url"
+## Browser ownership
 
-const source = await readFile(
-  fileURLToPath(import.meta.resolve("mesurer-solid/inject-script")),
-  "utf8",
-)
+The browser controller owns:
 
-if (!hasMesurer) {
-  await browser.evaluate(source)
-}
+- navigation and page lifetime;
+- clicking/typing in the host application;
+- authentication/session state;
+- tabs/windows;
+- general screenshots and artifact storage;
+- source editing and dev-server lifecycle.
 
-await browser.evaluate(() => window.__MESURER__.ready())
-```
+Mesurer owns:
 
-Injection defaults to `reuseExisting: true`. Deliberate replacement with `{ reuseExisting: false }` is for explicit test or HMR scenarios, not normal agent attachment.
+- visual measurement/inspection;
+- selection and structured Context;
+- annotations/review;
+- Arrange and direct text Desired intent;
+- Mesurer commands/plugin state;
+- Mesurer-owned UI;
+- optional human screenshot UI.
 
-Normal injection does not enable the human Screenshot plugin. Configure `{ screenshot: true }` before first injection only when that camera workflow is needed.
+The screenshot plugin is not a replacement for the browser controller's task screenshot capability.
 
-## Capability surface
+## Existing human state
 
-After `ready()`:
+Injection must not replace a connected Mesurer instance by default. Existing selection, annotations, measurements, guides, Arrange/text intent, and screenshot UI may be part of the user's message.
 
-```js
-const { capabilities } = window.__MESURER__.capabilities()
-```
+The exact intent-inventory and stale-target rules are maintained in [Agent Integration](../packages/mesurer/AGENT_INTEGRATION.md).
 
-Common context methods include:
+## Repository browser adapter
 
-```text
-context()
-select()
-annotations()
-review()
-capturePlan()
-textEdits()
-textEdit()
-```
+`scripts/browser-harness/` is a repository/CI adapter for exercising the public injection artifact. It is not a required runtime dependency or public transport protocol.
 
-Arrange adds:
+Changes to injection/reuse behavior should be proven through the relevant host/browser contracts under `tests/` and package smoke coverage.
 
-```text
-arrangements()
-arrange()
-showArrange()
-arrangeCapturePlan()
-reviewArrange()
-```
+## Host isolation
 
-There is no Send-to-agent capability. Copy Context and Copy Selection are human clipboard actions; agents read the page API directly.
+Browser integration must preserve Mesurer's host-isolation rules across Shadow DOM, top-layer UI, modal dialogs, nested documents/scrolling, and document-backed inspector mounts.
 
-## Read before editing
-
-For a broad request such as “check Mesurer,” preserve the current human state before changing selection or source. That can include Context, annotations, Arrange Before/Desired geometry, direct text/style intent, guides, measurements, rulers/X-ray state, and screenshot review state.
-
-If the exact rendered targets are known and no human selection needs preserving:
-
-```js
-const context = await window.__MESURER__.select([
-  "#pricing-card",
-  "#pricing-cta",
-])
-```
-
-Every selector must resolve to exactly one target. Missing or ambiguous selectors fail rather than silently choosing another element.
-
-See [Context](./CONTEXT_WORKFLOW.md) for the full target and intent ordering.
-
-## Verify the real page
-
-After source changes or HMR:
-
-```js
-await window.__MESURER__.stable()
-```
-
-Then compare the same evidence captured before editing:
-
-- Arrange against Live with its temporary preview removed;
-- text/style intent against Live with the Desired preview inactive;
-- annotations through `review(annotationId)`;
-- selection and measurements through fresh context;
-- focused geometry through `inspect()`, `distance()`, or `viewport()`.
-
-Do not clear human history merely to expose Live state.
-
-Feature-specific ownership and review rules live in [Arrange](./ARRANGE.md) and [Direct text editing and Typography](./TEXT_EDITING.md); the harness should consume those contracts rather than reimplementing them.
-
-## Multi-selection
-
-Inspect every selected target and preserve the relationships that matter between them. Use existing `selection.visualContext.distances` first; call `distance(a, b)` for a needed pair when the selection lacks useful evidence.
-
-For small selections, keep useful unique pair relationships. For large selections, focus on adjacent, repeated, or user-relevant pairs rather than generating O(n²) noise.
-
-## Screenshot evidence
-
-For agent evidence, Mesurer prepares the page while the existing harness owns screenshot bytes:
-
-```js
-const plan = await window.__MESURER__.capturePlan({ annotation: annotationId })
-await window.__MESURER__.prepareCapture()
-try {
-  // outer harness screenshot
-} finally {
-  await window.__MESURER__.finishCapture()
-}
-```
-
-Use `{ scope: "selection" }` for unsaved selection evidence.
-
-The optional human camera is `screenshot()` from `mesurer-solid/plugins`. It is separate from agent screenshot evidence. See [Screenshots](./SCREENSHOTS.md).
-
-## Focused API
-
-Useful low-level methods include:
-
-```text
-ready()
-stable()
-capabilities()
-context()
-select()
-annotations()
-textEdits()
-textEdit()
-review()
-capturePlan()
-prepareCapture()
-finishCapture()
-inspect()
-inspectAll()
-at()
-distance()
-viewport()
-feedback()
-describe()
-command()
-state()
-```
-
-Use Context and saved intent for human-in-the-loop work. Use the focused methods for focused measurement questions.
-
-## Browser boundaries
-
-Normal browser security still applies. Top-level JavaScript cannot inspect cross-origin iframe DOM, and closed shadow roots remain inaccessible. Frame or privileged-target injection depends on the outer harness; Mesurer does not duplicate those capabilities.
-
-The repository's Playwright adapters are deterministic reference/test drivers, not a separate Mesurer agent protocol.
+See [Host isolation](./HOST_ISOLATION.md) for those renderer contracts.

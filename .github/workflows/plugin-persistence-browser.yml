@@ -8,7 +8,7 @@ on:
       - "packages/renderer/test/plugin-persistence.test.tsx"
       - "examples/basic/plugin-settings.html"
       - "examples/basic/src/plugin-settings.ts"
-      - "visual-parity/plugin-reload-persistence.mjs"
+      - "tests/visual-parity/plugin-reload-persistence.mjs"
       - ".github/workflows/plugin-persistence-browser.yml"
   workflow_dispatch:
 
@@ -60,4 +60,4 @@ jobs:
       - name: Prove plugin settings survive immediate reload
         env:
           PLUGIN_RELOAD_URL: http://127.0.0.1:4174/plugin-settings.html
-        run: bun visual-parity/plugin-reload-persistence.mjs
+        run: bun tests/visual-parity/plugin-reload-persistence.mjs

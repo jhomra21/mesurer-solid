@@ -55,6 +55,7 @@ export function createDocumentTextRuntime(
   const { ownerDocument, ownerWindow } = runtime;
   // SAFETY: ownerWindow is the browsing-context global for ownerDocument and portalTarget, so its DOM constructors match this runtime.
   const realm = ownerWindow as Window & typeof globalThis;
+
   if (!ownerDocument.body || !isDocumentBackedShadow(runtime, realm)) {
     return { runtime, isolated: false };
   }
@@ -70,6 +71,7 @@ export function createDocumentTextRuntime(
     element.dataset.mesurerIsolatedDocumentRuntime = "true";
     ownerDocument.body.append(element);
     let disposed = false;
+
     return {
       element,
       dispose() {
@@ -108,6 +110,7 @@ export function installIsolatedSelectionPortal(
   const { ownerDocument, ownerWindow, portalTarget } = runtime;
   // SAFETY: ownerWindow is the browsing-context global for ownerDocument and portalTarget, so its DOM constructors match this runtime.
   const realm = ownerWindow as Window & typeof globalThis;
+
   if (!ownerDocument.body || !isDocumentBackedShadow(runtime, realm)) return;
 
   ensureMesurerStyles(MESURER_STYLES, ownerDocument.body);
@@ -122,7 +125,9 @@ export function installIsolatedSelectionPortal(
     const parent = root.parentNode;
     const marker = parent ? ownerDocument.createComment("mesurer-isolated-selection-portal") : null;
     const proxy = parent ? ownerDocument.createElement("span") : null;
+
     if (marker && parent) parent.insertBefore(marker, root);
+
     if (proxy && parent) {
       proxy.dataset.mesurerMeasurement = "true";
       proxy.dataset.mesurerIsolatedSelectionProxy = "true";
@@ -130,6 +135,7 @@ export function installIsolatedSelectionPortal(
       proxy.style.display = "none";
       parent.insertBefore(proxy, root);
     }
+
     placements.set(root, { root, marker, proxy, parent, mirroredDisplay: null });
     root.dataset.mesurerIsolatedDocumentLayer = "true";
     ownerDocument.body.append(root);
@@ -137,20 +143,25 @@ export function installIsolatedSelectionPortal(
 
   const sourcePresentationHidden = (placement: RootPlacement) => {
     let current = placement.proxy?.parentElement ?? null;
+
     while (current) {
       if (current.style.getPropertyValue("display") === "none") return true;
       current = current.parentElement;
     }
+
     return false;
   };
 
   const syncSourceVisibility = (placement: RootPlacement) => {
     const hidden = sourcePresentationHidden(placement);
+
     if (hidden && placement.mirroredDisplay === null) {
       placement.mirroredDisplay = captureDisplay(placement.root);
       placement.root.style.setProperty("display", "none", "important");
+
       return;
     }
+
     if (!hidden && placement.mirroredDisplay !== null) {
       restoreDisplay(placement.root, placement.mirroredDisplay);
       placement.mirroredDisplay = null;
@@ -159,14 +170,18 @@ export function installIsolatedSelectionPortal(
 
   const releaseRoot = (placement: RootPlacement, restore: boolean) => {
     const { root, marker, proxy, parent } = placement;
+
     if (placement.mirroredDisplay !== null) {
       restoreDisplay(root, placement.mirroredDisplay);
       placement.mirroredDisplay = null;
     }
+
     delete root.dataset.mesurerIsolatedDocumentLayer;
+
     if (restore && root.isConnected && marker?.parentNode === parent && parent) {
       parent.insertBefore(root, marker);
     }
+
     proxy?.remove();
     marker?.remove();
     placements.delete(root);
@@ -174,19 +189,24 @@ export function installIsolatedSelectionPortal(
 
   const stabilize = () => {
     if (disposed) return;
+
     for (const root of portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-selected-measurement='true']")) {
       moveRoot(root);
     }
 
     const selectedElements = workspace.currentSelection().elements;
     lastSelection = selectedElements;
+
     for (const placement of Array.from(placements.values())) {
       const { root } = placement;
+
       if (!root.isConnected) {
         releaseRoot(placement, false);
         continue;
       }
+
       syncSourceVisibility(placement);
+
       // Solid removes selection roots when their measurement leaves the model.
       // The only explicit release needed here is the empty-selection case. Do
       // not compare page/root DOMRects on workspace notifications; that turns
@@ -211,12 +231,16 @@ export function installIsolatedSelectionPortal(
     attributes: true,
     attributeFilter: ["style"],
   });
+
   const unsubscribeWorkspace = workspace.subscribe(() => {
     const next = workspace.currentSelection().elements;
+
     const changed = next.length !== lastSelection.length
       || next.some((element, index) => element !== lastSelection[index]);
+
     if (changed) schedule();
   });
+
   ownerWindow.addEventListener("pointerup", schedule, true);
   ownerWindow.addEventListener("dblclick", schedule, true);
   ownerWindow.addEventListener("resize", schedule, true);
@@ -229,6 +253,7 @@ export function installIsolatedSelectionPortal(
     ownerWindow.removeEventListener("pointerup", schedule, true);
     ownerWindow.removeEventListener("dblclick", schedule, true);
     ownerWindow.removeEventListener("resize", schedule, true);
+
     for (const placement of Array.from(placements.values())) releaseRoot(placement, true);
     workspace.dispose();
   });

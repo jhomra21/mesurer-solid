@@ -1,4 +1,5 @@
 const BODY_CLASS = "mesurer-solid-xray";
+
 const token = (instanceId: number) => `mesurer-xray-${instanceId}`;
 
 const scopedRules = (selector: string) => `
@@ -16,23 +17,27 @@ const documentStates = new WeakMap<Document, DocumentXrayState>();
 
 const getDocumentState = (ownerDocument: Document) => {
   const existing = documentStates.get(ownerDocument);
+
   if (existing) return existing;
   const style = ownerDocument.createElement("style");
   style.dataset.mesurerXrayStyle = "true";
   style.textContent = scopedRules(`.${BODY_CLASS}`);
   const state = { activeInstances: new Set<number>(), style };
   documentStates.set(ownerDocument, state);
+
   return state;
 };
 
 const setDocumentVisible = (ownerDocument: Document, instanceId: number, visible: boolean) => {
   const state = getDocumentState(ownerDocument);
+
   if (visible) state.activeInstances.add(instanceId);
   else state.activeInstances.delete(instanceId);
 
   const host = ownerDocument.body ?? ownerDocument.documentElement;
   const active = state.activeInstances.size > 0;
   host?.classList.toggle(BODY_CLASS, active);
+
   if (active) {
     if (!state.style.isConnected) ownerDocument.head?.append(state.style);
   } else {
@@ -50,18 +55,23 @@ export function createXrayScope(options: {
   // SAFETY: ownerWindow is the realm that owns target and therefore its DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
   const shadowTarget = target instanceof realm.ShadowRoot;
+
   const documentTarget = !shadowTarget
     && (target === ownerDocument.body || target === ownerDocument.documentElement);
+
   const className = token(instanceId);
   const style = ownerDocument.createElement("style");
   style.dataset.mesurerXrayStyle = "true";
   style.textContent = scopedRules(shadowTarget ? ":host" : `.${className}`);
+
   const elementStyleRoot = !shadowTarget
     ? target.getRootNode()
     : null;
+
   const scopedStyleHost = elementStyleRoot instanceof realm.ShadowRoot
     ? elementStyleRoot
     : ownerDocument.head;
+
   let visible = false;
 
   const setVisible = (next: boolean) => {
@@ -70,17 +80,21 @@ export function createXrayScope(options: {
 
     if (documentTarget) {
       setDocumentVisible(ownerDocument, instanceId, next);
+
       return;
     }
 
     if (shadowTarget) {
       if (next && !style.isConnected) target.append(style);
       else if (!next) style.remove();
+
       return;
     }
 
     target.classList.toggle(className, next);
+
     if (next && !style.isConnected) scopedStyleHost?.append(style);
+
     if (!next) style.remove();
   };
 

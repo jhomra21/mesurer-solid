@@ -11,6 +11,7 @@ export function Tooltip(props: {
   class?: string;
 }) {
   const side = () => props.side ?? "top";
+
   return (
     <span
       role="tooltip"
@@ -32,13 +33,17 @@ export function createTooltip(ownerWindow: Window) {
     ownerWindow.clearTimeout(timer);
     timer = null;
   };
+
   const onTooltipEnter = (id: string) => {
     clearTimer();
+
     if (instant) {
       setTooltipInstant(true);
       setVisibleTooltipId(id);
+
       return;
     }
+
     setTooltipInstant(false);
     timer = ownerWindow.setTimeout(() => {
       setVisibleTooltipId(id);
@@ -46,16 +51,20 @@ export function createTooltip(ownerWindow: Window) {
       timer = null;
     }, TOOLTIP_DELAY_MS);
   };
+
   const onTooltipLeave = () => {
     clearTimer();
     setVisibleTooltipId(null);
   };
+
   const onTooltipContainerLeave = () => {
     clearTimer();
     setVisibleTooltipId(null);
     instant = false;
     setTooltipInstant(false);
   };
+
   onCleanup(clearTimer);
+
   return { visibleTooltipId, tooltipInstant, onTooltipEnter, onTooltipLeave, onTooltipContainerLeave };
 }

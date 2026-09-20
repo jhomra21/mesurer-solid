@@ -26,6 +26,7 @@ await mesurer.ready;
 
 const moveToolbar = (left: number, top: number) => {
   const toolbar = mesurer.element.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
+
   if (!toolbar) throw new Error("Mesurer toolbar did not mount.");
   toolbar.style.left = `${left}px`;
   toolbar.style.top = `${top}px`;

@@ -6,7 +6,7 @@ on:
       - "packages/renderer/**"
       - "packages/mesurer-dom/**"
       - "examples/basic/**"
-      - "visual-parity/**"
+      - "tests/visual-parity/**"
       - ".github/workflows/visual-parity.yml"
   workflow_dispatch:
 
@@ -41,7 +41,7 @@ jobs:
           echo "Using ibelick/mesurer parity baseline $sha"
 
       - name: Assert stylesheet source parity
-        run: python3 visual-parity/check-styles.py
+        run: python3 tests/visual-parity/check-styles.py
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -74,12 +74,12 @@ jobs:
 
       - name: Prepare identical fixtures
         run: |
-          cp visual-parity/react-fixture.tsx upstream/apps/site/e2e/fixtures/parity.tsx
-          cp visual-parity/react.html upstream/apps/site/e2e/fixtures/parity.html
-          cp visual-parity/solid-fixture.tsx examples/basic/src/parity.tsx
-          cp visual-parity/solid.html examples/basic/parity.html
-          cp visual-parity/capture.mjs upstream/apps/site/e2e/parity-capture.mjs
-          cp visual-parity/interactions.mjs upstream/apps/site/e2e/parity-interactions.mjs
+          cp tests/visual-parity/react-fixture.tsx upstream/apps/site/e2e/fixtures/parity.tsx
+          cp tests/visual-parity/react.html upstream/apps/site/e2e/fixtures/parity.html
+          cp tests/visual-parity/solid-fixture.tsx examples/basic/src/parity.tsx
+          cp tests/visual-parity/solid.html examples/basic/parity.html
+          cp tests/visual-parity/capture.mjs upstream/apps/site/e2e/parity-capture.mjs
+          cp tests/visual-parity/interactions.mjs upstream/apps/site/e2e/parity-interactions.mjs
 
       - name: Start React and renderer fixtures
         run: |
@@ -124,13 +124,13 @@ jobs:
         run: node e2e/parity-capture.mjs
 
       - name: Verify current-only parity metadata
-        run: bun visual-parity/normalize-current-contract-metadata.mjs parity-artifacts
+        run: bun tests/visual-parity/normalize-current-contract-metadata.mjs parity-artifacts
 
       - name: Build side-by-side and pixel-diff report
         shell: bash
         run: |
           set -o pipefail
-          python3 visual-parity/compare.py parity-artifacts | tee parity-artifacts/report.txt
+          python3 tests/visual-parity/compare.py parity-artifacts | tee parity-artifacts/report.txt
 
       - name: Add visual report summary
         env:
@@ -198,7 +198,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          python3 visual-parity/compare-interactions.py interaction-artifacts | tee interaction-artifacts/report.txt
+          python3 tests/visual-parity/compare-interactions.py interaction-artifacts | tee interaction-artifacts/report.txt
           status=${PIPESTATUS[0]}
           echo "$status" > interaction-artifacts/gate-status.txt
           exit 0
@@ -236,7 +236,7 @@ jobs:
         if: always()
         run: |
           if compgen -G 'interaction-artifacts-3x/react-*.png' > /dev/null && compgen -G 'interaction-artifacts-3x/solid-*.png' > /dev/null; then
-            python3 visual-parity/make-side-by-side.py interaction-artifacts-3x interaction-side-by-side-3x
+            python3 tests/visual-parity/make-side-by-side.py interaction-artifacts-3x interaction-side-by-side-3x
           else
             echo "No complete native-3x capture set; skipping side-by-side generation."
           fi
