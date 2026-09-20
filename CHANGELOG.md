@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.8-beta.1 - 2026-09-20
+
 - Keep **Queue to Codex** on Codex's native durable queue for every client. Desktop ownership now uses `codex://threads/<threadId>` to load or resume the real app-owned thread, so delivery no longer depends on the `codex_app` MCP pipe; existing queued-submission ids are preserved across bridge restarts and recovery instead of being deleted and resent.
 - Preserve saved Context annotations across same-tab reloads, restore their exact ids/baselines, and conservatively rebind element targets from stored selector/fingerprint identity instead of losing review state when the page refreshes.
 - Preserve page-local Codex routing across browser reloads with per-tab affinity state, refuse to inherit a bridge-wide default when multiple registered threads make the destination ambiguous, and resume exact queued/working delivery tracking after reload so annotation completion cleanup is not lost.
