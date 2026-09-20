@@ -97,10 +97,7 @@ export function installUnifiedTextSelectMenus(
     openMenu.popup.style.top = `${Math.max(VIEWPORT_PADDING, top)}px`;
   };
 
-  const makeOptionButton = (
-    option: MenuOption,
-    trigger: HTMLButtonElement,
-  ) => {
+  const makeOptionButton = (option: MenuOption) => {
     const button = ownerDocument.createElement("button");
     button.type = "button";
     button.dataset.mesurerUnifiedSelectOption = option.key;
@@ -221,7 +218,7 @@ export function installUnifiedTextSelectMenus(
       pointerEvents: "auto",
     });
 
-    for (const option of options) popup.append(makeOptionButton(option, trigger));
+    for (const option of options) popup.append(makeOptionButton(option));
     runtimeMount.append(popup);
     trigger.setAttribute("aria-expanded", "true");
     chevron?.style.setProperty("transform", "rotate(225deg)");
