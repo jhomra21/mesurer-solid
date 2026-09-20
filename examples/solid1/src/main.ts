@@ -2,6 +2,7 @@ import { createEffect, createSignal } from "solid-js";
 import { render } from "solid-js/web";
 
 const root = document.getElementById("root");
+
 if (!root) throw new Error("Missing Solid 1 root");
 
 render(() => {
@@ -26,5 +27,6 @@ render(() => {
   sibling.style.padding = "16px";
 
   wrapper.append(button, sibling);
+
   return wrapper;
 }, root);

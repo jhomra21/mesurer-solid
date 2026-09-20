@@ -1,22 +1,32 @@
 export { default as Mesurer } from "./ComposableMesurer";
+
 export type {
   MesurerPluginInput,
   MesurerPluginRegistration,
   MesurerProps,
   MesurerSolidRuntimeService,
 } from "./ComposableMesurer";
+
 export { ContextActions } from "./components/ContextActions";
+
 export type { ContextActionsController, ContextActionsProps } from "./components/ContextActions";
+
 export { ContextActionsSelectOwnership } from "./components/ContextActionsSelectOwnership";
+
 export type { ContextActionsSelectOwnershipProps } from "./components/ContextActionsSelectOwnership";
+
 export { createDocumentInspectorMount } from "./runtime/document-inspector-mount";
+
 export type { DocumentInspectorMount } from "./runtime/document-inspector-mount";
+
 export { createMesurerWorkspaceRuntime } from "./runtime/workspace-context";
+
 export {
   MESURER_SELECT_GESTURE_START_EVENT,
   publishMesurerSelectGestureStart,
   subscribeMesurerSelectGestureStart,
 } from "./runtime/select-gesture-channel";
+
 export type {
   MesurerAnnotation,
   MesurerAnnotationBaseline,
@@ -26,6 +36,7 @@ export type {
   MesurerWorkspaceRuntime,
   MesurerWorkspaceSnapshot,
 } from "./runtime/workspace-context";
+
 export {
   colorPickerPlugin,
   composeMesurerPlugins,
@@ -38,7 +49,9 @@ export {
   textInspectorPlugin,
   xrayPlugin,
 } from "./plugins/builtins";
+
 export type { MesurerBuiltinPluginId } from "./plugins/builtins";
+
 export {
   MESURER_ARRANGE_ACTIVE_STATE_ID,
   MESURER_ARRANGE_PLUGIN_ID,
@@ -47,6 +60,7 @@ export {
   MESURER_ARRANGE_STATE_ID,
   arrangePlugin,
 } from "./plugins/arrange";
+
 export type {
   ArrangeCapturePlan,
   ArrangeIntent,
@@ -59,6 +73,7 @@ export type {
   MesurerArrangeService,
   MesurerArrangeSettings,
 } from "./plugins/arrange";
+
 export {
   MESURER_SCREENSHOT_ACTIVE_STATE_ID,
   MESURER_SCREENSHOT_PLUGIN_ID,
@@ -66,6 +81,7 @@ export {
   MESURER_SCREENSHOT_SETTINGS_STATE_ID,
   screenshotPlugin,
 } from "./plugins/screenshot";
+
 export type {
   MesurerScreenshotPluginOptions,
   MesurerScreenshotResult,
@@ -75,6 +91,7 @@ export type {
   ScreenshotCaptureProvider,
   ScreenshotRect,
 } from "./plugins/screenshot";
+
 export {
   captureVisibleTabPng,
   copyPngToClipboard,
@@ -86,11 +103,13 @@ export {
   releaseScreenshotCapture,
   waitForNextPaint,
 } from "./core/screenshot";
+
 export {
   createMesurerPluginHost,
   createMesurerRuntime,
   defineMesurerPlugin,
 } from "@jhomra21/mesurer-solid-core";
+
 export type {
   CommandHandler as MesurerCommandHandler,
   MesurerPlugin,
@@ -103,35 +122,43 @@ export type {
   StateSliceDefinition,
   ToolContribution,
 } from "@jhomra21/mesurer-solid-core";
+
 export {
   createTextInspector,
   TextInspector,
-} from "./runtime/text-inspector";
+} from "./runtime/typography";
+
 export type {
   TextInspectorAPI,
   TextInspectorOptions,
-} from "./runtime/text-inspector";
+} from "./runtime/typography";
+
 export {
   MESURER_TEXT_EDIT_SERVICE_ID,
   MESURER_TEXT_EDIT_STATE_ID,
 } from "./runtime/text-editing";
+
 export type {
   MesurerTextEditIntent,
   MesurerTextEditService,
   MesurerTextStyleChange,
   MesurerTextStyleProperty,
 } from "./runtime/text-editing";
+
 export type {
   TypographyInfo,
   TypographyRow,
-} from "./runtime/text-inspector-typography";
+} from "./runtime/typography/typography";
+
 export type { ColorPickerFormat, ColorSample } from "./core/colors";
+
 export {
   createLocalStoragePersistence,
   MESURER_STORAGE_VERSION,
   normalizeStoredSettings,
   normalizeStoredWorkspace,
 } from "./core/persistence";
+
 export type {
   MesurerPersistence,
   MesurerPersistenceSnapshot,

@@ -63,6 +63,7 @@ describe("keyboard ownership", () => {
     let escapeBlocked = true;
     input.addEventListener("keydown", (event) => {
       if (event.key === "s") normalTypingBlocked = isEditableKeyboardEvent(event, window);
+
       if (event.key === "Escape") escapeBlocked = isEditableKeyboardEvent(event, window);
     });
 
@@ -98,6 +99,7 @@ describe("pointer capture guards", () => {
 
   it("rethrows unexpected pointer-capture failures", () => {
     const failure = new Error("unexpected capture failure");
+
     const target = {
       ownerDocument: document,
       setPointerCapture: vi.fn(() => { throw failure; }),

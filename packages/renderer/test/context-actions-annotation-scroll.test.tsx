@@ -54,11 +54,13 @@ const mount = () => {
     unobserve() {}
     disconnect() {}
   }
+
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
 
   const model = createMesurerModel({ initialEnabled: true, initialToolMode: "select" });
   const measurement = getInspectMeasurement(target, window);
   model.setSelectedMeasurements([measurement], measurement);
+
   const runtime = createMesurerWorkspaceRuntime({
     model,
     ownerDocument: document,
@@ -66,6 +68,7 @@ const mount = () => {
     pageTarget: page,
     uiRoot: host,
   });
+
   const dispose = render(() => (
     <ContextActions
       runtime={runtime}
@@ -135,6 +138,7 @@ describe("ContextActions annotation scroll ownership", () => {
 
     const save = [...composer!.querySelectorAll<HTMLButtonElement>("button")]
       .find((button) => button.textContent === "Add note");
+
     expect(save).not.toBeUndefined();
     click(save!);
     await settle();

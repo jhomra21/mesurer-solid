@@ -38,7 +38,7 @@ Agents normally read the API directly instead of clicking these controls.
 
 For an ordinary selected element, Mesurer can show a selection-adjacent Add Note button. That transient button is hidden while the same selection is in direct text edit so the edit ring, dimensions pill, and Typography own the contextual lane. It returns when editing ends. Existing saved annotation markers/panels and the underlying Context data are not removed.
 
-The Add Note composer is owned by the selection that opened it. If the user selects a different element or region before saving, Mesurer closes the unsaved composer instead of moving it to the new target; the new selection gets its normal small Add Note button. Add Note and saved annotation cards are protected Mesurer inspector surfaces, so live page selection/hover chrome paints underneath them rather than crossing through the card.
+The Add Note composer is owned by the selection that opened it. If the user selects a different element or region before saving, Mesurer closes the unsaved composer instead of moving it to the new target; the new selection gets its normal small Add Note button. Add Note and saved annotation cards are protected Mesurer UI, so live page selection/hover chrome paints underneath them rather than crossing through the card.
 
 Annotation presentation is source-linked rather than viewport furniture. On normal window scroll, the Add Note trigger, composer, saved markers, open panel, and ownership edge live in the document scroll tree and move with the page target in the same painted frame. Nested overflow containers use the runtime's scroll compensation so the same UI stays attached there too. A saved panel keeps its target-relative page point and may leave the viewport with its source instead of being clamped back onto the screen.
 
@@ -46,11 +46,11 @@ Several notes on one target keep separate nearby markers. Opening one note does 
 
 Saved annotations also survive a same-tab reload. Context stores only its annotation records in session-scoped browser storage. On reload it restores the original ids, notes, immutable baselines, selectors, fingerprints, and last-known geometry, then conservatively rebinds each element target through the same selector/fingerprint rules used for live DOM replacement. Ambiguous or missing targets stay unresolved instead of binding to a convenient lookalike. Removing an annotation updates that stored review state immediately.
 
-Context also coordinates page evidence with inspector paint order. When Context owns the document-backed annotation UI, live Select hover evidence uses the lower document evidence layer even if Mesurer's outer host itself is in the browser top layer. This matters because a browser top-layer node outranks ordinary document `z-index`; keeping page evidence in the same document paint domain is what lets the opaque composer and saved cards fully occlude the blue hover fill and border.
+Context also controls the paint order between page evidence and Mesurer annotation UI. When Context owns the document-backed annotation UI, live Select hover evidence uses the lower document evidence layer even if Mesurer's outer host itself is in the browser top layer. This matters because a browser top-layer node outranks ordinary document `z-index`; keeping page evidence in the same document paint domain is what lets the opaque composer and saved cards fully occlude the blue hover fill and border.
 
 ## Read existing intent first
 
-A broad request such as “check Mesurer” can include several channels at once: current selection, annotations, Arrange intent, text/style intent, guides, measurements, rulers/X-ray state, and screenshot review state.
+A broad request such as "check Mesurer" can refer to several kinds of saved or live evidence: current selection, annotations, Arrange intent, text/style intent, guides, measurements, rulers/X-ray state, and screenshot review state.
 
 Start with a non-destructive inventory:
 
@@ -116,9 +116,28 @@ await window.__MESURER__.context({ annotation: annotationId })
 
 Arrange and text-edit intent remain separate structured channels so they keep their own Before/Desired/Live semantics.
 
+## Typed Context service
+
+Application code that owns the plugin host can resolve `MesurerContextService` from service id `context:v1`.
+
+| Method | Result |
+| --- | --- |
+| `context(request?)` | Return structured Context. |
+| `contextText(request?)` | Format the same Context as text. |
+| `copyContext(request?)` | Copy formatted Context to the clipboard. |
+| `select(selectors)` | Select exact targets and return selection Context. |
+| `annotations()` | List saved annotations. |
+| `removeAnnotation(annotationId)` | Remove one saved annotation after a trusted workflow completes it. |
+| `review(annotationId?)` | Compare one or all saved baselines with the current page. |
+| `capturePlan(request?)` | Return screenshot regions for Context or an annotation. |
+| `prepareCapture()` | Hide or adjust Mesurer presentation before an external screenshot. |
+| `finishCapture()` | Restore presentation after the screenshot. |
+
+The mounted instance and `window.__MESURER__` mirror the normal agent-facing Context methods. `removeAnnotation()` stays on the plugin service because annotation deletion should be an explicit application or trusted-workflow action.
+
 ## Multi-selection
 
-A multi-selection is relational state, not just a count. Inspect every selected target and the relationships that matter between them.
+A multi-selection records relationships between selected targets. Inspect every target and the relationships that matter between them.
 
 Use `selection.visualContext.distances` first. For a needed pair without useful distance evidence:
 
@@ -132,7 +151,7 @@ For small selections, keep useful unique pair relationships. For large selection
 
 Annotations are target- or region-bound review context rather than freeform drawing objects. A saved note carries its baseline with the rendered evidence it describes.
 
-The Add Note button is only a convenience affordance. During an active direct text edit it is intentionally absent from the selected element, so agents and integrations must not use button visibility as a capability check. Durable annotation state remains available through `annotations()`, `context({ annotation })`, and `review()`.
+The Add Note button is only a UI control. During an active direct text edit it is intentionally absent from the selected element, so agents and integrations must not use button visibility as a capability check. Durable annotation state remains available through `annotations()`, `context({ annotation })`, and `review()`.
 
 An unsaved composer is transient UI, not durable annotation state. Changing selection closes it by design; only a submitted note becomes a saved annotation that follows its own stored target/region baseline.
 
@@ -151,7 +170,7 @@ This target-bound model intentionally differs from upstream Mesurer's drawing an
 
 Context itself does not know about local coding-agent processes or session ownership. A transport plugin can depend on `context:v1` and serialize the same evidence for an explicit human action.
 
-The first such transport is `codex()` from `mesurer-solid/plugins`, which queues Context text into one Codex session selected when the local `mesurer-codex` companion starts. See [Send Context feedback to Codex](./CODEX.md).
+The first optional transport is `codex()` from `mesurer-solid/plugins`. It queues Context text to a Codex thread known to the local companion. See [Send Context feedback to Codex](./CODEX.md).
 
 ## Fresh evidence after source changes
 
@@ -167,13 +186,13 @@ Do not delete human history merely to reveal Live state.
 
 ## Screenshot evidence
 
-Context can prepare clean screenshot evidence while the outer browser harness owns the pixels:
+Context can prepare clean screenshot evidence while the browser controller owns the pixels:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
 await window.__MESURER__.prepareCapture()
 try {
-  // harness screenshot
+  // browser-controller screenshot
 } finally {
   await window.__MESURER__.finishCapture()
 }

@@ -36,6 +36,7 @@ const setup = async () => {
   const pageTarget = document.createElement("main");
   document.body.append(pageTarget);
   const model = createMesurerModel({ initialEnabled: true });
+
   const workspace = createMesurerWorkspaceRuntime({
     model,
     ownerDocument: document,
@@ -43,6 +44,7 @@ const setup = async () => {
     uiRoot: document.body,
     pageTarget,
   });
+
   const runtime: MesurerSolidRuntimeService = {
     ownerDocument: document,
     ownerWindow: window,
@@ -53,9 +55,11 @@ const setup = async () => {
       const element = document.createElement("div");
       element.dataset.mesurerInspectorUi = "true";
       document.body.append(element);
+
       return { element, dispose: () => element.remove() };
     },
   };
+
   await host.load(defineMesurerPlugin({
     id: "test.arrange-preview-runtime",
     provides: ["runtime:solid", "tool:select"],
@@ -68,6 +72,7 @@ const setup = async () => {
     },
   }));
   await host.load(arrangePlugin());
+
   return { host, model, pageTarget };
 };
 
@@ -97,12 +102,14 @@ const createIntent = async (
   select(model, target);
   await host.command.execute("arrange.toggle");
   const box = document.querySelector<HTMLElement>("[data-mesurer-arrange-box='true']");
+
   if (!box) throw new Error("Arrange box was not mounted.");
   box.dispatchEvent(pointer("pointerdown", 100, 80));
   box.dispatchEvent(pointer("pointermove", 140, 100));
   box.dispatchEvent(pointer("pointerup", 140, 100));
   const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID)!;
   await vi.waitFor(() => expect(service.intents()).toHaveLength(1));
+
   return { service, intentId: service.intents()[0]!.id };
 };
 

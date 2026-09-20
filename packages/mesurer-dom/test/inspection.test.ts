@@ -9,6 +9,7 @@ describe("DOM inspection", () => {
       id: "save",
       classList: { item: (index: number) => index === 0 ? "primary" : null },
     };
+
     const styleReader = {
       getComputedStyle: () => ({
         paddingTop: "4px",

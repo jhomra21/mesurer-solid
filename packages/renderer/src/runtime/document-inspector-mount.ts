@@ -13,7 +13,9 @@ type DocumentInspectorRuntime = Pick<
 >;
 
 const CONTEXT_HIGHLIGHT_Z_INDEX = "2147482950";
+
 const CONTEXT_PANEL_Z_INDEX = "2147483646";
+
 const CONTEXT_INTERACTION_Z_INDEX = "2147483647";
 
 /**
@@ -29,6 +31,7 @@ export function createDocumentInspectorMount(
   const body = ownerDocument.body;
   // SAFETY: ownerWindow is the browsing-context global for ownerDocument and pageTarget, so its DOM constructors match this runtime.
   const realm = ownerWindow as Window & typeof globalThis;
+
   const documentBacked = body
     && !(pageTarget instanceof realm.ShadowRoot)
     && pageTarget.getRootNode() === ownerDocument;
@@ -77,6 +80,7 @@ export function createDocumentInspectorMount(
   body.append(element);
 
   let disposed = false;
+
   return {
     element,
     dispose() {

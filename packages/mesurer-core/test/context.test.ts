@@ -9,6 +9,7 @@ const rect = (left: number, top: number, width = 20, height = 20) => ({ left, to
 describe("context evidence semantics", () => {
   it("uses one relevance contract for scoped context and annotation baselines", () => {
     const element = {};
+
     const workspace = {
       guides: [
         { id: "near", orientation: "vertical" as const, position: 105 },
@@ -22,6 +23,7 @@ describe("context evidence semantics", () => {
       activeMeasurement: null,
       distances: [],
     };
+
     const region = rect(100, 100, 50, 50);
 
     const relevant = selectMesurerRelevantEvidence({
@@ -29,6 +31,7 @@ describe("context evidence semantics", () => {
       scope: { kind: "scoped", elements: [element], regions: [region] },
       guideTolerance: 10,
     });
+
     expect(relevant.guides.map((guide) => guide.id)).toEqual(["near"]);
     expect(relevant.measurements.map((measurement) => measurement.id)).toEqual(["by-ref", "by-rect"]);
 
@@ -51,6 +54,7 @@ describe("context evidence semantics", () => {
       workspace,
       guideTolerance: 10,
     });
+
     expect(baseline.guides.map((guide) => guide.id)).toEqual(["near"]);
     expect(baseline.measurements.map((measurement) => measurement.id)).toEqual(["by-ref", "by-rect"]);
   });

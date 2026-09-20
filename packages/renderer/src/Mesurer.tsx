@@ -51,7 +51,7 @@ import {
 } from "./runtime/builtin-actions";
 import { hasNativeScrollAnchoring } from "./runtime/native-scroll-registry";
 import { ensureMesurerStyles } from "./runtime/style-inject";
-import { createTextInspector, type TextInspectorAPI } from "./runtime/text-inspector";
+import { createTextInspector, type TextInspectorAPI } from "./runtime/typography";
 import { createXrayScope } from "./runtime/xray-scope";
 import type { MesurerBuiltinPluginId } from "./plugins/builtins";
 import { MESURER_STYLES } from "./styles.generated";
@@ -94,17 +94,23 @@ type Environment = {
 };
 
 let instanceCount = 0;
+
 const TAB_ID_KEY = "mesurer:tab-id";
+
 const SETTINGS_STORAGE_KEY = "mesurer-settings";
+
 const LEGACY_STORAGE_KEY = "mesurer-state";
+
 const NATIVE_SCROLL_SETTLE_MS = 80;
 
 const getTabId = (ownerWindow: Window) => {
   try {
     const existing = ownerWindow.sessionStorage.getItem(TAB_ID_KEY);
+
     if (existing) return existing;
     const id = ownerWindow.crypto.randomUUID();
     ownerWindow.sessionStorage.setItem(TAB_ID_KEY, id);
+
     return id;
   } catch {
     return "session";
@@ -114,30 +120,40 @@ const getTabId = (ownerWindow: Window) => {
 const sanitizeStoredSettings = (ownerWindow: Window, settings: MesurerStoredSettings): MesurerStoredSettings => {
   const supportsColor = (value: string | undefined) =>
     value !== undefined && ownerWindow.document.defaultView?.CSS?.supports("color", value) === true;
+
   const sanitized: MesurerStoredSettings = { ...settings };
+
   if (!supportsColor(settings.highlightColor)) sanitized.highlightColor = undefined;
+
   if (!supportsColor(settings.guideColor)) sanitized.guideColor = undefined;
+
   if (settings.selectionSpacingStyle) {
     const selectionSpacingStyle = { ...settings.selectionSpacingStyle };
+
     if (selectionSpacingStyle.color !== undefined && !supportsColor(selectionSpacingStyle.color)) {
       selectionSpacingStyle.color = undefined;
     }
+
     sanitized.selectionSpacingStyle = selectionSpacingStyle;
   }
+
   return sanitized;
 };
 
 const unionSelection = (items: InspectMeasurement[], origin: Rect | null): InspectMeasurement | null => {
   if (items.length <= 1) return null;
   let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+
   for (const item of items) {
     left = Math.min(left, item.rect.left);
     top = Math.min(top, item.rect.top);
     right = Math.max(right, item.rect.left + item.rect.width);
     bottom = Math.max(bottom, item.rect.top + item.rect.height);
   }
+
   const rect = { left, top, width: right - left, height: bottom - top };
   const base = items[items.length - 1];
+
   return {
     ...base,
     id: `group-${items.map((item) => item.id).join("|")}`,
@@ -177,33 +193,43 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   let scrollPosition = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
   const builtinController = createMesurerBuiltinController({ model, ownerWindow });
   const builtinActionDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => input.isBuiltinActionDisabled?.(id) ?? false;
+
   const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">, restartColorPicker = false) => {
     if (builtinActionDisabled(id)) return;
+
     if (id === "color-picker" && restartColorPicker && model.current.colorPickerActive) {
       model.setTransient({ colorPickerActive: false });
     }
+
     void builtinController.run(id);
   };
+
   const xrayScope = createXrayScope({
     ownerDocument,
     target: input.pageTarget ?? ownerDocument.body,
     instanceId,
   });
+
   input.onBuiltinController?.(builtinController);
 
   const activeRect = createMemo(() => {
     const start = model.state.start, end = model.state.end;
+
     return start && end ? getRectFromPoints(start, end) : null;
   });
+
   const groupedSelection = createMemo(() => unionSelection(model.state.selectedMeasurements, model.state.selectionOriginRect));
+
   const displayedSelectedMeasurements = createMemo(() => groupedSelection()
     ? [groupedSelection()!]
     : model.state.selectedMeasurements.length
       ? model.state.selectedMeasurements
       : model.state.selectedMeasurement ? [model.state.selectedMeasurement] : []);
+
   const selectedGuide = createMemo(() => getSelectedGuide(model.state.guides, model.state.selectedGuideIds));
   const hoverGuide = createMemo(() => getHoveredGuide(model.state.hoverPointer, model.state.guides));
   const primarySelection = createMemo(() => groupedSelection() ?? model.state.selectedMeasurement ?? model.state.selectedMeasurements.at(-1) ?? null);
+
   const optionPairOverlay = createMemo(() => getOptionPairOverlay({
     document: ownerDocument,
     window: ownerWindow,
@@ -214,6 +240,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     hoverElement: model.state.hoverElement,
     selectedElementRef: primarySelection()?.elementRef ?? null,
   }));
+
   const optionContainerLines = createMemo(() => getOptionContainerLines({
     document: ownerDocument,
     window: ownerWindow,
@@ -224,18 +251,25 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     selectedElement: primarySelection()?.elementRef ?? null,
     hoverElement: model.state.hoverElement,
   }));
+
   const guideDistanceOverlay = createMemo(() => {
     if (!model.state.altPressed || model.state.toolMode !== "guides") return null;
     const selected = selectedGuide(), hovered = hoverGuide();
+
     if (selected && hovered && selected.id !== hovered.id) {
       return getDistanceOverlay(getGuideRect(selected, ownerWindow), getGuideRect(hovered, ownerWindow), null, null, ownerWindow);
     }
+
     const preview = model.state.guidePreview;
+
     if (!preview) return null;
+
     const nearest = model.state.guides
       .filter((guide) => guide.orientation === preview.orientation)
       .sort((a, b) => Math.abs(a.position - preview.position) - Math.abs(b.position - preview.position))[0];
+
     if (!nearest) return null;
+
     return getDistanceOverlay(
       getGuideRect({ id: "preview", ...preview }, ownerWindow),
       getGuideRect(nearest, ownerWindow), null, null, ownerWindow,
@@ -244,10 +278,13 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   const updateHover = (point: Point) => {
     const target = getTargetElement(point, rootElement, ownerDocument, pageTarget);
+
     if (!target) {
       model.setHoverTarget(null, null);
+
       return;
     }
+
     const rect = target.getBoundingClientRect();
     model.setHoverTarget(target, model.current.settings.hoverHighlightEnabled
       ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
@@ -256,13 +293,17 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   const scheduleHover = (point: Point) => {
     hoverPoint = point;
+
     if (hoverFrame) return;
     hoverFrame = ownerWindow.requestAnimationFrame(() => {
       hoverFrame = 0;
       const latest = hoverPoint;
+
       if (!latest) return;
+
       if (model.current.toolMode === "select" && !model.current.draggingGuideId) updateHover(latest);
       model.setTransient({ hoverPointer: model.current.guides.length ? latest : null });
+
       if (model.current.toolMode === "guides" && !model.current.draggingGuideId) {
         model.setTransient({ guidePreview: {
           orientation: model.current.guideOrientation,
@@ -291,6 +332,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     guideDragHoldId = id;
     guideDragHoldTimer = ownerWindow.setTimeout(() => {
       guideDragHoldTimer = 0;
+
       if (guideDragHoldId === id) model.setTransient({ draggingGuideId: id });
     }, GUIDE_DRAG_HOLD_MS);
   };
@@ -303,6 +345,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   const pointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
     if (model.current.settingsOpen || !model.current.enabled || event.button !== 0) return;
+
     if (model.current.toolMode === "none") return;
     const point = { x: event.clientX, y: event.clientY };
     const commit = model.beginAction();
@@ -311,12 +354,14 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       event.preventDefault(); commit();
       model.addHeldDistance({ ...optionPairOverlay()!, id: createId() });
       model.endAction();
+
       return;
     }
 
     if (model.current.toolMode === "guides") {
       event.preventDefault(); commit();
       const id = createId();
+
       const position = getSnapGuidePosition({
         orientation: model.current.guideOrientation,
         point,
@@ -326,11 +371,13 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         draggingGuideId: null,
         document: ownerDocument,
       });
+
       model.addGuide({ id, orientation: model.current.guideOrientation, position });
       model.setSelectedGuideIds(model.current.settings.selectNewGuideEnabled ? [id] : []);
       model.setTransient({ guidePreview: null });
       scheduleGuideDragHold(id);
       trySetPointerCapture(event.currentTarget, event.pointerId);
+
       return;
     }
 
@@ -350,11 +397,13 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   const pointerMove = (event: PointerEvent) => {
     if (!model.current.enabled || model.current.settingsOpen) return;
     const point = { x: event.clientX, y: event.clientY };
+
     if (event.altKey !== model.current.altPressed) model.setTransient({ altPressed: event.altKey });
     scheduleHover(point);
 
     if (model.current.draggingGuideId) {
       const guide = model.current.guides.find((item) => item.id === model.current.draggingGuideId);
+
       if (guide) {
         const position = getSnapGuidePosition({
           orientation: guide.orientation,
@@ -365,12 +414,16 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           draggingGuideId: guide.id,
           document: ownerDocument,
         });
+
         model.updateGuide(guide.id, { position });
       }
+
       return;
     }
+
     if (model.current.toolMode === "guides") return;
     const start = model.current.start;
+
     if (!start) return;
     const threshold = shiftDrag ? 12 : 4;
     const isDragging = model.current.isDragging || Math.abs(point.x - start.x) > threshold || Math.abs(point.y - start.y) > threshold;
@@ -379,15 +432,26 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   const pointerUp = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
     if (!model.current.enabled) return;
+
     if (model.current.toolMode === "guides") {
       clearGuideDragHold();
+
       if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId);
       resetDrag();
+
       return;
     }
-    if (model.current.toolMode !== "select") { resetDrag(); return; }
+
+    if (model.current.toolMode !== "select") { resetDrag();
+
+ return; }
+
     const start = model.current.start;
-    if (!start) { resetDrag(); return; }
+
+    if (!start) { resetDrag();
+
+ return; }
+
     const point = { x: event.clientX, y: event.clientY };
 
     if (model.current.isDragging) {
@@ -395,15 +459,19 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       const elements = getElementsInRectCached(rect, rootElement, selectionCache, ownerDocument, pageTarget);
       const next = elements.map((element) => ({ ...getInspectMeasurement(element, ownerWindow), originRect: rect }));
       let merged: InspectMeasurement[] = next;
+
       if (event.shiftKey) {
         const map = new Map<HTMLElement, InspectMeasurement>();
+
         for (const item of [...model.current.selectedMeasurements, ...next]) if (item.elementRef) map.set(item.elementRef, item);
         merged = [...map.values()];
       }
+
       model.checkpoint();
       model.setSelectedMeasurements(merged, merged.at(-1) ?? null);
       model.setTransient({ selectionOriginRect: rect });
       resetDrag();
+
       return;
     }
 
@@ -416,6 +484,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       const next = model.current.selectedMeasurements.filter((item) => item.elementRef !== selectedHit.elementRef);
       model.setSelectedMeasurements(next, next.at(-1) ?? null);
       resetDrag();
+
       return;
     }
 
@@ -423,18 +492,23 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       ? (getTargetElement(point, rootElement, ownerDocument, pageTarget) ??
         getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument, pageTarget))
       : getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument, pageTarget);
+
     if (target) {
       const measurement = getInspectMeasurement(target, ownerWindow);
       model.checkpoint();
+
       if (event.shiftKey || model.current.settings.multiMeasureEnabled) {
         const exists = model.current.selectedMeasurements.some((item) => item.elementRef === target);
+
         const next = exists
           ? model.current.selectedMeasurements.filter((item) => item.elementRef !== target)
           : [...model.current.selectedMeasurements, measurement];
+
         model.setSelectedMeasurements(next, next.at(-1) ?? null);
       } else {
         model.setSelectedMeasurements([measurement], measurement);
       }
+
       const activeMeasurement: Measurement = {
         id: measurement.id,
         rect: measurement.rect,
@@ -443,15 +517,18 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         deltaX: 0,
         deltaY: 0,
       };
+
       model.setActiveMeasurement(activeMeasurement);
     } else if (!event.shiftKey) {
       model.checkpoint(); model.setSelectedMeasurements([], null);
     }
+
     resetDrag();
   };
 
   const pointerLeave = () => {
     clearGuideDragHold();
+
     if (!model.current.draggingGuideId) resetDrag();
     model.setTransient({ guidePreview: null });
   };
@@ -460,20 +537,26 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     if (!model.current.enabled || event.button !== 0 || model.current.settingsOpen) return;
     event.preventDefault(); event.stopPropagation();
     model.checkpoint();
+
     if (event.shiftKey) {
       const next = model.current.selectedGuideIds.includes(guide.id)
         ? model.current.selectedGuideIds.filter((id) => id !== guide.id)
         : [...model.current.selectedGuideIds, guide.id];
+
       model.setSelectedGuideIds(next);
+
       return;
     }
+
     model.setSelectedGuideIds([guide.id]);
     model.setTransient({ draggingGuideId: guide.id });
     trySetPointerCapture(event.currentTarget, event.pointerId);
   };
+
   const guidePointerUp = (_guide: Guide, event: PointerEvent & { currentTarget: HTMLDivElement }) => {
     event.stopPropagation();
     model.setTransient({ draggingGuideId: null });
+
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId);
   };
 
@@ -487,20 +570,26 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       draggingGuideId: id,
       document: ownerDocument,
     });
+
   const startGuideFromRuler = (orientation: Guide["orientation"], position: number) => {
     model.checkpoint();
     const id = createId();
     model.addGuide({ id, orientation, position: snapGuide(orientation, position) });
     model.setSelectedGuideIds([]);
+
     return id;
   };
+
   const moveGuideFromRuler = (id: string, position: number) => {
     const guide = model.current.guides.find((item) => item.id === id);
+
     if (guide) model.updateGuide(id, { position: snapGuide(guide.orientation, position, id) });
   };
+
   const finishGuideFromRuler = (id: string) => {
     if (model.current.settings.selectNewGuideEnabled) model.setSelectedGuideIds([id]);
   };
+
   const cancelGuideFromRuler = (id: string) => model.setGuides(model.current.guides.filter((item) => item.id !== id));
 
   const clearWorkspace = () => {
@@ -513,6 +602,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     () => [model.state.toolMode, model.state.enabled] as const,
     ([mode, enabled]) => {
       if (!textInspector) return;
+
       if (mode === "text-inspector" && enabled) textInspector.enable();
       else textInspector.disable();
     },
@@ -557,6 +647,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   onSettled(() => {
     ensureMesurerStyles(MESURER_STYLES, env.portalTarget);
+
     const nativeDocumentInspector = Boolean(
       ownerDocument.body
       && env.portalTarget instanceof ownerWindow.ShadowRoot
@@ -566,130 +657,209 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       && ownerWindow.CSS.supports("position-anchor: --mesurer-native-anchor")
       && ownerWindow.CSS.supports("left: anchor(left)"),
     );
+
     const textInspectorPortalTarget = nativeDocumentInspector ? ownerDocument.body : env.portalTarget;
+
     if (textInspectorPortalTarget !== env.portalTarget) ensureMesurerStyles(MESURER_STYLES, textInspectorPortalTarget);
     textInspector = createTextInspector({ portalTarget: textInspectorPortalTarget });
+
     const persistence = input.persistence ?? createLocalStoragePersistence(
       ownerWindow, storageKey, SETTINGS_STORAGE_KEY, input.persistKey ? undefined : LEGACY_STORAGE_KEY,
     );
+
     activePersistence = persistence;
     persistence.setErrorHandler?.(input.onPersistenceError);
     const stored = persistence.load();
+
     if (stored?.settings) {
       const storedSettings = sanitizeStoredSettings(ownerWindow, stored.settings);
       model.applyStoredSettings(storedSettings);
+
       if (storedSettings.selectionSpacingStyle) onSelectionSpacingStyleChange(storedSettings.selectionSpacingStyle);
     }
+
     if ((model.current.settings.persistOnReload || input.persistOnReload) && stored?.workspace) model.applyStoredWorkspace(stored.workspace);
     persistenceReady = true;
+
     if (model.current.toolMode === "text-inspector" && model.current.enabled) textInspector.enable();
 
     const applyExternal = (snapshot: MesurerPersistenceSnapshot | null, source?: PersistenceChangeSource) => {
       if (!snapshot) return;
+
       if (source?.settings !== false) {
         const storedSettings = sanitizeStoredSettings(ownerWindow, snapshot.settings);
         model.applyStoredSettings(storedSettings);
+
         if (storedSettings.selectionSpacingStyle) onSelectionSpacingStyleChange(storedSettings.selectionSpacingStyle);
       }
+
       if (source?.workspace !== false && snapshot.workspace && model.current.settings.persistOnReload) model.applyStoredWorkspace(snapshot.workspace);
     };
+
     const unsubscribe = persistence.subscribe?.(applyExternal);
 
     const keydown = (event: KeyboardEvent) => {
       if (isEditableKeyboardEvent(event, ownerWindow)) return;
       const key = event.key.toLowerCase();
       const mod = event.metaKey || event.ctrlKey;
+
       if (key === "escape") {
-        if (model.current.settingsOpen) { model.setTransient({ settingsOpen: false }); return; }
-        if (model.current.colorPickerActive) { model.setTransient({ colorPickerActive: false }); return; }
+        if (model.current.settingsOpen) { model.setTransient({ settingsOpen: false });
+
+ return; }
+
+        if (model.current.colorPickerActive) { model.setTransient({ colorPickerActive: false });
+
+ return; }
+
         if (model.current.toolMode === "text-inspector") textInspector?.clear();
         model.clearAll();
+
         return;
       }
+
       if (!model.current.settings.shortcutsEnabled) return;
-      if (event.key === "Alt") { model.setTransient({ altPressed: true }); return; }
-      if (mod && key === ",") { event.preventDefault(); runBuiltinAction("settings"); return; }
+
+      if (event.key === "Alt") { model.setTransient({ altPressed: true });
+
+ return; }
+
+      if (mod && key === ",") { event.preventDefault(); runBuiltinAction("settings");
+
+ return; }
+
       if (mod && key === "z") {
         event.preventDefault();
+
         if (model.current.toolMode === "text-inspector") {
           const handled = event.shiftKey ? textInspector?.redo() : textInspector?.undo();
+
           if (handled) return;
         }
+
         if (event.shiftKey) model.redo();
         else model.undo();
+
         return;
       }
+
       if ((key === "delete" || key === "backspace") && model.current.selectedGuideIds.length) {
-        event.preventDefault(); model.removeGuides(model.current.selectedGuideIds); return;
+        event.preventDefault(); model.removeGuides(model.current.selectedGuideIds);
+
+ return;
       }
-      if (key === "m") { model.toggleEnabled(true); return; }
-      if (key === "s") { runBuiltinAction("select"); return; }
-      if (key === "a") { runBuiltinAction("text-inspector"); return; }
-      if (key === "g") { runBuiltinAction("guides"); return; }
-      if (key === "p") { runBuiltinAction("color-picker", true); return; }
-      if (key === "x") { runBuiltinAction("xray"); return; }
-      if (key === "r") { runBuiltinAction("rulers"); return; }
-      if (key === "h") { if (!builtinActionDisabled("guides")) model.setGuideOrientation("horizontal", true); return; }
+
+      if (key === "m") { model.toggleEnabled(true);
+
+ return; }
+
+      if (key === "s") { runBuiltinAction("select");
+
+ return; }
+
+      if (key === "a") { runBuiltinAction("text-inspector");
+
+ return; }
+
+      if (key === "g") { runBuiltinAction("guides");
+
+ return; }
+
+      if (key === "p") { runBuiltinAction("color-picker", true);
+
+ return; }
+
+      if (key === "x") { runBuiltinAction("xray");
+
+ return; }
+
+      if (key === "r") { runBuiltinAction("rulers");
+
+ return; }
+
+      if (key === "h") { if (!builtinActionDisabled("guides")) model.setGuideOrientation("horizontal", true);
+
+ return; }
+
       if (key === "v") { if (!builtinActionDisabled("guides")) model.setGuideOrientation("vertical", true); }
     };
+
     const keyup = (event: KeyboardEvent) => { if (event.key === "Alt") model.setTransient({ altPressed: false }); };
+
     ownerWindow.addEventListener("keydown", keydown);
     ownerWindow.addEventListener("keyup", keyup);
 
     let syncFrame = 0;
     let scrollSettleTimer = 0;
     const nativeScrollAnchoringActive = () => hasNativeScrollAnchoring(ownerDocument);
+
     const syncLive = () => {
       if (syncFrame) return;
       syncFrame = ownerWindow.requestAnimationFrame(() => {
         syncFrame = 0;
+
         const selected = model.current.selectedMeasurements
           .filter((item) => item.elementRef?.isConnected)
           .map((item) => ({ ...getInspectMeasurement(item.elementRef!, ownerWindow), id: item.id, originRect: item.originRect }));
+
         if (selected.length || model.current.selectedMeasurements.length) {
           const primaryId = model.current.selectedMeasurement?.id;
           model.setSelectedMeasurements(selected, selected.find((item) => item.id === primaryId) ?? selected.at(-1) ?? null);
         }
+
         const viewport = getViewportSize(ownerWindow);
+
         if (model.current.measurements.length) model.setMeasurements(model.current.measurements.map((item) => updateMeasurementForResize(item, viewport, ownerDocument)));
+
         if (model.current.activeMeasurement) model.setActiveMeasurement(updateMeasurementForResize(model.current.activeMeasurement, viewport, ownerDocument));
+
         if (model.current.heldDistances.length) model.setHeldDistances(model.current.heldDistances.map((item) => updateDistanceForResize(item, viewport, ownerDocument, ownerWindow)));
         const hover = model.current.hoverElement;
+
         if (hover?.isConnected && model.current.toolMode === "select") {
           const rect = hover.getBoundingClientRect();
           model.setHoverTarget(hover, model.current.settings.hoverHighlightEnabled ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null);
         }
       });
     };
+
     const scheduleSettledLiveSync = () => {
       if (scrollSettleTimer) ownerWindow.clearTimeout(scrollSettleTimer);
       scrollSettleTimer = ownerWindow.setTimeout(() => {
         scrollSettleTimer = 0;
         syncLive();
         const latest = hoverPoint;
+
         if (latest && model.current.toolMode === "select" && !model.current.draggingGuideId) updateHover(latest);
       }, NATIVE_SCROLL_SETTLE_MS);
     };
+
     const scroll = () => {
       const next = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
       const dx = next.x - scrollPosition.x, dy = next.y - scrollPosition.y;
       scrollPosition = next;
+
       if ((dx || dy) && model.current.guides.length) model.setGuides(model.current.guides.map((guide) => ({
         ...guide, position: guide.position - (guide.orientation === "vertical" ? dx : dy),
       })));
+
       if (nativeScrollAnchoringActive()) scheduleSettledLiveSync();
       else syncLive();
     };
+
     ownerWindow.addEventListener("scroll", scroll, { capture: true, passive: true });
     ownerWindow.addEventListener("resize", syncLive, true);
 
     const globalGuideMove = (event: PointerEvent) => {
       const id = model.current.draggingGuideId;
+
       if (!id) return;
       const guide = model.current.guides.find((item) => item.id === id);
+
       if (!guide) return;
       model.updateGuide(id, { position: snapGuide(guide.orientation, guide.orientation === "vertical" ? event.clientX : event.clientY, id) });
     };
+
     const globalGuideEnd = () => model.setTransient({ draggingGuideId: null });
     ownerWindow.addEventListener("pointermove", globalGuideMove, true);
     ownerWindow.addEventListener("pointerup", globalGuideEnd, true);
@@ -701,6 +871,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       clearGuideDragHold();
       ownerWindow.clearTimeout(scrollSettleTimer);
       ownerWindow.clearTimeout(persistTimer);
+
       if (model.current.settings.persistOnReload) persistence.saveWorkspace(model.serializeWorkspace());
       unsubscribe?.();
       persistence.setErrorHandler?.(undefined);
@@ -775,6 +946,7 @@ export default function Mesurer(props: MesurerProps) {
   const [selectionSpacingStyle, setSelectionSpacingStyle] = createSignal<SelectionSpacingStyle>({ ...initialSelectionSpacingStyle });
   const updateSelectionSpacingStyle = (patch: Partial<SelectionSpacingStyle>) => setSelectionSpacingStyle((current) => ({ ...current, ...patch }));
   const resetSelectionSpacingStyle = () => setSelectionSpacingStyle({ ...initialSelectionSpacingStyle });
+
   const initial = untrack(() => ({
     highlightColor: props.highlightColor ?? "oklch(0.62 0.18 255)",
     guideColor: props.guideColor ?? "oklch(0.63 0.26 29.23)",
@@ -790,6 +962,7 @@ export default function Mesurer(props: MesurerProps) {
     guideStyle: { ...DEFAULT_GUIDE_STYLE, ...props.guideStyle },
     rulerSettings: { ...DEFAULT_RULER_SETTINGS, ...props.rulerSettings },
   } satisfies MesurerSettings));
+
   const model = createMesurerModel({ initialEnabled: true, initialToolMode: "none", settings: initial });
   const [environment, setEnvironment] = createSignal<Environment | null>(null);
 
@@ -799,6 +972,7 @@ export default function Mesurer(props: MesurerProps) {
     const ownerWindow = ownerDocument.defaultView ?? window;
     let portalMount: HTMLElement;
     let ownedPortalMount = false;
+
     if (target instanceof ownerWindow.ShadowRoot) {
       portalMount = ownerDocument.createElement("div");
       portalMount.dataset.mesurerPortal = "true";
@@ -807,7 +981,9 @@ export default function Mesurer(props: MesurerProps) {
     } else {
       portalMount = target;
     }
+
     setEnvironment({ ownerDocument, ownerWindow, portalTarget: target, portalMount, ownedPortalMount });
+
     return () => { if (ownedPortalMount) portalMount.remove(); };
   });
 

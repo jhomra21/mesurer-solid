@@ -6,6 +6,7 @@ import type { DistanceOverlay, InspectMeasurement } from "../src/core/types";
 import { createElement, render } from "../src/solid-dom";
 
 const disposers: Array<() => void> = [];
+
 afterEach(() => {
   while (disposers.length) disposers.pop()?.();
   document.body.replaceChildren();
@@ -18,6 +19,7 @@ describe("upstream Mesurer visual contracts", () => {
       class: "adapter-class",
       "data-adapter": true,
     }) as HTMLElement;
+
     expect(element.className).toBe("adapter-class");
     expect(element.hasAttribute("data-adapter")).toBe(true);
   });
@@ -25,6 +27,7 @@ describe("upstream Mesurer visual contracts", () => {
   it("renders measurement tags as upstream width x height without element labels", () => {
     const host = document.createElement("div");
     document.body.append(host);
+
     const measurement: InspectMeasurement = {
       id: "selected",
       rect: { left: 10, top: 20, width: 80, height: 40 },
@@ -52,6 +55,7 @@ describe("upstream Mesurer visual contracts", () => {
   it("renders upstream distance outlines, dashed connectors, solid blue distance line, and tag", () => {
     const host = document.createElement("div");
     document.body.append(host);
+
     const distance: DistanceOverlay = {
       id: "distance",
       rectA: { left: 0, top: 0, width: 20, height: 20 },
@@ -75,6 +79,7 @@ describe("upstream Mesurer visual contracts", () => {
   it("renders automatic selection spacing without duplicating selected-element outlines", () => {
     const host = document.createElement("div");
     document.body.append(host);
+
     const distance: DistanceOverlay = {
       id: "selection-spacing:x:a:b",
       rectA: { left: 0, top: 0, width: 20, height: 20 },
@@ -105,6 +110,7 @@ describe("upstream Mesurer visual contracts", () => {
   it("applies custom selection-spacing color, weight, opacity, and dotted pattern", () => {
     const host = document.createElement("div");
     document.body.append(host);
+
     const distance: DistanceOverlay = {
       id: "selection-spacing:x:a:b",
       rectA: { left: 0, top: 0, width: 20, height: 20 },
@@ -115,6 +121,7 @@ describe("upstream Mesurer visual contracts", () => {
       vertical: null,
       connectors: [],
     };
+
     const selectionSpacingStyle = { ...DEFAULT_SELECTION_SPACING_STYLE, color: "#ff00aa", width: 3, opacity: 0.5, pattern: "dotted" as const, dashLength: 5, gap: 2 };
 
     disposers.push(render(() => <DistanceOverlayItem distance={distance} showRects={false} kind="selection-spacing" selectionSpacingStyle={selectionSpacingStyle} />, host));
@@ -132,6 +139,7 @@ describe("upstream Mesurer visual contracts", () => {
   it("renders every nested selection edge distance as a dashed side guide", () => {
     const host = document.createElement("div");
     document.body.append(host);
+
     const distance: DistanceOverlay = {
       id: "selection-spacing:pair:child:parent",
       rectA: { left: 20, top: 20, width: 100, height: 100 },
@@ -175,6 +183,7 @@ describe("upstream Mesurer visual contracts", () => {
   it("shows distance labels only while their lines intersect the viewport", () => {
     const host = document.createElement("div");
     document.body.append(host);
+
     const distance: DistanceOverlay = {
       id: "selection-spacing:offscreen:parent:child",
       rectA: { left: 0, top: -500, width: 100, height: 1000 },

@@ -50,14 +50,23 @@ type PointerWatcher = {
 };
 
 const PINNED_GROUP_ATTRIBUTE = "data-mesurer-spacing-label-pinned";
+
 const EXPANDED_GROUP_ATTRIBUTE = "data-mesurer-spacing-label-group";
+
 const BASE_OPACITY_ATTRIBUTE = "data-mesurer-spacing-base-opacity";
+
 const SELECTED_CHROME_SELECTOR = '[data-mesurer-selected-measurement="true"], [data-mesurer-selection-spacing-target="true"]';
+
 const HOVER_TARGET_SELECTOR = '[data-mesurer-distance-hover-target="true"]';
+
 const HOVER_ENVELOPE_PADDING = 8;
+
 const collapseTimers = new WeakMap<HTMLElement, number>();
+
 const pinnedDismissers = new WeakMap<HTMLElement, (event: PointerEvent) => void>();
+
 const hoverWatchers = new WeakMap<HTMLElement, PointerWatcher>();
+
 const hoverSuppressions = new WeakMap<HTMLElement, PointerWatcher>();
 
 const spacingScope = (label: HTMLElement) =>
@@ -70,8 +79,10 @@ const scheduleSpacingLabelLayoutAfterRender = (scope: HTMLElement) => {
 const scheduleLabelLayoutAfterMount = (label: HTMLElement) => {
   const schedule = () => {
     const scope = spacingScope(label);
+
     if (scope) scheduleSpacingLabelLayout(scope);
   };
+
   queueMicrotask(schedule);
   label.ownerDocument.defaultView?.requestAnimationFrame(schedule);
 };
@@ -80,7 +91,9 @@ const labelInteraction = (label: HTMLElement): LabelInteraction | null => {
   const scope = spacingScope(label);
   const labelKey = label.getAttribute("data-mesurer-distance-label-key");
   const distanceId = label.getAttribute("data-mesurer-distance-id");
+
   if (!scope || !labelKey || !distanceId) return null;
+
   return {
     scope,
     labelKey,
@@ -94,10 +107,13 @@ const geometryKey = (element: HTMLElement) =>
 
 const selectedChromeGeometry = (element: HTMLElement) => {
   if (element.matches('[data-mesurer-selection-spacing-target="true"]')) return element;
+
   for (const child of element.children) {
     if (!(child instanceof HTMLElement)) continue;
+
     if (child.style.left && child.style.top && child.style.width && child.style.height) return child;
   }
+
   return null;
 };
 
@@ -109,7 +125,9 @@ const setSelectionChromeFocus = (scope: HTMLElement, activeRoot: HTMLElement | n
   for (const element of scope.querySelectorAll<HTMLElement>(SELECTED_CHROME_SELECTOR)) {
     if (!activeGeometry) {
       const baseOpacity = element.getAttribute(BASE_OPACITY_ATTRIBUTE);
+
       if (baseOpacity === null) continue;
+
       if (baseOpacity) element.style.opacity = baseOpacity;
       else element.style.removeProperty("opacity");
       element.removeAttribute(BASE_OPACITY_ATTRIBUTE);
@@ -119,6 +137,7 @@ const setSelectionChromeFocus = (scope: HTMLElement, activeRoot: HTMLElement | n
     if (!element.hasAttribute(BASE_OPACITY_ATTRIBUTE)) {
       element.setAttribute(BASE_OPACITY_ATTRIBUTE, element.style.opacity);
     }
+
     const geometry = selectedChromeGeometry(element);
     element.style.opacity = geometry && activeGeometry.has(geometryKey(geometry)) ? "1" : "0.32";
   }
@@ -126,6 +145,7 @@ const setSelectionChromeFocus = (scope: HTMLElement, activeRoot: HTMLElement | n
 
 const detachHoverWatcher = (scope: HTMLElement) => {
   const watcher = hoverWatchers.get(scope);
+
   if (!watcher) return;
   scope.ownerDocument.removeEventListener("pointermove", watcher.handler, true);
   hoverWatchers.delete(scope);
@@ -133,6 +153,7 @@ const detachHoverWatcher = (scope: HTMLElement) => {
 
 const detachHoverSuppression = (scope: HTMLElement) => {
   const watcher = hoverSuppressions.get(scope);
+
   if (!watcher) return;
   scope.ownerDocument.removeEventListener("pointermove", watcher.handler, true);
   hoverSuppressions.delete(scope);
@@ -141,8 +162,10 @@ const detachHoverSuppression = (scope: HTMLElement) => {
 const collapseLabelGroups = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
   if (!scope.hasAttribute(EXPANDED_GROUP_ATTRIBUTE)) {
     interaction?.setExpandedKey(null);
+
     return;
   }
+
   scope.removeAttribute(EXPANDED_GROUP_ATTRIBUTE);
   interaction?.setExpandedKey(null);
   scheduleSpacingLabelLayoutAfterRender(scope);
@@ -157,6 +180,7 @@ const expandLabelGroup = (scope: HTMLElement, key: string, interaction?: Selecti
 
 const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
   const roots = scope.querySelectorAll<HTMLElement>('[data-mesurer-distance-kind="selection-spacing"]');
+
   if (distanceId && !scope.hasAttribute("data-mesurer-spacing-focus")) {
     for (const root of roots) {
       for (const line of root.querySelectorAll<HTMLElement>("[data-mesurer-distance-line], [data-mesurer-distance-connector]")) {
@@ -168,35 +192,43 @@ const setSpacingFocus = (scope: HTMLElement, distanceId: string | null) => {
   if (!distanceId) {
     for (const root of roots) {
       root.removeAttribute("data-mesurer-distance-active");
+
       for (const line of root.querySelectorAll<HTMLElement>("[data-mesurer-distance-line], [data-mesurer-distance-connector]")) {
         line.style.opacity = line.getAttribute("data-mesurer-base-opacity") ?? "";
         line.removeAttribute("data-mesurer-base-opacity");
       }
     }
+
     scope.removeAttribute("data-mesurer-spacing-focus");
     setSelectionChromeFocus(scope, null);
+
     return;
   }
 
   scope.setAttribute("data-mesurer-spacing-focus", distanceId);
   let activeRoot: HTMLElement | null = null;
+
   for (const root of roots) {
     const active = root.getAttribute("data-mesurer-distance-id") === distanceId;
+
     if (active) {
       root.setAttribute("data-mesurer-distance-active", "true");
       activeRoot = root;
     } else {
       root.removeAttribute("data-mesurer-distance-active");
     }
+
     for (const line of root.querySelectorAll<HTMLElement>("[data-mesurer-distance-line], [data-mesurer-distance-connector]")) {
       line.style.opacity = active ? "1" : "0.16";
     }
   }
+
   setSelectionChromeFocus(scope, activeRoot);
 };
 
 const clearCollapseTimer = (scope: HTMLElement) => {
   const timer = collapseTimers.get(scope);
+
   if (timer === undefined) return;
   scope.ownerDocument.defaultView?.clearTimeout(timer);
   collapseTimers.delete(scope);
@@ -204,6 +236,7 @@ const clearCollapseTimer = (scope: HTMLElement) => {
 
 const detachPinnedDismiss = (scope: HTMLElement) => {
   const dismiss = pinnedDismissers.get(scope);
+
   if (!dismiss) return;
   scope.ownerDocument.removeEventListener("pointerdown", dismiss, true);
   pinnedDismissers.delete(scope);
@@ -221,14 +254,18 @@ const clearPinnedGroup = (scope: HTMLElement, interaction?: SelectionSpacingInte
 
 const attachPinnedDismiss = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
   if (pinnedDismissers.has(scope)) return;
+
   const dismiss = (event: PointerEvent) => {
     const target = event.target;
+
     const label = target instanceof Element
       ? target.closest<HTMLElement>("[data-mesurer-distance-label-key]")
       : null;
+
     if (label && spacingScope(label) === scope) return;
     clearPinnedGroup(scope, interaction);
   };
+
   pinnedDismissers.set(scope, dismiss);
   scope.ownerDocument.addEventListener("pointerdown", dismiss, true);
 };
@@ -236,9 +273,11 @@ const attachPinnedDismiss = (scope: HTMLElement, interaction?: SelectionSpacingI
 const scheduleCollapse = (scope: HTMLElement, interaction?: SelectionSpacingInteraction) => {
   if (scope.hasAttribute(PINNED_GROUP_ATTRIBUTE) || collapseTimers.has(scope)) return;
   const ownerWindow = scope.ownerDocument.defaultView;
+
   if (!ownerWindow) return;
   collapseTimers.set(scope, ownerWindow.setTimeout(() => {
     collapseTimers.delete(scope);
+
     if (scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
     detachHoverWatcher(scope);
     collapseLabelGroups(scope, interaction);
@@ -279,21 +318,28 @@ const pointerInsideVisibleGroup = (
 const watchHoverGroup = (scope: HTMLElement, key: string, interaction?: SelectionSpacingInteraction) => {
   if (scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) {
     detachHoverWatcher(scope);
+
     return;
   }
+
   const existing = hoverWatchers.get(scope);
+
   if (existing?.key === key) return;
   detachHoverWatcher(scope);
 
   const handler = (event: PointerEvent) => {
     if (!scope.isConnected || scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) {
       detachHoverWatcher(scope);
+
       return;
     }
+
     if (pointerInsideVisibleGroup(scope, key, event.clientX, event.clientY)) {
       clearCollapseTimer(scope);
+
       return;
     }
+
     scheduleCollapse(scope, interaction);
   };
 
@@ -303,11 +349,13 @@ const watchHoverGroup = (scope: HTMLElement, key: string, interaction?: Selectio
 
 const suppressHoverUntilExit = (scope: HTMLElement, key: string) => {
   detachHoverSuppression(scope);
+
   const handler = (event: PointerEvent) => {
     if (!scope.isConnected || !pointerInsideVisibleGroup(scope, key, event.clientX, event.clientY, 2)) {
       detachHoverSuppression(scope);
     }
   };
+
   hoverSuppressions.set(scope, { key, handler });
   scope.ownerDocument.addEventListener("pointermove", handler, true);
 };
@@ -317,6 +365,7 @@ const hoverSuppressed = (scope: HTMLElement, key: string) => hoverSuppressions.g
 const Tag = (props: DistanceLabelProps) => {
   const primary = createMemo(() => props.primary !== false);
   const interactive = createMemo(() => Boolean(props.interactive && props.labelKey && props.distanceId));
+
   const expanded = createMemo(() => Boolean(
     props.spacingInteraction
       && props.labelKey
@@ -324,35 +373,45 @@ const Tag = (props: DistanceLabelProps) => {
       && props.labelCount > 1
       && props.spacingInteraction.expandedKey() === props.labelKey,
   ));
+
   const visible = createMemo(() => primary() || expanded());
 
   const handleEnter = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
+
     if (!interaction) return;
     clearCollapseTimer(interaction.scope);
     const pinnedKey = props.spacingInteraction?.pinnedKey() ?? interaction.scope.getAttribute(PINNED_GROUP_ATTRIBUTE);
     const primaryLabel = event.currentTarget.getAttribute("data-mesurer-distance-label-state") === "primary";
+
     if (!pinnedKey && primaryLabel && interaction.labelCount > 1 && !hoverSuppressed(interaction.scope, interaction.labelKey)) {
       expandLabelGroup(interaction.scope, interaction.labelKey, props.spacingInteraction);
       watchHoverGroup(interaction.scope, interaction.labelKey, props.spacingInteraction);
     } else if (!pinnedKey && interaction.scope.getAttribute(EXPANDED_GROUP_ATTRIBUTE) === interaction.labelKey) {
       watchHoverGroup(interaction.scope, interaction.labelKey, props.spacingInteraction);
     }
+
     setSpacingFocus(interaction.scope, interaction.distanceId);
   };
 
   const handleLeave = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
+
     if (!interaction || interaction.scope.hasAttribute(PINNED_GROUP_ATTRIBUTE)) return;
     const next = event.relatedTarget;
+
     const nextLabel = next instanceof Element
       ? next.closest<HTMLElement>("[data-mesurer-distance-label-key]")
       : null;
+
     const nextInteraction = nextLabel ? labelInteraction(nextLabel) : null;
+
     if (nextInteraction?.scope === interaction.scope && nextInteraction.labelKey === interaction.labelKey) {
       clearCollapseTimer(interaction.scope);
+
       return;
     }
+
     scheduleCollapse(interaction.scope, props.spacingInteraction);
   };
 
@@ -362,17 +421,22 @@ const Tag = (props: DistanceLabelProps) => {
 
   const handleMouseDown = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
     const interaction = labelInteraction(event.currentTarget);
+
     if (!interaction) return;
     event.stopPropagation();
+
     if (interaction.labelCount <= 1) return;
     clearCollapseTimer(interaction.scope);
     const pinnedKey = props.spacingInteraction?.pinnedKey() ?? interaction.scope.getAttribute(PINNED_GROUP_ATTRIBUTE);
     const primaryLabel = event.currentTarget.getAttribute("data-mesurer-distance-label-state") === "primary";
+
     if (pinnedKey === interaction.labelKey && primaryLabel) {
       clearPinnedGroup(interaction.scope, props.spacingInteraction);
       suppressHoverUntilExit(interaction.scope, interaction.labelKey);
+
       return;
     }
+
     detachHoverWatcher(interaction.scope);
     detachHoverSuppression(interaction.scope);
     interaction.scope.setAttribute(PINNED_GROUP_ATTRIBUTE, interaction.labelKey);
@@ -431,14 +495,17 @@ const selectionLineStyle = (
   const period = style.dashLength + style.gap;
   const direction = axis === "horizontal" ? "to right" : "to bottom";
   const dotRadius = Math.max(0.5, style.width / 2);
+
   const backgroundImage = pattern === "solid"
     ? undefined
     : pattern === "dotted"
       ? `radial-gradient(circle, ${style.color} 0 ${dotRadius}px, transparent ${dotRadius + 0.5}px)`
       : `repeating-linear-gradient(${direction}, ${style.color} 0 ${style.dashLength}px, transparent ${style.dashLength}px ${period}px)`;
+
   const backgroundSize = pattern === "dotted"
     ? axis === "horizontal" ? `${period}px ${style.width}px` : `${style.width}px ${period}px`
     : undefined;
+
   return {
     "background-color": pattern === "solid" ? style.color : "transparent",
     "background-image": backgroundImage,
@@ -453,10 +520,13 @@ const visibleSegmentMidpoint = (start: number, end: number, limit: number) => {
   const segmentStart = Math.min(start, end);
   const segmentEnd = Math.max(start, end);
   const inset = Math.min(20, Math.max(0, limit / 2));
+
   if (segmentEnd < 0) return inset;
+
   if (segmentStart > limit) return limit - inset;
   const visibleStart = clampToViewport(segmentStart, limit);
   const visibleEnd = clampToViewport(segmentEnd, limit);
+
   return (visibleStart + visibleEnd) / 2;
 };
 
@@ -465,8 +535,11 @@ const visibleLabelMidpoint = (start: number, end: number, limit?: number) =>
 
 const positionDistanceLabelAnchor = (value: number, limit: number) => {
   const inset = Math.min(20, Math.max(0, limit / 2));
+
   if (value < 0) return inset;
+
   if (value > limit) return limit - inset;
+
   return Math.max(inset, Math.min(limit - inset, value));
 };
 
@@ -479,32 +552,46 @@ const segmentIntersectsViewport = (start: number, end: number, limit: number) =>
 export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
   const selectionSpacing = () => props.kind === "selection-spacing";
   const spacingStyle = () => props.selectionSpacingStyle ?? DEFAULT_SELECTION_SPACING_STYLE;
+
   const ownerWindow = () => props.distance.elementRefA?.ownerDocument.defaultView
     ?? props.distance.elementRefB?.ownerDocument.defaultView
     ?? globalThis.window;
+
   const labelLeft = (value: number) => {
     const width = ownerWindow()?.innerWidth;
+
     return width && width > 0 ? positionDistanceLabelAnchor(value, width) : value;
   };
+
   const labelTop = (value: number) => {
     const height = ownerWindow()?.innerHeight;
+
     return height && height > 0 ? positionDistanceLabelAnchor(value, height) : value;
   };
+
   const horizontalLineVisible = (x1: number, x2: number, y: number, width: number) => {
     const viewport = ownerWindow();
+
     if (!viewport) return true;
+
     return segmentIntersectsViewport(x1, x2, viewport.innerWidth)
       && coordinateIntersectsViewport(y, viewport.innerHeight, width);
   };
+
   const verticalLineVisible = (x: number, y1: number, y2: number, width: number) => {
     const viewport = ownerWindow();
+
     if (!viewport) return true;
+
     return coordinateIntersectsViewport(x, viewport.innerWidth, width)
       && segmentIntersectsViewport(y1, y2, viewport.innerHeight);
   };
+
   const diagonalLineVisible = (x1: number, y1: number, x2: number, y2: number) => {
     const viewport = ownerWindow();
+
     if (!viewport) return true;
+
     return Math.max(x1, x2) > 0
       && Math.min(x1, x2) < viewport.innerWidth
       && Math.max(y1, y2) > 0
@@ -602,6 +689,7 @@ export function DistanceOverlayItem(props: DistanceOverlayItemProps) {
         const angle = () => Math.atan2(line().y2 - line().y1, line().x2 - line().x1);
         const midpointX = () => (line().x1 + line().x2) / 2;
         const midpointY = () => (line().y1 + line().y2) / 2;
+
         return <Show when={line().value > 0 && line().showLine !== false && diagonalLineVisible(line().x1, line().y1, line().x2, line().y2)}><>
           <div
             data-mesurer-distance-line="diagonal"

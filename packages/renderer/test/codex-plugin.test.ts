@@ -36,11 +36,15 @@ const annotation: MesurerAnnotation = {
 
 const createContextService = () => {
   const removeAnnotation = vi.fn(async (_annotationId: string) => {});
+
   const contextText = vi.fn(async (request?: MesurerContextRequest) => {
     if (request && "annotation" in request) return `annotation evidence ${request.annotation}`;
+
     if (request?.scope === "selection") return "selection evidence";
+
     return "workspace evidence";
   });
+
   const service: MesurerContextService = {
     context: async () => { throw new Error("context() is not needed by this contract"); },
     contextText,
@@ -53,6 +57,7 @@ const createContextService = () => {
     prepareCapture: async () => {},
     finishCapture: async () => {},
   };
+
   return { service, contextText, removeAnnotation };
 };
 
@@ -62,11 +67,13 @@ describe("codex", () => {
   it("sends saved Context evidence through the explicit loopback transport", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService, contextText } = createContextService();
+
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued", deliveryId: "delivery-1", status: "queued", queuedSubmissionId: "queue-1", dispatch: "resumed", dispatchError: null }),
     }));
+
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
@@ -131,8 +138,10 @@ describe("codex", () => {
   it("can inspect and switch among threads registered by Codex", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
+
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
       if (url.endsWith("/health")) {
         return {
           ok: true,
@@ -144,8 +153,10 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/target")) {
         expect(JSON.parse(String(init?.body))).toEqual({ thread: "thread-b" });
+
         return {
           ok: true,
           status: 200,
@@ -156,8 +167,10 @@ describe("codex", () => {
           }),
         };
       }
+
       throw new Error(`Unexpected request: ${url}`);
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
@@ -183,8 +196,10 @@ describe("codex", () => {
   it("lists app-server thread metadata through the bridge", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
+
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       expect(String(input)).toBe("http://127.0.0.1:47365/threads?limit=5&thread=thread-a");
+
       return {
         ok: true,
         status: 200,
@@ -199,6 +214,7 @@ describe("codex", () => {
         }),
       };
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
@@ -225,8 +241,10 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
     const sendBodies: Array<{ message: string; thread?: string }> = [];
+
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
       if (url.endsWith("/health")) {
         return {
           ok: true,
@@ -238,8 +256,10 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.includes("/threads?")) {
         expect(url).toBe("http://127.0.0.1:47365/threads?limit=10&thread=thread-a");
+
         return {
           ok: true,
           status: 200,
@@ -258,16 +278,20 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/send")) {
         sendBodies.push(JSON.parse(String(init?.body)));
+
         return {
           ok: true,
           status: 200,
           text: async () => JSON.stringify({ ok: true, thread: "thread-a", output: "queued" }),
         };
       }
+
       throw new Error(`Unexpected request: ${url}`);
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
@@ -320,8 +344,10 @@ describe("codex", () => {
     const { service: contextService, removeAnnotation } = createContextService();
     let sendCount = 0;
     let deliveryReads = 0;
+
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+
       if (url.endsWith("/health")) {
         return {
           ok: true,
@@ -329,6 +355,7 @@ describe("codex", () => {
           text: async () => JSON.stringify({ ok: true, thread: "thread-a", threads: ["thread-a"] }),
         };
       }
+
       if (url.includes("/threads?")) {
         return {
           ok: true,
@@ -341,8 +368,10 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/send")) {
         sendCount += 1;
+
         return {
           ok: true,
           status: 200,
@@ -356,9 +385,11 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/deliveries/delivery-a")) {
         deliveryReads += 1;
         const status = deliveryReads === 1 ? "working" : "completed";
+
         return {
           ok: true,
           status: 200,
@@ -373,8 +404,10 @@ describe("codex", () => {
           }),
         };
       }
+
       throw new Error(`Unexpected request: ${url}`);
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
@@ -426,6 +459,7 @@ describe("codex", () => {
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+
       if (url.endsWith("/health")) {
         return {
           ok: true,
@@ -433,6 +467,7 @@ describe("codex", () => {
           text: async () => JSON.stringify({ ok: true, thread: "thread-a", threads: ["thread-a"] }),
         };
       }
+
       if (url.includes("/threads?")) {
         return {
           ok: true,
@@ -445,8 +480,10 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/send")) {
         sendCount += 1;
+
         return {
           ok: true,
           status: 200,
@@ -462,13 +499,16 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/deliveries/delivery-corrected-terminal")) {
         deliveryReads += 1;
+
         const status = deliveryReads === 1
           ? "working"
           : deliveryReads === 2
             ? "interrupted"
             : "completed";
+
         return {
           ok: true,
           status: 200,
@@ -486,8 +526,10 @@ describe("codex", () => {
           }),
         };
       }
+
       throw new Error(`Unexpected request: ${url}`);
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
@@ -527,8 +569,10 @@ describe("codex", () => {
     const { service: firstContext } = createContextService();
     let phase: "first" | "second" = "first";
     const sendBodies: Array<{ message: string; thread?: string }> = [];
+
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
       if (url.endsWith("/health")) {
         return {
           ok: true,
@@ -538,8 +582,10 @@ describe("codex", () => {
             : { ok: true, thread: "thread-b", threads: ["thread-a", "thread-b"] }),
         };
       }
+
       if (url.includes("/threads?")) {
         const scoped = new URL(url).searchParams.get("thread");
+
         return {
           ok: true,
           status: 200,
@@ -554,9 +600,11 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/send")) {
         const body = JSON.parse(String(init?.body));
         sendBodies.push(body);
+
         return {
           ok: true,
           status: 200,
@@ -569,8 +617,10 @@ describe("codex", () => {
           }),
         };
       }
+
       throw new Error(`Unexpected request: ${url}`);
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await firstHost.load(defineMesurerPlugin({
@@ -581,9 +631,11 @@ describe("codex", () => {
       },
     }));
     await firstHost.load(codex());
+
     const chooser = firstHost.tools()
       .find((candidate) => candidate.id === "codex.send")
       ?.menu?.items[0];
+
     await chooser?.run();
     firstHost.dispose();
 
@@ -609,8 +661,10 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
     let sendCount = 0;
+
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+
       if (url.endsWith("/health")) {
         return {
           ok: true,
@@ -622,6 +676,7 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.includes("/threads?")) {
         return {
           ok: true,
@@ -637,12 +692,15 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/send")) {
         sendCount += 1;
         throw new Error("send should not run before the user chooses a thread");
       }
+
       throw new Error(`Unexpected request: ${url}`);
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
@@ -680,6 +738,7 @@ describe("codex", () => {
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+
       if (url.endsWith("/health")) {
         return {
           ok: true,
@@ -691,6 +750,7 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.includes("/threads?")) {
         return {
           ok: true,
@@ -708,6 +768,7 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/send")) {
         return {
           ok: true,
@@ -725,9 +786,11 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/deliveries/delivery-desktop-blocked")) {
         deliveryReads += 1;
         const blocked = deliveryReads === 1;
+
         return {
           ok: true,
           status: 200,
@@ -745,8 +808,10 @@ describe("codex", () => {
           }),
         };
       }
+
       throw new Error(`Unexpected request: ${url}`);
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
@@ -786,6 +851,7 @@ describe("codex", () => {
     let phase: "first" | "second" = "first";
     let sendCount = 0;
     let deliveryReads = 0;
+
     const restoreBodies: Array<{
       deliveryId: string;
       thread: string;
@@ -794,6 +860,7 @@ describe("codex", () => {
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
       if (url.endsWith("/health")) {
         return {
           ok: true,
@@ -801,6 +868,7 @@ describe("codex", () => {
           text: async () => JSON.stringify({ ok: true, thread: "thread-a", threads: ["thread-a"] }),
         };
       }
+
       if (url.includes("/threads?")) {
         return {
           ok: true,
@@ -813,8 +881,10 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/send")) {
         sendCount += 1;
+
         return {
           ok: true,
           status: 200,
@@ -831,9 +901,11 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/deliveries/restore")) {
         const body = JSON.parse(String(init?.body));
         restoreBodies.push(body);
+
         return {
           ok: true,
           status: 200,
@@ -852,9 +924,11 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/deliveries/delivery-restart-1")) {
         if (phase === "first") throw new Error("first host must be disposed before polling");
         deliveryReads += 1;
+
         if (deliveryReads === 1) {
           return {
             ok: false,
@@ -865,6 +939,7 @@ describe("codex", () => {
             }),
           };
         }
+
         return {
           ok: true,
           status: 200,
@@ -882,8 +957,10 @@ describe("codex", () => {
           }),
         };
       }
+
       throw new Error(`Unexpected request: ${url}`);
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await firstHost.load(defineMesurerPlugin({
@@ -942,8 +1019,10 @@ describe("codex", () => {
     const firstHost = createMesurerPluginHost();
     const { service: firstContext } = createContextService();
     let deliveryReads = 0;
+
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
       if (url.endsWith("/health")) {
         return {
           ok: true,
@@ -951,6 +1030,7 @@ describe("codex", () => {
           text: async () => JSON.stringify({ ok: true, thread: "thread-a", threads: ["thread-a"] }),
         };
       }
+
       if (url.includes("/threads?")) {
         return {
           ok: true,
@@ -963,8 +1043,10 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/send")) {
         const body = JSON.parse(String(init?.body));
+
         return {
           ok: true,
           status: 200,
@@ -978,8 +1060,10 @@ describe("codex", () => {
           }),
         };
       }
+
       if (url.endsWith("/deliveries/delivery-reload")) {
         deliveryReads += 1;
+
         return {
           ok: true,
           status: 200,
@@ -994,8 +1078,10 @@ describe("codex", () => {
           }),
         };
       }
+
       throw new Error(`Unexpected request: ${url}`);
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await firstHost.load(defineMesurerPlugin({
@@ -1031,9 +1117,11 @@ describe("codex", () => {
   it("does not probe loopback until the user asks for Codex, then marks a missing bridge unavailable", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
+
     const fetchMock = vi.fn(async () => {
       throw new TypeError("fetch failed");
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
@@ -1066,11 +1154,13 @@ describe("codex", () => {
   it("can send one message to another registered thread without changing the default", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
+
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ ok: true, thread: "thread-b", output: "queued", deliveryId: "delivery-b", status: "queued" }),
     }));
+
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
@@ -1100,11 +1190,13 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService, contextText } = createContextService();
     contextService.annotations = async () => [];
+
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ ok: true, thread: "thread-2", deliveryId: "delivery-2", status: "queued" }),
     }));
+
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({

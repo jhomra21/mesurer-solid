@@ -40,18 +40,21 @@ const Tag = (props: { axis: "x" | "y"; left: number; top: number; children: any 
 export function MesurerOverlay(props: MesurerOverlayProps) {
   let overlayElement: HTMLDivElement | undefined;
   let hoverChromeElement: HTMLDivElement | undefined;
+
   let passiveGuideDrag: {
     id: string;
     orientation: Guide["orientation"];
     pointerId: number;
     previousUserSelect: string | null;
   } | null = null;
+
   let guideHoldTimer = 0;
   let guideHoldId: string | null = null;
   let hoverScrollIdleTimer = 0;
   let hoverScrollFrame = 0;
   const [expandedSpacingGroup, setExpandedSpacingGroup] = createSignal<string | null>(null);
   const [pinnedSpacingGroup, setPinnedSpacingGroup] = createSignal<string | null>(null);
+
   const spacingInteraction: SelectionSpacingInteraction = {
     expandedKey: expandedSpacingGroup,
     setExpandedKey: setExpandedSpacingGroup,
@@ -72,33 +75,44 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const selectedOutline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 96%, transparent)`;
   const selectedFill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 15.36%, transparent)`;
   const selectedMeasurements = createMemo(() => props.model.state.selectedMeasurements);
+
   const displayedMeasurements = createMemo(() => {
     const measurements = props.model.state.settings.multiMeasureEnabled && props.model.state.measurements.length > 0
       ? props.model.state.measurements
       : props.model.state.activeMeasurement
         ? [props.model.state.activeMeasurement]
         : [];
+
     const selectedElements = new Set(
       selectedMeasurements()
         .map((measurement) => measurement.elementRef)
         .filter((element): element is HTMLElement => Boolean(element)),
     );
+
     return measurements.filter((measurement) => !measurement.elementRef || !selectedElements.has(measurement.elementRef));
   });
+
   const displayedSelectedMeasurements = createMemo(() => props.displayedSelectedMeasurements);
+
   const hoverTargetsSelected = createMemo(() => {
     const target = props.model.state.hoverElement;
+
     return Boolean(target && selectedMeasurements().some((measurement) => measurement.elementRef === target));
   });
+
   const heldDistances = createMemo(() => props.model.state.heldDistances);
   const measurementEdges = createMemo(() => getEdgeVisibilityForRects(displayedMeasurements().map((item) => item.rect)));
   const selectedEdges = createMemo(() => getEdgeVisibilityForRects(displayedSelectedMeasurements().map((item) => item.rect)));
+
   const selectionSpacingOverlays = createMemo(() => {
     const selected = selectedMeasurements();
+
     if (!selectionVisible() || !props.selectionSpacingStyle.enabled || selected.length < 2) return [];
     const ownerWindow = overlayElement?.ownerDocument.defaultView;
+
     return ownerWindow ? getSelectionSpacingOverlays(selected, ownerWindow) : [];
   });
+
   const selectedSpacingIds = createMemo(() => selectedMeasurements().map((measurement) => measurement.id).join("|"));
   createEffect(
     () => selectedSpacingIds(),
@@ -107,29 +121,38 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       setPinnedSpacingGroup(null);
     },
   );
+
   const hoverEdges = () => {
     const hoverRect = props.model.state.hoverRect;
+
     if (!hoverRect) return null;
+
     return getEdgeVisibilityForRects([
       hoverRect,
       ...displayedSelectedMeasurements().map((item) => item.rect),
     ])[0] ?? null;
   };
+
   const hoverPortalTarget = () => documentHoverPortalTarget(
     overlayElement,
     props.model.state.hoverElement,
   );
+
   const hoverPortalOffset = () => {
     const target = props.model.state.hoverElement;
     const mount = hoverPortalTarget();
     const ownerWindow = target?.ownerDocument.defaultView;
+
     if (!target || !ownerWindow || mount !== target.ownerDocument.body) return { x: 0, y: 0 };
+
     return { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
   };
+
   const hoverSurface = () => {
     const rect = props.model.state.hoverRect!;
     const documentLayer = Boolean(hoverPortalTarget());
     const offset = hoverPortalOffset();
+
     return <div
       ref={(element) => { hoverChromeElement = element; }}
       data-mesurer-hover-measurement="true"
@@ -154,15 +177,21 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       <Show when={hoverEdges()?.left}><div class="msr:absolute msr:left-0 msr:top-0 msr:h-full msr:w-px" style={{ position: "absolute", left: "0", top: "0", height: "100%", width: "1px", "background-color": outline() }} /></Show>
     </div>;
   };
+
   const guideColor = (kind: "active" | "hover" | "default" | "preview") => {
     const amount = kind === "active" ? 100 : kind === "hover" ? 90 : kind === "preview" ? 50 : 70;
+
     return `color-mix(in oklch, ${props.model.state.settings.guideColor} ${amount}%, transparent)`;
   };
+
   const renderedGuides = createMemo((): Guide[] => {
     if (props.model.state.guides.length > 0) return props.model.state.guides;
+
     if (!props.model.state.settingsOpen || props.model.state.settingsTab !== "guides") return props.model.state.guides;
     const ownerWindow = overlayElement?.ownerDocument.defaultView;
+
     if (!ownerWindow) return props.model.state.guides;
+
     return [
       { id: "__mesurer-preview-vertical", orientation: "vertical", position: ownerWindow.innerWidth / 2 },
       { id: "__mesurer-preview-horizontal", orientation: "horizontal", position: ownerWindow.innerHeight / 2 },
@@ -180,31 +209,39 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     event.preventDefault();
     event.stopPropagation();
     props.model.checkpoint();
+
     if (event.shiftKey) {
       props.model.setSelectedGuideIds(
         props.model.current.selectedGuideIds.includes(guide.id)
           ? props.model.current.selectedGuideIds.filter((id) => id !== guide.id)
           : [...props.model.current.selectedGuideIds, guide.id],
       );
+
       return;
     }
+
     props.model.setSelectedGuideIds([guide.id]);
     clearGuideHold();
     const ownerWindow = event.currentTarget.ownerDocument.defaultView;
+
     if (ownerWindow) {
       guideHoldId = guide.id;
       guideHoldTimer = ownerWindow.setTimeout(() => {
         guideHoldTimer = 0;
+
         if (guideHoldId === guide.id) props.model.setTransient({ draggingGuideId: guide.id });
       }, GUIDE_DRAG_HOLD_MS);
     }
+
     trySetPointerCapture(event.currentTarget, event.pointerId);
   };
 
   const interactiveGuideUp = (guide: Guide, event: OverlayPointerEvent) => {
     event.stopPropagation();
     clearGuideHold();
+
     if (props.model.current.draggingGuideId === guide.id) props.model.setTransient({ draggingGuideId: null });
+
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
@@ -212,12 +249,15 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     const overlay = overlayElement;
     const ownerWindow = overlay?.ownerDocument.defaultView;
     const ownerDocument = overlay?.ownerDocument;
+
     if (!overlay || !ownerWindow || !ownerDocument) return;
 
     const handleOverlayPointerMove = (event: PointerEvent) => props.onPointerMove(event);
+
     const syncHoverGeometry = () => {
       const target = props.model.current.hoverElement;
       const chrome = hoverChromeElement;
+
       if (!target?.isConnected || !chrome?.isConnected) return;
       const rect = target.getBoundingClientRect();
       const documentLayer = chrome.dataset.mesurerDocumentHoverLayer === "true";
@@ -230,21 +270,27 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         height: `${rect.height}px`,
       });
     };
+
     const scheduleHoverFallback = () => {
       if (hoverScrollFrame) return;
       hoverScrollFrame = ownerWindow.requestAnimationFrame(() => {
         hoverScrollFrame = 0;
+
         if (hoverChromeElement?.dataset.mesurerNativeScrollAnchor === "box") return;
         syncHoverGeometry();
       });
     };
+
     const handleScroll = () => {
       const chrome = hoverChromeElement;
+
       if (!chrome?.isConnected) return;
+
       if (chrome.dataset.mesurerNativeScrollAnchor === "box") return;
 
       if (!hasNativeScrollAnchoring(ownerDocument)) {
         scheduleHoverFallback();
+
         return;
       }
 
@@ -253,30 +299,40 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       // fallback and reconcile once the burst settles; the native path takes
       // over without JavaScript as soon as the coordinator binds it.
       chrome.style.visibility = "hidden";
+
       if (hoverScrollIdleTimer) ownerWindow.clearTimeout(hoverScrollIdleTimer);
       hoverScrollIdleTimer = ownerWindow.setTimeout(() => {
         hoverScrollIdleTimer = 0;
+
         if (chrome.dataset.mesurerNativeScrollAnchor !== "box") syncHoverGeometry();
+
         if (chrome.isConnected) chrome.style.removeProperty("visibility");
       }, 80);
     };
+
     const handlePassiveGuideDown = (event: PointerEvent) => {
       if (!props.model.current.enabled || props.model.current.settingsOpen || props.model.current.toolMode !== "none") return;
+
       const toolbarTarget = event.composedPath().some((target) =>
         target instanceof ownerWindow.Element && target.hasAttribute("data-mesurer-toolbar"),
       );
+
       if (toolbarTarget) return;
 
       const point = { x: event.clientX, y: event.clientY };
+
       const guide = props.model.current.guides.find((candidate) => {
         const distance = candidate.orientation === "vertical"
           ? Math.abs(candidate.position - point.x)
           : Math.abs(candidate.position - point.y);
+
         return distance <= GUIDE_HITBOX_SIZE / 2;
       });
+
       if (!guide) return;
 
       props.model.checkpoint();
+
       if (event.shiftKey) {
         props.model.setSelectedGuideIds(
           props.model.current.selectedGuideIds.includes(guide.id)
@@ -284,10 +340,12 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
             : [...props.model.current.selectedGuideIds, guide.id],
         );
         passiveGuideDrag = null;
+
         return;
       }
 
       props.model.setSelectedGuideIds([guide.id]);
+
       if (event.button === 0) {
         passiveGuideDrag = {
           id: guide.id,
@@ -300,15 +358,19 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     const handlePassiveGuideMove = (event: PointerEvent) => {
       const drag = passiveGuideDrag;
+
       if (!drag || drag.pointerId !== event.pointerId) return;
       const guide = props.model.current.guides.find((candidate) => candidate.id === drag.id);
+
       if (!guide) return;
       event.preventDefault();
+
       if (drag.previousUserSelect === null) {
         drag.previousUserSelect = ownerDocument.documentElement.style.userSelect;
         ownerDocument.documentElement.style.userSelect = "none";
         ownerWindow.getSelection()?.removeAllRanges();
       }
+
       props.model.updateGuide(drag.id, {
         position: drag.orientation === "vertical" ? event.clientX : event.clientY,
       });
@@ -316,7 +378,9 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     const handlePassiveGuideEnd = (event: PointerEvent) => {
       const drag = passiveGuideDrag;
+
       if (!drag || drag.pointerId !== event.pointerId) return;
+
       if (drag.previousUserSelect !== null) ownerDocument.documentElement.style.userSelect = drag.previousUserSelect;
       passiveGuideDrag = null;
     };
@@ -329,6 +393,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     ownerWindow.addEventListener("pointermove", handlePassiveGuideMove, true);
     ownerWindow.addEventListener("pointerup", handlePassiveGuideEnd, true);
     ownerWindow.addEventListener("pointercancel", handlePassiveGuideEnd, true);
+
     return () => {
       overlay.removeEventListener("pointermove", handleOverlayPointerMove);
       ownerWindow.removeEventListener("scroll", handleScroll, true);
@@ -337,15 +402,19 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       ownerWindow.removeEventListener("pointermove", handlePassiveGuideMove, true);
       ownerWindow.removeEventListener("pointerup", handlePassiveGuideEnd, true);
       ownerWindow.removeEventListener("pointercancel", handlePassiveGuideEnd, true);
+
       if (hoverScrollIdleTimer) ownerWindow.clearTimeout(hoverScrollIdleTimer);
+
       if (hoverScrollFrame) ownerWindow.cancelAnimationFrame(hoverScrollFrame);
       hoverScrollIdleTimer = 0;
       hoverScrollFrame = 0;
       hoverChromeElement?.style.removeProperty("visibility");
       clearGuideHold();
+
       if (passiveGuideDrag?.previousUserSelect !== null && passiveGuideDrag) {
         ownerDocument.documentElement.style.userSelect = passiveGuideDrag.previousUserSelect;
       }
+
       passiveGuideDrag = null;
     };
   });
@@ -433,13 +502,16 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         const hovered = () => !previewGuide() && props.hoverGuide?.id === guide.id;
         const strokeColor = () => selected() ? guideColor("active") : hovered() ? guideColor("hover") : guideColor("default");
         const strokeWidth = () => Math.max(props.model.state.settings.guideStyle.width, selected() || hovered() ? 2 : props.model.state.settings.guideStyle.width);
+
         const backgroundImage = () => props.model.state.settings.guideStyle.pattern === "solid" ? undefined
           : props.model.state.settings.guideStyle.pattern === "dotted"
             ? `radial-gradient(circle, ${strokeColor()} 0 ${strokeWidth() / 2}px, transparent ${strokeWidth() / 2 + 0.5}px)`
             : `repeating-linear-gradient(${guide.orientation === "vertical" ? "to bottom" : "to right"}, ${strokeColor()} 0 ${props.model.state.settings.guideStyle.dashLength}px, transparent ${props.model.state.settings.guideStyle.dashLength}px ${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px)`;
+
         const backgroundSize = () => props.model.state.settings.guideStyle.pattern === "dotted"
           ? guide.orientation === "vertical" ? `${strokeWidth()}px ${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px` : `${props.model.state.settings.guideStyle.dashLength + props.model.state.settings.guideStyle.gap}px ${strokeWidth()}px`
           : undefined;
+
         return <div class="msr:absolute" data-mesurer-guide="true" style={guide.orientation === "vertical"
           ? { left: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, top: "0", width: `${GUIDE_HITBOX_SIZE}px`, height: "100%", "pointer-events": !previewGuide() && guidePointerEvents() ? "auto" : "none" }
           : { top: `${guide.position - GUIDE_HITBOX_SIZE / 2}px`, left: "0", height: `${GUIDE_HITBOX_SIZE}px`, width: "100%", "pointer-events": !previewGuide() && guidePointerEvents() ? "auto" : "none" }}

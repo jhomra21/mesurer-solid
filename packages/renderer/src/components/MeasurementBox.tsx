@@ -14,7 +14,9 @@ export type MeasurementBoxProps = {
 };
 
 const allEdges: EdgeVisibility = { top: true, right: true, bottom: true, left: true };
+
 const formatValue = (value: number) => Math.round(value);
+
 const SELECTED_CHROME_Z_INDEX = "2147482800";
 
 export function MeasurementBox(props: MeasurementBoxProps) {
@@ -24,17 +26,21 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   const edges = () => props.edgeVisibility ?? allEdges;
   const isSelectionGroup = () => Boolean(props.measurement?.id.startsWith("group-"));
   const isSelectedMeasurement = () => Boolean(props.measurement && "paddingRect" in props.measurement);
+
   const transition = () => isSelectedMeasurement()
     ? "none"
     : `left ${MEASURE_TRANSITION_MS}ms ease, top ${MEASURE_TRANSITION_MS}ms ease, width ${MEASURE_TRANSITION_MS}ms ease, height ${MEASURE_TRANSITION_MS}ms ease`;
+
   const labelTransition = () => isSelectedMeasurement()
     ? "none"
     : `left ${MEASURE_TRANSITION_MS}ms ease, top ${MEASURE_TRANSITION_MS}ms ease`;
 
   const liveSelectedTarget = () => {
     const measurement = props.measurement;
+
     if (!measurement || !("paddingRect" in measurement)) return null;
     const target = measurement.elementRef;
+
     return target?.isConnected ? target : null;
   };
 
@@ -42,16 +48,20 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     const target = liveSelectedTarget();
     const mount = selectionPortalTarget();
     const ownerWindow = target?.ownerDocument.defaultView;
+
     if (!target || !ownerWindow || mount !== target.ownerDocument.body) return { x: 0, y: 0 };
+
     return { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
   };
 
   const syncSelectedGeometry = () => {
     const target = liveSelectedTarget();
+
     if (!target || !chromeElement || !labelElement) return;
     const rect = target.getBoundingClientRect();
     const ownerWindow = target.ownerDocument.defaultView;
     const selectionRoot = chromeElement.parentElement;
+
     // A selected measurement is portaled to <body> for the document native-
     // anchor path. Its absolute fallback therefore uses document coordinates,
     // not viewport coordinates. Keeping this fallback correct prevents a
@@ -62,6 +72,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       ownerWindow
       && selectionRoot?.parentNode === target.ownerDocument.body,
     );
+
     const offsetX = documentLayer ? ownerWindow!.scrollX : 0;
     const offsetY = documentLayer ? ownerWindow!.scrollY : 0;
     const left = rect.left + offsetX;
@@ -81,6 +92,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
   onSettled(() => {
     const target = liveSelectedTarget();
     const ownerWindow = target?.ownerDocument.defaultView;
+
     if (!target || !ownerWindow) return;
 
     // A selected page element can start inside Mesurer's isolated ShadowRoot,
@@ -89,6 +101,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     // root breaks the reconciler when direct editing changes reactive state.
     // Targets that genuinely live in a ShadowRoot keep local overlay ownership.
     const documentBacked = target.getRootNode() === target.ownerDocument && Boolean(target.ownerDocument.body);
+
     if (documentBacked) setSelectionPortalTarget(target.ownerDocument.body);
 
     // Native absolute anchors already follow window/document scrolling. A
@@ -100,6 +113,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       : null;
 
     let scrollFrame = 0;
+
     const syncOnScroll = () => {
       // Once CSS Anchor Positioning owns the selected box, JavaScript does no
       // work. During the short pre-anchor fallback, keep the event itself
@@ -107,6 +121,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
       if (chromeElement?.dataset.mesurerNativeScrollAnchor === "box" || scrollFrame) return;
       scrollFrame = ownerWindow.requestAnimationFrame(() => {
         scrollFrame = 0;
+
         if (chromeElement?.dataset.mesurerNativeScrollAnchor === "box") return;
         syncSelectedGeometry();
       });
@@ -124,9 +139,11 @@ export function MeasurementBox(props: MeasurementBoxProps) {
     targetResizeObserver.observe(target);
     ownerWindow.addEventListener("scroll", syncOnScroll, { capture: true, passive: true });
     ownerWindow.addEventListener("resize", syncSelectedGeometry, true);
+
     return () => {
       targetResizeObserver.disconnect();
       nestedScroll?.release();
+
       if (scrollFrame) ownerWindow.cancelAnimationFrame(scrollFrame);
       ownerWindow.removeEventListener("scroll", syncOnScroll, true);
       ownerWindow.removeEventListener("resize", syncSelectedGeometry, true);

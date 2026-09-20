@@ -44,6 +44,7 @@ describe("screenshot preview", () => {
     document.body.append(rendererRoot);
 
     const createObjectUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:preview");
+
     const controller = createScreenshotPreviewController({
       ownerDocument: document,
       ownerWindow: window,

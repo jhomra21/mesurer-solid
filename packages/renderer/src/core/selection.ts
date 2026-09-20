@@ -8,11 +8,14 @@ import { getDeepestElementAtPoint, getDomTreeRoot, isElementWithinDomTarget, wit
 import type { Point, Rect } from "./types";
 
 const isShadowRoot = (value: Node): value is ShadowRoot => value.nodeType === 11;
+
 const getOverlayHost = (overlayNode: HTMLDivElement | null) => {
   if (!overlayNode) return null;
   const rootNode = overlayNode.getRootNode();
+
   return isShadowRoot(rootNode) ? rootNode.host : null;
 };
+
 const isOverlayElement = (element: HTMLElement, overlayNode: HTMLDivElement | null, overlayHost: Element | null) =>
   Boolean(overlayNode?.contains(element) || (overlayHost && element === overlayHost));
 
@@ -21,11 +24,14 @@ const deepestOpenShadowHit = (
   point: Point,
 ) => {
   let current = element;
+
   while (current.shadowRoot) {
     const nested = current.shadowRoot.elementFromPoint(point.x, point.y);
+
     if (!nested || nested === current) break;
     current = nested;
   }
+
   return current;
 };
 
@@ -43,6 +49,7 @@ export const isSelectionPointBlockedByMesurerUi = (
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
 ) => {
   const ownerWindow = ownerDocument.defaultView;
+
   if (!ownerWindow) return false;
   // SAFETY: ownerWindow is ownerDocument.defaultView, so these constructors own every hit from ownerDocument.
   const realm = ownerWindow as Window & typeof globalThis;
@@ -51,7 +58,9 @@ export const isSelectionPointBlockedByMesurerUi = (
   for (const hit of ownerDocument.elementsFromPoint(point.x, point.y)) {
     if (!(hit instanceof realm.Element)) continue;
     const deepest = deepestOpenShadowHit(hit, point);
+
     if (deepest instanceof realm.HTMLElement && isOverlayElement(deepest, overlayNode, overlayHost)) continue;
+
     if (isMesurerInputBoundary(deepest, ownerWindow)) return true;
 
     // Once the physical stack has reached ordinary inspected-page content,
@@ -62,6 +71,7 @@ export const isSelectionPointBlockedByMesurerUi = (
       && !isInsideMesurer(deepest, ownerWindow)
     ) return false;
   }
+
   return false;
 };
 
@@ -72,6 +82,7 @@ const getSelectionTarget = (
   pageTarget: HTMLElement | ShadowRoot,
 ) => {
   if (isSelectionPointBlockedByMesurerUi(point, overlayNode, ownerDocument, pageTarget)) return null;
+
   return withPointerEventsDisabled(
     overlayNode,
     () => getDeepestElementAtPoint(point, pageTarget, ownerDocument),
@@ -88,15 +99,19 @@ export const getTargetElement = (
   const element = getSelectionTarget(point, overlayNode, ownerDocument, pageTarget);
   const ownerWindow = ownerDocument.defaultView;
   const HTMLElementConstructor = ownerWindow?.HTMLElement;
+
   if (!ownerWindow || !HTMLElementConstructor || !(element instanceof HTMLElementConstructor)) return null;
   const html = element;
+
   if (
     !isElementWithinDomTarget(html, pageTarget)
     || isOverlayElement(html, overlayNode, overlayHost)
     || isInsideMesurer(html, ownerWindow)
   ) return null;
+
   if (html === ownerDocument.body || html === ownerDocument.documentElement) return null;
   const rect = html.getBoundingClientRect();
+
   return rect.width > 2 && rect.height > 2 ? html : null;
 };
 
@@ -115,16 +130,20 @@ export const getSnappedClickTarget = (
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
 ) => {
   const direct = getTargetElement(point, overlayNode, ownerDocument, pageTarget);
+
   if (!snapEnabled || !direct) return direct;
   const probeRect: Rect = { left: point.x - 20, top: point.y - 20, width: 40, height: 40 };
   const entries = getSelectionEntries(probeRect, overlayNode, ownerDocument, pageTarget);
   const directRoot = getDomTreeRoot(direct);
+
   const treeEntries = directRoot.nodeType === 11
     ? entries.filter(({ element }) => getDomTreeRoot(element) === directRoot)
     : entries;
+
   const candidates = treeEntries.some(({ element }) => element === direct)
     ? treeEntries
     : [{ element: direct, rect: getRectFromDomCached(direct) }, ...treeEntries];
+
   return pickPointTarget(point, candidates) ?? pickSingleTarget(probeRect, point, candidates) ?? direct;
 };
 
@@ -135,14 +154,20 @@ export const getElementsInRect = (
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
 ): HTMLElement[] => {
   const entries = getSelectionEntries(rect, overlayNode, ownerDocument, pageTarget);
+
   return entries.length ? pickMultiTargets(rect, entries) : [];
 };
 
 let cachedSelectionFrame = -1;
+
 let cachedSelectionKey = "";
+
 let cachedSelectionEntries: Array<{ element: HTMLElement; rect: Rect }> = [];
+
 let cachedOverlayNode: HTMLDivElement | null = null;
+
 let cachedSelectionDocument: Document | null = null;
+
 let cachedSelectionTarget: HTMLElement | ShadowRoot | null = null;
 
 export const getSelectionEntries = (
@@ -153,9 +178,11 @@ export const getSelectionEntries = (
 ) => {
   const overlayHost = getOverlayHost(overlayNode);
   const ownerWindow = ownerDocument.defaultView;
+
   if (!ownerWindow) return [];
   const frame = getFrameToken();
   const key = `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
+
   if (
     frame === cachedSelectionFrame
     && cachedSelectionKey === key
@@ -167,6 +194,7 @@ export const getSelectionEntries = (
   const minTop = rect.top - 1;
   const maxRight = rect.left + rect.width + 1;
   const maxBottom = rect.top + rect.height + 1;
+
   const entries = getBodyElementsCached(ownerDocument)
     .map((element) => ({ element, rect: getRectFromDomCached(element) }))
     .filter(({ element, rect: elementRect }) => {
@@ -177,21 +205,26 @@ export const getSelectionEntries = (
         || element === ownerDocument.body
         || element === ownerDocument.documentElement
       ) return false;
+
       if (elementRect.width < MIN_MULTI_TARGET_SIZE || elementRect.height < MIN_MULTI_TARGET_SIZE) return false;
+
       if (
         elementRect.left > maxRight
         || elementRect.top > maxBottom
         || elementRect.left + elementRect.width < minLeft
         || elementRect.top + elementRect.height < minTop
       ) return false;
+
       return rectsOverlap(rect, elementRect);
     });
+
   cachedSelectionFrame = frame;
   cachedSelectionKey = key;
   cachedOverlayNode = overlayNode;
   cachedSelectionDocument = ownerDocument;
   cachedSelectionTarget = pageTarget;
   cachedSelectionEntries = entries;
+
   return entries;
 };
 
@@ -211,12 +244,14 @@ export const getSelectionEntriesCached = (
 ) => {
   const frame = getFrameToken();
   const key = `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
+
   if (cache.key === key && cache.overlayNode === overlayNode && cache.frame === frame) return cache.entries;
   const entries = getSelectionEntries(rect, overlayNode, ownerDocument, pageTarget);
   cache.key = key;
   cache.overlayNode = overlayNode;
   cache.frame = frame;
   cache.entries = entries;
+
   return entries;
 };
 
@@ -228,5 +263,6 @@ export const getElementsInRectCached = (
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
 ) => {
   const entries = getSelectionEntriesCached(rect, overlayNode, cache, ownerDocument, pageTarget);
+
   return entries.length ? pickMultiTargets(rect, entries) : [];
 };

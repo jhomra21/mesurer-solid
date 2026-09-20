@@ -8,7 +8,7 @@ Add user-facing release notes under `## Unreleased` in `CHANGELOG.md` as changes
 
 Do not manually edit the public package version, create release tags, or run `npm publish` for normal releases.
 
-When a user-facing feature changes the public package, keep its documentation current as part of the source PR. At minimum audit the root/package READMEs, feature-specific docs, `packages/mesurer/AGENT_INTEGRATION.md`, the repository and packaged `mesurer-ui` Agent Skill copies, and distribution-specific docs such as `extension/README.md` when the feature changes those surfaces.
+When a user-facing feature changes the public package, keep its documentation current as part of the source PR. At minimum audit the root/package READMEs, feature-specific docs, `packages/mesurer/AGENT_INTEGRATION.md`, the repository and packaged `mesurer-ui` Agent Skill copies, and distribution-specific docs such as `extension/README.md` when the feature changes those files or distributions.
 
 If a published release note omitted a shipped user-facing change, correct the matching changelog and release prose as documentation. Do not reuse, overwrite, or republish the npm version merely to repair release text.
 
@@ -58,7 +58,7 @@ Supported version strategies are:
 - `patch`, `minor`, `major`: stable-version SemVer bumps.
 - `explicit`: an exact supported SemVer version for exceptional cases such as an RC.
 
-For ordinary release strategies, the workflow moves `Unreleased` changelog entries into the new version section. For `promote-stable`, it additionally carries forward matching prerelease-train notes, skips `No user-facing changes.` placeholders, and avoids duplicating an identical note block already present in `Unreleased`. Existing prerelease sections remain intact as historical records.
+For ordinary release strategies, the workflow moves `Unreleased` changelog entries into the new version section. For `promote-stable`, it also carries forward matching prerelease-train notes, skips `No user-facing changes.` placeholders, and avoids duplicating an identical note block already present in `Unreleased`. Existing prerelease sections remain intact as historical records.
 
 The workflow updates `packages/mesurer/package.json`, creates `release/v<version>`, and opens a `release: v<version>` PR.
 

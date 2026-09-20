@@ -2,7 +2,7 @@
 
 Mesurer must start and operate on pages that enforce Trusted Types without asking the host to weaken its Content Security Policy.
 
-This is separate from [Host isolation](./HOST_ISOLATION.md): Trusted Types covers safe DOM construction under strict CSP; host isolation covers stacking, clipping, overlays, popovers, and modal dialogs after Mesurer mounts.
+Trusted Types and host isolation cover different problems. Trusted Types covers DOM construction under strict CSP. [Host isolation](./HOST_ISOLATION.md) covers stacking, clipping, overlays, popovers, and modal dialogs after Mesurer mounts.
 
 ## Renderer contract
 
@@ -47,7 +47,7 @@ require-trusted-types-for 'script'; trusted-types 'none'
 
 and requires the real injection artifact to initialize `window.__MESURER__`, render an interactive toolbar, inspect real geometry, initialize commands, pass hostile host-isolation checks, and produce no Mesurer startup page or console error.
 
-The same release surface exercises packed React, Solid 1, and Solid 2 consumers. Direct text editing has separate Chromium coverage for its interaction and presentation behavior.
+The same release test exercises packed React, Solid 1, and Solid 2 consumers. Direct text editing has separate Chromium coverage for its interaction and presentation behavior.
 
 ## Regression rule
 
@@ -55,6 +55,6 @@ Do not fix a Trusted Types failure by weakening the target CSP, creating a permi
 
 Reduce the failure to the renderer/browser operation that triggered it, add exact-artifact coverage when needed, and keep the fix inside Mesurer's renderer/runtime boundary.
 
-The outer browser harness still owns how `mesurer-solid/inject-script` reaches the page's JavaScript execution context. Mesurer's Trusted Types guarantee begins once that payload is evaluated.
+The browser controller still owns how `mesurer-solid/inject-script` reaches the page's JavaScript execution context. Mesurer's Trusted Types guarantee begins once that payload is evaluated.
 
 See [Direct text editing and Typography](./TEXT_EDITING.md) for the transient editor contract.

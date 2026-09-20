@@ -64,7 +64,7 @@ For explicit plugin composition, `mesurer-solid/plugins` also exports `select`, 
 
 | Entry | Purpose |
 | --- | --- |
-| `mesurer-solid` | Mount API, public domain types, and agent surface |
+| `mesurer-solid` | Mount API, public domain types, and agent API |
 | `mesurer-solid/plugins` | All first-party plugin factories and plugin-specific contracts |
 | `mesurer-solid/core` | Lower-level framework-neutral public contracts |
 | `mesurer-solid/inject` | Programmatic browser injection |
@@ -96,7 +96,7 @@ Mesurer previews text, styles, and Arrange transforms only while it still owns t
 
 ## Shortcuts
 
-Global shortcuts are enabled by default. Turn them off from **Settings → General → Shortcuts** or pass `shortcutsEnabled: false` to `mountMesurer()`. Toolbar controls, editor-local keys, and Escape/cancel behavior remain available.
+Global shortcuts are enabled by default. Turn them off from **Settings > General > Shortcuts** or pass `shortcutsEnabled: false` to `mountMesurer()`. Toolbar controls, editor-local keys, and Escape/cancel behavior remain available.
 
 | Shortcut | Action |
 | --- | --- |
@@ -120,7 +120,7 @@ Plugin shortcuts are active only when their plugin is mounted and enabled.
 
 ## Agent integration
 
-Enable `agent: true` to expose rendered state through the mounted API and `window.__MESURER__`.
+Enable `agent: true` to expose the full browser agent object through `mesurer.agent` and `window.__MESURER__`. The mounted instance also mirrors the high-level Context, Arrange, and text-intent methods.
 
 ```ts
 const workspace = await mesurer.context()
@@ -139,21 +139,7 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 
 ### Optional Queue to Codex
 
-For Codex-controlled local projects, `mesurer-codex-connect` is the normal bootstrap path. The trusted Codex `SessionStart` integration supplies the current session id and project directory, reuses the bridge at `127.0.0.1:47365` only when its source identity matches the packaged companion, replaces stale self-identifying companions, or starts the packaged companion when needed.
-
-From a Codex shell or tool environment:
-
-```bash
-bunx mesurer-codex-connect
-```
-
-The low-level foreground bridge remains available for diagnostics:
-
-```bash
-bunx mesurer-codex --thread <SESSION> --cwd <PROJECT_DIRECTORY>
-```
-
-Mount the optional transport next to Context:
+Mount `codex()` next to Context when a person should be able to queue the current review to Codex:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -164,32 +150,27 @@ mountMesurer({
 })
 ```
 
-`codex()` does not probe loopback on mount. The first **Queue to Codex** press or **Choose Codex thread…** menu action establishes availability. If the bridge is missing, the action becomes **Codex unavailable** with an explicit retry. After a successful connection, Mesurer health-checks the known companion and recovers automatically if it returns.
+The trusted Codex `SessionStart` integration normally starts or reuses the local companion and registers the current thread. It can also be run directly:
 
-The page stays pinned to the Codex thread that originally connected it unless the user chooses another destination. That affinity is stored in per-tab `sessionStorage`, so a reload restores the same origin/selection instead of adopting a newly stale bridge default. If no page affinity exists and more than one thread is registered, the toolbar requires **Choose Codex thread** before queueing. The picker shows five recent same-project threads first and can expand once to ten with **Show 5 more…**. Recent metadata comes from Codex app-server and is scoped to the project directory registered by the trusted local connector.
+```bash
+bunx mesurer-codex-connect
+```
 
-The bridge never creates a new Codex thread. Open or create it in Codex and let `SessionStart` register it. The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. Browser pages cannot register arbitrary Codex sessions or widen discovery to another project.
+**Queue to Codex** writes one item to Codex's native durable queue and tracks that delivery through Queued, Working, Finished, or Interrupted. It does not create threads or invoke Steer. A Mesurer page keeps its selected destination across a same-tab reload.
 
-**Queue to Codex** uses Codex's native durable queue for Desktop and CLI/TUI alike. Desktop ownership is detected from the trusted SessionStart registration, but the app-tools pipe is not used for delivery. Mesurer queues the message once, keeps the queued-submission id, then opens `codex://threads/<threadId>` so the real Desktop app loads or resumes the existing thread. Codex's own queue watcher dispatches the item when that thread can accept it. No standalone daemon is required for Desktop.
+Saved annotations included in a delivery are removed only after the exact matched turn completes. Interrupted, failed, or uncertain deliveries keep them. Set `codex({ clearCompletedAnnotations: false })` to retain completed notes.
 
-Bridge restart persistence under `$CODEX_HOME/mesurer/codex-deliveries.json` is tracking state, not a second message queue. Existing native queue items are preserved rather than deleted and resent. Programmatic `send()` resolves with `delivery: "queued"` plus the durable queued-submission id and bridge dispatch metadata.
-
-The toolbar disables the queue action as soon as one delivery starts, preventing duplicate double-click submissions. It then shows **Queued for Codex**, **Codex working…**, and **Codex finished** by matching the exact queued Mesurer payload against bounded read-only Codex turn history. Only the trusted `SessionStart` hook is required for current local registration; turn lifecycle does not require separate hook trust. The typed service also exposes `delivery(deliveryId)` and `send()` returns the bridge `deliveryId`, lifecycle `status`, and exact `annotationIds`.
-
-By default, saved annotations included in that delivery are removed only after the exact matched Codex turn reports completion. Interruptions, failures, and uncertain correlation keep them. While a delivery is queued or working, its delivery id, route, status, and exact annotation ids are stored per tab so a reload resumes tracking instead of losing cleanup state. Set `codex({ clearCompletedAnnotations: false })` to keep completed notes. Turn completion is a lifecycle signal, not an independent semantic verification of the rendered result.
-
-This does not replace the normal browser-harness agent workflow.
-
-See [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md).
+See [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md) for thread discovery, Desktop and CLI/TUI behavior, lifecycle recovery, permissions, and the typed `codex:v1` service.
 ## Documentation
 
+- [Capabilities](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CAPABILITIES.md)
 - [Getting started](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md)
 - [Direct text editing and Typography](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TEXT_EDITING.md)
 - [Arrange](https://github.com/jhomra21/mesurer-solid/blob/main/docs/ARRANGE.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
 - [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md)
-- [Browser harness](https://github.com/jhomra21/mesurer-solid/blob/main/docs/BROWSER_HARNESS.md)
+- [Browser and agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/docs/BROWSER_HARNESS.md)
 - [Host isolation](https://github.com/jhomra21/mesurer-solid/blob/main/docs/HOST_ISOLATION.md)
 - [Trusted Types](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TRUSTED_TYPES.md)
 

@@ -173,18 +173,22 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
 
   const query = (selector: string, index = 0) => {
     const matches = root.querySelectorAll(selector);
+
     return matches.item(index) || null;
   };
 
   const containsPointElement = (element: Element) => {
     if (root === options.ownerDocument) return true;
+
     return isElementWithinDomTarget(element, root);
   };
 
   const getTextEditService = async () => {
     const host = options.getPluginHost() ?? await options.waitForPluginHost();
     const service = host.service.get<MesurerTextEditService>(MESURER_TEXT_EDIT_SERVICE_ID);
+
     if (!service) throw new Error("Mesurer text editing service is unavailable.");
+
     return service;
   };
 
@@ -193,6 +197,7 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
     const body = options.ownerDocument.body;
     const documentWidth = Math.max(documentElement.scrollWidth, body?.scrollWidth ?? 0);
     const documentHeight = Math.max(documentElement.scrollHeight, body?.scrollHeight ?? 0);
+
     return {
       width: ownerWindow.innerWidth,
       height: ownerWindow.innerHeight,
@@ -208,6 +213,7 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
 
   const stable = async (frames = 2) => {
     await options.ownerDocument.fonts?.ready;
+
     for (let index = 0; index < Math.max(1, frames); index += 1) {
       await new Promise<void>((resolve) => ownerWindow.requestAnimationFrame(() => resolve()));
     }
@@ -220,10 +226,12 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
     },
     async describe() {
       const host = await options.waitForPluginHost();
+
       return host.describe();
     },
     inspect(selector, index = 0) {
       const element = query(selector, index);
+
       return element ? inspectElement(element) : null;
     },
     inspectAll(selector, limit = 50) {
@@ -232,29 +240,35 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
     at(x, y) {
       const inspectorHost = root.querySelector?.<HTMLElement>("[data-mesurer-island]") ?? null;
       const inspectorLayer = inspectorHost?.shadowRoot?.querySelector<HTMLElement>("[data-mesurer-root='true']") ?? inspectorHost;
+
       return withPointerEventsDisabled(inspectorLayer, () => {
         const nativePointElement = getDeepestElementAtPoint({ x, y }, root, options.ownerDocument);
+
         return nativePointElement && containsPointElement(nativePointElement) ? inspectElement(nativePointElement) : null;
       });
     },
     distance(a, b) {
       const left = query(a);
       const right = query(b);
+
       if (!left || !right) return null;
       const inspectedA = inspectElement(left);
       const inspectedB = inspectElement(right);
       const aRect = inspectedA.rect;
       const bRect = inspectedB.rect;
+
       const horizontalGap = bRect.left >= aRect.right
         ? bRect.left - aRect.right
         : aRect.left >= bRect.right
           ? aRect.left - bRect.right
           : 0;
+
       const verticalGap = bRect.top >= aRect.bottom
         ? bRect.top - aRect.bottom
         : aRect.top >= bRect.bottom
           ? aRect.top - bRect.bottom
           : 0;
+
       return {
         a: inspectedA,
         b: inspectedB,
@@ -268,6 +282,7 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
     async feedback(selectors = []) {
       await stable();
       const host = options.getPluginHost() ?? await options.waitForPluginHost();
+
       return {
         viewport: viewport(),
         elements: selectors.flatMap((selector) => [...root.querySelectorAll(selector)].slice(0, 50).map(inspectElement)),
@@ -282,6 +297,7 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
     },
     async state() {
       const host = options.getPluginHost() ?? await options.waitForPluginHost();
+
       return host.state.serialize("all");
     },
     async textEdits() {
@@ -289,7 +305,9 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
     },
     async textEdit(id) {
       const intent = (await getTextEditService()).intent(id);
+
       if (!intent) throw new Error(`Text edit intent not found: ${id}`);
+
       return intent;
     },
     stable,

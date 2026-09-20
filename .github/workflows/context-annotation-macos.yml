@@ -10,7 +10,7 @@ on:
       - "packages/renderer/src/runtime/nested-scroll-compensation.ts"
       - "packages/renderer/src/runtime/workspace-context.ts"
       - "examples/basic/src/main.tsx"
-      - "visual-parity/normal-context-annotation-contract.mjs"
+      - "tests/visual-parity/normal-context-annotation-contract.mjs"
       - ".github/workflows/context-annotation-macos.yml"
   workflow_dispatch:
 
@@ -64,7 +64,7 @@ jobs:
       - name: Exercise persisted Context annotation flow
         env:
           NORMAL_CONTEXT_URL: http://127.0.0.1:4174/
-        run: bun visual-parity/normal-context-annotation-contract.mjs
+        run: bun tests/visual-parity/normal-context-annotation-contract.mjs
 
       - name: Stop playground
         if: always()

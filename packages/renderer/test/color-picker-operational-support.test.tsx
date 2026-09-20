@@ -37,6 +37,7 @@ describe("native Color Picker operational support", () => {
       value: class {
         async open() {
           opens += 1;
+
           return { sRGBHex: "#5eead4" };
         }
       },
@@ -44,10 +45,12 @@ describe("native Color Picker operational support", () => {
 
     const host = document.createElement("div");
     document.body.append(host);
+
     const dispose = render(
       () => <ComposableMesurer persistKey="color-picker-codex-host" />,
       host,
     );
+
     mounted.push(dispose);
 
     await vi.waitFor(() => {
@@ -80,15 +83,18 @@ describe("native Color Picker operational support", () => {
 
     const host = document.createElement("div");
     document.body.append(host);
+
     const dispose = render(
       () => <ComposableMesurer persistKey="color-picker-operational-abort" />,
       host,
     );
+
     mounted.push(dispose);
 
     const button = await vi.waitFor(() => {
       const value = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]');
       expect(value).toBeTruthy();
+
       return value!;
     });
 

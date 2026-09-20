@@ -18,24 +18,22 @@ on:
       - "packages/renderer/src/runtime/isolated-document-portal.ts"
       - "packages/renderer/src/runtime/native-scroll-stability.ts"
       - "packages/renderer/src/runtime/nested-scroll-compensation.ts"
-      - "packages/renderer/src/runtime/text-editing.ts"
-      - "packages/renderer/src/runtime/text-editing-context-actions.ts"
-      - "packages/renderer/src/runtime/text-editing-render-in-place.ts"
-      - "packages/renderer/src/runtime/text-editing-unified-inspector.ts"
+      - "packages/renderer/src/runtime/text-editing/**"
+      - "packages/renderer/src/runtime/typography/**"
       - "packages/renderer/src/styles.css"
       - "packages/renderer/test/document-hover-portal.test.ts"
       - "examples/basic/isolated-scroll.html"
       - "examples/basic/src/isolated-scroll.ts"
       - "examples/basic/top-layer-context.html"
       - "examples/basic/src/top-layer-context.ts"
-      - "visual-parity/direct-edit-annotation-trigger-contract.mjs"
-      - "visual-parity/isolated-annotation-draft-handoff-contract.mjs"
-      - "visual-parity/isolated-hover-document-layer-contract.mjs"
-      - "visual-parity/top-layer-context-hover-occlusion-contract.mjs"
-      - "visual-parity/isolated-selection-scroll-contract.mjs"
-      - "visual-parity/selection-single-paint-contract.mjs"
-      - "visual-parity/native-scroll-settle-contract.mjs"
-      - "visual-parity/rejected-manual-regressions.mjs"
+      - "tests/visual-parity/direct-edit-annotation-trigger-contract.mjs"
+      - "tests/visual-parity/isolated-annotation-draft-handoff-contract.mjs"
+      - "tests/visual-parity/isolated-hover-document-layer-contract.mjs"
+      - "tests/visual-parity/top-layer-context-hover-occlusion-contract.mjs"
+      - "tests/visual-parity/isolated-selection-scroll-contract.mjs"
+      - "tests/visual-parity/selection-single-paint-contract.mjs"
+      - "tests/visual-parity/native-scroll-settle-contract.mjs"
+      - "tests/visual-parity/rejected-manual-regressions.mjs"
       - ".github/workflows/isolated-scroll-contract.yml"
   workflow_dispatch:
 
@@ -99,48 +97,48 @@ jobs:
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
-        run: bun visual-parity/rejected-manual-regressions.mjs
+        run: bun tests/visual-parity/rejected-manual-regressions.mjs
 
       - name: Exercise direct-edit annotation ownership
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
-        run: bun visual-parity/direct-edit-annotation-trigger-contract.mjs
+        run: bun tests/visual-parity/direct-edit-annotation-trigger-contract.mjs
 
       - name: Exercise isolated annotation draft handoff
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
-        run: bun visual-parity/isolated-annotation-draft-handoff-contract.mjs
+        run: bun tests/visual-parity/isolated-annotation-draft-handoff-contract.mjs
 
       - name: Keep Select hover below document-backed inspectors
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
-        run: bun visual-parity/isolated-hover-document-layer-contract.mjs
+        run: bun tests/visual-parity/isolated-hover-document-layer-contract.mjs
 
       - name: Occlude Select hover behind top-layer Context cards
         timeout-minutes: 2
         env:
           TOP_LAYER_CONTEXT_URL: http://127.0.0.1:4174/top-layer-context.html
-        run: bun visual-parity/top-layer-context-hover-occlusion-contract.mjs
+        run: bun tests/visual-parity/top-layer-context-hover-occlusion-contract.mjs
 
       - name: Exercise public isolated compositor scroll and toolbar avoidance
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
-        run: bun visual-parity/isolated-selection-scroll-contract.mjs
+        run: bun tests/visual-parity/isolated-selection-scroll-contract.mjs
 
       - name: Exercise single selected paint ownership
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
-        run: bun visual-parity/selection-single-paint-contract.mjs
+        run: bun tests/visual-parity/selection-single-paint-contract.mjs
 
       - name: Exercise native scroll settle stability
         timeout-minutes: 2
         env:
           ISOLATED_SELECTION_SCROLL_URL: http://127.0.0.1:4174/isolated-scroll.html
-        run: bun visual-parity/native-scroll-settle-contract.mjs
+        run: bun tests/visual-parity/native-scroll-settle-contract.mjs
 
       - name: Stop fixture host
         if: always()

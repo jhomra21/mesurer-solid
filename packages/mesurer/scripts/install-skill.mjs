@@ -3,7 +3,9 @@ import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 const args = process.argv.slice(2);
+
 const command = args.find((arg) => !arg.startsWith("-")) ?? "install";
+
 const force = args.includes("--force");
 
 if (command !== "install") {
@@ -12,11 +14,12 @@ if (command !== "install") {
 } else {
   const source = new URL("../skills/mesurer-ui/", import.meta.url);
   const injector = new URL("../dist/inject-script.js", import.meta.url);
-  const codexBridge = new URL("./codex-bridge.mjs", import.meta.url);
-  const codexConnect = new URL("./codex-connect.mjs", import.meta.url);
-  const codexLifecycle = new URL("./codex-lifecycle.mjs", import.meta.url);
+  const codexBridge = new URL("../codex/codex-bridge.mjs", import.meta.url);
+  const codexConnect = new URL("../codex/codex-connect.mjs", import.meta.url);
+  const codexLifecycle = new URL("../codex/codex-lifecycle.mjs", import.meta.url);
   const destination = resolve(process.cwd(), ".agents/skills/mesurer-ui");
   const assets = resolve(destination, "assets");
+
   if (existsSync(destination) && !force) {
     console.error(`Mesurer skill already exists at ${destination}. Use --force to replace it.`);
     process.exitCode = 1;

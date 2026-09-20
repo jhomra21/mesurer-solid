@@ -6,6 +6,7 @@ import type { InspectMeasurement } from "../src/core/types";
 const measurement = (id: string, left: number, top: number): InspectMeasurement => {
   const rect = { left, top, width: 80, height: 60 };
   const edges = { top: 0, right: 0, bottom: 0, left: 0 };
+
   return {
     id,
     rect,

@@ -20,6 +20,7 @@ declare global {
 
 const moveToolbar = (instance: MountedMesurer, left: number, top: number) => {
   const toolbar = instance.element.querySelector<HTMLElement>("[data-mesurer-toolbar='true']");
+
   if (!toolbar) throw new Error("Mesurer toolbar did not mount.");
   toolbar.style.left = `${left}px`;
   toolbar.style.top = `${top}px`;
@@ -35,6 +36,7 @@ const subject = mountMesurer({
 });
 
 await subject.ready;
+
 moveToolbar(subject, 72, 240);
 
 let observer: MountedMesurer | null = null;
@@ -47,6 +49,7 @@ const setReport = (lines: string[]) => {
   const title = document.createElement("strong");
   title.textContent = "Mesurer numeric verification";
   report.append(title);
+
   for (const line of lines) {
     const row = document.createElement("div");
     const code = document.createElement("code");
@@ -54,6 +57,7 @@ const setReport = (lines: string[]) => {
     row.append(code);
     report.append(row);
   }
+
   document.body.append(report);
 };
 
@@ -77,6 +81,7 @@ const harness: SelfHostingHarness = {
     await observer.ready;
     moveToolbar(observer, 72, 390);
     harness.observer = observer;
+
     return observer;
   },
 };

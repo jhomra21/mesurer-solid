@@ -10,16 +10,19 @@ import {
 import { createMesurerWorkspaceRuntime } from "../src/runtime/workspace-context";
 
 const mountedHosts: Array<ReturnType<typeof createMesurerPluginHost>> = [];
+
 const originalElementsFromPoint = document.elementsFromPoint?.bind(document);
 
 afterEach(() => {
   while (mountedHosts.length) mountedHosts.pop()?.dispose();
+
   if (originalElementsFromPoint) {
     Object.defineProperty(document, "elementsFromPoint", {
       configurable: true,
       value: originalElementsFromPoint,
     });
   }
+
   document.body.replaceChildren();
   localStorage.clear();
   vi.restoreAllMocks();
@@ -31,6 +34,7 @@ const setup = async () => {
   const pageTarget = document.createElement("main");
   document.body.append(pageTarget);
   const model = createMesurerModel({ initialEnabled: true });
+
   const createWorkspaceRuntime = () => createMesurerWorkspaceRuntime({
     model,
     ownerDocument: document,
@@ -38,6 +42,7 @@ const setup = async () => {
     uiRoot: document.body,
     pageTarget,
   });
+
   const runtime: MesurerSolidRuntimeService = {
     ownerDocument: document,
     ownerWindow: window,
@@ -49,9 +54,11 @@ const setup = async () => {
       const element = document.createElement("div");
       element.dataset.mesurerInspectorUi = "true";
       document.body.append(element);
+
       return { element, dispose: () => element.remove() };
     },
   };
+
   await host.load(defineMesurerPlugin({
     id: "test.text-editing-ownership",
     provides: ["runtime:solid", "tool:select"],
@@ -61,6 +68,7 @@ const setup = async () => {
     },
   }));
   model.setToolMode("select");
+
   return { host, model, pageTarget };
 };
 
@@ -78,6 +86,7 @@ const beginEdit = (target: HTMLElement, pageTarget: HTMLElement) => {
     clientX: 10,
     clientY: 10,
   }));
+
   return document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
 };
 
@@ -88,6 +97,7 @@ const commitText = async (
   service: MesurerTextEditService,
 ) => {
   const editor = beginEdit(target, pageTarget);
+
   if (!editor) throw new Error("Direct text editor did not open.");
   editor.value = desired;
   editor.dispatchEvent(new Event("input", { bubbles: true }));
@@ -102,11 +112,14 @@ const commitFontSize = async (
   service: MesurerTextEditService,
 ) => {
   const editor = beginEdit(target, pageTarget);
+
   if (!editor) throw new Error("Direct text editor did not open.");
   const menuButton = document.querySelector<HTMLButtonElement>("[data-mesurer-text-style-menu-button='true']");
+
   if (!menuButton) throw new Error("Text style menu button did not mount.");
   menuButton.click();
   const size = document.querySelector<HTMLSelectElement>("[data-mesurer-text-style-select='size']");
+
   if (!size) throw new Error("Text size control did not mount.");
   expect(Array.from(size.options, (option) => option.value)).toContain(desired);
   size.value = desired;
@@ -212,6 +225,7 @@ describe("direct text ownership", () => {
 
     await commitText(target, pageTarget, "Desired", service);
     const node = target.firstChild;
+
     if (!(node instanceof Text)) throw new Error("Expected the test target to retain its direct Text node.");
     node.nodeValue = "Host authored";
     await Promise.resolve();

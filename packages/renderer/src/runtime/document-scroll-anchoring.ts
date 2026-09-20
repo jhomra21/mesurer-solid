@@ -3,7 +3,9 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { registerNativeScrollAnchoring } from "./native-scroll-registry";
 
 const SCROLL_IDLE_MS = 80;
+
 const VIEWPORT_PADDING = 8;
+
 const INSPECTOR_GAP = 8;
 
 let anchorSequence = 0;
@@ -71,6 +73,7 @@ const inlineRect = (element: HTMLElement): Rect => {
   const top = Number.parseFloat(element.style.top) || 0;
   const width = Number.parseFloat(element.style.width) || element.getBoundingClientRect().width;
   const height = Number.parseFloat(element.style.height) || element.getBoundingClientRect().height;
+
   return {
     left,
     top,
@@ -124,11 +127,14 @@ const elementAncestors = (
 ) => {
   const values: HTMLElement[] = [];
   let current: Element | null = element;
+
   while (current instanceof realm.HTMLElement) {
     values.push(current);
+
     if (current === stop) break;
     current = current.parentElement;
   }
+
   return values;
 };
 
@@ -147,9 +153,12 @@ const findTargetForRect = (
     for (const candidate of elementAncestors(hit, pageTarget, ownerWindow)) {
       if (seen.has(candidate)) continue;
       seen.add(candidate);
+
       if (candidate !== pageTarget && !pageTarget.contains(candidate)) continue;
+
       if (candidate.closest("[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']")) continue;
       const rect = rectFromDom(candidate.getBoundingClientRect());
+
       if (sameRect(rect, intended)) return candidate;
     }
   }
@@ -180,10 +189,13 @@ const moveToBody = (
 ): Placement => {
   const body = ownerDocument.body;
   const parent = element.parentNode;
+
   const marker = parent && parent !== body
     ? ownerDocument.createComment("mesurer-document-scroll-layer")
     : null;
+
   if (marker && parent) parent.insertBefore(marker, element);
+
   if (element.parentNode !== body) body.append(element);
 
   const properties = normalize === "selection-root"
@@ -191,6 +203,7 @@ const moveToBody = (
     : normalize === "runtime" || normalize === "inspector-overlay"
       ? ["display", "position", "inset", "width", "height"] as const
       : [] as const;
+
   const previous = snapshotStyles(element, properties);
 
   if (normalize === "selection-root") {
@@ -209,12 +222,14 @@ const moveToBody = (
   }
 
   let released = false;
+
   return {
     element,
     release() {
       if (released) return;
       released = true;
       restoreStyles(element, previous);
+
       if (marker?.parentNode) {
         if (element.isConnected) marker.parentNode.insertBefore(element, marker);
         marker.remove();
@@ -230,9 +245,13 @@ export function installDocumentScrollAnchoring(
   const { ownerDocument, ownerWindow, pageTarget, portalTarget } = runtime;
   // SAFETY: ownerWindow owns pageTarget/portalTarget and supplies this runtime's DOM constructors.
   const realm = ownerWindow as Window & typeof globalThis;
+
   if (!supportsAnchors(realm)) return;
+
   if (portalTarget instanceof realm.ShadowRoot || pageTarget instanceof realm.ShadowRoot) return;
+
   if (portalTarget.getRootNode() !== ownerDocument || pageTarget.getRootNode() !== ownerDocument) return;
+
   if (!ownerDocument.body) return;
 
   const releaseNativeScrollRegistration = registerNativeScrollAnchoring(ownerDocument);
@@ -253,9 +272,11 @@ export function installDocumentScrollAnchoring(
 
   const runtimeMounts = portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-runtime='true']");
   const runtimeMount = runtimeMounts.item(runtimeMounts.length - 1);
+
   const runtimePlacement = runtimeMount?.isConnected
     ? moveToBody(ownerDocument, runtimeMount, "runtime")
     : null;
+
   if (runtimeMount) runtimeMount.dataset.mesurerNativeScrollRuntimeLayer = "true";
 
   const style = ownerDocument.createElement("style");
@@ -298,12 +319,14 @@ export function installDocumentScrollAnchoring(
     const original = state.original.trim();
     const names = Array.from(state.names);
     const value = [original && original !== "none" ? original : "", ...names].filter(Boolean).join(", ");
+
     if (value) target.style.setProperty("anchor-name", value, state.originalPriority);
     else target.style.removeProperty("anchor-name");
   };
 
   const addTargetAnchor = (target: HTMLElement, name: string) => {
     let state = targetAnchors.get(target);
+
     if (!state) {
       state = {
         original: target.style.getPropertyValue("anchor-name"),
@@ -312,19 +335,25 @@ export function installDocumentScrollAnchoring(
       };
       targetAnchors.set(target, state);
     }
+
     state.names.add(name);
     syncTargetAnchor(target, state);
     let released = false;
+
     return () => {
       if (released) return;
       released = true;
       const current = targetAnchors.get(target);
+
       if (!current) return;
       current.names.delete(name);
+
       if (current.names.size) {
         syncTargetAnchor(target, current);
+
         return;
       }
+
       if (current.original) target.style.setProperty("anchor-name", current.original, current.originalPriority);
       else target.style.removeProperty("anchor-name");
       targetAnchors.delete(target);
@@ -333,6 +362,7 @@ export function installDocumentScrollAnchoring(
 
   const makeBinding = (target: HTMLElement, kind: string): AnchorBinding => {
     const name = `--mesurer-${kind}-${++anchorSequence}`;
+
     return { target, name, release: addTargetAnchor(target, name) };
   };
 
@@ -355,42 +385,56 @@ export function installDocumentScrollAnchoring(
     label: HTMLElement | null,
   ) => {
     const previous = selectionBindings.get(root);
+
     if (previous) releaseSelection(previous);
     const anchor = makeBinding(target, "selection");
+
     const placement = moveToBody(
       ownerDocument,
       root,
       root.parentNode === ownerDocument.body ? "none" : "selection-root",
     );
+
     const binding: SelectionBinding = { ...anchor, root, chrome, label, placement };
     selectionBindings.set(root, binding);
     applyAnchor(chrome, binding, "box");
+
     if (label) applyAnchor(label, binding, "label");
   };
 
   const selectedTargetForRect = (intended: Rect, selectedTargets: HTMLElement[]) => {
     const exact = selectedTargets.find((target) => sameRect(rectFromDom(target.getBoundingClientRect()), intended));
+
     if (exact) return exact;
+
     return selectedTargets.length === 1 ? selectedTargets[0] : null;
   };
 
   const stabilizeSelections = () => {
     const roots = new Set<HTMLElement>();
+
     for (const root of selectionBindings.keys()) if (root.isConnected) roots.add(root);
+
     for (const root of portalTarget.querySelectorAll<HTMLElement>("[data-mesurer-selected-measurement='true']")) {
       if (root.dataset.mesurerSelectionGroup !== "true") roots.add(root);
     }
 
     const selectedTargets = workspace.currentSelection().elements;
+
     for (const root of roots) {
       const existing = selectionBindings.get(root);
+
       if (existing?.target.isConnected && existing.chrome.isConnected) {
         applyAnchor(existing.chrome, existing, "box");
+
         if (existing.label?.isConnected) applyAnchor(existing.label, existing, "label");
+
         if (selectedTargets.includes(existing.target) || scrolling) continue;
         const intended = inlineRect(existing.chrome);
+
         const target = selectedTargetForRect(intended, selectedTargets)
           ?? findTargetForRect(intended, ownerDocument, realm, pageTarget);
+
         if (target) bindSelection(root, target, existing.chrome, existing.label);
         continue;
       }
@@ -399,15 +443,21 @@ export function installDocumentScrollAnchoring(
         releaseSelection(existing);
         selectionBindings.delete(root);
       }
+
       const chrome = root.children.item(0);
+
       if (!(chrome instanceof realm.HTMLElement)) continue;
       const labelCandidate = root.children.item(root.children.length - 1);
+
       const label = labelCandidate instanceof realm.HTMLElement && labelCandidate !== chrome
         ? labelCandidate
         : null;
+
       const intended = inlineRect(chrome);
+
       const target = selectedTargetForRect(intended, selectedTargets)
         ?? findTargetForRect(intended, ownerDocument, realm, pageTarget);
+
       if (target) bindSelection(root, target, chrome, label);
     }
 
@@ -430,18 +480,23 @@ export function installDocumentScrollAnchoring(
     const surface = hoverBinding?.surface.isConnected
       ? hoverBinding.surface
       : portalTarget.querySelector<HTMLElement>("[data-mesurer-hover-measurement='true']");
+
     if (!surface?.isConnected) {
       releaseHover();
+
       return;
     }
 
     const intended = inlineRect(surface);
+
     if (hoverBinding?.surface === surface && hoverBinding.target.isConnected) {
       applyAnchor(surface, hoverBinding, "box");
+
       if (scrolling || sameRect(rectFromDom(hoverBinding.target.getBoundingClientRect()), intended)) return;
     }
 
     const target = findTargetForRect(intended, ownerDocument, realm, pageTarget);
+
     if (!target) return;
     releaseHover();
     const anchor = makeBinding(target, "hover");
@@ -463,6 +518,7 @@ export function installDocumentScrollAnchoring(
     targetRect: Rect,
   ) => {
     const measured = card.getBoundingClientRect();
+
     if (measured.width <= 0 || measured.height <= 0) return;
     const width = measured.width;
     const height = Math.max(measured.height, card.scrollHeight);
@@ -470,33 +526,40 @@ export function installDocumentScrollAnchoring(
     const viewportBottom = ownerWindow.innerHeight - VIEWPORT_PADDING;
     const maxLeft = Math.max(VIEWPORT_PADDING, viewportRight - width);
     const maxTop = Math.max(VIEWPORT_PADDING, viewportBottom - height);
+
     const centeredLeft = Math.min(
       Math.max(targetRect.left + targetRect.width / 2 - width / 2, VIEWPORT_PADDING),
       maxLeft,
     );
+
     const centeredTop = Math.min(
       Math.max(targetRect.top + targetRect.height / 2 - height / 2, VIEWPORT_PADDING),
       maxTop,
     );
+
     const candidates = [
       { left: centeredLeft, top: targetRect.top - INSPECTOR_GAP - height, placement: "above" },
       { left: centeredLeft, top: targetRect.bottom + INSPECTOR_GAP, placement: "below" },
       { left: targetRect.right + INSPECTOR_GAP, top: centeredTop, placement: "side" },
       { left: targetRect.left - INSPECTOR_GAP - width, top: centeredTop, placement: "side" },
     ];
+
     const fits = (left: number, top: number) => left >= VIEWPORT_PADDING
       && top >= VIEWPORT_PADDING
       && left + width <= viewportRight
       && top + height <= viewportBottom;
+
     const overlaps = (left: number, top: number) => (
       Math.max(0, Math.min(left + width, targetRect.right) - Math.max(left, targetRect.left)) > 0
       && Math.max(0, Math.min(top + height, targetRect.bottom) - Math.max(top, targetRect.top)) > 0
     );
+
     const full = candidates.find((candidate) => fits(candidate.left, candidate.top) && !overlaps(candidate.left, candidate.top));
 
     let left = centeredLeft;
     let top = VIEWPORT_PADDING;
     let placement = "viewport";
+
     if (full) {
       ({ left, top, placement } = full);
       card.style.maxHeight = `calc(100vh - ${VIEWPORT_PADDING * 2}px)`;
@@ -505,7 +568,9 @@ export function installDocumentScrollAnchoring(
         { name: "above", top: VIEWPORT_PADDING, height: Math.max(0, targetRect.top - INSPECTOR_GAP - VIEWPORT_PADDING) },
         { name: "below", top: targetRect.bottom + INSPECTOR_GAP, height: Math.max(0, viewportBottom - targetRect.bottom - INSPECTOR_GAP) },
       ].sort((a, b) => b.height - a.height);
+
       const lane = lanes[0];
+
       if (lane && lane.height > 0) {
         top = lane.top;
         placement = lane.name;
@@ -521,44 +586,56 @@ export function installDocumentScrollAnchoring(
   const stabilizeEdit = () => {
     if (!runtimeMount?.isConnected) {
       clearEditBinding();
+
       return;
     }
+
     const rings = runtimeMount.querySelectorAll<HTMLElement>("[data-mesurer-text-edit-ring='true']");
     const ring = editBinding?.ring.isConnected ? editBinding.ring : rings.item(rings.length - 1);
+
     if (!ring?.isConnected) {
       clearEditBinding();
+
       return;
     }
 
     const intendedRing = inlineRect(ring);
+
     if (!editBinding || editBinding.ring !== ring || !editBinding.target.isConnected
       || (!scrolling && !sameRect(rectFromDom(editBinding.target.getBoundingClientRect()), intendedRing))) {
       const target = findTargetForRect(intendedRing, ownerDocument, realm, pageTarget);
+
       if (target) {
         clearEditBinding();
         const anchor = makeBinding(target, "edit");
         editBinding = { ...anchor, ring };
       }
     }
+
     if (!editBinding) return;
 
     applyAnchor(ring, editBinding, "box");
     const targetRect = rectFromDom(editBinding.target.getBoundingClientRect());
 
     const highlights = new Set<HTMLElement>();
+
     for (const highlight of ownerDocument.querySelectorAll<HTMLElement>("[data-mesurer-text-selection-highlight='true']")) {
       if (!highlight.isConnected) continue;
       highlights.add(highlight);
       const intended = inlineRect(highlight);
+
       if (!highlightPlacements.has(highlight)) {
         highlightPlacements.set(highlight, moveToBody(ownerDocument, highlight));
       }
+
       applyAnchor(highlight, editBinding, "offset");
+
       if (!scrolling) {
         highlight.style.setProperty("--mesurer-native-anchor-x", `${intended.left - targetRect.left}px`);
         highlight.style.setProperty("--mesurer-native-anchor-y", `${intended.top - targetRect.top}px`);
       }
     }
+
     for (const [highlight, placement] of Array.from(highlightPlacements)) {
       if (highlights.has(highlight) && highlight.isConnected) continue;
       clearAnchorSurface(highlight);
@@ -568,15 +645,19 @@ export function installDocumentScrollAnchoring(
 
     const shell = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-placement-shell='true']");
     const card = runtimeMount.querySelector<HTMLElement>("[data-mesurer-text-inspector-info='true']");
+
     if (shell?.isConnected && card?.isConnected) {
       const alreadyAnchored = shell.dataset.mesurerNativeScrollOwner === "typography"
         && shell.dataset.mesurerNativeScrollAnchor === "offset";
+
       shell.dataset.mesurerNativeScrollOwner = "typography";
       applyAnchor(shell, editBinding, "offset");
+
       const targetIntersectsViewport = targetRect.right > 0
         && targetRect.bottom > 0
         && targetRect.left < ownerWindow.innerWidth
         && targetRect.top < ownerWindow.innerHeight;
+
       // Choose a viewport-safe lane exactly when the shell first joins the
       // source anchor graph. After that, scrolling must preserve this relative
       // offset; otherwise scroll settle turns contextual Typography back into
@@ -595,24 +676,31 @@ export function installDocumentScrollAnchoring(
 
   const stabilizeStandaloneInspector = () => {
     const overlays = new Set<HTMLElement>();
+
     for (const existing of inspectorOverlayPlacements.keys()) if (existing.isConnected) overlays.add(existing);
+
     for (const box of portalTarget.querySelectorAll<HTMLElement>(".mesurer-ti-box")) {
       const overlay = box.parentElement;
+
       if (overlay?.dataset.mesurerInspectorUi === "true") overlays.add(overlay);
     }
 
     const liveBoxes = new Set<HTMLElement>();
+
     for (const overlay of overlays) {
       const children = Array.from(overlay.children).filter((child): child is HTMLElement => child instanceof realm.HTMLElement);
       const visiblePairs: Array<{ box: HTMLElement; card: HTMLElement | null }> = [];
+
       for (let index = 0; index < children.length; index += 1) {
         const box = children[index];
+
         if (!box.classList.contains("mesurer-ti-box") || box.dataset.state !== "visible") continue;
         const next = children[index + 1];
         const card = next?.classList.contains("mesurer-ti-card") ? next : null;
         visiblePairs.push({ box, card });
         liveBoxes.add(box);
       }
+
       if (!visiblePairs.length) continue;
 
       if (!inspectorOverlayPlacements.has(overlay)) {
@@ -627,6 +715,7 @@ export function installDocumentScrollAnchoring(
         if (binding?.target.isConnected) {
           const targetRect = rectFromDom(binding.target.getBoundingClientRect());
           const inlineMatchesTarget = sameRect(targetRect, intended);
+
           if (inlineMatchesTarget) {
             binding.fallbackScrollX = ownerWindow.scrollX;
             binding.fallbackScrollY = ownerWindow.scrollY;
@@ -634,6 +723,7 @@ export function installDocumentScrollAnchoring(
           } else {
             const scrollDeltaX = ownerWindow.scrollX - binding.fallbackScrollX;
             const scrollDeltaY = ownerWindow.scrollY - binding.fallbackScrollY;
+
             const projectedFallback: Rect = {
               left: intended.left - scrollDeltaX,
               top: intended.top - scrollDeltaY,
@@ -642,7 +732,9 @@ export function installDocumentScrollAnchoring(
               width: intended.width,
               height: intended.height,
             };
+
             const staleScrollFallback = sameRect(targetRect, projectedFallback);
+
             if (!scrolling && !staleScrollFallback) {
               releaseInspectorPair(binding);
               inspectorPairBindings.delete(box);
@@ -657,6 +749,7 @@ export function installDocumentScrollAnchoring(
 
         if (!binding) {
           const target = findTargetForRect(intended, ownerDocument, realm, pageTarget);
+
           if (!target) continue;
           binding = {
             ...makeBinding(target, "typography"),
@@ -671,9 +764,11 @@ export function installDocumentScrollAnchoring(
 
         box.dataset.mesurerNativeScrollOwner = "typography";
         applyAnchor(box, binding, "box");
+
         if (card?.isConnected && !card.classList.contains("mesurer-ti-card--pinned")) {
           card.dataset.mesurerNativeScrollOwner = "typography";
           applyAnchor(card, binding, "offset");
+
           // Standalone Typography and the native anchor coordinator both settle
           // after scrolling. Only refresh the card offset when the inspector's
           // inline fallback has caught up to the current source. If its fallback
@@ -683,7 +778,9 @@ export function installDocumentScrollAnchoring(
             const targetRect = rectFromDom(binding.target.getBoundingClientRect());
             const cardLeft = Number.parseFloat(card.style.left);
             const cardTop = Number.parseFloat(card.style.top);
+
             if (Number.isFinite(cardLeft)) card.style.setProperty("--mesurer-native-anchor-x", `${cardLeft - targetRect.left}px`);
+
             if (Number.isFinite(cardTop)) card.style.setProperty("--mesurer-native-anchor-y", `${cardTop - targetRect.top}px`);
           }
         } else if (card) {
@@ -697,6 +794,7 @@ export function installDocumentScrollAnchoring(
       releaseInspectorPair(binding);
       inspectorPairBindings.delete(box);
     }
+
     for (const [overlay, placement] of Array.from(inspectorOverlayPlacements)) {
       if (overlay.isConnected) continue;
       placement.release();
@@ -714,6 +812,7 @@ export function installDocumentScrollAnchoring(
 
   const schedule = (withFrame = false) => {
     if (disposed) return;
+
     if (!queued) {
       queued = true;
       ownerWindow.queueMicrotask(() => {
@@ -721,6 +820,7 @@ export function installDocumentScrollAnchoring(
         stabilize();
       });
     }
+
     if (withFrame && !frame) {
       frame = ownerWindow.requestAnimationFrame(() => {
         frame = 0;
@@ -733,6 +833,7 @@ export function installDocumentScrollAnchoring(
     if (disposed || scrolling || hoverFrame) return;
     hoverFrame = ownerWindow.requestAnimationFrame(() => {
       hoverFrame = 0;
+
       if (disposed || scrolling) return;
       stabilizeHover();
     });
@@ -741,12 +842,14 @@ export function installDocumentScrollAnchoring(
   const observer = new realm.MutationObserver(() => {
     if (!scrolling) schedule();
   });
+
   observer.observe(portalTarget, {
     subtree: true,
     childList: true,
     attributes: true,
     attributeFilter: ["data-state"],
   });
+
   if (runtimeMount) {
     observer.observe(runtimeMount, {
       subtree: true,
@@ -758,6 +861,7 @@ export function installDocumentScrollAnchoring(
 
   const onScroll = () => {
     scrolling = true;
+
     if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
     scrollIdleTimer = ownerWindow.setTimeout(() => {
       scrollIdleTimer = 0;
@@ -765,6 +869,7 @@ export function installDocumentScrollAnchoring(
       schedule(true);
     }, SCROLL_IDLE_MS);
   };
+
   const onActivity = () => schedule(true);
 
   ownerWindow.addEventListener("scroll", onScroll, { capture: true, passive: true });
@@ -777,8 +882,11 @@ export function installDocumentScrollAnchoring(
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
+
     if (frame) ownerWindow.cancelAnimationFrame(frame);
+
     if (hoverFrame) ownerWindow.cancelAnimationFrame(hoverFrame);
+
     if (scrollIdleTimer) ownerWindow.clearTimeout(scrollIdleTimer);
     ownerWindow.removeEventListener("scroll", onScroll, true);
     ownerWindow.removeEventListener("resize", onActivity, true);
@@ -790,22 +898,29 @@ export function installDocumentScrollAnchoring(
     selectionBindings.clear();
     releaseHover();
     clearEditBinding();
+
     for (const [highlight, placement] of highlightPlacements) {
       clearAnchorSurface(highlight);
       placement.release();
     }
+
     highlightPlacements.clear();
+
     for (const binding of inspectorPairBindings.values()) releaseInspectorPair(binding);
     inspectorPairBindings.clear();
+
     for (const placement of inspectorOverlayPlacements.values()) placement.release();
     inspectorOverlayPlacements.clear();
+
     if (runtimeMount) delete runtimeMount.dataset.mesurerNativeScrollRuntimeLayer;
     runtimePlacement?.release();
     workspace.dispose();
+
     for (const [target, state] of targetAnchors) {
       if (state.original) target.style.setProperty("anchor-name", state.original, state.originalPriority);
       else target.style.removeProperty("anchor-name");
     }
+
     targetAnchors.clear();
     releaseNativeScrollRegistration();
     style.remove();

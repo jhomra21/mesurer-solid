@@ -15,7 +15,7 @@ on:
       - "examples/basic/screenshot-contract.html"
       - "examples/basic/src/screenshot.ts"
       - "examples/basic/src/screenshot-contract.ts"
-      - "visual-parity/screenshot-contract.mjs"
+      - "tests/visual-parity/screenshot-contract.mjs"
       - ".github/workflows/screenshot-contract.yml"
   workflow_dispatch:
 
@@ -56,7 +56,7 @@ jobs:
       - name: Exercise screenshot plugin in Chromium
         env:
           SCREENSHOT_URL: http://127.0.0.1:4174/screenshot-contract.html
-        run: bun visual-parity/screenshot-contract.mjs
+        run: bun tests/visual-parity/screenshot-contract.mjs
       - name: Assert Solid runtime diagnostics are clean
         run: |
           if grep -nE 'STRICT_READ_UNTRACKED|\$\$pointermove' screenshot-vite.log; then

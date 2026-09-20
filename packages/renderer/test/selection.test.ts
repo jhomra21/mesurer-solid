@@ -8,6 +8,7 @@ import { getFrameToken } from "../src/core/dom";
 import { getDeepestElementAtPoint, isElementWithinDomTarget } from "@jhomra21/mesurer-solid-dom";
 
 const originalDocumentElementFromPoint = document.elementFromPoint;
+
 const originalDocumentElementsFromPoint = document.elementsFromPoint;
 
 const setRect = (element: Element, rect: { left: number; top: number; width: number; height: number }) => {
@@ -30,6 +31,7 @@ const setHitStack = (...elements: Element[]) => {
 
 const nextDomCacheFrame = async () => {
   const frame = getFrameToken();
+
   while (getFrameToken() === frame) {
     await new Promise((resolve) => setTimeout(resolve, 1));
   }
@@ -112,12 +114,14 @@ describe("root-aware point selection", () => {
     // into a fresh frame so this assertion owns the DOM it just installed rather
     // than a prior test's same-frame candidate list.
     await nextDomCacheFrame();
+
     const entries = getSelectionEntries(
       { left: 0, top: 0, width: 240, height: 160 },
       null,
       document,
       pageTarget,
     );
+
     expect(entries.some(({ element }) => element === inspector || element === typographyCard)).toBe(false);
     expect(entries.some(({ element }) => element === pageButton)).toBe(true);
   });

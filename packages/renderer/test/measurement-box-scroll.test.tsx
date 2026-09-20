@@ -4,6 +4,7 @@ import type { InspectMeasurement, Measurement } from "../src/core/types";
 import { render } from "../src/solid-dom";
 
 const disposers: Array<() => void> = [];
+
 afterEach(() => {
   while (disposers.length) disposers.pop()?.();
   document.body.replaceChildren();
@@ -17,12 +18,15 @@ const renderMeasurement = (measurement: Measurement | InspectMeasurement) => {
     host,
   ));
   const root = host.querySelector<HTMLElement>("[data-mesurer-measurement='true']");
+
   if (!root) throw new Error(`Expected measurement root: ${host.innerHTML}`);
   const chrome = root.children.item(0);
   const label = root.children.item(root.children.length - 1);
+
   if (!(chrome instanceof HTMLElement) || !(label instanceof HTMLElement)) {
     throw new Error(`Expected measurement chrome and label: ${host.innerHTML}`);
   }
+
   return { root, chrome, label };
 };
 

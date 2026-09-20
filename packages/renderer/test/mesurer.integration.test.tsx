@@ -129,6 +129,7 @@ describe("Mesurer host integration", () => {
     const strictReadWarnings = warn.mock.calls.filter((args) =>
       args.some((value) => String(value).includes("STRICT_READ_UNTRACKED")),
     );
+
     expect(strictReadWarnings).toEqual([]);
   });
 
@@ -142,6 +143,7 @@ describe("Mesurer host integration", () => {
       () => <Mesurer persistKey="integration-shadow" portalTarget={shadow} />,
       appHost,
     );
+
     mounted.push(dispose);
     await settle();
 

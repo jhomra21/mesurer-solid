@@ -23,14 +23,23 @@ const withPackageVersion = (plugin: MesurerPlugin): MesurerPlugin => ({
 });
 
 export const select = (): MesurerPlugin => withPackageVersion(rendererSelectPlugin());
+
 export const xray = (): MesurerPlugin => withPackageVersion(rendererXrayPlugin());
+
 export const colorPicker = (): MesurerPlugin => withPackageVersion(rendererColorPickerPlugin());
+
 export const rulers = (): MesurerPlugin => withPackageVersion(rendererRulersPlugin());
+
 export const typography = (): MesurerPlugin => withPackageVersion(rendererTextInspectorPlugin());
+
 export const guides = (): MesurerPlugin => withPackageVersion(rendererGuidesPlugin());
+
 export const distance = (): MesurerPlugin => withPackageVersion(rendererDistancePlugin());
+
 export const settings = (): MesurerPlugin => withPackageVersion(rendererSettingsPlugin());
+
 export const defaults = (): MesurerPlugin[] => rendererDefaultMesurerPlugins().map(withPackageVersion);
+
 export const compose = (
   plugins: MesurerPlugin[] = [],
   exclude: Array<"select" | "xray" | "color-picker" | "rulers" | "text-inspector" | "guides" | "distance" | "settings"> = [],
@@ -39,6 +48,7 @@ export const compose = (
 );
 
 export { arrange, codex, context, screenshot };
+
 export {
   MESURER_ARRANGE_ACTIVE_STATE_ID,
   MESURER_ARRANGE_PLUGIN_ID,
@@ -46,6 +56,7 @@ export {
   MESURER_ARRANGE_SETTINGS_STATE_ID,
   MESURER_ARRANGE_STATE_ID,
 } from "./arrange";
+
 export type {
   ArrangeCapturePlan,
   ArrangeElementFingerprint,
@@ -59,10 +70,12 @@ export type {
   MesurerArrangeService,
   MesurerArrangeSettings,
 } from "./arrange";
+
 export {
   MESURER_CODEX_PLUGIN_ID,
   MESURER_CODEX_SERVICE_ID,
 } from "./codex-plugin";
+
 export type {
   MesurerCodexDelivery,
   MesurerCodexDeliveryStatus,
@@ -75,15 +88,18 @@ export type {
   MesurerCodexThreadList,
   MesurerCodexThreadListOptions,
 } from "./codex-plugin";
+
 export {
   MESURER_CONTEXT_PLUGIN_ID,
   MESURER_CONTEXT_SERVICE_ID,
   MESURER_CONTEXT_SETTINGS_STATE_ID,
 } from "./context-plugin";
+
 export type {
   MesurerContextPluginOptions,
   MesurerContextService,
 } from "./context-plugin";
+
 export {
   MESURER_SCREENSHOT_ACTIVE_STATE_ID,
   MESURER_SCREENSHOT_PLUGIN_ID,
@@ -99,6 +115,7 @@ export {
   releaseScreenshotCapture,
   waitForNextPaint,
 } from "./screenshot";
+
 export type {
   MesurerScreenshotPluginOptions,
   MesurerScreenshotResult,

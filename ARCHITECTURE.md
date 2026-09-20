@@ -25,7 +25,7 @@ Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron
                              ▼
                     window.__MESURER__
                              │
-                    existing browser harness
+                    existing browser controller
 ```
 
 Solid 2 is a renderer implementation detail. Host applications do not need to provide Solid.
@@ -36,7 +36,7 @@ Users install `mesurer-solid`.
 
 | Entry | Purpose |
 | --- | --- |
-| `mesurer-solid` | Mount API, domain types, and agent surface |
+| `mesurer-solid` | Mount API, domain types, and agent API |
 | `mesurer-solid/plugins` | All first-party plugin factories and plugin-specific contracts |
 | `mesurer-solid/core` | Lower-level framework-neutral public contracts |
 | `mesurer-solid/inject` | Programmatic injection helper |
@@ -66,6 +66,8 @@ Select, Context rebinding, Arrange targets, direct text-edit targets, and progra
 
 `packages/renderer` owns the isolated Solid 2 UI/lifecycle adapter and browser interaction runtime.
 
+Within the renderer runtime, direct editing is grouped under `runtime/text-editing/` and shared Typography inspector code under `runtime/typography/`. Document mounts, scrolling, selection channels, presentation preferences, and workspace Context remain shared runtime code rather than being pulled into those feature folders.
+
 Human-facing built-ins are Select, X-ray, Color Picker when supported, Rulers, Typography, Guides, Distance, and Settings. Typography retains the internal compatibility id `text-inspector`.
 
 The toolbar keeps one stable tool order. Compact presentation collapses inactive controls while preserving active tools and state. Arrange remains a plugin contribution rather than a toolbar mode.
@@ -94,9 +96,9 @@ It activates from Select or Typography by double-click/double-tap. Arrange keeps
 
 The target boundary follows browser editability semantics: form controls stay native; descendants that inherit `contenteditable` stay native; a nested `contenteditable="false"` boundary ends that inherited region; ambiguous mixed/nested rich text is not converted into a generic editor.
 
-If Typography was already selected, the normal hover/pinned surface is suppressed during the direct-edit session so the field has one live card.
+If Typography was already selected, the normal hover/pinned Typography UI is suppressed during the direct-edit session so the field has one live card.
 
-Direct edit is also the single visible selection owner for its source. The ordinary selected MeasurementBox remains logically mounted so selection identity and measurement geometry survive, but its duplicate border is paint-suppressed while the edit ring is active. The selected dimensions pill remains available. When Typography is placed below the source, the runtime measures the rendered source → pill and pill → Typography gaps and keeps them symmetric without moving the native source-relative shell on pointer or scroll hot paths.
+Direct edit is also the single visible selection owner for its source. The ordinary selected MeasurementBox remains logically mounted so selection identity and measurement geometry survive, but its duplicate border is paint-suppressed while the edit ring is active. The selected dimensions pill remains available. When Typography is placed below the source, the runtime measures the rendered source-to-pill and pill-to-Typography gaps and keeps them symmetric without moving the native source-relative shell on pointer or scroll hot paths.
 
 The selection-adjacent annotation trigger belongs to ordinary selection mode, not direct-edit mode. While a direct editor is active the transient trigger is suppressed and restored when editing ends; durable saved annotation markers, panels, and Context state are independent.
 
@@ -193,11 +195,11 @@ For CLI/TUI shared-daemon sessions, the same native Codex queue remains authorit
 
 Queue and Steer remain separate Codex operations. Mesurer never invokes `turn/steer`; Desktop wake only opens the existing thread and leaves scheduling to Codex's queue lifecycle.
 
-This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser harness. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and asks a known Codex thread to act on that feedback.
+This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser controller. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and asks a known Codex thread to act on that feedback.
 
 Each queue request has a bounded bridge delivery record. The browser enters a busy state before the request starts, so repeat clicks cannot create duplicate submissions. For Desktop, bridge polling reads bounded recent Codex turn history and accepts a turn only when its user message matches the exact queued Mesurer payload. `inProgress`, `completed`, and `interrupted` statuses drive the visible lifecycle; a failed turn uses retry-preserving terminal behavior. Desktop rejects legacy hook posts as lifecycle authority, because an `Interrupt` hook can run before Codex records the turn as aborted. The local `/lifecycle` endpoint remains only for non-Desktop compatibility. Browser polling reads only the Mesurer delivery record. While a delivery is queued or working, the browser also persists the delivery id, destination, state, and exact annotation ids in per-tab `sessionStorage`; a reload resumes polling that same record instead of forgetting completion cleanup.
 
-Context exposes an internal first-party `removeAnnotation(id)` service operation for completion cleanup. It is not added to the generic `window.__MESURER__` agent harness. On a completed tracked delivery, Codex removes only the annotation ids that were serialized into that request; interruption/failure preserves them. Applications may disable this cleanup with `clearCompletedAnnotations: false`. A matched completed turn is treated as workflow completion, not as independent proof that the requested visual change is semantically correct.
+Context exposes an internal first-party `removeAnnotation(id)` service operation for completion cleanup. It is not added to the generic `window.__MESURER__` agent API. On a completed tracked delivery, Codex removes only the annotation ids that were serialized into that request; interruption/failure preserves them. Applications may disable this cleanup with `clearCompletedAnnotations: false`. A matched completed turn is treated as workflow completion, not as independent proof that the requested visual change is semantically correct.
 
 See [Queue Context feedback to Codex](./docs/CODEX.md).
 ## Screenshot
@@ -236,7 +238,7 @@ human selection / notes / Arrange / text Desired
                 window.__MESURER__
                        │
                        ▼
-               existing browser harness
+               existing browser controller
 ```
 
 Agent attachment reuses an existing Mesurer instance when present. After source changes, verification uses the real Live page: Arrange preview removed, text Desired preview inactive, and fresh Context/measurement/review evidence.
@@ -249,6 +251,6 @@ Temporary Mesurer presentation expresses intent or evidence; it is not proof tha
 
 The public package bundles the private workspaces into self-contained artifacts and is validated as an exact packed npm candidate across clean React, Solid 1, and Solid 2 consumers.
 
-Release validation also covers browser contracts, host isolation, screenshots, the unified public plugins entry and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery additionally validates the packaged companion binary, loopback boundary, registered-thread routing, and exact `codex queue` argument contract before release.
+Release validation also covers browser contracts, host isolation, screenshots, the unified public plugins entry and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery also validates the packaged companion binary, loopback boundary, registered-thread routing, and exact `codex queue` argument contract before release.
 
 See [Releasing](./RELEASING.md) and [Upstream parity](./docs/UPSTREAM_PARITY.md).

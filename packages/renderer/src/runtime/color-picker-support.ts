@@ -2,6 +2,7 @@ type EyeDropperConstructor = {
   new (): object;
   prototype: { open: Function };
 };
+
 type WindowWithEyeDropper = Window & { EyeDropper?: unknown };
 
 // CodexBrowser currently exposes a native-looking EyeDropper in Mesurer's page
@@ -19,6 +20,7 @@ const isEyeDropperConstructor = (value: unknown): value is EyeDropperConstructor
   if (typeof value !== "function") return false;
   // SAFETY: the function check establishes a callable boundary; this assertion is used only to validate the required native EyeDropper prototype contract below.
   const candidate = value as { prototype?: { open?: unknown } };
+
   return typeof candidate.prototype?.open === "function";
 };
 
@@ -32,8 +34,10 @@ export const resetNativeColorPickerOperationalState = (ownerWindow: Window) => {
 
 export const supportsNativeColorPicker = (ownerWindow: Window) => {
   if (isKnownUnavailableHost(ownerWindow)) return false;
+
   if (operationallyUnavailableWindows.has(ownerWindow)) return false;
   // SAFETY: EyeDropper is an optional Window extension and is decoded immediately by isEyeDropperConstructor before use.
   const candidate = (ownerWindow as WindowWithEyeDropper).EyeDropper;
+
   return isEyeDropperConstructor(candidate);
 };

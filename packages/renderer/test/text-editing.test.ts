@@ -10,10 +10,12 @@ import {
 import { createMesurerWorkspaceRuntime } from "../src/runtime/workspace-context";
 
 const mountedHosts: Array<ReturnType<typeof createMesurerPluginHost>> = [];
+
 const originalElementsFromPoint = document.elementsFromPoint?.bind(document);
 
 afterEach(() => {
   while (mountedHosts.length) mountedHosts.pop()?.dispose();
+
   if (originalElementsFromPoint) {
     Object.defineProperty(document, "elementsFromPoint", {
       configurable: true,
@@ -22,6 +24,7 @@ afterEach(() => {
   } else {
     Reflect.deleteProperty(document, "elementsFromPoint");
   }
+
   document.body.replaceChildren();
   localStorage.clear();
   vi.restoreAllMocks();
@@ -44,6 +47,7 @@ const setup = async () => {
   const pageTarget = document.createElement("main");
   document.body.append(pageTarget);
   const model = createMesurerModel({ initialEnabled: true });
+
   const createWorkspaceRuntime = () => createMesurerWorkspaceRuntime({
     model,
     ownerDocument: document,
@@ -51,6 +55,7 @@ const setup = async () => {
     uiRoot: document.body,
     pageTarget,
   });
+
   const runtime: MesurerSolidRuntimeService = {
     ownerDocument: document,
     ownerWindow: window,
@@ -62,6 +67,7 @@ const setup = async () => {
       const element = document.createElement("div");
       element.dataset.mesurerInspectorUi = "true";
       document.body.append(element);
+
       return { element, dispose: () => element.remove() };
     },
   };
@@ -145,6 +151,7 @@ describe("direct text editing", () => {
     bodyA.textContent = "Body A";
     const bodyB = document.createElement("span");
     bodyB.textContent = "Body B";
+
     for (const body of [bodyA, bodyB]) {
       Object.assign(body.style, {
         fontFamily: "Georgia, serif",
@@ -168,6 +175,7 @@ describe("direct text editing", () => {
     dominantHeadingA.textContent = "Dominant H2 A";
     const dominantHeadingB = document.createElement("h2");
     dominantHeadingB.textContent = "Dominant H2 B";
+
     for (const heading of [dominantHeadingA, dominantHeadingB]) {
       Object.assign(heading.style, {
         fontFamily: "Trebuchet MS, sans-serif",

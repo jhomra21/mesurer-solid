@@ -6,7 +6,7 @@
 
 Inspect, measure, and express visual intent directly on a live browser UI.
 
-Mesurer Solid is a Solid 2 port and extension of [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut](https://github.com/ibelick). It keeps Mesurer's source-first visual language while adding framework-agnostic mounting, plugins, agent-readable context, reversible layout and text intent, screenshot capture, and host isolation.
+Mesurer Solid ports [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut](https://github.com/ibelick) to a private Solid 2 renderer. It adds framework-independent mounting, plugins, agent-readable Context, reversible layout and text intent, screenshot capture, and host isolation.
 
 The renderer carries its own isolated Solid 2 runtime. Your application can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without installing Solid for Mesurer.
 
@@ -70,22 +70,22 @@ The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typograp
 
 ## Features
 
-- **Select** — inspect one or more rendered elements.
-- **Distance** — measure spacing and geometry, including pairwise multi-selection spacing.
-- **X-ray, guides, and rulers** — inspect page structure and alignment.
-- **Typography** — inspect rendered type and directly preview reversible copy and typography changes.
-- **Arrange** — drag selected UI into a Desired layout without writing application source.
-- **Screenshots** — capture a dragged visible-tab region with the optional screenshot plugin.
-- **Context and annotations** — expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotations persist across same-tab reloads, conservatively rebind to their original DOM targets, stay attached through scrolling, keep repeated-note markers local, leave Add Note available while a saved note is open, and keep cards/composers above Select hover and selection chrome.
-- **Plugins** — add tools, commands, overlays, settings, state, hooks, and services at runtime.
-- **Compact toolbar** — collapse inactive controls while every active tool remains visible; expanding restores the same stable toolbar and order.
-- **Color Picker** — use the browser's native `EyeDropper` when it is operational. Unsupported hosts do not advertise the tool.
+- **Select.** Inspect one or more rendered elements.
+- **Distance.** Measure spacing and geometry, including pairwise multi-selection spacing.
+- **X-ray, Guides, and Rulers.** Inspect page structure and alignment.
+- **Typography.** Inspect rendered type and preview reversible copy and typography changes.
+- **Arrange.** Drag selected UI into a Desired layout without writing application source.
+- **Screenshots.** Capture a dragged visible-tab region with the optional Screenshot plugin.
+- **Context and annotations.** Expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotations persist across same-tab reloads, conservatively rebind to their original DOM targets, stay attached through scrolling, keep repeated-note markers local, leave Add Note available while a saved note is open, and keep cards/composers above Select hover and selection chrome.
+- **Plugins.** Add tools, commands, overlays, settings, state, hooks, and services at runtime.
+- **Compact toolbar.** Collapse inactive controls while every active tool remains visible. Expanding restores the same toolbar order and state.
+- **Color Picker.** Use the browser's native `EyeDropper` when it is operational. Unsupported hosts do not advertise the tool.
 
 Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a toolbar mode. Clicking Arrange automatically enables Select; turning Arrange off leaves Select active, while turning Select off also exits Arrange.
 
 ## Shortcuts
 
-Global shortcuts are enabled by default. Turn them off from **Settings → General → Shortcuts** or mount with `shortcutsEnabled: false`. Disabling global shortcuts does not disable toolbar controls, editor-local keyboard behavior, or Escape/cancel handling.
+Global shortcuts are enabled by default. Turn them off from **Settings > General > Shortcuts** or mount with `shortcutsEnabled: false`. Disabling global shortcuts does not disable toolbar controls, editor-local keyboard behavior, or Escape/cancel handling.
 
 | Shortcut | Action |
 | --- | --- |
@@ -111,11 +111,11 @@ Plugin shortcuts appear only when the corresponding plugin is mounted and enable
 
 With Select or Typography active, double-click ordinary direct text to edit it on the rendered page. Mesurer previews the text and typography as reversible Desired intent; it does not write source code.
 
-Direct edit owns the visible selection chrome for the field: one edit ring remains visible, the selected dimensions pill stays clear of Typography with symmetric `2px / 2px` spacing when the card is below the target, and ordinary pointer movement does not move the Typography card. The selection-adjacent Add Note button is hidden only while editing is active and returns when the editor closes; saved annotations are unaffected.
+Direct edit owns the visible selection UI for the field. One edit ring remains visible. When the Typography card is below the target, the dimensions pill keeps a 2px gap on each side. Pointer movement does not reposition the card. The selection-adjacent Add Note button is hidden only while editing and returns when the editor closes. Saved annotations remain available.
 
 Native editing stays native. Mesurer does not intercept form controls or descendants that inherit `contenteditable`. A nested `contenteditable="false"` boundary ends that inherited editable region, so an otherwise valid direct-text target inside it can use Mesurer editing.
 
-Undo and redo update the rendered Desired preview while Mesurer still owns the current text/style value. If the application changes that value itself, Mesurer relinquishes ownership instead of overwriting the host change.
+Undo and redo update the Desired preview while the DOM still contains the value Mesurer applied. If the application changes the value, Mesurer stops managing it and preserves the application change.
 
 See [Direct text editing and Typography](./docs/TEXT_EDITING.md).
 
@@ -158,21 +158,7 @@ See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the package
 
 ### Queue human feedback to Codex
 
-The optional Codex transport keeps Context as the feedback source and uses Codex's queued-user-message path. In a Codex-controlled local project, the trusted `SessionStart` integration runs `mesurer-codex-connect`, which starts or reuses the matching loopback companion and registers the current Codex session together with its project directory. The connector verifies the companion's packaged source identity before reusing it, so a healthy but stale bridge cannot silently own lifecycle tracking. A separate bridge terminal is not required.
-
-From a Codex shell or tool environment, the packaged connector can also be run directly:
-
-```bash
-bunx mesurer-codex-connect
-```
-
-The low-level `mesurer-codex` command remains available for diagnostics or explicit foreground process ownership:
-
-```bash
-bunx mesurer-codex --thread <SESSION> --cwd <PROJECT_DIRECTORY>
-```
-
-Mount Codex alongside Context:
+Mount `codex()` next to Context when a person should be able to send the current Mesurer review to Codex:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -183,36 +169,39 @@ mountMesurer({
 })
 ```
 
-Mounting `codex()` does not contact localhost. The first **Queue to Codex** press or **Choose Codex thread…** menu action establishes the connection. If the bridge is unavailable, the action becomes disabled as **Codex unavailable** and the dropdown offers **Retry Codex connection**. After one successful connection, Mesurer health-checks the known companion and recovers automatically if it restarts.
+For Codex-controlled local projects, the trusted `SessionStart` integration runs `mesurer-codex-connect`. It starts or reuses the matching local companion and registers the current Codex thread and project. You can also run it directly:
 
-**Queue to Codex** now keeps Codex's native durable queue as the source of truth on every client. For Codex Desktop, Mesurer queues the message once, retains its queued-submission id, then opens the existing destination with `codex://threads/<threadId>`. Desktop loads or resumes the thread and Codex's own queue watcher dispatches the item when the thread is ready. No `codex_app` MCP pipe or standalone daemon is required for Desktop.
+```bash
+bunx mesurer-codex-connect
+```
 
-For CLI/TUI shared-daemon environments, the same native queue is used and a cold `notLoaded` destination may be resumed through the shared daemon. Bridge restart state is tracking metadata only; Mesurer does not delete and resend an existing queued item. Programmatic `send()` reports `delivery: "queued"` plus the durable queued-submission id and dispatch metadata.
+**Queue to Codex** uses Codex's native durable queue. Mesurer queues one message, tracks that exact delivery, and opens the existing Desktop thread when Desktop needs to wake it. It does not create a new Codex thread or use Steer. The page keeps its chosen thread across a same-tab reload.
 
-Queue delivery has visible lifecycle state. The action disables immediately while it is queueing so a double-click cannot submit the same review twice, then changes through **Queued for Codex**, **Codex working…**, and **Codex finished** as the bridge matches that exact queued prompt against read-only Codex turn history. The selected destination row shows the same state. Current lifecycle tracking needs only the trusted `SessionStart` hook used for local registration; it does not require separate prompt/stop/interrupt hook trust.
+If a queued review contains saved annotations, Mesurer removes only those annotation ids after the matching Codex turn completes. Interrupted, failed, or uncertain deliveries keep the notes for retry. Turn completion is delivery state, not proof that the UI change is correct.
 
-When a completed delivery included saved annotations, `codex()` removes only those exact annotation ids after Codex reports the matching turn finished. An interrupted turn keeps its annotations for retry. Active delivery state is saved per tab so a page reload can resume the same tracked delivery rather than losing its completion/cleanup state. Set `clearCompletedAnnotations: false` when an application wants completed notes to remain visible. This completion signal tracks the Codex turn lifecycle; it is not an independent semantic proof that the requested UI change is correct.
-
-Each Mesurer page keeps the Codex thread that originally connected it as its default destination. That page affinity survives reloads in the same browser tab. If there is no saved page affinity and the bridge exposes multiple registered threads, Mesurer requires an explicit destination instead of inheriting a stale bridge-wide default. The split menu shows the originating/current thread first, then up to four recent same-project Codex threads discovered through Codex app-server. **Show 5 more…** expands the list to at most ten. Selecting another thread changes only that page's destination.
-
-Mesurer does not create new Codex threads. Create or open a new thread in Codex; the trusted `SessionStart` path registers it automatically. Programmatic callers can use `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`. Browser pages cannot register arbitrary sessions, provide an arbitrary project directory, or target a thread the bridge has not registered or discovered for that project.
-
-See [Queue Context feedback to Codex](./docs/CODEX.md).
+See [Queue Context feedback to Codex](./docs/CODEX.md) for thread selection, Desktop and CLI/TUI wake behavior, lifecycle correlation, permissions, recovery, and the typed `codex:v1` service.
 ## Documentation
 
 Start with the [documentation index](./docs/README.md).
 
+- [Capabilities](./docs/CAPABILITIES.md)
 - [Getting started](./docs/GETTING_STARTED.md)
 - [Direct text editing and Typography](./docs/TEXT_EDITING.md)
 - [Arrange](./docs/ARRANGE.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
 - [Context workflow](./docs/CONTEXT_WORKFLOW.md)
 - [Queue Context feedback to Codex](./docs/CODEX.md)
-- [Browser harness](./docs/BROWSER_HARNESS.md)
+- [Browser and agent integration](./docs/BROWSER_HARNESS.md)
 - [Host isolation](./docs/HOST_ISOLATION.md)
 - [Trusted Types](./docs/TRUSTED_TYPES.md)
 - [Upstream parity](./docs/UPSTREAM_PARITY.md)
 - [Architecture](./ARCHITECTURE.md)
+- [Repository structure](./docs/REPOSITORY_STRUCTURE.md)
+- [Contributing](./CONTRIBUTING.md)
+
+## Development
+
+Contributor setup, validation expectations, and repository ownership are documented in [CONTRIBUTING.md](./CONTRIBUTING.md) and [Repository structure](./docs/REPOSITORY_STRUCTURE.md).
 
 ## Upstream
 

@@ -30,7 +30,11 @@ type Assert<Condition extends true> = Condition;
  * boundary exact at compile time while the renderer uses the canonical core model.
  */
 type _RequestParity = Assert<Equal<MesurerContextRequest, CoreMesurerContextRequest>>;
+
 type _FingerprintParity = Assert<Equal<MesurerElementFingerprint, CoreMesurerElementFingerprint>>;
+
 type _TargetParity = Assert<Equal<MesurerAnnotationTarget, CoreMesurerAnnotationTarget>>;
+
 type _BaselineParity = Assert<Equal<MesurerAnnotationBaseline, CoreMesurerAnnotationBaseline>>;
+
 type _AnnotationParity = Assert<Equal<MesurerAnnotation, CoreMesurerAnnotation>>;

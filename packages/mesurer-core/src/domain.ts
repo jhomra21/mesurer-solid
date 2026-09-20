@@ -1,8 +1,13 @@
 export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
+
 export type ColorSample = { red: number; green: number; blue: number; alpha: number };
+
 export type Point = { x: number; y: number };
+
 export type Rect = { left: number; top: number; width: number; height: number };
+
 export type NormalizedRect = Rect;
+
 export type BoxEdges = { top: number; right: number; bottom: number; left: number };
 
 export type Measurement<ElementRef = unknown> = {
@@ -29,6 +34,7 @@ export type InspectMeasurement<ElementRef = unknown> = {
 };
 
 export type Guide = { id: string; orientation: "vertical" | "horizontal"; position: number };
+
 export type DistanceOverlay<ElementRef = unknown> = {
   id: string;
   rectA: Rect;
@@ -43,11 +49,17 @@ export type DistanceOverlay<ElementRef = unknown> = {
 };
 
 export type ToolMode = "none" | "select" | "guides" | "text-inspector" | "xray" | "rulers";
+
 export type SettingsTab = "general" | "select" | "guides" | "rulers" | "color-picker";
+
 export type GuidePattern = "solid" | "dashed" | "dotted";
+
 export type GuideStyle = { opacity: number; width: number; pattern: GuidePattern; dashLength: number; gap: number };
+
 export type RulerSettings = { opacity: number; edgeReveal: boolean };
+
 export const DEFAULT_GUIDE_STYLE: GuideStyle = { opacity: 1, width: 1, pattern: "solid", dashLength: 6, gap: 4 };
+
 export const DEFAULT_RULER_SETTINGS: RulerSettings = { opacity: 1, edgeReveal: false };
 
 export type MesurerStoredSettings = {
@@ -96,6 +108,7 @@ export type MesurerSettings = {
 };
 
 export type GuidePreview = { orientation: Guide["orientation"]; position: number };
+
 export type MesurerModelOptions = {
   initialEnabled?: boolean;
   initialToolMode?: ToolMode;

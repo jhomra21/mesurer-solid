@@ -22,7 +22,9 @@ export type ContextActionsProps = {
 };
 
 type PositionedRect = { left: number; top: number; width: number; height: number };
+
 type ContextSelectionSnapshot = { elements: HTMLElement[]; region: PositionedRect | null };
+
 type AnnotationScrollBinding = {
   target: HTMLElement;
   anchorName: string | null;
@@ -43,9 +45,13 @@ const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
 const PROTECTED_ANNOTATION_Z_INDEX = "2147483647";
+
 const ANNOTATION_PANEL_Z_INDEX = "2147483646";
+
 const ANNOTATION_HIGHLIGHT_Z_INDEX = "2147483645";
+
 const annotationButtonClass = "msr:flex msr:w-6 msr:h-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border-0 msr:bg-transparent msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:cursor-default msr:disabled:opacity-40";
+
 let annotationAnchorSequence = 0;
 
 const anchorNames = (value: string) => value
@@ -57,16 +63,19 @@ const addAnchorName = (element: HTMLElement, name: string) => {
   const before = element.style.getPropertyValue("anchor-name");
   const beforePriority = element.style.getPropertyPriority("anchor-name");
   const names = anchorNames(before);
+
   if (!names.includes(name)) {
     element.style.setProperty("anchor-name", [...names, name].join(", "), beforePriority);
   }
 
   let released = false;
+
   return () => {
     if (released) return;
     released = true;
     const current = anchorNames(element.style.getPropertyValue("anchor-name"));
     const remaining = current.filter((candidate) => candidate !== name);
+
     if (remaining.length) {
       element.style.setProperty(
         "anchor-name",
@@ -87,6 +96,7 @@ const unionRects = (rects: PositionedRect[]): PositionedRect | null => {
   const top = Math.min(...rects.map((rect) => rect.top));
   const right = Math.max(...rects.map((rect) => rect.left + rect.width));
   const bottom = Math.max(...rects.map((rect) => rect.top + rect.height));
+
   return { left, top, width: right - left, height: bottom - top };
 };
 
@@ -102,12 +112,15 @@ const placeSurfaceNear = (
   const maxTop = ownerWindow.innerHeight - height - padding;
   const right = rect.left + rect.width + gap;
   const left = rect.left - width - gap;
+
   const positionedLeft = right + width <= ownerWindow.innerWidth - padding
     ? right
     : left >= padding
       ? left
       : clamp(rect.left + rect.width - width, padding, maxLeft);
+
   const positionedTop = clamp(rect.top, padding, maxTop);
+
   return { left: positionedLeft, top: positionedTop };
 };
 
@@ -122,13 +135,17 @@ const placeComposerNear = (
   const maxLeft = ownerWindow.innerWidth - width - padding;
   const centeredLeft = clamp(rect.left + rect.width / 2 - width / 2, padding, maxLeft);
   const below = rect.top + rect.height + gap;
+
   if (below + height <= ownerWindow.innerHeight - padding) {
     return { left: centeredLeft, top: below };
   }
+
   const above = rect.top - height - gap;
+
   if (above >= padding) {
     return { left: centeredLeft, top: above };
   }
+
   return placeSurfaceNear(rect, width, height, ownerWindow, gap);
 };
 
@@ -150,6 +167,7 @@ export function ContextActions(props: ContextActionsProps) {
   let fallbackTriggerElement: HTMLElement | null = null;
   let fallbackNextSelection = props.initialTriggerFallback === "current-and-next";
   let composerSelection: ContextSelectionSnapshot | null = null;
+
   let surfaceDrag: {
     surfaceId: string;
     pointerId: number;
@@ -160,6 +178,7 @@ export function ContextActions(props: ContextActionsProps) {
     width: number;
     height: number;
   } | null = null;
+
   let surfaceDragCleanup: (() => void) | null = null;
   let anchorElement: HTMLSpanElement | undefined;
   let annotationTriggerElement: HTMLButtonElement | undefined;
@@ -173,36 +192,47 @@ export function ContextActions(props: ContextActionsProps) {
 
   const ownerWindow = () => anchorElement?.ownerDocument.defaultView ?? window;
   const usesViewportCoordinates = () => props.coordinateSpace === "viewport";
+
   const scrollMode = (nativeAnchor: boolean) => nativeAnchor
     ? "native-anchor"
     : usesViewportCoordinates()
       ? "cached-delta"
       : "document";
+
   const documentPosition = (position: { left: number; top: number }) => {
     if (usesViewportCoordinates()) return position;
     const currentWindow = ownerWindow();
+
     return {
       left: position.left + currentWindow.scrollX,
       top: position.top + currentWindow.scrollY,
     };
   };
+
   const captureSelection = (): ContextSelectionSnapshot => {
     const value = props.runtime.currentSelection();
+
     return {
       elements: [...value.elements],
       region: value.region ? { ...value.region } : null,
     };
   };
+
   const sameSelection = (left: ContextSelectionSnapshot, right: ContextSelectionSnapshot) => {
     if (left.elements.length !== right.elements.length) return false;
+
     if (left.elements.some((element, index) => element !== right.elements[index])) return false;
+
     if (left.region === right.region) return true;
+
     if (!left.region || !right.region) return false;
+
     return left.region.left === right.region.left
       && left.region.top === right.region.top
       && left.region.width === right.region.width
       && left.region.height === right.region.height;
   };
+
   const resetNoteComposerState = () => {
     composerSelection = null;
     setNote("");
@@ -213,6 +243,7 @@ export function ContextActions(props: ContextActionsProps) {
 
   const supportsNativeAnchors = () => {
     const currentWindow = ownerWindow();
+
     return Boolean(
       currentWindow.CSS?.supports("anchor-name: --mesurer-annotation-trigger")
       && currentWindow.CSS.supports("position-anchor: --mesurer-annotation-trigger")
@@ -222,67 +253,89 @@ export function ContextActions(props: ContextActionsProps) {
 
   const currentSelectionTriggerElement = () => {
     const elements = props.runtime.currentSelection().elements;
+
     if (!elements.length) return null;
     const hovered = props.runtime.hoveredElement();
+
     return elements.find((element) => element === hovered)
       ?? elements.find((element) => hovered && element.contains(hovered))
       ?? elements[0];
   };
 
   const contextRoot = () => anchorElement?.parentElement;
+
   const selectionScrollSurfaces = () => {
     const root = contextRoot();
+
     if (!root) return [];
+
     return [...root.querySelectorAll<HTMLElement>(
       "[data-mesurer-annotation-trigger='true'], [data-mesurer-annotation-composer='true']",
     )].filter((surface) => surface !== annotationTriggerElement || anchoredTriggerElement === null);
   };
+
   const annotationScrollSurfaces = (annotationId: string) => {
     const root = contextRoot();
+
     if (!root) return [];
+
     return [...root.querySelectorAll<HTMLElement>("[data-mesurer-annotation-id]")]
       .filter((surface) => surface.dataset.mesurerAnnotationId === annotationId);
   };
 
   const releaseAnnotationScrollBinding = (annotationId: string) => {
     const binding = annotationScrollBindings.get(annotationId);
+
     if (!binding) return;
     binding.scroll.release();
     binding.releaseAnchor?.();
     annotationScrollBindings.delete(annotationId);
   };
+
   const annotationScrollTarget = (annotationId: string) => {
     const annotation = props.runtime.annotation(annotationId);
+
     if (!annotation || annotation.anchor.kind !== "elements") return null;
+
     return annotation.resolvedTargets.find(({ element }) => element?.isConnected)?.element ?? null;
   };
+
   const canUseNativeAnnotationAnchor = (target: HTMLElement) => Boolean(
     usesViewportCoordinates()
     && anchorElement
     && supportsNativeAnchors()
     && target.getRootNode() === anchorElement.getRootNode()
   );
+
   const syncAnnotationScrollBinding = (annotationId: string) => {
     const target = annotationScrollTarget(annotationId);
     const existing = annotationScrollBindings.get(annotationId);
+
     if (!target) {
       if (existing) {
         releaseAnnotationScrollBinding(annotationId);
         setTriggerRevision((value) => value + 1);
       }
+
       return;
     }
+
     const useNativeAnchor = canUseNativeAnnotationAnchor(target);
+
     if (
       existing?.target === target
       && Boolean(existing.anchorName) === useNativeAnchor
     ) {
       existing.scroll.sync();
+
       return;
     }
+
     releaseAnnotationScrollBinding(annotationId);
     const currentWindow = target.ownerDocument.defaultView;
+
     if (!currentWindow) return;
+
     if (useNativeAnchor) {
       const anchorName = `--mesurer-annotation-${++annotationAnchorSequence}`;
       annotationScrollBindings.set(annotationId, {
@@ -309,21 +362,28 @@ export function ContextActions(props: ContextActionsProps) {
         ),
       });
     }
+
     setTriggerRevision((value) => value + 1);
   };
+
   const syncAnnotationScrollBindings = () => {
     const liveIds = new Set(props.runtime.annotations().map((annotation) => annotation.id));
+
     for (const annotationId of annotationScrollBindings.keys()) {
       if (!liveIds.has(annotationId)) releaseAnnotationScrollBinding(annotationId);
     }
+
     for (const annotationId of liveIds) syncAnnotationScrollBinding(annotationId);
   };
+
   const syncAnnotationSurface = (annotationId: string) => {
     ownerWindow().queueMicrotask(() => syncAnnotationScrollBinding(annotationId));
   };
+
   const reconcileAnnotationGeometry = () => {
     ownerWindow().queueMicrotask(() => {
       syncAnnotationScrollBindings();
+
       for (const binding of annotationScrollBindings.values()) {
         if (!binding.anchorName) binding.scroll.rebase();
       }
@@ -353,27 +413,34 @@ export function ContextActions(props: ContextActionsProps) {
 
   const syncSelectionTriggerAnchor = () => {
     const element = currentSelectionTriggerElement();
+
     if (fallbackTriggerElement && element !== fallbackTriggerElement) fallbackTriggerElement = null;
     const previousElement = trackedTriggerElement;
     const shouldUseNative = Boolean(element?.isConnected && canUseNativeTriggerAnchor(element));
     const alreadyNative = anchoredTriggerElement === element;
+
     if (
       element === trackedTriggerElement
       && element?.isConnected
       && shouldUseNative === alreadyNative
     ) {
       nestedTriggerScroll?.sync();
+
       return;
     }
 
     const targetChanged = element !== previousElement;
+
     const nextAnchorName = targetChanged
       ? `--mesurer-annotation-trigger-${++annotationAnchorSequence}`
       : selectionTriggerAnchorName;
+
     releaseSelectionTriggerAnchor();
+
     if (!element?.isConnected) return;
     trackedTriggerElement = element;
     const currentWindow = element.ownerDocument.defaultView;
+
     if (!currentWindow) return;
 
     if (shouldUseNative) {
@@ -386,6 +453,7 @@ export function ContextActions(props: ContextActionsProps) {
         selectionScrollSurfaces,
         { trackWindow: false },
       );
+
       return;
     }
 
@@ -401,8 +469,10 @@ export function ContextActions(props: ContextActionsProps) {
   const observeTriggerGeometry = (element: HTMLElement | null) => {
     triggerResizeObserver?.disconnect();
     triggerResizeObserver = null;
+
     if (!element?.isConnected) return;
     const currentWindow = element.ownerDocument.defaultView;
+
     if (!currentWindow) return;
     triggerResizeObserver = new currentWindow.ResizeObserver(() => {
       setTriggerRevision((value) => value + 1);
@@ -412,6 +482,7 @@ export function ContextActions(props: ContextActionsProps) {
 
   const bindTriggerViewportResize = () => {
     const currentWindow = ownerWindow();
+
     if (triggerResizeWindow === currentWindow) return;
     triggerResizeWindow?.removeEventListener("resize", bumpTriggerPlacement);
     triggerResizeWindow = currentWindow;
@@ -424,8 +495,10 @@ export function ContextActions(props: ContextActionsProps) {
 
   let placementTarget = currentSelectionTriggerElement();
   observeTriggerGeometry(placementTarget);
+
   const unsubscribe = props.runtime.subscribe(() => {
     const selectGestureActive = props.runtime.selectGestureActive();
+
     if (noteComposerOpen() && selectGestureActive) {
       fallbackNextSelection = true;
       resetNoteComposerState();
@@ -441,19 +514,24 @@ export function ContextActions(props: ContextActionsProps) {
 
     const nextPlacementTarget = currentSelectionTriggerElement();
     const targetChanged = nextPlacementTarget !== placementTarget;
+
     if (targetChanged) {
       placementTarget = nextPlacementTarget;
       observeTriggerGeometry(placementTarget);
+
       if (fallbackNextSelection) {
         fallbackNextSelection = false;
         fallbackTriggerElement = nextPlacementTarget;
       }
     }
+
     syncSelectionTriggerAnchor();
+
     if (targetChanged) bumpTriggerPlacement();
     setRevision((value) => value + 1);
     reconcileAnnotationGeometry();
   });
+
   syncSelectionTriggerAnchor();
   ownerWindow().queueMicrotask(syncAnnotationScrollBindings);
   onCleanup(() => {
@@ -462,82 +540,113 @@ export function ContextActions(props: ContextActionsProps) {
     triggerResizeWindow?.removeEventListener("resize", bumpTriggerPlacement);
     triggerResizeWindow = null;
     releaseSelectionTriggerAnchor();
+
     for (const annotationId of annotationScrollBindings.keys()) releaseAnnotationScrollBinding(annotationId);
     unsubscribe();
   });
 
   const selection = createMemo(() => {
     revision();
+
     return props.runtime.currentSelection();
   });
+
   const annotations = createMemo(() => {
     revision();
+
     return props.runtime.annotations();
   });
+
   const activeAnnotation = createMemo(() => {
     const id = activeAnnotationId();
+
     return id ? annotations().find((annotation) => annotation.id === id) ?? null : null;
   });
+
   const highlightedAnnotationId = createMemo(() =>
     hoveredAnnotationId() ?? focusedAnnotationId() ?? activeAnnotationId(),
   );
+
   const annotationNumber = (annotationId: string) =>
     annotations().findIndex((annotation) => annotation.id === annotationId) + 1;
+
   const annotationHighlightRects = createMemo(() => {
     revision();
     triggerRevision();
     const annotationId = highlightedAnnotationId();
+
     if (!annotationId) return [];
     const annotation = props.runtime.annotation(annotationId);
+
     if (!annotation) return [];
+
     if (annotation.anchor.kind === "region") {
       return [{ ...annotation.anchor.rect }];
     }
+
     const rects = annotation.resolvedTargets.flatMap(({ element }) => {
       if (!element?.isConnected) return [];
       const rect = element.getBoundingClientRect();
+
       return [{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }];
     });
+
     if (rects.length) return rects;
     const fallback = props.runtime.annotationRect(annotationId);
+
     return fallback ? [{ ...fallback }] : [];
   });
+
   const hasSelection = () => selection().elements.length > 0 || selection().region !== null;
+
   const composerOwnsCurrentSelection = () => {
     revision();
     const captured = composerSelection;
+
     return captured !== null && sameSelection(captured, captureSelection());
   };
+
   const selectionObstacleRects = createMemo(() => {
     const value = selection();
+
     const rects = value.elements
       .filter((element) => element.isConnected)
       .map((element) => {
         const rect = element.getBoundingClientRect();
+
         return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
       });
+
     if (value.region) rects.push({ ...value.region });
+
     return rects;
   });
+
   const selectionRect = createMemo(() => unionRects(selectionObstacleRects()));
 
   const selectionLabel = () => {
     const count = selection().elements.length;
+
     if (count > 1) return `${count} selected elements`;
+
     if (count === 1) return "Selected element";
+
     return "Selected region";
   };
 
   const annotationSelectionLabel = (value: MesurerAnnotation) => {
     if (value.anchor.kind !== "elements") return "Selected region";
+
     return `${value.anchor.targets.length} selected ${value.anchor.targets.length === 1 ? "element" : "elements"}`;
   };
 
   const selectionTriggerElement = createMemo(() => {
     triggerRevision();
     const elements = props.runtime.currentSelection().elements;
+
     if (!elements.length) return null;
     const hovered = props.runtime.hoveredElement();
+
     return elements.find((element) => element === hovered)
       ?? elements.find((element) => hovered && element.contains(hovered))
       ?? elements[0];
@@ -545,29 +654,37 @@ export function ContextActions(props: ContextActionsProps) {
 
   const selectionTriggerPosition = () => {
     const element = selectionTriggerElement();
+
     if (!element?.isConnected) return null;
     const rect = element.getBoundingClientRect();
     const value = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
     const currentWindow = ownerWindow();
     const size = 24;
+
     const markerObstacles = [...untrack(annotationMarkerPositions).values()].map((position) => ({
       left: position.left,
       top: position.top,
       width: size,
       height: size,
     }));
+
     const [placement] = layoutAnnotationMarkers(
       [{ id: "selection-note-trigger", rect: value }],
       { width: currentWindow.innerWidth, height: currentWindow.innerHeight },
       { obstacles: markerObstacles, maxShiftRings: 1 },
     );
+
     const padding = 4;
+
     const viewportLeft = placement?.left
       ?? clamp(value.left + value.width + 6, padding, currentWindow.innerWidth - size - padding);
+
     const viewportTop = placement?.top
       ?? clamp(value.top, padding, currentWindow.innerHeight - size - padding);
+
     const nativeAnchor = anchoredTriggerElement === element;
     const viewportOwned = usesViewportCoordinates() && !nativeAnchor;
+
     return {
       left: nativeAnchor || viewportOwned ? viewportLeft : viewportLeft + currentWindow.scrollX,
       top: nativeAnchor || viewportOwned ? viewportTop : viewportTop + currentWindow.scrollY,
@@ -582,10 +699,13 @@ export function ContextActions(props: ContextActionsProps) {
     revision();
     triggerRevision();
     const currentWindow = ownerWindow();
+
     const items = annotations().flatMap((annotation) => {
       const rect = props.runtime.annotationRect(annotation.id);
+
       return rect ? [{ id: annotation.id, rect }] : [];
     });
+
     return new Map(
       layoutAnnotationMarkers(items, {
         width: currentWindow.innerWidth,
@@ -604,10 +724,13 @@ export function ContextActions(props: ContextActionsProps) {
   ): SurfacePlacement => {
     triggerRevision();
     const binding = annotationScrollBindings.get(annotationId);
+
     if (!binding?.anchorName || !binding.target.isConnected) {
       return { ...documentPosition(position), nativeAnchor: false };
     }
+
     const targetRect = binding.target.getBoundingClientRect();
+
     return {
       ...position,
       nativeAnchor: true,
@@ -623,13 +746,16 @@ export function ContextActions(props: ContextActionsProps) {
     const width = 272;
     const height = 168;
     const offset = composerPosition();
+
     if (offset && value) {
       return {
         left: value.left + offset.left,
         top: value.top + offset.top,
       };
     }
+
     if (!value) return { left: 8, top: 8 };
+
     return placeComposerNear(value, width, height, currentWindow);
   };
 
@@ -637,10 +763,13 @@ export function ContextActions(props: ContextActionsProps) {
     triggerRevision();
     const position = notePanelPosition();
     const target = selectionTriggerElement();
+
     if (!target?.isConnected || anchoredTriggerElement !== target) {
       return { ...documentPosition(position), nativeAnchor: false };
     }
+
     const rect = target.getBoundingClientRect();
+
     return {
       ...position,
       nativeAnchor: true,
@@ -659,39 +788,51 @@ export function ContextActions(props: ContextActionsProps) {
     const panelHeight = 176;
     const positions = annotationMarkerPositions();
     const activeMarker = positions.get(annotationId);
+
     if (!activeMarker) return placeSurfaceNear(value, panelWidth, panelHeight, currentWindow);
 
     const maxLeft = currentWindow.innerWidth - panelWidth - padding;
     const maxTop = currentWindow.innerHeight - panelHeight - padding;
+
     const markerRects = [...positions.values()].map((position) => ({
       left: position.left,
       top: position.top,
       width: markerSize,
       height: markerSize,
     }));
+
     const overlapArea = (left: PositionedRect, right: PositionedRect) => {
       const width = Math.max(0, Math.min(left.left + left.width, right.left + right.width) - Math.max(left.left, right.left));
       const height = Math.max(0, Math.min(left.top + left.height, right.top + right.height) - Math.max(left.top, right.top));
+
       return width * height;
     };
+
     const seen = new Set<string>();
-    const candidates = [
+    const candidates: Array<{ left: number; top: number }> = [];
+
+    for (const candidate of [
       { left: activeMarker.left + markerSize + panelGap, top: activeMarker.top },
       { left: activeMarker.left - panelWidth - panelGap, top: activeMarker.top },
       { left: activeMarker.left, top: activeMarker.top + markerSize + panelGap },
       { left: activeMarker.left, top: activeMarker.top - panelHeight - panelGap },
-    ].map((candidate) => ({
-      left: clamp(candidate.left, padding, maxLeft),
-      top: clamp(candidate.top, padding, maxTop),
-    })).filter((candidate) => {
-      const key = `${candidate.left}:${candidate.top}`;
-      if (seen.has(key)) return false;
+    ]) {
+      const positioned = {
+        left: clamp(candidate.left, padding, maxLeft),
+        top: clamp(candidate.top, padding, maxTop),
+      };
+
+      const key = `${positioned.left}:${positioned.top}`;
+
+      if (seen.has(key)) continue;
       seen.add(key);
-      return true;
-    });
+      candidates.push(positioned);
+    }
+
     const ranked = candidates.map((candidate, index) => {
       const rect = { ...candidate, width: panelWidth, height: panelHeight };
       const markerOverlap = markerRects.reduce((total, marker) => total + overlapArea(rect, marker), 0);
+
       return {
         candidate,
         markerOverlap,
@@ -709,24 +850,29 @@ export function ContextActions(props: ContextActionsProps) {
 
   const panelPosition = (annotationId: string) => {
     const value = props.runtime.annotationRect(annotationId);
+
     if (!value) return { left: 8, top: 8 };
     const offset = panelPositions()[annotationId];
+
     if (offset) {
       return {
         left: value.left + offset.left,
         top: value.top + offset.top,
       };
     }
+
     return defaultPanelPosition(annotationId, value);
   };
 
   const freezePanelPosition = (annotationId: string) => {
     ownerWindow().queueMicrotask(() => {
       const value = props.runtime.annotationRect(annotationId);
+
       if (!value) return;
       setPanelPositions((positions) => {
         if (positions[annotationId]) return positions;
         const initial = defaultPanelPosition(annotationId, value);
+
         return {
           ...positions,
           [annotationId]: {
@@ -755,8 +901,10 @@ export function ContextActions(props: ContextActionsProps) {
   const startSurfaceDrag = (event: PointerEvent & { currentTarget: HTMLDivElement }, surfaceId: string) => {
     const ElementCtor = event.currentTarget.ownerDocument.defaultView?.Element;
     const target = event.target;
+
     if (event.button !== 0 || (ElementCtor && target instanceof ElementCtor && target.closest("button"))) return;
     const panel = event.currentTarget.parentElement;
+
     if (!panel) return;
     const rect = panel.getBoundingClientRect();
     const currentWindow = ownerWindow();
@@ -782,10 +930,12 @@ export function ContextActions(props: ContextActionsProps) {
       const drag = surfaceDrag;
       const maxLeft = Math.max(8, currentWindow.innerWidth - drag.width - 8);
       const maxTop = Math.max(8, currentWindow.innerHeight - drag.height - 8);
+
       const position = {
         left: clamp(drag.originLeft + next.clientX - drag.startX, 8, maxLeft),
         top: clamp(drag.originTop + next.clientY - drag.startY, 8, maxTop),
       };
+
       if (surfaceId === "composer") {
         const value = selectionRect();
         setComposerPosition(value ? {
@@ -794,6 +944,7 @@ export function ContextActions(props: ContextActionsProps) {
         } : null);
       } else {
         const value = props.runtime.annotationRect(surfaceId);
+
         if (!value) return;
         setPanelPositions((positions) => ({
           ...positions,
@@ -804,6 +955,7 @@ export function ContextActions(props: ContextActionsProps) {
         }));
       }
     };
+
     const end = (next: PointerEvent) => {
       if (!surfaceDrag || next.pointerId !== event.pointerId) return;
       root.style.userSelect = previousUserSelect;
@@ -814,6 +966,7 @@ export function ContextActions(props: ContextActionsProps) {
       setDraggingSurfaceId(null);
       surfaceDragCleanup = null;
     };
+
     currentWindow.addEventListener("pointermove", move);
     currentWindow.addEventListener("pointerup", end);
     currentWindow.addEventListener("pointercancel", end);
@@ -836,6 +989,7 @@ export function ContextActions(props: ContextActionsProps) {
     if (busy()) return;
     setBusy(true);
     setStatus(null);
+
     try {
       await action();
       setStatus(success);
@@ -857,6 +1011,7 @@ export function ContextActions(props: ContextActionsProps) {
     setStatus(null);
     setActiveAnnotationId(null);
     const value = selectionRect();
+
     if (value) {
       const initial = placeComposerNear(value, 272, 168, ownerWindow());
       setComposerPosition({
@@ -866,6 +1021,7 @@ export function ContextActions(props: ContextActionsProps) {
     } else {
       setComposerPosition(null);
     }
+
     setNoteComposerOpen(true);
     ownerWindow().queueMicrotask(() => nestedTriggerScroll?.sync());
   };
@@ -873,6 +1029,7 @@ export function ContextActions(props: ContextActionsProps) {
   const closeNoteComposer = () => {
     const wasOpen = noteComposerOpen();
     const changedSelection = composerSelection !== null && !sameSelection(composerSelection, captureSelection());
+
     if (changedSelection) {
       fallbackTriggerElement = currentSelectionTriggerElement();
       fallbackNextSelection = false;
@@ -881,6 +1038,7 @@ export function ContextActions(props: ContextActionsProps) {
     } else if (wasOpen) {
       fallbackNextSelection = false;
     }
+
     resetNoteComposer();
   };
 
@@ -914,6 +1072,7 @@ export function ContextActions(props: ContextActionsProps) {
     closeNoteComposer,
     abandonNoteComposer,
   };
+
   props.onController?.(controller);
   onCleanup(() => props.onController?.(null));
 
@@ -1017,6 +1176,7 @@ export function ContextActions(props: ContextActionsProps) {
                   event.preventDefault();
                   addNote();
                 }
+
                 if (event.key === "Escape") {
                   event.preventDefault();
                   closeNoteComposer();
@@ -1038,12 +1198,15 @@ export function ContextActions(props: ContextActionsProps) {
 
       <For each={annotationHighlightRects()}>{(rect) => {
         const annotationId = () => highlightedAnnotationId();
+
         const placement = () => {
           const id = annotationId();
+
           return id
             ? nativeAnnotationPlacement(id, { left: rect.left, top: rect.top })
             : { ...documentPosition({ left: rect.left, top: rect.top }), nativeAnchor: false };
         };
+
         return (
           <div
             data-mesurer-layer="chrome"
@@ -1075,12 +1238,16 @@ export function ContextActions(props: ContextActionsProps) {
 
       <For each={annotations()}>{(annotation, index) => {
         const position = () => markerPosition(annotation.id);
+
         const placement = () => {
           const value = position();
+
           return value ? nativeAnnotationPlacement(annotation.id, value) : null;
         };
+
         const highlighted = () => highlightedAnnotationId() === annotation.id;
         const muted = () => highlightedAnnotationId() !== null && !highlighted();
+
         return (
           <Show when={placement()}>{(value) => (
             <button
@@ -1157,6 +1324,7 @@ export function ContextActions(props: ContextActionsProps) {
       <Show when={activeAnnotation()}>{(annotation) => {
         const placement = () => panelPlacement(annotation().id);
         const number = () => annotationNumber(annotation().id);
+
         return (
           <div
             data-mesurer-layer="chrome"
@@ -1205,6 +1373,7 @@ export function ContextActions(props: ContextActionsProps) {
                   setPanelPositions((positions) => {
                     const next = { ...positions };
                     delete next[annotationId];
+
                     return next;
                   });
                   releaseAnnotationScrollBinding(annotationId);

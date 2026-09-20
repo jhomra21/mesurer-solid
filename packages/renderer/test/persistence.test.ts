@@ -15,6 +15,7 @@ describe("persistence", () => {
       guideStyle: { opacity: 5, width: 0, pattern: "dotted" },
       selectionSpacingStyle: { enabled: false, color: "#ff00aa", diagonals: true, opacity: -1, width: 9, pattern: "dashed", dashLength: 99, gap: -4 },
     });
+
     expect(settings.snapEnabled).toBe(false);
     expect(settings.shortcutsEnabled).toBe(false);
     expect(settings.colorPickerFormats).toEqual(["hex", "oklch"]);

@@ -1,15 +1,19 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
 const packageDir = new URL("../", import.meta.url);
+
 const stageDir = new URL("../.publish/", import.meta.url);
+
 const packageJson = JSON.parse(readFileSync(new URL("package.json", packageDir), "utf8"));
 
 rmSync(stageDir, { recursive: true, force: true });
+
 mkdirSync(stageDir, { recursive: true });
 
 for (const path of [
   "dist",
   "skills",
+  "codex",
   "scripts/install-skill.mjs",
   "scripts/codex-bridge.mjs",
   "scripts/codex-connect.mjs",
@@ -23,16 +27,21 @@ for (const path of [
 }
 
 const published = { ...packageJson, name: "mesurer-solid" };
+
 delete published.scripts;
+
 delete published.devDependencies;
+
 delete published.dependencies;
 
 writeFileSync(new URL("package.json", stageDir), `${JSON.stringify(published, null, 2)}\n`, "utf8");
 
 const serialized = JSON.stringify(published);
+
 for (const privateName of ["@jhomra21/mesurer-solid-core", "@jhomra21/mesurer-solid-dom", "@jhomra21/mesurer-solid-renderer"]) {
   if (serialized.includes(privateName)) throw new Error(`Staged package metadata leaked private package name: ${privateName}`);
 }
+
 if (published.name !== "mesurer-solid") throw new Error(`Unexpected staged package name: ${published.name}`);
 
 console.log(`Staged ${published.name}@${published.version} in packages/mesurer/.publish`);

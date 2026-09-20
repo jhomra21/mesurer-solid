@@ -50,6 +50,7 @@ test("updates only the package version and preserves manifest formatting", () =>
   }
 }
 `;
+
   const expected = input.replace('"version": "0.1.0-beta.2"', '"version": "0.1.0-beta.3"');
   assert.equal(updatePackageVersion(input, "0.1.0-beta.2", "0.1.0-beta.3"), expected);
   assert.throws(() => updatePackageVersion(input, "0.1.0-beta.1", "0.1.0-beta.3"));
@@ -65,9 +66,11 @@ test("moves Unreleased entries into a versioned section", () => {
 
 test("promotes the prerelease train notes into the stable release", () => {
   const input = `# Changelog\n\n## Unreleased\n\n<!-- Add user-facing changes here before preparing a release. -->\n\n## 0.1.1-beta.1 - 2026-08-28\n\n- No user-facing changes.\n\n## 0.1.1-beta.0 - 2026-08-28\n\n- Add screenshot capture.\n\n## 0.1.0 - 2026-08-28\n\n- Previous stable.\n`;
+
   const output = updateChangelog(input, "0.1.1", "2026-08-29", {
     includePrereleaseNotes: true,
   });
+
   assert.equal(releaseNotes(output, "0.1.1"), "- Add screenshot capture.");
   assert.equal(releaseNotes(output, "0.1.1-beta.1"), "- No user-facing changes.");
   assert.equal(releaseNotes(output, "0.1.1-beta.0"), "- Add screenshot capture.");
@@ -75,9 +78,11 @@ test("promotes the prerelease train notes into the stable release", () => {
 
 test("combines new Unreleased notes with prerelease train notes on stable promotion", () => {
   const input = `# Changelog\n\n## Unreleased\n\n<!-- Add user-facing changes here before preparing a release. -->\n\n- Polish screenshot docs.\n\n## 0.1.1-rc.0 - 2026-08-29\n\n- Add release hardening.\n\n## 0.1.1-beta.0 - 2026-08-28\n\n- Add screenshot capture.\n\n## 0.1.0 - 2026-08-28\n\n- Previous stable.\n`;
+
   const output = updateChangelog(input, "0.1.1", "2026-08-30", {
     includePrereleaseNotes: true,
   });
+
   assert.equal(
     releaseNotes(output, "0.1.1"),
     "- Polish screenshot docs.\n- Add release hardening.\n- Add screenshot capture.",
@@ -86,9 +91,11 @@ test("combines new Unreleased notes with prerelease train notes on stable promot
 
 test("does not duplicate an exact Unreleased note block during stable promotion", () => {
   const input = `# Changelog\n\n## Unreleased\n\n- Add screenshot capture.\n\n## 0.1.1-beta.0 - 2026-08-28\n\n- Add screenshot capture.\n`;
+
   const output = updateChangelog(input, "0.1.1", "2026-08-29", {
     includePrereleaseNotes: true,
   });
+
   assert.equal(releaseNotes(output, "0.1.1"), "- Add screenshot capture.");
 });
 
@@ -104,5 +111,6 @@ test("uses explicit no-user-facing-changes notes when Unreleased is empty", () =
     "0.1.0-beta.3",
     "2026-08-21",
   );
+
   assert.equal(releaseNotes(output, "0.1.0-beta.3"), "- No user-facing changes.");
 });

@@ -25,7 +25,9 @@ afterEach(async () => {
 
 const liveButton = (label: string) => {
   const button = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+
   if (!button) throw new Error(`Expected live toolbar button: ${label}`);
+
   return button;
 };
 
@@ -43,6 +45,7 @@ describe("Arrange Select dependency", () => {
       />,
       hostElement,
     );
+
     mounted.push(dispose);
 
     await vi.waitFor(() => expect(document.querySelector('button[aria-label="Select (S)"]')).toBeTruthy());

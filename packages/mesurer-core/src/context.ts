@@ -107,6 +107,7 @@ export const unionMesurerRects = (values: readonly Rect[]): Rect | null => {
   const top = Math.min(...values.map((value) => value.top));
   const right = Math.max(...values.map((value) => value.left + value.width));
   const bottom = Math.max(...values.map((value) => value.top + value.height));
+
   return { left, top, width: right - left, height: bottom - top };
 };
 
@@ -136,6 +137,7 @@ export function selectMesurerRelevantEvidence<ElementRef>(options: {
   guideTolerance: number;
 }): MesurerRelevantEvidence<ElementRef> {
   const { workspace, scope, guideTolerance } = options;
+
   if (scope.kind === "workspace") {
     return {
       guides: workspace.guides.map((guide) => ({ ...guide })),
@@ -145,8 +147,10 @@ export function selectMesurerRelevantEvidence<ElementRef>(options: {
   }
 
   const elementSet = new Set(scope.elements);
+
   const matchesElement = (element: ElementRef | null | undefined) =>
     element !== null && element !== undefined && elementSet.has(element);
+
   const matchesRect = (value: Rect) =>
     scope.regions.some((region) => mesurerRectsOverlap(value, region));
 
@@ -174,6 +178,7 @@ export function createMesurerAnnotationBaseline<ElementRef>(options: {
   const { targets, elements = [], region = null, workspace, guideTolerance } = options;
   const targetRegion = unionMesurerRects(targets.map((target) => target.lastRect));
   const regions = targetRegion ? [targetRegion] : region ? [region] : [];
+
   const evidence = selectMesurerRelevantEvidence({
     workspace,
     scope: { kind: "scoped", elements, regions },
@@ -194,7 +199,9 @@ export function createMesurerAnnotationBaseline<ElementRef>(options: {
         deltaX: measurement.deltaX,
         deltaY: measurement.deltaY,
       };
+
       if (measurement.snapped !== undefined) value.snapped = measurement.snapped;
+
       return value;
     }),
     distances: evidence.distances.map((distance) => ({

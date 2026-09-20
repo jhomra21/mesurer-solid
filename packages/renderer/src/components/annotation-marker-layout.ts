@@ -66,6 +66,7 @@ const candidateGroups = (
 ): CandidateGroup[] => {
   const right = rect.left + rect.width;
   const bottom = rect.top + rect.height;
+
   const groups: CandidateGroup[] = [
     {
       axis: "vertical",
@@ -100,6 +101,7 @@ const candidateGroups = (
       ],
     },
   ];
+
   return viewportAware
     ? groups.sort((left, right) => right.space - left.space)
     : groups;
@@ -115,14 +117,17 @@ const localCandidates = (
   maxShiftRings: number,
 ) => {
   const points: Array<{ left: number; top: number }> = [];
+
   for (let ring = 0; ring <= maxShiftRings; ring += 1) {
     const offset = ring * step;
+
     for (const group of groups) {
       for (const point of group.points) {
         if (ring === 0) {
           points.push(point);
           continue;
         }
+
         if (group.axis === "vertical") {
           points.push(
             { left: point.left, top: point.top + offset },
@@ -137,6 +142,7 @@ const localCandidates = (
       }
     }
   }
+
   return points;
 };
 
@@ -175,6 +181,7 @@ export function layoutAnnotationMarkers(
     const seen = new Set<string>();
     const candidates: Array<{ left: number; top: number }> = [];
     const groups = candidateGroups(item.rect, viewport, markerSize, targetGap, viewportAware);
+
     for (const point of localCandidates(groups, step, maxShiftRings)) {
       const normalized = viewportAware
         ? {
@@ -182,7 +189,9 @@ export function layoutAnnotationMarkers(
             top: clamp(point.top, viewportPadding, maxTop),
           }
         : point;
+
       const key = `${normalized.left}:${normalized.top}`;
+
       if (seen.has(key)) continue;
       seen.add(key);
       candidates.push(normalized);
@@ -190,14 +199,18 @@ export function layoutAnnotationMarkers(
 
     const valid = candidates.filter((candidate) => {
       const box = { ...candidate, width: markerSize, height: markerSize };
+
       return targetRects.every((target) => !overlaps(box, target, targetClearance))
         && obstacles.every((obstacle) => !overlaps(box, obstacle, markerGap));
     });
+
     const chosen = valid.find((candidate) => {
       const box = { ...candidate, width: markerSize, height: markerSize };
+
       return occupied.every((current) => !overlaps(box, current, markerGap));
     }) ?? valid.find((candidate) => {
       const box = { ...candidate, width: markerSize, height: markerSize };
+
       return occupied.every((current) => !overlaps(box, current));
     }) ?? valid[0] ?? candidates[0] ?? { left: viewportPadding, top: viewportPadding };
 

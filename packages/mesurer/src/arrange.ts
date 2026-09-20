@@ -10,9 +10,13 @@ import type { MesurerPlugin } from "./core";
 import { MESURER_VERSION } from "./version";
 
 export const MESURER_ARRANGE_ACTIVE_STATE_ID: string = rendererActiveStateId;
+
 export const MESURER_ARRANGE_PLUGIN_ID: string = rendererPluginId;
+
 export const MESURER_ARRANGE_SERVICE_ID: string = rendererServiceId;
+
 export const MESURER_ARRANGE_SETTINGS_STATE_ID: string = rendererSettingsStateId;
+
 export const MESURER_ARRANGE_STATE_ID: string = rendererStateId;
 
 export type ArrangeRect = {

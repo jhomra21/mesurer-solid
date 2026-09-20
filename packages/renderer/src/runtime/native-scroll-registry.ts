@@ -10,10 +10,12 @@ export const registerNativeScrollAnchoring = (ownerDocument: Document) => {
     (nativeScrollAnchoringCounts.get(ownerDocument) ?? 0) + 1,
   );
   let released = false;
+
   return () => {
     if (released) return;
     released = true;
     const next = (nativeScrollAnchoringCounts.get(ownerDocument) ?? 1) - 1;
+
     if (next > 0) nativeScrollAnchoringCounts.set(ownerDocument, next);
     else nativeScrollAnchoringCounts.delete(ownerDocument);
   };

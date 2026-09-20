@@ -3,7 +3,7 @@
 Mesurer has two screenshot paths:
 
 - the optional `mesurer.screenshot` plugin is a human camera tool;
-- coding-agent evidence uses Context capture planning while the outer browser harness owns the screenshot bytes.
+- coding-agent evidence uses Context capture planning while the browser controller owns the screenshot bytes.
 
 They share Mesurer's capture-presentation rules but solve different problems.
 
@@ -23,7 +23,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-The plugin contributes the camera tool and `Shift+S`. It owns region selection, output settings, HiDPI cropping, capture status, thumbnail preview, viewer, service, commands, state, and cleanup.
+The plugin adds the camera tool and `Shift+S`. It owns region selection, output settings, HiDPI cropping, capture status, thumbnail preview, viewer, service, commands, state, and cleanup.
 
 Settings include:
 
@@ -36,22 +36,18 @@ The camera chevron exposes Auto-copy, Auto-download, and Include measurements th
 
 ## Capture a region
 
-```text
-camera / Shift+S
-  → drag viewport region
-  → hide Mesurer control chrome
-  → capture visible page
-  → crop the selected region
-  → restore Mesurer presentation
-  → attempt configured outputs
-  → show status + thumbnail
-```
+1. Open the camera or press `Shift+S`.
+2. Drag a viewport region.
+3. Mesurer hides its control UI and captures the visible page.
+4. Mesurer crops the selected region from the captured bitmap.
+5. Mesurer restores its presentation.
+6. It runs the enabled copy/download outputs and shows the result thumbnail.
 
 Cropping uses the captured bitmap dimensions rather than assuming `devicePixelRatio`, so the selected CSS rectangle stays aligned when the provider's bitmap scale differs.
 
 Mesurer control chrome is excluded from the camera subject. That includes the selection overlay, toolbar, direct text editor and formatting controls, semantic preset popup, contextual Typography card, screenshot preview/viewer, and status UI.
 
-A committed Desired preview can still be visible because it is page presentation, not control chrome. For proof of source-rendered output, switch relevant Arrange or text intent to Live before capturing.
+A committed Desired preview can still be visible because it changes page presentation rather than Mesurer controls. To prove source-rendered output, switch relevant Arrange or text intent to Live before capturing.
 
 ## Outputs and preview
 
@@ -83,29 +79,47 @@ Do not reinject over a live human instance merely to change Screenshot availabil
 
 ## Typed service
 
-Mounted integrations can resolve `MesurerScreenshotService` from plugin service id `screenshot`:
+Mounted integrations can resolve `MesurerScreenshotService` from plugin service id `screenshot`.
 
-```text
-active()
-settings()
-setSettings(patch)
-start()
-cancel()
-capture(rect)
-```
+| Method | Result |
+| --- | --- |
+| `active()` | Report whether the Screenshot tool is active. |
+| `settings()` | Read the current Screenshot settings. |
+| `setSettings(patch)` | Update Screenshot settings. |
+| `start()` | Enter region-selection mode. |
+| `cancel()` | Cancel the active Screenshot interaction. |
+| `capture(rect)` | Capture one viewport rectangle and return the screenshot result. |
 
-This service is plugin-local and is not part of the JSON-safe `window.__MESURER__` context capability list.
+This service is plugin-local and is not part of the JSON-safe `window.__MESURER__` Context capability list.
+
+## Low-level screenshot utilities
+
+`mesurer-solid/plugins` also exports the utilities used by the first-party Screenshot plugin. Most applications do not need these when `screenshot()` is mounted.
+
+| Export | Use |
+| --- | --- |
+| `captureVisibleTabPng` | Capture a visible-tab PNG through the normal browser capture provider. |
+| `copyPngToClipboard` | Copy PNG data to the clipboard. |
+| `createScreenshotFilename` | Create the default timestamped screenshot filename. |
+| `cropPngToViewportRect` | Crop captured PNG data to a CSS viewport rectangle using the captured bitmap dimensions. |
+| `normalizeScreenshotRect` | Normalize two drag points into a viewport-bounded screenshot rectangle. |
+| `prepareScreenshotCapture` | Hide Mesurer control UI before capture. |
+| `releaseScreenshotCapture` | Restore Mesurer control UI after capture. |
+| `waitForNextPaint` | Wait for the next browser paint before capture work continues. |
+| `MIN_SCREENSHOT_SELECTION` | Minimum accepted region-selection size used by the Screenshot tool. |
+
+Advanced plugin integrations can also import the public Screenshot plugin, service, active-state, and settings-state ids.
 
 ## Agent screenshot evidence
 
-For coding-agent verification, Mesurer prepares the presentation while the existing harness owns the pixels:
+For coding-agent verification, Mesurer prepares the presentation while the existing browser controller owns the pixels:
 
 ```js
 const plan = await window.__MESURER__.capturePlan({ scope: "selection" })
 
 await window.__MESURER__.prepareCapture()
 try {
-  // existing harness screenshot
+  // existing browser controller screenshot
 } finally {
   await window.__MESURER__.finishCapture()
 }

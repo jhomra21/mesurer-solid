@@ -8,19 +8,19 @@ The visible inspection tool is **Typography**. Its internal built-in id remains 
 
 Direct editing works while Select or Typography is active. Arrange keeps Select active, so the same interaction also works while arranging.
 
-Double-click ordinary direct text on desktop, or double-tap with touch or pen. Mesurer keeps the rendered host element as the visible editing surface, selects the existing text so typing replaces it immediately, and shows a blinking caret at the host text position once the selection collapses.
+Double-click ordinary direct text on desktop, or double-tap with touch or pen. Mesurer keeps the rendered host element as the visible editor, selects the existing text so typing replaces it immediately, and shows a blinking caret at the host text position once the selection collapses.
 
-When editing begins from Select or Arrange, Typography becomes contextually active for that field without replacing Select. If Typography was already explicitly selected, the normal hover/pinned Typography surface is temporarily suppressed so the field has one live card. Ending the edit restores the normal Typography surface and keeps the explicitly selected tool active.
+When editing begins from Select or Arrange, Typography becomes contextually active for that field without replacing Select. If Typography was already explicitly selected, the normal hover/pinned Typography UI is temporarily suppressed so the field has one live card. Ending the edit restores the normal Typography UI and keeps the explicitly selected tool active.
 
-Direct edit also becomes the sole visible selection owner for that source. The ordinary selected MeasurementBox stays logically mounted for selection state and geometry, but its duplicate border is paint-suppressed while the direct-edit ring is active. The selected dimensions pill remains available, and when Typography is placed beneath the source Mesurer keeps the visible source → pill gap and pill → Typography gap symmetric at `2px / 2px`.
+Direct edit owns the visible selection UI for that source. The ordinary selected MeasurementBox stays logically mounted for selection state and geometry, but its duplicate border is paint-suppressed while the direct-edit ring is active. The selected dimensions pill remains available. When Typography is beneath the source, Mesurer keeps a 2px gap from the source to the pill and another 2px gap from the pill to Typography.
 
 The selection-adjacent **Add Note** annotation button is intentionally hidden for the actively edited selection. Direct edit owns that contextual action lane, so the button cannot overlap the dimensions pill while the user's intent is text editing. Existing saved annotation markers and panels are not hidden, and the Add Note button returns automatically when the editor closes.
 
-That one contextual card is also the direct formatting surface. Family, Size, Weight, Line, and Tracking are live controls; Format contains Bold, Italic, and Underline; Color contains rendered-page swatches plus a custom color; and Style opens the available Text/Heading presets inside the same card. The card stays visible during the edit and is initially positioned around the active text without covering it. When full-height placement is impossible in a constrained viewport, the card uses the available lane and scrolls internally rather than disappearing below the viewport or obscuring the field.
+That one contextual card is also the direct formatting card. Family, Size, Weight, Line, and Tracking are live controls; Format contains Bold, Italic, and Underline; Color contains rendered-page swatches plus a custom color; and Style opens the available Text/Heading presets inside the same card. The card stays visible during the edit and is initially positioned around the active text without covering it. When full-height placement is impossible in a constrained viewport, the card uses the available lane and scrolls internally rather than disappearing below the viewport or obscuring the field.
 
-Custom Family, Size, and Weight menus stay attached to their trigger when that constrained Typography card scrolls internally. The popup remains part of the Typography interaction surface instead of becoming independent viewport furniture, and ordinary page scrolling still moves the source-linked card and its open popup together.
+Custom Family, Size, and Weight menus stay attached to their trigger when that constrained Typography card scrolls internally. The popup remains part of the Typography interaction UI instead of becoming independent viewport furniture, and ordinary page scrolling still moves the source-linked card and its open popup together.
 
-Typography has two deliberately separate ownership rules. **Interaction ownership belongs to Mesurer:** the card and its controls are inspector UI, never inspectable page content, and form a hard hit-test boundary so clicking or double-clicking them cannot select the card itself or retarget page content underneath. **Geometry ownership belongs to the inspected text:** while the source is visible the card is placed around that source, then scrolls with it; when the source leaves the viewport the contextual card leaves with it instead of remaining as unrelated viewport furniture. Ordinary pointer movement does not reposition the card. The global toolbar and its Settings surface remain viewport-owned UI.
+Typography has separate rules for interaction and geometry. Mesurer owns interaction with the card and its controls. They are inspector UI, not page content, and block hit testing through to the page underneath. Geometry follows the inspected text. The card is placed around the source while it is visible and scrolls with it. When the source leaves the viewport, the card leaves with it. Ordinary pointer movement does not reposition the card. The global toolbar and Settings remain fixed to the viewport.
 
 ## What can be edited
 
@@ -35,7 +35,7 @@ It leaves these under browser/application control:
 
 Editability follows browser semantics. Descendants of `contenteditable="true"`, `contenteditable=""`, or `contenteditable="plaintext-only"` stay native even when the descendant has no attribute. A nested `contenteditable="false"` boundary ends that inherited editable region; text inside that boundary can use Mesurer editing when the normal direct-text-run rules pass.
 
-Mesurer does not expose link creation, lists, node insertion/removal, or other structural rich-text controls until there is a real structural intent model for them. Editing text around an existing inline child does not flatten, remove, or recreate that child.
+Mesurer does not expose link creation, lists, node insertion or removal, or other structural rich-text controls. The current intent model covers direct text and typography only. Editing text around an existing inline child does not flatten, remove, or recreate that child.
 
 ## Formatting
 
@@ -89,7 +89,7 @@ Arrange has the matching **Keep Arrange changes** switch in the same General pan
 
 Each saved edit records the original target, Before text, Desired text, and requested style deltas. Desired presentation is tool-owned by default as described above; application source remains unchanged in either presentation.
 
-Undo and redo update the rendered preview only while Mesurer still owns the current value. If Mesurer changed `Original → First → Second`, undo can move the DOM from `Second` back to `First` when `Second` is still the value Mesurer applied. Style ownership uses the same rule and includes inline priority.
+Undo and redo update the rendered preview only while the DOM still contains the value Mesurer applied. If Mesurer changed Original to First and then Second, undo can move the DOM from Second back to First when Second is still the value Mesurer applied. Style ownership uses the same rule and includes inline priority.
 
 If the application changes the text or inline style itself, Mesurer relinquishes ownership and leaves that host-authored value alone through later history changes, cleanup, or disposal.
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   expectedDimensionsLabelBand,
   resolveMeasurementAwareInspectorPlacement,
-} from "../src/runtime/text-editing-measurement-label-clearance";
+} from "../src/runtime/text-editing/measurement-label-clearance";
 
 const host = {
   left: 193,
@@ -12,6 +12,7 @@ const host = {
   width: 440,
   height: 50,
 };
+
 const label = {
   left: 361,
   top: 167,
@@ -20,7 +21,9 @@ const label = {
   width: 104,
   height: 20,
 };
+
 const card = { width: 720, height: 655 };
+
 const viewport = { width: 828, height: 900 };
 
 describe("Typography dimensions-pill clearance", () => {

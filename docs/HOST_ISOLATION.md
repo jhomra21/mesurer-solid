@@ -20,7 +20,7 @@ mounted.hostLayer // "top-layer" | "fixed"
 
 ## Later overlays and modals
 
-A page can open another popover or enter fullscreen after Mesurer mounts. Mesurer observes relevant top-layer changes and reasserts its inspection surface. Integrations can do the same explicitly:
+A page can open another popover or enter fullscreen after Mesurer mounts. Mesurer observes relevant top-layer changes and reasserts its inspector UI. Integrations can do the same explicitly:
 
 ```ts
 mounted.bringToFront()
@@ -58,7 +58,7 @@ Package smoke exercises the exact packed npm artifact under adversarial host con
 
 Rendered browser contracts separately exercise direct editing, Typography, Arrange, Screenshot, and Context document ownership. Context coverage includes source-attached window and nested scrolling, repeated-note marker placement, one clean annotation ownership edge, and create/saved annotation cards occluding real Select hover in a non-isolated browser top-layer host.
 
-The goal is to defend browser primitives that many sites compose, not to special-case individual websites.
+The goal is to defend browser behavior that many sites compose, not to special-case individual websites.
 
 ## Limits
 
@@ -66,6 +66,6 @@ No in-page library can guarantee visibility against browser chrome, DevTools, ho
 
 Within a normal same-document modern browser application, ordinary CSS, stacking contexts, clipping, overlays, later top-layer changes, observable modal dialogs, and Mesurer-owned transient UI should not silently hide the inspector or make it unusable.
 
-When an occlusion regression appears, reduce it to the browser primitive that caused it and fix the shared mount/plugin/renderer boundary. Do not add a hostname-specific workaround.
+When an occlusion regression appears, reduce it to the browser behavior that caused it and fix the shared mount/plugin/renderer boundary. Do not add a hostname-specific workaround.
 
 Trusted Types is a separate DOM-construction contract; see [Trusted Types](./TRUSTED_TYPES.md).

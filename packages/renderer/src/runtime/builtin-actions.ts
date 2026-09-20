@@ -8,7 +8,9 @@ import {
 } from "./color-picker-support";
 
 type EyeDropperResult = { sRGBHex: string };
+
 type EyeDropperLike = { open: () => Promise<EyeDropperResult> };
+
 type WindowWithEyeDropper = Window & { EyeDropper?: new () => EyeDropperLike };
 
 const COLOR_PICKER_USABLE_OPEN_MS = 200;
@@ -75,6 +77,7 @@ export function createMesurerBuiltinController(options: {
   const openColorPicker = async () => {
     if (!supportsNativeColorPicker(ownerWindow)) {
       dismissColorPicker(model);
+
       return;
     }
 
@@ -89,10 +92,12 @@ export function createMesurerBuiltinController(options: {
     });
 
     const openedAt = ownerWindow.performance.now();
+
     let activationTimer = ownerWindow.setTimeout(() => {
       activationTimer = 0;
       model.setTransient({ colorPickerActive: true });
     }, COLOR_PICKER_USABLE_OPEN_MS);
+
     const clearActivationTimer = () => {
       if (!activationTimer) return;
       ownerWindow.clearTimeout(activationTimer);
@@ -103,24 +108,32 @@ export function createMesurerBuiltinController(options: {
       const result = await new EyeDropper().open();
       clearActivationTimer();
       const sample = parseCssColor(result.sRGBHex);
+
       if (!sample) {
         dismissColorPicker(model);
+
         return;
       }
+
       commitColorSample(model, ownerWindow, sample);
     } catch (cause) {
       clearActivationTimer();
       const elapsed = ownerWindow.performance.now() - openedAt;
       // SAFETY: ownerWindow is the realm that owns EyeDropper and therefore its DOMException constructor.
       const DOMExceptionCtor = (ownerWindow as Window & typeof globalThis).DOMException;
+
       if (cause instanceof DOMExceptionCtor && cause.name === "AbortError") {
         if (elapsed < COLOR_PICKER_USABLE_OPEN_MS) {
           retireColorPicker(model, ownerWindow);
+
           return;
         }
+
         dismissColorPicker(model);
+
         return;
       }
+
       retireColorPicker(model, ownerWindow);
     }
   };
@@ -130,29 +143,37 @@ export function createMesurerBuiltinController(options: {
       switch (id) {
         case "select":
           activateMode(model, "select");
+
           return;
         case "xray":
           model.setEnabled(true);
           dismissColorPicker(model);
           model.toggleXray();
+
           return;
         case "color-picker":
           if (model.current.colorPickerActive) {
             dismissColorPicker(model);
+
             return;
           }
+
           await openColorPicker();
+
           return;
         case "rulers":
           model.setEnabled(true);
           dismissColorPicker(model);
           model.toggleRulers();
+
           return;
         case "text-inspector":
           activateMode(model, "text-inspector");
+
           return;
         case "guides":
           activateMode(model, "guides");
+
           return;
         case "settings": {
           const open = !model.current.settingsOpen;
@@ -160,6 +181,7 @@ export function createMesurerBuiltinController(options: {
             settingsOpen: open,
             settingsTab: open ? settingsTab(model) : model.current.settingsTab,
           });
+
           return;
         }
       }
@@ -170,18 +192,23 @@ export function createMesurerBuiltinController(options: {
         case "text-inspector":
         case "guides":
           if (model.current.toolMode === id) model.setToolMode("none");
+
           return;
         case "xray":
           model.setXrayVisible(false);
+
           return;
         case "color-picker":
           dismissColorPicker(model);
+
           return;
         case "rulers":
           model.setRulersVisible(false);
+
           return;
         case "settings":
           model.setTransient({ settingsOpen: false });
+
           return;
         case "distance":
           return;

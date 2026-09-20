@@ -9,6 +9,7 @@ import ComposableMesurer, { type MesurerPluginRegistration } from "../src/Compos
 import { render } from "../src/solid-dom";
 
 const mounted: Array<() => void> = [];
+
 const hosts: Array<ReturnType<typeof createMesurerPluginHost>> = [];
 
 const settle = async () => {
@@ -20,9 +21,11 @@ const settle = async () => {
 
 const deferred = <T = void>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
+
   const promise = new Promise<T>((resolvePromise) => {
     resolve = resolvePromise;
   });
+
   return { promise, resolve };
 };
 
@@ -31,17 +34,20 @@ const mountComposable = (props: Parameters<typeof ComposableMesurer>[0]) => {
   document.body.append(element);
   const dispose = render(() => <ComposableMesurer {...props} />, element);
   mounted.push(dispose);
+
   return dispose;
 };
 
 const disposeMounted = (dispose: () => void) => {
   const index = mounted.indexOf(dispose);
+
   if (index >= 0) mounted.splice(index, 1);
   dispose();
 };
 
 afterEach(async () => {
   while (mounted.length) mounted.pop()?.();
+
   while (hosts.length) hosts.pop()?.dispose();
   await settle();
   localStorage.clear();
@@ -57,11 +63,13 @@ describe("ComposableMesurer async plugin lifecycle", () => {
     const factoryResult = deferred<MesurerPlugin>();
     const setup = vi.fn();
     const factory = vi.fn(() => factoryResult.promise);
+
     const entry: MesurerPluginRegistration = {
       id: "test.deferred-factory",
       label: "Deferred factory",
       create: factory,
     };
+
     localStorage.setItem("deferred-factory:plugins:availability", JSON.stringify({
       version: 1,
       enabled: { "test.deferred-factory": true },
@@ -73,6 +81,7 @@ describe("ComposableMesurer async plugin lifecycle", () => {
       pluginHost: host,
       plugins: [entry],
     });
+
     await vi.waitFor(() => expect(factory).toHaveBeenCalledTimes(1));
 
     disposeMounted(dispose);
@@ -104,6 +113,7 @@ describe("ComposableMesurer async plugin lifecycle", () => {
     const started = deferred();
     const finish = deferred();
     const disposed = vi.fn();
+
     const asyncPlugin = defineMesurerPlugin({
       id: "test.async-component",
       async setup(ctx) {
@@ -120,6 +130,7 @@ describe("ComposableMesurer async plugin lifecycle", () => {
       pluginHost: host,
       plugins: [asyncPlugin],
     });
+
     await started.promise;
     expect(host.service.get("test.async-component.early")).toEqual({ alive: true });
 
@@ -143,12 +154,14 @@ describe("ComposableMesurer async plugin lifecycle", () => {
     const host = createMesurerPluginHost();
     hosts.push(host);
     const onPluginError = vi.fn();
+
     const healthy = defineMesurerPlugin({
       id: "test.healthy",
       setup(ctx) {
         ctx.service.provide("test.healthy.service", 42);
       },
     });
+
     const failing = defineMesurerPlugin({
       id: "test.failing",
       setup() {

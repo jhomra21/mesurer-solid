@@ -33,6 +33,7 @@ const setup = async () => {
   const pageTarget = document.createElement("main");
   document.body.append(pageTarget);
   const model = createMesurerModel({ initialEnabled: true });
+
   const workspace = createMesurerWorkspaceRuntime({
     model,
     ownerDocument: document,
@@ -40,6 +41,7 @@ const setup = async () => {
     uiRoot: document.body,
     pageTarget,
   });
+
   const runtime: MesurerSolidRuntimeService = {
     ownerDocument: document,
     ownerWindow: window,
@@ -50,9 +52,11 @@ const setup = async () => {
       const element = document.createElement("div");
       element.dataset.mesurerInspectorUi = "true";
       document.body.append(element);
+
       return { element, dispose: () => element.remove() };
     },
   };
+
   await host.load(defineMesurerPlugin({
     id: "test.runtime",
     provides: ["runtime:solid", "tool:select"],
@@ -65,19 +69,23 @@ const setup = async () => {
     },
   }));
   await host.load(arrangePlugin());
+
   return { host, model, pageTarget };
 };
 
 const select = (model: ReturnType<typeof createMesurerModel>, elements: HTMLElement[]) => {
   const measurements = elements.map((element, index) =>
     getInspectMeasurement(element, window, `selection-${index + 1}`));
+
   model.setSelectedMeasurements(measurements, measurements.at(-1) ?? null);
 };
 
 const arrangeBox = async (host: ReturnType<typeof createMesurerPluginHost>) => {
   await host.command.execute("arrange.toggle");
   const box = document.querySelector<HTMLElement>("[data-mesurer-arrange-box='true']");
+
   if (!box) throw new Error("Arrange box was not mounted.");
+
   return box;
 };
 
@@ -238,6 +246,7 @@ describe("arrangePlugin", () => {
     const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
     await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
     const intent = service?.intents()[0];
+
     if (!intent) throw new Error("Arrange intent was not recorded.");
 
     expect(intent.targets[0]).toMatchObject({
@@ -397,6 +406,7 @@ describe("arrangePlugin", () => {
     const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
     await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
     const intent = service?.intents()[0];
+
     if (!intent) throw new Error("Arrange intent was not recorded.");
 
     target.remove();

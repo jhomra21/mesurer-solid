@@ -2,19 +2,24 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 const styles = readFileSync("src/styles.css", "utf8");
+
 const markerRuleStart = styles.indexOf("/* Endpoint markers are geometry/state only");
+
 const focusRuleStart = styles.indexOf("/* A spacing pill describes one orthogonal measurement line");
+
 const focusRuleEnd = styles.indexOf("/* Upstream X-ray", focusRuleStart);
 
 const markerStyles = () => {
   expect(markerRuleStart).toBeGreaterThanOrEqual(0);
   expect(focusRuleStart).toBeGreaterThan(markerRuleStart);
+
   return styles.slice(markerRuleStart, focusRuleStart);
 };
 
 const focusStyles = () => {
   expect(focusRuleStart).toBeGreaterThanOrEqual(0);
   expect(focusRuleEnd).toBeGreaterThan(focusRuleStart);
+
   return styles.slice(focusRuleStart, focusRuleEnd);
 };
 

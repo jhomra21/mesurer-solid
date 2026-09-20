@@ -4,12 +4,14 @@ import { createMesurerModel } from "../src/model/create-mesurer-model";
 import { createMesurerWorkspaceRuntime } from "../src/runtime/workspace-context";
 
 const zeroEdges = { top: 0, right: 0, bottom: 0, left: 0 };
+
 const selectionFor = (element: HTMLElement): InspectMeasurement => {
   const rect = { left: 10, top: 10, width: 120, height: 40 };
   Object.defineProperty(element, "getBoundingClientRect", {
     configurable: true,
     value: () => ({ ...rect, right: 130, bottom: 50, x: 10, y: 10, toJSON: () => ({}) }),
   });
+
   return {
     id: "selection",
     rect,
@@ -36,6 +38,7 @@ describe("createMesurerWorkspaceRuntime", () => {
       ownerDocument: document,
       ownerWindow: window,
     });
+
     const secondRuntime = createMesurerWorkspaceRuntime({
       model: secondModel,
       ownerDocument: document,
@@ -65,13 +68,16 @@ describe("createMesurerWorkspaceRuntime", () => {
 
     const model = createMesurerModel({ initialEnabled: true });
     model.setSelectedMeasurements([selectionFor(target)]);
+
     const runtime = createMesurerWorkspaceRuntime({
       model,
       ownerDocument: document,
       ownerWindow: window,
     });
+
     const annotation = runtime.addSelectionAnnotation("Track this target");
     let notifications = 0;
+
     const unsubscribe = runtime.subscribe(() => {
       notifications += 1;
     });
@@ -100,6 +106,7 @@ describe("createMesurerWorkspaceRuntime", () => {
     expect(notifications).toBe(1);
     const refreshed = runtime.annotations()[0];
     expect(refreshed.anchor.kind).toBe("elements");
+
     if (refreshed.anchor.kind === "elements") {
       expect(refreshed.anchor.targets[0]?.lastRect.left).toBe(movedRect.left);
     }
@@ -125,12 +132,14 @@ describe("createMesurerWorkspaceRuntime", () => {
 
     const model = createMesurerModel({ initialEnabled: true });
     model.setSelectedMeasurements([selectionFor(original)]);
+
     const runtime = createMesurerWorkspaceRuntime({
       model,
       ownerDocument: document,
       ownerWindow: window,
       pageTarget,
     });
+
     const annotation = runtime.addSelectionAnnotation("Keep this target");
 
     original.remove();
@@ -166,12 +175,14 @@ describe("createMesurerWorkspaceRuntime", () => {
 
     const firstModel = createMesurerModel({ initialEnabled: true });
     firstModel.setSelectedMeasurements([selectionFor(original)]);
+
     const firstRuntime = createMesurerWorkspaceRuntime({
       model: firstModel,
       ownerDocument: document,
       ownerWindow: window,
       persistenceKey: storageKey,
     });
+
     const saved = firstRuntime.addSelectionAnnotation("Reload persistence smoke");
     expect(firstRuntime.annotations()).toHaveLength(1);
 
@@ -186,6 +197,7 @@ describe("createMesurerWorkspaceRuntime", () => {
     document.body.append(replacement);
 
     const secondModel = createMesurerModel({ initialEnabled: true });
+
     const secondRuntime = createMesurerWorkspaceRuntime({
       model: secondModel,
       ownerDocument: document,
@@ -202,12 +214,14 @@ describe("createMesurerWorkspaceRuntime", () => {
     replacement.remove();
 
     const thirdModel = createMesurerModel({ initialEnabled: true });
+
     const thirdRuntime = createMesurerWorkspaceRuntime({
       model: thirdModel,
       ownerDocument: document,
       ownerWindow: window,
       persistenceKey: storageKey,
     });
+
     expect(thirdRuntime.annotations()).toEqual([]);
 
     thirdRuntime.dispose();
@@ -223,6 +237,7 @@ describe("createMesurerWorkspaceRuntime", () => {
     uiRoot.append(chrome);
 
     const model = createMesurerModel({ initialEnabled: true });
+
     const runtime = createMesurerWorkspaceRuntime({
       model,
       ownerDocument: document,

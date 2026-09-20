@@ -14,11 +14,13 @@ const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, 
   canvas.width = ownerWindow.innerWidth * 2;
   canvas.height = ownerWindow.innerHeight * 2;
   const context = canvas.getContext("2d");
+
   if (!context) throw new Error("Fixture canvas unavailable");
   context.fillStyle = "#f5f5f5";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = "#0d99ff";
   context.fillRect(200, 200, 900, 500);
+
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
@@ -40,7 +42,9 @@ const subject = mountMesurer({
 });
 
 await subject.ready;
+
 const service = subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
+
 if (!service) throw new Error("Screenshot service did not mount");
 
 type ScreenshotHarness = {

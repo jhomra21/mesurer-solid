@@ -8,13 +8,13 @@ A behavior may be treated as fixed or release-ready only when an end-to-end brow
 
 Good acceptance contracts perform real input such as clicks, double-clicks, typing, keyboard shortcuts, pointer movement, drag, wheel scrolling, resize, reload, or navigation. They then verify the user-visible result: selection identity, edited content, persisted state, geometry, relative placement, interaction ownership, rendered pixels when appropriate, and browser diagnostics.
 
-For regressions reported manually, reproduce the exact failed scenario before considering the fix complete. A test that does not actually reach the failed surface or behavior is not evidence, even if it is green.
+For regressions reported manually, reproduce the exact failed scenario before considering the fix complete. A test that does not actually reach the failed behavior or rendered state is not evidence, even if it is green.
 
-## Measure the rendered surface, not a proxy
+## Measure rendered output, not a proxy
 
 When a regression is about visible spacing, overlap, or jitter, assert the geometry the user actually sees. Do not infer visible correctness from an internal shell coordinate, a synthetic fallback lane, or a placement constant when another wrapper/card can add its own offset.
 
-For direct text editing, this means measuring the real edit/selection geometry, the rendered dimensions pill, and the visible Typography card. If the intended gaps are symmetric, compare those rendered gaps directly. When a late anchor handoff can rewrite geometry, the contract should perturb that handoff and prove the visible surfaces recover to the intended relationship.
+For direct text editing, this means measuring the real edit/selection geometry, the rendered dimensions pill, and the visible Typography card. If the intended gaps are symmetric, compare those rendered gaps directly. When a late anchor handoff can rewrite geometry, the contract should perturb that handoff and prove the visible elements recover to the intended relationship.
 
 Pointer-motion regressions must be sampled while the pointer is moving. A before/after assertion can miss a visible intermediate-frame oscillation that returns to the starting coordinate. When a user reports jitter, sample the rendered card on successive animation frames and fail on intermediate movement or unexpected placement-style writes.
 
@@ -40,8 +40,8 @@ Do not hand off a candidate SHA for manual acceptance merely because CI is green
 
 1. Run the end-to-end contracts for the behaviors changed by the candidate.
 2. Verify the contracts use the same public mount/runtime topology relevant to the bug.
-3. Verify actual user input reaches the intended rendered surface.
-4. Verify the resulting application state and visible geometry, not just element presence.
+3. Verify actual user input reaches the intended rendered UI.
+4. Verify the resulting application state and visible geometry. Element presence alone is insufficient.
 5. Keep console/page errors at zero for the exercised path.
 6. Keep performance invariants paired with the visible behavior they protect.
 7. Treat manual acceptance as a separate final check; automation reduces regressions but does not replace the user's real-browser validation.

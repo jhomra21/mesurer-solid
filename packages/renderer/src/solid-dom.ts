@@ -1,6 +1,7 @@
 import { createRenderer } from "@solidjs/universal";
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+
 const XLINK_NAMESPACE = "http://www.w3.org/1999/xlink";
 
 const SVG_ELEMENTS = new Set([
@@ -48,40 +49,54 @@ const SVG_ATTRIBUTE_ALIASES = new Map<string, string>([
 ]);
 
 type UniversalPrimitive = string | number | boolean | bigint | symbol | null | undefined;
+
 type UniversalFunction = (...args: never[]) => void;
+
 type UniversalPropertyMap = { [key: string]: UniversalPropertyValue };
+
 type UniversalPropertyValue = UniversalPrimitive | UniversalFunction | UniversalPropertyValue[] | UniversalPropertyMap;
+
 type StyledElement = HTMLElement | SVGElement;
 
 const isString = (value: UniversalPropertyValue): value is string => typeof value === "string";
+
 const isFunction = (value: UniversalPropertyValue): value is UniversalFunction => typeof value === "function";
+
 const isPropertyMap = (value: UniversalPropertyValue): value is UniversalPropertyMap =>
   value !== null && typeof value === "object" && !Array.isArray(value);
+
 const hasStyle = (node: Element): node is StyledElement => "style" in node;
 
 function cssName(name: string) {
   if (name.startsWith("--") || name.includes("-")) return name;
+
   return name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 }
 
 function setStyle(node: Element, value: UniversalPropertyValue, previous: UniversalPropertyValue) {
   if (!hasStyle(node)) return;
   const { style } = node;
+
   if (isString(value)) {
     style.cssText = value;
+
     return;
   }
+
   if (!isPropertyMap(value)) {
     style.cssText = "";
+
     return;
   }
 
   const previousMap = isPropertyMap(previous) ? previous : null;
+
   if (previousMap) {
     for (const name of Object.keys(previousMap)) {
       if (!(name in value) || value[name] == null) style.removeProperty(cssName(name));
     }
   }
+
   for (const [name, propertyValue] of Object.entries(value)) {
     if (propertyValue == null) style.removeProperty(cssName(name));
     else style.setProperty(cssName(name), String(propertyValue));
@@ -91,12 +106,15 @@ function setStyle(node: Element, value: UniversalPropertyValue, previous: Univer
 function setClassList(node: Element, value: UniversalPropertyValue, previous: UniversalPropertyValue) {
   const next = isPropertyMap(value) ? value : null;
   const prev = isPropertyMap(previous) ? previous : null;
+
   if (prev) {
     for (const name of Object.keys(prev)) {
       if (!next?.[name]) node.classList.remove(...name.trim().split(/\s+/));
     }
   }
+
   if (!next) return;
+
   for (const [name, enabled] of Object.entries(next)) {
     if (enabled) node.classList.add(...name.trim().split(/\s+/));
   }
@@ -104,18 +122,24 @@ function setClassList(node: Element, value: UniversalPropertyValue, previous: Un
 
 function setEvent(node: Element, name: string, value: UniversalPropertyValue) {
   const property = name.toLowerCase();
+
   if (Array.isArray(value)) {
     const handler = value[0];
     const data = value[1];
+
     if (!isFunction(handler)) {
       Reflect.set(node, property, null);
+
       return;
     }
+
     // SAFETY: Solid's universal renderer encodes delegated handlers as [handler, data].
     const dataHandler = handler as (input: UniversalPropertyValue, event: Event) => void;
     Reflect.set(node, property, (event: Event) => dataHandler(data, event));
+
     return;
   }
+
   Reflect.set(node, property, isFunction(value) ? value : null);
 }
 
@@ -131,55 +155,74 @@ function applyProperty(
 
   if (name === "style") {
     setStyle(node, value, previous);
+
     return;
   }
+
   if (name === "classList") {
     setClassList(node, value, previous);
+
     return;
   }
+
   if (name === "class" || name === "className") {
     if (value == null || value === false) node.removeAttribute("class");
     else node.setAttribute("class", String(value));
+
     return;
   }
+
   if (/^on[A-Z]/.test(name) || /^on[a-z]/.test(name)) {
     setEvent(node, name, value);
+
     return;
   }
+
   if (name.startsWith("on:")) {
     const eventName = name.slice(3);
+
     if (isFunction(previous)) {
       // SAFETY: Solid supplies direct `on:` values as DOM EventListener-compatible functions.
       const listener = previous as EventListener;
       node.removeEventListener(eventName, listener);
     }
+
     if (isFunction(value)) {
       // SAFETY: Solid supplies direct `on:` values as DOM EventListener-compatible functions.
       const listener = value as EventListener;
       node.addEventListener(eventName, listener);
     }
+
     return;
   }
+
   if (name.startsWith("attr:")) name = name.slice(5);
+
   if (name.startsWith("bool:")) {
     name = name.slice(5);
+
     if (value) node.setAttribute(name, "");
     else node.removeAttribute(name);
+
     return;
   }
 
   if (!isSvg && DOM_PROPERTIES.has(name)) {
     const property = name === "htmlFor" ? "htmlFor" : name;
     Reflect.set(node, property, BOOLEAN_PROPERTIES.has(name) ? Boolean(value) : value ?? "");
+
     return;
   }
 
   if (name === "htmlFor") name = "for";
+
   if (isSvg && name === "xlinkHref") {
     if (value == null || value === false) node.removeAttributeNS(XLINK_NAMESPACE, "href");
     else node.setAttributeNS(XLINK_NAMESPACE, "xlink:href", String(value));
+
     return;
   }
+
   if (isSvg) name = SVG_ATTRIBUTE_ALIASES.get(name) ?? name;
 
   if (value == null || value === false) node.removeAttribute(name);
@@ -205,12 +248,14 @@ export const {
     const node = SVG_ELEMENTS.has(tagName)
       ? document.createElementNS(SVG_NAMESPACE, tagName)
       : document.createElement(tagName);
+
     if (staticProps) {
       for (const [name, value] of Object.entries(staticProps)) {
         // SAFETY: @solidjs/universal forwards compiled JSX property values through this renderer boundary.
         applyProperty(node, name, value as UniversalPropertyValue, undefined);
       }
     }
+
     return node;
   },
   createTextNode(value) {

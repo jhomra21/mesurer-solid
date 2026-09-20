@@ -3,6 +3,7 @@ import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { MESURER_ARRANGE_ACTIVE_STATE_ID } from "../plugins/arrange";
 
 const ARRANGE_TOGGLE_COMMAND = "arrange.toggle";
+
 const BUILTIN_SELECT_COMMAND = "builtin.select";
 
 /**
@@ -29,6 +30,7 @@ export function installArrangeSelectGuard(
     if (disposed || frame) return;
     frame = runtime.ownerWindow.requestAnimationFrame(() => {
       frame = 0;
+
       if (disposed || coordinating) return;
 
       const toolMode = runtime.currentToolMode?.();
@@ -37,23 +39,29 @@ export function installArrangeSelectGuard(
       if (toolMode === undefined || !arrangeActive) {
         arrangeActivatedPending = false;
         selectDeactivatedPending = false;
+
         return;
       }
+
       if (toolMode === "select") {
         arrangeActivatedPending = false;
         selectDeactivatedPending = false;
+
         return;
       }
 
       coordinating = true;
+
       const command = selectDeactivatedPending
         ? ARRANGE_TOGGLE_COMMAND
         : arrangeActivatedPending
           ? BUILTIN_SELECT_COMMAND
           : ARRANGE_TOGGLE_COMMAND;
+
       const source = command === BUILTIN_SELECT_COMMAND
         ? "arrange-requires-select"
         : "select-deactivated";
+
       arrangeActivatedPending = false;
       selectDeactivatedPending = false;
 
@@ -70,15 +78,18 @@ export function installArrangeSelectGuard(
 
   const onWorkspaceChange = () => {
     const toolMode = runtime.currentToolMode?.();
+
     if (previousToolMode === "select" && toolMode !== undefined && toolMode !== "select") {
       selectDeactivatedPending = true;
     }
+
     previousToolMode = toolMode;
     schedule();
   };
 
   const onPluginStateChange = () => {
     const arrangeActive = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
+
     if (arrangeActive && !previousArrangeActive) arrangeActivatedPending = true;
     previousArrangeActive = arrangeActive;
     schedule();
@@ -90,6 +101,7 @@ export function installArrangeSelectGuard(
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
+
     if (frame) runtime.ownerWindow.cancelAnimationFrame(frame);
     frame = 0;
     stateSubscription.dispose();

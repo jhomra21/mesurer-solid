@@ -11,5 +11,6 @@ export function subscribeMesurerSelectGestureStart(
   listener: () => void,
 ) {
   ownerWindow.addEventListener(MESURER_SELECT_GESTURE_START_EVENT, listener);
+
   return () => ownerWindow.removeEventListener(MESURER_SELECT_GESTURE_START_EVENT, listener);
 }

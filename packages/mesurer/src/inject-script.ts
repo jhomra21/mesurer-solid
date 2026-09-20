@@ -10,6 +10,7 @@ declare global {
 }
 
 const config = globalThis.__MESURER_CONFIG__ ?? {};
+
 const {
   target: targetSelector,
   globalName = "__MESURER__",
@@ -18,6 +19,7 @@ const {
 } = config;
 
 const existing = globalThis.__MESURER_INSTANCE__;
+
 const reusableExisting = reuseExisting && existing?.element.isConnected
   ? existing
   : undefined;
@@ -28,9 +30,11 @@ if (reusableExisting) {
   });
 } else {
   const target = targetSelector ? document.querySelector<HTMLElement>(targetSelector) : document.body;
+
   if (!target) throw new Error(`Mesurer injection target not found: ${targetSelector}`);
 
   existing?.dispose();
+
   const mesurer = mountMesurer({
     ...options,
     target,

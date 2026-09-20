@@ -98,6 +98,7 @@ describe("page interaction coordination", () => {
         async open() {
           const color = colors[opens] ?? colors.at(-1)!;
           opens += 1;
+
           return { sRGBHex: color };
         }
       },
@@ -112,8 +113,10 @@ describe("page interaction coordination", () => {
     const button = await vi.waitFor(() => {
       const value = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]');
       expect(value).toBeTruthy();
+
       return value!;
     });
+
     button.click();
     await vi.waitFor(() => expect(opens).toBe(1));
     await settle();
@@ -158,22 +161,26 @@ describe("page interaction coordination", () => {
         return { sRGBHex: "#123456" };
       }
     };
+
     let reads = 0;
     Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
       get() {
         reads += 1;
+
         return reads === 1 ? NativeEyeDropper : undefined;
       },
     });
 
     const host = document.createElement("div");
     document.body.append(host);
+
     const dispose = render(
       () => <ComposableMesurer persistKey="interaction-color-picker-confirmed-only" />,
       host,
     );
+
     mounted.push(dispose);
 
     expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeNull();
@@ -191,6 +198,7 @@ describe("page interaction coordination", () => {
       value: class {
         async open() {
           opens += 1;
+
           return { sRGBHex: "#123456" };
         }
       },
@@ -198,17 +206,21 @@ describe("page interaction coordination", () => {
 
     const host = document.createElement("div");
     document.body.append(host);
+
     const dispose = render(
       () => <ComposableMesurer persistKey="interaction-color-picker-native-contract" />,
       host,
     );
+
     mounted.push(dispose);
 
     const button = await vi.waitFor(() => {
       const value = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]');
       expect(value).toBeTruthy();
+
       return value!;
     });
+
     button.click();
     await vi.waitFor(() => expect(opens).toBe(1));
   });
@@ -216,10 +228,12 @@ describe("page interaction coordination", () => {
   it("does not render the Color Picker tool when native EyeDropper is unavailable", async () => {
     const host = document.createElement("div");
     document.body.append(host);
+
     const dispose = render(
       () => <ComposableMesurer persistKey="interaction-color-picker-unavailable" />,
       host,
     );
+
     mounted.push(dispose);
     await settle();
 
@@ -245,10 +259,12 @@ describe("page interaction coordination", () => {
 
     const host = document.createElement("div");
     document.body.append(host);
+
     const dispose = render(
       () => <ComposableMesurer persistKey="interaction-color-picker-placeholder" />,
       host,
     );
+
     mounted.push(dispose);
     await settle();
 
@@ -268,10 +284,12 @@ describe("page interaction coordination", () => {
     installStaticEyeDropper();
     const host = document.createElement("div");
     document.body.append(host);
+
     const dispose = render(
       () => <ComposableMesurer persistKey="interaction-color-picker-capability-refresh" />,
       host,
     );
+
     mounted.push(dispose);
 
     await vi.waitFor(() => {
@@ -289,6 +307,7 @@ describe("page interaction coordination", () => {
   it("shows and executes shortcuts for first-party Arrange and Screenshot tools", async () => {
     const host = document.createElement("div");
     document.body.append(host);
+
     const dispose = render(
       () => <ComposableMesurer
         persistKey="interaction-first-party-shortcuts"
@@ -299,6 +318,7 @@ describe("page interaction coordination", () => {
       />,
       host,
     );
+
     mounted.push(dispose);
 
     await vi.waitFor(() => {
@@ -307,11 +327,14 @@ describe("page interaction coordination", () => {
     });
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "S", shiftKey: true, bubbles: true, cancelable: true }));
+
     const screenshotOverlay = await vi.waitFor(() => {
       const value = document.querySelector<HTMLElement>("[data-mesurer-screenshot-select='true']");
       expect(value?.style.display).toBe("block");
+
       return value!;
     });
+
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]')?.getAttribute("aria-pressed")).toBe("false");
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
@@ -328,6 +351,7 @@ describe("page interaction coordination", () => {
 
     const host = document.createElement("div");
     document.body.append(host);
+
     const dispose = render(
       () => <ComposableMesurer
         persistKey="interaction-plugin-menu-bounds"
@@ -335,19 +359,24 @@ describe("page interaction coordination", () => {
       />,
       host,
     );
+
     mounted.push(dispose);
 
     const root = await vi.waitFor(() => {
       const value = document.querySelector<HTMLElement>('[data-mesurer-plugin-menu-root="true"]');
       expect(value).toBeTruthy();
+
       return value!;
     });
+
     root.getBoundingClientRect = () => new DOMRect(260, 136, 52, 40);
 
     document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-trigger="tall-plugin-menu"]')!.click();
+
     const menu = await vi.waitFor(() => {
       const value = document.querySelector<HTMLElement>('[data-mesurer-tool-menu="tall-plugin-menu"]');
       expect(value).toBeTruthy();
+
       return value!;
     });
 
@@ -363,6 +392,7 @@ describe("page interaction coordination", () => {
     const host = document.createElement("div");
     document.body.append(host);
     let pluginHost: MesurerPluginHost | null = null;
+
     const dispose = render(
       () => <ComposableMesurer
         persistKey="interaction-arrange"
@@ -371,6 +401,7 @@ describe("page interaction coordination", () => {
       />,
       host,
     );
+
     mounted.push(dispose);
 
     await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-id="arrange"] button')).toBeTruthy());

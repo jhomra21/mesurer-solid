@@ -96,12 +96,13 @@ Once mounted:
 
 The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, direct text editing, and plugin hosting. Native Color Picker appears only when `EyeDropper` is operational in the current host.
 
-Global shortcuts are enabled by default. Disable them from **Settings → General → Shortcuts** or mount with `shortcutsEnabled: false`; toolbar controls and Escape/cancel behavior remain available.
+Global shortcuts are enabled by default. Disable them from **Settings > General > Shortcuts** or mount with `shortcutsEnabled: false`; toolbar controls and Escape/cancel behavior remain available.
 
 First-party plugin shortcuts are available only when global shortcuts are enabled and their plugin is mounted and enabled: `Shift+A` for Arrange, `Shift+S` for Screenshot, and `C` / `Shift+C` / `N` for Context actions.
 
 ## Next
 
+- [Capabilities](./CAPABILITIES.md)
 - [Direct text editing and Typography](./TEXT_EDITING.md)
 - [Arrange](./ARRANGE.md)
 - [Screenshots](./SCREENSHOTS.md)
