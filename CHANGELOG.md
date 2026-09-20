@@ -6,6 +6,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.1.8-beta.2 - 2026-09-20
+
+- No user-facing changes.
+
 ## 0.1.8-beta.1 - 2026-09-20
 
 - Keep **Queue to Codex** on Codex's native durable queue for every client. Desktop ownership now uses `codex://threads/<threadId>` to load or resume the real app-owned thread, so delivery no longer depends on the `codex_app` MCP pipe; existing queued-submission ids are preserved across bridge restarts and recovery instead of being deleted and resent.
