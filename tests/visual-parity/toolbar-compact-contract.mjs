@@ -21,12 +21,6 @@ page.on("console", (message) => {
 
 const waitForSettledMotion = () => page.waitForTimeout(210);
 
-const visible = async (locator) => {
-  const box = await locator.boundingBox();
-
-  return Boolean(box && box.width > 0.5 && box.height > 0.5 && await locator.isVisible());
-};
-
 const compactItemVisible = (locator) => locator.evaluate((button) => {
   const item = button.closest('[data-mesurer-toolbar-compact-item="true"]');
 

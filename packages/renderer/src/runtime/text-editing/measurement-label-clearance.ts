@@ -10,8 +10,6 @@ const RECT_TOLERANCE = 4;
 
 const STANDARD_DIMENSIONS_LABEL_HEIGHT = 20;
 
-const MEASUREMENT_ROOT = "[data-mesurer-measurement='true']";
-
 const SELECTED_MEASUREMENT_ROOT = "[data-mesurer-selected-measurement='true']";
 
 const MEASUREMENT_CHROME = "[data-mesurer-measurement-chrome='true']";
