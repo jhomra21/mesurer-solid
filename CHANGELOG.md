@@ -6,6 +6,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.1.8-beta.3 - 2026-09-21
+
+- No user-facing changes.
+
 ## 0.1.8-beta.2 - 2026-09-20
 
 - No user-facing changes.
