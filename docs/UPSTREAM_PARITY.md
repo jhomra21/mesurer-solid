@@ -7,12 +7,24 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `b14c2bed932f1f97321885c279a4fd52148e62ac` (`main`, audited 2026-09-13) |
-| Current upstream audit | `19446bd845a957cfc96e76b4393916b8153ab8e0` (`main`, audited 2026-09-15) |
+| Previous upstream audit | `19446bd845a957cfc96e76b4393916b8153ab8e0` (`main`, audited 2026-09-15) |
+| Current upstream audit | `8b644ee7e5ab3bec8a70737b73a0a5524053313a` (`main`, audited 2026-09-21) |
 
-The current upstream delta is one large commit after the previous audit: `19446bd...`, **"feat: add comment mode (#27)"**, released upstream as `0.1.5`. It introduces DOM-attached threaded comments, iframe-aware selection/commenting, a configurable Inspect information card, additional guide/measurement interactions, feature flags and initial workspace state, plus a broad pass over keyboard ownership, overlay placement, host-page isolation, and extension screenshot capture.
+The current upstream delta is one commit after the previous audit: `8b644ee...`, **"feat: improve comments (#29)"**. It expands upstream's comment-mode resolution/filtering workflow and viewport context, hardens transient menu/card dismissal, and revises toolbar drag/collapse motion plus shared floating-surface chrome.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
+
+### 2026-09-21 delta classification
+
+| Upstream delta | Decision | Reason for this release |
+| --- | --- | --- |
+| Resolved-comment state, filtering, reopen/delete flows, all-comments search, and viewport context in copied comments | **Intentional divergence** for `0.1.8` | These changes extend upstream's threaded-comment model. Mesurer Solid intentionally uses Context annotations with target identity, immutable baselines, review APIs, and optional Codex queue delivery; the stable candidate does not claim threaded-comment parity. |
+| Comment-card/list action menus and delete-confirmation anchoring | **Not applicable as a direct port** | The behavior belongs to upstream comment surfaces that Mesurer Solid does not ship. Context annotation cards have their own ownership, scroll attachment, and interaction contracts. |
+| Closing transient surfaces when another toolbar menu opens or an outside pointer takes ownership | **Adopted outcome; independently implemented and validated** | Mesurer Solid's Settings, plugin split menus, Typography dropdowns, Context cards, and other inspector surfaces already have explicit ownership and dismissal contracts covered by browser/manual acceptance tests. No React-specific upstream implementation is required. |
+| Toolbar drag/collapse interruption hardening and tooltip suppression during motion | **Adopted outcome where it matches Mesurer Solid's one-toolbar model** | Mesurer Solid independently validates toolbar dragging, compact/expanded state, reduced-motion-aware transitions, and stable active-tool ownership. Upstream's Inspect/Annotate grouping remains outside the product model. |
+| Centralized floating-surface shadow/radius polish | **Intentional divergence unless separately adopted** | Mesurer Solid's Context, Typography, Arrange, Screenshot, Settings, and plugin surfaces have their own current visual-parity contracts. Cosmetic upstream token changes are not silently imported into the stable release. |
+
+This audit adds no upstream blocker for `0.1.8`: the new comment work belongs to an explicit product divergence, while the shared interaction outcomes relevant to Mesurer Solid are already covered by its own accepted contracts.
 
 ### 2026-09-15 delta classification
 
@@ -50,9 +62,9 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | Screenshot region selection | Adopt as optional `screenshot()` from `mesurer-solid/plugins` and extend with preview/viewer and extension capture |
 | Global Shortcuts setting | Adopt the persisted master on/off switch; no per-command remapping UI is added |
 | Compact toolbar | Adopt presentation: one stable toolbar, full-height separators, active-tool retention, 150ms motion, reduced-motion support |
-| Option-distance pinning (`Option+S`) | Intentionally not adopted in the `0.1.7` release train; Mesurer Solid retains its existing held-distance workflow |
+| Option-distance pinning (`Option+S`) | Intentionally not adopted in the `0.1.8` stable line; Mesurer Solid retains its existing held-distance workflow |
 | DOM-attached threaded comments | Intentionally not adopted; Mesurer Solid uses Context annotations instead |
-| Iframe selection/comment targeting | Intentionally not adopted for `0.1.7` |
+| Iframe selection/comment targeting | Intentionally not adopted for `0.1.8` |
 | Inspect/Annotate group switching | Intentionally not adopted |
 | Arrange as a toolbar mode | Intentionally not adopted; Arrange remains an optional plugin tool |
 | Arrow, pen, and freeform drawing annotations | Intentionally not adopted |
