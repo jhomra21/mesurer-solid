@@ -4,10 +4,25 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.8 - 2026-09-21
+
 - Keep mixed-inline direct text editing on Mesurer-owned target state instead of redefining host `childNodes`, so text runs around inline children remain editable while native `NodeList` behavior and child identity stay intact.
 - Show the same Mesurer Solid hero image on the npm package page and GitHub README by using the repository-backed image URL.
-
-<!-- Add user-facing changes here before preparing a release. -->
+- Keep **Queue to Codex** on Codex's native durable queue for every client. Desktop ownership now uses `codex://threads/<threadId>` to load or resume the real app-owned thread, so delivery no longer depends on the `codex_app` MCP pipe; existing queued-submission ids are preserved across bridge restarts and recovery instead of being deleted and resent.
+- Preserve saved Context annotations across same-tab reloads, restore their exact ids/baselines, and conservatively rebind element targets from stored selector/fingerprint identity instead of losing review state when the page refreshes.
+- Preserve page-local Codex routing across browser reloads with per-tab affinity state, refuse to inherit a bridge-wide default when multiple registered threads make the destination ambiguous, and resume exact queued/working delivery tracking after reload so annotation completion cleanup is not lost.
+- Add tracked **Queue to Codex** lifecycle feedback: disable the action before submission to suppress double-click duplicates, show Queueing/Queued/Working/Finished or Interrupted states in the tool and destination row, correlate the exact queued prompt with bounded Codex history, reject synthetic unfinished Interrupt states produced by separate history readers, keep Interrupted deliveries reconcilable for backend corrections, and remove only the annotations included in a successfully completed turn by default.
+- Keep generic plugin split menus inside the browser viewport: choose the side with usable space, clamp horizontal placement, widen for long labels up to a bounded desktop width, keep selected rows filling the menu, prevent horizontal scrolling, and make tall destination lists scroll vertically instead of extending off-screen.
+- Rename the human Codex action to **Queue to Codex**, return `delivery: "queued"` from programmatic delivery, and document Queue versus in-flight **Steer** semantics instead of implying that Mesurer interrupts an active Codex turn.
+- Add a Codex destination picker that keeps each Mesurer page pinned to the Codex thread that originally connected it, then shows five recent same-project Codex threads from app-server with one **Show 5 more…** expansion to ten.
+- Make **Queue to Codex** health- and CSP-aware: mounting `codex()` does not probe loopback, the first send or thread chooser establishes availability, a missing bridge becomes **Codex unavailable** with an explicit retry, and successful connections continue health-checking for automatic recovery; the trusted SessionStart connector records the project directory used to scope recent-thread discovery.
+- Consolidate first-party plugin factories under `mesurer-solid/plugins` with concise feature names such as `context()`, `arrange()`, `screenshot()`, and `codex()`, and remove the redundant public `*Plugin` factory names and one-plugin-per-subpath exports.
+- Add optional **Send to Codex** delivery that can auto-bind to the Codex thread that starts the bridge through `CODEX_THREAD_ID`, register later existing or newly-created Codex threads locally, switch among registered destinations, and send saved Context, selection evidence, or workspace Context through Codex's queued-user-message command.
+- Keep Context annotations attached to their page targets through window and nested scrolling. Add Note, the composer, saved markers and panels, and the ownership edge move with their source without one-frame catch-up; saved panels keep their page-relative point and multiple notes stay local to the target.
+- Keep Add Note available while an existing note is open, allow repeated notes on the same selected element, and keep annotation ownership to one clean exact-bound edge without duplicate selection or ghost paint.
+- Keep Select hover and selection evidence below Context cards and fixed Mesurer chrome, including non-isolated browser top-layer hosts, so blue page evidence cannot paint through the new-note composer or a saved annotation card.
 
 ## 0.1.8-beta.3 - 2026-09-21
 
