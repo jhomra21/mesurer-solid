@@ -26,6 +26,8 @@ Typography has separate rules for interaction and geometry. Mesurer owns interac
 
 Mesurer edits one unambiguous non-empty **direct text run** at a time. A simple element with one direct text node is editable as before. For mixed inline copy such as `text <kbd>Shift+A</kbd> text`, Mesurer can target the direct text run under the pointer while preserving the inline child and the other text runs unchanged.
 
+The exact mixed-inline target is handed to the editor through Mesurer-owned runtime state. Mesurer does not redefine the host element's `childNodes`; the browser's native `NodeList`, child identity, and surrounding inline structure remain intact before, during, and after the edit.
+
 It leaves these under browser/application control:
 
 - `<input>`, `<textarea>`, `<select>`, and `<option>`;
