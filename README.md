@@ -11,7 +11,7 @@ Mesurer Solid ports [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thi
 The renderer carries its own isolated Solid 2 runtime. Your application can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without installing Solid for Mesurer.
 
 <p align="center">
-  <img src="docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
+  <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
 </p>
 
 ## Installation
@@ -115,6 +115,8 @@ Direct edit owns the visible selection UI for the field. One edit ring remains v
 
 Native editing stays native. Mesurer does not intercept form controls or descendants that inherit `contenteditable`. A nested `contenteditable="false"` boundary ends that inherited editable region, so an otherwise valid direct-text target inside it can use Mesurer editing.
 
+Mixed inline copy is targeted one direct text run at a time. Text before or after inline children such as `<kbd>Shift+A</kbd>` can be edited without flattening, recreating, or replacing those children, and Mesurer leaves the host element's native DOM APIs intact.
+
 Undo and redo update the Desired preview while the DOM still contains the value Mesurer applied. If the application changes the value, Mesurer stops managing it and preserves the application change.
 
 See [Direct text editing and Typography](./docs/TEXT_EDITING.md).
@@ -205,7 +207,7 @@ Contributor setup, validation expectations, and repository ownership are documen
 
 ## Upstream
 
-Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@19446bd845a957cfc96e76b4393916b8153ab8e0`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@8b644ee7e5ab3bec8a70737b73a0a5524053313a`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 

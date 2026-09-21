@@ -33,7 +33,7 @@ Arrange remains optional unless it is included by the injected configuration.
 
 With Select or Typography active, double-click ordinary direct text to edit it in place. Arrange-compatible Select works the same way when Arrange is mounted.
 
-Mesurer keeps native editing boundaries intact. Form controls and descendants that inherit `contenteditable` remain under the page/browser editor. A nested `contenteditable="false"` boundary ends inherited editability and can use Mesurer direct editing when the normal direct-text rules pass.
+Mesurer keeps native editing boundaries intact. Form controls and descendants that inherit `contenteditable` remain under the page/browser editor. A nested `contenteditable="false"` boundary ends inherited editability and can use Mesurer direct editing when the normal direct-text rules pass. Mixed inline copy can edit the exact direct text run around an inline child without replacing that child or the host element's native DOM APIs.
 
 If Typography was already selected, the edit session uses one live Typography card rather than stacking the normal hover/pinned Typography UI with a second card. The normal Typography UI returns when editing ends.
 

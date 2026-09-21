@@ -4,6 +4,10 @@ Framework-agnostic UI inspection, measurement, visual intent, and agent-readable
 
 Mesurer Solid ships its own isolated Solid 2 renderer. Host applications can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without providing Solid.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
+</p>
+
 ## Installation
 
 ```bash
@@ -88,7 +92,7 @@ For explicit plugin composition, `mesurer-solid/plugins` also exports `select`, 
 
 Arrange is not a toolbar mode. It can be activated before a selection exists and enables Select automatically. Turning Arrange off leaves Select active; turning Select off exits Arrange.
 
-Direct text editing respects native editing boundaries. Descendants of an editable ancestor remain native, while a nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer target when the normal direct-text rules pass.
+Direct text editing respects native editing boundaries. Descendants of an editable ancestor remain native, while a nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer target when the normal direct-text rules pass. Mixed inline copy can target the exact direct text run before or after an inline child without flattening or recreating that child, and the host element keeps its native DOM APIs throughout the interaction.
 
 While direct text editing is active, Mesurer keeps one visible edit ring, keeps the selected dimensions pill and Typography separated by the same `2px` rendered gap when the card is below the source, and keeps Typography stationary during ordinary pointer movement. The selection-adjacent Add Note button is suppressed only for the active edit and returns when the editor closes; saved annotation markers and panels remain available.
 

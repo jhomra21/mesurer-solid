@@ -4,6 +4,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep mixed-inline direct text editing on Mesurer-owned target state instead of redefining host `childNodes`, so text runs around inline children remain editable while native `NodeList` behavior and child identity stay intact.
+- Show the same Mesurer Solid hero image on the npm package page and GitHub README by using the repository-backed image URL.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.1.8-beta.3 - 2026-09-21

@@ -135,8 +135,9 @@ The target boundary follows browser editability semantics:
 
 - native form controls stay native;
 - descendants that inherit `contenteditable` stay under page/browser editing;
-- a nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer direct-text target when the ordinary one-unambiguous-direct-text-node rules pass;
-- ambiguous mixed/nested rich text is not turned into a fake rich-text editor.
+- a nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer direct-text target when the ordinary direct-text-run rules pass;
+- mixed inline copy can target the exact direct text run under the pointer without flattening or recreating inline children or replacing the host element's native DOM APIs;
+- ambiguous nested rich text is not turned into a fake rich-text editor.
 
 If Typography was already explicitly selected, the direct-edit session suppresses the older hover/pinned Typography UI so there is one live Typography card for the field. Closing the editor restores the normal Typography UI without deselecting Typography.
 

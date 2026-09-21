@@ -21,12 +21,12 @@ The default keyboard shortcuts are listed in the root [README](../README.md).
 
 | Capability | What it does |
 | --- | --- |
-| Direct text editing | Double-click or double-tap an unambiguous direct-text target while Select or Typography is active. Mesurer records reversible Desired copy and style intent without editing application source. |
+| Direct text editing | Double-click or double-tap a valid direct text run while Select or Typography is active. Mixed inline copy can target the exact run under the pointer while preserving inline children. Mesurer records reversible Desired copy and style intent without editing application source. |
 | Compact toolbar | Hide inactive controls without changing the active tool set or toolbar order. Expanding restores the same controls and state. |
 | Multi-selection | Extend Select across multiple targets and inspect group geometry plus pairwise relationships. |
 | Presentation ownership | Arrange and text previews restore only values Mesurer still owns. Host-authored changes remain untouched. |
 
-Direct text editing respects native form controls and `contenteditable` ownership. See [Direct text editing and Typography](./TEXT_EDITING.md).
+Direct text editing respects native form controls and `contenteditable` ownership. Mixed-inline targeting is kept in Mesurer-owned runtime state; it does not replace or redefine the host element's native `childNodes` surface. See [Direct text editing and Typography](./TEXT_EDITING.md).
 
 ## First-party plugins
 
