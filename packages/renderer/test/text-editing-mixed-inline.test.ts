@@ -107,6 +107,29 @@ const installHitTest = (
   });
 };
 
+const expectNativeChildNodes = (
+  target: HTMLElement,
+  expected: Node[],
+) => {
+  expect(Object.prototype.hasOwnProperty.call(target, "childNodes")).toBe(false);
+  expect(target.childNodes).toBeInstanceOf(NodeList);
+  expect(Array.from(target.childNodes)).toEqual(expected);
+};
+
+const dispatchTouchPointerUp = (
+  target: HTMLElement,
+  x: number,
+  y: number,
+) => {
+  const event = new Event("pointerup", { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    pointerType: { configurable: true, value: "touch" },
+    clientX: { configurable: true, value: x },
+    clientY: { configurable: true, value: y },
+  });
+  target.dispatchEvent(event);
+};
+
 describe("mixed inline direct text editing", () => {
   it("edits the direct text around kbd children without repainting or flattening the host", async () => {
     const { model, pageTarget } = await setup();
@@ -118,6 +141,7 @@ describe("mixed inline direct text editing", () => {
     const after = document.createTextNode(" to drag them into the layout you want.");
     target.append(before, key, after);
     pageTarget.append(target);
+    expectNativeChildNodes(target, [before, key, after]);
 
     model.setToolMode("select");
     installHitTest(target, pageTarget, before);
@@ -128,6 +152,7 @@ describe("mixed inline direct text editing", () => {
     }));
 
     const editor = document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
+    expectNativeChildNodes(target, [before, key, after]);
     expect(editor).toBeTruthy();
     expect(editor?.value).toBe("Select one or more elements, then use Arrange or");
     expect(target.querySelector("kbd")).toBe(key);
@@ -145,10 +170,12 @@ describe("mixed inline direct text editing", () => {
     expect(target.querySelector("kbd")).toBe(key);
     expect(key.textContent).toBe("Shift+A");
     expect(after.nodeValue).toBe(" to drag them into the layout you want.");
+    expectNativeChildNodes(target, [before, key, after]);
 
     editor!.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
     expect(document.querySelector("[data-mesurer-text-editor='true']")).toBeNull();
     expect(before.nodeValue).toBe("Select one or more elements, then use Arrange or ");
+    expectNativeChildNodes(target, [before, key, after]);
 
     installHitTest(target, pageTarget, after);
     target.dispatchEvent(new MouseEvent("dblclick", {
@@ -162,5 +189,40 @@ describe("mixed inline direct text editing", () => {
     expect(trailingEditor?.value).toBe("to drag them into the layout you want.");
     expect(target.querySelector("kbd")).toBe(key);
     expect(before.nodeValue).toBe("Select one or more elements, then use Arrange or ");
+    expectNativeChildNodes(target, [before, key, after]);
+  });
+
+  it("keeps the prepared mixed-inline target across a touch double tap", async () => {
+    const { model, pageTarget } = await setup();
+    const target = document.createElement("p");
+    const before = document.createTextNode("Press ");
+    const key = document.createElement("kbd");
+    key.textContent = "Shift+A";
+    const after = document.createTextNode(" to arrange.");
+    target.append(before, key, after);
+    pageTarget.append(target);
+
+    model.setToolMode("select");
+    installHitTest(target, pageTarget, after);
+    expectNativeChildNodes(target, [before, key, after]);
+
+    dispatchTouchPointerUp(target, 160, 100);
+    expect(document.querySelector("[data-mesurer-text-editor='true']")).toBeNull();
+    expectNativeChildNodes(target, [before, key, after]);
+
+    dispatchTouchPointerUp(target, 160, 100);
+
+    const editor = document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
+    expect(editor).toBeTruthy();
+    expect(editor?.value).toBe("to arrange.");
+    expect(target.querySelector("kbd")).toBe(key);
+    expect(key.textContent).toBe("Shift+A");
+    expect(before.nodeValue).toBe("Press ");
+    expectNativeChildNodes(target, [before, key, after]);
+
+    await vi.waitFor(() => {
+      expect(editor?.style.opacity).toBe("0");
+    });
+    expectNativeChildNodes(target, [before, key, after]);
   });
 });

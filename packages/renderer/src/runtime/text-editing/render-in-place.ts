@@ -2,6 +2,12 @@ import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import { isElementWithinDomTarget } from "@jhomra21/mesurer-solid-dom";
 import type { MesurerSolidRuntimeService } from "../../ComposableMesurer";
 import { isMesurerInputBoundary } from "../../core/events";
+import {
+  clearPreparedDirectTextTarget,
+  prepareDirectTextTarget,
+  readPreparedDirectTextTarget,
+  type PreparedDirectTextTarget,
+} from "./prepared-text-target";
 
 const TOOLBAR_BLUE = "#0d99ff";
 
@@ -17,17 +23,10 @@ type DirectTextNode = {
   index: number;
 };
 
-type ActiveTextTarget = {
-  element: HTMLElement;
-  node: Text;
-};
-
 type CaretDocument = Document & {
   caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
   caretRangeFromPoint?: (x: number, y: number) => Range | null;
 };
-
-const activeTargetByRuntime = new WeakMap<MesurerSolidRuntimeService, ActiveTextTarget>();
 
 const directTextNodes = (
   element: HTMLElement,
@@ -91,12 +90,10 @@ const directTextNodeAtPoint = (
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 /**
- * The core text editor historically required exactly one non-empty direct text
- * node. For mixed inline copy such as `text <kbd>key</kbd> text`, expose only
- * the direct text node under the pointer for the duration of the current event
- * dispatch. The real DOM is never reparented or rewritten. Cleanup runs in the
- * next task so the temporary view survives browser microtask checkpoints that
- * can occur between same-event listeners.
+ * Resolve the exact direct text run under the pointer before the core editor
+ * handles the interaction. Mixed inline copy such as
+ * `text <kbd>key</kbd> text` stays untouched; the target is handed off through
+ * Mesurer-owned runtime state and expires in the next task.
  */
 export function installMixedInlineTextTargeting(
   ctx: MesurerPluginContext,
@@ -117,7 +114,7 @@ export function installMixedInlineTextTargeting(
     && !element.closest("[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']");
 
   const prepareAt = (x: number, y: number) => {
-    activeTargetByRuntime.delete(runtime);
+    clearPreparedDirectTextTarget(runtime);
 
     if (!directEditingMode()) return;
 
@@ -138,7 +135,11 @@ export function installMixedInlineTextTargeting(
       // node is unambiguous even when the pointer lands in empty inline space
       // inside a wide text element, so it does not need glyph-level hit testing.
       if (nodes.length === 1) {
-        activeTargetByRuntime.set(runtime, { element: candidate, node: nodes[0].node });
+        prepareDirectTextTarget(runtime, {
+          element: candidate,
+          node: nodes[0].node,
+          nodeIndex: nodes[0].index,
+        });
 
         return;
       }
@@ -149,34 +150,11 @@ export function installMixedInlineTextTargeting(
 
       if (!target) continue;
 
-      activeTargetByRuntime.set(runtime, { element: candidate, node: target.node });
-
-      if (Object.prototype.hasOwnProperty.call(candidate, "childNodes")) {
-        activeTargetByRuntime.delete(runtime);
-        continue;
-      }
-
-      const actualChildren = Array.from(candidate.childNodes);
-
-      const singleTargetView = actualChildren.map((node, index) => {
-        if (index === target.index) return node;
-
-        if (node.nodeType !== realm.Node.TEXT_NODE || !node.nodeValue?.trim()) return node;
-
-        return ownerDocument.createComment("mesurer-non-target-text");
+      prepareDirectTextTarget(runtime, {
+        element: candidate,
+        node: target.node,
+        nodeIndex: target.index,
       });
-
-      const eventScopedGetter = () => singleTargetView;
-      Object.defineProperty(candidate, "childNodes", {
-        configurable: true,
-        get: eventScopedGetter,
-      });
-
-      ownerWindow.setTimeout(() => {
-        const descriptor = Object.getOwnPropertyDescriptor(candidate, "childNodes");
-
-        if (descriptor?.get === eventScopedGetter) Reflect.deleteProperty(candidate, "childNodes");
-      }, 0);
 
       return;
     }
@@ -193,7 +171,7 @@ export function installMixedInlineTextTargeting(
   ownerWindow.addEventListener("pointerup", onTouchPointerUp, true);
 
   ctx.lifecycle.onDispose(() => {
-    activeTargetByRuntime.delete(runtime);
+    clearPreparedDirectTextTarget(runtime);
     ownerWindow.removeEventListener("dblclick", onDoubleClick, true);
     ownerWindow.removeEventListener("pointerup", onTouchPointerUp, true);
   });
@@ -222,7 +200,7 @@ export function installRenderInPlaceTextEditing(
   let ring: HTMLDivElement | null = null;
   let selectionRects: HTMLDivElement[] = [];
   let boundEditor: HTMLTextAreaElement | null = null;
-  let resolvedEditorTarget: ActiveTextTarget | null = null;
+  let resolvedEditorTarget: PreparedDirectTextTarget | null = null;
   let queued = false;
   let scrollFrame = 0;
   let disposed = false;
@@ -296,7 +274,7 @@ export function installRenderInPlaceTextEditing(
 
   const renderSelection = (
     editor: HTMLTextAreaElement,
-    target: ActiveTextTarget | null,
+    target: PreparedDirectTextTarget | null,
   ) => {
     if (!target?.node.isConnected || target.node.parentNode !== target.element) {
       clearSelectionRects();
@@ -385,7 +363,7 @@ export function installRenderInPlaceTextEditing(
     editor.addEventListener("pointerup", schedule);
   };
 
-  const selectedTargetForEditor = (editor: HTMLTextAreaElement): ActiveTextTarget | null => {
+  const selectedTargetForEditor = (editor: HTMLTextAreaElement): PreparedDirectTextTarget | null => {
     const candidates = workspace.currentSelection().elements.filter((element) => (
       element.isConnected
       && isElementWithinDomTarget(element, pageTarget)
@@ -402,7 +380,7 @@ export function installRenderInPlaceTextEditing(
     const exact = nodes.find(({ node }) => (node.nodeValue ?? "").trim() === editorValue)
       ?? (nodes.length === 1 ? nodes[0] : null);
 
-    return exact ? { element, node: exact.node } : null;
+    return exact ? { element, node: exact.node, nodeIndex: exact.index } : null;
   };
 
   const refine = () => {
@@ -433,7 +411,7 @@ export function installRenderInPlaceTextEditing(
     editor.style.boxShadow = "none";
     bindEditor(editor);
 
-    const preparedTarget = activeTargetByRuntime.get(runtime) ?? null;
+    const preparedTarget = readPreparedDirectTextTarget(runtime);
 
     const target = preparedTarget
       ?? resolvedEditorTarget
@@ -485,7 +463,7 @@ export function installRenderInPlaceTextEditing(
 
   ctx.lifecycle.onDispose(() => {
     disposed = true;
-    activeTargetByRuntime.delete(runtime);
+    clearPreparedDirectTextTarget(runtime);
     observer.disconnect();
     ownerWindow.removeEventListener("resize", schedule);
     ownerWindow.removeEventListener("scroll", syncOnScroll, true);

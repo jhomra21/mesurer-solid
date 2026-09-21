@@ -20,6 +20,7 @@ import {
   TypographyInspector,
   type TypographyInfo,
 } from "../typography/typography";
+import { readPreparedDirectTextTarget } from "./prepared-text-target";
 
 export const MESURER_TEXT_EDIT_STATE_ID = "mesurer.text-edit.intents";
 
@@ -1476,6 +1477,21 @@ export function installTextEditing(
   };
 
   const directTextTarget = (x: number, y: number) => {
+    const prepared = readPreparedDirectTextTarget(runtime);
+
+    if (
+      prepared
+      && prepared.element.isConnected
+      && prepared.node.isConnected
+      && prepared.node.parentNode === prepared.element
+      && Boolean(prepared.node.nodeValue?.trim())
+      && isPageElement(prepared.element)
+      && !SKIP_TAGS.has(prepared.element.tagName)
+      && !prepared.element.isContentEditable
+    ) {
+      return prepared;
+    }
+
     for (const candidate of ownerDocument.elementsFromPoint(x, y)) {
       if (!(candidate instanceof realm.HTMLElement)) continue;
 
