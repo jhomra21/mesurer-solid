@@ -11,16 +11,16 @@ type PreparedTargetEntry = {
   clearTimer: number;
 };
 
-const preparedTargetByRuntime = new WeakMap<MesurerSolidRuntimeService, PreparedTargetEntry>();
+const preparedTargetByPage = new WeakMap<HTMLElement | ShadowRoot, PreparedTargetEntry>();
 
 export const clearPreparedDirectTextTarget = (
   runtime: MesurerSolidRuntimeService,
 ) => {
-  const entry = preparedTargetByRuntime.get(runtime);
+  const entry = preparedTargetByPage.get(runtime.pageTarget);
 
   if (!entry) return;
   runtime.ownerWindow.clearTimeout(entry.clearTimer);
-  preparedTargetByRuntime.delete(runtime);
+  preparedTargetByPage.delete(runtime.pageTarget);
 };
 
 export const prepareDirectTextTarget = (
@@ -28,15 +28,16 @@ export const prepareDirectTextTarget = (
   target: PreparedDirectTextTarget,
 ) => {
   clearPreparedDirectTextTarget(runtime);
+  const pageTarget = runtime.pageTarget;
   const entry: PreparedTargetEntry = { target, clearTimer: 0 };
-  preparedTargetByRuntime.set(runtime, entry);
+  preparedTargetByPage.set(pageTarget, entry);
   entry.clearTimer = runtime.ownerWindow.setTimeout(() => {
-    if (preparedTargetByRuntime.get(runtime) === entry) {
-      preparedTargetByRuntime.delete(runtime);
+    if (preparedTargetByPage.get(pageTarget) === entry) {
+      preparedTargetByPage.delete(pageTarget);
     }
   }, 0);
 };
 
 export const readPreparedDirectTextTarget = (
   runtime: MesurerSolidRuntimeService,
-) => preparedTargetByRuntime.get(runtime)?.target ?? null;
+) => preparedTargetByPage.get(runtime.pageTarget)?.target ?? null;
