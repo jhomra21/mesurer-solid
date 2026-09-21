@@ -181,7 +181,7 @@ Direct text editing records copy and typography intent without pretending to edi
 
 Editing starts by double-click/double-tap while Select or Typography is active. Arrange keeps Select active, so editing works while Arrange remains selected.
 
-Native editing stays native. Mesurer does not intercept form controls or descendants that inherit `contenteditable`. A nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer target when the direct-text rules otherwise pass.
+Native editing stays native. Mesurer does not intercept form controls or descendants that inherit `contenteditable`. A nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer target when the direct-text rules otherwise pass. Mixed inline copy can target the exact direct text run under the pointer while preserving inline children and the host element's native DOM surface.
 
 The editing UI exposes direct B/I/U, Font, Size, Weight, rendered-page colors, custom color, and a separate Text/H1/H2/H3 semantic preset popup. Missing heading levels are not invented.
 
