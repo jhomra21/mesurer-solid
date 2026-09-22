@@ -80,7 +80,7 @@ const styles = (mode: string, overlayId: string) => `
 #${overlayId} .mesurer-ti-card--draggable{cursor:grab}
 #${overlayId} .mesurer-ti-card--draggable:active{cursor:grabbing}
 #${overlayId} .mesurer-ti-close{cursor:pointer}
-#${overlayId} .mesurer-ti-close:hover{background:rgba(15,23,42,.06)!important;color:#0f172a!important}
+#${overlayId} .mesurer-ti-close:hover{background:color-mix(in srgb,var(--msr-content,#0f172a) 6%,transparent)!important;color:var(--msr-content,#0f172a)!important}
 `;
 
 export function createTextInspector(options: TextInspectorOptions = {}, legacy = false): TextInspectorAPI {
