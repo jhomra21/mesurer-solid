@@ -18,8 +18,7 @@ Before preparing a stable release, perform a final documentation sweep against t
 
 For a stable release:
 
-- canonical install examples must use `mesurer-solid` / the `latest` dist-tag, not `mesurer-solid@beta`;
-- `@beta` may appear only where the text explicitly describes intentional prerelease testing;
+- canonical install examples must use `mesurer-solid` and the `latest` dist-tag;
 - every public package subpath introduced since the prior stable release must be documented and package-guarded;
 - the npm-facing `packages/mesurer/README.md` must describe only behavior actually present in the stable candidate;
 - `packages/mesurer/AGENT_INTEGRATION.md` and the Agent Skill must reflect the current agent contract;
@@ -40,33 +39,24 @@ This check is intentionally done before version-only release preparation. The ge
 
 There are two supported entry points into the same **prepare-release** workflow:
 
-1. From GitHub Actions, run **prepare-release** from `main` and choose a version strategy.
+1. From GitHub Actions, run **prepare-release** from `main` and choose a stable version strategy.
 2. Post an owner-only release command on the repository's **Release Control** issue (#32):
-   - `/release beta-next`
-   - `/release promote-stable`
    - `/release patch`
    - `/release minor`
    - `/release major`
    - `/release explicit X.Y.Z`
 
-The Release Control path is deliberately narrow: only new comments on issue #32 from the repository owner are accepted, and it only prepares a release. It cannot publish directly.
+The Release Control path accepts only new comments on issue #32 from the repository owner. It prepares a release but cannot publish one.
 
-Supported version strategies are:
+For normal releases, use `patch`, `minor`, or `major`. Use `explicit` only when an exact stable SemVer version is required.
 
-- `beta-next`: `0.1.0-beta.2` -> `0.1.0-beta.3`; from a stable version such as `0.1.0`, starts `0.1.1-beta.0`.
-- `promote-stable`: `0.1.0-beta.3` -> `0.1.0`. Stable promotion combines current `Unreleased` notes with the non-placeholder user-facing notes from the matching prerelease train (`beta`, `rc`, or another prerelease of the same `X.Y.Z`) so the stable release describes what actually shipped during prerelease validation.
-- `patch`, `minor`, `major`: stable-version SemVer bumps.
-- `explicit`: an exact supported SemVer version for exceptional cases such as an RC.
+The workflow moves `Unreleased` changelog entries into the new version section, updates `packages/mesurer/package.json`, creates `release/v<version>`, and opens a `release: v<version>` PR.
 
-For ordinary release strategies, the workflow moves `Unreleased` changelog entries into the new version section. For `promote-stable`, it also carries forward matching prerelease-train notes, skips `No user-facing changes.` placeholders, and avoids duplicating an identical note block already present in `Unreleased`. Existing prerelease sections remain intact as historical records.
+Only one release PR may be open at a time. The generated release commit contains GitHub's native `[skip ci]` marker because the release PR changes release metadata only. Runtime and compatibility checks must already be green on the source changes before release preparation.
 
-The workflow updates `packages/mesurer/package.json`, creates `release/v<version>`, and opens a `release: v<version>` PR.
+`prepare-release` dispatches `release-check.yml` against the generated release branch after opening the PR. `workflow_dispatch` is not suppressed by the release commit's skip marker, so **release-check is the single expected release-PR validation gate**. No PAT or long-lived publishing token is required.
 
-Only one release PR may be open at a time. The generated release commit contains GitHub's native `[skip ci]` marker because the release PR is metadata-only and runtime/source compatibility was already validated before release preparation. That prevents normal `push` and `pull_request` workflows from being instantiated for the bot-created release PR, avoiding the separate maintainer approval prompt for those checks.
-
-`prepare-release` explicitly dispatches `release-check.yml` against the generated release branch after opening the PR. `workflow_dispatch` is not suppressed by the release commit's skip marker, so **release-check is the single expected release-PR validation gate**. No PAT or long-lived publishing token is required.
-
-If GitHub Actions is not allowed to create pull requests in the repository settings, PR creation fails closed and the workflow removes the remote release branch so it can be retried after the setting is enabled.
+If GitHub Actions cannot create pull requests under the repository settings, PR creation fails closed and the workflow removes the remote release branch so the release can be retried after the setting changes.
 
 ## Review the release PR
 
@@ -91,9 +81,9 @@ This push-trigger bridge is intentionally separate from the generated release PR
 5. Downloads the same artifact in the publish job and recomputes SHA-512 over the downloaded bytes before any registry action.
 6. If the npm version does not exist, publishes that exact `.tgz` through Trusted Publishing/OIDC.
 7. If the npm version already exists, verifies its registry integrity matches the tarball and continues recovery instead of republishing.
-8. Verifies the expected npm dist-tag (`beta` for prereleases, `latest` for stable releases).
+8. Verifies the expected npm dist-tag is `latest`.
 9. Creates `v<version>` only after npm succeeds, and refuses an existing tag that points at another commit.
-10. Creates the GitHub Release from the matching changelog section; prerelease versions are marked as prereleases.
+10. Creates the GitHub Release from the matching changelog section.
 
 The npm publishing job is serialized with `cancel-in-progress: false`, so release jobs cannot race each other. Release-sensitive third-party Actions and the npm CLI used to pack/publish are pinned to immutable versions/revisions.
 
@@ -114,7 +104,7 @@ A GitHub deployment Environment can be added later as an additional approval bou
 
 If npm publication succeeds but a later tag/GitHub Release step fails, first rerun the failed GitHub Actions job/run. That preserves the original release commit and is the safest recovery path.
 
-npm can accept a publish and still take time to expose the new version, integrity metadata, or dist-tag consistently through `npm view`. If the publish step reports success but the following registry verification times out, rerun the failed publish job after registry propagation. The recovery path detects the existing version, requires its integrity to match the original packed artifact, verifies the expected dist-tag, and only then creates the Git tag and GitHub Release. Do not run `npm publish` again manually and do not create the release tag by hand while the registry is still catching up.
+npm can accept a publish and still take time to expose the new version, integrity metadata, or dist-tag consistently through `npm view`. If the publish step reports success but the following registry verification times out, rerun the failed publish job after registry propagation. The recovery path detects the existing version, requires its integrity to match the original packed artifact, verifies the `latest` dist-tag, and only then creates the Git tag and GitHub Release. Do not run `npm publish` again manually and do not create the release tag by hand while the registry is still catching up.
 
 `publish.yml` also supports direct `workflow_dispatch` for recovery of the version currently on `main`. Manual recovery is rejected from any other ref. It verifies the package source has not changed since the release commit and verifies any already-published npm integrity before doing post-publish work.
 
