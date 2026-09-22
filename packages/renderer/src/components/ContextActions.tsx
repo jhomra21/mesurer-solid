@@ -1134,7 +1134,7 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-annotation-composer="true"
             data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
             data-mesurer-annotation-scroll-mode={scrollMode(placement().nativeAnchor)}
-            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
+            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-[272px] msr:max-w-[calc(100vw-16px)] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
             style={{
               position: placement().nativeAnchor || usesViewportCoordinates() ? "fixed" : "absolute",
               left: placement().nativeAnchor
@@ -1333,7 +1333,7 @@ export function ContextActions(props: ContextActionsProps) {
             data-mesurer-annotation-id={annotation().id}
             data-mesurer-annotation-scroll-mode={scrollMode(placement().nativeAnchor)}
             data-mesurer-context-coordinate-space={usesViewportCoordinates() ? "viewport" : "document"}
-            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-[272px] msr:max-h-[220px] msr:rounded-[10px] msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
+            class="mesurer-menu-surface msr:pointer-events-auto msr:z-[95] msr:w-[272px] msr:max-h-[220px] msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1.5 msr:text-black"
             style={{
               position: placement().nativeAnchor || usesViewportCoordinates() ? "fixed" : "absolute",
               left: placement().nativeAnchor
