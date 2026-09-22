@@ -4,17 +4,23 @@ import { chromium } from "playwright";
 const url = process.env.THEME_URL ?? "http://127.0.0.1:4174/plugin-settings.html";
 
 const browser = await chromium.launch({ headless: true });
+
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+
 const errors = [];
 
 page.on("pageerror", (error) => errors.push(String(error)));
+
 page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text());
 });
 
 const island = () => page.locator("[data-mesurer-island='true']");
+
 const rendererRoot = () => page.locator("[data-mesurer-root='true']").first();
+
 const toolbar = () => page.locator(".mesurer-toolbar-surface").first();
+
 const contextRoot = () => page.locator("[data-mesurer-context-root='true']").first();
 
 const waitForHarness = () =>
@@ -25,10 +31,12 @@ const openGeneralSettings = async () => {
   await button.waitFor({ state: "visible" });
 
   const dialog = island().getByRole("dialog", { name: "Settings" });
+
   if (!await dialog.isVisible()) await button.click();
   await dialog.waitFor({ state: "visible" });
 
   const general = dialog.getByRole("tab", { name: "General" });
+
   if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
 
   return dialog;
@@ -96,6 +104,7 @@ try {
   await appearanceAgain.selectOption("dark");
   await page.waitForFunction(() => {
     const raw = window.localStorage.getItem("mesurer-settings");
+
     return raw?.includes('"theme":"dark"') ?? false;
   });
 
