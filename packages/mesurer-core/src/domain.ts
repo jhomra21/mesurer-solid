@@ -1,5 +1,7 @@
 export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 
+export type MesurerTheme = "system" | "light" | "dark";
+
 export type ColorSample = { red: number; green: number; blue: number; alpha: number };
 
 export type Point = { x: number; y: number };
@@ -74,6 +76,7 @@ export type MesurerStoredSettings = {
   multiMeasureEnabled?: boolean;
   persistOnReload?: boolean;
   shortcutsEnabled?: boolean;
+  theme?: MesurerTheme;
   guideStyle?: Partial<GuideStyle>;
   rulerSettings?: Partial<RulerSettings>;
 };
@@ -97,6 +100,7 @@ export type MesurerSettings = {
   hoverHighlightEnabled: boolean;
   persistOnReload: boolean;
   shortcutsEnabled: boolean;
+  theme: MesurerTheme;
   colorPickerFormats: ColorPickerFormat[];
   colorPickerClickFormat: ColorPickerFormat;
   snapEnabled: boolean;
