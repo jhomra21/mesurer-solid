@@ -15,8 +15,8 @@ export type {
   SettingsTab,
 } from "@jhomra21/mesurer-solid-core";
 
-export type MesurerModel = MesurerCoreModel<HTMLElement> & {
-  state: MesurerModelState<HTMLElement>;
+export type MesurerModel = MesurerCoreModel<Element> & {
+  state: MesurerModelState<Element>;
   /** Exact renderer root owned by this model once MesurerClient mounts. */
   rendererRoot: HTMLDivElement | null;
 };
@@ -30,8 +30,8 @@ export const MesurerModelRegistrationContext = createContext<(model: MesurerMode
 export function createMesurerModel(options: MesurerModelOptions = {}): MesurerModel {
   const owner = getOwner();
   const registerModel = owner ? useContext(MesurerModelRegistrationContext) : ignoreModelRegistration;
-  const core = createMesurerModelCore<HTMLElement>(options);
-  const [state, setState] = createStore<MesurerModelState<HTMLElement>>(core.getSnapshot());
+  const core = createMesurerModelCore<Element>(options);
+  const [state, setState] = createStore<MesurerModelState<Element>>(core.getSnapshot());
   const unsubscribe = core.subscribe((snapshot) => setState(() => snapshot));
   const disposeCore = core.dispose;
   let disposed = false;
