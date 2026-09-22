@@ -364,8 +364,9 @@ export function installRenderInPlaceTextEditing(
   };
 
   const selectedTargetForEditor = (editor: HTMLTextAreaElement): PreparedDirectTextTarget | null => {
-    const candidates = workspace.currentSelection().elements.filter((element) => (
-      element.isConnected
+    const candidates = workspace.currentSelection().elements.filter((element): element is HTMLElement => (
+      element instanceof realm.HTMLElement
+      && element.isConnected
       && isElementWithinDomTarget(element, pageTarget)
       && !element.closest("[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']")
     ));
