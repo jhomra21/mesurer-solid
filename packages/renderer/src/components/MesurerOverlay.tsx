@@ -429,7 +429,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       onPointerLeave={(event) => props.onPointerLeave(event)}
     >
       <Show when={selectionVisible()}>
-        <For each={displayedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={measurementEdges()[index()]} outlineColor={outline()} fillColor={fill()} />}</For>
+        <For each={displayedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={measurementEdges()[index()]} outlineColor={outline()} fillColor={fill()} theme={props.model.state.settings.theme} />}</For>
 
         <Show when={props.activeRect && props.model.state.isDragging}><>
           <div class="msr:pointer-events-none msr:absolute" style={{ left: `${props.activeRect!.left}px`, top: `${props.activeRect!.top}px`, width: `${props.activeRect!.width}px`, height: `${props.activeRect!.height}px`, "background-color": fill() }}>
@@ -459,7 +459,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
       </Show>
 
       <Show when={selectionVisible()}>
-        <For each={displayedSelectedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={selectedEdges()[index()]} outlineColor={selectedOutline()} fillColor={selectedFill()} />}</For>
+        <For each={displayedSelectedMeasurements()}>{(measurement, index) => <MeasurementBox measurement={measurement} edgeVisibility={selectedEdges()[index()]} outlineColor={selectedOutline()} fillColor={selectedFill()} theme={props.model.state.settings.theme} />}</For>
         <Show when={selectedMeasurements().length > 1}>
           <For each={selectedMeasurements()}>{(measurement) => (
             <div
