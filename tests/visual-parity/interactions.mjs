@@ -90,6 +90,49 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
   if (implementation !== "solid") return;
   let changed = false;
 
+  // v0.0.11 predates Appearance. Verify the current-only control before
+  // removing it from the historical interaction snapshot. The dedicated theme
+  // browser contract owns current system/light/dark behavior and token values.
+  const appearance = page.getByRole("combobox", { name: "Appearance" });
+
+  if ((await appearance.count()) > 0) {
+    const contract = await appearance.evaluate((select) => ({
+      value: select.value,
+      options: [...select.options].map((option) => ({
+        label: option.textContent?.trim() ?? "",
+        value: option.value,
+      })),
+    }));
+
+    const expected = {
+      value: "system",
+      options: [
+        { label: "System", value: "system" },
+        { label: "Light", value: "light" },
+        { label: "Dark", value: "dark" },
+      ],
+    };
+
+    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+      throw new Error(`Unexpected current Appearance contract: ${JSON.stringify(contract)}`);
+    }
+
+    await appearance.evaluate((select) => select.parentElement?.remove());
+    changed = true;
+  }
+
+  // Preserve the old source-parity gate as a v0.0.11 visual/interaction test.
+  // Removing only the current theme selector makes Solid render through the
+  // still-pinned historical stylesheet for this snapshot.
+  const themedNodes = page.locator(
+    '[data-mesurer-root="true"][data-theme], [data-mesurer-inspector-ui="true"][data-theme], [data-mesurer-selected-measurement="true"][data-theme]',
+  );
+
+  if ((await themedNodes.count()) > 0) {
+    await themedNodes.evaluateAll((nodes) => nodes.forEach((node) => node.removeAttribute("data-theme")));
+    changed = true;
+  }
+
   const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"]');
 
   if ((await extensions.count()) > 0) {
