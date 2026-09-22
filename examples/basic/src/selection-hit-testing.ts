@@ -1,9 +1,11 @@
 import { mountMesurer, type MountedMesurer } from "../../../packages/mesurer/src/index";
 
 const key = "mesurer-selection-hit-testing";
+
 window.localStorage.removeItem(key);
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas-target");
+
 const context = canvas?.getContext("2d");
 
 if (canvas && context) {
@@ -14,9 +16,11 @@ if (canvas && context) {
 }
 
 const closedHost = document.querySelector<HTMLElement>("#closed-shadow-host");
+
 if (closedHost) {
   const shadow = closedHost.attachShadow({ mode: "closed" });
   const button = document.createElement("button");
+
   button.type = "button";
   button.textContent = "Closed shadow child";
   button.style.cssText = "border:1px solid #94a3b8;border-radius:8px;padding:8px 12px;background:white;color:#0f172a";
@@ -24,11 +28,13 @@ if (closedHost) {
 }
 
 const grid = document.querySelector<HTMLElement>("#large-dom-grid");
+
 if (grid) {
   const fragment = document.createDocumentFragment();
 
   for (let index = 0; index < 1000; index += 1) {
     const button = document.createElement("button");
+
     button.type = "button";
     button.dataset.largeDomTarget = String(index + 1);
     button.textContent = String((index + 1) % 10);
