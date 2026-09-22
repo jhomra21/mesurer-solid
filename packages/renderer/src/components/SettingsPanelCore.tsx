@@ -12,6 +12,9 @@ const COLOR_FORMATS: ColorPickerFormat[] = ["hex", "rgb", "hsl", "oklch"];
 const isColorPickerFormat = (value: string): value is ColorPickerFormat =>
   COLOR_FORMATS.some((format) => format === value);
 
+const isMesurerTheme = (value: string): value is MesurerTheme =>
+  value === "system" || value === "light" || value === "dark";
+
 const GUIDE_PATTERNS: Array<{ value: GuideStyle["pattern"]; label: string }> = [
   { value: "solid", label: "Solid" },
   { value: "dashed", label: "Dashed" },
@@ -425,7 +428,11 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
               aria-label="Appearance"
               value={settings().theme}
               class="mesurer-settings-select msr:h-6 msr:w-full msr:appearance-none msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-1.5 msr:pr-6 msr:text-[11px] msr:outline-none msr:focus:shadow-[inset_0_0_0_1px_var(--msr-accent)]"
-              onChange={(event) => props.model.updateSettings({ theme: event.currentTarget.value as MesurerTheme })}
+              onChange={(event) => {
+                const theme = event.currentTarget.value;
+
+                if (isMesurerTheme(theme)) props.model.updateSettings({ theme });
+              }}
             >
               <option value="system">System</option>
               <option value="light">Light</option>
