@@ -9,7 +9,7 @@ export type DocumentInspectorMount = {
 
 type DocumentInspectorRuntime = Pick<
   MesurerSolidRuntimeService,
-  "ownerDocument" | "ownerWindow" | "pageTarget" | "createInspectorMount"
+  "ownerDocument" | "ownerWindow" | "pageTarget" | "createInspectorMount" | "subscribeTheme"
 >;
 
 const CONTEXT_HIGHLIGHT_Z_INDEX = "2147482950";
@@ -42,6 +42,7 @@ export function createDocumentInspectorMount(
   const element = ownerDocument.createElement("div");
   element.dataset.mesurerInspectorUi = "true";
   element.dataset.mesurerDocumentInspectorMount = "true";
+  const unsubscribeTheme = runtime.subscribeTheme((theme) => { element.dataset.theme = theme; });
 
   // Do not make the shared document origin a stacking context. Context has two
   // different paint responsibilities: the ownership edge is page evidence and
@@ -86,6 +87,7 @@ export function createDocumentInspectorMount(
     dispose() {
       if (disposed) return;
       disposed = true;
+      unsubscribeTheme();
       layerStyle.remove();
       element.remove();
     },
