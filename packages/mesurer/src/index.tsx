@@ -34,7 +34,6 @@ import { mountMesurerHost, type MesurerHostLayerMode } from "./host-layer";
 import { createPluginRegistry } from "./plugin-catalog";
 import { MESURER_VERSION } from "./version";
 
-
 export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 
 export type MesurerBuiltinPluginId = "select" | "xray" | "color-picker" | "rulers" | "text-inspector" | "guides" | "distance" | "settings";
