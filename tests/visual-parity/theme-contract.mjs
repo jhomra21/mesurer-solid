@@ -108,6 +108,7 @@ try {
   const portaledSelection = page.locator(
     "body > [data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']",
   ).first();
+
   await portaledSelection.waitFor({ state: "visible" });
   assert.equal(await portaledSelection.getAttribute("data-theme"), "dark", "portaled selection theme");
 
