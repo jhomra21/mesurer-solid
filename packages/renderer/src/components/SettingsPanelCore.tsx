@@ -118,11 +118,12 @@ function SliderControl(props: {
 
  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
           >
-            <div class="msr:absolute msr:left-[8px] msr:right-[8px] msr:rounded-full" style={{ top: "8px", height: "4px", "background-color": "rgba(15, 23, 42, 0.16)" }} />
-            <div class="msr:absolute msr:left-[8px] msr:rounded-full" style={{ top: "8px", width: `calc(${percentage()}% - ${percentage() * 0.16}px)`, height: "4px", "background-color": "#0d99ff" }} />
+            <div class="msr:absolute msr:left-[8px] msr:right-[8px] msr:rounded-full" style={{ top: "8px", height: "4px", "background-color": "var(--msr-slider-track, rgba(15, 23, 42, 0.16))" }} />
+            <div class="msr:absolute msr:left-[8px] msr:rounded-full" style={{ top: "8px", width: `calc(${percentage()}% - ${percentage() * 0.16}px)`, height: "4px", "background-color": "var(--msr-accent, #0d99ff)" }} />
             <div
               class="msr:absolute msr:rounded-[5px] msr:bg-white msr:shadow-sm msr:outline-none msr:focus-visible:ring-1 msr:focus-visible:ring-[#0d99ff]/25"
-              style={{ left: `calc(8px + (100% - 16px) * ${percentage() / 100})`, top: "4px", width: "12px", height: "12px", transform: "translateX(-50%)" }}
+              data-slider-thumb="true"
+              style={{ "background-color": "var(--msr-control-thumb, #fff)", left: `calc(8px + (100% - 16px) * ${percentage() / 100})`, top: "4px", width: "12px", height: "12px", transform: "translateX(-50%)" }}
               role="slider"
               tabindex={0}
               aria-label={props.label}
