@@ -165,19 +165,19 @@ export type MesurerWorkspaceContextSource = {
     rulersVisible: boolean;
     xrayVisible: boolean;
     guideRelevanceTolerance?: number;
-    measurements: Array<{ id: string; rect: MesurerContextRect; deltaX: number; deltaY: number; snapped?: boolean; elementRef?: HTMLElement | null }>;
-    activeMeasurement: { id: string; rect: MesurerContextRect; deltaX: number; deltaY: number; snapped?: boolean; elementRef?: HTMLElement | null } | null;
+    measurements: Array<{ id: string; rect: MesurerContextRect; deltaX: number; deltaY: number; snapped?: boolean; elementRef?: Element | null }>;
+    activeMeasurement: { id: string; rect: MesurerContextRect; deltaX: number; deltaY: number; snapped?: boolean; elementRef?: Element | null } | null;
     heldDistances: Array<{
       id: string; rectA: MesurerContextRect; rectB: MesurerContextRect;
-      elementRefA?: HTMLElement | null; elementRefB?: HTMLElement | null;
+      elementRefA?: Element | null; elementRefB?: Element | null;
       horizontal: { x1: number; x2: number; y: number; value: number } | null;
       vertical: { y1: number; y2: number; x: number; value: number } | null;
     }>;
     guides: Array<{ id: string; orientation: "vertical" | "horizontal"; position: number }>;
   } | null;
-  currentSelection(): { elements: HTMLElement[]; region: MesurerContextRect | null };
+  currentSelection(): { elements: Element[]; region: MesurerContextRect | null };
   annotations(): MesurerAnnotation[];
-  annotation(id: string): (MesurerAnnotation & { resolvedTargets: Array<{ target: MesurerAnnotationTarget; element: HTMLElement | null }> }) | null;
+  annotation(id: string): (MesurerAnnotation & { resolvedTargets: Array<{ target: MesurerAnnotationTarget; element: Element | null }> }) | null;
   annotationRect(id: string): MesurerContextRect | null;
 };
 
@@ -190,9 +190,9 @@ const rect = (value: MesurerContextRect): MesurerContextRect => ({
   height: value.height,
 });
 
-const uniqueElements = (values: Array<HTMLElement | null | undefined>) => {
-  const seen = new Set<HTMLElement>();
-  const result: HTMLElement[] = [];
+const uniqueElements = (values: Array<Element | null | undefined>) => {
+  const seen = new Set<Element>();
+  const result: Element[] = [];
 
   for (const value of values) {
     if (!value?.isConnected || seen.has(value)) continue;
@@ -218,10 +218,10 @@ export function captureMesurerContext(options: {
 
   if (!snapshot) throw new Error("Mesurer workspace is not ready yet.");
 
-  let anchorElements: HTMLElement[] = [];
+  let anchorElements: Element[] = [];
   let anchorRegions: MesurerContextRect[] = [];
   let scope: MesurerContextV1["scope"] = { kind: "workspace" };
-  const preferredRefByElement = new Map<HTMLElement, string>();
+  const preferredRefByElement = new Map<Element, string>();
 
   if ("annotation" in request) {
     const annotation = runtime.annotation(request.annotation);
@@ -291,7 +291,7 @@ export function captureMesurerContext(options: {
     ...distances.flatMap((distance) => [distance.elementRefA, distance.elementRefB]),
   ]);
 
-  const refByElement = new Map<HTMLElement, string>();
+  const refByElement = new Map<Element, string>();
   const usedRefs = new Set(preferredRefByElement.values());
   let generatedRef = 1;
 
