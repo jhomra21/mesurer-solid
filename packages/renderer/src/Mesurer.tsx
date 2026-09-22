@@ -188,7 +188,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   let persistTimer = 0;
   let hoverFrame = 0;
   let hoverPoint: Point | null = null;
-  let shiftToggleElement: HTMLElement | null = null;
+  let shiftToggleElement: Element | null = null;
   let shiftDrag = false;
   let guideDragHoldTimer = 0;
   let guideDragHoldId: string | null = null;
@@ -463,7 +463,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       let merged: InspectMeasurement[] = next;
 
       if (event.shiftKey) {
-        const map = new Map<HTMLElement, InspectMeasurement>();
+        const map = new Map<Element, InspectMeasurement>();
 
         for (const item of [...model.current.selectedMeasurements, ...next]) if (item.elementRef) map.set(item.elementRef, item);
         merged = [...map.values()];
