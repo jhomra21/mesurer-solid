@@ -1,19 +1,19 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../../ComposableMesurer";
 
-const INK_50 = "#f8fafc";
+const INK_50 = "var(--msr-color-ink-50, #f8fafc)";
 
-const INK_100 = "#f1f5f9";
+const INK_100 = "var(--msr-color-ink-100, #f1f5f9)";
 
-const INK_200 = "#e2e8f0";
+const INK_200 = "var(--msr-color-ink-200, #e2e8f0)";
 
-const INK_500 = "#64748b";
+const INK_500 = "var(--msr-color-ink-500, #64748b)";
 
-const INK_700 = "#334155";
+const INK_700 = "var(--msr-color-ink-700, #334155)";
 
-const INK_900 = "#0f172a";
+const INK_900 = "var(--msr-content, #0f172a)";
 
-const ACCENT = "#0d99ff";
+const ACCENT = "var(--msr-accent, #0d99ff)";
 
 const VIEWPORT_PADDING = 8;
 
@@ -212,9 +212,9 @@ export function installUnifiedTextSelectMenus(
       boxSizing: "border-box",
       border: `1px solid ${INK_200}`,
       borderRadius: "8px",
-      background: "#ffffff",
+      background: "var(--msr-surface-raised, #ffffff)",
       padding: "4px",
-      boxShadow: "0 8px 24px rgba(15, 23, 42, 0.14), 0 2px 6px rgba(15, 23, 42, 0.08)",
+      boxShadow: "var(--msr-shadow-select-menu, 0 8px 24px rgba(15, 23, 42, 0.14), 0 2px 6px rgba(15, 23, 42, 0.08))",
       pointerEvents: "auto",
     });
 
