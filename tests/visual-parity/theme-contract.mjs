@@ -74,19 +74,47 @@ try {
   await expectToolbarColor("rgb(50, 50, 50)", "dark toolbar surface");
   assert.equal(await textColor(dialog), "rgb(245, 245, 245)", "dark Settings text");
 
-  const typographyButton = island().locator("[data-mesurer-builtin='text-inspector'] button").first();
-  await typographyButton.click();
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "hidden" });
+
   const target = page.locator("#settings-target");
   const targetBox = await target.boundingBox();
+
   assert(targetBox, "Typography target should render");
+
+  const selectButton = island().locator("[data-mesurer-builtin='select'] button").first();
+  await selectButton.click();
+  await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+
+  const selectedMeasurement = page.locator("[data-mesurer-selected-measurement='true']").first();
+  await selectedMeasurement.waitFor({ state: "visible" });
+  assert.equal(await selectedMeasurement.getAttribute("data-theme"), "dark", "portaled selection theme");
+
+  const typographyButton = island().locator("[data-mesurer-builtin='text-inspector'] button").first();
+  await typographyButton.click();
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const typographyCard = page.locator(".mesurer-ti-card").first();
   await typographyCard.waitFor({ state: "visible" });
   const typographyRoot = typographyCard.locator("xpath=ancestor-or-self::*[@data-mesurer-inspector-ui='true'][1]");
+
   assert.equal(await typographyRoot.getAttribute("data-theme"), "dark", "document Typography theme");
   assert.equal(await surfaceColor(typographyCard), "rgb(58, 58, 58)", "dark Typography surface");
 
+  await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+
+  const editor = page.locator("[data-mesurer-text-editor='true']");
+  await editor.waitFor({ state: "visible" });
+
+  const directInspector = page.locator("[data-mesurer-text-inspector-info='true']").first();
+  await directInspector.waitFor({ state: "visible" });
+  const directRoot = directInspector.locator("xpath=ancestor-or-self::*[@data-mesurer-inspector-ui='true'][1]");
+
+  assert.equal(await directRoot.getAttribute("data-theme"), "dark", "direct-edit document theme");
+  assert.equal(await surfaceColor(directInspector), "rgb(58, 58, 58)", "dark direct-edit Typography surface");
+
+  await editor.press("Escape");
+  await editor.waitFor({ state: "detached" });
   await typographyButton.click();
   dialog = await openGeneralSettings();
   const appearanceAgain = dialog.getByRole("combobox", { name: "Appearance" });
@@ -128,6 +156,8 @@ try {
     dark: true,
     contextDocumentMount: true,
     typographyDocumentMount: true,
+    directEditDocumentMount: true,
+    portaledSelection: true,
     persisted: true,
   });
 } finally {
