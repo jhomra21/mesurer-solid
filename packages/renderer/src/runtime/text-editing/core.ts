@@ -1592,7 +1592,7 @@ export function installTextEditing(
       overflow: "hidden",
       border: "0",
       outline: "none",
-      boxShadow: "0 0 0 2px #0d99ff, 0 8px 24px rgba(15,23,42,.18)",
+      boxShadow: "0 0 0 2px var(--msr-accent, #0d99ff), var(--msr-shadow-select-menu, 0 8px 24px rgba(15,23,42,.18))",
     });
 
     const toolbar = ownerDocument.createElement("div");
