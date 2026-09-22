@@ -82,7 +82,7 @@ export type OverlayContribution = { id: string; order?: number; builtin?: string
 export type CommandHandler = (
   args: PluginValue | undefined,
   context: { source?: PluginValue },
-) => PluginValue | undefined | Promise<PluginValue | undefined>;
+) => void | PluginValue | Promise<void | PluginValue>;
 
 export type HookHandler = (event: PluginValue) => void | Promise<void>;
 
@@ -271,7 +271,9 @@ export function createMesurerPluginHost() {
     let result: PluginValue | undefined;
 
     try {
-      result = await match.handler(args, { source });
+      const handlerResult = await match.handler(args, { source });
+
+      if (handlerResult !== undefined) result = handlerResult;
       await events.emit("command", { id, args });
     } finally {
       commandDepth -= 1;
