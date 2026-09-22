@@ -419,6 +419,19 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
         <section class="msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1" aria-label="General settings">
           <SettingsSwitch label="Persist" checked={settings().persistOnReload} onChange={(persistOnReload) => props.model.updateSettings({ persistOnReload })} />
           <SettingsSwitch label="Shortcuts" checked={settings().shortcutsEnabled} onChange={(shortcutsEnabled) => props.model.updateSettings({ shortcutsEnabled })} />
+          <div class="msr:col-span-2 msr:grid msr:h-6 msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-[12px] msr:text-ink-700">
+            <span>Appearance</span>
+            <select
+              aria-label="Appearance"
+              value={settings().theme}
+              class="mesurer-settings-select msr:h-6 msr:w-full msr:appearance-none msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-1.5 msr:pr-6 msr:text-[11px] msr:outline-none msr:focus:shadow-[inset_0_0_0_1px_var(--msr-accent)]"
+              onChange={(event) => props.model.updateSettings({ theme: event.currentTarget.value as typeof settings().theme })}
+            >
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
           <Show when={pluginEntries().length > 0}>
             <div
               class="msr:col-span-2 msr:mt-1 msr:overflow-hidden msr:rounded-[6px] msr:bg-ink-50/40"
