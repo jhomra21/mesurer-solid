@@ -124,7 +124,7 @@ Use the high-level Context and saved-intent methods for normal UI work. The lowe
 | `distance(a, b)` | Measure two selector targets. |
 | `viewport()` | Read viewport/document dimensions, scrolling, device pixel ratio, and overflow. |
 | `feedback(selectors?)` | Read viewport data, inspected elements, plugin description, and plugin state together. |
-| `command(id, args?)` | Execute a registered Mesurer command. |
+| `command(id, args?)` | Execute a registered Mesurer command and return its JSON-safe result when present. |
 | `state()` | Read plugin state. |
 | `stable(frames?)` | Wait for fonts and rendering before measuring again. |
 | `textEdits()` / `textEdit(id)` | Read saved direct-text and typography intent. |
