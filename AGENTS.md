@@ -7,6 +7,7 @@ For the canonical human/agent UI-review workflow, read:
 - [Agent Integration](./packages/mesurer/AGENT_INTEGRATION.md). detailed integration and verification contract.
 - [Mesurer UI skill](./.agents/skills/mesurer-ui/SKILL.md). portable operational instructions shipped to coding agents.
 - [Context](./docs/CONTEXT_WORKFLOW.md), [Arrange](./docs/ARRANGE.md), [Text Editing](./docs/TEXT_EDITING.md), and [Screenshots](./docs/SCREENSHOTS.md). feature-specific behavior.
+- [Design language](./docs/DESIGN_LANGUAGE.md). shared visual and interaction review contract for new Mesurer UI.
 
 Do not maintain a third copy of those procedures in this file. Keep this document focused on repository ownership, architectural invariants, validation, and contribution rules.
 
@@ -201,6 +202,12 @@ Reference for fine-grained interactive controls, parameter editing, reactive UI 
 **Repository:** `solidjs-community/solid-primitives`
 
 Reference for Solid API design, browser behavior, storage/persistence, lifecycle/cleanup, and package-local ownership.
+
+### OpenTUI
+
+**Repository:** `anomalyco/opentui`
+
+Reference for explicit command/result contracts, keyboard and interaction ownership, renderer/core separation, package-facing API surfaces, and cleanup-aware interactive systems.
 
 ### DAW Browser Convex
 
