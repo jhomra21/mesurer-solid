@@ -139,6 +139,7 @@ export const getSnappedClickTarget = (
   const treeEntries = directRoot.nodeType === 11
     ? entries.filter(({ element }) => getDomTreeRoot(element) === directRoot)
     : entries;
+
   const directEntry = treeEntries.find(({ element }) => element === direct);
 
   if (
