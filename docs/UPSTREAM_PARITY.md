@@ -7,12 +7,22 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `19446bd845a957cfc96e76b4393916b8153ab8e0` (`main`, audited 2026-09-15) |
-| Current upstream audit | `8b644ee7e5ab3bec8a70737b73a0a5524053313a` (`main`, audited 2026-09-21) |
+| Previous upstream audit | `8b644ee7e5ab3bec8a70737b73a0a5524053313a` (`main`, audited 2026-09-21) |
+| Current upstream audit | `c20ad51ef68d5a78fa0c965fe8fcb1124d58a699` (`main`, audited 2026-09-22) |
 
-The current upstream delta is one commit after the previous audit: `8b644ee...`, **"feat: improve comments (#29)"**. It expands upstream's comment-mode resolution/filtering workflow and viewport context, hardens transient menu/card dismissal, and revises toolbar drag/collapse motion plus shared floating-surface chrome.
+The current upstream delta is one commit: `c20ad51...`, **"feat: update colors, add dark mode (#31)"**. It adds persisted System, Light, and Dark appearance, updates the shared light palette, adds dark theme tokens and browser coverage, and makes a few threaded-comment workflow changes.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
+
+### 2026-09-22 delta classification
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Persisted `system | light | dark` appearance and public theme option | **Adopted** | Mesurer Solid now exposes `theme` on the public mount API and the Settings Appearance control. The value persists with normal Mesurer settings. |
+| Theme-aware light and dark colors, controls, shadows, and system color-scheme handling | **Adopted with Solid ownership adaptation** | The upstream palette is mapped to Mesurer theme tokens. The owning theme is also propagated to document-backed Context, Typography, direct-edit, and portaled selection UI so isolated mounts do not split into mixed themes. |
+| Dark-surface browser coverage | **Adopted with broader coverage** | The Chromium contract checks explicit Light and Dark modes, System changes through `prefers-color-scheme`, persistence, the isolated renderer, document Context, and document Typography. |
+| Copy only unresolved threaded comments and bulk Resolve all | **Intentional divergence** | Mesurer Solid uses Context annotations rather than upstream threaded comments. Codex completion already removes only the exact delivered annotations when that behavior is enabled. |
+| Comment overflow-menu and delete-confirmation anchor fixes | **Not applicable as a direct port** | Upstream preserves the clicked overflow action anchor while its comment menu closes. Context annotation deletion is a direct action and does not use that menu-to-confirmation path. |
 
 ### 2026-09-21 delta classification
 
@@ -58,6 +68,7 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | Upstream area | Mesurer Solid decision |
 | --- | --- |
 | Core measurement, X-ray, guides, rulers, settings | Source-first port with historical visual/interaction validation |
+| System, Light, and Dark appearance | Adopted from upstream `c20ad51`; theme state also follows Mesurer Solid document-backed UI |
 | Native Color Picker | Adopt where `EyeDropper` is operational; hide in unsupported hosts |
 | Text Inspector | Adopt inspection behavior; visible label is **Typography**, internal id stays `text-inspector` |
 | Screenshot region selection | Adopt as optional `screenshot()` from `mesurer-solid/plugins` and extend with preview/viewer and extension capture |
