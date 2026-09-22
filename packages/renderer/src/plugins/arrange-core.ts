@@ -1238,7 +1238,9 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         };
       },
       review,
-      clear: () => ctx.command.execute(CLEAR_COMMAND),
+      clear: async () => {
+        await ctx.command.execute(CLEAR_COMMAND);
+      },
     };
 
     ctx.tool.register({
