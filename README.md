@@ -66,7 +66,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, `settings`, `defaults`, and `compose` for applications that want to build a custom plugin set explicitly.
+The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, `settings`, `defaults`, and `compose` for applications that want to build a custom plugin set explicitly. Optional plugin capabilities can be resolved from the mount with `await mesurer.service<T>(serviceId)` instead of reaching through the raw plugin host.
 
 ## Features
 
