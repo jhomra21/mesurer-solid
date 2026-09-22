@@ -4,11 +4,13 @@ import { chromium } from "playwright";
 const url = process.env.TOOLBAR_DRAG_URL ?? "http://127.0.0.1:4174/";
 
 const browser = await chromium.launch({ headless: true });
+
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
 const errors = [];
 
 page.on("pageerror", (error) => errors.push(String(error)));
+
 page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text());
 });
