@@ -777,7 +777,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         toolRegistration = ctx.tool.register({
           id: "codex.send",
           label,
-          command: "codex.send",
+          command: "codex.queue",
           order: 73,
           icon: deliveryToolIcon(),
           disabled: () => !canSend,
@@ -1054,7 +1054,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       };
 
       ctx.service.provide(MESURER_CODEX_SERVICE_ID, service);
-      ctx.command.register("codex.send", async () => {
+      const queueFromUi = async () => {
         if (uiSendPromise || deliveryBusy()) return;
         clearDeliveryTimers();
         const target = currentTarget();
@@ -1127,7 +1127,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         })();
 
         return uiSendPromise;
-      });
+      };
+
+      ctx.command.register("codex.queue", queueFromUi);
+      ctx.command.register("codex.send", queueFromUi);
 
       if (withUi) {
         syncTool();
