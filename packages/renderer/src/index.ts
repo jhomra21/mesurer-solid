@@ -163,6 +163,7 @@ export type {
   MesurerPersistence,
   MesurerPersistenceSnapshot,
   MesurerStoredSettings,
+  MesurerTheme,
   MesurerStoredWorkspace,
   LinePattern,
   LineStyle,
