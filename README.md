@@ -70,7 +70,7 @@ The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typograp
 
 ## Features
 
-- **Select.** Inspect one or more rendered elements.
+- **Select.** Inspect one or more rendered HTML or SVG elements.
 - **Distance.** Measure spacing and geometry, including pairwise multi-selection spacing.
 - **X-ray, Guides, and Rulers.** Inspect page structure and alignment.
 - **Typography.** Inspect rendered type and preview reversible copy and typography changes.
