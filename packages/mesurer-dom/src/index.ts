@@ -229,6 +229,7 @@ const getCaretElementAtPoint = (
     caretPositionFromPoint?: (x: number, y: number) => { offsetNode?: Node } | null;
     caretRangeFromPoint?: (x: number, y: number) => Range | null;
   };
+
   const node = documentWithCaret.caretRangeFromPoint?.(point.x, point.y)?.startContainer
     ?? documentWithCaret.caretPositionFromPoint?.(point.x, point.y)?.offsetNode;
 
@@ -357,6 +358,7 @@ export function getVisualElementAtPoint(
     const transparentDescendants = getPointerTransparentVisualDescendants(element, point, ownerDocument);
 
     if (transparentDescendants.length > 0) return transparentDescendants[0];
+
     if (ownerWindow.getComputedStyle(element).pointerEvents !== "none") return element;
   }
 
