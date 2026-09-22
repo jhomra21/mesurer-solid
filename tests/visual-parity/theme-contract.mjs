@@ -86,8 +86,11 @@ try {
   await selectButton.click();
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
-  const selectedMeasurement = page.locator("[data-mesurer-selected-measurement='true']").first();
-  await selectedMeasurement.waitFor({ state: "visible" });
+  await page.waitForFunction(() =>
+    document.querySelector("[data-mesurer-isolated-document-layer='true']")?.getAttribute("data-theme") === "dark",
+  );
+  const selectedMeasurement = page.locator("[data-mesurer-isolated-document-layer='true']").first();
+
   assert.equal(await selectedMeasurement.getAttribute("data-theme"), "dark", "portaled selection theme");
 
   const typographyButton = island().locator("[data-mesurer-builtin='text-inspector'] button").first();
