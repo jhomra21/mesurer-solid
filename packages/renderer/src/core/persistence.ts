@@ -6,6 +6,8 @@ export const MESURER_STORAGE_VERSION = 2;
 
 export type LinePattern = "solid" | "dashed" | "dotted";
 
+export type MesurerTheme = "system" | "light" | "dark";
+
 export type LineStyle = { opacity: number; width: number; pattern: LinePattern; dashLength: number; gap: number };
 
 export type GuidePattern = LinePattern;
@@ -26,7 +28,7 @@ export type MesurerStoredSettings = {
   highlightColor?: string; guideColor?: string; hoverHighlightEnabled?: boolean;
   colorPickerFormats?: ColorPickerFormat[]; colorPickerClickFormat?: ColorPickerFormat;
   snapEnabled?: boolean; snapGuidesEnabled?: boolean; selectNewGuideEnabled?: boolean;
-  multiMeasureEnabled?: boolean; persistOnReload?: boolean; shortcutsEnabled?: boolean; guideStyle?: Partial<GuideStyle>;
+  multiMeasureEnabled?: boolean; persistOnReload?: boolean; shortcutsEnabled?: boolean; theme?: MesurerTheme; guideStyle?: Partial<GuideStyle>;
   selectionSpacingStyle?: Partial<SelectionSpacingStyle>; rulerSettings?: Partial<RulerSettings>;
 };
 
@@ -69,6 +71,8 @@ const isFiniteNumber = (value: unknown): value is number => typeof value === "nu
 const isFormat = (value: unknown): value is ColorPickerFormat => value === "hex" || value === "rgb" || value === "hsl" || value === "oklch";
 
 const isLinePattern = (value: unknown): value is LinePattern => value === "solid" || value === "dashed" || value === "dotted";
+
+const isTheme = (value: unknown): value is MesurerTheme => value === "system" || value === "light" || value === "dark";
 
 const isToolMode = (value: unknown): value is ToolMode => value === "none" || value === "select" || value === "guides" || value === "text-inspector" || value === "xray" || value === "rulers";
 
@@ -178,6 +182,8 @@ export const normalizeStoredSettings = (value: PersistedValue | undefined): Mesu
   if (isBoolean(value.persistOnReload)) settings.persistOnReload = value.persistOnReload;
 
   if (isBoolean(value.shortcutsEnabled)) settings.shortcutsEnabled = value.shortcutsEnabled;
+
+  if (isTheme(value.theme)) settings.theme = value.theme;
   const guideStyle = normalizeGuideStyle(value.guideStyle);
 
   if (guideStyle) settings.guideStyle = guideStyle;
