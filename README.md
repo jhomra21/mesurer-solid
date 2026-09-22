@@ -83,7 +83,7 @@ The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typograp
 
 Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a toolbar mode. Clicking Arrange automatically enables Select; turning Arrange off leaves Select active, while turning Select off also exits Arrange.
 
-Toolbar dragging starts only after the pointer crosses the drag threshold. A drag from Settings, Guide, or plugin triggers closes that open surface. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders stays with those controls.
+Toolbar dragging starts only after the pointer crosses the drag threshold. A drag from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders stays with those controls.
 
 Select, point inspection, Context, and annotations accept rendered HTML and SVG elements. Arrange and direct text editing only mutate HTML elements.
 
