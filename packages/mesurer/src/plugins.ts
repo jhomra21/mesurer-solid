@@ -81,6 +81,8 @@ export type {
   MesurerCodexDeliveryStatus,
   MesurerCodexHealth,
   MesurerCodexPluginOptions,
+  MesurerCodexQueueRequest,
+  MesurerCodexQueueResult,
   MesurerCodexSendRequest,
   MesurerCodexSendResult,
   MesurerCodexService,
