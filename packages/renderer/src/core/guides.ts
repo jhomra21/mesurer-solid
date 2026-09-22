@@ -40,7 +40,7 @@ export const getSnapGuidePosition = (params: { orientation: Guide["orientation"]
 };
 
 export const getNearestElementToGuide = (params: { guide: Guide; overlayNode: HTMLDivElement | null; document?: Document }) => {
-  const ownerDocument = params.document ?? document; const position = params.guide.position; let bestElement: HTMLElement | null = null; let bestDistance = Infinity; let bestArea = Infinity;
+  const ownerDocument = params.document ?? document; const position = params.guide.position; let bestElement: Element | null = null; let bestDistance = Infinity; let bestArea = Infinity;
 
   for (const element of getBodyElementsCached(ownerDocument)) { if (params.overlayNode?.contains(element) || element === ownerDocument.body || element === ownerDocument.documentElement) continue; const rect = getRectFromDomCached(element);
 
