@@ -130,9 +130,9 @@ try {
 
   const directInspector = page.locator("[data-mesurer-text-inspector-info='true']").first();
   await directInspector.waitFor({ state: "visible" });
-  const directRoot = directInspector.locator("xpath=ancestor-or-self::*[@data-mesurer-inspector-ui='true'][1]");
+  const directRuntime = directInspector.locator("xpath=ancestor::*[@data-mesurer-text-edit-runtime='true'][1]");
 
-  assert.equal(await directRoot.getAttribute("data-theme"), "dark", "direct-edit document theme");
+  assert.equal(await directRuntime.getAttribute("data-theme"), "dark", "direct-edit document theme");
   assert.equal(await surfaceColor(directInspector), "rgb(58, 58, 58)", "dark direct-edit Typography surface");
 
   await editor.press("Escape");
