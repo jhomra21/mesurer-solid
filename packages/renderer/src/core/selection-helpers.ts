@@ -26,7 +26,7 @@ export const getSelectedMeasurementHit = (params: {
 }) => {
   const ownerDocument = params.document ?? document;
   const ownerWindow = ownerDocument.defaultView;
-  const HTMLElementConstructor = ownerWindow?.HTMLElement;
+  const ElementConstructor = ownerWindow?.Element;
   const overlayHost = getOverlayHost(params.overlayNode);
 
   const candidates = params.selectedMeasurements
@@ -41,11 +41,11 @@ export const getSelectedMeasurementHit = (params: {
     .filter((item): item is NonNullable<typeof item> => item !== null)
     .sort((a, b) => a.area - b.area);
 
-  const elements: HTMLElement[] = [];
+  const elements: Element[] = [];
 
-  if (HTMLElementConstructor && ownerWindow) {
+  if (ElementConstructor && ownerWindow) {
     for (const element of ownerDocument.elementsFromPoint(params.point.x, params.point.y)) {
-      if (!(element instanceof HTMLElementConstructor)) continue;
+      if (!(element instanceof ElementConstructor)) continue;
 
       if (params.overlayNode?.contains(element)) continue;
 
@@ -61,9 +61,9 @@ export const getSelectedMeasurementHit = (params: {
 
   if (params.exact) return candidates.find((candidate) => candidate.element === elements[0])?.measurement ?? null;
 
-  for (const html of elements) {
+  for (const hit of elements) {
     for (const candidate of candidates) {
-      if (candidate.element === html || candidate.element.contains(html)) return candidate.measurement;
+      if (candidate.element === hit || candidate.element.contains(hit)) return candidate.measurement;
     }
   }
 
