@@ -10,7 +10,6 @@ The normal agent workflow requires no Mesurer MCP server, localhost daemon, Send
 npx --yes --package=mesurer-solid mesurer-skill install
 ```
 
-Use `mesurer-solid@beta` only when intentionally validating a prerelease.
 
 The installer writes a self-contained skill and injection artifact:
 
@@ -130,6 +129,8 @@ Use the high-level Context and saved-intent methods for normal UI work. The lowe
 | `textEdits()` / `textEdit(id)` | Read saved direct-text and typography intent. |
 
 Context adds `capabilities()`, `context()`, `contextText()`, `select()`, `annotations()`, `review()`, `capturePlan()`, `prepareCapture()`, and `finishCapture()`.
+
+These inspection methods accept general DOM elements, including SVG. `select()` and point inspection can return SVG targets, and Context preserves their selector, tag, and geometry. Arrange and direct text editing remain HTML-only mutation paths.
 
 Arrange adds `arrangements()`, `arrange()`, `showArrange()`, `arrangeCapturePlan()`, and `reviewArrange()`.
 
