@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mesurer inspect selection contract</title>
+    <style>
+      html, body { margin: 0; min-height: 100%; font-family: ui-sans-serif, system-ui, sans-serif; background: #f8fafc; color: #0f172a; }
+      main { display: grid; gap: 36px; padding: 120px 96px; }
+      .fixture { position: relative; width: 360px; min-height: 120px; border: 1px solid #cbd5e1; border-radius: 16px; padding: 24px; background: white; }
+      #transparent-parent { width: 260px; height: 72px; border: 1px solid #94a3b8; border-radius: 12px; background: #e2e8f0; }
+      #transparent-wrapper { pointer-events: none; display: inline-flex; padding: 8px 12px; background: #dbeafe; }
+      #transparent-leaf { pointer-events: none; display: inline-block; padding: 3px 7px; background: #bfdbfe; }
+      #overlap-stage { position: relative; width: 180px; height: 120px; }
+      #under-target { position: absolute; z-index: 1; left: 78px; top: 48px; width: 24px; height: 24px; border: 0; padding: 0; background: #f97316; }
+      #top-target { position: absolute; z-index: 2; left: 30px; top: 18px; width: 120px; height: 84px; border: 1px solid #2563eb; border-radius: 10px; background: rgb(219 234 254 / 0.82); }
+      #transform-target { width: 120px; height: 52px; border: 1px solid #7c3aed; border-radius: 10px; transform: rotate(-7deg) scale(1.08); background: #ede9fe; }
+      #canvas-target { display: block; width: 240px; height: 90px; border: 1px solid #64748b; }
+      #closed-shadow-host { width: 220px; min-height: 54px; border: 1px dashed #64748b; border-radius: 10px; padding: 12px; }
+      #large-dom-grid { display: grid; grid-template-columns: repeat(20, 22px); gap: 2px; width: max-content; }
+      #large-dom-grid button { width: 22px; height: 22px; border: 0; padding: 0; background: #e2e8f0; font-size: 8px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="fixture">
+        <button id="transparent-parent" type="button">
+          <span id="transparent-wrapper"><strong id="transparent-leaf">Visual label</strong></span>
+        </button>
+      </section>
+
+      <section class="fixture">
+        <div id="overlap-stage">
+          <button id="under-target" type="button" aria-label="under target"></button>
+          <button id="top-target" type="button">Top native target</button>
+        </div>
+      </section>
+
+      <section class="fixture">
+        <button id="transform-target" type="button">Transformed target</button>
+      </section>
+
+      <section class="fixture">
+        <canvas id="canvas-target" width="480" height="180" aria-label="Canvas target"></canvas>
+      </section>
+
+      <section class="fixture">
+        <div id="closed-shadow-host"></div>
+      </section>
+
+      <section class="fixture">
+        <div id="large-dom-grid"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/selection-hit-testing.ts"></script>
+  </body>
+</html>
