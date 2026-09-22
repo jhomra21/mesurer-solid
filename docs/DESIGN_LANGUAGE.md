@@ -8,35 +8,27 @@ This document is the review contract for new Mesurer-owned UI. It describes shar
 
 Use the existing accepted surfaces as the first reference before adding feature-specific chrome.
 
-For new or deliberately refreshed floating UI, current upstream Mesurer is the design reference: 8px floating surfaces, a 5px control radius, and the shared floating-shadow recipe below. Existing Mesurer Solid surfaces that are protected by visual-parity contracts keep their accepted chrome until they are migrated in a dedicated visual change.
+Current upstream Mesurer at `c20ad51` is the reference for shared theme colors, 8px floating surfaces, 5px control radii, and floating shadows. Mesurer Solid adopts those theme tokens while keeping its existing feature geometry and ownership rules.
 
 - Reuse an existing Mesurer Solid surface when it already matches the feature.
-- New floating white controls, menus, inspectors, and review cards should use the current upstream 8px surface geometry and floating-shadow language.
+- New floating controls, menus, inspectors, and review cards should use the shared surface and shadow tokens instead of hard-coded light colors.
 - New small controls should use the current upstream 5px control radius unless their geometry has a stronger interaction reason.
 - The toolbar keeps its accepted Solid-specific motion and clipping structure unless a toolbar-focused parity change deliberately updates it.
 - Source evidence such as selection outlines, measurement geometry, guide lines, and annotation ownership edges is not a floating surface. Do not give evidence cards, borders, or shadows just to make it look like UI.
 - Dark transient previews may keep feature-specific presentation when the background itself carries the hierarchy.
 
-The shared floating shadow follows current upstream Mesurer:
-
-```css
-0 0 0 0.4px rgba(0, 0, 0, 0.22),
-0 6px 18px rgba(0, 0, 0, 0.03),
-0 3px 9px rgba(0, 0, 0, 0.06),
-0 1px 1px rgba(0, 0, 0, 0.06)
-```
-
-Do not add a new one-off shadow or floating-card radius without a product reason. Do not restyle an accepted existing surface merely to satisfy this document; visual migrations must go through the normal parity/acceptance path.
+Use `--msr-shadow-floating` and `--msr-shadow-toolbar` for Mesurer-owned floating surfaces. The values change with the active theme. Do not copy the light shadow into a new component or add another shadow without a product reason.
 
 ## Color and hierarchy
 
-Mesurer is light, neutral, and compact.
+Mesurer uses neutral light and dark palettes. The active mode is System, Light, or Dark, and System follows `prefers-color-scheme`.
 
-- White is the default control surface.
-- The ink scale carries normal hierarchy. Prefer existing `ink` tokens to new grays.
-- `#0d99ff` is the established active/selection accent. Reserve it for active state, selection, focus, and source-linked evidence rather than decoration.
+- Use `--msr-surface`, `--msr-surface-raised`, and the `--msr-color-ink-*` scale for Mesurer-owned UI.
+- Use `--msr-content` for primary text instead of a hard-coded black value.
+- The active accent is `--msr-accent`. It resolves to the upstream light or dark accent and is reserved for active state, selection, focus, and source-linked evidence.
 - Borders should not compete with the floating shadow. Keep a border only when it communicates a control boundary or preserves interaction geometry.
-- Text labels stay quiet. Feature names and primary actions can be stronger; supporting metadata should use the muted ink range.
+- Theme state belongs to each Mesurer instance. Do not set theme variables on the inspected page root.
+- Document-backed Context, Typography, direct-edit, and selection surfaces must receive the same theme as their owning renderer.
 
 ## Density and typography
 
