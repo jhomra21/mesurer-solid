@@ -36,6 +36,8 @@ Mesurer uses two managed paint domains rather than forcing every control into on
 
 Viewport-owned controls such as the toolbar, Settings, Screenshot selection/status/viewer UI, and other global inspector chrome stay in the protected outer host and top-layer path.
 
+Toolbar drag ownership is also isolated. Pointer movement from toolbar chrome or a tool trigger can start a drag after the movement threshold, but menus, dialogs, form controls, editable regions, and sliders keep the pointer and do not move the toolbar.
+
 Source-linked inspector UI may use a managed document inspector mount when browser scrolling and page-relative geometry should move it with the content it describes. Context uses this path for Add Note, its composer, saved markers and panels, and annotation ownership evidence. Ordinary source-linked Typography can use the same document-backed model.
 
 Document-backed nodes are still Mesurer UI. They carry the inspector hit-test boundary, use a runtime-owned mount, and clean up with the interaction or plugin that created them. Do not append unrelated unmanaged overlays to `document.body`.
@@ -56,7 +58,7 @@ Package smoke exercises the exact packed npm artifact under adversarial host con
 - hit testing and plugin controls;
 - React, Solid 1, and Solid 2 host applications.
 
-Rendered browser contracts separately exercise direct editing, Typography, Arrange, Screenshot, and Context document ownership. Context coverage includes source-attached window and nested scrolling, repeated-note marker placement, one clean annotation ownership edge, and create/saved annotation cards occluding real Select hover in a non-isolated browser top-layer host.
+Rendered browser contracts separately exercise direct editing, Typography, Arrange, Screenshot, Context document ownership, toolbar pointer ownership, and Inspect hit testing. Inspect coverage includes SVG targets, pointer-transparent descendants, overlapping page targets, transformed elements, canvas, closed Shadow DOM boundaries, and a large DOM fixture. Context coverage includes source-attached window and nested scrolling, repeated-note marker placement, one clean annotation ownership edge, and create/saved annotation cards occluding real Select hover in a non-isolated browser top-layer host.
 
 The goal is to defend browser behavior that many sites compose, not to special-case individual websites.
 
