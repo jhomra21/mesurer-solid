@@ -2,13 +2,6 @@
 @import "tailwindcss" prefix(msr);
 
 @theme {
-  --radius-control: 5px;
-  --shadow-toolbar:
-    drop-shadow(0 0 0.4px rgba(0, 0, 0, 0.22))
-    drop-shadow(0 6px 18px rgba(0, 0, 0, 0.03))
-    drop-shadow(0 3px 9px rgba(0, 0, 0, 0.06))
-    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.06));
-  --shadow-floating: 0 0 0 0.4px rgba(0, 0, 0, 0.22), 0 6px 18px rgba(0, 0, 0, 0.03), 0 3px 9px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.06);
   --color-ink-50: #f8fafc;
   --color-ink-200: #e2e8f0;
   --color-ink-500: #64748b;
@@ -18,8 +11,6 @@
 
 :root,
 :host {
-  --msr-radius-control: 5px;
-  --msr-shadow-floating: 0 0 0 0.4px rgba(0, 0, 0, 0.22), 0 6px 18px rgba(0, 0, 0, 0.03), 0 3px 9px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.06);
   --color-ink-50: #f8fafc;
   --color-ink-200: #e2e8f0;
   --color-ink-500: #64748b;
@@ -77,15 +68,22 @@
   }
 }
 
-.mesurer-toolbar-surface,
-.mesurer-menu-surface,
-.mesurer-color-picker {
-  box-shadow: var(--msr-shadow-floating);
+.mesurer-toolbar-surface {
+  box-shadow:
+    0 0 0.5px rgba(0, 0, 0, 0.18),
+    0 3px 8px rgba(0, 0, 0, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.mesurer-menu-surface,
+.mesurer-menu-surface {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
 .mesurer-color-picker {
-  border-color: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
 .mesurer-settings-tabs {
