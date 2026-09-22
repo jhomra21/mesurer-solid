@@ -105,12 +105,13 @@ try {
   await selectButton.click();
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
-  await page.waitForFunction(() =>
-    document.querySelector("[data-mesurer-isolated-document-layer='true']")?.getAttribute("data-theme") === "dark",
-  );
-  const selectedMeasurement = page.locator("[data-mesurer-isolated-document-layer='true']").first();
+  const selectedMeasurement = page.locator("[data-mesurer-selected-measurement='true']").first();
+  await selectedMeasurement.waitFor({ state: "visible" });
+  await page.waitForTimeout(250);
 
-  assert.equal(await selectedMeasurement.getAttribute("data-theme"), "dark", "portaled selection theme");
+  const portaledSelection = page.locator("[data-mesurer-isolated-document-layer='true']").first();
+  assert.equal(await portaledSelection.count(), 1, "isolated selection should move into the document layer");
+  assert.equal(await portaledSelection.getAttribute("data-theme"), "dark", "portaled selection theme");
 
   const typographyButton = island().locator("[data-mesurer-builtin='text-inspector'] button").first();
   await typographyButton.click();
@@ -159,11 +160,10 @@ try {
   await expectToolbarColor("rgb(255, 255, 255)", "system light toolbar surface");
 
   await appearanceAgain.selectOption("dark");
-  await page.waitForFunction(() => {
-    const raw = window.localStorage.getItem("mesurer-settings");
+  await page.waitForTimeout(150);
 
-    return raw?.includes('"theme":"dark"') ?? false;
-  });
+  const persistedSettings = await page.evaluate(() => window.localStorage.getItem("mesurer-settings"));
+  assert.match(persistedSettings ?? "", /"theme":"dark"/, "dark Appearance should persist");
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await waitForHarness();
