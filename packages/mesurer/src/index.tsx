@@ -287,7 +287,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
   });
 
   const service = async <T,>(id: string): Promise<T> => {
-    await baseAgent.ready();
+    await waitForPluginHost();
     const value = pluginHost?.service.get<T>(id);
 
     if (!value) throw new Error(`Mesurer service is unavailable: ${id}.`);
