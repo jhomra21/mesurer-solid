@@ -1054,6 +1054,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       };
 
       ctx.service.provide(MESURER_CODEX_SERVICE_ID, service);
+
       const queueFromUi = async () => {
         if (uiSendPromise || deliveryBusy()) return;
         clearDeliveryTimers();
