@@ -82,7 +82,7 @@ export type OverlayContribution = { id: string; order?: number; builtin?: string
 export type CommandHandler = (
   args: PluginValue | undefined,
   context: { source?: PluginValue },
-) => PluginValue | undefined | Promise<PluginValue | undefined>;
+) => void | PluginValue | Promise<void | PluginValue>;
 
 export type HookHandler = (event: PluginValue) => void | Promise<void>;
 
