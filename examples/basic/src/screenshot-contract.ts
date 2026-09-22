@@ -43,9 +43,7 @@ const subject = mountMesurer({
 
 await subject.ready;
 
-const service = subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
-
-if (!service) throw new Error("Screenshot service did not mount");
+const service = await subject.service<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
 
 type ScreenshotHarness = {
   subject: MountedMesurer;
