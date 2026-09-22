@@ -133,14 +133,16 @@ try {
   };
 
   const nativeTop = await page.evaluate(
-    ({ x, y }) => document.elementFromPoint(x, y)?.id ?? null,
+    ({ x, y }) => document.elementsFromPoint(x, y).find((element) => (
+      !element.closest("[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']")
+    ))?.id ?? null,
     overlapPoint,
   );
 
   assert.equal(
     nativeTop,
     "top-target",
-    "fixture must expose the large top target as the browser-native point target",
+    "fixture must expose the large top target as the first page-owned browser hit",
   );
 
   const agentTop = await page.evaluate(
