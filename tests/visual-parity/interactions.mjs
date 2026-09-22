@@ -130,7 +130,10 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
 
   if ((await themedNodes.count()) > 0) {
     await themedNodes.evaluateAll((nodes) => nodes.forEach((node) => node.removeAttribute("data-theme")));
-    changed = true;
+    // Removing the current theme selector changes only styling for this
+    // historical capture. Do not add the 240ms layout/ownership settle delay:
+    // that delay can cross the current toolbar tooltip threshold and change the
+    // interaction snapshot itself.
   }
 
   const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"]');
