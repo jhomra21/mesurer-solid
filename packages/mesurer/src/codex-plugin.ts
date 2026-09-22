@@ -1,5 +1,5 @@
 import {
-  MESURER_MESURER_CONTEXT_SERVICE_ID,
+  MESURER_CONTEXT_SERVICE_ID,
   type MesurerContextService,
 } from "./context-plugin";
 import type { MesurerPlugin, Registration, ToolMenuItemContribution } from "./core";
