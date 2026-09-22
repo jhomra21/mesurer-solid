@@ -288,6 +288,7 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
     try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
 
     await waitForUnavailable(bridgeUrl);
+    await rm(root, { recursive: true, force: true });
   }
 });
 
