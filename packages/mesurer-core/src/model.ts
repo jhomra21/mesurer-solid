@@ -38,6 +38,7 @@ export const DEFAULT_MESURER_SETTINGS: MesurerSettings = {
   hoverHighlightEnabled: true,
   persistOnReload: false,
   shortcutsEnabled: true,
+  theme: "system",
   colorPickerFormats: ["hex", "rgb", "oklch"],
   colorPickerClickFormat: "hex",
   snapEnabled: true,
@@ -438,6 +439,8 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
 
     if (stored.shortcutsEnabled !== undefined) patch.shortcutsEnabled = stored.shortcutsEnabled;
 
+    if (stored.theme !== undefined) patch.theme = stored.theme;
+
     if (stored.colorPickerFormats !== undefined) patch.colorPickerFormats = stored.colorPickerFormats;
 
     if (stored.colorPickerClickFormat !== undefined) patch.colorPickerClickFormat = stored.colorPickerClickFormat;
@@ -481,6 +484,7 @@ export function createMesurerModelCore<ElementRef = unknown>(options: MesurerMod
     multiMeasureEnabled: current.settings.multiMeasureEnabled,
     persistOnReload: current.settings.persistOnReload,
     shortcutsEnabled: current.settings.shortcutsEnabled,
+    theme: current.settings.theme,
     guideStyle: { ...current.settings.guideStyle },
     rulerSettings: { ...current.settings.rulerSettings },
   });
