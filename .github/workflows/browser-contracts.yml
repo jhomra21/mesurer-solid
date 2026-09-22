@@ -25,7 +25,9 @@ on:
       - "packages/renderer/src/plugins/screenshot.ts"
       - "packages/renderer/src/runtime/builtin-actions.ts"
       - "packages/renderer/src/runtime/color-picker-support.ts"
+      - "packages/renderer/src/runtime/document-inspector-mount.ts"
       - "packages/renderer/src/runtime/document-scroll-anchoring.ts"
+      - "packages/renderer/src/runtime/isolated-document-portal.ts"
       - "packages/renderer/src/runtime/nested-scroll-compensation.ts"
       - "packages/renderer/src/runtime/presentation-preferences.ts"
       - "packages/renderer/src/runtime/text-editing/**"
@@ -52,6 +54,7 @@ on:
       - "tests/visual-parity/selection-scroll-contract.mjs"
       - "tests/visual-parity/shortcuts-setting-contract.mjs"
       - "tests/visual-parity/text-editing-contract.mjs"
+      - "tests/visual-parity/theme-contract.mjs"
       - "tests/visual-parity/typography-editing-layout-contract.mjs"
       - "tests/visual-parity/typography-inspector-ownership-contract.mjs"
       - "tests/visual-parity/typography-select-scroll-contract.mjs"
@@ -136,6 +139,11 @@ jobs:
           SHORTCUTS_SETTING_URL: http://127.0.0.1:4174/
         run: bun tests/visual-parity/shortcuts-setting-contract.mjs
 
+      - name: Exercise system, light, and dark themes
+        env:
+          THEME_URL: http://127.0.0.1:4174/plugin-settings.html
+        run: bun tests/visual-parity/theme-contract.mjs
+
       - name: Exercise direct text editing and page style suggestions
         env:
           TEXT_EDITING_URL: http://127.0.0.1:4174/
@@ -210,6 +218,13 @@ jobs:
           print("### Presentation settings")
           print("- General visibly exposes Keep text changes and Keep Arrange changes")
           print("- Both switches default off, persist when enabled, and restore cleanly to defaults")
+
+          print("")
+          print("### Appearance")
+          print("- System, Light, and Dark modes are exercised in Chromium")
+          print("- The isolated renderer, document-backed Context, and document-backed Typography share one live theme")
+          print("- The persisted Appearance setting restores after reload")
+          print("- System mode follows prefers-color-scheme without changing stored state")
 
           print("")
           print("### Shortcuts")
