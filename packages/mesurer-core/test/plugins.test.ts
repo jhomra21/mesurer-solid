@@ -138,6 +138,31 @@ describe("Mesurer plugin host", () => {
     });
   });
 
+  it("returns JSON-safe command results through the public command seam", async () => {
+    const host = createMesurerPluginHost();
+
+    await host.load(defineMesurerPlugin({
+      id: "result.example",
+      setup(ctx) {
+        ctx.command.register("result.example.inspect", (args, context) => ({
+          args: args ?? null,
+          source: context.source ?? null,
+          ok: true,
+        }));
+      },
+    }));
+
+    await expect(host.command.execute(
+      "result.example.inspect",
+      { selector: "#card" },
+      { source: "test" },
+    )).resolves.toEqual({
+      args: { selector: "#card" },
+      source: { source: "test" },
+      ok: true,
+    });
+  });
+
   it("treats nested command dispatch as one history action", async () => {
     const host = createMesurerPluginHost();
     await host.load(defineMesurerPlugin({
