@@ -202,6 +202,162 @@ export function getDeepestElementAtPoint(
   return current;
 }
 
+const MAX_VISUAL_HIT_DESCENDANTS = 600;
+
+type VisualHitCandidate = {
+  element: Element;
+  area: number;
+  depth: number;
+  order: number;
+};
+
+const rectContainsPoint = (
+  rect: { left: number; top: number; right: number; bottom: number },
+  point: { x: number; y: number },
+) => point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
+
+const elementContainsPoint = (element: Element, point: { x: number; y: number }) =>
+  Array.from(element.getClientRects()).some((rect) => rectContainsPoint(rect, point));
+
+const getCaretElementAtPoint = (
+  point: { x: number; y: number },
+  ownerDocument: Document,
+  root: Element,
+) => {
+  const documentWithCaret = ownerDocument as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode?: Node } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  const node = documentWithCaret.caretRangeFromPoint?.(point.x, point.y)?.startContainer
+    ?? documentWithCaret.caretPositionFromPoint?.(point.x, point.y)?.offsetNode;
+
+  if (!node) return null;
+  let element = node.nodeType === 1 ? node as Element : node.parentElement;
+
+  while (element && element !== root) {
+    if (root.contains(element)) return element;
+    element = element.parentElement;
+  }
+
+  return element === root ? root : null;
+};
+
+const getPointerTransparentVisualDescendants = (
+  root: Element,
+  point: { x: number; y: number },
+  ownerDocument: Document,
+) => {
+  const ownerWindow = ownerDocument.defaultView;
+  const ElementConstructor = ownerWindow?.Element;
+
+  if (!ownerWindow || !ElementConstructor) return [];
+  const candidates: VisualHitCandidate[] = [];
+  const visited = new Set<Element>();
+
+  const addCandidate = (element: Element, depth: number, order: number) => {
+    if (visited.has(element)) return;
+    const style = ownerWindow.getComputedStyle(element);
+
+    if (
+      style.pointerEvents !== "none"
+      || style.visibility === "hidden"
+      || style.display === "none"
+      || style.opacity === "0"
+      || !elementContainsPoint(element, point)
+    ) return;
+
+    const rect = element.getBoundingClientRect();
+    visited.add(element);
+    candidates.push({
+      element,
+      area: rect.width * rect.height,
+      depth,
+      order,
+    });
+  };
+
+  const walker = ownerDocument.createTreeWalker(root, 1);
+  let current = walker.nextNode();
+  let order = 1;
+
+  while (current && order <= MAX_VISUAL_HIT_DESCENDANTS) {
+    if (current instanceof ElementConstructor) {
+      const element = current as Element;
+      const style = ownerWindow.getComputedStyle(element);
+
+      if (style.pointerEvents === "none") {
+        let depth = 1;
+        let parent = element.parentElement;
+
+        while (parent && parent !== root) {
+          depth += 1;
+          parent = parent.parentElement;
+        }
+
+        addCandidate(element, depth, order);
+      }
+    }
+
+    order += 1;
+    current = walker.nextNode();
+  }
+
+  const caretElement = getCaretElementAtPoint(point, ownerDocument, root);
+
+  if (caretElement && ownerWindow.getComputedStyle(caretElement).pointerEvents === "none") {
+    addCandidate(caretElement, 10_000, order);
+  }
+
+  return candidates
+    .sort((left, right) =>
+      right.depth - left.depth
+      || left.area - right.area
+      || right.order - left.order
+    )
+    .map(({ element }) => element);
+};
+
+/**
+ * Resolve the visually specific element at a point. Native hit testing skips
+ * descendants with pointer-events:none, so inspectable labels and wrappers can
+ * otherwise collapse to their interactive ancestor. Search only the bounded
+ * subtree of native point hits and prefer the deepest visible transparent
+ * descendant before falling back to the native target.
+ */
+export function getVisualElementAtPoint(
+  point: { x: number; y: number },
+  target: DomHitTestTarget,
+  ownerDocument: Document = isDocument(target) ? target : target.ownerDocument ?? document,
+): Element | null {
+  const root = pointRoot(target, ownerDocument);
+  const ownerWindow = ownerDocument.defaultView;
+
+  if (!ownerWindow) return null;
+
+  const rawStack = typeof root.elementsFromPoint === "function"
+    ? root.elementsFromPoint(point.x, point.y)
+    : [root.elementFromPoint(point.x, point.y)].filter((element): element is Element => Boolean(element));
+
+  for (const raw of rawStack) {
+    let element: Element | null = raw;
+
+    while (element?.shadowRoot) {
+      const nested = element.shadowRoot.elementFromPoint(point.x, point.y);
+
+      if (!nested || nested === element) break;
+      element = nested;
+    }
+
+    if (!element || !isElementWithinDomTarget(element, target)) continue;
+    const transparentDescendants = getPointerTransparentVisualDescendants(element, point, ownerDocument);
+
+    if (transparentDescendants.length > 0) return transparentDescendants[0];
+    if (ownerWindow.getComputedStyle(element).pointerEvents !== "none") return element;
+  }
+
+  return null;
+}
+
 export function isElementWithinDomTarget(element: Element, target: DomHitTestTarget): boolean {
   if (isDocument(target)) return true;
   let current: Element | null = element;
