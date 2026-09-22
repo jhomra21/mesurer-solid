@@ -7,14 +7,26 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `8b644ee7e5ab3bec8a70737b73a0a5524053313a` (`main`, audited 2026-09-21) |
-| Current upstream audit | `c20ad51ef68d5a78fa0c965fe8fcb1124d58a699` (`main`, audited 2026-09-22) |
+| Previous upstream audit | `c20ad51ef68d5a78fa0c965fe8fcb1124d58a699` (`main`, audited 2026-09-22) |
+| Current upstream audit | `bdc027e51011898a1fcc2532da1db3acf63a84a3` (`main`, audited 2026-09-22) |
 
-The current upstream delta is one commit: `c20ad51...`, **"feat: update colors, add dark mode (#31)"**. It adds persisted System, Light, and Dark appearance, updates the shared light palette, adds dark theme tokens and browser coverage, and makes a few threaded-comment workflow changes.
+The delta from `c20ad51...` to `bdc027e...` is three commits: `fb57bac...` improves Inspect hit testing and selection, `15b269c...` hardens toolbar dragging, and `bdc027e...` fixes menu-trigger re-click and drag ownership.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
-### 2026-09-22 delta classification
+### 2026-09-22 Inspect and toolbar follow-up
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Pointer-transparent visual hit testing and native top-target preservation | **Adopted with shared DOM resolver** | Select and agent point inspection now use the same visual resolver. Browser coverage includes transparent descendants, overlapping native targets, transforms, canvas, closed shadow roots, and a 1,000-node fixture. |
+| General `Element` / SVG Inspect targets | **Adopted with explicit HTML-only mutation boundaries** | Renderer selection, measurement references, Context, and annotation geometry accept DOM `Element`, including SVG. Direct text editing, Arrange transforms, and native CSS-anchor mutation still narrow to `HTMLElement`. Chromium covers physical SVG selection, point inspection, Context, and programmatic `select()`. |
+| Upstream stress-bench/site fixture growth | **Not library parity by itself** | Mesurer Solid keeps its own focused browser fixtures. Relevant hit-testing and geometry cases are covered there instead of copying upstream site/demo content. |
+| Dragging the toolbar from controls or chrome | **Adopted with the existing Solid drag engine** | Drag starts remain thresholded. Crossing the threshold closes an open Settings, Guide, or plugin surface, while real menus, dialogs, form controls, contenteditable regions, and slider surfaces retain pointer ownership. |
+| Settings and toolbar-menu trigger re-click | **Already equivalent; now browser-covered** | Settings, Guide orientation, and plugin split-menu triggers already toggle their own surface. The toolbar drag contract protects that behavior while also checking post-drag click suppression. |
+| Theme-aware ruler fade color | **Already adopted** | Ruler gradients already use `--msr-surface`, including Dark and System-dark themes. |
+| Inspect/Annotate group switching used by upstream toolbar tests | **Intentional divergence** | Mesurer Solid keeps one stable toolbar and does not adopt upstream's grouped toolbar model. |
+
+### 2026-09-22 theme delta classification
 
 | Upstream delta | Decision | Reason |
 | --- | --- | --- |
@@ -69,6 +81,7 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | --- | --- |
 | Core measurement, X-ray, guides, rulers, settings | Source-first port with historical visual/interaction validation |
 | System, Light, and Dark appearance | Adopted from upstream `c20ad51`; theme state also follows Mesurer Solid document-backed UI |
+| SVG and general DOM `Element` selection | Adopted from the post-theme Inspect work; Select, point inspection, Context, and annotation geometry accept SVG while HTML-only editing/Arrange paths stay explicit |
 | Native Color Picker | Adopt where `EyeDropper` is operational; hide in unsupported hosts |
 | Text Inspector | Adopt inspection behavior; visible label is **Typography**, internal id stays `text-inspector` |
 | Screenshot region selection | Adopt as optional `screenshot()` from `mesurer-solid/plugins` and extend with preview/viewer and extension capture |

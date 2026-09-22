@@ -125,6 +125,11 @@ jobs:
             fi
           done
 
+      - name: Exercise toolbar drag ownership
+        env:
+          TOOLBAR_DRAG_URL: http://127.0.0.1:4174/
+        run: bun tests/visual-parity/toolbar-drag-contract.mjs
+
       - name: Exercise Arrange toolbar and drag
         env:
           ARRANGE_URL: http://127.0.0.1:4174/

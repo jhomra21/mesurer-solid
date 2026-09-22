@@ -4,6 +4,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Improve Inspect hit testing for pointer-transparent visual descendants and overlapping targets, and treat SVG elements as first-class Select, point-inspection, Context, and annotation targets.
+- Keep toolbar dragging separate from menu/dialog/form interaction: trigger drags close their open transient surface only after drag starts, while Guide menu state is exposed through `aria-expanded`.
+
 - Add persisted **System**, **Light**, and **Dark** appearance modes through Settings and the public `theme` mount option. The active theme now follows Mesurer UI across the isolated renderer, document-backed Context and Typography, direct editing, and portaled selection chrome.
 - Add a design-review contract for new Mesurer-owned UI, using current upstream floating-surface, control, density, motion, and ownership language without restyling accepted existing surfaces by default.
 - Let plugin commands return JSON-safe values through the core host and browser-agent command API instead of discarding handler results.

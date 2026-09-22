@@ -36,6 +36,8 @@ export type ToolbarProps = {
 
 const TOOLBAR_DRAG_SLOP = 6;
 
+const TOOLBAR_DRAG_IGNORE_SELECTOR = "input, textarea, select, [contenteditable], [data-slider-container], [role='menu'], [role='dialog']";
+
 const GUIDE_MENU_WIDTH = 176;
 
 const TOOL_MENU_MIN_WIDTH = 224;
@@ -375,6 +377,11 @@ export function Toolbar(props: ToolbarProps) {
 
   const onToolbarPointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
     if (event.button !== 0) return;
+    // SAFETY: props.ownerWindow owns the event target and therefore its Element constructor.
+    const ElementConstructor = (props.ownerWindow as Window & typeof globalThis).Element;
+    const target = event.target;
+
+    if (target instanceof ElementConstructor && target.closest(TOOLBAR_DRAG_IGNORE_SELECTOR)) return;
     const root = props.ownerWindow.document.documentElement;
 
     if (previousUserSelect === null) {
@@ -395,9 +402,17 @@ export function Toolbar(props: ToolbarProps) {
       const dx = next.clientX - startX;
       const dy = next.clientY - startY;
 
-      if (!active) active = Math.abs(dx) > TOOLBAR_DRAG_SLOP || Math.abs(dy) > TOOLBAR_DRAG_SLOP;
+      if (!active) {
+        active = Math.abs(dx) > TOOLBAR_DRAG_SLOP || Math.abs(dy) > TOOLBAR_DRAG_SLOP;
 
-      if (!active) return;
+        if (!active) return;
+        setGuideMenuOpen(false);
+        setPluginMenuOpenId(null);
+        pluginMenuAnchorElement = undefined;
+
+        if (props.model.current.settingsOpen) props.model.setTransient({ settingsOpen: false });
+      }
+
       didDrag = true;
       const maxX = Math.max(8, props.ownerWindow.innerWidth - rect.width - 8);
       const maxY = Math.max(8, props.ownerWindow.innerHeight - rect.height - 8);
@@ -602,6 +617,8 @@ export function Toolbar(props: ToolbarProps) {
             <button
               type="button"
               aria-label="Guide orientation menu"
+              aria-haspopup="menu"
+              aria-expanded={guideMenuOpen() ? "true" : "false"}
               disabled={builtinDisabled("guides")}
               class={`msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none ${builtinDisabled("guides") ? "msr:cursor-default msr:text-black/30" : "msr:hover:bg-black/10"} ${guideMenuOpen() ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
               onClick={() => { setGuideMenuOpen((open) => { if (!open) { setActiveMenuIndex(props.model.state.guideOrientation === "horizontal" ? 0 : 1); updateMenuAlign(); }

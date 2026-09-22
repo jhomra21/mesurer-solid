@@ -23,6 +23,8 @@ The JSON-safe `window.__MESURER__` object exposes the full agent API. Lifecycle 
 
 Context adds `context()`, `contextText()`, `select()`, `annotations()`, `review()`, `capturePlan()`, `prepareCapture()`, and `finishCapture()`. Arrange adds `arrangements()`, `arrange()`, `showArrange()`, `arrangeCapturePlan()`, and `reviewArrange()`. Text intent is available through `textEdits()` and `textEdit()`. Use the narrowest method that answers the task without replacing human selection or saved intent.
 
+Select, point inspection, and Context can target general DOM elements, including SVG. Direct text editing and Arrange remain HTML-only mutation surfaces; SVG selection does not imply that either operation is available for that target.
+
 ## Reuse the live instance
 
 Never reinject, dispose, or replace Mesurer just because this skill loaded. A person may already have selected elements, guides, measurements, annotations, Arrange intent, text/style Desired intent, plugin state, or a screenshot preview open.
