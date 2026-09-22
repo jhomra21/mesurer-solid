@@ -13,11 +13,13 @@ const cases = [
     name: "Solid 1 (mount API)",
     url: process.env.SOLID1_PACKAGE_URL ?? "http://127.0.0.1:4191",
     mountedByApp: true,
+    expectedTheme: "light",
   },
   {
     name: "Solid 2 (mount API)",
     url: process.env.SOLID2_PACKAGE_URL ?? "http://127.0.0.1:4192",
     mountedByApp: true,
+    expectedTheme: "dark",
     exerciseDirectEditing: true,
   },
 ];
@@ -332,6 +334,18 @@ async function runCase(browser, testCase) {
 
       return Boolean(island?.shadowRoot?.querySelector("[data-mesurer-toolbar='true']"));
     });
+
+    if (testCase.expectedTheme) {
+      const theme = await page.evaluate(() => {
+        const island = document.querySelector("[data-mesurer-island='true']");
+
+        return island?.shadowRoot?.querySelector("[data-mesurer-root='true']")?.getAttribute("data-theme") ?? null;
+      });
+
+      if (theme !== testCase.expectedTheme) {
+        throw new Error(`${testCase.name} expected theme ${testCase.expectedTheme}, got ${theme}`);
+      }
+    }
 
     await assertHostIsolation(page, testCase);
 
