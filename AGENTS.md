@@ -215,6 +215,17 @@ Reference for explicit command/result contracts, keyboard and interaction owners
 
 Reference for browser/runtime boundaries, worker architecture, performance-sensitive state, and editor-style interaction systems.
 
+## Engineering review skills
+
+For broad API, architecture, or refactoring work, use the relevant engineering skills from `mattpocock/skills` as review lenses rather than as templates. In particular:
+
+- `codebase-design` and `improve-codebase-architecture` for ownership, module depth, and dependency direction;
+- `code-review` for correctness and regression review;
+- `wayfinder` before changing unfamiliar subsystems;
+- `tdd` / `implement` when behavior is best driven from a focused contract.
+
+Prefer the smallest subset that materially improves the task.
+
 ## Reference policy
 
 When designing a subsystem:
