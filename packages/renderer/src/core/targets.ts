@@ -3,9 +3,9 @@ import { ANCESTOR_KEEP_COVERAGE, ANCESTOR_PRUNE_SCALE, MIN_MULTI_ELEMENT_COVERAG
 import { getDistanceToRect, intersectionArea, rectArea } from "./geometry";
 import type { Point, Rect } from "./types";
 
-type MultiCandidate = { element: HTMLElement; rect: Rect; overlapArea: number; elementCoverage: number };
+type MultiCandidate = { element: Element; rect: Rect; overlapArea: number; elementCoverage: number };
 
-export const pickMultiTargets = (selectionRect: Rect, items: Array<{ element: HTMLElement; rect: Rect }>) => {
+export const pickMultiTargets = (selectionRect: Rect, items: Array<{ element: Element; rect: Rect }>) => {
   const candidates: MultiCandidate[] = [];
 
   for (const { element, rect } of items) {
@@ -37,9 +37,9 @@ export const pickMultiTargets = (selectionRect: Rect, items: Array<{ element: HT
     .map(({ element }) => element);
 };
 
-export const pickSingleTarget = (selectionRect: Rect, point: Point, items: Array<{ element: HTMLElement; rect: Rect }>) => {
+export const pickSingleTarget = (selectionRect: Rect, point: Point, items: Array<{ element: Element; rect: Rect }>) => {
   const selectionArea = Math.max(1, rectArea(selectionRect));
-  const scored: Array<{ element: HTMLElement; rect: Rect; coverage: number; score: number }> = [];
+  const scored: Array<{ element: Element; rect: Rect; coverage: number; score: number }> = [];
 
   for (const { element, rect } of items) {
     const overlap = intersectionArea(selectionRect, rect);
@@ -78,8 +78,8 @@ export const pickSingleTarget = (selectionRect: Rect, point: Point, items: Array
   return scored[0].element;
 };
 
-export const pickPointTarget = (point: Point, items: Array<{ element: HTMLElement; rect: Rect }>) => {
-  const scored: Array<{ element: HTMLElement; score: number }> = [];
+export const pickPointTarget = (point: Point, items: Array<{ element: Element; rect: Rect }>) => {
+  const scored: Array<{ element: Element; score: number }> = [];
 
   for (const { element, rect } of items) {
     if (rect.width < MIN_SINGLE_TARGET_SIZE || rect.height < MIN_SINGLE_TARGET_SIZE) continue;

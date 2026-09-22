@@ -32,7 +32,7 @@ export type {
 } from "@jhomra21/mesurer-solid-core";
 
 export type MesurerResolvedAnnotation = MesurerAnnotation & {
-  resolvedTargets: Array<{ target: MesurerAnnotationTarget; element: HTMLElement | null }>;
+  resolvedTargets: Array<{ target: MesurerAnnotationTarget; element: Element | null }>;
 };
 
 export type MesurerWorkspaceSnapshot = {
@@ -42,19 +42,19 @@ export type MesurerWorkspaceSnapshot = {
   guideRelevanceTolerance: number;
   selectedMeasurements: MesurerModel["current"]["selectedMeasurements"];
   selectionOriginRect: Rect | null;
-  measurements: Measurement<HTMLElement>[];
-  activeMeasurement: Measurement<HTMLElement> | null;
-  heldDistances: DistanceOverlay<HTMLElement>[];
+  measurements: Measurement<Element>[];
+  activeMeasurement: Measurement<Element> | null;
+  heldDistances: DistanceOverlay<Element>[];
   guides: Guide[];
   annotations: MesurerAnnotation[];
 };
 
 export type MesurerWorkspaceRuntime = {
   snapshot(): MesurerWorkspaceSnapshot;
-  currentSelection(): { elements: HTMLElement[]; region: Rect | null };
+  currentSelection(): { elements: Element[]; region: Rect | null };
   selectGestureActive(): boolean;
-  select(selectors: string[]): HTMLElement[];
-  hoveredElement(): HTMLElement | null;
+  select(selectors: string[]): Element[];
+  hoveredElement(): Element | null;
   annotations(): MesurerAnnotation[];
   annotation(id: string): MesurerResolvedAnnotation | null;
   annotationRect(id: string): Rect | null;
@@ -142,8 +142,8 @@ const randomId = (ownerWindow: Window, prefix: string) => {
 };
 
 const selectedElements = (model: MesurerModel) => {
-  const seen = new Set<HTMLElement>();
-  const elements: HTMLElement[] = [];
+  const seen = new Set<Element>();
+  const elements: Element[] = [];
 
   for (const measurement of model.current.selectedMeasurements) {
     const element = measurement.elementRef;
@@ -186,7 +186,7 @@ export function createMesurerWorkspaceRuntime(options: {
   const annotations = readStoredAnnotations(ownerWindow, options.persistenceKey);
   const listeners = new Set<() => void>();
   const hidden = new Map<HTMLElement, InlineDisplayState>();
-  const liveTargets = new Map<string, HTMLElement>();
+  const liveTargets = new Map<string, Element>();
   const targetResolution = new Map<string, boolean>();
   let disposed = false;
   let mutationFrame = 0;
@@ -194,17 +194,17 @@ export function createMesurerWorkspaceRuntime(options: {
   let watching = false;
 
   const targetKey = (annotationId: string, targetId: string) => `${annotationId}:${targetId}`;
-  const isInPageTarget = (element: HTMLElement) => isElementWithinDomTarget(element, pageTarget);
+  const isInPageTarget = (element: Element) => isElementWithinDomTarget(element, pageTarget);
 
-  const queryCandidates = (selector: string): HTMLElement[] => {
-    const matches: HTMLElement[] = [];
+  const queryCandidates = (selector: string): Element[] => {
+    const matches: Element[] = [];
 
     if (pageTarget instanceof realm.HTMLElement && pageTarget.matches(selector)) {
       matches.push(pageTarget);
     }
 
     for (const candidate of queryRoot.querySelectorAll(selector)) {
-      if (candidate instanceof realm.HTMLElement && isInPageTarget(candidate)) {
+      if (candidate instanceof realm.Element && isInPageTarget(candidate)) {
         matches.push(candidate);
       }
     }
@@ -240,7 +240,7 @@ export function createMesurerWorkspaceRuntime(options: {
   const uniqueRebindCandidate = (target: MesurerAnnotationTarget) => {
     if (!isElementFingerprintRebindable(target.fingerprint)) return null;
 
-    let selectorMatches: HTMLElement[] = [];
+    let selectorMatches: Element[] = [];
 
     try {
       selectorMatches = queryCandidates(target.selector)
@@ -252,7 +252,7 @@ export function createMesurerWorkspaceRuntime(options: {
     if (selectorMatches.length !== 1) return null;
 
     if (!target.fingerprint.id && !target.fingerprint.testId) {
-      let fingerprintMatches: HTMLElement[] = [];
+      let fingerprintMatches: Element[] = [];
 
       try {
         fingerprintMatches = queryCandidates(target.fingerprint.tag)
@@ -373,7 +373,7 @@ export function createMesurerWorkspaceRuntime(options: {
 
   const baseline = (options: {
     targets: MesurerAnnotationTarget[];
-    elements?: HTMLElement[];
+    elements?: Element[];
     region?: Rect | null;
   }): MesurerAnnotationBaseline => createMesurerAnnotationBaseline({
     ...options,
@@ -381,7 +381,7 @@ export function createMesurerWorkspaceRuntime(options: {
     guideTolerance: GUIDE_SNAP_DISTANCE,
   });
 
-  const makeTarget = (element: HTMLElement, index: number): MesurerAnnotationTarget => ({
+  const makeTarget = (element: Element, index: number): MesurerAnnotationTarget => ({
     id: `target-${index + 1}`,
     selector: getElementSelector(element),
     fingerprint: getElementFingerprint(element),
@@ -403,7 +403,7 @@ export function createMesurerWorkspaceRuntime(options: {
     if (!normalized.length) throw new Error("Mesurer select() requires at least one selector.");
 
     const elements = normalized.map((selector) => {
-      let matches: HTMLElement[];
+      let matches: Element[];
 
       try {
         matches = queryCandidates(selector);
@@ -425,14 +425,14 @@ export function createMesurerWorkspaceRuntime(options: {
     model.checkpoint();
     model.setEnabled(true);
     model.setToolMode("select");
-    const measurements = elements.map((element) => getInspectMeasurement<HTMLElement>(element, ownerWindow));
+    const measurements = elements.map((element) => getInspectMeasurement<Element>(element, ownerWindow));
     model.setSelectedMeasurements(measurements, measurements.at(-1) ?? null);
     model.setTransient({ selectionOriginRect: null });
 
     return elements;
   };
 
-  const pushAnnotation = (annotation: MesurerAnnotation, elements: HTMLElement[] = []) => {
+  const pushAnnotation = (annotation: MesurerAnnotation, elements: Element[] = []) => {
     annotations.push(annotation);
 
     if (annotation.anchor.kind === "elements") {

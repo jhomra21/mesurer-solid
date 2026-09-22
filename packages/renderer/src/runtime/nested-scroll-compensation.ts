@@ -42,7 +42,7 @@ const Y_VARIABLE = "--mesurer-nested-scroll-y";
  */
 export const installNestedScrollCompensation = (
   ownerWindow: Window,
-  target: HTMLElement,
+  target: Element,
   surfaces: () => Iterable<HTMLElement | null | undefined>,
   options: CompensationOptions = {},
 ): MesurerNestedScrollCompensation => {
@@ -52,19 +52,21 @@ export const installNestedScrollCompensation = (
   const ownerDocument = target.ownerDocument;
   const trackWindow = options.trackWindow === true;
 
-  const composedParent = (element: HTMLElement): HTMLElement | null => {
+  const composedParent = (element: Element): Element | null => {
     if (element.parentElement) return element.parentElement;
     const root = element.getRootNode();
 
-    return root instanceof realm.ShadowRoot && root.host instanceof realm.HTMLElement
-      ? root.host
-      : null;
+    return root instanceof realm.ShadowRoot ? root.host : null;
   };
 
   let ancestor = composedParent(target);
 
   while (ancestor) {
-    if (ancestor !== ownerDocument.body && ancestor !== ownerDocument.documentElement) {
+    if (
+      ancestor instanceof realm.HTMLElement
+      && ancestor !== ownerDocument.body
+      && ancestor !== ownerDocument.documentElement
+    ) {
       positions.set(ancestor, {
         left: ancestor.scrollLeft,
         top: ancestor.scrollTop,

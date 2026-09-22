@@ -36,7 +36,7 @@ export const getRectFromDomCached = (element: Element) => {
   return rect;
 };
 
-let cachedElements: HTMLElement[] = [];
+let cachedElements: Element[] = [];
 
 let cachedFrame = -1;
 
@@ -48,21 +48,21 @@ export const getBodyElementsCached = (ownerDocument: Document = document) => {
   if (frame === cachedFrame && cachedDocument === ownerDocument && cachedElements.length > 0) return cachedElements;
   cachedFrame = frame;
   cachedDocument = ownerDocument;
-  const elements: HTMLElement[] = [];
-  const HTMLElementConstructor = ownerDocument.defaultView?.HTMLElement;
+  const elements: Element[] = [];
+  const ElementConstructor = ownerDocument.defaultView?.Element;
 
-  if (!HTMLElementConstructor) {
+  if (!ElementConstructor) {
     cachedElements = elements;
 
     return cachedElements;
   }
 
-  const visit = (root: Document | ShadowRoot | HTMLElement) => {
+  const visit = (root: Document | ShadowRoot | Element) => {
     const walker = ownerDocument.createTreeWalker(root, 1);
     let node = walker.nextNode();
 
     while (node) {
-      if (node instanceof HTMLElementConstructor) {
+      if (node instanceof ElementConstructor) {
         elements.push(node);
 
         if (node.shadowRoot) visit(node.shadowRoot);
@@ -79,9 +79,9 @@ export const getBodyElementsCached = (ownerDocument: Document = document) => {
 };
 
 export const getInspectMeasurement = (
-  element: HTMLElement,
+  element: Element,
   ownerWindow: Window = window,
-): InspectMeasurement => getDomInspectMeasurement<HTMLElement>(element, ownerWindow, createId());
+): InspectMeasurement => getDomInspectMeasurement<Element>(element, ownerWindow, createId());
 
 export const updateMeasurementForResize = (
   measurement: Measurement,

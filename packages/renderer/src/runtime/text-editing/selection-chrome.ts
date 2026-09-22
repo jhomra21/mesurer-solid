@@ -45,7 +45,7 @@ export function installDirectEditSelectionChromeOwnership(
   const hoverSuppressed = new Map<HTMLElement, InlineOpacity>();
   const selectedRoots = new Set<HTMLElement>();
   const hoverRoots = new Set<HTMLElement>();
-  let editOwnedElements = new Set<HTMLElement>();
+  let editOwnedElements = new Set<Element>();
   let active = false;
   let queued = false;
   let disposed = false;

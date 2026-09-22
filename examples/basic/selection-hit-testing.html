@@ -15,6 +15,7 @@
       #under-target { position: absolute; z-index: 1; left: 78px; top: 48px; width: 24px; height: 24px; border: 0; padding: 0; background: #f97316; }
       #top-target { position: absolute; z-index: 2; left: 30px; top: 18px; width: 120px; height: 84px; border: 1px solid #2563eb; border-radius: 10px; background: rgb(219 234 254 / 0.82); }
       #transform-target { width: 120px; height: 52px; border: 1px solid #7c3aed; border-radius: 10px; transform: rotate(-7deg) scale(1.08); background: #ede9fe; }
+      #svg-targets { display: block; width: 240px; height: 120px; }
       #canvas-target { display: block; width: 240px; height: 90px; border: 1px solid #64748b; }
       #closed-shadow-host { width: 220px; min-height: 54px; border: 1px dashed #64748b; border-radius: 10px; padding: 12px; }
       #large-dom-grid { display: grid; grid-template-columns: repeat(20, 22px); gap: 2px; width: max-content; }
@@ -38,6 +39,14 @@
 
       <section class="fixture">
         <button id="transform-target" type="button">Transformed target</button>
+      </section>
+
+      <section class="fixture">
+        <svg id="svg-targets" viewBox="0 0 240 120" aria-label="SVG inspect targets">
+          <path id="svg-path-target" d="M18 92 C54 8 88 106 126 42 S188 18 224 84" fill="none" stroke="#2563eb" stroke-width="10" stroke-linecap="round"></path>
+          <circle id="svg-circle-target" cx="72" cy="52" r="18" fill="#f97316"></circle>
+          <rect id="svg-rect-target" x="154" y="30" width="54" height="42" rx="5" fill="#86efac" transform="rotate(-8 181 51)"></rect>
+        </svg>
       </section>
 
       <section class="fixture">

@@ -130,7 +130,7 @@ export function installIsolatedSelectionPortal(
 
   let disposed = false;
   let queued = false;
-  let lastSelection: HTMLElement[] = [];
+  let lastSelection: Element[] = [];
 
   const moveRoot = (root: HTMLElement) => {
     if (placements.has(root) || root.dataset.mesurerSelectionGroup === "true") return;

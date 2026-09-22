@@ -15,7 +15,7 @@ export type Measurement = {
   id: string;
   rect: Rect;
   normalizedRect: NormalizedRect;
-  elementRef?: HTMLElement | null;
+  elementRef?: Element | null;
   originRect?: Rect;
   deltaX: number;
   deltaY: number;
@@ -37,7 +37,7 @@ export type InspectMeasurement = {
   padding: BoxEdges;
   margin: BoxEdges;
   label: string;
-  elementRef?: HTMLElement | null;
+  elementRef?: Element | null;
   originRect?: Rect;
 };
 
@@ -61,8 +61,8 @@ export type DistanceOverlay = {
   rectB: Rect;
   normalizedRectA: NormalizedRect;
   normalizedRectB: NormalizedRect;
-  elementRefA?: HTMLElement | null;
-  elementRefB?: HTMLElement | null;
+  elementRefA?: Element | null;
+  elementRefB?: Element | null;
   horizontal: ({ x1: number; x2: number; y: number; value: number } & DistanceLabelMeta) | null;
   vertical: ({ y1: number; y2: number; x: number; value: number } & DistanceLabelMeta) | null;
   diagonal?: ({ axis: "d"; x1: number; y1: number; x2: number; y2: number; value: number } & DistanceLabelMeta) | null;
@@ -76,7 +76,7 @@ export type DistanceOverlay = {
 
 export type OptionTarget = {
   rect: Rect;
-  element?: HTMLElement | null;
+  element?: Element | null;
   guideId?: string;
 };
 

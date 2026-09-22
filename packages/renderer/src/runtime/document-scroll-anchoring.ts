@@ -419,7 +419,9 @@ export function installDocumentScrollAnchoring(
       if (root.dataset.mesurerSelectionGroup !== "true") roots.add(root);
     }
 
-    const selectedTargets = workspace.currentSelection().elements;
+    const selectedTargets = workspace.currentSelection().elements.filter(
+      (element): element is HTMLElement => element instanceof realm.HTMLElement,
+    );
 
     for (const root of roots) {
       const existing = selectionBindings.get(root);

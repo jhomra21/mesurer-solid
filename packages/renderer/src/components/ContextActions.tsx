@@ -23,10 +23,10 @@ export type ContextActionsProps = {
 
 type PositionedRect = { left: number; top: number; width: number; height: number };
 
-type ContextSelectionSnapshot = { elements: HTMLElement[]; region: PositionedRect | null };
+type ContextSelectionSnapshot = { elements: Element[]; region: PositionedRect | null };
 
 type AnnotationScrollBinding = {
-  target: HTMLElement;
+  target: Element;
   anchorName: string | null;
   releaseAnchor: (() => void) | null;
   scroll: MesurerNestedScrollCompensation;
@@ -58,6 +58,12 @@ const anchorNames = (value: string) => value
   .split(",")
   .map((name) => name.trim())
   .filter((name) => name.length > 0 && name !== "none");
+
+const isHtmlElement = (element: Element): element is HTMLElement => {
+  const HTMLElementConstructor = element.ownerDocument.defaultView?.HTMLElement;
+
+  return Boolean(HTMLElementConstructor && element instanceof HTMLElementConstructor);
+};
 
 const addAnchorName = (element: HTMLElement, name: string) => {
   const before = element.style.getPropertyValue("anchor-name");
@@ -164,7 +170,7 @@ export function ContextActions(props: ContextActionsProps) {
   const [status, setStatus] = createSignal<string | null>(null);
   const [draggingSurfaceId, setDraggingSurfaceId] = createSignal<string | null>(null);
   let selectionTriggerAnchorName = `--mesurer-annotation-trigger-${++annotationAnchorSequence}`;
-  let fallbackTriggerElement: HTMLElement | null = null;
+  let fallbackTriggerElement: Element | null = null;
   let fallbackNextSelection = props.initialTriggerFallback === "current-and-next";
   let composerSelection: ContextSelectionSnapshot | null = null;
 
@@ -182,7 +188,7 @@ export function ContextActions(props: ContextActionsProps) {
   let surfaceDragCleanup: (() => void) | null = null;
   let anchorElement: HTMLSpanElement | undefined;
   let annotationTriggerElement: HTMLButtonElement | undefined;
-  let trackedTriggerElement: HTMLElement | null = null;
+  let trackedTriggerElement: Element | null = null;
   let anchoredTriggerElement: HTMLElement | null = null;
   let releaseTriggerAnchor: (() => void) | null = null;
   let nestedTriggerScroll: MesurerNestedScrollCompensation | null = null;
@@ -300,7 +306,9 @@ export function ContextActions(props: ContextActionsProps) {
     return annotation.resolvedTargets.find(({ element }) => element?.isConnected)?.element ?? null;
   };
 
-  const canUseNativeAnnotationAnchor = (target: HTMLElement) => Boolean(
+  const canUseNativeAnnotationAnchor = (target: Element) => Boolean(
+    isHtmlElement(target)
+    &&
     usesViewportCoordinates()
     && anchorElement
     && supportsNativeAnchors()
@@ -336,7 +344,7 @@ export function ContextActions(props: ContextActionsProps) {
 
     if (!currentWindow) return;
 
-    if (useNativeAnchor) {
+    if (useNativeAnchor && isHtmlElement(target)) {
       const anchorName = `--mesurer-annotation-${++annotationAnchorSequence}`;
       annotationScrollBindings.set(annotationId, {
         target,
@@ -403,7 +411,9 @@ export function ContextActions(props: ContextActionsProps) {
     anchoredTriggerElement = null;
   };
 
-  const canUseNativeTriggerAnchor = (element: HTMLElement) => Boolean(
+  const canUseNativeTriggerAnchor = (element: Element) => Boolean(
+    isHtmlElement(element)
+    &&
     usesViewportCoordinates()
     && anchorElement
     && element !== fallbackTriggerElement
@@ -443,7 +453,7 @@ export function ContextActions(props: ContextActionsProps) {
 
     if (!currentWindow) return;
 
-    if (shouldUseNative) {
+    if (shouldUseNative && isHtmlElement(element)) {
       releaseTriggerAnchor = addAnchorName(element, nextAnchorName);
       anchoredTriggerElement = element;
       selectionTriggerAnchorName = nextAnchorName;
@@ -466,7 +476,7 @@ export function ContextActions(props: ContextActionsProps) {
     );
   };
 
-  const observeTriggerGeometry = (element: HTMLElement | null) => {
+  const observeTriggerGeometry = (element: Element | null) => {
     triggerResizeObserver?.disconnect();
     triggerResizeObserver = null;
 
