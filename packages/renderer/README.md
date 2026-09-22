@@ -6,6 +6,6 @@ The public package bundles this renderer and its Solid 2 runtime into an isolate
 
 This workspace owns the visible inspector UI, compact toolbar, measurement overlays, Typography/direct editing presentation, Arrange and Screenshot UI, and browser-facing coordination around the framework-neutral model/plugin host.
 
-Current runtime contracts include ownership-aware text/style previews, inherited `contenteditable` boundaries, ownership-aware Arrange transforms, and cancellable plugin setup. Browser contracts cover these interactions in real Chromium; historical and current visual-parity checks protect the adopted Mesurer UI behavior.
+Current runtime contracts include general `Element` selection, SVG inspection, ownership-aware text/style previews, inherited `contenteditable` boundaries, HTML-only Arrange transforms, thresholded toolbar dragging, and cancellable plugin setup. Menus, dialogs, form controls, editable regions, and sliders keep pointer ownership instead of moving the toolbar. Browser contracts cover these interactions in real Chromium; historical and current visual-parity checks protect the adopted Mesurer UI behavior.
 
 Use the repository root scripts for normal development. Renderer-only checks can use the `@jhomra21/mesurer-solid-renderer` workspace filter.
