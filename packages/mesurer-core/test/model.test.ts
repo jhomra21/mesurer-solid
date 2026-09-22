@@ -17,6 +17,15 @@ describe("framework-neutral Mesurer model", () => {
     unsubscribe();
   });
 
+  it("defaults, serializes, and restores the theme setting", () => {
+    const model = createMesurerModelCore();
+    expect(model.current.settings.theme).toBe("system");
+    model.updateSettings({ theme: "dark" });
+    expect(model.serializeSettings().theme).toBe("dark");
+    model.applyStoredSettings({ theme: "light" });
+    expect(model.current.settings.theme).toBe("light");
+  });
+
   it("serializes workspace state without carrying host element references", () => {
     const element = { node: "host" };
     const model = createMesurerModelCore<typeof element>();
