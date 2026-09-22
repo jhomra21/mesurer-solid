@@ -354,7 +354,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
 
   const capabilities = (): MesurerAgentCapabilities => {
     const contextAvailable = Boolean(pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID));
-    const arrangeAvailable = Boolean(pluginHost?.service.get<MesurerArrangeService>(ARRANGE_SERVICE_ID));
+    const arrangeAvailable = Boolean(pluginHost?.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID));
     const textEditAvailable = Boolean(pluginHost?.service.get<MesurerTextEditService>(MESURER_TEXT_EDIT_SERVICE_ID));
 
     return {
