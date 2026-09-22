@@ -160,6 +160,34 @@ try {
 
   await selectPoint(transformedProbe.point, transformedProbe.rect, "transformed target");
 
+  const svgCircle = page.locator("#svg-circle-target");
+
+  const svgProbe = await pointFor(svgCircle, "SVG circle");
+
+  const agentSvg = await page.evaluate(
+    ({ x, y }) => window.__MESURER__.at(x, y),
+    svgProbe.point,
+  );
+
+  assert.equal(agentSvg?.selector, "#svg-circle-target", "agent point inspection should resolve the SVG circle");
+
+  await selectPoint(svgProbe.point, svgProbe.rect, "SVG circle");
+
+  const svgContext = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
+
+  assert.equal(svgContext.targets.length, 1, "SVG selection should produce one Context target");
+  assert.equal(svgContext.targets[0]?.inspection.selector, "#svg-circle-target", "Context should preserve the SVG selector");
+  assert.equal(svgContext.targets[0]?.inspection.tag, "circle", "Context should inspect the SVG element itself");
+
+  await page.evaluate(() => window.__MESURER__.select(["#svg-rect-target"]));
+  const programmaticSvgContext = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
+
+  assert.equal(
+    programmaticSvgContext.targets[0]?.inspection.selector,
+    "#svg-rect-target",
+    "programmatic selection should accept SVG elements",
+  );
+
   const canvas = page.locator("#canvas-target");
 
   const canvasProbe = await pointFor(canvas, "canvas target");
@@ -192,6 +220,8 @@ try {
     agentParity: true,
     nativeTargetPreserved: true,
     transformedGeometry: true,
+    svgElement: true,
+    svgContext: true,
     canvasSurface: true,
     closedShadowBoundary: true,
     largeDom: true,
