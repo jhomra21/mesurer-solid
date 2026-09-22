@@ -536,7 +536,7 @@ body.mesurer-solid-xray .mesurer-ti-close {
 :where(
   [data-mesurer-root="true"][data-theme],
   [data-mesurer-inspector-ui="true"][data-theme]
-) .mesurer-rulers {
+) [data-mesurer-rulers="true"] {
   color: var(--msr-color-ink-500) !important;
 }
 
