@@ -36,6 +36,8 @@ import { MESURER_VERSION } from "./version";
 
 export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 
+export type MesurerTheme = "system" | "light" | "dark";
+
 export type MesurerBuiltinPluginId = "select" | "xray" | "color-picker" | "rulers" | "text-inspector" | "guides" | "distance" | "settings";
 
 export type LinePattern = "solid" | "dashed" | "dotted";
@@ -79,6 +81,7 @@ export type MesurerStoredSettings = {
   multiMeasureEnabled?: boolean;
   persistOnReload?: boolean;
   shortcutsEnabled?: boolean;
+  theme?: MesurerTheme;
   guideStyle?: Partial<GuideStyle>;
   selectionSpacingStyle?: Partial<SelectionSpacingStyle>;
   rulerSettings?: Partial<RulerSettings>;
@@ -117,6 +120,7 @@ export type MesurerOptions = {
   hoverHighlightEnabled?: boolean;
   persistOnReload?: boolean;
   shortcutsEnabled?: boolean;
+  theme?: MesurerTheme;
   persistKey?: string;
   persistence?: MesurerPersistence;
   onPersistenceError?: (cause: unknown) => void;
