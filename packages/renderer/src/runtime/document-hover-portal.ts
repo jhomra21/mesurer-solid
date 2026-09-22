@@ -1,6 +1,6 @@
 export function documentHoverPortalTarget(
   overlay: HTMLElement | undefined,
-  target: HTMLElement | null,
+  target: Element | null,
 ): HTMLElement | null {
   const ownerDocument = overlay?.ownerDocument;
   const body = ownerDocument?.body;
