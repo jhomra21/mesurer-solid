@@ -13,7 +13,7 @@ This page lists the public Mesurer features and the APIs that expose them. Featu
 | Typography | Inspect rendered typography. Double-click a valid direct-text target to record reversible copy and style intent. |
 | Guides | Add horizontal and vertical guides, including snapping behavior. |
 | Distance | Show spacing between rendered targets. Multi-selection Context can also report pairwise distances. |
-| Settings | Control Mesurer preferences, plugin availability, shortcuts, and presentation options. |
+| Settings | Control Mesurer preferences, plugin availability, shortcuts, appearance, and presentation options. |
 
 The default keyboard shortcuts are listed in the root [README](../README.md).
 
@@ -25,6 +25,7 @@ The default keyboard shortcuts are listed in the root [README](../README.md).
 | Compact toolbar | Hide inactive controls without changing the active tool set or toolbar order. Expanding restores the same controls and state. |
 | Multi-selection | Extend Select across multiple targets and inspect group geometry plus pairwise relationships. |
 | Presentation ownership | Arrange and text previews restore only values Mesurer still owns. Host-authored changes remain untouched. |
+| Appearance | Use persisted System, Light, or Dark themes across isolated and document-backed Mesurer UI. System follows `prefers-color-scheme`. |
 
 Direct text editing respects native form controls and `contenteditable` ownership. Mixed-inline targeting is kept in Mesurer-owned runtime state; it does not replace or redefine the host element's native `childNodes` surface. See [Direct text editing and Typography](./TEXT_EDITING.md).
 
@@ -152,7 +153,7 @@ Renderer-only services remain private. Public plugins request them by service id
 | Area | Options |
 | --- | --- |
 | Host and isolation | `target`, `isolate`, `shadowMode`, `topLayer`, `agent` |
-| Colors and hover | `highlightColor`, `guideColor`, `hoverHighlightEnabled` |
+| Colors and appearance | `highlightColor`, `guideColor`, `hoverHighlightEnabled`, `theme` |
 | Persistence | `persistOnReload`, `persistKey`, `persistence`, `onPersistenceError` |
 | Shortcuts | `shortcutsEnabled` |
 | Color Picker | `colorPickerFormats`, `colorPickerClickFormat` |

@@ -294,6 +294,50 @@ const normalizeSharedParitySurface = async (page, implementation) => {
   if (implementation !== "solid") return;
   let changed = false;
 
+  // The pinned v0.0.11 fixture predates Appearance. Validate the current-only
+  // control before removing its row from this historical comparison. Current
+  // system/light/dark behavior and palette values are enforced separately by
+  // theme-contract.mjs.
+  const appearance = page.getByRole("combobox", { name: "Appearance" });
+
+  if ((await appearance.count()) > 0) {
+    const contract = await appearance.evaluate((select) => ({
+      value: select.value,
+      options: [...select.options].map((option) => ({
+        label: option.textContent?.trim() ?? "",
+        value: option.value,
+      })),
+    }));
+
+    const expected = {
+      value: "system",
+      options: [
+        { label: "System", value: "system" },
+        { label: "Light", value: "light" },
+        { label: "Dark", value: "dark" },
+      ],
+    };
+
+    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+      throw new Error(`Unexpected current Appearance contract: ${JSON.stringify(contract)}`);
+    }
+
+    await appearance.evaluate((select) => select.parentElement?.remove());
+    changed = true;
+  }
+
+  // The historical parity fixture checks the preserved v0.0.11 visual base.
+  // Remove only Mesurer's current theme selector so this capture uses that
+  // historical stylesheet. The production theme layer remains untouched.
+  const themedNodes = page.locator(
+    '[data-mesurer-root="true"][data-theme], [data-mesurer-inspector-ui="true"][data-theme], [data-mesurer-isolated-document-layer="true"][data-theme]',
+  );
+
+  if ((await themedNodes.count()) > 0) {
+    await themedNodes.evaluateAll((nodes) => nodes.forEach((node) => node.removeAttribute("data-theme")));
+    changed = true;
+  }
+
   const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"]');
 
   if ((await extensions.count()) > 0) {

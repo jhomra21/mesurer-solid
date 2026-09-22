@@ -1,8 +1,9 @@
-import type { MesurerPlugin } from "@jhomra21/mesurer-solid-core";
+import type { MesurerPlugin, MesurerTheme } from "@jhomra21/mesurer-solid-core";
 import type { MesurerBuiltinPluginId } from "./plugins/builtins";
 
 export type MesurerConfig = {
   shortcutsEnabled?: boolean;
+  theme?: MesurerTheme;
   plugins?: MesurerPlugin[];
   excludePlugins?: MesurerBuiltinPluginId[];
 };

@@ -40,16 +40,16 @@ const DOUBLE_TAP_DISTANCE = 24;
 
 const SCROLL_IDLE_MS = 80;
 
-const TOOLBAR_BLUE = "#0d99ff";
+const TOOLBAR_BLUE = "var(--msr-accent, #0d99ff)";
 
-const TOOLBAR_INK = "#0f172a";
+const TOOLBAR_INK = "var(--msr-content, #0f172a)";
 
-const TOOLBAR_MUTED = "#8a8a8a";
+const TOOLBAR_MUTED = "var(--msr-color-ink-500, #8a8a8a)";
 
 const STYLE_MENU_WIDTH = 288;
 
 const TOOLBAR_SHADOW =
-  "0 0 0.5px rgba(0, 0, 0, 0.18), 0 3px 8px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1)";
+  "var(--msr-shadow-floating, 0 0 0.5px rgba(0, 0, 0, 0.18), 0 3px 8px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1))";
 
 const SKIP_TAGS = new Set([
   "HTML", "BODY", "SCRIPT", "STYLE", "META", "LINK", "NOSCRIPT",
@@ -836,7 +836,7 @@ export function installTextEditing(
       border: "0",
       borderRadius: "8px",
       background: active ? TOOLBAR_BLUE : "transparent",
-      color: active ? "#ffffff" : "#000000",
+      color: active ? "var(--msr-color-white, #ffffff)" : "var(--msr-content, #000000)",
       font: "600 13px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       textDecoration: title === "Underline" ? "underline" : "none",
       fontStyle: title === "Italic" ? "italic" : "normal",
@@ -1017,7 +1017,7 @@ export function installTextEditing(
       borderRadius: "8px",
       padding: "0 10px",
       background: active ? "rgba(0, 0, 0, 0.05)" : "transparent",
-      color: "#111111",
+      color: "var(--msr-content, #111111)",
       cursor: "pointer",
       outline: "none",
       textAlign: "left",
@@ -1143,7 +1143,7 @@ export function installTextEditing(
         height: "22px",
         borderRadius: "50%",
         border: value === color ? `2px solid ${TOOLBAR_BLUE}` : "1px solid rgba(0, 0, 0, 0.18)",
-        boxShadow: value === color ? "0 0 0 2px #ffffff inset" : "none",
+        boxShadow: value === color ? "0 0 0 2px var(--msr-color-white, #ffffff) inset" : "none",
         background: value,
         cursor: "pointer",
         padding: "0",
@@ -1203,7 +1203,7 @@ export function installTextEditing(
       border: "0",
       borderRadius: "8px",
       background: session.menuOpen ? "rgba(0, 0, 0, 0.05)" : "transparent",
-      color: "#111111",
+      color: "var(--msr-content, #111111)",
       padding: "0 10px",
       cursor: "pointer",
       outline: "none",
@@ -1592,7 +1592,7 @@ export function installTextEditing(
       overflow: "hidden",
       border: "0",
       outline: "none",
-      boxShadow: "0 0 0 2px #0d99ff, 0 8px 24px rgba(15,23,42,.18)",
+      boxShadow: "0 0 0 2px var(--msr-accent, #0d99ff), var(--msr-shadow-select-menu, 0 8px 24px rgba(15,23,42,.18))",
     });
 
     const toolbar = ownerDocument.createElement("div");
@@ -1613,7 +1613,7 @@ export function installTextEditing(
       maxWidth: "calc(100vw - 16px)",
       padding: "4px",
       borderRadius: "12px",
-      background: "#ffffff",
+      background: "var(--msr-surface-raised, #ffffff)",
       color: TOOLBAR_INK,
       boxShadow: TOOLBAR_SHADOW,
     });
@@ -1635,7 +1635,7 @@ export function installTextEditing(
       boxSizing: "border-box",
       padding: "6px",
       borderRadius: "12px",
-      background: "#ffffff",
+      background: "var(--msr-surface-raised, #ffffff)",
       color: TOOLBAR_INK,
       boxShadow: TOOLBAR_SHADOW,
     });

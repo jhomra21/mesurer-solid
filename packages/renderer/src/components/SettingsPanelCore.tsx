@@ -1,7 +1,7 @@
 import { For, Show, createSignal, onSettled } from "solid-js";
 import { colorToHex, parseCssColor, type ColorPickerFormat } from "../core/colors";
 import { trySetPointerCapture } from "../core/events";
-import type { GuideStyle, SelectionSpacingStyle } from "../core/persistence";
+import type { GuideStyle, MesurerTheme, SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel, SettingsTab } from "../model/create-mesurer-model";
 import { useMesurerPluginSettings } from "../plugins/settings-runtime";
 import { CaretDownIcon } from "./Icons";
@@ -11,6 +11,9 @@ const COLOR_FORMATS: ColorPickerFormat[] = ["hex", "rgb", "hsl", "oklch"];
 
 const isColorPickerFormat = (value: string): value is ColorPickerFormat =>
   COLOR_FORMATS.some((format) => format === value);
+
+const isMesurerTheme = (value: string): value is MesurerTheme =>
+  value === "system" || value === "light" || value === "dark";
 
 const GUIDE_PATTERNS: Array<{ value: GuideStyle["pattern"]; label: string }> = [
   { value: "solid", label: "Solid" },
@@ -115,11 +118,12 @@ function SliderControl(props: {
 
  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
           >
-            <div class="msr:absolute msr:left-[8px] msr:right-[8px] msr:rounded-full" style={{ top: "8px", height: "4px", "background-color": "rgba(15, 23, 42, 0.16)" }} />
-            <div class="msr:absolute msr:left-[8px] msr:rounded-full" style={{ top: "8px", width: `calc(${percentage()}% - ${percentage() * 0.16}px)`, height: "4px", "background-color": "#0d99ff" }} />
+            <div class="msr:absolute msr:left-[8px] msr:right-[8px] msr:rounded-full" style={{ top: "8px", height: "4px", "background-color": "var(--msr-slider-track, rgba(15, 23, 42, 0.16))" }} />
+            <div class="msr:absolute msr:left-[8px] msr:rounded-full" style={{ top: "8px", width: `calc(${percentage()}% - ${percentage() * 0.16}px)`, height: "4px", "background-color": "var(--msr-accent, #0d99ff)" }} />
             <div
               class="msr:absolute msr:rounded-[5px] msr:bg-white msr:shadow-sm msr:outline-none msr:focus-visible:ring-1 msr:focus-visible:ring-[#0d99ff]/25"
-              style={{ left: `calc(8px + (100% - 16px) * ${percentage() / 100})`, top: "4px", width: "12px", height: "12px", transform: "translateX(-50%)" }}
+              data-slider-thumb="true"
+              style={{ "background-color": "var(--msr-control-thumb, #fff)", left: `calc(8px + (100% - 16px) * ${percentage() / 100})`, top: "4px", width: "12px", height: "12px", transform: "translateX(-50%)" }}
               role="slider"
               tabindex={0}
               aria-label={props.label}
@@ -419,6 +423,23 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
         <section class="msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1" aria-label="General settings">
           <SettingsSwitch label="Persist" checked={settings().persistOnReload} onChange={(persistOnReload) => props.model.updateSettings({ persistOnReload })} />
           <SettingsSwitch label="Shortcuts" checked={settings().shortcutsEnabled} onChange={(shortcutsEnabled) => props.model.updateSettings({ shortcutsEnabled })} />
+          <div class="msr:col-span-2 msr:grid msr:h-6 msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-[12px] msr:text-ink-700">
+            <span>Appearance</span>
+            <select
+              aria-label="Appearance"
+              value={settings().theme}
+              class="mesurer-settings-select msr:h-6 msr:w-full msr:appearance-none msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-1.5 msr:pr-6 msr:text-[11px] msr:outline-none msr:focus:shadow-[inset_0_0_0_1px_var(--msr-accent)]"
+              onChange={(event) => {
+                const theme = event.currentTarget.value;
+
+                if (isMesurerTheme(theme)) props.model.updateSettings({ theme });
+              }}
+            >
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
           <Show when={pluginEntries().length > 0}>
             <div
               class="msr:col-span-2 msr:mt-1 msr:overflow-hidden msr:rounded-[6px] msr:bg-ink-50/40"

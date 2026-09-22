@@ -98,6 +98,8 @@ The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance,
 
 Global shortcuts are enabled by default. Disable them from **Settings > General > Shortcuts** or mount with `shortcutsEnabled: false`; toolbar controls and Escape/cancel behavior remain available.
 
+Mesurer uses **Settings > General > Appearance** for System, Light, and Dark modes. System is the default and follows `prefers-color-scheme`. Set `theme: "light"` or `theme: "dark"` on `mountMesurer()` when the initial appearance should not follow the system. The setting persists with the other Mesurer preferences.
+
 First-party plugin shortcuts are available only when global shortcuts are enabled and their plugin is mounted and enabled: `Shift+A` for Arrange, `Shift+S` for Screenshot, and `C` / `Shift+C` / `N` for Context actions.
 
 ## Next

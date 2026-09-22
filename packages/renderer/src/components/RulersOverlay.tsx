@@ -109,7 +109,7 @@ export function RulersOverlay(props: RulersOverlayProps) {
     <div aria-hidden="true" data-mesurer-rulers="true" class="msr:pointer-events-none msr:absolute msr:inset-0 msr:select-none msr:text-[9px] msr:text-[#64748b]" style={{ opacity: showRulers() ? props.settings.opacity : 0, transition: `opacity ${RULER_FADE_MS}ms ease` }}>
       <div class="msr:absolute msr:left-[18px] msr:right-0 msr:top-0 msr:overflow-hidden msr:bg-white" style={{ "box-shadow": "0 1px 3px rgba(0, 0, 0, 0.12)", height: `${RULER_SIZE}px`, cursor: "ns-resize", "pointer-events": showRulers() && props.interactive ? "auto" : "none" }} onPointerDown={(event) => beginGuideDrag("horizontal", event)} onPointerUp={finishGuideDrag} onPointerCancel={cancelGuideDrag}>
         <svg class="msr:block msr:h-6" width={RULER_LENGTH} height={RULER_SIZE} viewBox={`0 0 ${RULER_LENGTH} ${RULER_SIZE}`}>
-          <defs><linearGradient id="ruler-label-fade-x" x1="0%" x2="100%"><stop offset="0" stop-color="white" stop-opacity="0" /><stop offset="0.2" stop-color="white" /><stop offset="0.8" stop-color="white" /><stop offset="1" stop-color="white" stop-opacity="0" /></linearGradient></defs>
+          <defs><linearGradient id="ruler-label-fade-x" x1="0%" x2="100%"><stop offset="0" stop-color="var(--msr-surface, white)" stop-opacity="0" /><stop offset="0.2" stop-color="var(--msr-surface, white)" /><stop offset="0.8" stop-color="var(--msr-surface, white)" /><stop offset="1" stop-color="var(--msr-surface, white)" stop-opacity="0" /></linearGradient></defs>
           <For each={ticks}>{(x) => { const major = x % 100 === 0; const medium = x % 50 === 0;
 
  return <g><line x1={x} y1={RULER_SIZE} x2={x} y2={major ? 8 : medium ? 13 : 17} stroke="currentColor" stroke-width="1" /><Show when={major}><text x={x} y="8" text-anchor="middle" fill="currentColor">{x}</text></Show></g>; }}</For>
@@ -120,7 +120,7 @@ export function RulersOverlay(props: RulersOverlayProps) {
 
       <div class="msr:absolute msr:bottom-0 msr:left-0 msr:top-[18px] msr:w-[18px] msr:overflow-hidden msr:bg-white" style={{ "box-shadow": "1px 0 3px rgba(0, 0, 0, 0.12)", width: `${RULER_SIZE}px`, cursor: "ew-resize", "pointer-events": showRulers() && props.interactive ? "auto" : "none" }} onPointerDown={(event) => beginGuideDrag("vertical", event)} onPointerUp={finishGuideDrag} onPointerCancel={cancelGuideDrag}>
         <svg class="msr:block msr:w-6" width={RULER_SIZE} height={RULER_LENGTH} viewBox={`0 0 ${RULER_SIZE} ${RULER_LENGTH}`}>
-          <defs><linearGradient id="ruler-label-fade-y" y1="0%" y2="100%"><stop offset="0" stop-color="white" stop-opacity="0" /><stop offset="0.2" stop-color="white" /><stop offset="0.8" stop-color="white" /><stop offset="1" stop-color="white" stop-opacity="0" /></linearGradient></defs>
+          <defs><linearGradient id="ruler-label-fade-y" y1="0%" y2="100%"><stop offset="0" stop-color="var(--msr-surface, white)" stop-opacity="0" /><stop offset="0.2" stop-color="var(--msr-surface, white)" /><stop offset="0.8" stop-color="var(--msr-surface, white)" /><stop offset="1" stop-color="var(--msr-surface, white)" stop-opacity="0" /></linearGradient></defs>
           <For each={ticks}>{(y) => { const major = y % 100 === 0; const medium = y % 50 === 0;
 
  return <g><line x1={RULER_SIZE} y1={y} x2={major ? 8 : medium ? 13 : 17} y2={y} stroke="currentColor" stroke-width="1" /><Show when={major}><text x="8" y={y + 10} fill="currentColor" transform={`rotate(-90 8 ${y + 10})`}>{y}</text></Show></g>; }}</For>

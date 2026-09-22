@@ -12,6 +12,7 @@ import {
   TypographyInspector,
   type TypographyInfo,
 } from "./typography";
+import type { MesurerTheme } from "../../core/persistence";
 import { hasNativeScrollAnchoring } from "../native-scroll-registry";
 
 const DEFAULT_SKIP_TAGS = [
@@ -63,6 +64,8 @@ export type TextInspectorOptions = {
   ignoredTags?: readonly string[];
   maxPinned?: number;
   portalTarget?: HTMLElement | ShadowRoot;
+  theme?: () => MesurerTheme;
+  subscribeTheme?: (listener: (theme: MesurerTheme) => void) => () => void;
   onInspect?: (element: HTMLElement, info: TypographyInfo) => void;
   onPin?: (element: HTMLElement, info: TypographyInfo) => void;
   onUnpin?: (element: HTMLElement) => void;
@@ -77,7 +80,7 @@ const styles = (mode: string, overlayId: string) => `
 #${overlayId} .mesurer-ti-card--draggable{cursor:grab}
 #${overlayId} .mesurer-ti-card--draggable:active{cursor:grabbing}
 #${overlayId} .mesurer-ti-close{cursor:pointer}
-#${overlayId} .mesurer-ti-close:hover{background:rgba(15,23,42,.06)!important;color:#0f172a!important}
+#${overlayId} .mesurer-ti-close:hover{background:color-mix(in srgb,var(--msr-content,#0f172a) 6%,transparent)!important;color:var(--msr-content,#0f172a)!important}
 `;
 
 export function createTextInspector(options: TextInspectorOptions = {}, legacy = false): TextInspectorAPI {
@@ -118,6 +121,7 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   let scrollIdleTimer = 0;
   let scrollX = win.scrollX;
   let scrollY = win.scrollY;
+  let unsubscribeTheme: (() => void) | null = null;
   const pins: Pin[] = [];
   const history: PinSnapshot[][] = [];
   const future: PinSnapshot[][] = [];
@@ -145,6 +149,10 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     overlay = doc.createElement("div");
     overlay.id = overlayId;
     overlay.dataset.mesurerInspectorUi = "true";
+    overlay.dataset.theme = options.theme?.() ?? "system";
+    unsubscribeTheme ??= options.subscribeTheme?.((theme) => {
+      if (overlay) overlay.dataset.theme = theme;
+    }) ?? null;
     Object.assign(overlay.style, {
       position: "fixed", inset: "0", pointerEvents: "none", zIndex: "2147483646",
     });
@@ -514,7 +522,9 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   };
 
   const cleanup = () => {
-    disable(); overlay?.remove(); overlay = null;
+    disable();
+    unsubscribeTheme?.(); unsubscribeTheme = null;
+    overlay?.remove(); overlay = null;
     doc.getElementById(styleId)?.remove();
 
     if (portal instanceof win.ShadowRoot) portal.querySelector(`#${styleId}`)?.remove();

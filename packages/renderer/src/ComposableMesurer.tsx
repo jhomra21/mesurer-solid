@@ -3,6 +3,7 @@ import {
   createMesurerPluginHost,
   type MesurerPlugin,
   type MesurerPluginHost,
+  type MesurerTheme,
   type PluginStateSnapshot,
   type SettingsToggleContribution,
   type ToolContribution,
@@ -38,6 +39,8 @@ export type MesurerSolidRuntimeService = {
   rendererRoot?: HTMLElement;
   /** Current canonical page-targeting tool when exposed by the renderer bridge. */
   currentToolMode?(): MesurerModel["state"]["toolMode"];
+  theme?(): MesurerTheme;
+  subscribeTheme?(listener: (theme: MesurerTheme) => void): () => void;
   createWorkspaceRuntime(persistenceNamespace?: string): MesurerWorkspaceRuntime;
   /** Create Mesurer-owned DOM that is automatically excluded from inspection/X-ray. */
   createInspectorMount(): { element: HTMLDivElement; dispose(): void };
@@ -406,9 +409,25 @@ export default function ComposableMesurer(props: MesurerProps) {
       return builtinController;
     };
 
+    const theme = () => requireModel().current.settings.theme;
+
+    const subscribeTheme = (listener: (theme: MesurerTheme) => void) => {
+      let previous = theme();
+      listener(previous);
+
+      return requireModel().subscribe(() => {
+        const current = theme();
+
+        if (current === previous) return;
+        previous = current;
+        listener(current);
+      });
+    };
+
     const createInspectorMount = () => {
       const element = ownerDocument.createElement("div");
       element.dataset.mesurerInspectorUi = "true";
+      const unsubscribeTheme = subscribeTheme((value) => { element.dataset.theme = value; });
       requireRendererRoot().append(element);
       let disposed = false;
 
@@ -417,6 +436,7 @@ export default function ComposableMesurer(props: MesurerProps) {
         dispose() {
           if (disposed) return;
           disposed = true;
+          unsubscribeTheme();
           element.remove();
         },
       };
@@ -718,6 +738,8 @@ export default function ComposableMesurer(props: MesurerProps) {
             pageTarget,
             rendererRoot: requireRendererRoot(),
             currentToolMode: () => requireModel().current.toolMode,
+            theme,
+            subscribeTheme,
             createWorkspaceRuntime,
             createInspectorMount,
           };

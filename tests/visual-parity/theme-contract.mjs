@@ -1,0 +1,206 @@
+import assert from "node:assert/strict";
+import { chromium } from "playwright";
+
+const url = process.env.THEME_URL ?? "http://127.0.0.1:4174/plugin-settings.html";
+
+const browser = await chromium.launch({ headless: true });
+
+const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+
+const errors = [];
+
+page.on("pageerror", (error) => errors.push(String(error)));
+
+page.on("console", (message) => {
+  if (message.type() === "error") errors.push(message.text());
+});
+
+const island = () => page.locator("[data-mesurer-island='true']");
+
+const rendererRoot = () => page.locator("[data-mesurer-root='true']").first();
+
+const toolbar = () => page.locator(".mesurer-toolbar-surface").first();
+
+const contextRoot = () => page.locator("[data-mesurer-context-root='true']").first();
+
+const waitForHarness = () =>
+  page.waitForFunction(() => Boolean(window.__MESURER_PLUGIN_SETTINGS_TEST__));
+
+const openGeneralSettings = async () => {
+  const button = island().locator("[data-mesurer-builtin='settings'] button").first();
+  await button.waitFor({ state: "visible" });
+
+  const dialog = island().getByRole("dialog", { name: "Settings" });
+
+  if (!await dialog.isVisible()) await button.click();
+  await dialog.waitFor({ state: "visible" });
+
+  const general = dialog.getByRole("tab", { name: "General" });
+
+  if ((await general.getAttribute("aria-selected")) !== "true") await general.click();
+
+  return dialog;
+};
+
+const surfaceColor = (locator) =>
+  locator.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+const textColor = (locator) =>
+  locator.evaluate((element) => getComputedStyle(element).color);
+
+const themeTokens = () => rendererRoot().evaluate((element) => {
+  const style = getComputedStyle(element);
+
+  return {
+    accent: style.getPropertyValue("--msr-accent").trim(),
+    surface: style.getPropertyValue("--msr-surface").trim(),
+    raised: style.getPropertyValue("--msr-surface-raised").trim(),
+    content: style.getPropertyValue("--msr-content").trim(),
+    ink900: style.getPropertyValue("--msr-color-ink-900").trim(),
+  };
+});
+
+const expectTheme = async (theme) => {
+  assert.equal(await rendererRoot().getAttribute("data-theme"), theme, "renderer root theme");
+  assert.equal(await contextRoot().getAttribute("data-theme"), theme, "document Context theme");
+};
+
+const expectToolbarColor = async (expected, label) => {
+  const actual = await surfaceColor(toolbar());
+  assert.equal(actual, expected, label);
+};
+
+try {
+  await page.goto(`${url}?reset=1`, { waitUntil: "domcontentloaded" });
+  await waitForHarness();
+  await contextRoot().waitFor({ state: "attached" });
+
+  let dialog = await openGeneralSettings();
+  const appearance = dialog.getByRole("combobox", { name: "Appearance" });
+
+  assert.equal(await appearance.inputValue(), "system", "default appearance should follow the system");
+  await expectTheme("system");
+
+  await appearance.selectOption("dark");
+  await expectTheme("dark");
+  await expectToolbarColor("rgb(50, 50, 50)", "dark toolbar surface");
+  assert.equal(await textColor(dialog), "rgb(245, 245, 245)", "dark Settings text");
+  assert.deepEqual(await themeTokens(), {
+    accent: "#0c8ce9",
+    surface: "#323232",
+    raised: "#3a3a3a",
+    content: "#f5f5f5",
+    ink900: "#f5f5f5",
+  }, "dark theme tokens");
+
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "hidden" });
+
+  for (const id of ["context.copy-selection", "context.add-note"]) {
+    const button = island().locator(`[data-mesurer-tool-id='${id}'] button`).first();
+    await button.waitFor({ state: "visible" });
+    assert.equal(await button.isDisabled(), true, `${id} should be disabled without a selection`);
+    assert.equal(await textColor(button), "rgb(160, 160, 160)", `${id} dark disabled icon color`);
+    assert.equal(
+      await button.evaluate((element) => getComputedStyle(element).opacity),
+      "0.8",
+      `${id} dark disabled icon opacity`,
+    );
+  }
+
+  const target = page.locator("#settings-target");
+  const targetBox = await target.boundingBox();
+
+  assert(targetBox, "Typography target should render");
+
+  const selectButton = island().locator("[data-mesurer-builtin='select'] button").first();
+  await selectButton.click();
+  assert.equal(await surfaceColor(selectButton), "rgb(12, 140, 233)", "dark active accent");
+  await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+
+  const portaledSelection = page.locator(
+    "body > [data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']",
+  ).first();
+
+  await portaledSelection.waitFor({ state: "visible" });
+  assert.equal(await portaledSelection.getAttribute("data-theme"), "dark", "portaled selection theme");
+
+  const typographyButton = island().locator("[data-mesurer-builtin='text-inspector'] button").first();
+  await typographyButton.click();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+
+  const typographyCard = page.locator(".mesurer-ti-card").first();
+  await typographyCard.waitFor({ state: "visible" });
+  const typographyRoot = typographyCard.locator("xpath=ancestor-or-self::*[@data-mesurer-inspector-ui='true'][1]");
+
+  assert.equal(await typographyRoot.getAttribute("data-theme"), "dark", "document Typography theme");
+  assert.equal(await surfaceColor(typographyCard), "rgb(58, 58, 58)", "dark Typography surface");
+
+  await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+
+  const editor = page.locator("[data-mesurer-text-editor='true']");
+  await editor.waitFor({ state: "visible" });
+
+  const directInspector = page.locator("[data-mesurer-text-inspector-info='true']").first();
+  await directInspector.waitFor({ state: "visible" });
+  const directRuntime = directInspector.locator("xpath=ancestor::*[@data-mesurer-text-edit-runtime='true'][1]");
+
+  assert.equal(await directRuntime.getAttribute("data-theme"), "dark", "direct-edit document theme");
+  assert.equal(await surfaceColor(directInspector), "rgb(58, 58, 58)", "dark direct-edit Typography surface");
+
+  await editor.press("Escape");
+  await editor.waitFor({ state: "detached" });
+  await typographyButton.click();
+  dialog = await openGeneralSettings();
+  const appearanceAgain = dialog.getByRole("combobox", { name: "Appearance" });
+  await appearanceAgain.selectOption("light");
+  await expectTheme("light");
+  await expectToolbarColor("rgb(255, 255, 255)", "light toolbar surface");
+  assert.deepEqual(await themeTokens(), {
+    accent: "#0d99ff",
+    surface: "#fff",
+    raised: "#fff",
+    content: "#18181b",
+    ink900: "#18181b",
+  }, "light theme tokens");
+
+  await appearanceAgain.selectOption("system");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expectTheme("system");
+  await expectToolbarColor("rgb(50, 50, 50)", "system dark toolbar surface");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expectToolbarColor("rgb(255, 255, 255)", "system light toolbar surface");
+
+  await appearanceAgain.selectOption("dark");
+  await page.waitForTimeout(150);
+
+  const persistedSettings = await page.evaluate(() => window.localStorage.getItem("mesurer-settings"));
+  assert.match(persistedSettings ?? "", /"theme":"dark"/, "dark Appearance should persist");
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForHarness();
+  await contextRoot().waitFor({ state: "attached" });
+  await expectTheme("dark");
+  await expectToolbarColor("rgb(50, 50, 50)", "persisted dark toolbar surface");
+
+  dialog = await openGeneralSettings();
+  assert.equal(
+    await dialog.getByRole("combobox", { name: "Appearance" }).inputValue(),
+    "dark",
+    "Appearance should restore from persisted settings",
+  );
+
+  assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
+  console.log("Theme contract: PASS", {
+    system: true,
+    light: true,
+    dark: true,
+    contextDocumentMount: true,
+    typographyDocumentMount: true,
+    directEditDocumentMount: true,
+    portaledSelection: true,
+    persisted: true,
+  });
+} finally {
+  await browser.close();
+}

@@ -91,6 +91,7 @@ Resolve plugin-owned capabilities with `await mesurer.service<T>(serviceId)`. Th
 - Keep saved annotations across same-tab reloads and conservatively rebind them to their original DOM targets; markers, cards, and ownership evidence stay attached through scrolling, repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
 - Extend the runtime with tools, settings, overlays, commands, hooks, state, and services.
 - Compact the toolbar to active controls without changing tool state or order.
+- Choose System, Light, or Dark appearance while keeping the same theme across isolated and document-backed Mesurer UI.
 
 Arrange is not a toolbar mode. It can be activated before a selection exists and enables Select automatically. Turning Arrange off leaves Select active; turning Select off exits Arrange.
 
@@ -99,6 +100,16 @@ Direct text editing respects native editing boundaries. Descendants of an editab
 While direct text editing is active, Mesurer keeps one visible edit ring, keeps the selected dimensions pill and Typography separated by the same `2px` rendered gap when the card is below the source, and keeps Typography stationary during ordinary pointer movement. The selection-adjacent Add Note button is suppressed only for the active edit and returns when the editor closes; saved annotation markers and panels remain available.
 
 Mesurer previews text, styles, and Arrange transforms only while it still owns the value it applied. Host-authored changes take ownership and are preserved through undo/redo, Live review, cleanup, and disposal.
+
+## Appearance
+
+The default appearance is `"system"`. Users can change it under **Settings > General > Appearance**, or applications can choose the initial mode:
+
+```ts
+mountMesurer({ theme: "light" })
+```
+
+The setting accepts `"system"`, `"light"`, or `"dark"` and persists with the other Mesurer settings. System mode follows `prefers-color-scheme`.
 
 ## Shortcuts
 

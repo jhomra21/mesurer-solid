@@ -307,3 +307,282 @@ body.mesurer-solid-xray .mesurer-ti-close {
     transition: none !important;
   }
 }
+
+/* Upstream Mesurer c20ad51 theme parity. Keep this after the historical
+   stylesheet prefix so the pinned v0.0.11 source-parity check remains exact.
+   Every renderer and document-backed inspector mount carries data-theme, so
+   theme tokens stay instance-local and never mutate the inspected page. */
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) {
+  --msr-accent: #0d99ff;
+  --msr-surface: #fff;
+  --msr-surface-raised: #fff;
+  --msr-surface-muted: #f8fafc;
+  --msr-content: #18181b;
+  --msr-color-white: #fff;
+  --msr-color-black: #000;
+  --msr-color-ink-50: #f8fafc;
+  --msr-color-ink-100: #f1f5f9;
+  --msr-color-ink-200: #e2e8f0;
+  --msr-color-ink-300: #cbd5e1;
+  --msr-color-ink-500: #64748b;
+  --msr-color-ink-700: #334155;
+  --msr-color-ink-900: #18181b;
+  --color-ink-50: var(--msr-color-ink-50);
+  --color-ink-100: var(--msr-color-ink-100);
+  --color-ink-200: var(--msr-color-ink-200);
+  --color-ink-300: var(--msr-color-ink-300);
+  --color-ink-500: var(--msr-color-ink-500);
+  --color-ink-700: var(--msr-color-ink-700);
+  --color-ink-900: var(--msr-color-ink-900);
+  --msr-danger-bg: #fef2f2;
+  --msr-danger-border: #fecaca;
+  --msr-danger-text: #dc2626;
+  --msr-danger-solid-bg: #dc2626;
+  --msr-danger-solid-hover: #b91c1c;
+  --msr-danger-solid-text: #fff;
+  --color-red-50: var(--msr-danger-bg);
+  --color-red-200: var(--msr-danger-border);
+  --color-red-600: var(--msr-danger-text);
+  --color-red-700: #b91c1c;
+  --msr-control-thumb: #fff;
+  --msr-slider-track: rgba(15, 23, 42, 0.16);
+  --msr-shadow-toolbar:
+    0 0 0.4px rgba(0, 0, 0, 0.22),
+    0 6px 18px rgba(0, 0, 0, 0.03),
+    0 3px 9px rgba(0, 0, 0, 0.06),
+    0 1px 1px rgba(0, 0, 0, 0.06);
+  --msr-shadow-floating:
+    0 0 0 0.4px rgba(0, 0, 0, 0.22),
+    0 6px 18px rgba(0, 0, 0, 0.03),
+    0 3px 9px rgba(0, 0, 0, 0.06),
+    0 1px 1px rgba(0, 0, 0, 0.06);
+  --msr-shadow-select-menu: var(--msr-shadow-floating);
+  color: var(--msr-content);
+  color-scheme: light;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme="dark"],
+  [data-mesurer-inspector-ui="true"][data-theme="dark"]
+) {
+  --msr-accent: #0c8ce9;
+  --msr-surface: #323232;
+  --msr-surface-raised: #3a3a3a;
+  --msr-surface-muted: #3a3a3a;
+  --msr-content: #f5f5f5;
+  --msr-color-white: #f5f5f5;
+  --msr-color-black: #171717;
+  --msr-color-ink-50: #3a3a3a;
+  --msr-color-ink-100: #414141;
+  --msr-color-ink-200: #4a4a4a;
+  --msr-color-ink-300: #5a5a5a;
+  --msr-color-ink-500: #a0a0a0;
+  --msr-color-ink-700: #dedede;
+  --msr-color-ink-900: #f5f5f5;
+  --msr-danger-bg: #3f2020;
+  --msr-danger-border: #7f3f46;
+  --msr-danger-text: #f87171;
+  --msr-danger-solid-bg: #c95058;
+  --msr-danger-solid-hover: #b7424b;
+  --msr-danger-solid-text: #f5f5f5;
+  --color-red-700: #fca5a5;
+  --msr-control-thumb: #f4f4f5;
+  --msr-slider-track: rgba(245, 245, 245, 0.24);
+  --msr-shadow-toolbar:
+    0 0 0.4px lch(100% 0 0 / 0.10),
+    0 3px 8px lch(0% 0 0 / 0.125),
+    0 2px 5px lch(0% 0 0 / 0.125),
+    0 1px 1px lch(0% 0 0 / 0.125);
+  --msr-shadow-floating:
+    0 0 0 0.4px lch(100% 0 0 / 0.05),
+    0 4px 12px lch(0% 0 0 / 0.12),
+    0 1px 3px lch(0% 0 0 / 0.10);
+  --msr-shadow-select-menu:
+    0 0 0 0.4px lch(100% 0 0 / 0.14),
+    0 4px 12px lch(0% 0 0 / 0.22),
+    0 1px 3px lch(0% 0 0 / 0.18);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :where(
+    [data-mesurer-root="true"][data-theme="system"],
+    [data-mesurer-inspector-ui="true"][data-theme="system"]
+  ) {
+    --msr-accent: #0c8ce9;
+    --msr-surface: #323232;
+    --msr-surface-raised: #3a3a3a;
+    --msr-surface-muted: #3a3a3a;
+    --msr-content: #f5f5f5;
+    --msr-color-white: #f5f5f5;
+    --msr-color-black: #171717;
+    --msr-color-ink-50: #3a3a3a;
+    --msr-color-ink-100: #414141;
+    --msr-color-ink-200: #4a4a4a;
+    --msr-color-ink-300: #5a5a5a;
+    --msr-color-ink-500: #a0a0a0;
+    --msr-color-ink-700: #dedede;
+    --msr-color-ink-900: #f5f5f5;
+    --msr-danger-bg: #3f2020;
+    --msr-danger-border: #7f3f46;
+    --msr-danger-text: #f87171;
+    --msr-danger-solid-bg: #c95058;
+    --msr-danger-solid-hover: #b7424b;
+    --msr-danger-solid-text: #f5f5f5;
+    --color-red-700: #fca5a5;
+    --msr-control-thumb: #f4f4f5;
+    --msr-slider-track: rgba(245, 245, 245, 0.24);
+    --msr-shadow-toolbar:
+      0 0 0.4px lch(100% 0 0 / 0.10),
+      0 3px 8px lch(0% 0 0 / 0.125),
+      0 2px 5px lch(0% 0 0 / 0.125),
+      0 1px 1px lch(0% 0 0 / 0.125);
+    --msr-shadow-floating:
+      0 0 0 0.4px lch(100% 0 0 / 0.05),
+      0 4px 12px lch(0% 0 0 / 0.12),
+      0 1px 3px lch(0% 0 0 / 0.10);
+    --msr-shadow-select-menu:
+      0 0 0 0.4px lch(100% 0 0 / 0.14),
+      0 4px 12px lch(0% 0 0 / 0.22),
+      0 1px 3px lch(0% 0 0 / 0.18);
+    color-scheme: dark;
+  }
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:bg-white"],
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:bg-[#fff]"] {
+  background-color: var(--msr-surface) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:text-black"] {
+  color: var(--msr-content) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:hover:bg-black/4"]:hover,
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:hover:bg-black/5"]:hover {
+  background-color: color-mix(in srgb, var(--msr-content) 6%, transparent) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) .mesurer-toolbar-surface {
+  background-color: var(--msr-surface) !important;
+  box-shadow: var(--msr-shadow-toolbar) !important;
+  color: var(--msr-content);
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) :is(
+  .mesurer-menu-surface,
+  .mesurer-color-picker,
+  .mesurer-ti-card,
+  [data-mesurer-text-inspector-info="true"],
+  [data-mesurer-annotation-panel="true"],
+  [data-mesurer-annotation-composer="true"]
+) {
+  background-color: var(--msr-surface-raised) !important;
+  color: var(--msr-content) !important;
+  box-shadow: var(--msr-shadow-floating) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) .mesurer-switch-track[data-checked="false"],
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) .mesurer-control-shell {
+  background-color: var(--msr-surface-muted) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) .mesurer-switch-track > span {
+  background-color: var(--msr-control-thumb) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) :is(.mesurer-settings-select, .mesurer-settings-select-menu) {
+  background-color: var(--msr-surface-raised) !important;
+  border-color: var(--msr-color-ink-200) !important;
+  color: var(--msr-content) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [data-mesurer-rulers="true"] {
+  color: var(--msr-color-ink-500) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [data-slider-container="true"] > div:first-child {
+  background-color: var(--msr-slider-track) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:bg-[#0d99ff]"] {
+  background-color: var(--msr-accent) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:border-[#0d99ff]"] {
+  border-color: var(--msr-accent) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:hover:bg-[#0d99ff]"]:hover,
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:focus-visible:bg-[#0d99ff]"]:focus-visible {
+  background-color: var(--msr-accent) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:text-white"] {
+  color: var(--msr-color-white) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [data-slider-thumb="true"]:focus-visible {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--msr-accent) 25%, transparent) !important;
+}
+

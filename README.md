@@ -79,9 +79,20 @@ The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typograp
 - **Context and annotations.** Expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotations persist across same-tab reloads, conservatively rebind to their original DOM targets, stay attached through scrolling, keep repeated-note markers local, leave Add Note available while a saved note is open, and keep cards/composers above Select hover and selection chrome.
 - **Plugins.** Add tools, commands, overlays, settings, state, hooks, and services at runtime.
 - **Compact toolbar.** Collapse inactive controls while every active tool remains visible. Expanding restores the same toolbar order and state.
+- **Appearance.** Use System, Light, or Dark without changing the inspected page. The same theme applies to the isolated toolbar and document-backed Context and Typography UI.
 - **Color Picker.** Use the browser's native `EyeDropper` when it is operational. Unsupported hosts do not advertise the tool.
 
 Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a toolbar mode. Clicking Arrange automatically enables Select; turning Arrange off leaves Select active, while turning Select off also exits Arrange.
+
+## Appearance
+
+Mesurer follows the system color scheme by default. Choose **System**, **Light**, or **Dark** under **Settings > General > Appearance**, or set the initial mode when mounting:
+
+```ts
+mountMesurer({ theme: "dark" })
+```
+
+The selected mode is stored with the other Mesurer settings. System mode responds to `prefers-color-scheme` without changing the stored value. Mesurer applies the active theme to its isolated renderer and to document-backed Context, Typography, direct-edit, and selection UI.
 
 ## Shortcuts
 
@@ -207,7 +218,7 @@ Contributor setup, validation expectations, and repository ownership are documen
 
 ## Upstream
 
-Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@8b644ee7e5ab3bec8a70737b73a0a5524053313a`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@c20ad51ef68d5a78fa0c965fe8fcb1124d58a699`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 

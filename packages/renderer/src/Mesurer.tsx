@@ -27,6 +27,7 @@ import {
   type MesurerPersistence,
   type MesurerPersistenceSnapshot,
   type MesurerStoredSettings,
+  type MesurerTheme,
   type PersistenceChangeSource,
   type RulerSettings,
   type SelectionSpacingStyle,
@@ -62,6 +63,7 @@ export type MesurerProps = {
   hoverHighlightEnabled?: boolean;
   persistOnReload?: boolean;
   shortcutsEnabled?: boolean;
+  theme?: MesurerTheme;
   portalTarget?: HTMLElement | ShadowRoot;
   /** Host-page scope for page-facing visual effects such as X-ray. Defaults to document.body. */
   pageTarget?: HTMLElement | ShadowRoot;
@@ -617,7 +619,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     () => [
       model.state.settings.highlightColor, model.state.settings.guideColor,
       model.state.settings.hoverHighlightEnabled, model.state.settings.persistOnReload,
-      model.state.settings.shortcutsEnabled,
+      model.state.settings.shortcutsEnabled, model.state.settings.theme,
       model.state.settings.colorPickerClickFormat, model.state.settings.snapEnabled,
       model.state.settings.snapGuidesEnabled, model.state.settings.selectNewGuideEnabled,
       model.state.settings.multiMeasureEnabled, model.state.settings.colorPickerFormats.join("|"),
@@ -661,7 +663,22 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     const textInspectorPortalTarget = nativeDocumentInspector ? ownerDocument.body : env.portalTarget;
 
     if (textInspectorPortalTarget !== env.portalTarget) ensureMesurerStyles(MESURER_STYLES, textInspectorPortalTarget);
-    textInspector = createTextInspector({ portalTarget: textInspectorPortalTarget });
+    textInspector = createTextInspector({
+      portalTarget: textInspectorPortalTarget,
+      theme: () => model.current.settings.theme,
+      subscribeTheme: (listener) => {
+        let previous = model.current.settings.theme;
+        listener(previous);
+
+        return model.subscribe(() => {
+          const current = model.current.settings.theme;
+
+          if (current === previous) return;
+          previous = current;
+          listener(current);
+        });
+      },
+    });
 
     const persistence = input.persistence ?? createLocalStoragePersistence(
       ownerWindow, storageKey, SETTINGS_STORAGE_KEY, input.persistKey ? undefined : LEGACY_STORAGE_KEY,
@@ -890,7 +907,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   return (
     <Portal mount={env.portalMount}>
-      <div ref={(element) => { rootElement = element; model.rendererRoot = element; }} class="mesurer-solid-root" data-mesurer-root="true">
+      <div ref={(element) => { rootElement = element; model.rendererRoot = element; }} class="mesurer-solid-root" data-mesurer-root="true" data-theme={model.state.settings.theme}>
         <Show when={model.state.enabled && model.state.rulersVisible}>
           <RulersOverlay
             ownerWindow={ownerWindow}
@@ -953,6 +970,7 @@ export default function Mesurer(props: MesurerProps) {
     hoverHighlightEnabled: props.hoverHighlightEnabled ?? true,
     persistOnReload: props.persistOnReload ?? false,
     shortcutsEnabled: props.shortcutsEnabled ?? true,
+    theme: props.theme ?? "system",
     colorPickerFormats: props.colorPickerFormats ?? ["hex", "rgb", "oklch"],
     colorPickerClickFormat: props.colorPickerClickFormat ?? "hex",
     snapEnabled: props.snapEnabled ?? true,

@@ -80,7 +80,7 @@ type ToolbarButtonProps = {
 
 function ToolbarButton(props: ToolbarButtonProps) {
   const inactiveClass = () => props.disabled
-    ? "msr:bg-transparent msr:text-black/30 msr:cursor-default"
+    ? "msr:bg-transparent msr:text-ink-500 msr:opacity-80 msr:cursor-default"
     : "msr:bg-transparent msr:text-black msr:hover:bg-black/4";
 
   const visibleShortcut = () => props.shortcutsEnabled ? props.shortcut : undefined;

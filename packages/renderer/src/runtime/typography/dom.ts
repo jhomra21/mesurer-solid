@@ -1,13 +1,13 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
 import type { TypographyInfo } from "./typography";
 
-const INK_50 = "#f8fafc";
+const INK_50 = "var(--msr-color-ink-50, #f8fafc)";
 
-const INK_200 = "#e2e8f0";
+const INK_200 = "var(--msr-color-ink-200, #e2e8f0)";
 
-const INK_500 = "#64748b";
+const INK_500 = "var(--msr-color-ink-500, #64748b)";
 
-const INK_900 = "#0f172a";
+const INK_900 = "var(--msr-content, #0f172a)";
 
 export type InspectorBox = HTMLDivElement;
 
@@ -68,7 +68,7 @@ export const makeCard = (document: Document, pinned: boolean): InspectorCard => 
     position: "fixed",
     zIndex: "1",
     pointerEvents: pinned ? "auto" : "none",
-    background: "#ffffff",
+    background: "var(--msr-surface-raised, #ffffff)",
     color: INK_900,
     borderRadius: "13px",
     padding: "10px 12px",
@@ -83,7 +83,7 @@ export const makeCard = (document: Document, pinned: boolean): InspectorCard => 
     maxWidth: "320px",
     boxSizing: "border-box",
     boxShadow:
-      "0px 0px 0.5px rgba(0, 0, 0, 0.18), 0px 3px 8px rgba(0, 0, 0, 0.1), 0px 1px 3px rgba(0, 0, 0, 0.1)",
+      "var(--msr-shadow-floating, 0px 0px 0.5px rgba(0, 0, 0, 0.18), 0px 3px 8px rgba(0, 0, 0, 0.1), 0px 1px 3px rgba(0, 0, 0, 0.1))",
   });
   card.className = pinned
     ? "mesurer-ti-card mesurer-ti-card--pinned"

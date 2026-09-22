@@ -2,6 +2,7 @@ import { Show, createSignal, onSettled } from "solid-js";
 import { Portal } from "@solidjs/web";
 import type { InspectMeasurement, Measurement } from "../core/types";
 import type { EdgeVisibility } from "../core/edge-visibility";
+import type { MesurerTheme } from "../core/persistence";
 import { MEASURE_LABEL_OFFSET, MEASURE_TRANSITION_MS } from "../core/constants";
 import { installNestedScrollCompensation } from "../runtime/nested-scroll-compensation";
 
@@ -11,6 +12,7 @@ export type MeasurementBoxProps = {
   fillColor: string;
   edgeVisibility?: EdgeVisibility;
   showLabel?: boolean;
+  theme?: MesurerTheme;
 };
 
 const allEdges: EdgeVisibility = { top: true, right: true, bottom: true, left: true };
@@ -201,6 +203,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
             data-mesurer-measurement="true"
             data-mesurer-selected-measurement="true"
             data-mesurer-inspector-ui="true"
+            data-theme={props.theme ?? "system"}
           >
             {surfaces(measurement)}
           </div>
