@@ -124,6 +124,7 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
       sessionId: "thread-hook-b",
       env: { CODEX_HOME: root },
     });
+
     assert.equal(second.code, 0, second.stderr);
     assert.equal(second.stdout, "", "Reusing the bridge must also stay silent.");
 
@@ -273,6 +274,7 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
       sessionId: "thread-current",
       env: { CODEX_HOME: root },
     });
+
     assert.equal(result.code, 0, result.stderr);
     assert.equal(result.stdout, "");
     assert.equal(shutdowns, 1);
