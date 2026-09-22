@@ -125,7 +125,7 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
   // Removing only the current theme selector makes Solid render through the
   // still-pinned historical stylesheet for this snapshot.
   const themedNodes = page.locator(
-    '[data-mesurer-root="true"][data-theme], [data-mesurer-inspector-ui="true"][data-theme], [data-mesurer-selected-measurement="true"][data-theme]',
+    '[data-mesurer-root="true"][data-theme], [data-mesurer-inspector-ui="true"][data-theme], [data-mesurer-isolated-document-layer="true"][data-theme]',
   );
 
   if ((await themedNodes.count()) > 0) {
