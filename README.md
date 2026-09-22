@@ -26,7 +26,6 @@ or:
 npm install -D mesurer-solid
 ```
 
-Use `mesurer-solid@beta` only when intentionally testing a prerelease.
 
 ## Usage
 
@@ -83,6 +82,10 @@ The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typograp
 - **Color Picker.** Use the browser's native `EyeDropper` when it is operational. Unsupported hosts do not advertise the tool.
 
 Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a toolbar mode. Clicking Arrange automatically enables Select; turning Arrange off leaves Select active, while turning Select off also exits Arrange.
+
+Toolbar dragging starts only after the pointer crosses the drag threshold. A drag from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders stays with those controls.
+
+Select, point inspection, Context, and annotations accept rendered HTML and SVG elements. Arrange and direct text editing only mutate HTML elements.
 
 ## Appearance
 

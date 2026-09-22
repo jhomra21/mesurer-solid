@@ -63,7 +63,7 @@ This audit adds no upstream blocker for `0.1.8`: the new comment work belongs to
 | Extension screenshot capture bridge removal | **Not applicable to the stable package contract** | Mesurer Solid's screenshot plugin and extension integration use a different capture architecture and already have their own package/extension documentation and contracts. No upstream capture-bridge compatibility is claimed. |
 | Upstream visual polish such as floating-card radii, cursor behavior, and hover-lightening | **Intentional divergence unless separately adopted** | Mesurer Solid keeps source-first shared behavior where it is part of the adopted contract, but its plugin-owned Context/Typography/Arrange surfaces have independent visual ownership and parity tests. Cosmetic upstream changes are not silently treated as stable requirements. |
 
-This classification satisfies the stable-readiness upstream gate without adding a large new interaction model after the accepted beta candidate. A newer upstream feature is not automatically a blocker when the product difference is explicit and the public package does not claim the capability.
+This classification satisfies the stable-readiness upstream gate without adding a large interaction model after the accepted release candidate. A newer upstream feature is not automatically a blocker when the product difference is explicit and the public package does not claim the capability.
 
 ### 2026-09-13 delta classification
 

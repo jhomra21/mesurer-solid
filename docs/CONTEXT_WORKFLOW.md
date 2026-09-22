@@ -92,6 +92,8 @@ const context = await window.__MESURER__.select([
 
 `select()` visibly updates normal Select state and returns selection-scoped context. Every selector must resolve to exactly one target; missing or ambiguous selectors throw rather than guessing.
 
+Context and `select()` accept general DOM elements, including SVG. SVG targets keep their own selector, tag, geometry, and annotation identity. Arrange and direct text editing remain HTML-only mutation paths.
+
 ## Context scopes
 
 Workspace:

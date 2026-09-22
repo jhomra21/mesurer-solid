@@ -21,8 +21,8 @@ The default keyboard shortcuts are listed in the root [README](../README.md).
 
 | Capability | What it does |
 | --- | --- |
-| Direct text editing | Double-click or double-tap a valid direct text run while Select or Typography is active. Mixed inline copy can target the exact run under the pointer while preserving inline children. Mesurer records reversible Desired copy and style intent without editing application source. |
-| Compact toolbar | Hide inactive controls without changing the active tool set or toolbar order. Expanding restores the same controls and state. |
+| Direct text editing | Double-click or double-tap a valid direct text run in an HTML element while Select or Typography is active. Mixed inline copy can target the exact run under the pointer while preserving inline children. SVG selection does not enable direct text editing. Mesurer records reversible Desired copy and style intent without editing application source. |
+| Compact toolbar | Hide inactive controls without changing the active tool set or toolbar order. Expanding restores the same controls and state. Toolbar dragging starts after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. |
 | Multi-selection | Extend Select across multiple targets and inspect group geometry plus pairwise relationships. |
 | Presentation ownership | Arrange and text previews restore only values Mesurer still owns. Host-authored changes remain untouched. |
 | Appearance | Use persisted System, Light, or Dark themes across isolated and document-backed Mesurer UI. System follows `prefers-color-scheme`. |

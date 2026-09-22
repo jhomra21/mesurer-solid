@@ -89,10 +89,11 @@ For SSR frameworks, use the framework's normal client-only boundary. For Electro
 
 Once mounted:
 
-- press `S` and click an element to select it;
+- press `S` and click a rendered HTML or SVG element to select it;
 - hold Shift while selecting to build a multi-selection;
 - hold `Alt` / `Option` for the distance overlay;
 - use the compact control to hide inactive toolbar items without changing active tool state.
+- drag the toolbar from its chrome or tool triggers; menus, dialogs, form controls, editable regions, and sliders keep pointer ownership.
 
 The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, direct text editing, and plugin hosting. Native Color Picker appears only when `EyeDropper` is operational in the current host.
 

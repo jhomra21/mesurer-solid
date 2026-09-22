@@ -20,7 +20,6 @@ or:
 npm install -D mesurer-solid
 ```
 
-Use `mesurer-solid@beta` only when intentionally testing a prerelease.
 
 ## Usage
 
@@ -81,7 +80,7 @@ Resolve plugin-owned capabilities with `await mesurer.service<T>(serviceId)`. Th
 
 ## Features
 
-- Select one or many rendered elements and inspect exact geometry.
+- Select one or many rendered HTML or SVG elements and inspect exact geometry.
 - Measure distance and pairwise multi-selection spacing.
 - Use X-ray, guides, rulers, and persisted settings.
 - Inspect Typography and preview reversible direct copy/style changes.
@@ -94,6 +93,10 @@ Resolve plugin-owned capabilities with `await mesurer.service<T>(serviceId)`. Th
 - Choose System, Light, or Dark appearance while keeping the same theme across isolated and document-backed Mesurer UI.
 
 Arrange is not a toolbar mode. It can be activated before a selection exists and enables Select automatically. Turning Arrange off leaves Select active; turning Select off exits Arrange.
+
+Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
+
+Select, point inspection, Context, and annotations accept SVG elements. Arrange and direct text editing only mutate HTML elements.
 
 Direct text editing respects native editing boundaries. Descendants of an editable ancestor remain native, while a nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer target when the normal direct-text rules pass. Mixed inline copy can target the exact direct text run before or after an inline child without flattening or recreating that child, and the host element keeps its native DOM APIs throughout the interaction.
 
