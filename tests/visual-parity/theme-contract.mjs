@@ -48,6 +48,18 @@ const surfaceColor = (locator) =>
 const textColor = (locator) =>
   locator.evaluate((element) => getComputedStyle(element).color);
 
+const themeTokens = () => rendererRoot().evaluate((element) => {
+  const style = getComputedStyle(element);
+
+  return {
+    accent: style.getPropertyValue("--msr-accent").trim(),
+    surface: style.getPropertyValue("--msr-surface").trim(),
+    raised: style.getPropertyValue("--msr-surface-raised").trim(),
+    content: style.getPropertyValue("--msr-content").trim(),
+    ink900: style.getPropertyValue("--msr-color-ink-900").trim(),
+  };
+});
+
 const expectTheme = async (theme) => {
   assert.equal(await rendererRoot().getAttribute("data-theme"), theme, "renderer root theme");
   assert.equal(await contextRoot().getAttribute("data-theme"), theme, "document Context theme");
@@ -73,6 +85,13 @@ try {
   await expectTheme("dark");
   await expectToolbarColor("rgb(50, 50, 50)", "dark toolbar surface");
   assert.equal(await textColor(dialog), "rgb(245, 245, 245)", "dark Settings text");
+  assert.deepEqual(await themeTokens(), {
+    accent: "#0c8ce9",
+    surface: "#323232",
+    raised: "#3a3a3a",
+    content: "#f5f5f5",
+    ink900: "#f5f5f5",
+  }, "dark theme tokens");
 
   await page.keyboard.press("Escape");
   await dialog.waitFor({ state: "hidden" });
@@ -124,6 +143,13 @@ try {
   await appearanceAgain.selectOption("light");
   await expectTheme("light");
   await expectToolbarColor("rgb(255, 255, 255)", "light toolbar surface");
+  assert.deepEqual(await themeTokens(), {
+    accent: "#0d99ff",
+    surface: "#fff",
+    raised: "#fff",
+    content: "#18181b",
+    ink900: "#18181b",
+  }, "light theme tokens");
 
   await appearanceAgain.selectOption("system");
   await page.emulateMedia({ colorScheme: "dark" });
