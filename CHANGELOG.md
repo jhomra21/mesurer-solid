@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Align new Mesurer-owned floating UI with the current upstream design language through shared floating-surface shadow/radius rules, and add a design-review contract for future features.
+- Add a design-review contract for new Mesurer-owned UI, using current upstream floating-surface, control, density, motion, and ownership language without restyling accepted existing surfaces by default.
 - Let plugin commands return JSON-safe values through the core host and browser-agent command API instead of discarding handler results.
 - Add `MountedMesurer.service<T>(id)` for typed optional-plugin capabilities, make Codex `queue()` / `codex.queue` the canonical delivery API, and retain `send()` / `codex.send` as compatibility aliases.
 
