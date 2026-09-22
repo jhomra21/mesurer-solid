@@ -152,6 +152,7 @@ try {
   // become visible in the same task that portals the selected measurement, so
   // require the intended ownership state after that observer microtask rather
   // than racing it with an immediate style read.
+
   const waitForArrangeSelectionOwnership = () => page.waitForFunction(
     (selector) => {
       const roots = document.querySelectorAll(selector);
