@@ -663,7 +663,22 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     const textInspectorPortalTarget = nativeDocumentInspector ? ownerDocument.body : env.portalTarget;
 
     if (textInspectorPortalTarget !== env.portalTarget) ensureMesurerStyles(MESURER_STYLES, textInspectorPortalTarget);
-    textInspector = createTextInspector({ portalTarget: textInspectorPortalTarget });
+    textInspector = createTextInspector({
+      portalTarget: textInspectorPortalTarget,
+      theme: () => model.current.settings.theme,
+      subscribeTheme: (listener) => {
+        let previous = model.current.settings.theme;
+        listener(previous);
+
+        return model.subscribe(() => {
+          const current = model.current.settings.theme;
+
+          if (current === previous) return;
+          previous = current;
+          listener(current);
+        });
+      },
+    });
 
     const persistence = input.persistence ?? createLocalStoragePersistence(
       ownerWindow, storageKey, SETTINGS_STORAGE_KEY, input.persistKey ? undefined : LEGACY_STORAGE_KEY,
