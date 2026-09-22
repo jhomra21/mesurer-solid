@@ -87,7 +87,7 @@ try {
 
   await guideMenuButton.click();
   await guideMenu.waitFor({ state: "visible" });
-  const menuItem = guideMenu.getByRole("menuitem").first();
+  const menuItem = guideMenu.locator("button").first();
   const beforeMenuDrag = await box(toolbar, "menu-owned toolbar before");
   const item = await box(menuItem, "guide menu item");
   const itemX = item.x + item.width / 2;
