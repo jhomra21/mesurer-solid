@@ -1,9 +1,9 @@
 import type { MesurerPluginContext } from "@jhomra21/mesurer-solid-core";
 import type { MesurerSolidRuntimeService } from "../../ComposableMesurer";
 
-const TOOLBAR_BLUE = "#0d99ff";
+const TOOLBAR_BLUE = "var(--msr-accent, #0d99ff)";
 
-const TOOLBAR_MUTED = "#8a8a8a";
+const TOOLBAR_MUTED = "var(--msr-color-ink-500, #8a8a8a)";
 
 const PRESET_MENU_WIDTH = 288;
 
@@ -184,7 +184,7 @@ export function installTextEditingPresentation(
       };
       button.setAttribute("aria-pressed", "true");
       button.style.backgroundColor = TOOLBAR_BLUE;
-      button.style.color = "#ffffff";
+      button.style.color = "var(--msr-color-white, #ffffff)";
 
       return;
     }
@@ -217,7 +217,7 @@ export function installTextEditingPresentation(
       border: "0",
       borderRadius: "8px",
       background: "transparent",
-      color: "#0f172a",
+      color: "var(--msr-content, #0f172a)",
       font: "500 12px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       padding: "0 8px",
       cursor: "pointer",
@@ -233,7 +233,7 @@ export function installTextEditingPresentation(
       gap: "4px",
       marginLeft: "2px",
       paddingLeft: "8px",
-      borderLeft: "1px solid rgba(0, 0, 0, 0.10)",
+      borderLeft: "1px solid var(--msr-color-ink-200, rgba(0, 0, 0, 0.10))",
     });
     const pageColors = Array.from(swatches.querySelectorAll<HTMLButtonElement>("[data-mesurer-text-color]"));
 
