@@ -69,7 +69,8 @@ export function createDocumentTextRuntime(
     const element = ownerDocument.createElement("div");
     element.dataset.mesurerInspectorUi = "true";
     element.dataset.mesurerIsolatedDocumentRuntime = "true";
-    const unsubscribeTheme = runtime.subscribeTheme((theme) => { element.dataset.theme = theme; });
+    element.dataset.theme = runtime.theme?.() ?? "system";
+    const unsubscribeTheme = runtime.subscribeTheme?.((theme) => { element.dataset.theme = theme; }) ?? (() => undefined);
     ownerDocument.body.append(element);
     let disposed = false;
 
