@@ -70,7 +70,7 @@ export const makeCard = (document: Document, pinned: boolean): InspectorCard => 
     pointerEvents: pinned ? "auto" : "none",
     background: "#ffffff",
     color: INK_900,
-    borderRadius: "8px",
+    borderRadius: "13px",
     padding: "10px 12px",
     fontSize: "11px",
     lineHeight: "1.5",
@@ -83,7 +83,7 @@ export const makeCard = (document: Document, pinned: boolean): InspectorCard => 
     maxWidth: "320px",
     boxSizing: "border-box",
     boxShadow:
-      "var(--msr-shadow-floating, 0 0 0 0.4px rgba(0, 0, 0, 0.22), 0 6px 18px rgba(0, 0, 0, 0.03), 0 3px 9px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.06))",
+      "0px 0px 0.5px rgba(0, 0, 0, 0.18), 0px 3px 8px rgba(0, 0, 0, 0.1), 0px 1px 3px rgba(0, 0, 0, 0.1)",
   });
   card.className = pinned
     ? "mesurer-ti-card mesurer-ti-card--pinned"
