@@ -152,15 +152,28 @@ try {
   // become visible in the same task that portals the selected measurement, so
   // require the intended ownership state after that observer microtask rather
   // than racing it with an immediate style read.
-  await page.waitForFunction(
+  const waitForArrangeSelectionOwnership = () => page.waitForFunction(
     (selector) => {
-      const root = document.querySelector(selector);
-      const surface = root?.firstElementChild;
+      const roots = document.querySelectorAll(selector);
+
+      if (roots.length !== 1) return false;
+
+      const surface = roots[0]?.firstElementChild;
 
       return surface instanceof HTMLElement && getComputedStyle(surface).visibility === "hidden";
     },
     DOCUMENT_SELECTED_ROOT,
     { timeout: 1000 },
+  );
+
+  await waitForArrangeSelectionOwnership();
+  await settle();
+  await waitForArrangeSelectionOwnership();
+
+  assert.equal(
+    await selectedRoot.count(),
+    1,
+    "Arrange selection handoff must settle to one document-backed selected root",
   );
   assert.equal(
     await selected.evaluate((element) => getComputedStyle(element).visibility),
