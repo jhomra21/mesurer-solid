@@ -103,6 +103,7 @@ try {
 
   const selectButton = island().locator("[data-mesurer-builtin='select'] button").first();
   await selectButton.click();
+  assert.equal(await surfaceColor(selectButton), "rgb(12, 140, 233)", "dark active accent");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const portaledSelection = page.locator(
