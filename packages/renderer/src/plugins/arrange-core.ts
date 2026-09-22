@@ -693,7 +693,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     };
 
     const selectedElements = () => workspace.currentSelection().elements
-      .filter((element) => element.isConnected && isPageElement(element));
+      .filter((element): element is HTMLElement => (
+        element instanceof realm.HTMLElement
+        && element.isConnected
+        && isPageElement(element)
+      ));
 
     ctx.state.register<boolean>({
       id: SELECTION_AVAILABLE_STATE_ID,
