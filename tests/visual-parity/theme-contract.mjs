@@ -105,12 +105,10 @@ try {
   await selectButton.click();
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
-  const selectedMeasurement = page.locator("[data-mesurer-selected-measurement='true']").first();
-  await selectedMeasurement.waitFor({ state: "visible" });
-  await page.waitForTimeout(250);
-
-  const portaledSelection = page.locator("[data-mesurer-isolated-document-layer='true']").first();
-  assert.equal(await portaledSelection.count(), 1, "isolated selection should move into the document layer");
+  const portaledSelection = page.locator(
+    "body > [data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']",
+  ).first();
+  await portaledSelection.waitFor({ state: "visible" });
   assert.equal(await portaledSelection.getAttribute("data-theme"), "dark", "portaled selection theme");
 
   const typographyButton = island().locator("[data-mesurer-builtin='text-inspector'] button").first();
