@@ -224,6 +224,7 @@ const getCaretElementAtPoint = (
   ownerDocument: Document,
   root: Element,
 ) => {
+  // SAFETY: this only augments the standard Document type with browser caret APIs that are feature-detected via optional calls.
   const documentWithCaret = ownerDocument as Document & {
     caretPositionFromPoint?: (x: number, y: number) => { offsetNode?: Node } | null;
     caretRangeFromPoint?: (x: number, y: number) => Range | null;
@@ -232,7 +233,12 @@ const getCaretElementAtPoint = (
     ?? documentWithCaret.caretPositionFromPoint?.(point.x, point.y)?.offsetNode;
 
   if (!node) return null;
-  let element = node.nodeType === 1 ? node as Element : node.parentElement;
+
+  const ElementConstructor = ownerDocument.defaultView?.Element;
+
+  if (!ElementConstructor) return null;
+
+  let element = node instanceof ElementConstructor ? node : node.parentElement;
 
   while (element && element !== root) {
     if (root.contains(element)) return element;
@@ -282,7 +288,7 @@ const getPointerTransparentVisualDescendants = (
 
   while (current && order <= MAX_VISUAL_HIT_DESCENDANTS) {
     if (current instanceof ElementConstructor) {
-      const element = current as Element;
+      const element = current;
       const style = ownerWindow.getComputedStyle(element);
 
       if (style.pointerEvents === "none") {
@@ -334,9 +340,7 @@ export function getVisualElementAtPoint(
 
   if (!ownerWindow) return null;
 
-  const rawStack = typeof root.elementsFromPoint === "function"
-    ? root.elementsFromPoint(point.x, point.y)
-    : [root.elementFromPoint(point.x, point.y)].filter((element): element is Element => Boolean(element));
+  const rawStack = root.elementsFromPoint(point.x, point.y);
 
   for (const raw of rawStack) {
     let element: Element | null = raw;
@@ -349,6 +353,7 @@ export function getVisualElementAtPoint(
     }
 
     if (!element || !isElementWithinDomTarget(element, target)) continue;
+
     const transparentDescendants = getPointerTransparentVisualDescendants(element, point, ownerDocument);
 
     if (transparentDescendants.length > 0) return transparentDescendants[0];
