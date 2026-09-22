@@ -547,3 +547,42 @@ body.mesurer-solid-xray .mesurer-ti-close {
   background-color: var(--msr-slider-track) !important;
 }
 
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:bg-[#0d99ff]"] {
+  background-color: var(--msr-accent) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:border-[#0d99ff]"] {
+  border-color: var(--msr-accent) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:hover:bg-[#0d99ff]"]:hover,
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:focus-visible:bg-[#0d99ff]"]:focus-visible {
+  background-color: var(--msr-accent) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [class~="msr:text-white"] {
+  color: var(--msr-color-white) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) [data-slider-thumb="true"]:focus-visible {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--msr-accent) 25%, transparent) !important;
+}
+
