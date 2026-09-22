@@ -39,8 +39,8 @@ export type MesurerSolidRuntimeService = {
   rendererRoot?: HTMLElement;
   /** Current canonical page-targeting tool when exposed by the renderer bridge. */
   currentToolMode?(): MesurerModel["state"]["toolMode"];
-  theme(): MesurerTheme;
-  subscribeTheme(listener: (theme: MesurerTheme) => void): () => void;
+  theme?(): MesurerTheme;
+  subscribeTheme?(listener: (theme: MesurerTheme) => void): () => void;
   createWorkspaceRuntime(persistenceNamespace?: string): MesurerWorkspaceRuntime;
   /** Create Mesurer-owned DOM that is automatically excluded from inspection/X-ray. */
   createInspectorMount(): { element: HTMLDivElement; dispose(): void };
