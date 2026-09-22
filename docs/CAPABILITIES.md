@@ -6,7 +6,7 @@ This page lists the public Mesurer features and the APIs that expose them. Featu
 
 | Tool | What it does |
 | --- | --- |
-| Select | Select one or many rendered elements and report exact geometry. |
+| Select | Select one or many rendered HTML or SVG elements and report exact geometry. |
 | X-ray | Show page structure without changing application source. |
 | Color Picker | Sample a rendered color through the browser `EyeDropper` API when the host supports it. |
 | Rulers | Show viewport rulers and ruler settings. |
