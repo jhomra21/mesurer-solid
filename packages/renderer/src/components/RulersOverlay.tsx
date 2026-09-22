@@ -106,7 +106,7 @@ export function RulersOverlay(props: RulersOverlayProps) {
   };
 
   return (
-    <div aria-hidden="true" data-mesurer-rulers="true" class="mesurer-rulers msr:pointer-events-none msr:absolute msr:inset-0 msr:select-none msr:text-[9px]" style={{ opacity: showRulers() ? props.settings.opacity : 0, transition: `opacity ${RULER_FADE_MS}ms ease` }}>
+    <div aria-hidden="true" data-mesurer-rulers="true" class="msr:pointer-events-none msr:absolute msr:inset-0 msr:select-none msr:text-[9px] msr:text-[#64748b]" style={{ opacity: showRulers() ? props.settings.opacity : 0, transition: `opacity ${RULER_FADE_MS}ms ease` }}>
       <div class="msr:absolute msr:left-[18px] msr:right-0 msr:top-0 msr:overflow-hidden msr:bg-white" style={{ "box-shadow": "0 1px 3px rgba(0, 0, 0, 0.12)", height: `${RULER_SIZE}px`, cursor: "ns-resize", "pointer-events": showRulers() && props.interactive ? "auto" : "none" }} onPointerDown={(event) => beginGuideDrag("horizontal", event)} onPointerUp={finishGuideDrag} onPointerCancel={cancelGuideDrag}>
         <svg class="msr:block msr:h-6" width={RULER_LENGTH} height={RULER_SIZE} viewBox={`0 0 ${RULER_LENGTH} ${RULER_SIZE}`}>
           <defs><linearGradient id="ruler-label-fade-x" x1="0%" x2="100%"><stop offset="0" stop-color="var(--msr-surface, white)" stop-opacity="0" /><stop offset="0.2" stop-color="var(--msr-surface, white)" /><stop offset="0.8" stop-color="var(--msr-surface, white)" /><stop offset="1" stop-color="var(--msr-surface, white)" stop-opacity="0" /></linearGradient></defs>
