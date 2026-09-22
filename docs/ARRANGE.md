@@ -1,6 +1,6 @@
 # Arrange
 
-Arrange lets a person move rendered UI into the position they want without pretending to edit application source.
+Arrange lets a person move selected HTML elements without editing application source. SVG elements can still be selected, measured, and reviewed, but Arrange does not apply transforms to them.
 
 It is an optional first-party plugin:
 
@@ -19,7 +19,7 @@ Mount it from the same browser-only Mesurer setup described in [Getting started]
 ## Arrange a selection
 
 1. Click Arrange or press `Shift+A`.
-2. Select one or more elements.
+2. Select one or more HTML elements.
 3. Drag the selection to the desired position.
 4. Release the pointer to save that placement as Desired intent.
 
