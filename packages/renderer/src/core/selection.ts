@@ -16,7 +16,7 @@ const getOverlayHost = (overlayNode: HTMLDivElement | null) => {
   return isShadowRoot(rootNode) ? rootNode.host : null;
 };
 
-const isOverlayElement = (element: HTMLElement, overlayNode: HTMLDivElement | null, overlayHost: Element | null) =>
+const isOverlayElement = (element: Element, overlayNode: HTMLDivElement | null, overlayHost: Element | null) =>
   Boolean(overlayNode?.contains(element) || (overlayHost && element === overlayHost));
 
 const deepestOpenShadowHit = (
@@ -59,15 +59,14 @@ export const isSelectionPointBlockedByMesurerUi = (
     if (!(hit instanceof realm.Element)) continue;
     const deepest = deepestOpenShadowHit(hit, point);
 
-    if (deepest instanceof realm.HTMLElement && isOverlayElement(deepest, overlayNode, overlayHost)) continue;
+    if (isOverlayElement(deepest, overlayNode, overlayHost)) continue;
 
     if (isMesurerInputBoundary(deepest, ownerWindow)) return true;
 
     // Once the physical stack has reached ordinary inspected-page content,
     // anything underneath it is irrelevant to this pointer.
     if (
-      deepest instanceof realm.HTMLElement
-      && isElementWithinDomTarget(deepest, pageTarget)
+      isElementWithinDomTarget(deepest, pageTarget)
       && !isInsideMesurer(deepest, ownerWindow)
     ) return false;
   }
@@ -98,21 +97,20 @@ export const getTargetElement = (
   const overlayHost = getOverlayHost(overlayNode);
   const element = getSelectionTarget(point, overlayNode, ownerDocument, pageTarget);
   const ownerWindow = ownerDocument.defaultView;
-  const HTMLElementConstructor = ownerWindow?.HTMLElement;
+  const ElementConstructor = ownerWindow?.Element;
 
-  if (!ownerWindow || !HTMLElementConstructor || !(element instanceof HTMLElementConstructor)) return null;
-  const html = element;
+  if (!ownerWindow || !ElementConstructor || !(element instanceof ElementConstructor)) return null;
 
   if (
-    !isElementWithinDomTarget(html, pageTarget)
-    || isOverlayElement(html, overlayNode, overlayHost)
-    || isInsideMesurer(html, ownerWindow)
+    !isElementWithinDomTarget(element, pageTarget)
+    || isOverlayElement(element, overlayNode, overlayHost)
+    || isInsideMesurer(element, ownerWindow)
   ) return null;
 
-  if (html === ownerDocument.body || html === ownerDocument.documentElement) return null;
-  const rect = html.getBoundingClientRect();
+  if (element === ownerDocument.body || element === ownerDocument.documentElement) return null;
+  const rect = element.getBoundingClientRect();
 
-  return rect.width > 2 && rect.height > 2 ? html : null;
+  return rect.width > 2 && rect.height > 2 ? element : null;
 };
 
 export const getShiftClickTarget = (
@@ -160,7 +158,7 @@ export const getElementsInRect = (
   overlayNode: HTMLDivElement | null,
   ownerDocument: Document = document,
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
-): HTMLElement[] => {
+): Element[] => {
   const entries = getSelectionEntries(rect, overlayNode, ownerDocument, pageTarget);
 
   return entries.length ? pickMultiTargets(rect, entries) : [];
@@ -170,7 +168,7 @@ let cachedSelectionFrame = -1;
 
 let cachedSelectionKey = "";
 
-let cachedSelectionEntries: Array<{ element: HTMLElement; rect: Rect }> = [];
+let cachedSelectionEntries: Array<{ element: Element; rect: Rect }> = [];
 
 let cachedOverlayNode: HTMLDivElement | null = null;
 
@@ -238,7 +236,7 @@ export const getSelectionEntries = (
 
 export type SelectionEntriesCache = {
   key: string;
-  entries: Array<{ element: HTMLElement; rect: Rect }>;
+  entries: Array<{ element: Element; rect: Rect }>;
   overlayNode: HTMLDivElement | null;
   frame: number;
 };
