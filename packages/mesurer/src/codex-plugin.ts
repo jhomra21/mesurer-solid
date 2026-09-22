@@ -1,4 +1,7 @@
-import type { MesurerContextService } from "./context-plugin";
+import {
+  MESURER_MESURER_CONTEXT_SERVICE_ID,
+  type MesurerContextService,
+} from "./context-plugin";
 import type { MesurerPlugin, Registration, ToolMenuItemContribution } from "./core";
 import { MESURER_VERSION } from "./version";
 
@@ -6,7 +9,6 @@ export const MESURER_CODEX_PLUGIN_ID = "mesurer.codex";
 
 export const MESURER_CODEX_SERVICE_ID = "codex:v1";
 
-const CONTEXT_SERVICE_ID = "context:v1";
 
 const DEFAULT_ENDPOINT = "http://127.0.0.1:47365";
 
@@ -487,10 +489,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
   return {
     id: MESURER_CODEX_PLUGIN_ID,
     version: MESURER_VERSION,
-    requires: [CONTEXT_SERVICE_ID],
+    requires: [MESURER_CONTEXT_SERVICE_ID],
     provides: [MESURER_CODEX_SERVICE_ID],
     setup(ctx) {
-      const contextService = ctx.service.get<MesurerContextService>(CONTEXT_SERVICE_ID);
+      const contextService = ctx.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID);
 
       if (!contextService) throw new Error("Mesurer Codex plugin requires context() from mesurer-solid/plugins.");
 
