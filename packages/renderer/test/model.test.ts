@@ -71,7 +71,7 @@ describe("createMesurerModel", () => {
 
   it("serializes settings and strips runtime element references from workspace data", () => {
     const model = createMesurerModel({ settings: { persistOnReload: true } });
-    model.updateSettings({ guideColor: "#ff0000", snapGuidesEnabled: false, shortcutsEnabled: false });
+    model.updateSettings({ guideColor: "#ff0000", snapGuidesEnabled: false, shortcutsEnabled: false, theme: "dark" });
     model.setMeasurements([{
       id: "m1",
       rect: { left: 0, top: 0, width: 10, height: 20 },
@@ -85,6 +85,7 @@ describe("createMesurerModel", () => {
     expect(settings.guideColor).toBe("#ff0000");
     expect(settings.snapGuidesEnabled).toBe(false);
     expect(settings.shortcutsEnabled).toBe(false);
+    expect(settings.theme).toBe("dark");
     expect(workspace.measurements[0]?.elementRef).toBeUndefined();
     model.dispose();
   });
