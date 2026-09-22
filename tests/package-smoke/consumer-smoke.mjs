@@ -374,11 +374,11 @@ async function runCase(browser, testCase) {
     await page.evaluate(() => window.__MESURER__.command("builtin.xray"));
 
     if (testCase.mountedByApp) {
-      await page.evaluate(() => window.__MESURER__.command("package-smoke.increment"));
+      const commandResult = await page.evaluate(() => window.__MESURER__.command("package-smoke.increment"));
       const state = await page.evaluate(() => window.__MESURER__.state());
 
-      if (state["package-smoke"] !== 1) {
-        throw new Error(`${testCase.name} public core/plugin API command failed: ${JSON.stringify(state)}`);
+      if (commandResult?.count !== 1 || state["package-smoke"] !== 1) {
+        throw new Error(`${testCase.name} public core/plugin API command failed: ${JSON.stringify({ commandResult, state })}`);
       }
     }
 
