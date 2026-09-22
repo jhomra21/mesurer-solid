@@ -86,7 +86,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     const selectedElements = new Set(
       selectedMeasurements()
         .map((measurement) => measurement.elementRef)
-        .filter((element): element is HTMLElement => Boolean(element)),
+        .filter((element): element is Element => Boolean(element)),
     );
 
     return measurements.filter((measurement) => !measurement.elementRef || !selectedElements.has(measurement.elementRef));
