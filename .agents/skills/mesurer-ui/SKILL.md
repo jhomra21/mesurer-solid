@@ -201,7 +201,7 @@ const snapshot = await window.__MESURER__.feedback([
 const pluginState = await window.__MESURER__.state()
 ```
 
-`describe()` reports the loaded plugin contract. `command(id, args?)` executes a registered Mesurer command. Use these only when the task requires plugin-level control; do not replace a human selection or saved intent with commands just because commands are available.
+`describe()` reports the loaded plugin contract. `command(id, args?)` executes a registered Mesurer command and returns its JSON-safe result when that command has one. Use these only when the task requires plugin-level control; do not replace a human selection or saved intent with commands just because commands are available.
 
 `contextText()` returns a text form of Context when structured JSON is not useful. `capturePlan()`, `prepareCapture()`, and `finishCapture()` coordinate external screenshots. Arrange also exposes `arrangeCapturePlan()`.
 
@@ -316,7 +316,7 @@ Keep these delivery rules:
 - A completed matched turn may remove only the annotation ids included in that delivery. Interrupted, failed, or uncertain work keeps them.
 - Mesurer does not create Codex threads. Create or open the thread in Codex and let the trusted `SessionStart` connector register it.
 
-The typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `send({ thread })`.
+The typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `queue({ thread })`. `send()` is retained only as a compatibility alias.
 
 Codex delivery tracks transport and turn lifecycle. It does not prove that the UI change is correct. Verify the rendered result through Mesurer before completing the task.
 
