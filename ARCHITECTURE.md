@@ -62,7 +62,7 @@ Cancellation is scoped to the load that started it. Code using a shared plugin h
 
 `packages/mesurer-dom` owns browser/document helpers, storage adapters, Electron-renderer detection, box-model inspection, selectors, fingerprints, DOM identity, and rich element inspection.
 
-Select, Context rebinding, Arrange targets, direct text-edit targets, and programmatic `select()` share these rules. Rebinding is conservative: weak structural position alone is not enough to transfer human intent to another element.
+Select, Context rebinding, point inspection, and programmatic `select()` accept general DOM `Element` targets, including SVG. Arrange and direct text editing narrow back to `HTMLElement` before they mutate presentation or text. Rebinding is conservative: weak structural position alone is not enough to transfer human intent to another element.
 
 ### Renderer
 
@@ -72,7 +72,7 @@ Within the renderer runtime, direct editing is grouped under `runtime/text-editi
 
 Human-facing built-ins are Select, X-ray, Color Picker when supported, Rulers, Typography, Guides, Distance, and Settings. Typography retains the internal compatibility id `text-inspector`.
 
-The toolbar keeps one stable tool order. Compact presentation collapses inactive controls while preserving active tools and state. Arrange remains a plugin contribution rather than a toolbar mode.
+The toolbar keeps one stable tool order. Compact presentation collapses inactive controls while preserving active tools and state. Dragging begins only after the pointer crosses the drag threshold. Menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. Arrange remains a plugin contribution rather than a toolbar mode.
 
 Plugin tools render through the same toolbar path as built-ins instead of maintaining a second renderer.
 
