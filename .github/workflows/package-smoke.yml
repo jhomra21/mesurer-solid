@@ -102,6 +102,8 @@ jobs:
           const canonicalMounted: MountedMesurer | undefined = undefined;
           const legacyMounted: MountedMeasurer | undefined = canonicalMounted;
           const host: MesurerPluginHost = createMesurerPluginHost();
+          const resolveScreenshot = async (mounted: MountedMesurer) =>
+            mounted.service<MesurerScreenshotService>("screenshot");
           void options;
           void legacyOptions;
           void screenshotOptions;
@@ -110,6 +112,7 @@ jobs:
           void legacyMounted;
           void screenshot;
           void host;
+          void resolveScreenshot;
           void mountMesurer;
           void mountMeasurer;
           TS
@@ -211,13 +214,21 @@ jobs:
             id: "package-smoke",
             setup(ctx) {
               ctx.state.register({ id: "package-smoke", initial: 0, history: true });
+              ctx.service.provide("package-smoke", { ready: true });
               ctx.command.register("package-smoke.increment", () => {
-                ctx.state.update("package-smoke", (value) => value + 1);
+                let count = 0;
+                ctx.state.update("package-smoke", (value) => {
+                  count = value + 1;
+                  return count;
+                });
+                return { count };
               });
             },
           });
           const mesurer = mountMesurer({ agent: true, plugins: [plugin] });
           await mesurer.ready;
+          const service = await mesurer.service("package-smoke");
+          if (!service?.ready) throw new Error("Mounted service resolution failed");
           window.__HOST_READY__ = true;
           JS
 
@@ -269,13 +280,21 @@ jobs:
             id: "package-smoke",
             setup(ctx) {
               ctx.state.register({ id: "package-smoke", initial: 0, history: true });
+              ctx.service.provide("package-smoke", { ready: true });
               ctx.command.register("package-smoke.increment", () => {
-                ctx.state.update<number>("package-smoke", (value) => value + 1);
+                let count = 0;
+                ctx.state.update<number>("package-smoke", (value) => {
+                  count = value + 1;
+                  return count;
+                });
+                return { count };
               });
             },
           });
           const mesurer = mountMesurer({ agent: true, plugins: [plugin, context()] });
           await mesurer.ready;
+          const service = await mesurer.service<{ ready: boolean }>("package-smoke");
+          if (!service.ready) throw new Error("Mounted service resolution failed");
           (window as Window & { __HOST_READY__?: boolean }).__HOST_READY__ = true;
           TSX
 
