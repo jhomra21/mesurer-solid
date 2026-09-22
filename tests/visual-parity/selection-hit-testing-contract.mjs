@@ -62,11 +62,22 @@ const pointFor = async (locator, label) => {
 };
 
 const selectPoint = async (point, expected, label) => {
-  await page.mouse.move(point.x, point.y);
+  await page.mouse.move(8, 8);
+  await page.mouse.move(point.x, point.y, { steps: 3 });
 
   const hover = hoverSurface();
 
-  await hover.waitFor({ state: "visible", timeout: 3000 });
+  try {
+    await hover.waitFor({ state: "visible", timeout: 3000 });
+  } catch {
+    const state = await page.evaluate(() => ({
+      toolMode: window.__MESURER_SELECTION_HIT_TESTING__?.subject.model?.current?.toolMode ?? null,
+      hoverCount: document.querySelectorAll("[data-mesurer-hover-measurement='true']").length,
+    }));
+
+    throw new Error(`${label}: expected visible Select hover; state=${JSON.stringify(state)}`);
+  }
+
   assertSameBox(await box(hover, `${label} hover`), expected, `${label} hover`);
 
   await page.mouse.click(point.x, point.y);
