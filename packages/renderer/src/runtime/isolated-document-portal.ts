@@ -119,6 +119,12 @@ export function installIsolatedSelectionPortal(
   ensureMesurerStyles(MESURER_STYLES, ownerDocument.body);
   const workspace = runtime.createWorkspaceRuntime();
   const placements = new Map<HTMLElement, RootPlacement>();
+  let currentTheme = runtime.theme?.() ?? "system";
+  const unsubscribeTheme = runtime.subscribeTheme?.((theme) => {
+    currentTheme = theme;
+
+    for (const placement of placements.values()) placement.root.dataset.theme = theme;
+  }) ?? (() => undefined);
   let disposed = false;
   let queued = false;
   let lastSelection: HTMLElement[] = [];
@@ -141,6 +147,7 @@ export function installIsolatedSelectionPortal(
 
     placements.set(root, { root, marker, proxy, parent, mirroredDisplay: null });
     root.dataset.mesurerIsolatedDocumentLayer = "true";
+    root.dataset.theme = currentTheme;
     ownerDocument.body.append(root);
   };
 
@@ -180,6 +187,7 @@ export function installIsolatedSelectionPortal(
     }
 
     delete root.dataset.mesurerIsolatedDocumentLayer;
+    delete root.dataset.theme;
 
     if (restore && root.isConnected && marker?.parentNode === parent && parent) {
       parent.insertBefore(root, marker);
@@ -252,6 +260,7 @@ export function installIsolatedSelectionPortal(
   ctx.lifecycle.onDispose(() => {
     disposed = true;
     observer.disconnect();
+    unsubscribeTheme();
     unsubscribeWorkspace();
     ownerWindow.removeEventListener("pointerup", schedule, true);
     ownerWindow.removeEventListener("dblclick", schedule, true);
