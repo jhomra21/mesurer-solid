@@ -103,13 +103,11 @@ await subject.ready;
 
 captureRoots = [subject.root, document];
 
-const resolvedScreenshotService = await subject.service<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
-
-const screenshotService = () => resolvedScreenshotService;
+const screenshotService = () => subject.pluginHost?.service.get<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
 
 type PluginSettingsHarness = {
   subject: MountedMesurer;
-  screenshot(): MesurerScreenshotService;
+  screenshot(): MesurerScreenshotService | undefined;
   captures: CapturePresentation[];
   version: string;
 };
