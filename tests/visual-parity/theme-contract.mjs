@@ -96,6 +96,18 @@ try {
   await page.keyboard.press("Escape");
   await dialog.waitFor({ state: "hidden" });
 
+  for (const id of ["context.copy-selection", "context.add-note"]) {
+    const button = island().locator(`[data-mesurer-tool-id='${id}'] button`).first();
+    await button.waitFor({ state: "visible" });
+    assert.equal(await button.isDisabled(), true, `${id} should be disabled without a selection`);
+    assert.equal(await textColor(button), "rgb(160, 160, 160)", `${id} dark disabled icon color`);
+    assert.equal(
+      await button.evaluate((element) => getComputedStyle(element).opacity),
+      "0.8",
+      `${id} dark disabled icon opacity`,
+    );
+  }
+
   const target = page.locator("#settings-target");
   const targetBox = await target.boundingBox();
 
