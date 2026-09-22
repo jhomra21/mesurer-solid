@@ -77,6 +77,7 @@ jobs:
             type MountedMesurer,
             type MountedMeasurer,
             type MesurerPlugin,
+            type MesurerTheme,
           } from "mesurer-solid";
           import {
             context,
@@ -95,7 +96,8 @@ jobs:
               ctx.state.register({ id: "consumer", initial: 0, history: true });
             },
           });
-          const options: MountMesurerOptions = { agent: true, plugins: [plugin, context()] };
+          const theme: MesurerTheme = "dark";
+          const options: MountMesurerOptions = { agent: true, theme, plugins: [plugin, context()] };
           const legacyOptions: MountMeasurerOptions = options;
           const screenshotOptions: MesurerScreenshotPluginOptions = { copy: true, download: false };
           const screenshotService: MesurerScreenshotService | undefined = undefined;
@@ -104,6 +106,7 @@ jobs:
           const host: MesurerPluginHost = createMesurerPluginHost();
           const resolveScreenshot = async (mounted: MountedMesurer) =>
             mounted.service<MesurerScreenshotService>("screenshot");
+          void theme;
           void options;
           void legacyOptions;
           void screenshotOptions;
@@ -225,7 +228,7 @@ jobs:
               });
             },
           });
-          const mesurer = mountMesurer({ agent: true, plugins: [plugin] });
+          const mesurer = mountMesurer({ agent: true, theme: "light", plugins: [plugin] });
           await mesurer.ready;
           const service = await mesurer.service("package-smoke");
           if (!service?.ready) throw new Error("Mounted service resolution failed");
@@ -291,7 +294,7 @@ jobs:
               });
             },
           });
-          const mesurer = mountMesurer({ agent: true, plugins: [plugin, context()] });
+          const mesurer = mountMesurer({ agent: true, theme: "dark", plugins: [plugin, context()] });
           await mesurer.ready;
           const service = await mesurer.service<{ ready: boolean }>("package-smoke");
           if (!service.ready) throw new Error("Mounted service resolution failed");
