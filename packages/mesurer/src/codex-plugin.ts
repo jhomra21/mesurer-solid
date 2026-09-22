@@ -9,7 +9,6 @@ export const MESURER_CODEX_PLUGIN_ID = "mesurer.codex";
 
 export const MESURER_CODEX_SERVICE_ID = "codex:v1";
 
-
 const DEFAULT_ENDPOINT = "http://127.0.0.1:47365";
 
 const HEALTH_POLL_MS = 2_000;
