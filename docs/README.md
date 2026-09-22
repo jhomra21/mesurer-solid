@@ -32,6 +32,7 @@ Mesurer Solid is a browser inspection and visual-intent tool. Start with setup, 
 
 ## Project reference
 
+- [Design language](./DESIGN_LANGUAGE.md). Shared surface, color, density, motion, and UI-review rules for new features.
 - [Repository structure](./REPOSITORY_STRUCTURE.md). Directory ownership, package boundaries, test placement, and cleanup rules.
 - [Contributing](../CONTRIBUTING.md). Development setup, documentation expectations, validation, and pull request guidance.
 - [Architecture](../ARCHITECTURE.md). Package boundaries, ownership, plugins, renderer, and agent APIs.
