@@ -1,7 +1,7 @@
 import { For, Show, createSignal, onSettled } from "solid-js";
 import { colorToHex, parseCssColor, type ColorPickerFormat } from "../core/colors";
 import { trySetPointerCapture } from "../core/events";
-import type { GuideStyle, SelectionSpacingStyle } from "../core/persistence";
+import type { GuideStyle, MesurerTheme, SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel, SettingsTab } from "../model/create-mesurer-model";
 import { useMesurerPluginSettings } from "../plugins/settings-runtime";
 import { CaretDownIcon } from "./Icons";
@@ -425,7 +425,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
               aria-label="Appearance"
               value={settings().theme}
               class="mesurer-settings-select msr:h-6 msr:w-full msr:appearance-none msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-1.5 msr:pr-6 msr:text-[11px] msr:outline-none msr:focus:shadow-[inset_0_0_0_1px_var(--msr-accent)]"
-              onChange={(event) => props.model.updateSettings({ theme: event.currentTarget.value as typeof settings().theme })}
+              onChange={(event) => props.model.updateSettings({ theme: event.currentTarget.value as MesurerTheme })}
             >
               <option value="system">System</option>
               <option value="light">Light</option>
