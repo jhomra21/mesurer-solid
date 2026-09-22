@@ -119,12 +119,14 @@ export function installIsolatedSelectionPortal(
   ensureMesurerStyles(MESURER_STYLES, ownerDocument.body);
   const workspace = runtime.createWorkspaceRuntime();
   const placements = new Map<HTMLElement, RootPlacement>();
+
   let currentTheme = runtime.theme?.() ?? "system";
   const unsubscribeTheme = runtime.subscribeTheme?.((theme) => {
     currentTheme = theme;
 
     for (const placement of placements.values()) placement.root.dataset.theme = theme;
   }) ?? (() => undefined);
+
   let disposed = false;
   let queued = false;
   let lastSelection: HTMLElement[] = [];
