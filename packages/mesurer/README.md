@@ -94,7 +94,7 @@ Resolve plugin-owned capabilities with `await mesurer.service<T>(serviceId)`. Th
 
 Arrange is not a toolbar mode. It can be activated before a selection exists and enables Select automatically. Turning Arrange off leaves Select active; turning Select off exits Arrange.
 
-Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open surface. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
+Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
 
 Select, point inspection, Context, and annotations accept SVG elements. Arrange and direct text editing only mutate HTML elements.
 
