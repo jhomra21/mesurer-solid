@@ -44,8 +44,6 @@ const selectedSurface = () => page
 
 const hoverSurface = () => page
   .locator("[data-mesurer-hover-measurement='true']")
-  .first()
-  .locator(":scope > div")
   .first();
 
 const pointFor = async (locator, label) => {
