@@ -121,6 +121,7 @@ export function installIsolatedSelectionPortal(
   const placements = new Map<HTMLElement, RootPlacement>();
 
   let currentTheme = runtime.theme?.() ?? "system";
+
   const unsubscribeTheme = runtime.subscribeTheme?.((theme) => {
     currentTheme = theme;
 
