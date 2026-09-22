@@ -15,7 +15,7 @@ export const getHoveredGuide = (point: Point | null, guides: Guide[]) => { if (!
 
 export const getSelectedGuide = (guides: Guide[], selectedGuideIds: string[]) => selectedGuideIds.length ? guides.find((guide) => guide.id === selectedGuideIds[selectedGuideIds.length - 1]) ?? null : null;
 
-export const getOptionPairOverlay = (params: { document?: Document; window?: Window; altPressed: boolean; primarySelectedMeasurement: InspectMeasurement | null; selectedGuide: Guide | null; hoverGuide: Guide | null; hoverElement: HTMLElement | null; selectedElementRef: HTMLElement | null }) => { const ownerWindow = params.window ?? window;
+export const getOptionPairOverlay = (params: { document?: Document; window?: Window; altPressed: boolean; primarySelectedMeasurement: InspectMeasurement | null; selectedGuide: Guide | null; hoverGuide: Guide | null; hoverElement: Element | null; selectedElementRef: Element | null }) => { const ownerWindow = params.window ?? window;
 
  if (!params.altPressed || (!params.selectedGuide && !params.primarySelectedMeasurement)) return null; const primary = params.primarySelectedMeasurement; const selectedElement = params.selectedGuide ? null : primary?.elementRef ?? params.selectedElementRef ?? null; const selectedTarget: OptionTarget | null = params.selectedGuide ? { rect: getGuideRect(params.selectedGuide, ownerWindow), guideId: params.selectedGuide.id } : selectedElement && primary ? { rect: primary.rect, element: selectedElement } : null; const hoverTarget: OptionTarget | null = params.hoverGuide ? { rect: getGuideRect(params.hoverGuide, ownerWindow), guideId: params.hoverGuide.id } : params.hoverElement ? { rect: getRectFromDom(params.hoverElement), element: params.hoverElement } : null;
 
@@ -27,7 +27,7 @@ export const getOptionPairOverlay = (params: { document?: Document; window?: Win
 
  return getDistanceOverlay(selectedTarget.rect, hoverTarget.rect, selectedTarget.element ?? null, hoverTarget.element ?? null, ownerWindow); };
 
-export const getOptionContainerLines = (params: { document?: Document; window?: Window; altPressed: boolean; primarySelectedMeasurement: InspectMeasurement | null; optionPairOverlay: ReturnType<typeof getDistanceOverlay> | null; selectedGuideIds: string[]; selectedElement: HTMLElement | null; hoverElement: HTMLElement | null }) => { const ownerDocument = params.document ?? document; const ownerWindow = params.window ?? window;
+export const getOptionContainerLines = (params: { document?: Document; window?: Window; altPressed: boolean; primarySelectedMeasurement: InspectMeasurement | null; optionPairOverlay: ReturnType<typeof getDistanceOverlay> | null; selectedGuideIds: string[]; selectedElement: Element | null; hoverElement: Element | null }) => { const ownerDocument = params.document ?? document; const ownerWindow = params.window ?? window;
 
  if (!params.altPressed || !params.primarySelectedMeasurement || params.optionPairOverlay || params.selectedGuideIds.length) return null; let containerElement = params.selectedElement?.parentElement ?? null;
 
