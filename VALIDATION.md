@@ -10,6 +10,10 @@ Good acceptance contracts perform real input such as clicks, double-clicks, typi
 
 For regressions reported manually, reproduce the exact failed scenario before considering the fix complete. A test that does not actually reach the failed behavior or rendered state is not evidence, even if it is green.
 
+Inspect changes must cover the real browser hit-test path. Current acceptance includes pointer-transparent descendants, overlapping page targets, transformed elements, canvas, closed Shadow DOM boundaries, large DOMs, and physical SVG selection. Programmatic `select()` and Context must resolve the same SVG targets as the visible Select tool.
+
+Toolbar interaction changes must prove both sides of pointer ownership. Dragging toolbar chrome or a trigger must move the toolbar after the drag threshold, while pointer activity inside menus, dialogs, form controls, editable regions, and sliders must leave the toolbar in place.
+
 ## Measure rendered output, not a proxy
 
 When a regression is about visible spacing, overlap, or jitter, assert the geometry the user actually sees. Do not infer visible correctness from an internal shell coordinate, a synthetic fallback lane, or a placement constant when another wrapper/card can add its own offset.
