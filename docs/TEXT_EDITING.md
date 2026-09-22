@@ -8,6 +8,8 @@ The visible inspection tool is **Typography**. Its internal built-in id remains 
 
 Direct editing works while Select or Typography is active. Arrange keeps Select active, so the same interaction also works while arranging.
 
+Direct editing targets HTML text only. Selecting an SVG element does not make it editable; SVG remains available to Select, point inspection, Context, and annotations.
+
 Double-click ordinary direct text on desktop, or double-tap with touch or pen. Mesurer keeps the rendered host element as the visible editor, selects the existing text so typing replaces it immediately, and shows a blinking caret at the host text position once the selection collapses.
 
 When editing begins from Select or Arrange, Typography becomes contextually active for that field without replacing Select. If Typography was already explicitly selected, the normal hover/pinned Typography UI is temporarily suppressed so the field has one live card. Ending the edit restores the normal Typography UI and keeps the explicitly selected tool active.
