@@ -1,10 +1,10 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
-import { MIN_MULTI_TARGET_SIZE } from "./constants";
+import { MIN_MULTI_TARGET_SIZE, MIN_SINGLE_TARGET_SIZE } from "./constants";
 import { getBodyElementsCached, getFrameToken, getRectFromDomCached } from "./dom";
 import { isInsideMesurer, isMesurerInputBoundary } from "./events";
 import { rectsOverlap } from "./geometry";
 import { pickMultiTargets, pickPointTarget, pickSingleTarget } from "./targets";
-import { getDeepestElementAtPoint, getDomTreeRoot, isElementWithinDomTarget, withPointerEventsDisabled } from "@jhomra21/mesurer-solid-dom";
+import { getDomTreeRoot, getVisualElementAtPoint, isElementWithinDomTarget, withPointerEventsDisabled } from "@jhomra21/mesurer-solid-dom";
 import type { Point, Rect } from "./types";
 
 const isShadowRoot = (value: Node): value is ShadowRoot => value.nodeType === 11;
@@ -85,7 +85,7 @@ const getSelectionTarget = (
 
   return withPointerEventsDisabled(
     overlayNode,
-    () => getDeepestElementAtPoint(point, pageTarget, ownerDocument),
+    () => getVisualElementAtPoint(point, pageTarget, ownerDocument),
   );
 };
 
@@ -140,7 +140,15 @@ export const getSnappedClickTarget = (
     ? entries.filter(({ element }) => getDomTreeRoot(element) === directRoot)
     : entries;
 
-  const candidates = treeEntries.some(({ element }) => element === direct)
+  const directEntry = treeEntries.find(({ element }) => element === direct);
+
+  if (
+    directEntry
+    && directEntry.rect.width >= MIN_SINGLE_TARGET_SIZE
+    && directEntry.rect.height >= MIN_SINGLE_TARGET_SIZE
+  ) return direct;
+
+  const candidates = directEntry
     ? treeEntries
     : [{ element: direct, rect: getRectFromDomCached(direct) }, ...treeEntries];
 

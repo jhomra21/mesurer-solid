@@ -18,6 +18,9 @@ on:
       - "packages/renderer/src/core/distances.ts"
       - "packages/renderer/src/core/persistence.ts"
       - "packages/renderer/src/core/selection-helpers.ts"
+      - "packages/renderer/src/core/selection.ts"
+      - "packages/mesurer-dom/src/index.ts"
+      - "packages/mesurer/src/agent.ts"
       - "packages/renderer/src/model/create-mesurer-model.ts"
       - "packages/renderer/src/plugins/arrange-core.ts"
       - "packages/renderer/src/plugins/arrange.ts"
@@ -46,12 +49,15 @@ on:
       - "examples/basic/src/multi-spacing.ts"
       - "examples/basic/plugin-settings.html"
       - "examples/basic/src/plugin-settings.ts"
+      - "examples/basic/selection-hit-testing.html"
+      - "examples/basic/src/selection-hit-testing.ts"
       - "tests/visual-parity/annotation-surface-ownership-contract.mjs"
       - "tests/visual-parity/arrange-contract.mjs"
       - "tests/visual-parity/arrange-presentation-policy-contract.mjs"
       - "tests/visual-parity/color-picker-contract.mjs"
       - "tests/visual-parity/presentation-settings-contract.mjs"
       - "tests/visual-parity/selection-scroll-contract.mjs"
+      - "tests/visual-parity/selection-hit-testing-contract.mjs"
       - "tests/visual-parity/shortcuts-setting-contract.mjs"
       - "tests/visual-parity/text-editing-contract.mjs"
       - "tests/visual-parity/theme-contract.mjs"
@@ -103,7 +109,7 @@ jobs:
             echo $! > ../../browser-contracts-vite.pid
           )
 
-          for path in index.html self-hosting.html multi-spacing.html plugin-settings.html; do
+          for path in index.html self-hosting.html multi-spacing.html plugin-settings.html selection-hit-testing.html; do
             ready=0
             for attempt in $(seq 1 45); do
               if curl --fail --silent --show-error "http://127.0.0.1:4174/${path}" >/dev/null; then
@@ -168,6 +174,11 @@ jobs:
         env:
           SELECTION_SCROLL_URL: http://127.0.0.1:4174/
         run: bun tests/visual-parity/selection-scroll-contract.mjs
+
+      - name: Exercise inspect hit testing
+        env:
+          SELECTION_HIT_TESTING_URL: http://127.0.0.1:4174/selection-hit-testing.html
+        run: bun tests/visual-parity/selection-hit-testing-contract.mjs
 
       - name: Exercise Color Picker capability
         env:
@@ -244,6 +255,13 @@ jobs:
           print("- Typography is interaction-owned by Mesurer but geometry-owned by its text target: real controls cannot retarget page selection, and the card follows/leaves with the source during scrolling")
           print("- Physical input on Typography UI cannot retarget the active page editor")
           print("- Open custom selects preserve popup/trigger geometry through internal card scrolling and page scrolling")
+
+          print("")
+          print("### Inspect hit testing")
+          print("- Pointer-transparent visual descendants resolve to their exact visible target")
+          print("- Browser Select and the public agent point API share the same visual hit target")
+          print("- Native top targets stay selected when snapping candidates overlap underneath them")
+          print("- Transformed elements, canvas surfaces, closed-shadow hosts, and a 1,000-node fixture are exercised in Chromium")
 
           print("")
           print("### Color Picker")

@@ -1,4 +1,4 @@
-import { getDeepestElementAtPoint, inspectDomElement, isElementWithinDomTarget, withPointerEventsDisabled } from "@jhomra21/mesurer-solid-dom";
+import { getVisualElementAtPoint, inspectDomElement, isElementWithinDomTarget, withPointerEventsDisabled } from "@jhomra21/mesurer-solid-dom";
 import type {
   MesurerPluginDescription,
   MesurerPluginHost,
@@ -242,7 +242,7 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
       const inspectorLayer = inspectorHost?.shadowRoot?.querySelector<HTMLElement>("[data-mesurer-root='true']") ?? inspectorHost;
 
       return withPointerEventsDisabled(inspectorLayer, () => {
-        const nativePointElement = getDeepestElementAtPoint({ x, y }, root, options.ownerDocument);
+        const nativePointElement = getVisualElementAtPoint({ x, y }, root, options.ownerDocument);
 
         return nativePointElement && containsPointElement(nativePointElement) ? inspectElement(nativePointElement) : null;
       });
