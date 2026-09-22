@@ -9,7 +9,7 @@ const bridgeScript = new URL("../packages/mesurer/codex/codex-bridge.mjs", impor
 
 const testProcessEnv = (root) => {
   const env = {
-    ...testProcessEnv(root),
+    ...process.env,
     CODEX_HOME: root,
   };
 
