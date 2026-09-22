@@ -59,6 +59,7 @@ Mounted-instance-only helpers include:
 | Member | Use |
 | --- | --- |
 | `ready` | Promise that resolves after the plugin host and configured plugins are ready. |
+| `service<T>(id)` | Resolve a typed plugin-owned service after the configured plugins are ready. |
 | `copyContext(request?)` | Copy formatted Context through the enabled Context service. |
 | `bringToFront()` | Reassert the Mesurer host above later host-page overlays when the host layer supports it. |
 | `describe()` | Read the current plugin description from the mounted plugin host. |
@@ -79,7 +80,7 @@ Mounted-instance-only helpers include:
 | `distance(a, b)` | Measure the relationship between two selector targets. |
 | `viewport()` | Read viewport size, document size, scroll position, device pixel ratio, and overflow. |
 | `feedback(selectors?)` | Read viewport state, selected inspections, plugin description, and plugin state in one snapshot. |
-| `command(id, args?)` | Execute a registered Mesurer command. |
+| `command(id, args?)` | Execute a registered Mesurer command and return its JSON-safe result when it has one. |
 | `state()` | Read the current plugin state snapshot. |
 | `stable(frames?)` | Wait for fonts and the requested number of animation frames before measuring again. |
 | `textEdits()` | List saved direct-text and typography intents. |
