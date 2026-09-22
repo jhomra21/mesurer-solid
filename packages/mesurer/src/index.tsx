@@ -10,12 +10,13 @@ import {
   type MesurerTextEditIntent,
   type MesurerTextEditService,
 } from "./agent";
-import type {
-  ArrangeCapturePlan,
-  ArrangeIntent,
-  ArrangePresentation,
-  ArrangeReview,
-  MesurerArrangeService,
+import {
+  MESURER_ARRANGE_SERVICE_ID,
+  type ArrangeCapturePlan,
+  type ArrangeIntent,
+  type ArrangePresentation,
+  type ArrangeReview,
+  type MesurerArrangeService,
 } from "./arrange";
 import type {
   MesurerAnnotation,
@@ -33,7 +34,6 @@ import { mountMesurerHost, type MesurerHostLayerMode } from "./host-layer";
 import { createPluginRegistry } from "./plugin-catalog";
 import { MESURER_VERSION } from "./version";
 
-const ARRANGE_SERVICE_ID = "arrange";
 
 export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 
@@ -194,6 +194,7 @@ export type MountedMesurer = {
   readonly pluginHost: MesurerPluginHost | undefined;
   readonly ready: Promise<void>;
   readonly agent: MesurerBrowserAgent;
+  service<T>(id: string): Promise<T>;
   context(request?: MesurerContextRequest): Promise<MesurerContextV1>;
   contextText(request?: MesurerContextRequest): Promise<string>;
   copyContext(request?: MesurerContextRequest): Promise<void>;
@@ -285,6 +286,15 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     waitForPluginHost,
   });
 
+  const service = async <T,>(id: string): Promise<T> => {
+    await baseAgent.ready();
+    const value = pluginHost?.service.get<T>(id);
+
+    if (!value) throw new Error(`Mesurer service is unavailable: ${id}.`);
+
+    return value;
+  };
+
   const getContextService = async () => {
     await baseAgent.ready();
     const service = pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID);
@@ -298,7 +308,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
 
   const getArrangeService = async () => {
     await baseAgent.ready();
-    const service = pluginHost?.service.get<MesurerArrangeService>(ARRANGE_SERVICE_ID);
+    const service = pluginHost?.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
 
     if (!service) {
       throw new Error("Mesurer Arrange is disabled. Enable it in Settings or include arrange() in plugins.");
@@ -439,6 +449,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     },
     ready,
     agent,
+    service,
     context,
     contextText,
     copyContext,
