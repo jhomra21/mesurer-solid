@@ -128,12 +128,11 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     '[data-mesurer-root="true"][data-theme], [data-mesurer-inspector-ui="true"][data-theme], [data-mesurer-isolated-document-layer="true"][data-theme]',
   );
 
+  let themeRemoved = false;
+
   if ((await themedNodes.count()) > 0) {
     await themedNodes.evaluateAll((nodes) => nodes.forEach((node) => node.removeAttribute("data-theme")));
-    // Removing the current theme selector changes only styling for this
-    // historical capture. Do not add the 240ms layout/ownership settle delay:
-    // that delay can cross the current toolbar tooltip threshold and change the
-    // interaction snapshot itself.
+    themeRemoved = true;
   }
 
   const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"]');
@@ -161,10 +160,13 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     }
   }
 
-  if (changed) {
-    // Normalization can change panel layout or compositor ownership. Give the
-    // shared surface the same >150ms settle window used for transitions before
-    // taking a zero-tolerance pixel snapshot.
+  const settingsVisible = await page.getByRole("dialog", { name: "Settings" }).isVisible();
+
+  if (changed || (themeRemoved && settingsVisible)) {
+    // Settings controls animate colors for 150ms. When this historical fixture
+    // removes the current theme selector, let only those visible controls reach
+    // their preserved v0.0.11 colors before capture. Avoid adding this delay to
+    // toolbar-only cases because it can cross the tooltip-open threshold.
     await sleep(page, 240);
   }
 }
