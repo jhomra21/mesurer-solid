@@ -377,6 +377,7 @@ export function Toolbar(props: ToolbarProps) {
 
   const onToolbarPointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
     if (event.button !== 0) return;
+    // SAFETY: props.ownerWindow owns the event target and therefore its Element constructor.
     const ElementConstructor = (props.ownerWindow as Window & typeof globalThis).Element;
     const target = event.target;
 
