@@ -150,7 +150,7 @@ export type MesurerAgentHarness = {
   distance(a: string, b: string): AgentDistance | null;
   viewport(): AgentViewportSnapshot;
   feedback(selectors?: string[]): Promise<AgentFeedbackSnapshot>;
-  command(id: string, args?: AgentCommandArgs): Promise<void>;
+  command(id: string, args?: AgentCommandArgs): ReturnType<MesurerPluginHost["command"]["execute"]>;
   state(): Promise<PluginStateSnapshot>;
   textEdits(): Promise<MesurerTextEditIntent[]>;
   textEdit(id: string): Promise<MesurerTextEditIntent>;
@@ -292,8 +292,10 @@ export function createMesurerAgentHarness(options: CreateMesurerAgentHarnessOpti
     },
     async command(id, args) {
       const host = options.getPluginHost() ?? await options.waitForPluginHost();
-      await host.command.execute(id, args, { source: "agent-harness" });
+      const result = await host.command.execute(id, args, { source: "agent-harness" });
       await stable(1);
+
+      return result;
     },
     async state() {
       const host = options.getPluginHost() ?? await options.waitForPluginHost();

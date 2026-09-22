@@ -79,7 +79,10 @@ export type SettingsDescription = {
 
 export type OverlayContribution = { id: string; order?: number; builtin?: string };
 
-export type CommandHandler = (args: PluginValue | undefined, context: { source?: PluginValue }) => void | Promise<void>;
+export type CommandHandler = (
+  args: PluginValue | undefined,
+  context: { source?: PluginValue },
+) => void | PluginValue | Promise<void | PluginValue>;
 
 export type HookHandler = (event: PluginValue) => void | Promise<void>;
 
@@ -102,7 +105,7 @@ export type MesurerPluginContext = {
   overlay: { register(contribution: OverlayContribution): Registration };
   command: {
     register(id: string, handler: CommandHandler): Registration;
-    execute(id: string, args?: PluginValue, source?: PluginValue): Promise<void>;
+    execute(id: string, args?: PluginValue, source?: PluginValue): Promise<PluginValue | undefined>;
   };
   hook: {
     on(name: string, handler: HookHandler): Registration;
@@ -159,7 +162,7 @@ export type MesurerPluginHost = {
     restore(snapshot: PluginStateSnapshot, scope?: PluginStateScope): void;
   };
   service: { get<T>(id: string): T | undefined };
-  command: { execute(id: string, args?: PluginValue, source?: PluginValue): Promise<void> };
+  command: { execute(id: string, args?: PluginValue, source?: PluginValue): Promise<PluginValue | undefined> };
   hook: { emit(name: string, event: PluginValue): Promise<void> };
   undo(): boolean;
   redo(): boolean;

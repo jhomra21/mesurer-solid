@@ -7,6 +7,19 @@ import test from "node:test";
 
 const bridgeScript = new URL("../packages/mesurer/codex/codex-bridge.mjs", import.meta.url);
 
+const testProcessEnv = (root) => {
+  const env = {
+    ...process.env,
+    CODEX_HOME: root,
+  };
+
+  delete env.CODEX_THREAD_ID;
+  delete env.CODEX_APP_TOOLS_PIPE_PATH;
+  delete env.MESURER_CODEX_DESKTOP_OPEN_BIN;
+
+  return env;
+};
+
 const waitForLine = (stream, prefix, timeoutMs = 10_000) => new Promise((resolve, reject) => {
   let buffer = "";
 
@@ -92,7 +105,7 @@ test("Codex bridge auto-binds the launching thread and routes only registered th
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       CODEX_THREAD_ID: "thread-a",
       MESURER_FAKE_CODEX_ARGS: argsPath,
     },
@@ -275,7 +288,7 @@ test("another Codex thread can register itself with a running bridge", async () 
     "--port", "0",
     "--codex", fakeCodex,
   ], {
-    env: { ...process.env, CODEX_THREAD_ID: "thread-original" },
+    env: { ...testProcessEnv(root), CODEX_THREAD_ID: "thread-original" },
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -286,7 +299,7 @@ test("another Codex thread can register itself with a running bridge", async () 
       "--register-current",
       "--bridge", bridgeUrl,
     ], {
-      env: { ...process.env, CODEX_THREAD_ID: "thread-new" },
+      env: { ...testProcessEnv(root), CODEX_THREAD_ID: "thread-new" },
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -327,7 +340,7 @@ test("Codex bridge discovers recent same-project threads through app-server", as
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       MESURER_EXPECT_CWD: cwd,
       MESURER_FAKE_CODEX_ARGS: argsPath,
     },
@@ -442,7 +455,7 @@ if (args[0] === "queue") {
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       MESURER_FAKE_CODEX_ARGS: argsPath,
       MESURER_FAKE_CODEX_PROTOCOL: protocolPath,
     },
@@ -524,7 +537,7 @@ appendFileSync(
   await chmod(fakeOpen, 0o755);
 
   const bridgeEnv = {
-    ...process.env,
+    ...testProcessEnv(root),
     CODEX_HOME: root,
     CODEX_APP_TOOLS_PIPE_PATH: join(root, "closed-app-tools.pipe"),
     MESURER_CODEX_DESKTOP_OPEN_BIN: fakeOpen,
@@ -701,7 +714,7 @@ appendFileSync(process.env.MESURER_FAKE_DESKTOP_OPEN, JSON.stringify(process.arg
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       CODEX_HOME: root,
       CODEX_APP_TOOLS_PIPE_PATH: join(root, "desktop-owner.pipe"),
       MESURER_CODEX_DESKTOP_OPEN_BIN: fakeOpen,
@@ -1008,7 +1021,7 @@ if (args[0] === "app-server" && args[1] === "--listen") {
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       CODEX_HOME: root,
       CODEX_APP_TOOLS_PIPE_PATH: join(root, "desktop-owner.pipe"),
       MESURER_FAKE_CODEX_ARGS: argsPath,
@@ -1126,7 +1139,7 @@ appendFileSync(
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       CODEX_HOME: root,
       CODEX_APP_TOOLS_PIPE_PATH: join(root, "closed-app-tools.pipe"),
       MESURER_CODEX_DESKTOP_OPEN_BIN: fakeOpen,
@@ -1289,7 +1302,7 @@ if (args[0] === "app-server") {
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       MESURER_FAKE_CODEX_ARGS: argsPath,
       MESURER_FAKE_CODEX_PROTOCOL: protocolPath,
     },
@@ -1419,7 +1432,7 @@ if (args[0] === "queue") {
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       MESURER_FAKE_CODEX_ARGS: argsPath,
       MESURER_FAKE_CODEX_PROTOCOL: protocolPath,
       MESURER_FAKE_DAEMON_MARKER: daemonMarker,
@@ -1498,7 +1511,7 @@ if (args[0] === "queue") {
     "--codex", fakeCodex,
   ], {
     env: {
-      ...process.env,
+      ...testProcessEnv(root),
       MESURER_FAKE_CODEX_ARGS: argsPath,
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -1582,7 +1595,7 @@ if (args[0] === "queue") {
       "--codex", fakeCodex,
     ], {
       env: {
-        ...process.env,
+        ...testProcessEnv(root),
         MESURER_FAKE_CODEX_ARGS: argsPath,
         MESURER_FAKE_CODEX_PROTOCOL: protocolPath,
         MESURER_FAKE_THREAD_STATUS: status,

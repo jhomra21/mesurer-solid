@@ -232,6 +232,8 @@ for (const contractName of [
   "MesurerCodexThreadList",
   "MesurerCodexThreadListOptions",
   "MesurerCodexService",
+  "MesurerCodexQueueRequest",
+  "MesurerCodexQueueResult",
   "MesurerCodexSendRequest",
   "MesurerCodexSendResult",
   "MesurerContextService",
@@ -242,10 +244,14 @@ for (const contractName of [
   }
 }
 
-for (const codexMember of ["delivery(", "listThreads", "useThread", "thread?: string", "threads: string[]", 'delivery: "queued"', "deliveryId", "annotationIds"]) {
+for (const codexMember of ["queue(", "send(", "delivery(", "listThreads", "useThread", "thread?: string", "threads: string[]", 'delivery: "queued"', "deliveryId", "annotationIds"]) {
   if (!codexDeclarations.includes(codexMember)) {
     throw new Error(`Published Codex plugin declarations are missing thread-routing contract: ${codexMember}.`);
   }
+}
+
+if (!rootDeclarations.includes("service<T>(id: string): Promise<T>")) {
+  throw new Error("Published MountedMesurer declarations are missing typed service<T>(id).");
 }
 
 const packageReadme = readFileSync(new URL("../README.md", import.meta.url), "utf8");

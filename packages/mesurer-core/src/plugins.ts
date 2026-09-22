@@ -79,7 +79,10 @@ export type SettingsDescription = {
 
 export type OverlayContribution = { id: string; order?: number; builtin?: string };
 
-export type CommandHandler = (args: PluginValue | undefined, context: { source?: PluginValue }) => void | Promise<void>;
+export type CommandHandler = (
+  args: PluginValue | undefined,
+  context: { source?: PluginValue },
+) => void | PluginValue | Promise<void | PluginValue>;
 
 export type HookHandler = (event: PluginValue) => void | Promise<void>;
 
@@ -115,7 +118,7 @@ export type MesurerPluginContext = {
   overlay: { register(contribution: OverlayContribution): Registration };
   command: {
     register(id: string, handler: CommandHandler): Registration;
-    execute(id: string, args?: PluginValue, source?: PluginValue): Promise<void>;
+    execute(id: string, args?: PluginValue, source?: PluginValue): Promise<PluginValue | undefined>;
   };
   hook: {
     on(name: string, handler: HookHandler): Registration;
@@ -265,8 +268,12 @@ export function createMesurerPluginHost() {
     const before = rootCommand ? snapshotState("history") : null;
     commandDepth += 1;
 
+    let result: PluginValue | undefined;
+
     try {
-      await match.handler(args, { source });
+      const handlerResult = await match.handler(args, { source });
+
+      if (handlerResult !== undefined) result = handlerResult;
       await events.emit("command", { id, args });
     } finally {
       commandDepth -= 1;
@@ -282,6 +289,8 @@ export function createMesurerPluginHost() {
         future.length = 0;
       }
     }
+
+    return result;
   };
 
   const undo = () => {

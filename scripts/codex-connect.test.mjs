@@ -15,6 +15,17 @@ const lifecycleScript = new URL("../packages/mesurer/codex/codex-lifecycle.mjs",
 
 const pluginRoot = new URL("../plugins/mesurer-codex/", import.meta.url);
 
+const testProcessEnv = (overrides = {}) => {
+  const env = { ...process.env };
+
+  delete env.CODEX_THREAD_ID;
+  delete env.CODEX_HOME;
+  delete env.CODEX_APP_TOOLS_PIPE_PATH;
+  delete env.MESURER_CODEX_DESKTOP_OPEN_BIN;
+
+  return { ...env, ...overrides };
+};
+
 const waitForExit = (child, timeoutMs = 10_000) => new Promise((resolve, reject) => {
   if (child.exitCode !== null) {
     resolve(child.exitCode);
@@ -68,7 +79,7 @@ const runSessionStart = async ({ bridgeUrl, sessionId, codex, env = {} }) => {
   if (codex) args.push("--codex", codex, "--once");
 
   const child = spawn(process.execPath, args, {
-    env: { ...process.env, ...env, CODEX_THREAD_ID: "ignored-in-hook-mode" },
+    env: { ...testProcessEnv(env), CODEX_THREAD_ID: "ignored-in-hook-mode" },
     stdio: ["pipe", "pipe", "pipe"],
   });
 
@@ -102,13 +113,18 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
       bridgeUrl,
       sessionId: "thread-hook-a",
       codex: fakeCodex,
-      env: { MESURER_FAKE_CODEX_ARGS: argsPath },
+      env: { CODEX_HOME: root, MESURER_FAKE_CODEX_ARGS: argsPath },
     });
 
     assert.equal(first.code, 0, first.stderr);
     assert.equal(first.stdout, "", "SessionStart success must not add developer context.");
 
-    const second = await runSessionStart({ bridgeUrl, sessionId: "thread-hook-b" });
+    const second = await runSessionStart({
+      bridgeUrl,
+      sessionId: "thread-hook-b",
+      env: { CODEX_HOME: root },
+    });
+
     assert.equal(second.code, 0, second.stderr);
     assert.equal(second.stdout, "", "Reusing the bridge must also stay silent.");
 
@@ -212,6 +228,7 @@ test("Codex SessionStart refuses a legacy healthy bridge instead of silently reu
 });
 
 test("Codex SessionStart replaces a stale self-identifying bridge with its packaged bridge", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-connect-stale-"));
   const port = await freePort();
   const bridgeUrl = `http://127.0.0.1:${port}`;
   let shutdowns = 0;
@@ -252,7 +269,12 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
   });
 
   try {
-    const result = await runSessionStart({ bridgeUrl, sessionId: "thread-current" });
+    const result = await runSessionStart({
+      bridgeUrl,
+      sessionId: "thread-current",
+      env: { CODEX_HOME: root },
+    });
+
     assert.equal(result.code, 0, result.stderr);
     assert.equal(result.stdout, "");
     assert.equal(shutdowns, 1);
@@ -268,6 +290,7 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
     try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
 
     await waitForUnavailable(bridgeUrl);
+    await rm(root, { recursive: true, force: true });
   }
 });
 

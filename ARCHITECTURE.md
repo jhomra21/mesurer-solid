@@ -52,7 +52,9 @@ Public first-party plugin factories use their feature name directly. Application
 
 `packages/mesurer-core` owns observable state, commands, history, plugin registration, state slices, tools, settings, overlays, hooks, services, capability introspection, serialization, and shared domain contracts. It does not import Solid, Electron, or browser globals.
 
-Plugin registrations are owned and disposable. Asynchronous setup is an in-flight load that can be cancelled. If cancellation happens while setup is awaiting, later registrations are disposed immediately rather than reviving resources after their owner is gone.
+Plugin registrations are owned and disposable. Commands may return JSON-safe `PluginValue` results, so generic automation can invoke one command path without losing useful output. Services remain opaque typed runtime capabilities; normal mounted consumers resolve them through `MountedMesurer.service<T>(id)` rather than reaching through the host registry.
+
+Asynchronous setup is an in-flight load that can be cancelled. If cancellation happens while setup is awaiting, later registrations are disposed immediately rather than reviving resources after their owner is gone.
 
 Cancellation is scoped to the load that started it. Code using a shared plugin host must not dispose unrelated plugins.
 

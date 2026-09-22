@@ -1,12 +1,13 @@
-import type { MesurerContextService } from "./context-plugin";
+import {
+  MESURER_CONTEXT_SERVICE_ID,
+  type MesurerContextService,
+} from "./context-plugin";
 import type { MesurerPlugin, Registration, ToolMenuItemContribution } from "./core";
 import { MESURER_VERSION } from "./version";
 
 export const MESURER_CODEX_PLUGIN_ID = "mesurer.codex";
 
 export const MESURER_CODEX_SERVICE_ID = "codex:v1";
-
-const CONTEXT_SERVICE_ID = "context:v1";
 
 const DEFAULT_ENDPOINT = "http://127.0.0.1:47365";
 
@@ -62,14 +63,17 @@ export type MesurerCodexPluginOptions = {
   clearCompletedAnnotations?: boolean;
 };
 
-export type MesurerCodexSendRequest = {
-  /** Optional instruction for this send. */
+export type MesurerCodexQueueRequest = {
+  /** Optional instruction for this queue operation. */
   instruction?: string;
-  /** Send only these saved annotation ids. When omitted, all saved annotations are sent. */
+  /** Queue only these saved annotation ids. When omitted, all saved annotations are queued. */
   annotationIds?: string[];
-  /** Send to a particular bridge-visible Codex thread for this request. */
+  /** Queue to a particular bridge-visible Codex thread for this request. */
   thread?: string;
 };
+
+/** @deprecated Use `MesurerCodexQueueRequest`. */
+export type MesurerCodexSendRequest = MesurerCodexQueueRequest;
 
 export type MesurerCodexDeliveryStatus = "queued" | "working" | "completed" | "interrupted";
 
@@ -103,7 +107,7 @@ export type MesurerCodexDelivery = {
   updatedAt: number;
 };
 
-export type MesurerCodexSendResult = {
+export type MesurerCodexQueueResult = {
   thread: string;
   output: string;
   /** Mesurer currently delivers feedback as a queued Codex follow-up, never as an in-flight steer. */
@@ -120,6 +124,9 @@ export type MesurerCodexSendResult = {
   /** Exact saved annotations included in this queued request. */
   annotationIds: string[];
 };
+
+/** @deprecated Use `MesurerCodexQueueResult`. */
+export type MesurerCodexSendResult = MesurerCodexQueueResult;
 
 export type MesurerCodexHealth = {
   /** Current bridge default target. Null when the bridge has not been bound yet. */
@@ -164,7 +171,9 @@ export type MesurerCodexService = {
    * Queue Context for the page-pinned/default target or one explicit bridge-visible thread.
    * This does not steer or interrupt an in-flight Codex turn.
    */
-  send(request?: MesurerCodexSendRequest): Promise<MesurerCodexSendResult>;
+  queue(request?: MesurerCodexQueueRequest): Promise<MesurerCodexQueueResult>;
+  /** @deprecated Use `queue()`; Mesurer delivery is durable queueing, not in-flight send/steer. */
+  send(request?: MesurerCodexQueueRequest): Promise<MesurerCodexQueueResult>;
 };
 
 type BridgeThread = {
@@ -415,7 +424,7 @@ const bridgeThreadList = (response: BridgeResponse): MesurerCodexThreadList => (
 
 const feedbackPayload = async (
   context: MesurerContextService,
-  request: MesurerCodexSendRequest | undefined,
+  request: MesurerCodexQueueRequest | undefined,
   defaultInstruction: string,
 ) => {
   const instruction = request?.instruction?.trim() || defaultInstruction;
@@ -479,10 +488,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
   return {
     id: MESURER_CODEX_PLUGIN_ID,
     version: MESURER_VERSION,
-    requires: [CONTEXT_SERVICE_ID],
+    requires: [MESURER_CONTEXT_SERVICE_ID],
     provides: [MESURER_CODEX_SERVICE_ID],
     setup(ctx) {
-      const contextService = ctx.service.get<MesurerContextService>(CONTEXT_SERVICE_ID);
+      const contextService = ctx.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID);
 
       if (!contextService) throw new Error("Mesurer Codex plugin requires context() from mesurer-solid/plugins.");
 
@@ -769,7 +778,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         toolRegistration = ctx.tool.register({
           id: "codex.send",
           label,
-          command: "codex.send",
+          command: "codex.queue",
           order: 73,
           icon: deliveryToolIcon(),
           disabled: () => !canSend,
@@ -987,7 +996,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
           return health;
         },
-        async send(request) {
+        async queue(request) {
           const feedback = await feedbackPayload(contextService, request, instruction);
           const explicitThread = request?.thread?.trim();
           const thread = explicitThread || (withUi ? currentTarget() : null);
@@ -1011,7 +1020,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
             if (!sentThread) throw new Error("Mesurer Codex bridge did not report the destination thread.");
 
-            const result: MesurerCodexSendResult = {
+            const result: MesurerCodexQueueResult = {
               thread: sentThread,
               output: response.output ?? "",
               delivery: "queued",
@@ -1040,10 +1049,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             throw cause;
           }
         },
+        send(request) {
+          return service.queue(request);
+        },
       };
 
       ctx.service.provide(MESURER_CODEX_SERVICE_ID, service);
-      ctx.command.register("codex.send", async () => {
+
+      const queueFromUi = async () => {
         if (uiSendPromise || deliveryBusy()) return;
         clearDeliveryTimers();
         const target = currentTarget();
@@ -1061,7 +1074,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         uiSendPromise = (async () => {
           try {
             if (withUi && bridgeAvailability !== "available") await refreshRuntime(true);
-            const result = await service.send();
+            const result = await service.queue();
             activeDelivery = {
               id: result.deliveryId,
               thread: result.thread,
@@ -1116,7 +1129,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         })();
 
         return uiSendPromise;
-      });
+      };
+
+      ctx.command.register("codex.queue", queueFromUi);
+      ctx.command.register("codex.send", queueFromUi);
 
       if (withUi) {
         syncTool();

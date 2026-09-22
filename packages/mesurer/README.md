@@ -66,6 +66,8 @@ The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance,
 
 For explicit plugin composition, `mesurer-solid/plugins` also exports `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, `settings`, `defaults`, and `compose`.
 
+Resolve plugin-owned capabilities with `await mesurer.service<T>(serviceId)`. The helper waits for configured plugins to finish loading and keeps normal consumers on the mounted API instead of requiring `pluginHost.service.get(...)`.
+
 | Entry | Purpose |
 | --- | --- |
 | `mesurer-solid` | Mount API, public domain types, and agent API |

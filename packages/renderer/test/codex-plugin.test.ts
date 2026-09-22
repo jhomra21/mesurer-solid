@@ -87,7 +87,7 @@ describe("codex", () => {
 
     const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
     expect(service).toBeDefined();
-    await expect(service?.send()).resolves.toEqual({
+    await expect(service?.queue()).resolves.toEqual({
       thread: "thread-1",
       output: "queued",
       delivery: "queued",
@@ -109,6 +109,35 @@ describe("codex", () => {
     expect(payload.thread).toBeUndefined();
   });
 
+  it("keeps send as a compatibility alias for queue", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        ok: true,
+        thread: "thread-alias",
+        output: "queued",
+        deliveryId: "delivery-alias",
+        status: "queued",
+      }),
+    })));
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-send-alias",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex({ ui: false }));
+
+    const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
+    await expect(service?.send()).resolves.toEqual(await service?.queue());
+  });
+
   it("reports toolbar delivery failures instead of swallowing them silently", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
@@ -126,7 +155,7 @@ describe("codex", () => {
     }));
     await host.load(codex({ endpoint: "http://127.0.0.1:47365" }));
 
-    await expect(host.command.execute("codex.send")).rejects.toThrow(
+    await expect(host.command.execute("codex.queue")).rejects.toThrow(
       "Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before queueing feedback.",
     );
     expect(errorSpy).toHaveBeenCalledWith(
@@ -1173,7 +1202,7 @@ describe("codex", () => {
     await host.load(codex({ ui: false }));
 
     const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
-    await expect(service?.send({ thread: "thread-b" })).resolves.toEqual({
+    await expect(service?.queue({ thread: "thread-b" })).resolves.toEqual({
       thread: "thread-b",
       output: "queued",
       delivery: "queued",
@@ -1209,7 +1238,7 @@ describe("codex", () => {
     await host.load(codex({ ui: false }));
 
     const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
-    await service?.send({ instruction: "Fix the selected UI." });
+    await service?.queue({ instruction: "Fix the selected UI." });
 
     expect(contextText).toHaveBeenCalledWith({ scope: "selection" });
     const init = fetchMock.mock.calls[0]?.[1];

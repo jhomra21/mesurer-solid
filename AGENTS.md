@@ -7,6 +7,7 @@ For the canonical human/agent UI-review workflow, read:
 - [Agent Integration](./packages/mesurer/AGENT_INTEGRATION.md). detailed integration and verification contract.
 - [Mesurer UI skill](./.agents/skills/mesurer-ui/SKILL.md). portable operational instructions shipped to coding agents.
 - [Context](./docs/CONTEXT_WORKFLOW.md), [Arrange](./docs/ARRANGE.md), [Text Editing](./docs/TEXT_EDITING.md), and [Screenshots](./docs/SCREENSHOTS.md). feature-specific behavior.
+- [Design language](./docs/DESIGN_LANGUAGE.md). shared visual and interaction review contract for new Mesurer UI.
 
 Do not maintain a third copy of those procedures in this file. Keep this document focused on repository ownership, architectural invariants, validation, and contribution rules.
 
@@ -202,11 +203,28 @@ Reference for fine-grained interactive controls, parameter editing, reactive UI 
 
 Reference for Solid API design, browser behavior, storage/persistence, lifecycle/cleanup, and package-local ownership.
 
+### OpenTUI
+
+**Repository:** `anomalyco/opentui`
+
+Reference for explicit command/result contracts, keyboard and interaction ownership, renderer/core separation, package-facing API surfaces, and cleanup-aware interactive systems.
+
 ### DAW Browser Convex
 
 **Repository:** `jhomra21/daw-browser-convex`
 
 Reference for browser/runtime boundaries, worker architecture, performance-sensitive state, and editor-style interaction systems.
+
+## Engineering review skills
+
+For broad API, architecture, or refactoring work, use the relevant engineering skills from `mattpocock/skills` as review lenses rather than as templates. In particular:
+
+- `codebase-design` and `improve-codebase-architecture` for ownership, module depth, and dependency direction;
+- `code-review` for correctness and regression review;
+- `wayfinder` before changing unfamiliar subsystems;
+- `tdd` / `implement` when behavior is best driven from a focused contract.
+
+Prefer the smallest subset that materially improves the task.
 
 ## Reference policy
 

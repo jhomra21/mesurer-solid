@@ -288,18 +288,21 @@ The default instruction asks Codex to implement the feedback, preserve unrelated
 The plugin provides `codex:v1`. Import its service type from the plugin entry:
 
 ```ts
-import type { MesurerCodexService } from "mesurer-solid/plugins"
+import {
+  MESURER_CODEX_SERVICE_ID,
+  type MesurerCodexService,
+} from "mesurer-solid/plugins"
 
-const service = host.service.get<MesurerCodexService>("codex:v1")
+const service = await mesurer.service<MesurerCodexService>(MESURER_CODEX_SERVICE_ID)
 
-const status = await service?.health()
+const status = await service.health()
 // { thread: "bridge-default", threads: ["bridge-default", "other-connected-thread"] }
 ```
 
 List recent same-project threads:
 
 ```ts
-const recent = await service?.listThreads({
+const recent = await service.listThreads({
   limit: 10,
   thread: status?.thread ?? undefined,
 })
@@ -308,14 +311,14 @@ const recent = await service?.listThreads({
 Switch the bridge-wide default to another thread that Codex already registered:
 
 ```ts
-await service?.useThread("other-connected-thread")
-await service?.send()
+await service.useThread("other-connected-thread")
+await service.queue()
 ```
 
 Or queue one Context message for a bridge-visible thread without changing the bridge default:
 
 ```ts
-const result = await service?.send({
+const result = await service.queue({
   thread: "recent-thread-id",
 })
 // result.delivery === "queued"
@@ -325,16 +328,16 @@ Read the tracked lifecycle later with the returned delivery id:
 
 ```ts
 const delivery = result
-  ? await service?.delivery(result.deliveryId)
+  ? await service.delivery(result.deliveryId)
   : undefined
 ```
 
-The historical method name is generic, but the result is not: Mesurer returns `delivery: "queued"` and does not claim that the active turn was steered.
+`queue()` is the canonical service method and returns `delivery: "queued"`; Mesurer does not claim that the active turn was steered. The 0.1.8 `send()` method remains as a compatibility alias.
 
 Send only particular saved annotations:
 
 ```ts
-await service?.send({
+await service.queue({
   annotationIds: ["annotation-1", "annotation-2"],
 })
 ```
@@ -342,7 +345,7 @@ await service?.send({
 Or replace the instruction for one send:
 
 ```ts
-await service?.send({
+await service.queue({
   instruction: "Implement these visual review notes, then verify them in Mesurer.",
 })
 ```
@@ -355,7 +358,7 @@ Delivery is explicit. A send fails if the companion is unavailable, the Codex ex
 
 The first explicit send or thread-chooser attempt checks bridge availability. If Mesurer cannot reach the companion, the toolbar changes to disabled **Codex unavailable** state and its dropdown offers **Retry Codex connection**. Mesurer does not keep probing a bridge it has never reached, so restrictive-CSP hosts do not accumulate automatic loopback errors. Once a connection has succeeded, health polling continues and recovery is automatic if the companion later disappears and returns.
 
-The toolbar reports queue failures to the browser console with a `[Mesurer] Failed to queue feedback for Codex: ...` diagnostic and propagates the failure through the plugin error path. Programmatic `send()` calls reject with the same underlying error.
+The toolbar reports queue failures to the browser console with a `[Mesurer] Failed to queue feedback for Codex: ...` diagnostic and propagates the failure through the plugin error path. Programmatic `queue()` calls reject with the same underlying error.
 
 A queue request that Codex durably accepted is never reported as a failed send because the follow-up daemon wake check failed; doing so would invite a duplicate retry. Its delivery metadata records the non-fatal wake diagnostic and Mesurer keeps the saved annotation until a matching lifecycle completion event arrives. A request that cannot be lifecycle-tracked is never treated as completed to clear the UI.
 

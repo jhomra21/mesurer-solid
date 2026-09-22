@@ -1918,7 +1918,9 @@ export function installTextEditing(
 
       return value ? publicIntent(value) : null;
     },
-    clear: () => ctx.command.execute(CLEAR_COMMAND),
+    clear: async () => {
+      await ctx.command.execute(CLEAR_COMMAND);
+    },
   });
 
   const unsubscribeWorkspace = workspace.subscribe(schedulePresentation);
