@@ -88,6 +88,19 @@ export type MesurerContextTarget = { ref: string; inspection: MesurerElementInsp
 
 export type MesurerContextGuide = { id: string; orientation: "vertical" | "horizontal"; position: number };
 
+export type MesurerContextLayoutGuide = {
+  id: string;
+  kind: "columns" | "rows" | "grid";
+  visible: boolean;
+  color: string;
+  opacity: number;
+  count: number;
+  size: number;
+  gutter: number;
+  offset: number;
+  align: "stretch" | "min" | "center" | "max";
+};
+
 export type MesurerContextMeasurement = {
   id: string; rect: MesurerContextRect; deltaX: number; deltaY: number; snapped?: boolean; targetRef?: string;
 };
@@ -114,7 +127,12 @@ export type MesurerContextV1 = {
   regions: MesurerContextRect[];
   visualState: { rulersVisible: boolean; xrayVisible: boolean };
   targets: MesurerContextTarget[];
-  visualContext: { guides: MesurerContextGuide[]; measurements: MesurerContextMeasurement[]; distances: MesurerContextDistance[] };
+  visualContext: {
+    guides: MesurerContextGuide[];
+    layoutGuides: MesurerContextLayoutGuide[];
+    measurements: MesurerContextMeasurement[];
+    distances: MesurerContextDistance[];
+  };
 };
 
 export type MesurerReviewMetricChange = {
@@ -211,6 +229,7 @@ export function captureMesurerContext(options: {
   ownerDocument: Document;
   ownerWindow: Window;
   request?: MesurerContextRequest;
+  layoutGuides?: MesurerContextLayoutGuide[];
 }): MesurerContextV1 {
   const { runtime, ownerDocument, ownerWindow } = options;
   const request = options.request ?? { scope: "workspace" };
@@ -365,6 +384,7 @@ export function captureMesurerContext(options: {
     targets,
     visualContext: {
       guides,
+      layoutGuides: (options.layoutGuides ?? []).map((guide) => ({ ...guide })),
       measurements: contextMeasurements,
       distances: contextDistances,
     },
@@ -426,6 +446,18 @@ export function formatMesurerContext(context: MesurerContextV1): string {
 
     for (const guide of context.visualContext.guides) {
       lines.push(`- ${guide.orientation} ${guide.orientation === "vertical" ? "x" : "y"}=${px(guide.position)}`);
+    }
+  }
+
+  if (context.visualContext.layoutGuides.length) {
+    lines.push("", "Layout guides");
+
+    for (const guide of context.visualContext.layoutGuides) {
+      if (!guide.visible) continue;
+      const geometry = guide.kind === "grid"
+        ? `grid ${px(guide.size)}`
+        : `${guide.count} ${guide.kind}; gutter=${px(guide.gutter)}; offset=${px(guide.offset)}; align=${guide.align}`;
+      lines.push(`- ${geometry}; color=${guide.color}; opacity=${Math.round(guide.opacity * 100)}%`);
     }
   }
 
@@ -514,6 +546,7 @@ export function reviewMesurerAnnotation(options: {
   ownerDocument: Document;
   ownerWindow: Window;
   annotationId: string;
+  layoutGuides?: MesurerContextLayoutGuide[];
 }): MesurerReviewV1 {
   const annotation = options.runtime.annotation(options.annotationId);
 
@@ -524,6 +557,7 @@ export function reviewMesurerAnnotation(options: {
     ownerDocument: options.ownerDocument,
     ownerWindow: options.ownerWindow,
     request: { annotation: options.annotationId },
+    layoutGuides: options.layoutGuides,
   });
 
   if (current.scope.kind !== "annotation") {
