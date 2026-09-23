@@ -191,14 +191,17 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       // their interactive root in the same document scroll tree as the selected
       // page element; the canonical toolbar remains isolated in its normal root.
       const runtime = solid.createWorkspaceRuntime(MESURER_CONTEXT_PLUGIN_ID);
+
       const layoutGuides = (): MesurerContextLayoutGuide[] =>
         ctx.service.get<MesurerLayoutGuidesService>(MESURER_LAYOUT_GUIDES_SERVICE_ID)?.list() ?? [];
+
       const service = createService(
         runtime,
         solid.ownerDocument,
         solid.ownerWindow,
         layoutGuides,
       );
+
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
 
       ctx.state.register<ContextSettingsState>({
