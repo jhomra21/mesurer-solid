@@ -361,6 +361,7 @@ export const createLocalStoragePersistence = (
   }) => {
     const current = readPaged(workspaceKey);
     const legacy = current ? null : readRecord(workspaceKey);
+
     const pages: Record<string, MesurerStoredWorkspace> = current
       ? { ...current.pages }
       : {};
