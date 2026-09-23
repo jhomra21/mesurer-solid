@@ -108,6 +108,7 @@ for (const factory of [
   "context",
   "codex",
   "arrange",
+  "layoutGuides",
   "screenshot",
   "select",
   "xray",
