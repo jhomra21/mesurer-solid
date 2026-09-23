@@ -338,10 +338,12 @@ export const createLocalStoragePersistence = (
     const settingsRecord = settingsKey === workspaceKey ? null : readRecord(settingsKey);
     const workspacePaged = readPaged(workspaceKey);
     const workspaceRecord = workspacePaged ? null : readRecord(workspaceKey);
+
     const workspace = workspacePaged?.pages[pageKey]
       ?? workspaceRecord?.workspace
       ?? legacy?.workspace
       ?? null;
+
     const settings = settingsPaged?.settings
       ?? settingsRecord?.settings
       ?? legacy?.settings
