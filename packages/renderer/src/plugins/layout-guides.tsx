@@ -187,7 +187,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     ctx.state.register<LayoutGuidesState>({
       id: MESURER_LAYOUT_GUIDES_STATE_ID,
-      initial: EMPTY_STATE,
+      initial: emptyState(),
       history: true,
       persist: true,
     });
