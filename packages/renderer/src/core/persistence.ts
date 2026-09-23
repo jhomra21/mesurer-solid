@@ -1,5 +1,6 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
 import type { ColorPickerFormat } from "./colors";
+import { getMesurerPageKey } from "../runtime/page-location";
 import type { DistanceOverlay, Guide, Measurement, Rect, ToolMode } from "./types";
 
 export const MESURER_STORAGE_VERSION = 2;
@@ -245,14 +246,42 @@ const parseStoredValue = (raw: string): PersistedValue => {
   return JSON.parse(raw) as PersistedValue;
 };
 
-export const createLocalStoragePersistence = (ownerWindow: Window, workspaceKey: string, settingsKey = workspaceKey, legacyKey?: string): MesurerPersistence => {
+const PAGED_WORKSPACE_FORMAT = "mesurer.pages/v1";
+
+type PagedWorkspaceRecord = {
+  format: typeof PAGED_WORKSPACE_FORMAT;
+  settings?: PersistedValue;
+  pages: Record<string, PersistedValue>;
+};
+
+const isPagedWorkspaceRecord = (value: PersistedValue | undefined): value is PagedWorkspaceRecord =>
+  isPersistedValueRecord(value)
+  && value.format === PAGED_WORKSPACE_FORMAT
+  && isPersistedValueRecord(value.pages);
+
+const normalizePagedWorkspaceRecord = (value: PersistedValue | undefined): PagedWorkspaceRecord | null => {
+  if (!isPagedWorkspaceRecord(value)) return null;
+
+  return {
+    format: PAGED_WORKSPACE_FORMAT,
+    settings: value.settings,
+    pages: { ...value.pages },
+  };
+};
+
+export const createLocalStoragePersistence = (
+  ownerWindow: Window,
+  workspaceKey: string,
+  settingsKey = workspaceKey,
+  legacyKey?: string,
+): MesurerPersistence => {
   let errorHandler: ((cause: unknown) => void) | undefined;
 
-  const readRecord = (key: string): MesurerPersistenceSnapshot | null => {
+  const readValue = (key: string): PersistedValue | null => {
     try {
       const raw = ownerWindow.localStorage.getItem(key);
 
-      return raw ? migrate(parseStoredValue(raw)) : null;
+      return raw ? parseStoredValue(raw) : null;
     } catch (cause) {
       errorHandler?.(cause);
 
@@ -260,41 +289,103 @@ export const createLocalStoragePersistence = (ownerWindow: Window, workspaceKey:
     }
   };
 
-  const read = () => {
-    const legacy = legacyKey ? readRecord(legacyKey) : null;
-    const settingsRecord = readRecord(settingsKey);
-    const workspaceRecord = readRecord(workspaceKey);
+  const readRecord = (key: string): MesurerPersistenceSnapshot | null => {
+    const value = readValue(key);
 
-    if (!settingsRecord && !workspaceRecord && !legacy) return null;
-
-    return {
-      settings: settingsRecord?.settings ?? legacy?.settings ?? {},
-      workspace: workspaceRecord?.workspace ?? legacy?.workspace ?? null,
-    };
+    return value ? migrate(value) : null;
   };
 
-  const writeRecord = (key: string, snapshotValue: MesurerPersistenceSnapshot) => {
+  const readPaged = (key: string) => normalizePagedWorkspaceRecord(readValue(key) ?? undefined);
+
+  const writeValue = (key: string, value: PersistedValue) => {
     try {
-      ownerWindow.localStorage.setItem(key, JSON.stringify({ version: MESURER_STORAGE_VERSION, ...snapshotValue }));
+      ownerWindow.localStorage.setItem(key, JSON.stringify(value));
     } catch (cause) {
       errorHandler?.(cause);
     }
   };
 
+  const writeRecord = (key: string, snapshotValue: MesurerPersistenceSnapshot) => {
+    writeValue(key, {
+      version: MESURER_STORAGE_VERSION,
+      settings: snapshotValue.settings as PersistedValue,
+      workspace: snapshotValue.workspace as PersistedValue,
+    });
+  };
+
+  const read = (): MesurerPersistenceSnapshot | null => {
+    const pageKey = getMesurerPageKey(ownerWindow);
+    const legacy = legacyKey ? readRecord(legacyKey) : null;
+    const settingsPaged = settingsKey === workspaceKey ? readPaged(workspaceKey) : null;
+    const settingsRecord = settingsKey === workspaceKey ? null : readRecord(settingsKey);
+    const workspacePaged = readPaged(workspaceKey);
+    const workspaceRecord = workspacePaged ? null : readRecord(workspaceKey);
+    const pageWorkspace = workspacePaged
+      ? normalizeStoredWorkspace(workspacePaged.pages[pageKey])
+      : workspaceRecord?.workspace ?? legacy?.workspace ?? null;
+    const settings = settingsPaged
+      ? normalizeStoredSettings(settingsPaged.settings)
+      : settingsRecord?.settings ?? legacy?.settings ?? {};
+
+    if (!settingsPaged && !settingsRecord && !workspacePaged && !workspaceRecord && !legacy) return null;
+
+    return { settings, workspace: pageWorkspace };
+  };
+
+  const writePaged = (options: {
+    settings?: MesurerStoredSettings;
+    workspace?: MesurerStoredWorkspace | null;
+    clearWorkspace?: boolean;
+  }) => {
+    const pageKey = getMesurerPageKey(ownerWindow);
+    const current = readPaged(workspaceKey);
+    const legacy = current ? null : readRecord(workspaceKey);
+    const pages = { ...(current?.pages ?? {}) };
+
+    if (!current && legacy?.workspace) pages[pageKey] = legacy.workspace as PersistedValue;
+
+    if (options.clearWorkspace) {
+      delete pages[pageKey];
+    } else if (options.workspace !== undefined) {
+      if (options.workspace) pages[pageKey] = options.workspace as PersistedValue;
+      else delete pages[pageKey];
+    }
+
+    writeValue(workspaceKey, {
+      format: PAGED_WORKSPACE_FORMAT,
+      settings: (options.settings ?? (
+        settingsKey === workspaceKey
+          ? current?.settings
+            ? normalizeStoredSettings(current.settings)
+            : legacy?.settings ?? {}
+          : undefined
+      )) as PersistedValue | undefined,
+      pages,
+    });
+  };
+
   return {
     load: read,
-    saveSettings: (settings) => settingsKey === workspaceKey
-      ? writeRecord(workspaceKey, { settings, workspace: read()?.workspace ?? null })
-      : writeRecord(settingsKey, { settings, workspace: null }),
-    saveWorkspace: (workspace) => settingsKey === workspaceKey
-      ? writeRecord(workspaceKey, { settings: read()?.settings ?? {}, workspace })
-      : writeRecord(workspaceKey, { settings: {}, workspace }),
-    clearWorkspace: () => settingsKey === workspaceKey
-      ? writeRecord(workspaceKey, { settings: read()?.settings ?? {}, workspace: null })
-      : writeRecord(workspaceKey, { settings: {}, workspace: null }),
-    clearSettings: () => settingsKey === workspaceKey
-      ? writeRecord(workspaceKey, { settings: {}, workspace: read()?.workspace ?? null })
-      : writeRecord(settingsKey, { settings: {}, workspace: null }),
+    saveSettings: (settings) => {
+      if (settingsKey === workspaceKey) {
+        writePaged({ settings });
+
+        return;
+      }
+
+      writeRecord(settingsKey, { settings, workspace: null });
+    },
+    saveWorkspace: (workspace) => writePaged({ workspace }),
+    clearWorkspace: () => writePaged({ clearWorkspace: true }),
+    clearSettings: () => {
+      if (settingsKey === workspaceKey) {
+        writePaged({ settings: {} });
+
+        return;
+      }
+
+      writeRecord(settingsKey, { settings: {}, workspace: null });
+    },
     setErrorHandler: (handler) => { errorHandler = handler; },
     subscribe: (listener) => {
       const handleStorage = (event: StorageEvent) => {
