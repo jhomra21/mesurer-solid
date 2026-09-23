@@ -65,7 +65,7 @@ type LayoutGuidesState = {
 
 type PluginRecord = { [key: string]: PluginValue };
 
-const EMPTY_STATE = { pages: {} } satisfies LayoutGuidesState;
+const emptyState = (): LayoutGuidesState => ({ pages: {} });
 
 const isPluginRecord = (
   value: PluginValue | undefined,
@@ -178,6 +178,9 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     const runtime = ctx.service.get<MesurerSolidRuntimeService>(RUNTIME_SERVICE_ID);
 
     if (!runtime) throw new Error("Layout Guides requires the Solid renderer runtime.");
+
+    // SAFETY: runtime.ownerWindow is the browsing-context global that owns the renderer and plugin mounts.
+    const realm = runtime.ownerWindow as Window & typeof globalThis;
     const rendererRoot = runtime.rendererRoot;
 
     if (!rendererRoot) throw new Error("Layout Guides requires a mounted renderer root.");
@@ -200,7 +203,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     let positionFrame = 0;
 
     const state = () =>
-      ctx.state.get<LayoutGuidesState>(MESURER_LAYOUT_GUIDES_STATE_ID) ?? EMPTY_STATE;
+      ctx.state.get<LayoutGuidesState>(MESURER_LAYOUT_GUIDES_STATE_ID) ?? emptyState();
 
     const active = () =>
       ctx.state.get<boolean>(MESURER_LAYOUT_GUIDES_ACTIVE_STATE_ID) ?? false;
@@ -327,9 +330,15 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     overlayMount.style.pointerEvents = "none";
     rendererRoot.prepend(overlayMount);
 
-    const disposeOverlay = render(() => (
-      <LayoutGuidesOverlay guides={(revision(), list())} />
-    ), overlayMount);
+    const disposeOverlay = render(() => {
+      const node = <LayoutGuidesOverlay guides={(revision(), list())} />;
+
+      if (!(node instanceof realm.Node)) {
+        throw new Error("Layout Guides overlay did not render a DOM node.");
+      }
+
+      return node;
+    }, overlayMount);
 
     const panelMount = runtime.createInspectorMount();
     panelMount.element.dataset.mesurerLayoutGuidesPanelRoot = "true";
@@ -385,15 +394,23 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (active()) schedulePanel();
     };
 
-    const disposePanel = render(() => (
-      <LayoutGuidesPanel
-        guides={(revision(), list())}
-        onAdd={() => { void service.add().catch(() => undefined); }}
-        onUpdate={(id, patch) => { void service.update(id, patch).catch(() => undefined); }}
-        onRemove={(id) => { void service.remove(id).catch(() => undefined); }}
-        onClose={() => setActive(false)}
-      />
-    ), panelMount.element);
+    const disposePanel = render(() => {
+      const node = (
+        <LayoutGuidesPanel
+          guides={(revision(), list())}
+          onAdd={() => { void service.add().catch(() => undefined); }}
+          onUpdate={(id, patch) => { void service.update(id, patch).catch(() => undefined); }}
+          onRemove={(id) => { void service.remove(id).catch(() => undefined); }}
+          onClose={() => setActive(false)}
+        />
+      );
+
+      if (!(node instanceof realm.Node)) {
+        throw new Error("Layout Guides panel did not render a DOM node.");
+      }
+
+      return node;
+    }, panelMount.element);
 
     const notify = () => {
       setRevision((value) => value + 1);
@@ -414,8 +431,6 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     const handlePointerDown = (event: PointerEvent) => {
       if (!active()) return;
 
-      // SAFETY: runtime.ownerWindow owns the toolbar, panel, and pointer event realm.
-      const realm = runtime.ownerWindow as Window & typeof globalThis;
       const target = event.target;
 
       if (!(target instanceof realm.Element)) return;
