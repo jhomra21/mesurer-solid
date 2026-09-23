@@ -116,7 +116,6 @@ for (const factory of [
   "rulers",
   "typography",
   "guides",
-  "layoutGuides",
   "distance",
   "settings",
   "defaults",
@@ -256,6 +255,12 @@ for (const codexMember of ["queue(", "send(", "delivery(", "listThreads", "useTh
   }
 }
 
+for (const member of ["list(): LayoutGuide[]", "add(", "update(", "remove(", "clear()", "subscribe("]) {
+  if (!pluginDeclarations.includes(member)) {
+    throw new Error(`Published MesurerLayoutGuidesService is missing ${member}.`);
+  }
+}
+
 if (!rootDeclarations.includes("service<T>(id: string): Promise<T>")) {
   throw new Error("Published MountedMesurer declarations are missing typed service<T>(id).");
 }
@@ -266,7 +271,7 @@ if (/\bmountMeasurer\b/.test(packageReadme)) {
   throw new Error("The npm README must document canonical mountMesurer(), not the deprecated mountMeasurer() spelling.");
 }
 
-if (/\b(?:contextPlugin|codexPlugin|arrangePlugin|screenshotPlugin)\b/.test(packageReadme)) {
+if (/\b(?:contextPlugin|codexPlugin|arrangePlugin|layoutGuidesPlugin|screenshotPlugin)\b/.test(packageReadme)) {
   throw new Error("The npm README must document canonical plugin factory names from mesurer-solid/plugins.");
 }
 
