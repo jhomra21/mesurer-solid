@@ -232,6 +232,7 @@ export const getDistanceOverlay = (
       const edge = edges[0];
 
       if (edge) vertical = { y1: edge.x1, y2: edge.x2, x: edge.midpoint, value: edge.value };
+
       edgeDistances.push(...edges.map((line) => ({
         axis: "y" as const,
         side: line.side === "start" ? "top" as const : "bottom" as const,
