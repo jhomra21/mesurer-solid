@@ -20,6 +20,14 @@ const selectClass =
 const inputClass =
   "msr:h-7 msr:w-full msr:min-w-0 msr:rounded-[6px] msr:border msr:border-ink-200 msr:bg-white msr:px-2 msr:font-mono msr:text-[11px] msr:tabular-nums msr:text-ink-700 msr:outline-none msr:focus:border-[#0d99ff]";
 
+const LAYOUT_GUIDE_ALIGNS: readonly LayoutGuideAlign[] = ["stretch", "min", "center", "max"];
+
+const parseLayoutGuideKind = (value: string): LayoutGuideKind =>
+  value === "rows" || value === "grid" ? value : "columns";
+
+const parseLayoutGuideAlign = (value: string): LayoutGuideAlign =>
+  value === "min" || value === "center" || value === "max" ? value : "stretch";
+
 const IconButton = (props: {
   label: string;
   pressed?: boolean;
@@ -29,7 +37,7 @@ const IconButton = (props: {
   <button
     type="button"
     aria-label={props.label}
-    aria-pressed={props.pressed === undefined ? undefined : String(props.pressed)}
+    aria-pressed={props.pressed}
     class="msr:flex msr:size-7 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[6px] msr:border-0 msr:bg-transparent msr:text-ink-500 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900"
     onClick={props.onClick}
   >
@@ -98,7 +106,7 @@ const LayoutGuideEditor = (props: {
           class={selectClass}
           onPointerDown={(event) => event.stopPropagation()}
           onChange={(event) => {
-            const kind = event.currentTarget.value as LayoutGuideKind;
+            const kind = parseLayoutGuideKind(event.currentTarget.value);
             props.onUpdate({
               kind,
               align: kind === "grid" ? "min" : props.guide.kind === "grid" ? "stretch" : props.guide.align,
@@ -170,9 +178,9 @@ const LayoutGuideEditor = (props: {
             value={props.guide.align}
             class={selectClass}
             onPointerDown={(event) => event.stopPropagation()}
-            onChange={(event) => props.onUpdate({ align: event.currentTarget.value as LayoutGuideAlign })}
+            onChange={(event) => props.onUpdate({ align: parseLayoutGuideAlign(event.currentTarget.value) })}
           >
-            <For each={["stretch", "min", "center", "max"] as const}>{(align) => (
+            <For each={LAYOUT_GUIDE_ALIGNS}>{(align) => (
               <option value={align}>{alignLabel()[align]}</option>
             )}</For>
           </select>
