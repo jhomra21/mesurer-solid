@@ -5,14 +5,23 @@ import type {
   LayoutGuideKind,
 } from "../core/layout-guides";
 import { layoutGuideLabel } from "../core/layout-guides";
-import { CaretDownIcon, CloseIcon, EyeIcon, EyeOffIcon, PlusIcon, TrashIcon } from "./Icons";
+import {
+  CaretDownIcon,
+  CloseIcon,
+  EyeIcon,
+  EyeOffIcon,
+  LayoutColumnsIcon,
+  LayoutGridIcon,
+  LayoutRowsIcon,
+  MinusIcon,
+  PlusIcon,
+} from "./Icons";
 
 type LayoutGuidesPanelProps = {
   guides: LayoutGuide[];
   onAdd(): void;
   onUpdate(id: string, patch: Partial<Omit<LayoutGuide, "id">>): void;
   onRemove(id: string): void;
-  onClose(): void;
 };
 
 const selectClass =
@@ -25,6 +34,14 @@ const LAYOUT_GUIDE_ALIGNS: readonly LayoutGuideAlign[] = ["stretch", "min", "cen
 
 const parseLayoutGuideKind = (value: string): LayoutGuideKind =>
   value === "rows" || value === "grid" ? value : "columns";
+
+const KindIcon = (props: { kind: LayoutGuideKind }) => {
+  if (props.kind === "rows") return <LayoutRowsIcon size={14} />;
+
+  if (props.kind === "grid") return <LayoutGridIcon size={14} />;
+
+  return <LayoutColumnsIcon size={14} />;
+};
 
 const parseLayoutGuideAlign = (value: string): LayoutGuideAlign =>
   value === "min" || value === "center" || value === "max" ? value : "stretch";
@@ -97,7 +114,7 @@ const LayoutGuideEditor = (props: {
         <strong class="msr:text-[11px] msr:font-semibold msr:text-ink-700">
           {layoutGuideLabel(props.guide)}
         </strong>
-        <IconButton label="Back to layout guides" onClick={props.onBack}><CaretDownIcon size={10} class="msr:rotate-90" /></IconButton>
+        <IconButton label="Back to layout guides" onClick={props.onBack}><CloseIcon size={12} /></IconButton>
       </div>
 
       <Field label="Type">
@@ -243,17 +260,14 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
           <div class="msr:flex msr:min-h-0 msr:flex-1 msr:flex-col">
             <div class="msr:flex msr:h-10 msr:shrink-0 msr:items-center msr:justify-between msr:border-b msr:border-ink-100 msr:px-3">
               <strong class="msr:text-[11px] msr:font-semibold">Layout guides</strong>
-              <div class="msr:flex msr:items-center msr:gap-0.5">
-                <IconButton label="Add layout guide" onClick={props.onAdd}><PlusIcon size={12} /></IconButton>
-                <IconButton label="Close layout guides" onClick={props.onClose}><CloseIcon size={12} /></IconButton>
-              </div>
+              <IconButton label="Add layout guide" onClick={props.onAdd}><PlusIcon size={12} /></IconButton>
             </div>
 
             <Show
               when={props.guides.length > 0}
               fallback={
                 <p class="msr:m-0 msr:px-3 msr:py-4 msr:text-[11px] msr:text-ink-500">
-                  No layout guides
+                  Add columns, rows, or a pixel grid on the page.
                 </p>
               }
             >
@@ -265,12 +279,11 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
                       class="msr:flex msr:min-w-0 msr:flex-1 msr:items-center msr:gap-2 msr:rounded-[5px] msr:border-0 msr:bg-transparent msr:px-2 msr:py-1.5 msr:text-left msr:text-[11px] msr:text-ink-700 msr:outline-none msr:hover:bg-ink-100"
                       onClick={() => setEditingId(guide.id)}
                     >
-                      <span
-                        aria-hidden="true"
-                        class="msr:size-2.5 msr:shrink-0 msr:rounded-[2px]"
-                        style={{ "background-color": guide.color, opacity: String(Math.max(0.35, guide.opacity)) }}
-                      />
+                      <span class="msr:shrink-0 msr:text-ink-500" aria-hidden="true">
+                        <KindIcon kind={guide.kind} />
+                      </span>
                       <span class="msr:min-w-0 msr:flex-1 msr:truncate">{layoutGuideLabel(guide)}</span>
+                      <CaretDownIcon size={8} class="msr:-rotate-90 msr:text-ink-400" />
                     </button>
                     <IconButton
                       label={guide.visible ? `Hide ${layoutGuideLabel(guide)}` : `Show ${layoutGuideLabel(guide)}`}
@@ -283,7 +296,7 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
                       label={`Remove ${layoutGuideLabel(guide)}`}
                       onClick={() => props.onRemove(guide.id)}
                     >
-                      <TrashIcon size={14} />
+                      <MinusIcon size={10} />
                     </IconButton>
                   </li>
                 )}</For>
