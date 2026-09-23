@@ -65,11 +65,12 @@ type LayoutGuidesState = {
 
 type PluginRecord = { [key: string]: PluginValue };
 
-const emptyState = () => {
-  const state: LayoutGuidesState = { pages: {} };
+const emptyState = () => ({ pages: {} }) satisfies LayoutGuidesState;
 
-  return state;
-};
+const pageGuides = (
+  state: LayoutGuidesState,
+  pageKey: string,
+) => state.pages[pageKey] ?? [];
 
 const isPluginRecord = (
   value: PluginValue | undefined,
@@ -212,7 +213,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     const active = () =>
       ctx.state.get<boolean>(MESURER_LAYOUT_GUIDES_ACTIVE_STATE_ID) ?? false;
 
-    const list = () => normalizeLayoutGuides(state().pages[pageKey]);
+    const list = () => normalizeLayoutGuides(pageGuides(state(), pageKey));
 
     const setActive = (value: boolean) => {
       ctx.state.update<boolean>(MESURER_LAYOUT_GUIDES_ACTIVE_STATE_ID, () => value);
