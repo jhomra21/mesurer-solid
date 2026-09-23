@@ -34,6 +34,7 @@ const ensureTracker = (ownerWindow: Window) => {
   const history = ownerWindow.history;
   const pushState = history.pushState;
   const replaceState = history.replaceState;
+
   const tracker: Tracker = {
     listeners: new Set(),
     pushState,
@@ -79,11 +80,14 @@ export const subscribeMesurerPageKey = (
   listener: PageLocationListener,
 ) => {
   const tracker = ensureTracker(ownerWindow);
+
   tracker.listeners.add(listener);
+
   let disposed = false;
 
   return () => {
     if (disposed) return;
+
     disposed = true;
     tracker.listeners.delete(listener);
     releaseTracker(ownerWindow, tracker);
