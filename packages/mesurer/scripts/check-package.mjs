@@ -115,6 +115,7 @@ for (const factory of [
   "rulers",
   "typography",
   "guides",
+  "layoutGuides",
   "distance",
   "settings",
   "defaults",
@@ -209,6 +210,7 @@ for (const obsoleteFactory of [
   "rulersPlugin",
   "textInspectorPlugin",
   "guidesPlugin",
+  "layoutGuidesPlugin",
   "distancePlugin",
   "settingsPlugin",
   "defaultMesurerPlugins",
@@ -237,6 +239,9 @@ for (const contractName of [
   "MesurerCodexSendRequest",
   "MesurerCodexSendResult",
   "MesurerContextService",
+  "LayoutGuide",
+  "LayoutGuideInput",
+  "MesurerLayoutGuidesService",
   "MesurerScreenshotService",
 ]) {
   if (!new RegExp(`\\b${contractName}\\b`).test(pluginDeclarations)) {
