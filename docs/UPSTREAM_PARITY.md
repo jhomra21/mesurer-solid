@@ -7,12 +7,24 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `c20ad51ef68d5a78fa0c965fe8fcb1124d58a699` (`main`, audited 2026-09-22) |
-| Current upstream audit | `bdc027e51011898a1fcc2532da1db3acf63a84a3` (`main`, audited 2026-09-22) |
+| Previous upstream audit | `bdc027e51011898a1fcc2532da1db3acf63a84a3` (`main`, audited 2026-09-22) |
+| Current upstream audit | `d47fd6056a01da9c442ae04840ec4d0dd46a1257` (`main`, audited 2026-09-23) |
 
-The delta from `c20ad51...` to `bdc027e...` is three commits: `fb57bac...` improves Inspect hit testing and selection, `15b269c...` hardens toolbar dragging, and `bdc027e...` fixes menu-trigger re-click and drag ownership.
+The current delta is the merged `feat/add-grid` series centered on `03e7606997cb8a1c3f1214f61602210142ef67da`, followed by fixes such as `89e9c322...` for extension navigation and `1fdf75dfa...` for Layout Guide visibility. It combines Layout Guides, route-scoped page state, toolbar/session persistence, extension recovery, and several Inspect/measurement refinements.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
+
+### 2026-09-23 Layout Guides and page-state follow-up
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Layout Guides with columns, rows, grid, visibility, color, opacity, count/size/gutter/offset/alignment controls | **Adopted through the plugin architecture** | Mesurer Solid exposes `layoutGuides()` as a first-party plugin with page-scoped persisted state, history-aware JSON commands, a typed `layout-guides:v1` service, plugin-owned panel, and evidence overlay. Pure normalization/geometry stays in core; the mounted root API does not gain one method per guide operation. |
+| Keep Layout Guides active after their menu closes | **Adopted** | Panel visibility and guide visibility are separate state. Closing the plugin panel leaves the saved guide overlay intact. |
+| Scope overlays/workspace to URL, including query strings, and merge persisted pages | **Adopted through a shared page-identity seam** | Default workspace persistence uses pathname plus sorted query parameters (and `#/` hash routes) and stores independent page snapshots. Context annotation persistence and Layout Guides use the same page ownership model rather than feature-specific URL checks. |
+| Remember toolbar position across page changes | **Adopted as tab-session UI state** | Toolbar placement survives route changes and reloads in `sessionStorage` but is deliberately excluded from page-owned workspace persistence. |
+| Restore the Chrome extension after reload/in-tab navigation | **Adopted without broad host permissions** | The extension remembers explicitly opened tabs in `chrome.storage.session`, reuses a live instance, and restores a missing one when `activeTab` still authorizes injection. If navigation revokes the grant, recovery stops until another explicit click. Mesurer Solid does not adopt upstream's broad `host_permissions`. |
+| Refined Inspect/container/guide measurement geometry | **Adopted with Mesurer Solid's richer distance model retained** | Container spacing measures from the padding box, separated boxes anchor within their shared overlap, and guide-line-to-box distances use the line as real geometry. Existing multi-selection, pairwise, and diagonal evidence remains intact. |
+| Upstream comment-card/effect polish in the same series | **Intentional divergence / not directly applicable** | Mesurer Solid keeps Context annotations and its existing source-linked ownership contracts instead of importing upstream's threaded-comment presentation model. |
 
 ### 2026-09-22 Inspect and toolbar follow-up
 
@@ -84,6 +96,7 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | SVG and general DOM `Element` selection | Adopted from the post-theme Inspect work; Select, point inspection, Context, and annotation geometry accept SVG while HTML-only editing/Arrange paths stay explicit |
 | Native Color Picker | Adopt where `EyeDropper` is operational; hide in unsupported hosts |
 | Text Inspector | Adopt inspection behavior; visible label is **Typography**, internal id stays `text-inspector` |
+| Layout Guides | Adopt as optional `layoutGuides()` plugin with page-scoped state, history-aware commands, typed service, and Context evidence |
 | Screenshot region selection | Adopt as optional `screenshot()` from `mesurer-solid/plugins` and extend with preview/viewer and extension capture |
 | Global Shortcuts setting | Adopt the persisted master on/off switch; no per-command remapping UI is added |
 | Compact toolbar | Adopt presentation: one stable toolbar, full-height separators, active-tool retention, 150ms motion, reduced-motion support |
