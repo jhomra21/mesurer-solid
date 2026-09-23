@@ -5,6 +5,7 @@ import { createId } from "./utils";
 
 const lineOrientation = (rect: Rect): "vertical" | "horizontal" | null => {
   if (rect.width < 1 && rect.height >= 1) return "vertical";
+
   if (rect.height < 1 && rect.width >= 1) return "horizontal";
 
   return null;
@@ -98,6 +99,7 @@ const overlappingEdgeLines = (
   }
 
   candidates.sort((a, b) => a.value - b.value);
+
   const overlapStart = Math.max(overlapStartA, overlapStartB);
   const overlapEnd = Math.min(overlapEndA, overlapEndB);
 
@@ -130,12 +132,15 @@ export const getDistanceOverlay = (
   const overlapYEnd = Math.min(bottomA, bottomB);
   const overlapXStart = Math.max(rectA.left, rectB.left);
   const overlapXEnd = Math.min(rightA, rightB);
+
   const horizontalAnchor = overlapYStart <= overlapYEnd
     ? (overlapYStart + overlapYEnd) / 2
     : centerAY;
+
   const verticalAnchor = overlapXStart <= overlapXEnd
     ? (overlapXStart + overlapXEnd) / 2
     : centerAX;
+
   let horizontal: DistanceOverlay["horizontal"] = null;
   let vertical: DistanceOverlay["vertical"] = null;
   let edgeDistances: NonNullable<DistanceOverlay["edgeDistances"]> = [];
@@ -163,6 +168,7 @@ export const getDistanceOverlay = (
       const x1 = aIsLeft ? rightA : rightB;
       const x2 = aIsLeft ? rectB.left : rectA.left;
       horizontal = { x1, x2, y: horizontalAnchor, value: Math.abs(x2 - x1) };
+
       const edgeBX = aIsLeft ? rectB.left : rightB;
 
       if (horizontalAnchor < rectB.top) {
@@ -183,6 +189,7 @@ export const getDistanceOverlay = (
         rectB.top,
         bottomB,
       );
+
       const edge = edges[0];
 
       if (edge) horizontal = { x1: edge.x1, x2: edge.x2, y: edge.midpoint, value: edge.value };
@@ -201,6 +208,7 @@ export const getDistanceOverlay = (
       const y1 = aIsTop ? bottomA : bottomB;
       const y2 = aIsTop ? rectB.top : rectA.top;
       vertical = { y1, y2, x: verticalAnchor, value: Math.abs(y2 - y1) };
+
       const edgeBY = aIsTop ? rectB.top : bottomB;
 
       if (verticalAnchor < rectB.left) {
