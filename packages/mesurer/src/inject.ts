@@ -102,7 +102,7 @@ export const mesurer = reusableExisting ?? mountInjectedMesurer();
 globalThis.__MESURER_INSTANCE__ = mesurer;
 
 globalThis.__MESURER_INJECT_RECOVERY__?.stop();
-delete globalThis.__MESURER_INJECT_RECOVERY__;
+globalThis.__MESURER_INJECT_RECOVERY__ = undefined;
 
 if (recoverDisconnected) installDisconnectedRecovery(mountInjectedMesurer);
 
