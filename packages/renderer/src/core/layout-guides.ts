@@ -37,6 +37,7 @@ export const normalizeLayoutGuide = (
   input: LayoutGuideInput = {},
 ): LayoutGuide => {
   const kind = input.kind && KINDS.has(input.kind) ? input.kind : "columns";
+
   const align = input.align && ALIGNS.has(input.align)
     ? input.align
     : kind === "grid" ? "min" : "stretch";
