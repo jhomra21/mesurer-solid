@@ -108,6 +108,7 @@ export type MesurerPersistence = {
   saveWorkspace(workspace: MesurerStoredWorkspace): void;
   clearWorkspace(): void;
   clearSettings(): void;
+  setPageKey?(pageKey: string): void;
   subscribe?: (listener: (snapshot: MesurerPersistenceSnapshot | null, source?: { settings?: boolean; workspace?: boolean }) => void) => () => void;
   setErrorHandler?: (handler: ((cause: unknown) => void) | undefined) => void;
 };
