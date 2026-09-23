@@ -454,9 +454,11 @@ export function formatMesurerContext(context: MesurerContextV1): string {
 
     for (const guide of context.visualContext.layoutGuides) {
       if (!guide.visible) continue;
+
       const geometry = guide.kind === "grid"
         ? `grid ${px(guide.size)}`
         : `${guide.count} ${guide.kind}; gutter=${px(guide.gutter)}; offset=${px(guide.offset)}; align=${guide.align}`;
+
       lines.push(`- ${geometry}; color=${guide.color}; opacity=${Math.round(guide.opacity * 100)}%`);
     }
   }
