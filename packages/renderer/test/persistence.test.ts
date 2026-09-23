@@ -69,6 +69,7 @@ describe("persistence", () => {
   it("rejects malformed workspace data", () => {
     expect(normalizeStoredWorkspace({ enabled: true })).toBeNull();
   });
+
   it("keeps default workspace state isolated by page key", () => {
     const original = window.location.pathname + window.location.search + window.location.hash;
     const persistence = createLocalStoragePersistence(window, "workspace-pages", "settings-pages");
@@ -113,5 +114,4 @@ describe("persistence", () => {
     window.localStorage.removeItem("workspace-pages");
     window.localStorage.removeItem("settings-pages");
   });
-
 });
