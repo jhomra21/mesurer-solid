@@ -37,7 +37,7 @@ const IconButton = (props: {
   <button
     type="button"
     aria-label={props.label}
-    aria-pressed={props.pressed}
+    aria-pressed={props.pressed === undefined ? undefined : props.pressed ? "true" : "false"}
     class="msr:flex msr:size-7 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[6px] msr:border-0 msr:bg-transparent msr:text-ink-500 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900"
     onClick={props.onClick}
   >
