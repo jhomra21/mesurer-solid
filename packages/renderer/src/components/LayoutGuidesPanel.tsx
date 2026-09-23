@@ -252,8 +252,8 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
             <Show
               when={props.guides.length > 0}
               fallback={
-                <p class="msr:m-0 msr:px-3 msr:py-4 msr:text-[11px] msr:leading-4 msr:text-ink-500">
-                  Add columns, rows, or a pixel grid to the page.
+                <p class="msr:m-0 msr:px-3 msr:py-4 msr:text-[11px] msr:text-ink-500">
+                  No layout guides
                 </p>
               }
             >
