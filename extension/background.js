@@ -21,7 +21,7 @@ const readActiveTabs = async () => {
     const ids = stored[ACTIVE_TABS_KEY];
 
     return Array.isArray(ids)
-      ? ids.filter((id) => typeof id === "number")
+      ? ids.filter(Number.isInteger)
       : [];
   } catch {
     return [];
@@ -38,6 +38,7 @@ const writeActiveTabs = async (ids) => {
 
 const setTabActive = async (tabId, active) => {
   const ids = await readActiveTabs();
+
   const next = active
     ? Array.from(new Set([...ids, tabId]))
     : ids.filter((id) => id !== tabId);
@@ -96,7 +97,7 @@ const injectMesurer = async (tabId) => {
 };
 
 async function toggleMesurer(tab) {
-  if (typeof tab.id !== "number" || !isInjectableUrl(tab.url)) return;
+  if (!Number.isInteger(tab.id) || !isInjectableUrl(tab.url)) return;
 
   try {
     const disposed = await disposeMesurer(tab.id);
