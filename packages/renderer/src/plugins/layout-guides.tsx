@@ -184,8 +184,6 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     if (!runtime) throw new Error("Layout Guides requires the Solid renderer runtime.");
 
-    // SAFETY: runtime.ownerWindow is the browsing-context global that owns the renderer and plugin mounts.
-    const realm = runtime.ownerWindow as Window & typeof globalThis;
     const rendererRoot = runtime.rendererRoot;
 
     if (!rendererRoot) throw new Error("Layout Guides requires a mounted renderer root.");
@@ -431,14 +429,15 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!active()) return;
+      const path = event.composedPath();
 
-      const target = event.target;
+      if (path.includes(panelMount.element)) return;
 
-      if (!(target instanceof realm.Element)) return;
+      const trigger = runtime.portalTarget.querySelector<HTMLElement>(
+        "[data-mesurer-tool-id='layout-guides']",
+      );
 
-      if (panelMount.element.contains(target)) return;
-
-      if (target.closest("[data-mesurer-tool-id='layout-guides']")) return;
+      if (trigger && path.includes(trigger)) return;
 
       setActive(false);
     };
