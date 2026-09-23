@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mesurer Layout Guides Contract</title>
+    <style>
+      body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #f6f7f9; color: #111827; }
+      main { min-height: 100vh; padding: 64px; box-sizing: border-box; }
+      .shell { max-width: 920px; margin: 0 auto; display: grid; gap: 24px; }
+      .card { min-height: 180px; padding: 24px; border: 1px solid #d1d5db; border-radius: 16px; background: white; }
+    </style>
+  </head>
+  <body>
+    <main id="app">
+      <div class="shell">
+        <article id="layout-target" class="card">
+          <h1>Layout Guides route fixture</h1>
+          <p>Used by the Chromium contract for page-scoped guide state and Context evidence.</p>
+        </article>
+        <article id="route-target" class="card">
+          <h2>Second target</h2>
+        </article>
+      </div>
+    </main>
+    <script type="module" src="/src/layout-guides-contract.ts"></script>
+  </body>
+</html>
