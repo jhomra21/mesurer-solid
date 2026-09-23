@@ -3,6 +3,113 @@ import { clamp, denormalizeRect, getViewportSize, normalizeRect } from "./geomet
 import type { DistanceOverlay, InspectMeasurement, Rect } from "./types";
 import { createId } from "./utils";
 
+const lineOrientation = (rect: Rect): "vertical" | "horizontal" | null => {
+  if (rect.width < 1 && rect.height >= 1) return "vertical";
+  if (rect.height < 1 && rect.width >= 1) return "horizontal";
+
+  return null;
+};
+
+const measureLineToBox = (
+  line: Rect,
+  box: Rect,
+  orientation: "vertical" | "horizontal",
+): Pick<DistanceOverlay, "horizontal" | "vertical" | "edgeDistances"> => {
+  const boxRight = box.left + box.width;
+  const boxBottom = box.top + box.height;
+  let horizontal: DistanceOverlay["horizontal"] = null;
+  let vertical: DistanceOverlay["vertical"] = null;
+  const edgeDistances: NonNullable<DistanceOverlay["edgeDistances"]> = [];
+
+  if (orientation === "vertical") {
+    const x = line.left;
+    const y = box.top + box.height / 2;
+
+    if (x <= box.left) {
+      horizontal = { x1: x, x2: box.left, y, value: box.left - x };
+      edgeDistances.push({ axis: "x", side: "left", ...horizontal });
+    } else if (x >= boxRight) {
+      horizontal = { x1: boxRight, x2: x, y, value: x - boxRight };
+      edgeDistances.push({ axis: "x", side: "right", ...horizontal });
+    } else {
+      const left = { axis: "x" as const, side: "left" as const, x1: box.left, x2: x, y, value: x - box.left };
+      const right = { axis: "x" as const, side: "right" as const, x1: x, x2: boxRight, y, value: boxRight - x };
+
+      if (left.value > 0.5) edgeDistances.push(left);
+
+      if (right.value > 0.5) edgeDistances.push(right);
+      const primary = [...edgeDistances].sort((a, b) => a.value - b.value)[0];
+
+      if (primary && primary.axis === "x") {
+        horizontal = { x1: primary.x1, x2: primary.x2, y: primary.y, value: primary.value };
+      }
+    }
+  } else {
+    const y = line.top;
+    const x = box.left + box.width / 2;
+
+    if (y <= box.top) {
+      vertical = { y1: y, y2: box.top, x, value: box.top - y };
+      edgeDistances.push({ axis: "y", side: "top", ...vertical });
+    } else if (y >= boxBottom) {
+      vertical = { y1: boxBottom, y2: y, x, value: y - boxBottom };
+      edgeDistances.push({ axis: "y", side: "bottom", ...vertical });
+    } else {
+      const top = { axis: "y" as const, side: "top" as const, y1: box.top, y2: y, x, value: y - box.top };
+      const bottom = { axis: "y" as const, side: "bottom" as const, y1: y, y2: boxBottom, x, value: boxBottom - y };
+
+      if (top.value > 0.5) edgeDistances.push(top);
+
+      if (bottom.value > 0.5) edgeDistances.push(bottom);
+      const primary = [...edgeDistances].sort((a, b) => a.value - b.value)[0];
+
+      if (primary && primary.axis === "y") {
+        vertical = { y1: primary.y1, y2: primary.y2, x: primary.x, value: primary.value };
+      }
+    }
+  }
+
+  return {
+    horizontal,
+    vertical,
+    edgeDistances: edgeDistances.length ? edgeDistances : undefined,
+  };
+};
+
+const overlappingEdgeLines = (
+  first: number,
+  firstEnd: number,
+  second: number,
+  secondEnd: number,
+  overlapStartA: number,
+  overlapEndA: number,
+  overlapStartB: number,
+  overlapEndB: number,
+) => {
+  const candidates: Array<{ side: "start" | "end"; x1: number; x2: number; value: number }> = [];
+
+  for (const candidate of [
+    { side: "start" as const, x1: first, x2: second },
+    { side: "end" as const, x1: firstEnd, x2: secondEnd },
+  ]) {
+    const value = Math.abs(candidate.x2 - candidate.x1);
+
+    if (value > 0.5) candidates.push({ ...candidate, value });
+  }
+
+  candidates.sort((a, b) => a.value - b.value);
+  const overlapStart = Math.max(overlapStartA, overlapStartB);
+  const overlapEnd = Math.min(overlapEndA, overlapEndB);
+
+  return candidates.map((candidate) => ({
+    x1: candidate.x1,
+    x2: candidate.x2,
+    side: candidate.side,
+    value: candidate.value,
+    midpoint: (overlapStart + overlapEnd) / 2,
+  }));
+};
+
 export const getDistanceOverlay = (
   rectA: Rect,
   rectB: Rect,
@@ -19,120 +126,113 @@ export const getDistanceOverlay = (
   const bottomB = rectB.top + rectB.height;
   const centerAX = rectA.left + rectA.width / 2;
   const centerAY = rectA.top + rectA.height / 2;
+  const overlapYStart = Math.max(rectA.top, rectB.top);
+  const overlapYEnd = Math.min(bottomA, bottomB);
+  const overlapXStart = Math.max(rectA.left, rectB.left);
+  const overlapXEnd = Math.min(rightA, rightB);
+  const horizontalAnchor = overlapYStart <= overlapYEnd
+    ? (overlapYStart + overlapYEnd) / 2
+    : centerAY;
+  const verticalAnchor = overlapXStart <= overlapXEnd
+    ? (overlapXStart + overlapXEnd) / 2
+    : centerAX;
   let horizontal: DistanceOverlay["horizontal"] = null;
   let vertical: DistanceOverlay["vertical"] = null;
   let edgeDistances: NonNullable<DistanceOverlay["edgeDistances"]> = [];
   const connectors: DistanceOverlay["connectors"] = [];
-  const separatedX = rightA <= rectB.left || rightB <= rectA.left;
-  const separatedY = bottomA <= rectB.top || bottomB <= rectA.top;
+  const lineA = lineOrientation(rectA);
+  const lineB = lineOrientation(rectB);
 
-  const overlappingEdgeLines = (
-    first: number,
-    firstEnd: number,
-    second: number,
-    secondEnd: number,
-    overlapStartA: number,
-    overlapEndA: number,
-    overlapStartB: number,
-    overlapEndB: number,
-  ) => {
-    const candidates: Array<{ side: "start" | "end"; x1: number; x2: number; value: number }> = [];
+  if (Boolean(lineA) !== Boolean(lineB)) {
+    const orientation = lineA ?? lineB;
+    const line = lineA ? rectA : rectB;
+    const box = lineA ? rectB : rectA;
 
-    for (const candidate of [
-      { side: "start" as const, x1: first, x2: second },
-      { side: "end" as const, x1: firstEnd, x2: secondEnd },
-    ]) {
-      const value = Math.abs(candidate.x2 - candidate.x1);
+    if (orientation) {
+      const measured = measureLineToBox(line, box, orientation);
+      horizontal = measured.horizontal;
+      vertical = measured.vertical;
+      edgeDistances = measured.edgeDistances ?? [];
+    }
+  } else {
+    const separatedX = rightA <= rectB.left || rightB <= rectA.left;
+    const separatedY = bottomA <= rectB.top || bottomB <= rectA.top;
 
-      if (value > 0.5) candidates.push({ ...candidate, value });
+    if (separatedX) {
+      const aIsLeft = rightA <= rectB.left;
+      const x1 = aIsLeft ? rightA : rightB;
+      const x2 = aIsLeft ? rectB.left : rectA.left;
+      horizontal = { x1, x2, y: horizontalAnchor, value: Math.abs(x2 - x1) };
+      const edgeBX = aIsLeft ? rectB.left : rightB;
+
+      if (horizontalAnchor < rectB.top) {
+        connectors.push({ x1: edgeBX, y1: horizontalAnchor, x2: edgeBX, y2: rectB.top });
+      } else if (horizontalAnchor > bottomB) {
+        connectors.push({ x1: edgeBX, y1: horizontalAnchor, x2: edgeBX, y2: bottomB });
+      }
     }
 
-    candidates.sort((a, b) => a.value - b.value);
+    if (!separatedX && !separatedY) {
+      const edges = overlappingEdgeLines(
+        rectA.left,
+        rightA,
+        rectB.left,
+        rightB,
+        rectA.top,
+        bottomA,
+        rectB.top,
+        bottomB,
+      );
+      const edge = edges[0];
 
-    const overlapStart = Math.max(overlapStartA, overlapStartB);
-    const overlapEnd = Math.min(overlapEndA, overlapEndB);
+      if (edge) horizontal = { x1: edge.x1, x2: edge.x2, y: edge.midpoint, value: edge.value };
+      edgeDistances.push(...edges.map((line) => ({
+        axis: "x" as const,
+        side: line.side === "start" ? "left" as const : "right" as const,
+        x1: line.x1,
+        x2: line.x2,
+        y: line.midpoint,
+        value: line.value,
+      })));
+    }
 
-    return candidates.map((candidate) => ({
-      x1: candidate.x1,
-      x2: candidate.x2,
-      side: candidate.side,
-      value: candidate.value,
-      midpoint: (overlapStart + overlapEnd) / 2,
-    }));
-  };
+    if (separatedY) {
+      const aIsTop = bottomA <= rectB.top;
+      const y1 = aIsTop ? bottomA : bottomB;
+      const y2 = aIsTop ? rectB.top : rectA.top;
+      vertical = { y1, y2, x: verticalAnchor, value: Math.abs(y2 - y1) };
+      const edgeBY = aIsTop ? rectB.top : bottomB;
 
-  if (separatedX) {
-    const aIsLeft = rightA <= rectB.left;
-    const x1 = aIsLeft ? rightA : rightB;
-    const x2 = aIsLeft ? rectB.left : rectA.left;
-    const y = centerAY;
-    horizontal = { x1, x2, y, value: Math.abs(x2 - x1) };
-    const edgeBX = aIsLeft ? rectB.left : rightB;
+      if (verticalAnchor < rectB.left) {
+        connectors.push({ x1: verticalAnchor, y1: edgeBY, x2: rectB.left, y2: edgeBY });
+      } else if (verticalAnchor > rightB) {
+        connectors.push({ x1: verticalAnchor, y1: edgeBY, x2: rightB, y2: edgeBY });
+      }
+    }
 
-    if (y < rectB.top) connectors.push({ x1: edgeBX, y1: y, x2: edgeBX, y2: rectB.top });
-    else if (y > bottomB) connectors.push({ x1: edgeBX, y1: y, x2: edgeBX, y2: bottomB });
-  }
+    if (!separatedX && !separatedY) {
+      const edges = overlappingEdgeLines(
+        rectA.top,
+        bottomA,
+        rectB.top,
+        bottomB,
+        rectA.left,
+        rightA,
+        rectB.left,
+        rightB,
+      );
+      const edge = edges[0];
 
-  if (!separatedX && !separatedY) {
-    const edges = overlappingEdgeLines(
-      rectA.left,
-      rightA,
-      rectB.left,
-      rightB,
-      rectA.top,
-      bottomA,
-      rectB.top,
-      bottomB,
-    );
-
-    const edge = edges[0];
-
-    if (edge) horizontal = { x1: edge.x1, x2: edge.x2, y: edge.midpoint, value: edge.value };
-    edgeDistances.push(...edges.map((line) => ({
-      axis: "x" as const,
-      side: line.side === "start" ? "left" as const : "right" as const,
-      x1: line.x1,
-      x2: line.x2,
-      y: line.midpoint,
-      value: line.value,
-    })));
-  }
-
-  if (separatedY) {
-    const aIsTop = bottomA <= rectB.top;
-    const y1 = aIsTop ? bottomA : bottomB;
-    const y2 = aIsTop ? rectB.top : rectA.top;
-    const x = centerAX;
-    vertical = { y1, y2, x, value: Math.abs(y2 - y1) };
-    const edgeBY = aIsTop ? rectB.top : bottomB;
-
-    if (x < rectB.left) connectors.push({ x1: x, y1: edgeBY, x2: rectB.left, y2: edgeBY });
-    else if (x > rightB) connectors.push({ x1: x, y1: edgeBY, x2: rightB, y2: edgeBY });
-  }
-
-  if (!separatedX && !separatedY) {
-    const edges = overlappingEdgeLines(
-      rectA.top,
-      bottomA,
-      rectB.top,
-      bottomB,
-      rectA.left,
-      rightA,
-      rectB.left,
-      rightB,
-    );
-
-    const edge = edges[0];
-
-    if (edge) vertical = { y1: edge.x1, y2: edge.x2, x: edge.midpoint, value: edge.value };
-    edgeDistances.push(...edges.map((line) => ({
-      axis: "y" as const,
-      side: line.side === "start" ? "top" as const : "bottom" as const,
-      y1: line.x1,
-      y2: line.x2,
-      x: line.midpoint,
-      value: line.value,
-    })));
+      if (edge) vertical = { y1: edge.x1, y2: edge.x2, x: edge.midpoint, value: edge.value };
+      edgeDistances.push(...edges.map((line) => ({
+        axis: "y" as const,
+        side: line.side === "start" ? "top" as const : "bottom" as const,
+        y1: line.x1,
+        y2: line.x2,
+        x: line.midpoint,
+        value: line.value,
+      })));
+    }
   }
 
   const normalizedConnectors = connectors
