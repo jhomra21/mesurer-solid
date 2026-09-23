@@ -66,6 +66,8 @@ const disposeMesurer = (tabId) => run(tabId, {
     const instance = globalObject.__MESURER_INSTANCE__;
 
     if (!instance) return false;
+    globalObject.__MESURER_INJECT_RECOVERY__?.stop();
+    delete globalObject.__MESURER_INJECT_RECOVERY__;
     instance.dispose();
     delete globalObject.__MESURER_INSTANCE__;
 
@@ -84,8 +86,8 @@ const injectMesurer = async (tabId) => {
       const globalObject = globalThis;
       const current = globalObject.__MESURER_CONFIG__;
       globalObject.__MESURER_CONFIG__ = current
-        ? { ...current, screenshot: true }
-        : { screenshot: true };
+        ? { ...current, screenshot: true, recoverDisconnected: true }
+        : { screenshot: true, recoverDisconnected: true };
     },
   });
 
