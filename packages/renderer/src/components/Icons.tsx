@@ -72,6 +72,33 @@ export const ColorPickerIcon = (props: IconProps) => (
   </svg>
 );
 
+const LayoutFrameIcon = (props: IconProps & { children: any }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 256 256" fill="none" aria-hidden="true" class={props.class}>
+    <path d="M64 48H192a16 16 0 0 1 16 16v128a16 16 0 0 1-16 16H64a16 16 0 0 1-16-16V64a16 16 0 0 1 16-16Z" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+    <g fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="butt">
+      {props.children}
+    </g>
+  </svg>
+);
+
+export const LayoutGridIcon = (props: IconProps) => (
+  <LayoutFrameIcon size={props.size ?? 20} class={props.class}>
+    <path d="M128 48v160M48 128h160" />
+  </LayoutFrameIcon>
+);
+
+export const LayoutColumnsIcon = (props: IconProps) => (
+  <LayoutFrameIcon size={props.size ?? 20} class={props.class}>
+    <path d="M101.33 48v160M154.67 48v160" />
+  </LayoutFrameIcon>
+);
+
+export const LayoutRowsIcon = (props: IconProps) => (
+  <LayoutFrameIcon size={props.size ?? 20} class={props.class}>
+    <path d="M48 101.33h160M48 154.67h160" />
+  </LayoutFrameIcon>
+);
+
 export const PlusIcon = (props: IconProps) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 12} height={props.size ?? 12} viewBox="0 0 12 12" fill="none" aria-hidden="true" class={props.class}>
     <path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
