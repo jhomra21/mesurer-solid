@@ -19,7 +19,7 @@ export type LayoutGuide = {
 
 export type LayoutGuideInput = Partial<Omit<LayoutGuide, "id">> & { id?: string };
 
-export const DEFAULT_LAYOUT_GUIDE_COLOR = "#ff0000";
+export const DEFAULT_LAYOUT_GUIDE_COLOR = "#FF0000";
 
 export const DEFAULT_LAYOUT_GUIDE_OPACITY = 0.1;
 
@@ -69,5 +69,5 @@ export const layoutGuideLabel = (guide: LayoutGuide) => {
 
   return guide.align === "stretch"
     ? `${guide.count} ${unit}`
-    : `${guide.count} ${unit} · ${Math.round(guide.size)}px`;
+    : `${guide.count} ${unit} (${Math.round(guide.size)}px)`;
 };
