@@ -192,22 +192,27 @@ export function createMesurerWorkspaceRuntime(options: {
   const legacyPersistenceKey = () =>
     options.persistenceKey ? `${options.persistenceKey}${ownerWindow.location.pathname}` : undefined;
 
-  const readPageAnnotations = () => {
+  type PageAnnotationStore = {
+    annotations: MesurerAnnotation[];
+    migrated: boolean;
+  };
+
+  const readPageAnnotations = (): PageAnnotationStore => {
     const currentKey = currentPersistenceKey();
 
-    if (!currentKey) return { annotations: [] as MesurerAnnotation[], migrated: false };
+    if (!currentKey) return { annotations: [], migrated: false };
 
     try {
       if (ownerWindow.sessionStorage.getItem(currentKey) !== null) {
         return { annotations: readStoredAnnotations(ownerWindow, currentKey), migrated: false };
       }
     } catch {
-      return { annotations: [] as MesurerAnnotation[], migrated: false };
+      return { annotations: [], migrated: false };
     }
 
     const legacyKey = legacyPersistenceKey();
 
-    if (!legacyKey) return { annotations: [] as MesurerAnnotation[], migrated: false };
+    if (!legacyKey) return { annotations: [], migrated: false };
     const legacy = readStoredAnnotations(ownerWindow, legacyKey);
 
     return { annotations: legacy, migrated: legacy.length > 0 };
