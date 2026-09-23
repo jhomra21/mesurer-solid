@@ -16,7 +16,7 @@ import {
 } from "../core/layout-guides";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { getMesurerPageKey, subscribeMesurerPageKey } from "../runtime/page-location";
-import { createComponent, render } from "../solid-dom";
+import { render } from "../solid-dom";
 
 export const MESURER_LAYOUT_GUIDES_PLUGIN_ID = "mesurer.layout-guides";
 
@@ -65,7 +65,7 @@ type LayoutGuidesState = {
 
 type PluginRecord = { [key: string]: PluginValue };
 
-const EMPTY_STATE: LayoutGuidesState = { pages: {} };
+const EMPTY_STATE = { pages: {} } satisfies LayoutGuidesState;
 
 const isPluginRecord = (
   value: PluginValue | undefined,
@@ -327,17 +327,9 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     overlayMount.style.pointerEvents = "none";
     rendererRoot.prepend(overlayMount);
 
-    const disposeOverlay = render(() => {
-      revision();
-
-      return createComponent(LayoutGuidesOverlay, {
-        get guides() {
-          revision();
-
-          return list();
-        },
-      });
-    }, overlayMount);
+    const disposeOverlay = render(() => (
+      <LayoutGuidesOverlay guides={(revision(), list())} />
+    ), overlayMount);
 
     const panelMount = runtime.createInspectorMount();
     panelMount.element.dataset.mesurerLayoutGuidesPanelRoot = "true";
@@ -355,18 +347,24 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
       positionFrame = 0;
 
       if (!active()) return;
+
       const anchor = runtime.portalTarget.querySelector<HTMLElement>(
         "[data-mesurer-tool-id='layout-guides']",
       );
 
       if (!anchor) return;
+
       const rect = anchor.getBoundingClientRect();
+
       const left = Math.min(
         Math.max(VIEWPORT_PADDING, rect.right - PANEL_WIDTH),
         Math.max(VIEWPORT_PADDING, runtime.ownerWindow.innerWidth - PANEL_WIDTH - VIEWPORT_PADDING),
       );
+
       const availableBelow = runtime.ownerWindow.innerHeight - rect.bottom - PANEL_GAP - VIEWPORT_PADDING;
+
       const estimatedHeight = Math.min(480, runtime.ownerWindow.innerHeight - VIEWPORT_PADDING * 2);
+
       const top = availableBelow >= Math.min(estimatedHeight, 320)
         ? rect.bottom + PANEL_GAP
         : Math.max(VIEWPORT_PADDING, rect.top - PANEL_GAP - estimatedHeight);
@@ -387,25 +385,15 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (active()) schedulePanel();
     };
 
-    const disposePanel = render(() => createComponent(LayoutGuidesPanel, {
-      get guides() {
-        revision();
-
-        return list();
-      },
-      onAdd() {
-        void service.add().catch(() => undefined);
-      },
-      onUpdate(id, patch) {
-        void service.update(id, patch).catch(() => undefined);
-      },
-      onRemove(id) {
-        void service.remove(id).catch(() => undefined);
-      },
-      onClose() {
-        setActive(false);
-      },
-    }), panelMount.element);
+    const disposePanel = render(() => (
+      <LayoutGuidesPanel
+        guides={(revision(), list())}
+        onAdd={() => { void service.add().catch(() => undefined); }}
+        onUpdate={(id, patch) => { void service.update(id, patch).catch(() => undefined); }}
+        onRemove={(id) => { void service.remove(id).catch(() => undefined); }}
+        onClose={() => setActive(false)}
+      />
+    ), panelMount.element);
 
     const notify = () => {
       setRevision((value) => value + 1);
@@ -425,6 +413,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!active()) return;
+
       // SAFETY: runtime.ownerWindow owns the toolbar, panel, and pointer event realm.
       const realm = runtime.ownerWindow as Window & typeof globalThis;
       const target = event.target;
