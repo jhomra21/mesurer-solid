@@ -72,6 +72,26 @@ export const ColorPickerIcon = (props: IconProps) => (
   </svg>
 );
 
+export const PlusIcon = (props: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 12} height={props.size ?? 12} viewBox="0 0 12 12" fill="none" aria-hidden="true" class={props.class}>
+    <path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+  </svg>
+);
+
+export const EyeIcon = (props: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 14} height={props.size ?? 14} viewBox="0 0 16 16" fill="none" aria-hidden="true" class={props.class}>
+    <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8Z" stroke="currentColor" stroke-width="1.25" />
+    <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.25" />
+  </svg>
+);
+
+export const EyeOffIcon = (props: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 14} height={props.size ?? 14} viewBox="0 0 16 16" fill="none" aria-hidden="true" class={props.class}>
+    <path d="m2 2 12 12M6.2 6.3A2.5 2.5 0 0 0 8 10.5M9.7 9.8A2.5 2.5 0 0 0 8 5.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+    <path d="M4.1 4.6C2.5 5.7 1.5 8 1.5 8s2.5 4.5 6.5 4.5c1.2 0 2.3-.4 3.2-1M11.7 10.7c1.3-1 2.2-2.7 2.8-2.7 0 0-2.5-4.5-6.5-4.5-.6 0-1.2.1-1.7.3" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+  </svg>
+);
+
 export const GearIcon = (props: IconProps) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 24 24" fill="none" aria-hidden="true" class={props.class}>
     <path d="M10.6504 5.81117C10.9939 4.39628 13.0061 4.39628 13.3496 5.81117C13.5715 6.72517 14.6187 7.15891 15.4219 6.66952C16.6652 5.91193 18.0881 7.33479 17.3305 8.57815C16.8411 9.38134 17.2748 10.4285 18.1888 10.6504C19.6037 10.9939 19.6037 13.0061 18.1888 13.3496C17.2748 13.5715 16.8411 14.6187 17.3305 15.4219C18.0881 16.6652 16.6652 18.0881 15.4219 17.3305C14.6187 16.8411 13.5715 17.2748 13.3496 18.1888C13.0061 19.6037 10.9939 19.6037 10.6504 18.1888C10.4285 17.2748 9.38135 16.8411 8.57815 17.3305C7.33479 18.0881 5.91193 16.6652 6.66952 15.4219C7.15891 14.6187 6.72517 13.5715 5.81117 13.3496C4.39628 13.0061 4.39628 10.9939 5.81117 10.6504C6.72517 10.4285 7.15891 9.38134 6.66952 8.57815C5.91193 7.33479 7.33479 5.91192 8.57815 6.66952C9.38135 7.15891 10.4285 6.72517 10.6504 5.81117Z" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
