@@ -7,7 +7,6 @@ import {
 import { LayoutGuidesOverlay } from "../components/LayoutGuidesOverlay";
 import { LayoutGuidesPanel } from "../components/LayoutGuidesPanel";
 import {
-  layoutGuideLabel,
   normalizeLayoutGuide,
   normalizeLayoutGuides,
   type LayoutGuide,
@@ -17,7 +16,7 @@ import {
 } from "../core/layout-guides";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { getMesurerPageKey, subscribeMesurerPageKey } from "../runtime/page-location";
-import { render } from "../solid-dom";
+import { createComponent, render } from "../solid-dom";
 
 export const MESURER_LAYOUT_GUIDES_PLUGIN_ID = "mesurer.layout-guides";
 
@@ -64,49 +63,71 @@ type LayoutGuidesState = {
   pages: { [pageKey: string]: LayoutGuideValue[] };
 };
 
-const toValue = (guide: LayoutGuide): LayoutGuideValue => ({ ...guide });
+type PluginRecord = { [key: string]: PluginValue };
+
+const EMPTY_STATE: LayoutGuidesState = { pages: {} };
+
+const isPluginRecord = (
+  value: PluginValue | undefined,
+): value is PluginRecord =>
+  value !== null
+  && value !== undefined
+  && typeof value === "object"
+  && !Array.isArray(value);
+
+const isStringValue = (value: PluginValue | undefined): value is string =>
+  typeof value === "string";
+
+const isBooleanValue = (value: PluginValue | undefined): value is boolean =>
+  typeof value === "boolean";
+
+const isNumberValue = (value: PluginValue | undefined): value is number =>
+  typeof value === "number";
+
+const isLayoutGuideKind = (value: PluginValue | undefined): value is LayoutGuideKind =>
+  value === "columns" || value === "rows" || value === "grid";
+
+const isLayoutGuideAlign = (value: PluginValue | undefined): value is LayoutGuideAlign =>
+  value === "stretch" || value === "min" || value === "center" || value === "max";
+
+const toValue = (guide: LayoutGuide) => ({
+  ...guide,
+}) satisfies LayoutGuideValue;
 
 const toValues = (guides: LayoutGuide[]): LayoutGuideValue[] => guides.map(toValue);
 
-const asRecord = (value: PluginValue | undefined): { [key: string]: PluginValue } | null =>
-  value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value)
-    ? value
-    : null;
+const asRecord = (value: PluginValue | undefined): PluginRecord | null =>
+  isPluginRecord(value) ? value : null;
 
-const inputFromRecord = (record: { [key: string]: PluginValue } | null): LayoutGuideInput => {
+const inputFromRecord = (record: PluginRecord | null): LayoutGuideInput => {
   if (!record) return {};
   const input: LayoutGuideInput = {};
 
-  if (typeof record.id === "string") input.id = record.id;
+  if (isStringValue(record.id)) input.id = record.id;
 
-  if (record.kind === "columns" || record.kind === "rows" || record.kind === "grid") input.kind = record.kind;
+  if (isLayoutGuideKind(record.kind)) input.kind = record.kind;
 
-  if (typeof record.visible === "boolean") input.visible = record.visible;
+  if (isBooleanValue(record.visible)) input.visible = record.visible;
 
-  if (typeof record.color === "string") input.color = record.color;
+  if (isStringValue(record.color)) input.color = record.color;
 
-  if (typeof record.opacity === "number") input.opacity = record.opacity;
+  if (isNumberValue(record.opacity)) input.opacity = record.opacity;
 
-  if (typeof record.count === "number") input.count = record.count;
+  if (isNumberValue(record.count)) input.count = record.count;
 
-  if (typeof record.size === "number") input.size = record.size;
+  if (isNumberValue(record.size)) input.size = record.size;
 
-  if (typeof record.gutter === "number") input.gutter = record.gutter;
+  if (isNumberValue(record.gutter)) input.gutter = record.gutter;
 
-  if (typeof record.offset === "number") input.offset = record.offset;
+  if (isNumberValue(record.offset)) input.offset = record.offset;
 
-  if (
-    record.align === "stretch"
-    || record.align === "min"
-    || record.align === "center"
-    || record.align === "max"
-  ) input.align = record.align;
+  if (isLayoutGuideAlign(record.align)) input.align = record.align;
 
   return input;
 };
 
 const inputToValue = (input: LayoutGuideInput): PluginValue => {
-  const value: { [key: string]: PluginValue } = {};
+  const value: PluginRecord = {};
 
   if (input.id !== undefined) value.id = input.id;
 
@@ -163,7 +184,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     ctx.state.register<LayoutGuidesState>({
       id: MESURER_LAYOUT_GUIDES_STATE_ID,
-      initial: { pages: {} },
+      initial: EMPTY_STATE,
       history: true,
       persist: true,
     });
@@ -179,12 +200,12 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     let positionFrame = 0;
 
     const state = () =>
-      ctx.state.get<LayoutGuidesState>(MESURER_LAYOUT_GUIDES_STATE_ID) ?? { pages: {} };
+      ctx.state.get<LayoutGuidesState>(MESURER_LAYOUT_GUIDES_STATE_ID) ?? EMPTY_STATE;
 
     const active = () =>
       ctx.state.get<boolean>(MESURER_LAYOUT_GUIDES_ACTIVE_STATE_ID) ?? false;
 
-    const list = () => normalizeLayoutGuides(state().pages[pageKey] ?? []);
+    const list = () => normalizeLayoutGuides(state().pages[pageKey]);
 
     const setActive = (value: boolean) => {
       ctx.state.update<boolean>(MESURER_LAYOUT_GUIDES_ACTIVE_STATE_ID, () => value);
@@ -195,7 +216,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
         ...current,
         pages: {
           ...current.pages,
-          [pageKey]: toValues(update(normalizeLayoutGuides(current.pages[pageKey] ?? []))),
+          [pageKey]: toValues(update(normalizeLayoutGuides(current.pages[pageKey]))),
         },
       }));
     };
@@ -208,6 +229,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     ctx.command.register(ADD_COMMAND, (args) => {
       const guide = normalizeLayoutGuide(inputFromRecord(asRecord(args)));
+
       updatePage((current) => [...current, guide]);
 
       return { ...guide };
@@ -215,18 +237,17 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     ctx.command.register(UPDATE_COMMAND, (args) => {
       const record = asRecord(args);
-      const id = typeof record?.id === "string" ? record.id : null;
+      const id = record && isStringValue(record.id) ? record.id : null;
       const patch = inputFromRecord(asRecord(record?.patch));
 
       if (!id) throw new Error("layout-guides.update requires a guide id.");
-      let updated: LayoutGuide | null = null;
 
-      updatePage((current) => current.map((guide) => {
-        if (guide.id !== id) return guide;
-        updated = normalizeLayoutGuide({ ...guide, ...patch, id: guide.id });
+      updatePage((current) => current.map((guide) =>
+        guide.id === id
+          ? normalizeLayoutGuide({ ...guide, ...patch, id: guide.id })
+          : guide));
 
-        return updated;
-      }));
+      const updated = list().find((guide) => guide.id === id);
 
       if (!updated) throw new Error(`Layout guide not found: ${id}`);
 
@@ -235,19 +256,14 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     ctx.command.register(REMOVE_COMMAND, (args) => {
       const record = asRecord(args);
-      const id = typeof record?.id === "string" ? record.id : null;
+      const id = record && isStringValue(record.id) ? record.id : null;
 
       if (!id) throw new Error("layout-guides.remove requires a guide id.");
-      let removed = false;
+      const before = list().length;
 
-      updatePage((current) => current.filter((guide) => {
-        if (guide.id !== id) return true;
-        removed = true;
+      updatePage((current) => current.filter((guide) => guide.id !== id));
 
-        return false;
-      }));
-
-      return removed;
+      return list().length !== before;
     });
 
     ctx.command.register(CLEAR_COMMAND, () => {
@@ -314,7 +330,13 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     const disposeOverlay = render(() => {
       revision();
 
-      return <LayoutGuidesOverlay guides={list()} />;
+      return createComponent(LayoutGuidesOverlay, {
+        get guides() {
+          revision();
+
+          return list();
+        },
+      });
     }, overlayMount);
 
     const panelMount = runtime.createInspectorMount();
@@ -326,6 +348,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
       width: `${PANEL_WIDTH}px`,
       zIndex: "95",
       pointerEvents: "none",
+      display: "none",
     });
 
     const positionPanel = () => {
@@ -354,41 +377,48 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const schedulePanel = () => {
       if (positionFrame) return;
+
       positionFrame = runtime.ownerWindow.requestAnimationFrame(positionPanel);
     };
 
-    const run = (promise: Promise<unknown>) => {
-      void promise.catch(() => undefined);
+    const syncPanel = () => {
+      panelMount.element.style.display = active() ? "block" : "none";
+
+      if (active()) schedulePanel();
     };
 
-    const disposePanel = render(() => {
-      revision();
+    const disposePanel = render(() => createComponent(LayoutGuidesPanel, {
+      get guides() {
+        revision();
 
-      if (!active()) return null;
-      queueMicrotask(schedulePanel);
-
-      return (
-        <LayoutGuidesPanel
-          guides={list()}
-          onAdd={() => run(service.add())}
-          onUpdate={(id, patch) => run(service.update(id, patch))}
-          onRemove={(id) => run(service.remove(id))}
-          onClose={() => setActive(false)}
-        />
-      );
-    }, panelMount.element);
+        return list();
+      },
+      onAdd() {
+        void service.add().catch(() => undefined);
+      },
+      onUpdate(id, patch) {
+        void service.update(id, patch).catch(() => undefined);
+      },
+      onRemove(id) {
+        void service.remove(id).catch(() => undefined);
+      },
+      onClose() {
+        setActive(false);
+      },
+    }), panelMount.element);
 
     const notify = () => {
       setRevision((value) => value + 1);
 
       for (const listener of listeners) listener();
 
-      if (active()) schedulePanel();
+      syncPanel();
     };
 
     const stateSubscription = ctx.state.subscribe(notify);
     const unsubscribePage = subscribeMesurerPageKey(runtime.ownerWindow, (nextPageKey) => {
       if (pageKey === nextPageKey) return;
+
       pageKey = nextPageKey;
       notify();
     });
@@ -404,14 +434,17 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (panelMount.element.contains(target)) return;
 
       if (target.closest("[data-mesurer-tool-id='layout-guides']")) return;
+
       setActive(false);
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || !active()) return;
+
       setActive(false);
     };
 
+    syncPanel();
     runtime.ownerDocument.addEventListener("pointerdown", handlePointerDown, true);
     runtime.ownerDocument.addEventListener("keydown", handleKeyDown, true);
     runtime.ownerWindow.addEventListener("resize", schedulePanel);
@@ -424,6 +457,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
       runtime.ownerWindow.removeEventListener("pointerup", schedulePanel, true);
 
       if (positionFrame) runtime.ownerWindow.cancelAnimationFrame(positionFrame);
+
       positionFrame = 0;
       listeners.clear();
       stateSubscription.dispose();
