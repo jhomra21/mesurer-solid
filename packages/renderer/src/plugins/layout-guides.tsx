@@ -65,7 +65,7 @@ type LayoutGuidesState = {
 
 type PluginRecord = { [key: string]: PluginValue };
 
-const emptyState = (): LayoutGuidesState => ({ pages: {} });
+const emptyState = () => ({ pages: {} }) satisfies LayoutGuidesState;
 
 const isPluginRecord = (
   value: PluginValue | undefined,
@@ -330,15 +330,10 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     overlayMount.style.pointerEvents = "none";
     rendererRoot.prepend(overlayMount);
 
-    const disposeOverlay = render(() => {
-      const node = <LayoutGuidesOverlay guides={(revision(), list())} />;
-
-      if (!(node instanceof realm.Node)) {
-        throw new Error("Layout Guides overlay did not render a DOM node.");
-      }
-
-      return node;
-    }, overlayMount);
+    const disposeOverlay = render(
+      () => <LayoutGuidesOverlay guides={(revision(), list())} />,
+      overlayMount,
+    );
 
     const panelMount = runtime.createInspectorMount();
     panelMount.element.dataset.mesurerLayoutGuidesPanelRoot = "true";
@@ -394,22 +389,17 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (active()) schedulePanel();
     };
 
-    const disposePanel = render(() => {
-      const node = (
+    const disposePanel = render(
+      () => (
         <LayoutGuidesPanel
           guides={(revision(), list())}
           onAdd={() => { void service.add().catch(() => undefined); }}
           onUpdate={(id, patch) => { void service.update(id, patch).catch(() => undefined); }}
           onRemove={(id) => { void service.remove(id).catch(() => undefined); }}
         />
-      );
-
-      if (!(node instanceof realm.Node)) {
-        throw new Error("Layout Guides panel did not render a DOM node.");
-      }
-
-      return node;
-    }, panelMount.element);
+      ),
+      panelMount.element,
+    );
 
     const notify = () => {
       setRevision((value) => value + 1);
@@ -420,6 +410,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     };
 
     const stateSubscription = ctx.state.subscribe(notify);
+
     const unsubscribePage = subscribeMesurerPageKey(runtime.ownerWindow, (nextPageKey) => {
       if (pageKey === nextPageKey) return;
 
