@@ -69,4 +69,49 @@ describe("persistence", () => {
   it("rejects malformed workspace data", () => {
     expect(normalizeStoredWorkspace({ enabled: true })).toBeNull();
   });
+  it("keeps default workspace state isolated by page key", () => {
+    const original = window.location.pathname + window.location.search + window.location.hash;
+    const persistence = createLocalStoragePersistence(window, "workspace-pages", "settings-pages");
+
+    window.history.replaceState({}, "", "/alpha?b=2&a=1");
+    persistence.setPageKey?.("/alpha?a=1&b=2");
+    persistence.saveWorkspace({
+      enabled: true,
+      xrayVisible: false,
+      toolMode: "guides",
+      rulersVisible: false,
+      guideOrientation: "vertical",
+      guides: [{ id: "alpha", orientation: "vertical", position: 32 }],
+      selectedGuideIds: ["alpha"],
+      measurements: [],
+      activeMeasurement: null,
+      heldDistances: [],
+    });
+
+    window.history.replaceState({}, "", "/beta");
+    persistence.setPageKey?.("/beta");
+    expect(persistence.load()?.workspace).toBeNull();
+    persistence.saveWorkspace({
+      enabled: true,
+      xrayVisible: false,
+      toolMode: "select",
+      rulersVisible: false,
+      guideOrientation: "horizontal",
+      guides: [{ id: "beta", orientation: "horizontal", position: 64 }],
+      selectedGuideIds: ["beta"],
+      measurements: [],
+      activeMeasurement: null,
+      heldDistances: [],
+    });
+
+    persistence.setPageKey?.("/alpha?a=1&b=2");
+    expect(persistence.load()?.workspace?.guides[0]?.id).toBe("alpha");
+    persistence.setPageKey?.("/beta");
+    expect(persistence.load()?.workspace?.guides[0]?.id).toBe("beta");
+
+    window.history.replaceState({}, "", original || "/");
+    window.localStorage.removeItem("workspace-pages");
+    window.localStorage.removeItem("settings-pages");
+  });
+
 });
