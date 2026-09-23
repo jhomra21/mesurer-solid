@@ -79,6 +79,8 @@ Resolve plugin-owned capabilities with `await mesurer.service<T>(serviceId)`. Th
 | `mesurer-codex` | Run the optional loopback Codex queue companion |
 | `mesurer-codex-connect` | Start or reuse the matching Codex companion and register the current Codex session |
 
+Programmatic injection reuses an existing connected instance by default. Lifecycle-owning integrations can set `recoverDisconnected: true` in `MesurerInjectConfig` to remount Mesurer when page DOM replacement disconnects its host. The option defaults to `false`, so ordinary one-shot injection does not silently reappear after disposal.
+
 ## Features
 
 - Select one or many rendered HTML or SVG elements and inspect exact geometry.
