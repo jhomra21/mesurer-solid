@@ -5,6 +5,7 @@ import type {
   LayoutGuideKind,
 } from "../core/layout-guides";
 import { layoutGuideLabel } from "../core/layout-guides";
+import { CaretDownIcon, CloseIcon, EyeIcon, EyeOffIcon, PlusIcon, TrashIcon } from "./Icons";
 
 type LayoutGuidesPanelProps = {
   guides: LayoutGuide[];
@@ -15,10 +16,10 @@ type LayoutGuidesPanelProps = {
 };
 
 const selectClass =
-  "msr:h-7 msr:w-full msr:rounded-[6px] msr:border msr:border-ink-200 msr:bg-white msr:px-2 msr:text-[11px] msr:text-ink-700 msr:outline-none msr:focus:border-[#0d99ff]";
+  "msr:h-7 msr:w-full msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-2 msr:text-[11px] msr:text-ink-700 msr:outline-none msr:focus:border-[#0d99ff]";
 
 const inputClass =
-  "msr:h-7 msr:w-full msr:min-w-0 msr:rounded-[6px] msr:border msr:border-ink-200 msr:bg-white msr:px-2 msr:font-mono msr:text-[11px] msr:tabular-nums msr:text-ink-700 msr:outline-none msr:focus:border-[#0d99ff]";
+  "msr:h-7 msr:w-full msr:min-w-0 msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-2 msr:font-mono msr:text-[11px] msr:tabular-nums msr:text-ink-700 msr:outline-none msr:focus:border-[#0d99ff]";
 
 const LAYOUT_GUIDE_ALIGNS: readonly LayoutGuideAlign[] = ["stretch", "min", "center", "max"];
 
@@ -38,7 +39,7 @@ const IconButton = (props: {
     type="button"
     aria-label={props.label}
     aria-pressed={props.pressed === undefined ? undefined : props.pressed ? "true" : "false"}
-    class="msr:flex msr:size-7 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[6px] msr:border-0 msr:bg-transparent msr:text-ink-500 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900"
+    class="msr:flex msr:size-7 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[5px] msr:border-0 msr:bg-transparent msr:text-ink-500 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900"
     onClick={props.onClick}
   >
     {props.children}
@@ -96,7 +97,7 @@ const LayoutGuideEditor = (props: {
         <strong class="msr:text-[11px] msr:font-semibold msr:text-ink-700">
           {layoutGuideLabel(props.guide)}
         </strong>
-        <IconButton label="Back to layout guides" onClick={props.onBack}>×</IconButton>
+        <IconButton label="Back to layout guides" onClick={props.onBack}><CaretDownIcon size={10} class="msr:rotate-90" /></IconButton>
       </div>
 
       <Field label="Type">
@@ -137,7 +138,7 @@ const LayoutGuideEditor = (props: {
             aria-label="Layout guide color"
             type="color"
             value={props.guide.color}
-            class="msr:h-7 msr:w-9 msr:shrink-0 msr:cursor-pointer msr:rounded-[6px] msr:border msr:border-ink-200 msr:bg-transparent msr:p-0.5"
+            class="msr:h-7 msr:w-9 msr:shrink-0 msr:cursor-pointer msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-transparent msr:p-0.5"
             onPointerDown={(event) => event.stopPropagation()}
             onInput={(event) => props.onUpdate({ color: event.currentTarget.value })}
           />
@@ -232,7 +233,7 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
       data-mesurer-layout-guides-panel="true"
       role="dialog"
       aria-label="Layout guides"
-      class="mesurer-menu-surface msr:pointer-events-auto msr:flex msr:max-h-[min(480px,calc(100vh-16px))] msr:w-[280px] msr:flex-col msr:overflow-hidden msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:text-ink-700 msr:shadow-lg"
+      class="mesurer-menu-surface msr:pointer-events-auto msr:flex msr:max-h-[min(480px,calc(100vh-16px))] msr:w-[280px] msr:flex-col msr:overflow-hidden msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:text-ink-700"
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
@@ -243,8 +244,8 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
             <div class="msr:flex msr:h-10 msr:shrink-0 msr:items-center msr:justify-between msr:border-b msr:border-ink-100 msr:px-3">
               <strong class="msr:text-[11px] msr:font-semibold">Layout guides</strong>
               <div class="msr:flex msr:items-center msr:gap-0.5">
-                <IconButton label="Add layout guide" onClick={props.onAdd}>+</IconButton>
-                <IconButton label="Close layout guides" onClick={props.onClose}>×</IconButton>
+                <IconButton label="Add layout guide" onClick={props.onAdd}><PlusIcon size={12} /></IconButton>
+                <IconButton label="Close layout guides" onClick={props.onClose}><CloseIcon size={12} /></IconButton>
               </div>
             </div>
 
@@ -261,7 +262,7 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
                   <li class="msr:flex msr:items-center msr:gap-0.5">
                     <button
                       type="button"
-                      class="msr:flex msr:min-w-0 msr:flex-1 msr:items-center msr:gap-2 msr:rounded-[6px] msr:border-0 msr:bg-transparent msr:px-2 msr:py-1.5 msr:text-left msr:text-[11px] msr:text-ink-700 msr:outline-none msr:hover:bg-ink-100"
+                      class="msr:flex msr:min-w-0 msr:flex-1 msr:items-center msr:gap-2 msr:rounded-[5px] msr:border-0 msr:bg-transparent msr:px-2 msr:py-1.5 msr:text-left msr:text-[11px] msr:text-ink-700 msr:outline-none msr:hover:bg-ink-100"
                       onClick={() => setEditingId(guide.id)}
                     >
                       <span
@@ -276,13 +277,13 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
                       pressed={guide.visible}
                       onClick={() => props.onUpdate(guide.id, { visible: !guide.visible })}
                     >
-                      {guide.visible ? "◉" : "○"}
+                      {guide.visible ? <EyeIcon size={14} /> : <EyeOffIcon size={14} />}
                     </IconButton>
                     <IconButton
                       label={`Remove ${layoutGuideLabel(guide)}`}
                       onClick={() => props.onRemove(guide.id)}
                     >
-                      −
+                      <TrashIcon size={14} />
                     </IconButton>
                   </li>
                 )}</For>
