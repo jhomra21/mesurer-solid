@@ -60,6 +60,8 @@ The screenshot plugin is not a replacement for the browser controller's task scr
 
 Injection must not replace a connected Mesurer instance by default. Existing selection, annotations, measurements, guides, Arrange/text intent, and screenshot UI may be part of the user's message.
 
+A controller that owns a long-lived injected session may set `recoverDisconnected: true` in `MesurerInjectConfig`. Mesurer then remounts if page DOM replacement disconnects the injected host. The default remains `false`, and an owning controller must disable recovery before an intentional disposal.
+
 The exact intent-inventory and stale-target rules are maintained in [Agent Integration](../packages/mesurer/AGENT_INTEGRATION.md).
 
 ## Repository browser adapter
