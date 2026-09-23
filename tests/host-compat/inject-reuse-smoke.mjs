@@ -174,10 +174,80 @@ try {
     throw new Error(`reuseExisting:false did not deliberately replace the injected instance: ${JSON.stringify(replaced)}`);
   }
 
+  await page.evaluate(() => {
+    window.__MESURER_CONFIG__ = {
+      reuseExisting: false,
+      recoverDisconnected: true,
+    };
+  });
+  await page.evaluate(injectSource);
+  await page.evaluate(() => window.__MESURER__.ready());
+
+  const recoverySetup = await page.evaluate(async () => {
+    const instance = window.__MESURER_INSTANCE__;
+    const service = instance?.service?.("layout-guides:v1");
+
+    if (!instance?.element?.isConnected || !service) {
+      throw new Error("Expected a connected injected instance with Layout Guides.");
+    }
+
+    await service.clear();
+    const guide = await service.add({ kind: "columns", count: 7, gutter: 18 });
+
+    window.__MESURER_RECOVERY_BEFORE_ELEMENT__ = instance.element;
+    instance.element.remove();
+
+    return {
+      guideId: guide.id,
+      count: guide.count,
+    };
+  });
+
+  await page.waitForFunction(() => {
+    const current = window.__MESURER_INSTANCE__?.element;
+
+    return Boolean(
+      current?.isConnected
+      && current !== window.__MESURER_RECOVERY_BEFORE_ELEMENT__,
+    );
+  });
+  await page.evaluate(() => window.__MESURER__.ready());
+
+  const recovered = await page.evaluate(() => {
+    const instance = window.__MESURER_INSTANCE__;
+    const service = instance?.service?.("layout-guides:v1");
+    const guides = service?.list?.() ?? [];
+
+    return {
+      connected: Boolean(instance?.element?.isConnected),
+      sameElement: instance?.element === window.__MESURER_RECOVERY_BEFORE_ELEMENT__,
+      islandCount: document.querySelectorAll("[data-mesurer-island='true']").length,
+      guides: guides.map((guide) => ({
+        id: guide.id,
+        kind: guide.kind,
+        count: guide.count,
+        gutter: guide.gutter,
+      })),
+    };
+  });
+
+  if (
+    !recovered.connected
+    || recovered.sameElement
+    || recovered.islandCount !== 1
+    || recovered.guides.length !== 1
+    || recovered.guides[0]?.id !== recoverySetup.guideId
+    || recovered.guides[0]?.kind !== "columns"
+    || recovered.guides[0]?.count !== 7
+    || recovered.guides[0]?.gutter !== 18
+  ) {
+    throw new Error(`Disconnected injection did not restore route-owned state: ${JSON.stringify({ recoverySetup, recovered })}`);
+  }
+
   if (pageErrors.length) throw new Error(`Page errors: ${pageErrors.join("\n")}`);
 
   if (consoleErrors.length) throw new Error(`Console errors: ${consoleErrors.join("\n")}`);
-  console.log("Default first-party capabilities, Context-returning selection, text-edit capability, and human-state-safe injection: PASS");
+  console.log("Default capabilities, Context selection, human-state-safe reinjection, and disconnected-host recovery: PASS");
 } finally {
   await browser.close();
 }
