@@ -37,7 +37,7 @@ All public plugin factories come from `mesurer-solid/plugins`.
 | --- | --- | --- | --- |
 | Context | `context()` | `MesurerContextService` | [Context](./CONTEXT_WORKFLOW.md) |
 | Arrange | `arrange()` | `MesurerArrangeService` | [Arrange](./ARRANGE.md) |
-| Layout Guides | `layoutGuides()` | `MesurerLayoutGuidesService` | This page |
+| Layout Guides | `layoutGuides()` | `MesurerLayoutGuidesService` | [Layout Guides](./LAYOUT_GUIDES.md) |
 | Screenshot | `screenshot()` | `MesurerScreenshotService` | [Screenshots](./SCREENSHOTS.md) |
 | Codex | `codex()` | `MesurerCodexService` | [Queue Context feedback to Codex](./CODEX.md) |
 
