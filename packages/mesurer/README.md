@@ -191,7 +191,7 @@ See [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/
 - [Capabilities](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CAPABILITIES.md)
 - [Getting started](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md)
 - [Direct text editing and Typography](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TEXT_EDITING.md)
-- [Arrange](https://github.com/jhomra21/mesurer-solid/blob/main/docs/ARRANGE.md)
+- [Arrange](https://github.com/jhomra21/mesurer-solid/blob/main/docs/ARRANGE.md) and [Layout Guides](https://github.com/jhomra21/mesurer-solid/blob/main/docs/LAYOUT_GUIDES.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
 - [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md)
