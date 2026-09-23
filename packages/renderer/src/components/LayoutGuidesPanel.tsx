@@ -224,7 +224,7 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
       data-mesurer-layout-guides-panel="true"
       role="dialog"
       aria-label="Layout guides"
-      class="mesurer-menu-surface msr:flex msr:max-h-[min(480px,calc(100vh-16px))] msr:w-[280px] msr:flex-col msr:overflow-hidden msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:text-ink-700 msr:shadow-lg"
+      class="mesurer-menu-surface msr:pointer-events-auto msr:flex msr:max-h-[min(480px,calc(100vh-16px))] msr:w-[280px] msr:flex-col msr:overflow-hidden msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:text-ink-700 msr:shadow-lg"
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
