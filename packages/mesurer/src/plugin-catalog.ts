@@ -2,6 +2,7 @@ import type { MesurerPlugin } from "./core";
 import { arrange, MESURER_ARRANGE_PLUGIN_ID } from "./arrange";
 import { codex, MESURER_CODEX_PLUGIN_ID } from "./codex-plugin";
 import { context, MESURER_CONTEXT_PLUGIN_ID } from "./context-plugin";
+import { layoutGuides, MESURER_LAYOUT_GUIDES_PLUGIN_ID } from "./layout-guides";
 import { screenshot, MESURER_SCREENSHOT_PLUGIN_ID } from "./screenshot";
 
 type MesurerPluginRegistryEntry = {
@@ -45,6 +46,12 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
     order: 35,
     create: arrange,
     settingsIds: ["arrange"],
+  },
+  {
+    id: MESURER_LAYOUT_GUIDES_PLUGIN_ID,
+    label: "Layout Guides",
+    order: 38,
+    create: layoutGuides,
   },
   {
     id: MESURER_SCREENSHOT_PLUGIN_ID,
