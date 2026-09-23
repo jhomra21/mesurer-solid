@@ -14,11 +14,13 @@ const pack = (align: LayoutGuide["align"]) =>
 const axisStyle = (guide: LayoutGuide) => {
   const columns = guide.kind === "columns";
   const stretch = guide.align === "stretch";
+
   const template = stretch
     ? `repeat(${guide.count}, minmax(0, 1fr))`
     : `repeat(${guide.count}, ${guide.size}px)`;
 
   const packed = pack(guide.align);
+
   const base = {
     position: "absolute",
     inset: "0",
