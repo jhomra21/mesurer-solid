@@ -49,6 +49,8 @@ export type MesurerPersistence = {
   saveWorkspace: (workspace: MesurerStoredWorkspace) => void;
   clearWorkspace: () => void;
   clearSettings: () => void;
+  /** Optional route scope hook. Default persistence keeps page-owned workspace data isolated by this key. */
+  setPageKey?: (pageKey: string) => void;
   subscribe?: (listener: (snapshot: MesurerPersistenceSnapshot | null, source?: PersistenceChangeSource) => void) => () => void;
   setErrorHandler?: (handler: ((cause: unknown) => void) | undefined) => void;
 };
@@ -276,6 +278,7 @@ export const createLocalStoragePersistence = (
   legacyKey?: string,
 ): MesurerPersistence => {
   let errorHandler: ((cause: unknown) => void) | undefined;
+  let pageKey = getMesurerPageKey(ownerWindow);
 
   const readValue = (key: string): PersistedValue | null => {
     try {
@@ -314,7 +317,6 @@ export const createLocalStoragePersistence = (
   };
 
   const read = (): MesurerPersistenceSnapshot | null => {
-    const pageKey = getMesurerPageKey(ownerWindow);
     const legacy = legacyKey ? readRecord(legacyKey) : null;
     const settingsPaged = settingsKey === workspaceKey ? readPaged(workspaceKey) : null;
     const settingsRecord = settingsKey === workspaceKey ? null : readRecord(settingsKey);
@@ -337,7 +339,6 @@ export const createLocalStoragePersistence = (
     workspace?: MesurerStoredWorkspace | null;
     clearWorkspace?: boolean;
   }) => {
-    const pageKey = getMesurerPageKey(ownerWindow);
     const current = readPaged(workspaceKey);
     const legacy = current ? null : readRecord(workspaceKey);
     const pages = { ...(current?.pages ?? {}) };
@@ -351,17 +352,20 @@ export const createLocalStoragePersistence = (
       else delete pages[pageKey];
     }
 
-    writeValue(workspaceKey, {
+    const record: PersistedRecord = {
       format: PAGED_WORKSPACE_FORMAT,
-      settings: (options.settings ?? (
-        settingsKey === workspaceKey
-          ? current?.settings
-            ? normalizeStoredSettings(current.settings)
-            : legacy?.settings ?? {}
-          : undefined
-      )) as PersistedValue | undefined,
       pages,
-    });
+    };
+    const settings = options.settings ?? (
+      settingsKey === workspaceKey
+        ? current?.settings
+          ? normalizeStoredSettings(current.settings)
+          : legacy?.settings ?? {}
+        : undefined
+    );
+
+    if (settings !== undefined) record.settings = settings as PersistedValue;
+    writeValue(workspaceKey, record);
   };
 
   return {
@@ -386,6 +390,7 @@ export const createLocalStoragePersistence = (
 
       writeRecord(settingsKey, { settings: {}, workspace: null });
     },
+    setPageKey: (nextPageKey) => { pageKey = nextPageKey; },
     setErrorHandler: (handler) => { errorHandler = handler; },
     subscribe: (listener) => {
       const handleStorage = (event: StorageEvent) => {
