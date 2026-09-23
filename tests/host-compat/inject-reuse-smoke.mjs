@@ -185,7 +185,7 @@ try {
 
   const recoverySetup = await page.evaluate(async () => {
     const instance = window.__MESURER_INSTANCE__;
-    const service = instance?.service?.("layout-guides:v1");
+    const service = instance ? await instance.service("layout-guides:v1") : null;
 
     if (!instance?.element?.isConnected || !service) {
       throw new Error("Expected a connected injected instance with Layout Guides.");
@@ -213,9 +213,9 @@ try {
   });
   await page.evaluate(() => window.__MESURER__.ready());
 
-  const recovered = await page.evaluate(() => {
+  const recovered = await page.evaluate(async () => {
     const instance = window.__MESURER_INSTANCE__;
-    const service = instance?.service?.("layout-guides:v1");
+    const service = instance ? await instance.service("layout-guides:v1") : null;
     const guides = service?.list?.() ?? [];
 
     return {
