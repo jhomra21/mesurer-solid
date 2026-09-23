@@ -65,7 +65,11 @@ type LayoutGuidesState = {
 
 type PluginRecord = { [key: string]: PluginValue };
 
-const emptyState = () => ({ pages: {} }) satisfies LayoutGuidesState;
+const emptyState = () => {
+  const state: LayoutGuidesState = { pages: {} };
+
+  return state;
+};
 
 const isPluginRecord = (
   value: PluginValue | undefined,
@@ -331,7 +335,10 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     rendererRoot.prepend(overlayMount);
 
     const disposeOverlay = render(
-      () => <LayoutGuidesOverlay guides={(revision(), list())} />,
+      () => {
+        // SAFETY: solid-dom's universal renderer accepts compiled Solid JSX; its Node generic cannot express JSX.Element's nullable union.
+        return <LayoutGuidesOverlay guides={(revision(), list())} /> as Node;
+      },
       overlayMount,
     );
 
@@ -390,14 +397,17 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     };
 
     const disposePanel = render(
-      () => (
-        <LayoutGuidesPanel
-          guides={(revision(), list())}
-          onAdd={() => { void service.add().catch(() => undefined); }}
-          onUpdate={(id, patch) => { void service.update(id, patch).catch(() => undefined); }}
-          onRemove={(id) => { void service.remove(id).catch(() => undefined); }}
-        />
-      ),
+      () => {
+        // SAFETY: solid-dom's universal renderer accepts compiled Solid JSX; its Node generic cannot express JSX.Element's nullable union.
+        return (
+          <LayoutGuidesPanel
+            guides={(revision(), list())}
+            onAdd={() => { void service.add().catch(() => undefined); }}
+            onUpdate={(id, patch) => { void service.update(id, patch).catch(() => undefined); }}
+            onRemove={(id) => { void service.remove(id).catch(() => undefined); }}
+          />
+        ) as Node;
+      },
       panelMount.element,
     );
 
