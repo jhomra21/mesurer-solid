@@ -53,6 +53,25 @@ export {
 export type { MesurerBuiltinPluginId } from "./plugins/builtins";
 
 export {
+  MESURER_LAYOUT_GUIDES_ACTIVE_STATE_ID,
+  MESURER_LAYOUT_GUIDES_PLUGIN_ID,
+  MESURER_LAYOUT_GUIDES_SERVICE_ID,
+  MESURER_LAYOUT_GUIDES_STATE_ID,
+  layoutGuidesPlugin,
+} from "./plugins/layout-guides";
+
+export type {
+  MesurerLayoutGuidesService,
+} from "./plugins/layout-guides";
+
+export type {
+  LayoutGuide,
+  LayoutGuideAlign,
+  LayoutGuideInput,
+  LayoutGuideKind,
+} from "./core/layout-guides";
+
+export {
   MESURER_ARRANGE_ACTIVE_STATE_ID,
   MESURER_ARRANGE_PLUGIN_ID,
   MESURER_ARRANGE_SERVICE_ID,
