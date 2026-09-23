@@ -58,6 +58,7 @@ const setup = async () => {
 describe("layoutGuidesPlugin", () => {
   it("routes mutations through history-aware commands", async () => {
     const { host, service } = await setup();
+
     const guide = await service.add({
       kind: "columns",
       count: 6,
