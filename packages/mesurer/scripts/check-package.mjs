@@ -255,8 +255,15 @@ for (const codexMember of ["queue(", "send(", "delivery(", "listThreads", "useTh
   }
 }
 
-for (const member of ["list(): LayoutGuide[]", "add(", "update(", "remove(", "clear()", "subscribe("]) {
-  if (!pluginDeclarations.includes(member)) {
+for (const [member, pattern] of [
+  ["list()", /\blist\s*\(\s*\)\s*:\s*LayoutGuide\[\]/],
+  ["add()", /\badd\s*\(/],
+  ["update()", /\bupdate\s*\(/],
+  ["remove()", /\bremove\s*\(/],
+  ["clear()", /\bclear\s*\(\s*\)/],
+  ["subscribe()", /\bsubscribe\s*\(/],
+]) {
+  if (!pattern.test(publishedDeclarations)) {
     throw new Error(`Published MesurerLayoutGuidesService is missing ${member}.`);
   }
 }
