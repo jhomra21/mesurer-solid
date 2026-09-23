@@ -40,7 +40,9 @@ export const normalizeLayoutGuide = (
   const align = input.align && ALIGNS.has(input.align)
     ? input.align
     : kind === "grid" ? "min" : "stretch";
+
   const id = input.id?.trim();
+
   const color = input.color?.trim();
 
   return {
