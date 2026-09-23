@@ -53,13 +53,14 @@ All first-party plugin factories live at `mesurer-solid/plugins` and use the plu
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { arrange, context, screenshot } from "mesurer-solid/plugins"
+import { arrange, context, layoutGuides, screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
   plugins: [
     context(),
     arrange(),
+    layoutGuides(),
     screenshot(),
   ],
 })
@@ -72,6 +73,7 @@ The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typograp
 - **Select.** Inspect one or more rendered HTML or SVG elements.
 - **Distance.** Measure spacing and geometry, including pairwise multi-selection spacing.
 - **X-ray, Guides, and Rulers.** Inspect page structure and alignment.
+- **Layout Guides.** Add page-scoped columns, rows, or a pixel grid through the optional `layoutGuides()` plugin. Layout Guide mutations participate in plugin history and visible guides are included in Context.
 - **Typography.** Inspect rendered type and preview reversible copy and typography changes.
 - **Arrange.** Drag selected UI into a Desired layout without writing application source.
 - **Screenshots.** Capture a dragged visible-tab region with the optional Screenshot plugin.
@@ -86,6 +88,8 @@ Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a 
 Toolbar dragging starts only after the pointer crosses the drag threshold. A drag from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders stays with those controls.
 
 Select, point inspection, Context, and annotations accept rendered HTML and SVG elements. Arrange and direct text editing only mutate HTML elements.
+
+Page-owned workspace evidence is scoped by the current route, including sorted query parameters. Navigating within one tab swaps the relevant page workspace instead of carrying guides and selections to another route. The toolbar keeps its tab-session position across those route changes and reloads.
 
 ## Appearance
 
@@ -110,6 +114,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `R` | Rulers |
 | `A` | Typography |
 | `G` | Guides |
+| `L` | Layout Guides when the plugin is enabled |
 | `H` / `V` | Horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
 | `Cmd/Ctrl + ,` | Settings |
@@ -204,6 +209,7 @@ Start with the [documentation index](./docs/README.md).
 - [Getting started](./docs/GETTING_STARTED.md)
 - [Direct text editing and Typography](./docs/TEXT_EDITING.md)
 - [Arrange](./docs/ARRANGE.md)
+- [Layout Guides](./docs/LAYOUT_GUIDES.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
 - [Context workflow](./docs/CONTEXT_WORKFLOW.md)
 - [Queue Context feedback to Codex](./docs/CODEX.md)
@@ -221,7 +227,7 @@ Contributor setup, validation expectations, and repository ownership are documen
 
 ## Upstream
 
-Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@c20ad51ef68d5a78fa0c965fe8fcb1124d58a699`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@d47fd6056a01da9c442ae04840ec4d0dd46a1257`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 

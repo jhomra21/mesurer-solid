@@ -1,5 +1,6 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
 import type { ColorPickerFormat } from "./colors";
+import { getMesurerPageKey } from "../runtime/page-location";
 import type { DistanceOverlay, Guide, Measurement, Rect, ToolMode } from "./types";
 
 export const MESURER_STORAGE_VERSION = 2;
@@ -48,6 +49,8 @@ export type MesurerPersistence = {
   saveWorkspace: (workspace: MesurerStoredWorkspace) => void;
   clearWorkspace: () => void;
   clearSettings: () => void;
+  /** Optional route scope hook. Default persistence keeps page-owned workspace data isolated by this key. */
+  setPageKey?: (pageKey: string) => void;
   subscribe?: (listener: (snapshot: MesurerPersistenceSnapshot | null, source?: PersistenceChangeSource) => void) => () => void;
   setErrorHandler?: (handler: ((cause: unknown) => void) | undefined) => void;
 };
@@ -245,14 +248,55 @@ const parseStoredValue = (raw: string): PersistedValue => {
   return JSON.parse(raw) as PersistedValue;
 };
 
-export const createLocalStoragePersistence = (ownerWindow: Window, workspaceKey: string, settingsKey = workspaceKey, legacyKey?: string): MesurerPersistence => {
-  let errorHandler: ((cause: unknown) => void) | undefined;
+const PAGED_WORKSPACE_FORMAT = "mesurer.pages/v1";
 
-  const readRecord = (key: string): MesurerPersistenceSnapshot | null => {
+type PagedWorkspaceRecord = {
+  format: typeof PAGED_WORKSPACE_FORMAT;
+  settings: MesurerStoredSettings;
+  pages: Record<string, MesurerStoredWorkspace>;
+};
+
+type StoredPersistenceRecord = {
+  version: number;
+  settings: MesurerStoredSettings;
+  workspace: MesurerStoredWorkspace | null;
+};
+
+const normalizePagedWorkspaceRecord = (
+  value: PersistedValue | undefined,
+): PagedWorkspaceRecord | null => {
+  if (!isPersistedValueRecord(value) || value.format !== PAGED_WORKSPACE_FORMAT) return null;
+
+  if (!isPersistedValueRecord(value.pages)) return null;
+  const pages: Record<string, MesurerStoredWorkspace> = {};
+
+  for (const [key, page] of Object.entries(value.pages)) {
+    const workspace = normalizeStoredWorkspace(page);
+
+    if (workspace) pages[key] = workspace;
+  }
+
+  return {
+    format: PAGED_WORKSPACE_FORMAT,
+    settings: normalizeStoredSettings(value.settings),
+    pages,
+  };
+};
+
+export const createLocalStoragePersistence = (
+  ownerWindow: Window,
+  workspaceKey: string,
+  settingsKey = workspaceKey,
+  legacyKey?: string,
+): MesurerPersistence => {
+  let errorHandler: ((cause: unknown) => void) | undefined;
+  let pageKey = getMesurerPageKey(ownerWindow);
+
+  const readValue = (key: string): PersistedValue | null => {
     try {
       const raw = ownerWindow.localStorage.getItem(key);
 
-      return raw ? migrate(parseStoredValue(raw)) : null;
+      return raw ? parseStoredValue(raw) : null;
     } catch (cause) {
       errorHandler?.(cause);
 
@@ -260,45 +304,121 @@ export const createLocalStoragePersistence = (ownerWindow: Window, workspaceKey:
     }
   };
 
-  const read = () => {
-    const legacy = legacyKey ? readRecord(legacyKey) : null;
-    const settingsRecord = readRecord(settingsKey);
-    const workspaceRecord = readRecord(workspaceKey);
+  const readRecord = (key: string): MesurerPersistenceSnapshot | null => {
+    const value = readValue(key);
 
-    if (!settingsRecord && !workspaceRecord && !legacy) return null;
-
-    return {
-      settings: settingsRecord?.settings ?? legacy?.settings ?? {},
-      workspace: workspaceRecord?.workspace ?? legacy?.workspace ?? null,
-    };
+    return value ? migrate(value) : null;
   };
 
-  const writeRecord = (key: string, snapshotValue: MesurerPersistenceSnapshot) => {
+  const readPaged = (key: string) =>
+    normalizePagedWorkspaceRecord(readValue(key) ?? undefined);
+
+  const writeJson = (
+    key: string,
+    value: StoredPersistenceRecord | PagedWorkspaceRecord,
+  ) => {
     try {
-      ownerWindow.localStorage.setItem(key, JSON.stringify({ version: MESURER_STORAGE_VERSION, ...snapshotValue }));
+      ownerWindow.localStorage.setItem(key, JSON.stringify(value));
     } catch (cause) {
       errorHandler?.(cause);
     }
   };
 
+  const writeRecord = (key: string, snapshotValue: MesurerPersistenceSnapshot) => {
+    writeJson(key, {
+      version: MESURER_STORAGE_VERSION,
+      settings: snapshotValue.settings,
+      workspace: snapshotValue.workspace,
+    });
+  };
+
+  const read = (): MesurerPersistenceSnapshot | null => {
+    const legacy = legacyKey ? readRecord(legacyKey) : null;
+    const settingsPaged = settingsKey === workspaceKey ? readPaged(workspaceKey) : null;
+    const settingsRecord = settingsKey === workspaceKey ? null : readRecord(settingsKey);
+    const workspacePaged = readPaged(workspaceKey);
+    const workspaceRecord = workspacePaged ? null : readRecord(workspaceKey);
+
+    const workspace = workspacePaged?.pages[pageKey]
+      ?? workspaceRecord?.workspace
+      ?? legacy?.workspace
+      ?? null;
+
+    const settings = settingsPaged?.settings
+      ?? settingsRecord?.settings
+      ?? legacy?.settings
+      ?? {};
+
+    if (!settingsPaged && !settingsRecord && !workspacePaged && !workspaceRecord && !legacy) return null;
+
+    return { settings, workspace };
+  };
+
+  const writePaged = (options: {
+    settings?: MesurerStoredSettings;
+    workspace?: MesurerStoredWorkspace | null;
+    clearWorkspace?: boolean;
+  }) => {
+    const current = readPaged(workspaceKey);
+    const legacy = current ? null : readRecord(workspaceKey);
+
+    const pages: Record<string, MesurerStoredWorkspace> = current
+      ? { ...current.pages }
+      : {};
+
+    if (!current && legacy?.workspace) pages[pageKey] = legacy.workspace;
+
+    if (options.clearWorkspace) {
+      delete pages[pageKey];
+    } else if (options.workspace !== undefined) {
+      if (options.workspace) pages[pageKey] = options.workspace;
+      else delete pages[pageKey];
+    }
+
+    const settings = options.settings
+      ?? (settingsKey === workspaceKey
+        ? current?.settings ?? legacy?.settings ?? {}
+        : {});
+
+    writeJson(workspaceKey, {
+      format: PAGED_WORKSPACE_FORMAT,
+      settings,
+      pages,
+    });
+  };
+
   return {
     load: read,
-    saveSettings: (settings) => settingsKey === workspaceKey
-      ? writeRecord(workspaceKey, { settings, workspace: read()?.workspace ?? null })
-      : writeRecord(settingsKey, { settings, workspace: null }),
-    saveWorkspace: (workspace) => settingsKey === workspaceKey
-      ? writeRecord(workspaceKey, { settings: read()?.settings ?? {}, workspace })
-      : writeRecord(workspaceKey, { settings: {}, workspace }),
-    clearWorkspace: () => settingsKey === workspaceKey
-      ? writeRecord(workspaceKey, { settings: read()?.settings ?? {}, workspace: null })
-      : writeRecord(workspaceKey, { settings: {}, workspace: null }),
-    clearSettings: () => settingsKey === workspaceKey
-      ? writeRecord(workspaceKey, { settings: {}, workspace: read()?.workspace ?? null })
-      : writeRecord(settingsKey, { settings: {}, workspace: null }),
-    setErrorHandler: (handler) => { errorHandler = handler; },
+    saveSettings: (settings) => {
+      if (settingsKey === workspaceKey) {
+        writePaged({ settings });
+
+        return;
+      }
+
+      writeRecord(settingsKey, { settings, workspace: null });
+    },
+    saveWorkspace: (workspace) => writePaged({ workspace }),
+    clearWorkspace: () => writePaged({ clearWorkspace: true }),
+    clearSettings: () => {
+      if (settingsKey === workspaceKey) {
+        writePaged({ settings: {} });
+
+        return;
+      }
+
+      writeRecord(settingsKey, { settings: {}, workspace: null });
+    },
+    setPageKey: (nextPageKey) => {
+      pageKey = nextPageKey;
+    },
+    setErrorHandler: (handler) => {
+      errorHandler = handler;
+    },
     subscribe: (listener) => {
       const handleStorage = (event: StorageEvent) => {
         if (event.key !== settingsKey && event.key !== workspaceKey && event.key !== legacyKey) return;
+
         listener(read(), {
           settings: event.key === settingsKey || event.key === legacyKey || settingsKey === workspaceKey,
           workspace: event.key === workspaceKey || event.key === legacyKey || settingsKey === workspaceKey,

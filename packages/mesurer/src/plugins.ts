@@ -13,6 +13,7 @@ import {
 import { arrange } from "./arrange";
 import { codex } from "./codex-plugin";
 import { context } from "./context-plugin";
+import { layoutGuides } from "./layout-guides";
 import type { MesurerPlugin } from "./core";
 import { screenshot } from "./screenshot";
 import { MESURER_VERSION } from "./version";
@@ -47,7 +48,7 @@ export const compose = (
   plugin.id.startsWith("mesurer.") ? withPackageVersion(plugin) : plugin,
 );
 
-export { arrange, codex, context, screenshot };
+export { arrange, codex, context, layoutGuides, screenshot };
 
 export {
   MESURER_ARRANGE_ACTIVE_STATE_ID,
@@ -101,6 +102,21 @@ export type {
   MesurerContextPluginOptions,
   MesurerContextService,
 } from "./context-plugin";
+
+export {
+  MESURER_LAYOUT_GUIDES_ACTIVE_STATE_ID,
+  MESURER_LAYOUT_GUIDES_PLUGIN_ID,
+  MESURER_LAYOUT_GUIDES_SERVICE_ID,
+  MESURER_LAYOUT_GUIDES_STATE_ID,
+} from "./layout-guides";
+
+export type {
+  LayoutGuide,
+  LayoutGuideAlign,
+  LayoutGuideInput,
+  LayoutGuideKind,
+  MesurerLayoutGuidesService,
+} from "./layout-guides";
 
 export {
   MESURER_SCREENSHOT_ACTIVE_STATE_ID,

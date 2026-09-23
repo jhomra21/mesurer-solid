@@ -11,11 +11,15 @@ on:
       - "packages/renderer/src/components/ContextActions.tsx"
       - "packages/renderer/src/components/DistanceOverlayItem.tsx"
       - "packages/renderer/src/components/MeasurementBox.tsx"
+      - "packages/renderer/src/components/LayoutGuidesOverlay.tsx"
+      - "packages/renderer/src/components/LayoutGuidesPanel.tsx"
       - "packages/renderer/src/components/MesurerOverlay.tsx"
       - "packages/renderer/src/components/SettingsPanel.tsx"
       - "packages/renderer/src/components/SettingsPanelCore.tsx"
       - "packages/renderer/src/components/Toolbar.tsx"
       - "packages/renderer/src/core/distances.ts"
+      - "packages/renderer/src/core/geometry.ts"
+      - "packages/renderer/src/core/layout-guides.ts"
       - "packages/renderer/src/core/persistence.ts"
       - "packages/renderer/src/core/selection-helpers.ts"
       - "packages/renderer/src/core/selection.ts"
@@ -24,6 +28,7 @@ on:
       - "packages/renderer/src/model/create-mesurer-model.ts"
       - "packages/renderer/src/plugins/arrange-core.ts"
       - "packages/renderer/src/plugins/arrange.ts"
+      - "packages/renderer/src/plugins/layout-guides.tsx"
       - "packages/renderer/src/plugins/settings-runtime.tsx"
       - "packages/renderer/src/plugins/screenshot.ts"
       - "packages/renderer/src/runtime/builtin-actions.ts"
@@ -32,12 +37,16 @@ on:
       - "packages/renderer/src/runtime/document-scroll-anchoring.ts"
       - "packages/renderer/src/runtime/isolated-document-portal.ts"
       - "packages/renderer/src/runtime/nested-scroll-compensation.ts"
+      - "packages/renderer/src/runtime/page-location.ts"
       - "packages/renderer/src/runtime/presentation-preferences.ts"
       - "packages/renderer/src/runtime/text-editing/**"
       - "packages/renderer/src/runtime/typography/**"
       - "packages/renderer/src/styles.css"
       - "packages/renderer/test/arrange-plugin.test.ts"
       - "packages/renderer/test/distances.test.ts"
+      - "packages/renderer/test/distance-geometry.test.ts"
+      - "packages/renderer/test/layout-guides-plugin.test.tsx"
+      - "packages/renderer/test/persistence.test.ts"
       - "packages/renderer/test/measurement-box-scroll.test.tsx"
       - "packages/renderer/test/text-editing.test.ts"
       - "packages/mesurer/src/context-plugin.tsx"
@@ -48,6 +57,8 @@ on:
       - "examples/basic/multi-spacing.html"
       - "examples/basic/src/multi-spacing.ts"
       - "examples/basic/plugin-settings.html"
+      - "examples/basic/layout-guides.html"
+      - "examples/basic/src/layout-guides-contract.ts"
       - "examples/basic/src/plugin-settings.ts"
       - "examples/basic/selection-hit-testing.html"
       - "examples/basic/src/selection-hit-testing.ts"
@@ -67,6 +78,7 @@ on:
       - "tests/visual-parity/self-hosting-context.mjs"
       - "tests/visual-parity/multi-spacing.mjs"
       - "tests/visual-parity/plugin-settings-contract.mjs"
+      - "tests/visual-parity/layout-guides-contract.mjs"
       - ".github/workflows/browser-contracts.yml"
   workflow_dispatch:
 
@@ -95,7 +107,7 @@ jobs:
         run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
 
       - name: Run rendered-contract unit tests
-        run: bun run --filter '@jhomra21/mesurer-solid-renderer' test -- distances.test.ts measurement-box-scroll.test.tsx text-editing.test.ts
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' test -- distances.test.ts distance-geometry.test.ts layout-guides-plugin.test.tsx persistence.test.ts measurement-box-scroll.test.tsx text-editing.test.ts
 
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
@@ -109,7 +121,7 @@ jobs:
             echo $! > ../../browser-contracts-vite.pid
           )
 
-          for path in index.html self-hosting.html multi-spacing.html plugin-settings.html selection-hit-testing.html; do
+          for path in index.html self-hosting.html multi-spacing.html plugin-settings.html selection-hit-testing.html layout-guides.html; do
             ready=0
             for attempt in $(seq 1 45); do
               if curl --fail --silent --show-error "http://127.0.0.1:4174/${path}" >/dev/null; then
@@ -214,6 +226,11 @@ jobs:
           PLUGIN_SETTINGS_URL: http://127.0.0.1:4174/plugin-settings.html
         run: bun tests/visual-parity/plugin-settings-contract.mjs
 
+      - name: Exercise Layout Guides and route-scoped state
+        env:
+          LAYOUT_GUIDES_URL: http://127.0.0.1:4174/layout-guides.html
+        run: bun tests/visual-parity/layout-guides-contract.mjs
+
       - name: Add rendered contract summary
         if: always()
         shell: bash
@@ -302,6 +319,13 @@ jobs:
               print(f"- Spacing overlays: **{evidence['spacingOverlayCount']}**")
           else:
               print("### Sparse multi-selection / spacing\n- Measurements were not produced.")
+
+          print("")
+          print("### Layout Guides / route state")
+          print("- First-party Layout Guides plugin UI and overlay exercised in Chromium")
+          print("- Visible Layout Guides are included in Context evidence")
+          print("- Per-route Layout Guide sets switch on in-tab navigation and survive reload")
+          print("- Toolbar position survives route changes/reload as tab-session UI state")
 
           print("")
           print("### Plugin settings")

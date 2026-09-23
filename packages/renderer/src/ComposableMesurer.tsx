@@ -449,7 +449,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       uiRoot: target,
       pageTarget,
       persistenceKey: persistenceNamespace
-        ? `${input.persistKey ?? DEFAULT_PLUGIN_STORAGE_KEY}:${persistenceNamespace}:${ownerWindow.location.origin}${ownerWindow.location.pathname}`
+        ? `${input.persistKey ?? DEFAULT_PLUGIN_STORAGE_KEY}:${persistenceNamespace}:${ownerWindow.location.origin}`
         : undefined,
     });
 

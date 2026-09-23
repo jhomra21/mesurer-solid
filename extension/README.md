@@ -19,13 +19,17 @@ In Chrome or Edge:
 3. Open an ordinary `http:` or `https:` page.
 4. Click the Mesurer extension action to inject Mesurer; click it again to dispose the instance from that tab.
 
-The extension requests `activeTab` and `scripting`, not persistent access to every site. Browser-protected pages such as `chrome://` pages cannot be injected. File URLs depend on the browser's extension file-access setting.
+The extension requests `activeTab`, `scripting`, and `storage`, not persistent access to every site. `storage` is used only for tab-session bookkeeping so an explicitly opened Mesurer tab can be restored after a reload or eligible in-tab navigation. The extension does not request broad host permissions. If navigation revokes the temporary `activeTab` grant, automatic recovery stops and another explicit action click is required.
+
+Browser-protected pages such as `chrome://` pages cannot be injected. File URLs depend on the browser's extension file-access setting.
 
 ## What it runs
 
 The extension uses the same built `inject-script` artifact as the browser harness. It does not carry a fork of Mesurer.
 
-Injection enables Context and Screenshot for the active tab. The page-mounted instance otherwise has the same toolbar, direct text editing, plugin host, compact-toolbar behavior, and `window.__MESURER__` API as other injected Mesurer instances.
+Injection enables Context and Screenshot for the active tab. The page-mounted instance otherwise has the same toolbar, direct text editing, plugin host, compact-toolbar behavior, route-scoped workspace state, and `window.__MESURER__` API as other injected Mesurer instances.
+
+When the tab remains authorized, the background worker remembers that Mesurer was explicitly opened and restores a missing injected instance after reload or eligible navigation. The injector also remounts Mesurer if the page replaces the DOM node that owns the injected UI. A live connected instance is reused rather than replaced.
 
 Arrange remains optional unless it is included by the injected configuration.
 

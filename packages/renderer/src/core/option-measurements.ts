@@ -2,6 +2,7 @@
 import { GUIDE_SNAP_DISTANCE } from "./constants";
 import { getDistanceOverlay } from "./distances";
 import { getRectFromDom } from "./dom";
+import { getPaddingBoxRect } from "./geometry";
 import { getGuideDistance, getGuideRect } from "./guides";
 import type { Guide, InspectMeasurement, OptionTarget, Point } from "./types";
 
@@ -31,6 +32,6 @@ export const getOptionContainerLines = (params: { document?: Document; window?: 
 
  if (!params.altPressed || !params.primarySelectedMeasurement || params.optionPairOverlay || params.selectedGuideIds.length) return null; let containerElement: Element | null = params.selectedElement?.parentElement ?? null;
 
- if (params.selectedElement && params.hoverElement && params.hoverElement !== params.selectedElement && params.hoverElement.contains(params.selectedElement)) containerElement = params.hoverElement; const containerRect = containerElement && containerElement !== ownerDocument.body && containerElement !== ownerDocument.documentElement ? getRectFromDom(containerElement) : { left: 0, top: 0, width: ownerWindow.innerWidth, height: ownerWindow.innerHeight }; const rect = params.primarySelectedMeasurement.rect; const right = rect.left + rect.width; const bottom = rect.top + rect.height; const centerX = rect.left + rect.width / 2; const centerY = rect.top + rect.height / 2; const containerRight = containerRect.left + containerRect.width; const containerBottom = containerRect.top + containerRect.height; const lineX = Math.max(containerRect.left, Math.min(centerX, containerRight)); const lineY = Math.max(containerRect.top, Math.min(centerY, containerBottom));
+ if (params.selectedElement && params.hoverElement && params.hoverElement !== params.selectedElement && params.hoverElement.contains(params.selectedElement)) containerElement = params.hoverElement; const containerRect = containerElement && containerElement !== ownerDocument.body && containerElement !== ownerDocument.documentElement ? getPaddingBoxRect(getRectFromDom(containerElement), containerElement, ownerWindow) : { left: 0, top: 0, width: ownerWindow.innerWidth, height: ownerWindow.innerHeight }; const rect = params.primarySelectedMeasurement.rect; const right = rect.left + rect.width; const bottom = rect.top + rect.height; const centerX = rect.left + rect.width / 2; const centerY = rect.top + rect.height / 2; const containerRight = containerRect.left + containerRect.width; const containerBottom = containerRect.top + containerRect.height; const lineX = Math.max(containerRect.left, Math.min(centerX, containerRight)); const lineY = Math.max(containerRect.top, Math.min(centerY, containerBottom));
 
  return { top: { y1: containerRect.top, y2: rect.top, x: lineX, value: Math.max(0, rect.top - containerRect.top) }, bottom: { y1: bottom, y2: containerBottom, x: lineX, value: Math.max(0, containerBottom - bottom) }, left: { x1: containerRect.left, x2: rect.left, y: lineY, value: Math.max(0, rect.left - containerRect.left) }, right: { x1: right, x2: containerRight, y: lineY, value: Math.max(0, containerRight - right) } }; };

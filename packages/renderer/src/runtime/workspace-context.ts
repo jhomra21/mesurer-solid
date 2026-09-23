@@ -23,6 +23,7 @@ import {
 } from "@jhomra21/mesurer-solid-dom";
 import { GUIDE_SNAP_DISTANCE } from "../core/constants";
 import type { MesurerModel } from "../model/create-mesurer-model";
+import { getMesurerPageKey, subscribeMesurerPageKey } from "./page-location";
 
 export type {
   MesurerAnnotation,
@@ -166,7 +167,7 @@ export function createMesurerWorkspaceRuntime(options: {
   ownerWindow: Window;
   uiRoot?: ParentNode;
   pageTarget?: HTMLElement | ShadowRoot;
-  /** Optional session-scoped key used by the owning feature to preserve annotations across reloads. */
+  /** Optional route-neutral session key prefix used to preserve annotations across reloads and page changes. */
   persistenceKey?: string;
 }): MesurerWorkspaceRuntime {
   const { model, ownerDocument, ownerWindow, uiRoot } = options;
@@ -183,7 +184,43 @@ export function createMesurerWorkspaceRuntime(options: {
     : ownerDocument;
 
   const observationRoot: Node = pageTarget;
-  const annotations = readStoredAnnotations(ownerWindow, options.persistenceKey);
+  let pageKey = getMesurerPageKey(ownerWindow);
+
+  const currentPersistenceKey = () =>
+    options.persistenceKey ? `${options.persistenceKey}:${pageKey}` : undefined;
+
+  const legacyPersistenceKey = () =>
+    options.persistenceKey ? `${options.persistenceKey}${ownerWindow.location.pathname}` : undefined;
+
+  type PageAnnotationStore = {
+    annotations: MesurerAnnotation[];
+    migrated: boolean;
+  };
+
+  const readPageAnnotations = (): PageAnnotationStore => {
+    const currentKey = currentPersistenceKey();
+
+    if (!currentKey) return { annotations: [], migrated: false };
+
+    try {
+      if (ownerWindow.sessionStorage.getItem(currentKey) !== null) {
+        return { annotations: readStoredAnnotations(ownerWindow, currentKey), migrated: false };
+      }
+    } catch {
+      return { annotations: [], migrated: false };
+    }
+
+    const legacyKey = legacyPersistenceKey();
+
+    if (!legacyKey) return { annotations: [], migrated: false };
+    const legacy = readStoredAnnotations(ownerWindow, legacyKey);
+
+    return { annotations: legacy, migrated: legacy.length > 0 };
+  };
+
+  const initialAnnotations = readPageAnnotations();
+  const annotations = initialAnnotations.annotations;
+  let shouldMigrateLegacyAnnotations = initialAnnotations.migrated;
   const listeners = new Set<() => void>();
   const hidden = new Map<HTMLElement, InlineDisplayState>();
   const liveTargets = new Map<string, Element>();
@@ -213,7 +250,7 @@ export function createMesurerWorkspaceRuntime(options: {
   };
 
   const persistAnnotations = () => {
-    const key = options.persistenceKey;
+    const key = currentPersistenceKey();
 
     if (!key) return;
 
@@ -232,6 +269,11 @@ export function createMesurerWorkspaceRuntime(options: {
       // Persistence is best-effort. Live annotation state remains authoritative.
     }
   };
+
+  if (shouldMigrateLegacyAnnotations) {
+    persistAnnotations();
+    shouldMigrateLegacyAnnotations = false;
+  }
 
   const notify = () => {
     for (const listener of listeners) listener();
@@ -361,6 +403,27 @@ export function createMesurerWorkspaceRuntime(options: {
     refreshAnnotations();
     startWatching();
   }
+
+  const unsubscribePageKey = subscribeMesurerPageKey(ownerWindow, (nextPageKey) => {
+    if (nextPageKey === pageKey || disposed) return;
+    persistAnnotations();
+    stopWatching();
+    liveTargets.clear();
+    targetResolution.clear();
+    pageKey = nextPageKey;
+    annotations.length = 0;
+    const stored = readPageAnnotations();
+    annotations.push(...stored.annotations);
+
+    if (stored.migrated) persistAnnotations();
+
+    if (annotations.length > 0) {
+      refreshAnnotations();
+      startWatching();
+    }
+
+    notify();
+  });
 
   const modelUnsubscribe = model.subscribe(notify);
 
@@ -648,6 +711,7 @@ export function createMesurerWorkspaceRuntime(options: {
       if (disposed) return;
       disposed = true;
       stopWatching();
+      unsubscribePageKey();
       modelUnsubscribe();
       restoreCapturePresentation();
       liveTargets.clear();

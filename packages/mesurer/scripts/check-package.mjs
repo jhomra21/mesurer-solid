@@ -108,6 +108,7 @@ for (const factory of [
   "context",
   "codex",
   "arrange",
+  "layoutGuides",
   "screenshot",
   "select",
   "xray",
@@ -209,6 +210,7 @@ for (const obsoleteFactory of [
   "rulersPlugin",
   "textInspectorPlugin",
   "guidesPlugin",
+  "layoutGuidesPlugin",
   "distancePlugin",
   "settingsPlugin",
   "defaultMesurerPlugins",
@@ -237,6 +239,9 @@ for (const contractName of [
   "MesurerCodexSendRequest",
   "MesurerCodexSendResult",
   "MesurerContextService",
+  "LayoutGuide",
+  "LayoutGuideInput",
+  "MesurerLayoutGuidesService",
   "MesurerScreenshotService",
 ]) {
   if (!new RegExp(`\\b${contractName}\\b`).test(pluginDeclarations)) {
@@ -250,6 +255,19 @@ for (const codexMember of ["queue(", "send(", "delivery(", "listThreads", "useTh
   }
 }
 
+for (const [member, pattern] of [
+  ["list()", /\blist\s*\(\s*\)\s*:\s*LayoutGuide\[\]/],
+  ["add()", /\badd\s*\(/],
+  ["update()", /\bupdate\s*\(/],
+  ["remove()", /\bremove\s*\(/],
+  ["clear()", /\bclear\s*\(\s*\)/],
+  ["subscribe()", /\bsubscribe\s*\(/],
+]) {
+  if (!pattern.test(publishedDeclarations)) {
+    throw new Error(`Published MesurerLayoutGuidesService is missing ${member}.`);
+  }
+}
+
 if (!rootDeclarations.includes("service<T>(id: string): Promise<T>")) {
   throw new Error("Published MountedMesurer declarations are missing typed service<T>(id).");
 }
@@ -260,7 +278,7 @@ if (/\bmountMeasurer\b/.test(packageReadme)) {
   throw new Error("The npm README must document canonical mountMesurer(), not the deprecated mountMeasurer() spelling.");
 }
 
-if (/\b(?:contextPlugin|codexPlugin|arrangePlugin|screenshotPlugin)\b/.test(packageReadme)) {
+if (/\b(?:contextPlugin|codexPlugin|arrangePlugin|layoutGuidesPlugin|screenshotPlugin)\b/.test(packageReadme)) {
   throw new Error("The npm README must document canonical plugin factory names from mesurer-solid/plugins.");
 }
 
