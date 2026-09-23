@@ -209,6 +209,7 @@ Start with the [documentation index](./docs/README.md).
 - [Getting started](./docs/GETTING_STARTED.md)
 - [Direct text editing and Typography](./docs/TEXT_EDITING.md)
 - [Arrange](./docs/ARRANGE.md)
+- [Layout Guides](./docs/LAYOUT_GUIDES.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
 - [Context workflow](./docs/CONTEXT_WORKFLOW.md)
 - [Queue Context feedback to Codex](./docs/CODEX.md)
