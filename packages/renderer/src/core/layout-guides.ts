@@ -30,20 +30,24 @@ const ALIGNS = new Set<LayoutGuideAlign>(["stretch", "min", "center", "max"]);
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
-const finite = (value: unknown, fallback: number) =>
-  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+const finite = (value: number | undefined, fallback: number) =>
+  value !== undefined && Number.isFinite(value) ? value : fallback;
 
 export const normalizeLayoutGuide = (
   input: LayoutGuideInput = {},
 ): LayoutGuide => {
   const kind = input.kind && KINDS.has(input.kind) ? input.kind : "columns";
-  const align = input.align && ALIGNS.has(input.align) ? input.align : kind === "grid" ? "min" : "stretch";
+  const align = input.align && ALIGNS.has(input.align)
+    ? input.align
+    : kind === "grid" ? "min" : "stretch";
+  const id = input.id?.trim();
+  const color = input.color?.trim();
 
   return {
-    id: typeof input.id === "string" && input.id ? input.id : createId(),
+    id: id || createId(),
     kind,
     visible: input.visible ?? true,
-    color: typeof input.color === "string" && input.color ? input.color : DEFAULT_LAYOUT_GUIDE_COLOR,
+    color: color || DEFAULT_LAYOUT_GUIDE_COLOR,
     opacity: clamp(finite(input.opacity, DEFAULT_LAYOUT_GUIDE_OPACITY), 0, 1),
     count: clamp(Math.round(finite(input.count, 5)), 1, 24),
     size: clamp(finite(input.size, 72), 1, 4096),
@@ -53,13 +57,9 @@ export const normalizeLayoutGuide = (
   };
 };
 
-export const normalizeLayoutGuides = (value: unknown): LayoutGuide[] => {
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .filter((item): item is LayoutGuideInput => item !== null && typeof item === "object")
-    .map(normalizeLayoutGuide);
-};
+export const normalizeLayoutGuides = (
+  guides: readonly LayoutGuideInput[] | undefined,
+): LayoutGuide[] => (guides ?? []).map(normalizeLayoutGuide);
 
 export const layoutGuideLabel = (guide: LayoutGuide) => {
   if (guide.kind === "grid") return `Grid ${Math.round(guide.size)}px`;
