@@ -33,8 +33,11 @@ const subject = mountMesurer({
 
 await subject.ready;
 
-const service = () =>
-  subject.pluginHost?.service.get<MesurerLayoutGuidesService>(MESURER_LAYOUT_GUIDES_SERVICE_ID);
+const layoutGuidesService = await subject.service<MesurerLayoutGuidesService>(
+  MESURER_LAYOUT_GUIDES_SERVICE_ID,
+);
+
+const service = () => layoutGuidesService;
 
 type LayoutGuidesContractHarness = {
   subject: MountedMesurer;
