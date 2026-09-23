@@ -19,11 +19,14 @@ const axisStyle = (guide: LayoutGuide) => {
     : `repeat(${guide.count}, ${guide.size}px)`;
 
   const packed = pack(guide.align);
-
-  return {
+  const base = {
     position: "absolute",
     inset: "0",
     display: "grid",
+  } as const;
+
+  return {
+    ...base,
     ...(columns
       ? {
           "grid-template-columns": template,
