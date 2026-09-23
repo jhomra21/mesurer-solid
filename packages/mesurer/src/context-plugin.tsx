@@ -16,10 +16,12 @@ import {
   reviewMesurerAnnotation,
   type MesurerAnnotation,
   type MesurerCapturePlanV1,
+  type MesurerContextLayoutGuide,
   type MesurerContextRequest,
   type MesurerContextV1,
   type MesurerReviewV1,
 } from "./context";
+import { MESURER_LAYOUT_GUIDES_SERVICE_ID, type MesurerLayoutGuidesService } from "./layout-guides";
 import { MESURER_VERSION } from "./version";
 
 export const MESURER_CONTEXT_PLUGIN_ID = "mesurer.context";
@@ -85,9 +87,16 @@ const createService = (
   runtime: MesurerWorkspaceRuntime,
   ownerDocument: Document,
   ownerWindow: Window,
+  layoutGuides: () => MesurerContextLayoutGuide[],
 ): MesurerContextService => {
   const context = async (request?: MesurerContextRequest) =>
-    captureMesurerContext({ runtime, ownerDocument, ownerWindow, request });
+    captureMesurerContext({
+      runtime,
+      ownerDocument,
+      ownerWindow,
+      request,
+      layoutGuides: layoutGuides(),
+    });
 
   const contextText = async (request?: MesurerContextRequest) =>
     formatMesurerContext(await context(request));
@@ -113,11 +122,25 @@ const createService = (
     await stable(ownerDocument, ownerWindow);
 
     if (annotationId) {
-      return reviewMesurerAnnotation({ runtime, ownerDocument, ownerWindow, annotationId });
+      return reviewMesurerAnnotation({
+        runtime,
+        ownerDocument,
+        ownerWindow,
+        annotationId,
+        layoutGuides: layoutGuides(),
+      });
     }
 
+    const currentLayoutGuides = layoutGuides();
+
     return runtime.annotations().map((annotation) =>
-      reviewMesurerAnnotation({ runtime, ownerDocument, ownerWindow, annotationId: annotation.id }));
+      reviewMesurerAnnotation({
+        runtime,
+        ownerDocument,
+        ownerWindow,
+        annotationId: annotation.id,
+        layoutGuides: currentLayoutGuides,
+      }));
   };
 
   const capturePlan = async (request?: MesurerContextRequest) =>
@@ -168,7 +191,14 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
       // their interactive root in the same document scroll tree as the selected
       // page element; the canonical toolbar remains isolated in its normal root.
       const runtime = solid.createWorkspaceRuntime(MESURER_CONTEXT_PLUGIN_ID);
-      const service = createService(runtime, solid.ownerDocument, solid.ownerWindow);
+      const layoutGuides = (): MesurerContextLayoutGuide[] =>
+        ctx.service.get<MesurerLayoutGuidesService>(MESURER_LAYOUT_GUIDES_SERVICE_ID)?.list() ?? [];
+      const service = createService(
+        runtime,
+        solid.ownerDocument,
+        solid.ownerWindow,
+        layoutGuides,
+      );
       ctx.service.provide(MESURER_CONTEXT_SERVICE_ID, service);
 
       ctx.state.register<ContextSettingsState>({
