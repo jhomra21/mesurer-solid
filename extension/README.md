@@ -29,7 +29,7 @@ The extension uses the same built `inject-script` artifact as the browser harnes
 
 Injection enables Context and Screenshot for the active tab. The page-mounted instance otherwise has the same toolbar, direct text editing, plugin host, compact-toolbar behavior, route-scoped workspace state, and `window.__MESURER__` API as other injected Mesurer instances.
 
-When the tab remains authorized, the background worker remembers that Mesurer was explicitly opened and restores a missing injected instance after reload/navigation. A live instance is reused rather than replaced.
+When the tab remains authorized, the background worker remembers that Mesurer was explicitly opened and restores a missing injected instance after reload or eligible navigation. The injector also remounts Mesurer if the page replaces the DOM node that owns the injected UI. A live connected instance is reused rather than replaced.
 
 Arrange remains optional unless it is included by the injected configuration.
 
