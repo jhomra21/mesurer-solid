@@ -37,11 +37,13 @@ All public plugin factories come from `mesurer-solid/plugins`.
 | --- | --- | --- | --- |
 | Context | `context()` | `MesurerContextService` | [Context](./CONTEXT_WORKFLOW.md) |
 | Arrange | `arrange()` | `MesurerArrangeService` | [Arrange](./ARRANGE.md) |
+| Layout Guides | `layoutGuides()` | `MesurerLayoutGuidesService` | This page |
 | Screenshot | `screenshot()` | `MesurerScreenshotService` | [Screenshots](./SCREENSHOTS.md) |
 | Codex | `codex()` | `MesurerCodexService` | [Queue Context feedback to Codex](./CODEX.md) |
 
 - Context adds structured Context, exact selection, saved annotations, review, capture planning, Copy Context, Copy Selection, and Add Note.
 - Arrange adds reversible Before/Desired layout intent, snapping, multi-selection moves, presentation switching, capture plans, and Live review.
+- Layout Guides adds page-scoped columns, rows, and pixel grids. Mutations run through JSON-safe plugin commands, participate in plugin history, and are available through the typed `layout-guides:v1` service.
 - Screenshot adds human region capture with preview, clipboard copy, download, and programmatic capture.
 - Codex adds optional Queue to Codex delivery, thread selection, delivery tracking, retry behavior, and completed-annotation cleanup.
 
@@ -103,7 +105,7 @@ These methods require the Context capability.
 | `prepareCapture()` | Hide or adjust Mesurer presentation before an external screenshot. |
 | `finishCapture()` | Restore Mesurer presentation after the screenshot. |
 
-Context reports the page and viewport, selected or annotated targets, rulers/X-ray visibility, guides, measurements, and relevant distances.
+Context reports the page and viewport, selected or annotated targets, rulers/X-ray visibility, ordinary guides, visible Layout Guides, measurements, and relevant distances. Context reads Layout Guides through the plugin service at capture time, so Context and Layout Guides do not require a particular load order.
 
 ### Arrange
 
@@ -163,7 +165,7 @@ Renderer-only services remain private. Public plugins request them by service id
 
 When `agent` is an object instead of `true`, `AgentBridgeOptions` also accepts `globalName` and `root`.
 
-Custom persistence implements `load()`, `saveSettings()`, `saveWorkspace()`, `clearWorkspace()`, and `clearSettings()`. It may also implement `subscribe()` and `setErrorHandler()`.
+Custom persistence implements `load()`, `saveSettings()`, `saveWorkspace()`, `clearWorkspace()`, and `clearSettings()`. It may also implement `setPageKey(pageKey)`, `subscribe()`, and `setErrorHandler()`. The default adapter scopes page-owned workspace state by pathname plus sorted query parameters (and hash routes that start with `#/`), while settings remain shared for the persistence key. Toolbar position is session UI state and is not stored in the page workspace.
 
 See [Getting started](./GETTING_STARTED.md) for placement examples and the TypeScript declarations for exact value types.
 
