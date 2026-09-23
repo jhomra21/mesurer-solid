@@ -51,6 +51,7 @@ import {
   type MesurerBuiltinController,
 } from "./runtime/builtin-actions";
 import { hasNativeScrollAnchoring } from "./runtime/native-scroll-registry";
+import { getMesurerPageKey, subscribeMesurerPageKey } from "./runtime/page-location";
 import { ensureMesurerStyles } from "./runtime/style-inject";
 import { createTextInspector, type TextInspectorAPI } from "./runtime/typography";
 import { createXrayScope } from "./runtime/xray-scope";
@@ -104,6 +105,36 @@ const SETTINGS_STORAGE_KEY = "mesurer-settings";
 const LEGACY_STORAGE_KEY = "mesurer-state";
 
 const NATIVE_SCROLL_SETTLE_MS = 80;
+
+type ToolbarPosition = { x: number; y: number };
+
+const readToolbarPosition = (ownerWindow: Window, storageKey: string): ToolbarPosition | undefined => {
+  try {
+    const raw = ownerWindow.sessionStorage.getItem(`${storageKey}:toolbar-position`);
+
+    if (!raw) return undefined;
+    // SAFETY: this namespaced value is written only by writeToolbarPosition and validated below before use.
+    const value = JSON.parse(raw) as Partial<ToolbarPosition>;
+
+    if (!Number.isFinite(value.x) || !Number.isFinite(value.y)) return undefined;
+
+    return { x: value.x!, y: value.y! };
+  } catch {
+    return undefined;
+  }
+};
+
+const writeToolbarPosition = (
+  ownerWindow: Window,
+  storageKey: string,
+  position: ToolbarPosition,
+) => {
+  try {
+    ownerWindow.sessionStorage.setItem(`${storageKey}:toolbar-position`, JSON.stringify(position));
+  } catch {
+    // Session storage is optional. Toolbar dragging still works for this mount.
+  }
+};
 
 const getTabId = (ownerWindow: Window) => {
   try {
@@ -186,6 +217,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   let activePersistence: MesurerPersistence | null = null;
   let persistenceReady = false;
   let persistTimer = 0;
+  let switchingPage = false;
   let hoverFrame = 0;
   let hoverPoint: Point | null = null;
   let shiftToggleElement: Element | null = null;
@@ -641,7 +673,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       model.state.measurements.map((measurement) => measurement.id).join("|"), model.state.activeMeasurement?.id ?? "",
     ],
     () => {
-      if (!persistenceReady || !activePersistence || !model.current.settings.persistOnReload) return;
+      if (!persistenceReady || switchingPage || !activePersistence || !model.current.settings.persistOnReload) return;
       ownerWindow.clearTimeout(persistTimer);
       persistTimer = ownerWindow.setTimeout(() => activePersistence?.saveWorkspace(model.serializeWorkspace()), 250);
     },
@@ -686,6 +718,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
     activePersistence = persistence;
     persistence.setErrorHandler?.(input.onPersistenceError);
+    let activePageKey = getMesurerPageKey(ownerWindow);
+    persistence.setPageKey?.(activePageKey);
     const stored = persistence.load();
 
     if (stored?.settings) {
@@ -714,6 +748,39 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     };
 
     const unsubscribe = persistence.subscribe?.(applyExternal);
+    const unsubscribePageKey = subscribeMesurerPageKey(ownerWindow, (nextPageKey) => {
+      if (nextPageKey === activePageKey) return;
+      switchingPage = true;
+      ownerWindow.clearTimeout(persistTimer);
+      persistTimer = 0;
+
+      if (model.current.settings.persistOnReload) {
+        persistence.saveWorkspace(model.serializeWorkspace());
+      }
+
+      activePageKey = nextPageKey;
+      persistence.setPageKey?.(nextPageKey);
+      const next = persistence.load();
+      const session = {
+        enabled: model.current.enabled,
+        toolMode: model.current.toolMode,
+        rulersVisible: model.current.rulersVisible,
+        xrayVisible: model.current.xrayVisible,
+        guideOrientation: model.current.guideOrientation,
+      };
+
+      model.clearAll(false);
+      textInspector?.clear();
+
+      if (model.current.settings.persistOnReload && next?.workspace) {
+        model.applyStoredWorkspace({
+          ...next.workspace,
+          ...session,
+        });
+      }
+
+      switchingPage = false;
+    });
 
     const keydown = (event: KeyboardEvent) => {
       if (isEditableKeyboardEvent(event, ownerWindow)) return;
@@ -891,6 +958,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
       if (model.current.settings.persistOnReload) persistence.saveWorkspace(model.serializeWorkspace());
       unsubscribe?.();
+      unsubscribePageKey();
       persistence.setErrorHandler?.(undefined);
       ownerWindow.removeEventListener("keydown", keydown);
       ownerWindow.removeEventListener("keyup", keyup);
@@ -952,6 +1020,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           selectionSpacingStyle={props.selectionSpacingStyle}
           onSelectionSpacingStyleChange={onSelectionSpacingStyleChange}
           onResetSettings={() => { model.resetSettings(); onResetSelectionSpacingStyle(); activePersistence?.clearSettings(); }}
+          initialPosition={readToolbarPosition(ownerWindow, storageKey)}
+          onPositionChange={(position) => writeToolbarPosition(ownerWindow, storageKey, position)}
         />
       </div>
     </Portal>
