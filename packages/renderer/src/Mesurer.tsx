@@ -750,6 +750,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     const unsubscribe = persistence.subscribe?.(applyExternal);
     const unsubscribePageKey = subscribeMesurerPageKey(ownerWindow, (nextPageKey) => {
       if (nextPageKey === activePageKey) return;
+
       switchingPage = true;
       ownerWindow.clearTimeout(persistTimer);
       persistTimer = 0;
@@ -760,6 +761,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
       activePageKey = nextPageKey;
       persistence.setPageKey?.(nextPageKey);
+
       const next = persistence.load();
       const session = {
         enabled: model.current.enabled,
