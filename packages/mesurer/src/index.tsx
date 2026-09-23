@@ -539,6 +539,7 @@ export type {
   MesurerContextDistance,
   MesurerContextEdges,
   MesurerContextGuide,
+  MesurerContextLayoutGuide,
   MesurerContextMeasurement,
   MesurerContextRect,
   MesurerContextRequest,
