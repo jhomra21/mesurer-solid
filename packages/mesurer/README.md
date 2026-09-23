@@ -49,13 +49,14 @@ All public first-party plugin factories are exported from `mesurer-solid/plugins
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { arrange, context, screenshot } from "mesurer-solid/plugins"
+import { arrange, context, layoutGuides, screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
   plugins: [
     context(),
     arrange(),
+    layoutGuides(),
     screenshot(),
   ],
 })
@@ -83,6 +84,7 @@ Resolve plugin-owned capabilities with `await mesurer.service<T>(serviceId)`. Th
 - Select one or many rendered HTML or SVG elements and inspect exact geometry.
 - Measure distance and pairwise multi-selection spacing.
 - Use X-ray, guides, rulers, and persisted settings.
+- Add page-scoped columns, rows, or pixel grids with the optional `layoutGuides()` plugin; guide edits participate in plugin undo/redo and visible layout guides are included in Context.
 - Inspect Typography and preview reversible direct copy/style changes.
 - Arrange selected UI into a Desired position without changing source.
 - Capture visible-tab regions through the optional Screenshot plugin.
@@ -97,6 +99,8 @@ Arrange is not a toolbar mode. It can be activated before a selection exists and
 Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
 
 Select, point inspection, Context, and annotations accept SVG elements. Arrange and direct text editing only mutate HTML elements.
+
+Persisted workspace evidence is page-scoped by route, including sorted query parameters. In-tab navigation swaps the current page workspace without carrying page-owned guides or selection state to another route. Toolbar placement remains tab-session UI and survives those route changes and reloads.
 
 Direct text editing respects native editing boundaries. Descendants of an editable ancestor remain native, while a nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer target when the normal direct-text rules pass. Mixed inline copy can target the exact direct text run before or after an inline child without flattening or recreating that child, and the host element keeps its native DOM APIs throughout the interaction.
 
@@ -127,6 +131,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `R` | Rulers |
 | `A` | Typography |
 | `G` | Guides |
+| `L` | Layout Guides when the plugin is enabled |
 | `H` / `V` | Horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
 | `Cmd/Ctrl + ,` | Settings |
