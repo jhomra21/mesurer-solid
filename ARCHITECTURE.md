@@ -240,7 +240,7 @@ Document-backed does not mean arbitrary host-page DOM. Those nodes are still Mes
 
 The renderer uses Solid's universal runtime and constructs DOM nodes directly rather than depending on HTML-string template sinks, keeping the packed artifact compatible with strict Trusted Types pages without weakening host CSP.
 
-The Chromium extension owns only injection lifecycle and extension-only capabilities. It records explicitly opened tab ids in `chrome.storage.session` and can restore a missing injection after reload or eligible navigation. It keeps the `activeTab` permission model instead of requesting persistent host access; when a navigation revokes that temporary grant, recovery stops until the user explicitly clicks the action again.
+The Chromium extension owns only injection lifecycle and extension-only capabilities. It records explicitly opened tab ids in `chrome.storage.session` and can restore a missing injection after reload or eligible navigation. Its injected session also opts into disconnected-host recovery, so page DOM replacement remounts Mesurer without moving that behavior into renderer core. It keeps the `activeTab` permission model instead of requesting persistent host access; when a navigation revokes that temporary grant, recovery stops until the user explicitly clicks the action again.
 
 See [Host isolation](./docs/HOST_ISOLATION.md) and [Trusted Types](./docs/TRUSTED_TYPES.md).
 
