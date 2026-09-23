@@ -3,7 +3,11 @@
   "name": "Mesurer",
   "version": "0.1.0",
   "description": "Toggle Mesurer on the current page for UI measurement, annotations, and agent-ready visual context.",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
