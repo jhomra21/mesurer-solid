@@ -401,7 +401,6 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
           onAdd={() => { void service.add().catch(() => undefined); }}
           onUpdate={(id, patch) => { void service.update(id, patch).catch(() => undefined); }}
           onRemove={(id) => { void service.remove(id).catch(() => undefined); }}
-          onClose={() => setActive(false)}
         />
       );
 
