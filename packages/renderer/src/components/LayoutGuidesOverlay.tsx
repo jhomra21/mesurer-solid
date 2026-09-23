@@ -1,4 +1,4 @@
-import { For, Show, type JSX } from "solid-js";
+import { For, Show } from "solid-js";
 import type { LayoutGuide } from "../core/layout-guides";
 
 type LayoutGuidesOverlayProps = {
@@ -11,13 +11,13 @@ const fillFor = (guide: LayoutGuide) =>
 const pack = (align: LayoutGuide["align"]) =>
   align === "max" ? "end" : align === "center" ? "center" : "start";
 
-const axisStyle = (guide: LayoutGuide): JSX.CSSProperties => {
+const axisStyle = (guide: LayoutGuide) => {
   const columns = guide.kind === "columns";
   const stretch = guide.align === "stretch";
-
   const template = stretch
     ? `repeat(${guide.count}, minmax(0, 1fr))`
     : `repeat(${guide.count}, ${guide.size}px)`;
+
   const packed = pack(guide.align);
 
   return {
