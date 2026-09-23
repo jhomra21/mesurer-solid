@@ -18,6 +18,8 @@ Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron
              ├───────────────┬─────────────────┤
              ▼               ▼                 ▼
         Context plugin   Arrange plugin   Screenshot plugin
+             │               │
+             │         Layout Guides plugin
              │
              └── optional Codex plugin ──► loopback companion ──► Codex queue
              │               │                 │
@@ -44,7 +46,7 @@ Users install `mesurer-solid`.
 
 The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, the optional `mesurer-codex` loopback companion, and `mesurer-codex-connect` for trusted session bootstrap. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
 
-Public first-party plugin factories use their feature name directly. Applications import `context`, `arrange`, `screenshot`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
+Public first-party plugin factories use their feature name directly. Applications import `context`, `arrange`, `layoutGuides`, `screenshot`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
 
 ## Workspace ownership
 
@@ -75,6 +77,10 @@ Human-facing built-ins are Select, X-ray, Color Picker when supported, Rulers, T
 The toolbar keeps one stable tool order. Compact presentation collapses inactive controls while preserving active tools and state. Dragging begins only after the pointer crosses the drag threshold. Menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. Arrange remains a plugin contribution rather than a toolbar mode.
 
 Plugin tools render through the same toolbar path as built-ins instead of maintaining a second renderer.
+
+Page identity is a runtime seam, not a feature-specific URL check. The default route key uses pathname plus sorted query parameters and includes hash routes only for `#/` navigation. Page-owned workspace state uses that key; viewport/session chrome does not. In particular, toolbar placement lives in tab `sessionStorage` so route changes can swap page evidence without moving the user's global control surface.
+
+Default local persistence stores settings once per persistence key and workspace snapshots by page key. Custom persistence can implement `setPageKey(pageKey)` to receive the same route transition. The renderer saves the old page before switching, clears transient page ownership, then restores the target page while retaining session-centric tool visibility/mode state.
 
 ## Direct text editing
 
@@ -119,6 +125,16 @@ It owns active state, `Shift+A`, snapping, drag preview, Before/Desired intent, 
 Arrange previews movement with an inline transform but records the previous value and priority as its baseline. Cleanup restores that baseline only while the current transform still matches Mesurer's preview. Host-authored transform changes take ownership and survive Live review, refresh, and disposal.
 
 See [Arrange](./docs/ARRANGE.md).
+
+## Layout Guides
+
+`mesurer.layout-guides` is a first-party plugin exposed as `layoutGuides()` from `mesurer-solid/plugins`.
+
+Its public interface is deliberately small: `MesurerLayoutGuidesService` lists guides and performs add/update/remove/clear operations. Mutations still execute the plugin's JSON-safe commands, so the same operation participates in plugin undo/redo and remains available to generic automation. The mounted package does not grow a parallel set of Layout Guide convenience methods; callers use `MountedMesurer.service<T>(MESURER_LAYOUT_GUIDES_SERVICE_ID)` when they need the typed runtime capability.
+
+Pure guide normalization and layout geometry live in renderer core. The plugin owns page-scoped persisted guide state, the toolbar contribution, panel lifecycle, and evidence overlay. Columns, rows, and grids therefore remain removable without making renderer core depend on their UI.
+
+Context does not declare Layout Guides as a hard requirement. At capture time it resolves `layout-guides:v1` if present and serializes the currently visible guides into `visualContext.layoutGuides`. This keeps plugin load order and availability independent while preserving the human's layout intent for agents.
 
 ## Context
 
@@ -223,6 +239,8 @@ Mesurer deliberately has two managed paint domains. Viewport-owned controls such
 Document-backed does not mean arbitrary host-page DOM. Those nodes are still Mesurer inspector UI, use the runtime's managed mount and hit-test boundary, and clean up with their owner. When a document-backed inspector must occlude page selection evidence, the related Select paint is moved into the lower document evidence layer too. Leaving Select paint in the browser top layer while its inspector card lives in the document is invalid because browser top-layer ordering beats any ordinary document `z-index`.
 
 The renderer uses Solid's universal runtime and constructs DOM nodes directly rather than depending on HTML-string template sinks, keeping the packed artifact compatible with strict Trusted Types pages without weakening host CSP.
+
+The Chromium extension owns only injection lifecycle and extension-only capabilities. It records explicitly opened tab ids in `chrome.storage.session` and can restore a missing injection after reload or eligible navigation. It keeps the `activeTab` permission model instead of requesting persistent host access; when a navigation revokes that temporary grant, recovery stops until the user explicitly clicks the action again.
 
 See [Host isolation](./docs/HOST_ISOLATION.md) and [Trusted Types](./docs/TRUSTED_TYPES.md).
 
