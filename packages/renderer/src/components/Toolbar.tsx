@@ -32,6 +32,8 @@ export type ToolbarProps = {
   onResetSettings: () => void;
   selectionSpacingStyle: SelectionSpacingStyle;
   onSelectionSpacingStyleChange: (patch: Partial<SelectionSpacingStyle>) => void;
+  initialPosition?: { x: number; y: number };
+  onPositionChange?: (position: { x: number; y: number }) => void;
 };
 
 const TOOLBAR_DRAG_SLOP = 6;
@@ -154,7 +156,7 @@ function PluginIcon(props: { tool: ToolContribution }) {
 }
 
 export function Toolbar(props: ToolbarProps) {
-  const [position, setPosition] = createSignal({ x: 16, y: 16 });
+  const [position, setPosition] = createSignal(props.initialPosition ?? { x: 16, y: 16 });
   const [guideMenuOpen, setGuideMenuOpen] = createSignal(false);
   const [pluginMenuOpenId, setPluginMenuOpenId] = createSignal<string | null>(null);
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
@@ -422,6 +424,8 @@ export function Toolbar(props: ToolbarProps) {
     const end = (next: PointerEvent) => {
       if (next.pointerId !== pointerId) return;
       suppressClick = didDrag;
+
+      if (didDrag) props.onPositionChange?.(position());
 
       if (previousUserSelect !== null) {
         root.style.userSelect = previousUserSelect;
