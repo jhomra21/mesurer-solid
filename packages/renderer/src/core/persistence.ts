@@ -252,22 +252,34 @@ const PAGED_WORKSPACE_FORMAT = "mesurer.pages/v1";
 
 type PagedWorkspaceRecord = {
   format: typeof PAGED_WORKSPACE_FORMAT;
-  settings?: PersistedValue;
-  pages: Record<string, PersistedValue>;
+  settings: MesurerStoredSettings;
+  pages: Record<string, MesurerStoredWorkspace>;
 };
 
-const isPagedWorkspaceRecord = (value: PersistedValue | undefined): value is PagedWorkspaceRecord =>
-  isPersistedValueRecord(value)
-  && value.format === PAGED_WORKSPACE_FORMAT
-  && isPersistedValueRecord(value.pages);
+type StoredPersistenceRecord = {
+  version: number;
+  settings: MesurerStoredSettings;
+  workspace: MesurerStoredWorkspace | null;
+};
 
-const normalizePagedWorkspaceRecord = (value: PersistedValue | undefined): PagedWorkspaceRecord | null => {
-  if (!isPagedWorkspaceRecord(value)) return null;
+const normalizePagedWorkspaceRecord = (
+  value: PersistedValue | undefined,
+): PagedWorkspaceRecord | null => {
+  if (!isPersistedValueRecord(value) || value.format !== PAGED_WORKSPACE_FORMAT) return null;
+
+  if (!isPersistedValueRecord(value.pages)) return null;
+  const pages: Record<string, MesurerStoredWorkspace> = {};
+
+  for (const [key, page] of Object.entries(value.pages)) {
+    const workspace = normalizeStoredWorkspace(page);
+
+    if (workspace) pages[key] = workspace;
+  }
 
   return {
     format: PAGED_WORKSPACE_FORMAT,
-    settings: value.settings,
-    pages: { ...value.pages },
+    settings: normalizeStoredSettings(value.settings),
+    pages,
   };
 };
 
@@ -298,9 +310,13 @@ export const createLocalStoragePersistence = (
     return value ? migrate(value) : null;
   };
 
-  const readPaged = (key: string) => normalizePagedWorkspaceRecord(readValue(key) ?? undefined);
+  const readPaged = (key: string) =>
+    normalizePagedWorkspaceRecord(readValue(key) ?? undefined);
 
-  const writeValue = (key: string, value: PersistedValue) => {
+  const writeJson = (
+    key: string,
+    value: StoredPersistenceRecord | PagedWorkspaceRecord,
+  ) => {
     try {
       ownerWindow.localStorage.setItem(key, JSON.stringify(value));
     } catch (cause) {
@@ -309,10 +325,10 @@ export const createLocalStoragePersistence = (
   };
 
   const writeRecord = (key: string, snapshotValue: MesurerPersistenceSnapshot) => {
-    writeValue(key, {
+    writeJson(key, {
       version: MESURER_STORAGE_VERSION,
-      settings: snapshotValue.settings as PersistedValue,
-      workspace: snapshotValue.workspace as PersistedValue,
+      settings: snapshotValue.settings,
+      workspace: snapshotValue.workspace,
     });
   };
 
@@ -322,16 +338,18 @@ export const createLocalStoragePersistence = (
     const settingsRecord = settingsKey === workspaceKey ? null : readRecord(settingsKey);
     const workspacePaged = readPaged(workspaceKey);
     const workspaceRecord = workspacePaged ? null : readRecord(workspaceKey);
-    const pageWorkspace = workspacePaged
-      ? normalizeStoredWorkspace(workspacePaged.pages[pageKey])
-      : workspaceRecord?.workspace ?? legacy?.workspace ?? null;
-    const settings = settingsPaged
-      ? normalizeStoredSettings(settingsPaged.settings)
-      : settingsRecord?.settings ?? legacy?.settings ?? {};
+    const workspace = workspacePaged?.pages[pageKey]
+      ?? workspaceRecord?.workspace
+      ?? legacy?.workspace
+      ?? null;
+    const settings = settingsPaged?.settings
+      ?? settingsRecord?.settings
+      ?? legacy?.settings
+      ?? {};
 
     if (!settingsPaged && !settingsRecord && !workspacePaged && !workspaceRecord && !legacy) return null;
 
-    return { settings, workspace: pageWorkspace };
+    return { settings, workspace };
   };
 
   const writePaged = (options: {
@@ -341,31 +359,29 @@ export const createLocalStoragePersistence = (
   }) => {
     const current = readPaged(workspaceKey);
     const legacy = current ? null : readRecord(workspaceKey);
-    const pages = { ...(current?.pages ?? {}) };
+    const pages: Record<string, MesurerStoredWorkspace> = current
+      ? { ...current.pages }
+      : {};
 
-    if (!current && legacy?.workspace) pages[pageKey] = legacy.workspace as PersistedValue;
+    if (!current && legacy?.workspace) pages[pageKey] = legacy.workspace;
 
     if (options.clearWorkspace) {
       delete pages[pageKey];
     } else if (options.workspace !== undefined) {
-      if (options.workspace) pages[pageKey] = options.workspace as PersistedValue;
+      if (options.workspace) pages[pageKey] = options.workspace;
       else delete pages[pageKey];
     }
 
-    const record: PersistedRecord = {
-      format: PAGED_WORKSPACE_FORMAT,
-      pages,
-    };
-    const settings = options.settings ?? (
-      settingsKey === workspaceKey
-        ? current?.settings
-          ? normalizeStoredSettings(current.settings)
-          : legacy?.settings ?? {}
-        : undefined
-    );
+    const settings = options.settings
+      ?? (settingsKey === workspaceKey
+        ? current?.settings ?? legacy?.settings ?? {}
+        : {});
 
-    if (settings !== undefined) record.settings = settings as PersistedValue;
-    writeValue(workspaceKey, record);
+    writeJson(workspaceKey, {
+      format: PAGED_WORKSPACE_FORMAT,
+      settings,
+      pages,
+    });
   };
 
   return {
@@ -390,11 +406,16 @@ export const createLocalStoragePersistence = (
 
       writeRecord(settingsKey, { settings: {}, workspace: null });
     },
-    setPageKey: (nextPageKey) => { pageKey = nextPageKey; },
-    setErrorHandler: (handler) => { errorHandler = handler; },
+    setPageKey: (nextPageKey) => {
+      pageKey = nextPageKey;
+    },
+    setErrorHandler: (handler) => {
+      errorHandler = handler;
+    },
     subscribe: (listener) => {
       const handleStorage = (event: StorageEvent) => {
         if (event.key !== settingsKey && event.key !== workspaceKey && event.key !== legacyKey) return;
+
         listener(read(), {
           settings: event.key === settingsKey || event.key === legacyKey || settingsKey === workspaceKey,
           workspace: event.key === workspaceKey || event.key === legacyKey || settingsKey === workspaceKey,
