@@ -236,6 +236,7 @@ try {
 
     for (const format of ["blob", "array-buffer", "uint8-array", "wrapped"]) {
       harness.setHostCaptureFormat(format);
+
       const result = await harness.service.capture({
         left: 100,
         top: 100,
