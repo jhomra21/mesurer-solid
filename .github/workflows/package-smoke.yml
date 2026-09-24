@@ -81,6 +81,7 @@ jobs:
           } from "mesurer-solid";
           import {
             context,
+            createElectronScreenshotCaptureProvider,
             screenshot,
             type MesurerScreenshotPluginOptions,
             type MesurerScreenshotService,
@@ -101,6 +102,11 @@ jobs:
           const legacyOptions: MountMeasurerOptions = options;
           const screenshotOptions: MesurerScreenshotPluginOptions = { copy: true, download: false };
           const screenshotService: MesurerScreenshotService | undefined = undefined;
+          const electronCapture = createElectronScreenshotCaptureProvider(async () => ({
+            png: new Uint8Array([137, 80, 78, 71]),
+            width: 1,
+            height: 1,
+          }));
           const canonicalMounted: MountedMesurer | undefined = undefined;
           const legacyMounted: MountedMeasurer | undefined = canonicalMounted;
           const host: MesurerPluginHost = createMesurerPluginHost();
@@ -111,6 +117,7 @@ jobs:
           void legacyOptions;
           void screenshotOptions;
           void screenshotService;
+          void electronCapture;
           void canonicalMounted;
           void legacyMounted;
           void screenshot;
@@ -303,6 +310,44 @@ jobs:
 
       - name: Install headless Chromium shell
         run: bunx playwright install --with-deps --only-shell chromium
+
+      - name: Create clean Electron renderer consumer
+        run: |
+          rm -rf /tmp/mesurer-electron
+          mkdir -p /tmp/mesurer-electron
+          cp tests/package-smoke/electron-renderer/* /tmp/mesurer-electron/
+          cd /tmp/mesurer-electron
+          bun init -y >/dev/null
+          bun add "$PACKAGE_TGZ"
+          bun add electron@43.1.1 --trust
+          bun build renderer.ts --target browser --format esm --outfile=renderer.js
+
+      - name: Exercise exact packed package in a real Electron renderer
+        env:
+          MESURER_ELECTRON_ARTIFACT_DIR: /tmp/mesurer-electron/artifacts
+        run: |
+          rm -rf electron-renderer-artifacts
+          set +e
+          (
+            cd /tmp/mesurer-electron
+            timeout 60s xvfb-run -a ./node_modules/.bin/electron main.cjs
+          )
+          status=$?
+          set -e
+          if [ -d /tmp/mesurer-electron/artifacts ]; then
+            cp -R /tmp/mesurer-electron/artifacts electron-renderer-artifacts
+            cat electron-renderer-artifacts/result.json || true
+          fi
+          exit "$status"
+
+      - name: Upload Electron renderer evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: electron-renderer-e2e
+          path: electron-renderer-artifacts
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Start packed-package consumers
         run: |
