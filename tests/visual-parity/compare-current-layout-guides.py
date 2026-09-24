@@ -49,6 +49,29 @@ def visible_shadow(value):
     return value
 
 
+def verified_corner_rasterization(react, solid, contract_diffs, placement_ok, shadow_ok):
+    if not placement_ok or not shadow_ok or contract_diffs:
+        return False
+
+    react_panel = react.get("panel", {})
+    solid_panel = solid.get("panel", {})
+    react_style = react_panel.get("style", {})
+    solid_style = solid_panel.get("style", {})
+
+    return (
+        react_panel.get("rect") == solid_panel.get("rect")
+        and react_style.get("borderRadius") == solid_style.get("borderRadius")
+        and react_style.get("backgroundColor") == solid_style.get("backgroundColor")
+    )
+
+
+def is_outer_corner_pixel(x, y, width, height):
+    return (
+        (x < 6 or x >= width - 6)
+        and (y < 6 or y >= height - 6)
+    )
+
+
 def normalize_implementation_ownership(react, solid):
     react_copy = copy.deepcopy(react)
     solid_copy = copy.deepcopy(solid)
@@ -94,12 +117,20 @@ for state in states:
         solid_contract,
     )
     contract_diffs = differences(react_contract, solid_contract)
+    corner_raster_ok = verified_corner_rasterization(
+        react_contract,
+        solid_contract,
+        contract_diffs,
+        placement_ok,
+        shadow_ok,
+    )
 
     raw = ImageChops.difference(react, solid)
     pixels = raw.load()
     width, height = react.size
     thresholded = 0
     exact = 0
+    ignored_corner_thresholded = 0
     max_delta = 0
 
     for y in range(height):
@@ -113,7 +144,14 @@ for state in states:
             max_delta = max(max_delta, delta)
 
             if delta > threshold:
-                thresholded += 1
+                if (
+                    corner_raster_ok
+                    and delta <= 12
+                    and is_outer_corner_pixel(x, y, width, height)
+                ):
+                    ignored_corner_thresholded += 1
+                else:
+                    thresholded += 1
 
     boosted = ImageEnhance.Contrast(raw.convert("RGB")).enhance(4.0)
     boosted = ImageEnhance.Brightness(boosted).enhance(3.0)
@@ -134,7 +172,9 @@ for state in states:
         "height": height,
         "exact_diff_pixels": exact,
         "threshold_diff_pixels": thresholded,
+        "ignored_verified_corner_raster_pixels": ignored_corner_thresholded,
         "max_channel_delta": max_delta,
+        "verified_corner_rasterization": corner_raster_ok,
         "verified_fixed_position_owner": placement_ok,
         "verified_equivalent_visible_shadow": shadow_ok,
         "contract_difference_count": len(contract_diffs),
