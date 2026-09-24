@@ -100,7 +100,7 @@ Arrange is not a toolbar mode. It can be activated before a selection exists and
 
 Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
 
-Select, point inspection, Context, and annotations accept SVG elements. Arrange and direct text editing only mutate HTML elements.
+Select and agent point inspection use the same rendered hit-test path. They can target SVG and visible `pointer-events:none` descendants instead of collapsing those descendants to an interactive ancestor. Open shadow roots are traversed; closed shadow roots remain browser-owned boundaries. Context and annotations accept the same SVG targets. Arrange and direct text editing only mutate HTML elements.
 
 Persisted workspace evidence is page-scoped by route, including sorted query parameters. In-tab navigation swaps the current page workspace without carrying page-owned guides or selection state to another route. Toolbar placement remains tab-session UI and survives those route changes and reloads.
 
