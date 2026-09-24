@@ -4,10 +4,10 @@ These instructions are for agents and contributors changing this repository. The
 
 For the canonical human/agent UI-review workflow, read:
 
-- [Agent Integration](./packages/mesurer/AGENT_INTEGRATION.md). detailed integration and verification contract.
-- [Mesurer UI skill](./.agents/skills/mesurer-ui/SKILL.md). portable operational instructions shipped to coding agents.
-- [Context](./docs/CONTEXT_WORKFLOW.md), [Arrange](./docs/ARRANGE.md), [Layout Guides](./docs/LAYOUT_GUIDES.md), [Measurements](./docs/MEASUREMENTS.md), [Text Editing](./docs/TEXT_EDITING.md), and [Screenshots](./docs/SCREENSHOTS.md). feature-specific behavior.
-- [Design language](./docs/DESIGN_LANGUAGE.md). shared visual and interaction review contract for new Mesurer UI.
+- [Agent Integration](./packages/mesurer/AGENT_INTEGRATION.md) for the detailed integration and verification contract.
+- [Mesurer UI skill](./.agents/skills/mesurer-ui/SKILL.md) for the portable instructions shipped to coding agents.
+- [Context](./docs/CONTEXT_WORKFLOW.md), [Arrange](./docs/ARRANGE.md), [Layout Guides](./docs/LAYOUT_GUIDES.md), [Measurements](./docs/MEASUREMENTS.md), [Text Editing](./docs/TEXT_EDITING.md), and [Screenshots](./docs/SCREENSHOTS.md) for feature-specific behavior.
+- [Design language](./docs/DESIGN_LANGUAGE.md) for the shared visual and interaction review contract for new Mesurer UI.
 
 Do not maintain a third copy of those procedures in this file. Keep this document focused on repository ownership, architectural invariants, validation, and contribution rules.
 
