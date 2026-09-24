@@ -151,7 +151,7 @@ if (/\bcapture\?:\s*ScreenshotCaptureProvider\b/.test(pluginDeclarations)) {
   throw new Error("Published Screenshot options must not expose the private capture-provider seam.");
 }
 
-if (!/\bcaptureVisibleTab\?:\s*ScreenshotCaptureProvider\b/.test(pluginDeclarations)) {
+if (!/\bcaptureVisibleTab\?:[^;]*\bScreenshotCaptureProvider\b/.test(pluginDeclarations)) {
   throw new Error("Published Screenshot options must retain the deprecated captureVisibleTab compatibility hook.");
 }
 
