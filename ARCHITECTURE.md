@@ -72,7 +72,7 @@ Select, Context rebinding, point inspection, and programmatic `select()` accept 
 
 Within the renderer runtime, direct editing is grouped under `runtime/text-editing/` and shared Typography inspector code under `runtime/typography/`. Document mounts, scrolling, selection channels, presentation preferences, and workspace Context remain shared runtime code rather than being pulled into those feature folders.
 
-Human-facing built-ins are Select, X-ray, Color Picker when supported, Rulers, Typography, Guides, Distance, and Settings. Typography retains the internal compatibility id `text-inspector`.
+Human-facing built-ins are Select, X-ray, Color Picker when supported, Rulers, Typography, Guides, Distance, and Settings. Typography retains the internal compatibility id `text-inspector`. Distance geometry is specified in [Measurements and distance geometry](./docs/MEASUREMENTS.md).
 
 The toolbar keeps one stable tool order. Compact presentation collapses inactive controls while preserving active tools and state. Dragging begins only after the pointer crosses the drag threshold. Menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. Arrange remains a plugin contribution rather than a toolbar mode.
 
