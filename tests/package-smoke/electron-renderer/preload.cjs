@@ -22,13 +22,18 @@ const parseMessage = (value, type) => {
 const reply = (type, id, payload = "") =>
   `${type}:${id}:${payload}`;
 
+const targetOrigin = () =>
+  window.location.origin === "null"
+    ? "*"
+    : window.location.origin;
+
 window.addEventListener("message", (event) => {
   if (event.source !== window || event.origin !== window.location.origin) return;
 
   const pingId = parseMessage(event.data, PING);
 
   if (pingId) {
-    window.postMessage(reply(PONG, pingId), window.location.origin);
+    window.postMessage(reply(PONG, pingId), targetOrigin());
 
     return;
   }
