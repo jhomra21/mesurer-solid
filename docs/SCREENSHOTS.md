@@ -57,30 +57,19 @@ A new thumbnail starts in the bottom-right with an 8px viewport inset. It remain
 
 Click the thumbnail to open a larger viewer with Copy, Save, and Close. Escape or backdrop click closes the viewer without discarding the thumbnail.
 
-## Capture providers
+## Capture hosts
 
-Normal browser hosts use `getDisplayMedia()` and reuse a live capture stream when possible. Browser permission and chooser behavior remain under browser/platform control.
+`screenshot()` chooses the available capture path internally.
 
-Applications can provide a custom `ScreenshotCaptureProvider` for another capture source or deterministic testing. Import the provider and service types from `mesurer-solid/plugins`.
+A host-provided Mesurer capture bridge takes priority. The Chromium extension connects that bridge to `chrome.tabs.captureVisibleTab()`. Electron applications can connect the same bridge to `webContents.capturePage()` from preload/main code. The renderer does not need an Electron-specific Screenshot option.
 
-Electron applications can keep capture in the main process and pass PNG bytes through their existing preload bridge. `createElectronScreenshotCaptureProvider()` converts that bridge result into the Blob provider expected by `screenshot()`:
+When no host bridge is available, Screenshot uses `getDisplayMedia()` and reuses a live capture stream when possible. Browser permission and chooser behavior remain under browser and platform control.
 
-```ts
-import {
-  createElectronScreenshotCaptureProvider,
-  screenshot,
-} from "mesurer-solid/plugins"
+This keeps one Screenshot API across normal browser pages, the Chromium extension, Electron renderers, and other hosts that can provide the same capture capability. Detection is capability-based rather than tied to a user agent or framework.
 
-const captureVisibleTab = createElectronScreenshotCaptureProvider(
-  () => window.desktop.captureWindow(),
-)
+Advanced integrations and deterministic tests can still provide a custom `ScreenshotCaptureProvider`. Most applications should use `screenshot()` without a capture override.
 
-const plugin = screenshot({ captureVisibleTab })
-```
-
-The capture callback may return `ArrayBuffer`, `Uint8Array`, or `{ png }` with either byte type. This matches main-process capture patterns built on Electron `webContents.capturePage()`. Mesurer does not import Electron in the renderer.
-
-The first-party Chromium extension uses `chrome.tabs.captureVisibleTab()` through its existing `activeTab` permission and isolated-world bridge, so that path does not show the normal screen-share chooser. See [Browser extension](../extension/README.md).
+See [Electron renderer example](../examples/electron-renderer/README.md) and [Browser extension](../extension/README.md).
 
 ## Injection
 
@@ -115,8 +104,7 @@ This service is plugin-local and is not part of the JSON-safe `window.__MESURER_
 
 | Export | Use |
 | --- | --- |
-| `captureVisibleTabPng` | Capture a visible-tab PNG through the normal browser capture provider. |
-| `createElectronScreenshotCaptureProvider` | Convert PNG bytes from an application-owned Electron bridge into a Screenshot capture provider. |
+| `captureVisibleTabPng` | Capture through Mesurer's host bridge when available, otherwise through the normal browser capture path. |
 | `copyPngToClipboard` | Copy PNG data to the clipboard. |
 | `createScreenshotFilename` | Create the default timestamped screenshot filename. |
 | `cropPngToViewportRect` | Crop captured PNG data to a CSS viewport rectangle using the captured bitmap dimensions. |
