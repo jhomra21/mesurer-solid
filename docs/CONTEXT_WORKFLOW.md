@@ -174,7 +174,7 @@ This target-bound model intentionally differs from upstream Mesurer's drawing an
 
 Context itself does not know about local coding-agent processes or session ownership. A transport plugin can depend on `context:v1` and serialize the same evidence for an explicit human action.
 
-The first optional transport is `codex()` from `mesurer-solid/plugins`. It queues Context text to a Codex thread known to the local companion. See [Send Context feedback to Codex](./CODEX.md).
+The first optional transport is `codex()` from `mesurer-solid/plugins`. It queues Context text to a Codex thread known to the local companion. See [Queue Context feedback to Codex](./CODEX.md).
 
 ## Fresh evidence after source changes
 
