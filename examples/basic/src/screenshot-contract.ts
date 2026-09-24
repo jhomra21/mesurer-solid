@@ -60,14 +60,6 @@ const hostCapture = async () => {
   };
 };
 
-declare global {
-  interface Window {
-    __MESURER_HOST__?: {
-      captureScreenshot(): Promise<HostCaptureResult>;
-    };
-  }
-}
-
 window.__MESURER_HOST__ = {
   captureScreenshot: hostCapture,
 };
