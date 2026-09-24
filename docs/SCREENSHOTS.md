@@ -98,14 +98,13 @@ Mounted integrations can resolve `MesurerScreenshotService` from plugin service 
 
 This service is plugin-local and is not part of the JSON-safe `window.__MESURER__` Context capability list.
 
-## Low-level screenshot utilities
+## Compatibility and low-level utilities
 
-`mesurer-solid/plugins` also exports the utilities used by the first-party Screenshot plugin. Most applications do not need these when `screenshot()` is mounted.
+`mesurer-solid/plugins` retains earlier low-level Screenshot exports for compatibility. They are not the integration seam for new hosts; new application code should use `screenshot()` and the typed service.
 
 | Export | Use |
 | --- | --- |
-| `captureScreenshotPng` | Capture through the best available host path, falling back to browser display capture. |
-| `captureVisibleTabPng` | Deprecated compatibility alias for `captureScreenshotPng`. |
+| `captureVisibleTabPng` | Deprecated compatibility hook. New integrations should use `screenshot()` and host capability detection. |
 | `copyPngToClipboard` | Copy PNG data to the clipboard. |
 | `createScreenshotFilename` | Create the default timestamped screenshot filename. |
 | `cropPngToViewportRect` | Crop captured PNG data to a CSS viewport rectangle using the captured bitmap dimensions. |
