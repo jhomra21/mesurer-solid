@@ -36,36 +36,31 @@ type MesurerHostCapabilities = {
   captureScreenshot?: () => Promise<HostScreenshotResult>;
 };
 
-type HostWindow = Window & {
-  __MESURER_HOST__?: MesurerHostCapabilities;
-};
+declare global {
+  interface Window {
+    __MESURER_HOST__?: MesurerHostCapabilities;
+  }
+}
 
 const hostCapture = (ownerWindow: Window) =>
-  (ownerWindow as HostWindow).__MESURER_HOST__?.captureScreenshot;
+  ownerWindow.__MESURER_HOST__?.captureScreenshot;
 
-const hostPngBlob = (
-  result: HostScreenshotResult,
-  ownerWindow: Window,
-): Blob => {
-  const png = typeof result === "object"
-    && result !== null
-    && !(result instanceof ownerWindow.Blob)
-    && !(result instanceof ownerWindow.ArrayBuffer)
-    && !(result instanceof ownerWindow.Uint8Array)
-    && "png" in result
+const hostPngBlob = (result: HostScreenshotResult): Blob => {
+  const png = "png" in result
     ? result.png
     : result;
 
-  if (png instanceof ownerWindow.Blob) return png;
+  if (png instanceof Blob) return png;
 
-  const bytes = png instanceof ownerWindow.Uint8Array
+  const bytes = png instanceof Uint8Array
     ? png
-    : new ownerWindow.Uint8Array(png);
-  const copy = new ownerWindow.Uint8Array(bytes.byteLength);
+    : new Uint8Array(png);
+
+  const copy = new Uint8Array(bytes.byteLength);
 
   copy.set(bytes);
 
-  return new ownerWindow.Blob([copy.buffer], { type: "image/png" });
+  return new Blob([copy.buffer], { type: "image/png" });
 };
 
 const captureViaHost = async (ownerWindow: Window): Promise<Blob | null> => {
@@ -73,7 +68,7 @@ const captureViaHost = async (ownerWindow: Window): Promise<Blob | null> => {
 
   if (!capture) return null;
 
-  return hostPngBlob(await capture(), ownerWindow);
+  return hostPngBlob(await capture());
 };
 
 export const normalizeScreenshotRect = (
@@ -375,7 +370,9 @@ export const prepareScreenshotCapture = async (
   ownerWindow: Window,
 ) => {
   if (hostCapture(ownerWindow)) return;
+
   if (await pingCaptureBridge(ownerWindow)) return;
+
   await startTabCapture(ownerDocument, ownerWindow);
 };
 
