@@ -194,7 +194,7 @@ Current Codex app-server exposes `thread/turns/list` with turn status, summary i
 
 The current queue accepts text input. Mesurer sends structured Context text in this integration, not image attachments.
 
-If the host page uses Content Security Policy, using browser-side Codex delivery requires `connect-src` permission for the configured loopback endpoint. Merely mounting `codex()` does not make a loopback request, so pages that block localhost still load Mesurer cleanly. An explicit send, thread chooser, or programmatic Codex service call fails through the normal delivery error path when policy blocks the connection.
+If the host page uses Content Security Policy, using browser-side Codex delivery requires `connect-src` permission for the configured loopback endpoint. Merely mounting `codex()` does not make a loopback request, so pages that block localhost still load Mesurer cleanly. An explicit queue action, thread chooser, or programmatic Codex service call fails through the normal delivery error path when policy blocks the connection.
 
 ## Start the foreground bridge manually
 
@@ -272,7 +272,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-`codex()` adds a **Queue to Codex** split action immediately but performs no loopback request on mount. The first send, or **Choose Codex thread…**, establishes bridge availability and then populates the thread choices.
+`codex()` adds a **Queue to Codex** split action immediately but performs no loopback request on mount. The first **Queue to Codex**, **Choose Codex thread…**, or programmatic service call establishes bridge availability and then populates the thread choices.
 
 When clicked:
 
@@ -362,9 +362,9 @@ A thread override that is neither locally registered nor returned by same-projec
 
 ## Failure behavior
 
-Delivery is explicit. A send fails if the companion is unavailable, the Codex executable is missing, no target thread is available, the requested thread is unknown, the browser origin is not authorized, or `codex queue` rejects the request.
+Delivery is explicit. A queue request fails if the companion is unavailable, the Codex executable is missing, no target thread is available, the requested thread is unknown, the browser origin is not authorized, or `codex queue` rejects the request.
 
-The first explicit send or thread-chooser attempt checks bridge availability. If Mesurer cannot reach the companion, the toolbar changes to disabled **Codex unavailable** state and its dropdown offers **Retry Codex connection**. Mesurer does not keep probing a bridge it has never reached, so restrictive-CSP hosts do not accumulate automatic loopback errors. Once a connection has succeeded, health polling continues and recovery is automatic if the companion later disappears and returns.
+The first explicit queue, thread-chooser, or programmatic service attempt checks bridge availability. If Mesurer cannot reach the companion, the toolbar changes to disabled **Codex unavailable** state and its dropdown offers **Retry Codex connection**. Mesurer does not keep probing a bridge it has never reached, so restrictive-CSP hosts do not accumulate automatic loopback errors. Once a connection has succeeded, health polling continues and recovery is automatic if the companion later disappears and returns.
 
 The toolbar reports queue failures to the browser console with a `[Mesurer] Failed to queue feedback for Codex: ...` diagnostic and propagates the failure through the plugin error path. Programmatic `queue()` calls reject with the same underlying error.
 
