@@ -1,8 +1,12 @@
 import { mountMesurer, type MountedMesurer } from "../../../packages/mesurer/src/index";
 
 const key = "mesurer-selection-hit-testing";
+const fixtureInitKey = `${key}:fixture-initialized`;
 
-window.localStorage.removeItem(key);
+if (!window.sessionStorage.getItem(fixtureInitKey)) {
+  window.localStorage.removeItem(key);
+  window.sessionStorage.setItem(fixtureInitKey, "true");
+}
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas-target");
 
@@ -49,6 +53,7 @@ const subject = mountMesurer({
   isolate: false,
   topLayer: false,
   persistKey: key,
+  persistOnReload: true,
   agent: true,
 });
 
