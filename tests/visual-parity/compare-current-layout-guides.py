@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import sys
 from pathlib import Path
@@ -39,6 +40,42 @@ def differences(left, right, path="", tolerance=0.01):
     return result
 
 
+def visible_shadow(value):
+    prefix = "rgba(0, 0, 0, 0) 0px 0px 0px 0px, "
+
+    while value.startswith(prefix):
+        value = value[len(prefix):]
+
+    return value
+
+
+def normalize_implementation_ownership(react, solid):
+    react_copy = copy.deepcopy(react)
+    solid_copy = copy.deepcopy(solid)
+    react_ownership = react_copy.pop("ownership", {})
+    solid_ownership = solid_copy.pop("ownership", {})
+
+    placement_ok = (
+        react_ownership.get("dialogPosition") == "fixed"
+        and solid_ownership.get("dialogPosition") == "static"
+        and solid_ownership.get("parentPosition") == "fixed"
+    )
+
+    if placement_ok:
+        solid_copy["panel"]["style"]["position"] = react_copy["panel"]["style"]["position"]
+
+    react_shadow = react_copy["panel"]["style"].get("boxShadow", "")
+    solid_shadow = solid_copy["panel"]["style"].get("boxShadow", "")
+    shadow_ok = visible_shadow(react_shadow) == visible_shadow(solid_shadow)
+
+    if shadow_ok:
+        normalized_shadow = visible_shadow(react_shadow)
+        react_copy["panel"]["style"]["boxShadow"] = normalized_shadow
+        solid_copy["panel"]["style"]["boxShadow"] = normalized_shadow
+
+    return react_copy, solid_copy, placement_ok, shadow_ok
+
+
 report = {"threshold_per_channel": threshold, "states": {}}
 failures = []
 
@@ -52,6 +89,10 @@ for state in states:
 
     react_contract = json.loads((out / f"react-{state}.json").read_text())
     solid_contract = json.loads((out / f"solid-{state}.json").read_text())
+    react_contract, solid_contract, placement_ok, shadow_ok = normalize_implementation_ownership(
+        react_contract,
+        solid_contract,
+    )
     contract_diffs = differences(react_contract, solid_contract)
 
     raw = ImageChops.difference(react, solid)
@@ -94,12 +135,20 @@ for state in states:
         "exact_diff_pixels": exact,
         "threshold_diff_pixels": thresholded,
         "max_channel_delta": max_delta,
+        "verified_fixed_position_owner": placement_ok,
+        "verified_equivalent_visible_shadow": shadow_ok,
         "contract_difference_count": len(contract_diffs),
         "contract_differences": contract_diffs[:100],
     }
 
     if thresholded:
         failures.append(f"{state}: {thresholded} perceptible pixels differ")
+
+    if not placement_ok:
+        failures.append(f"{state}: dialog placement ownership changed")
+
+    if not shadow_ok:
+        failures.append(f"{state}: visible floating shadow differs")
 
     if contract_diffs:
         failures.append(
