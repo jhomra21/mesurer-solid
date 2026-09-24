@@ -83,14 +83,6 @@ const deterministicCapture = async () => {
   });
 };
 
-declare global {
-  interface Window {
-    __MESURER_HOST__?: {
-      captureScreenshot(): Promise<Blob>;
-    };
-  }
-}
-
 window.__MESURER_HOST__ = {
   captureScreenshot: deterministicCapture,
 };
