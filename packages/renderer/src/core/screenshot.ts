@@ -334,7 +334,7 @@ const startTabCapture = async (
   }
 };
 
-export const releaseScreenshotCapture = (ownerWindow: Window) => {
+const releaseTabCapture = (ownerWindow: Window) => {
   const current = tabCaptures.get(ownerWindow);
 
   if (!current) return;
@@ -365,32 +365,85 @@ const captureViaDisplayMedia: ScreenshotCaptureProvider = async ({
   });
 };
 
+type ScreenshotCaptureAdapter = {
+  prepare(context: ScreenshotCaptureContext): Promise<void>;
+  capture(context: ScreenshotCaptureContext): Promise<Blob>;
+  release(ownerWindow: Window): void;
+};
+
+const hostCaptureAdapter: ScreenshotCaptureAdapter = {
+  prepare: async () => undefined,
+  capture: async ({ ownerWindow }) => {
+    const captured = await captureViaHost(ownerWindow);
+
+    if (!captured) throw new Error("Host screenshot capture is unavailable.");
+
+    return captured;
+  },
+  release: () => undefined,
+};
+
+const bridgeCaptureAdapter: ScreenshotCaptureAdapter = {
+  prepare: async () => undefined,
+  capture: async ({ ownerWindow }) => {
+    const captured = await captureViaBridge(ownerWindow);
+
+    if (!captured) throw new Error("Host screenshot capture failed.");
+
+    return captured;
+  },
+  release: () => undefined,
+};
+
+const displayCaptureAdapter: ScreenshotCaptureAdapter = {
+  prepare: async ({ ownerDocument, ownerWindow }) => {
+    await startTabCapture(ownerDocument, ownerWindow);
+  },
+  capture: captureViaDisplayMedia,
+  release: releaseTabCapture,
+};
+
+const captureAdapters = new WeakMap<Window, ScreenshotCaptureAdapter>();
+
+const resolveCaptureAdapter = async (
+  context: ScreenshotCaptureContext,
+): Promise<ScreenshotCaptureAdapter> => {
+  const existing = captureAdapters.get(context.ownerWindow);
+
+  if (existing) return existing;
+
+  const adapter = hostCapture(context.ownerWindow)
+    ? hostCaptureAdapter
+    : await pingCaptureBridge(context.ownerWindow)
+      ? bridgeCaptureAdapter
+      : displayCaptureAdapter;
+
+  captureAdapters.set(context.ownerWindow, adapter);
+
+  return adapter;
+};
+
 export const prepareScreenshotCapture = async (
   ownerDocument: Document,
   ownerWindow: Window,
 ) => {
-  if (hostCapture(ownerWindow)) return;
+  const context = { ownerDocument, ownerWindow };
+  const adapter = await resolveCaptureAdapter(context);
 
-  if (await pingCaptureBridge(ownerWindow)) return;
-
-  await startTabCapture(ownerDocument, ownerWindow);
+  await adapter.prepare(context);
 };
 
-export const captureScreenshotPng: ScreenshotCaptureProvider = async ({
-  ownerDocument,
-  ownerWindow,
-}) => {
-  const hosted = await captureViaHost(ownerWindow);
+export const captureScreenshotPng: ScreenshotCaptureProvider = async (context) => {
+  const adapter = await resolveCaptureAdapter(context);
 
-  if (hosted) return hosted;
+  return adapter.capture(context);
+};
 
-  if (await pingCaptureBridge(ownerWindow)) {
-    const bridged = await captureViaBridge(ownerWindow);
+export const releaseScreenshotCapture = (ownerWindow: Window) => {
+  const adapter = captureAdapters.get(ownerWindow);
 
-    if (bridged) return bridged;
-  }
-
-  return captureViaDisplayMedia({ ownerDocument, ownerWindow });
+  captureAdapters.delete(ownerWindow);
+  adapter?.release(ownerWindow);
 };
 
 /** @deprecated Use captureScreenshotPng(). */
