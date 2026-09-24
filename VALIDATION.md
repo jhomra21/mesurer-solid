@@ -44,7 +44,7 @@ The historical React parity suite protects the accepted shared renderer presenta
 
 A ported upstream component that can visibly drift needs a focused current-source browser comparison against the audited upstream commit. Isolate the component from intentional Mesurer Solid product differences around it. Compare rendered pixels and the component's geometry, computed styles, controls, options, and icon primitives. Do not normalize a real design difference out of the report.
 
-Layout Guides currently applies this rule to its empty, list, editor, aligned-editor, and grid states.
+Layout Guides currently applies this rule to its initial, list, editor, aligned-editor, and grid states.
 
 ## Development server contract
 
