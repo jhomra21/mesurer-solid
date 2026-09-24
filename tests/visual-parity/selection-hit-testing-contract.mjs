@@ -46,6 +46,25 @@ const hoverSurface = () => page
   .locator("[data-mesurer-hover-measurement='true']")
   .first();
 
+const assertNoPublicSelection = async (label) => {
+  const result = await page.evaluate(async () => {
+    try {
+      const context = await window.__MESURER__.context({ scope: "selection" });
+
+      return { ok: true, targetCount: context.targets.length, message: "" };
+    } catch (error) {
+      return {
+        ok: false,
+        targetCount: -1,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  assert.equal(result.ok, false, `${label}: public selection context should be unavailable`);
+  assert.match(result.message, /no current selection/i, `${label}: expected the canonical empty-selection error`);
+};
+
 const pointFor = async (locator, label) => {
   await locator.scrollIntoViewIfNeeded();
   await settle();
@@ -119,8 +138,7 @@ try {
   await selectButton.click();
   assert.equal(await selectButton.getAttribute("aria-pressed"), "false", "Select button should toggle off");
 
-  const disabledSelection = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
-  assert.equal(disabledSelection.targets.length, 0, "Turning Select off should clear the logical selection, not only hide its chrome");
+  await assertNoPublicSelection("Select off");
   assert.equal(
     await page.locator("[data-mesurer-selected-measurement='true']").count(),
     0,
@@ -140,14 +158,12 @@ try {
     "Select-off state should survive reload",
   );
 
-  const reloadedSelection = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
-  assert.equal(reloadedSelection.targets.length, 0, "Reload should not restore a selection while Select is off");
+  await assertNoPublicSelection("Select off after reload");
 
   await selectButtonAfterReload.click();
   assert.equal(await selectButtonAfterReload.getAttribute("aria-pressed"), "true", "Select should turn back on");
 
-  const reenabledSelection = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
-  assert.equal(reenabledSelection.targets.length, 0, "Turning Select back on should not resurrect the previous target");
+  await assertNoPublicSelection("Select re-enabled");
 
   const transparentAfterReload = await pointFor(page.locator("#transparent-leaf"), "transparent leaf after reload");
   await selectPoint(transparentAfterReload.point, transparentAfterReload.rect, "pointer-transparent leaf after reload");
