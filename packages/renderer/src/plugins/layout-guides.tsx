@@ -1,4 +1,4 @@
-import { createMemo, createSignal } from "solid-js";
+import { createSignal } from "solid-js";
 import {
   defineMesurerPlugin,
   type MesurerPlugin,
@@ -213,11 +213,11 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const list = () => normalizeLayoutGuides(pageGuides(state(), pageKey));
 
-    const reactiveGuides = createMemo(() => {
+    const reactiveGuides = () => {
       revision();
 
       return list();
-    });
+    };
 
     const setActive = (value: boolean) => {
       ctx.state.update<boolean>(MESURER_LAYOUT_GUIDES_ACTIVE_STATE_ID, () => value);
