@@ -44,7 +44,7 @@ All public plugin factories come from `mesurer-solid/plugins`.
 - Context adds structured Context, exact selection, saved annotations, review, capture planning, Copy Context, Copy Selection, and Add Note.
 - Arrange adds reversible Before/Desired layout intent, snapping, multi-selection moves, presentation switching, capture plans, and Live review.
 - Layout Guides adds page-scoped columns, rows, and pixel grids. Mutations run through JSON-safe plugin commands, participate in plugin history, and are available through the typed `layout-guides:v1` service.
-- Screenshot adds human region capture with preview, clipboard copy, download, and programmatic capture.
+- Screenshot adds host-neutral region capture with preview, clipboard copy, download, and programmatic capture. Host selection stays internal.
 - Codex adds optional Queue to Codex delivery, thread selection, delivery tracking, retry behavior, and completed-annotation cleanup.
 
 Each feature guide documents the service methods and behavior that belong to that plugin. The built-ins are also available as explicit plugin factories: `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, and `settings`. Use `defaults()` and `compose()` for explicit composition.
@@ -174,7 +174,7 @@ See [Getting started](./GETTING_STARTED.md) for placement examples and the TypeS
 | Entry | Purpose |
 | --- | --- |
 | `mesurer-solid` | Mount API, public types, persistence contracts, agent API, and high-level Context/Arrange/text methods. |
-| `mesurer-solid/plugins` | First-party plugin factories, plugin service types, and screenshot helpers. |
+| `mesurer-solid/plugins` | First-party plugin factories and plugin service contracts. Deprecated Screenshot helpers remain for compatibility. |
 | `mesurer-solid/core` | Framework-neutral plugin host and runtime contracts. |
 | `mesurer-solid/inject` | Programmatic browser injection. |
 | `mesurer-solid/inject-script` | Built classic-script artifact for browser evaluation without application source changes. |
@@ -186,7 +186,7 @@ The repository also ships a Chromium extension that injects Mesurer into the act
 
 ## Browser and application support
 
-Mesurer can run in browser applications built with Solid 1 or 2, React, Vue, Svelte, vanilla DOM, and Electron renderer pages. The public package ships its own Solid 2 renderer.
+Mesurer can run in browser applications built with Solid 1 or 2, React, Vue, Svelte, vanilla DOM, and Electron renderer pages. The public package ships its own Solid 2 renderer. Electron/native hosts can provide the Screenshot host capability from preload; renderer code still mounts `screenshot()` normally.
 
 Mount or inject Mesurer only where a DOM exists. Do not mount it in server code, an Electron main process, or another Node-only environment.
 
