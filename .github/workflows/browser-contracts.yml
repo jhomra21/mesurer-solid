@@ -329,7 +329,7 @@ jobs:
           print("")
           print("### Layout Guides / route state")
           print("- First-party Layout Guides plugin UI and overlay exercised in Chromium")
-          print("- Visible Layout Guides are included in Context evidence")
+          print("- Saved Layout Guides are included in Context evidence with each guide\'s visible flag")
           print("- Per-route Layout Guide sets switch on in-tab navigation and survive reload")
           print("- Toolbar position survives route changes/reload as tab-session UI state")
 
