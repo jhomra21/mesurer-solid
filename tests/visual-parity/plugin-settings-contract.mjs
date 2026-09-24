@@ -16,8 +16,9 @@ page.on("console", (message) => {
 
 const island = () => page.locator("[data-mesurer-island='true']");
 
-const browserSnapshot = async () => page.evaluate(() => {
+const browserSnapshot = async () => page.evaluate(async () => {
   const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
+  const description = harness ? await harness.subject.describe() : null;
   const islandElement = document.querySelector("[data-mesurer-island='true']");
   const root = islandElement?.shadowRoot ?? islandElement;
   const visibleTools = [];
@@ -31,8 +32,8 @@ const browserSnapshot = async () => page.evaluate(() => {
   return {
     href: window.location.href,
     harness: Boolean(harness),
-    plugins: harness?.subject.describe()?.plugins.map((plugin) => plugin.id) ?? [],
-    services: harness?.subject.describe()?.services ?? [],
+    plugins: description?.plugins.map((plugin) => plugin.id) ?? [],
+    services: description?.services ?? [],
     visibleTools,
     availability: window.localStorage.getItem("mesurer-plugin-settings:availability"),
     pluginState: window.localStorage.getItem("mesurer-plugin-settings"),
@@ -62,18 +63,25 @@ const waitForTool = async (id, visible) => {
   }
 };
 
-const pluginLoaded = async (id) => page.evaluate((pluginId) =>
-  window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.plugins.some((plugin) => plugin.id === pluginId) ?? false,
-  id,
-);
+const pluginLoaded = async (id) => page.evaluate(async (pluginId) => {
+  const subject = window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject;
+
+  if (!subject) return false;
+  const description = await subject.describe();
+
+  return description.plugins.some((plugin) => plugin.id === pluginId);
+}, id);
 
 const waitForPlugin = async (id, loaded) => {
   try {
-    await page.waitForFunction(({ id, loaded }) =>
-      (window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.plugins.some((plugin) => plugin.id === id) ?? false) === loaded,
-      { id, loaded },
-      { timeout: 8_000 },
-    );
+    await page.waitForFunction(async ({ id, loaded }) => {
+      const subject = window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject;
+
+      if (!subject) return loaded === false;
+      const description = await subject.describe();
+
+      return description.plugins.some((plugin) => plugin.id === id) === loaded;
+    }, { id, loaded }, { timeout: 8_000 });
   } catch (cause) {
     throw new Error(`Timed out waiting for ${id} to become ${loaded ? "loaded" : "unloaded"}: ${JSON.stringify(await browserSnapshot())}`, { cause });
   }
@@ -208,16 +216,17 @@ const expandPlugin = async (dialog, id) => {
 };
 
 const assertReleaseMetadata = async (dialog) => {
-  const metadata = await page.evaluate(() => {
+  const metadata = await page.evaluate(async () => {
     const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
 
     if (!harness) return null;
+    const description = await harness.subject.describe();
 
     return {
       expected: harness.version,
-      officialPlugins: harness.subject.describe()?.plugins
+      officialPlugins: description.plugins
         .filter((plugin) => plugin.id.startsWith("mesurer."))
-        .map((plugin) => ({ id: plugin.id, version: plugin.version })) ?? [],
+        .map((plugin) => ({ id: plugin.id, version: plugin.version })),
     };
   });
 
@@ -311,9 +320,11 @@ try {
   await waitForTool("layout-guides", true);
   await expectChecked(layoutGuidesToggle, true, "Layout Guides after Settings enable");
 
-  const layoutServiceLoaded = await page.evaluate(() =>
-    window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.services.includes("layout-guides:v1") ?? false,
-  );
+  const layoutServiceLoaded = await page.evaluate(async () => {
+    const subject = window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject;
+
+    return subject ? (await subject.describe()).services.includes("layout-guides:v1") : false;
+  });
 
   if (!layoutServiceLoaded) throw new Error("Enabling Layout Guides did not register layout-guides:v1");
   await layoutGuidesToggle.click();
@@ -350,9 +361,11 @@ try {
   await waitForTool("screenshot", false);
   await expectNoDisclosure(dialog, "mesurer.screenshot", "Disabled Screenshot");
 
-  const screenshotServiceRemoved = await page.evaluate(() =>
-    window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.services.includes("screenshot") ?? false,
-  );
+  const screenshotServiceRemoved = await page.evaluate(async () => {
+    const subject = window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject;
+
+    return subject ? (await subject.describe()).services.includes("screenshot") : false;
+  });
 
   if (screenshotServiceRemoved) throw new Error("Disabling Screenshot left its service registered");
 
@@ -367,9 +380,11 @@ try {
   await waitForPlugin("mesurer.context", false);
   await waitForTool("context.copy", false);
 
-  const contextServiceRemoved = await page.evaluate(() =>
-    window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject.describe()?.services.includes("context:v1") ?? false,
-  );
+  const contextServiceRemoved = await page.evaluate(async () => {
+    const subject = window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject;
+
+    return subject ? (await subject.describe()).services.includes("context:v1") : false;
+  });
 
   if (contextServiceRemoved) throw new Error("Disabling Context left context:v1 registered");
   await contextToggle.click();

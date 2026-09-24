@@ -43,6 +43,57 @@ Typical locations:
 
 `import.meta.env.DEV` and `import.meta.hot` are Vite APIs. With another bundler, use its development flag and cleanup lifecycle.
 
+## Mount lifecycle
+
+`mountMesurer()` is the one browser/Electron renderer factory. It creates the host, renderer, built-ins, first-party plugin registry, persistence wiring, and optional agent bridge, then returns a `MountedMesurer` handle.
+
+Most callers can use the handle immediately. Methods such as `service()`, `context()`, and `describe()` wait for the plugin runtime when they need it.
+
+Await `ready` when code needs startup completion or direct access to the live plugin host:
+
+```ts
+const mesurer = mountMesurer({
+  plugins: [context()],
+})
+
+const host = await mesurer.ready
+const description = await mesurer.describe()
+```
+
+`ready` resolves to the live plugin host after built-ins, configured plugins, persisted plugin state, fonts, and the initial rendered frames settle. If the mount is disposed before that point, `ready` rejects with an `AbortError`.
+
+Use `dispose()` when your framework already has an explicit cleanup hook. When another lifecycle already owns an `AbortController`, pass its signal instead:
+
+```ts
+const controller = new AbortController()
+
+const mesurer = mountMesurer({
+  signal: controller.signal,
+})
+
+controller.abort()
+```
+
+Aborting the signal disposes the mount. Passing an already-aborted signal fails before Mesurer adds a host to the document.
+
+To omit built-ins, use their public names:
+
+```ts
+mountMesurer({
+  excludeBuiltins: ["xray", "typography", "colorPicker"],
+})
+```
+
+`plugins` controls the initial first-party feature set. Omitting it starts every registered first-party feature. Supplying a list starts that list while omitted first-party features remain available through Settings. Built-ins are separate and are controlled by `excludeBuiltins`.
+
+### Advanced plugin-host ownership
+
+Normal application code does not need `pluginHost`, `onPluginHost`, or `onPluginsReady`.
+
+If an integration supplies `pluginHost`, that host remains caller-owned. Disposing or aborting the Mesurer mount removes the renderer but does not dispose the supplied host. The caller must dispose its host when that longer-lived owner ends.
+
+`onPluginHost` is the early hook for code that must see the host before configured plugin setup settles. For ordinary post-startup access, use `const host = await mesurer.ready`. The older `onPluginsReady` callback remains for compatibility.
+
 ### Optional separate module
 
 Mesurer does not require a `dev/` directory or a `mesurer.ts` filename. If you want the setup out of your main entry, move the same mount code into a helper such as `src/dev/mesurer.ts` and load it from the browser entry:

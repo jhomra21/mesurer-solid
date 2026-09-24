@@ -10,7 +10,7 @@ const privatePackagePattern = /@jhomra21\/mesurer-solid-(?:core|dom|renderer)/;
 
 const removedDeliveryPattern = /\b(?:sendContext|toAcpContentBlocks|MesurerContextSender|MesurerContextDelivery|MesurerEvidenceProvider|MesurerEvidenceImage|MesurerAcpContentBlock|AcpTextContentBlock|AcpImageContentBlock)\b/;
 
-const contextReturningSelectPattern = /\bselect\s*\(\s*selectors:\s*string\s*\|\s*string\[\]\s*\)\s*:\s*Promise<MesurerContextV1>/;
+const contextReturningSelectPattern = /\bselect\s*\(\s*selectors:\s*string\s*\|\s*readonly\s+string\[\]\s*\)\s*:\s*Promise<MesurerContextV1>/;
 
 const skillBinPath = "scripts/install-skill.mjs";
 
@@ -105,6 +105,41 @@ if (publishedRoot.mountMeasurer !== publishedRoot.mountMesurer) {
 
 const publishedPlugins = await import(new URL("../dist/plugins.js", import.meta.url));
 
+const publishedCore = await import(new URL("../dist/core.js", import.meta.url));
+
+let runtimeCleanupCount = 0;
+
+let runtimeFailure;
+
+try {
+  await publishedCore.createMesurerRuntime({
+    plugins: [
+      publishedCore.defineMesurerPlugin({
+        id: "package-check.runtime-owner",
+        setup(ctx) {
+          ctx.lifecycle.onDispose(() => { runtimeCleanupCount += 1; });
+        },
+      }),
+      publishedCore.defineMesurerPlugin({
+        id: "package-check.runtime-failure",
+        setup() {
+          throw new Error("package-check runtime startup failure");
+        },
+      }),
+    ],
+  });
+} catch (error) {
+  runtimeFailure = error;
+}
+
+if (!(runtimeFailure instanceof Error) || runtimeFailure.message !== "package-check runtime startup failure") {
+  throw new Error("Published createMesurerRuntime() did not preserve its startup failure.");
+}
+
+if (runtimeCleanupCount !== 1) {
+  throw new Error(`Published createMesurerRuntime() left partial plugin ownership alive after startup failure: ${runtimeCleanupCount}.`);
+}
+
 for (const factory of [
   "context",
   "codex",
@@ -168,7 +203,7 @@ const publishedDeclarations = distFiles
   .join("\n");
 
 if (!contextReturningSelectPattern.test(rootDeclarations)) {
-  throw new Error("Published declarations must expose select(string | string[]) returning Promise<MesurerContextV1>.");
+  throw new Error("Published declarations must expose select(string | readonly string[]) returning Promise<MesurerContextV1>.");
 }
 
 if (!/\bselect:\s*boolean\b/.test(rootDeclarations)) {

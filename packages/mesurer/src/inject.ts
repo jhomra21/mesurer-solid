@@ -4,7 +4,7 @@ import {
   type MountedMesurer,
 } from "./index";
 
-export type MesurerInjectConfig = Omit<MountMesurerOptions, "target" | "agent"> & {
+export type MesurerInjectConfig = Omit<MountMesurerOptions, "target" | "agent" | "signal"> & {
   /** Optional application container selector. Defaults to document.body. */
   target?: string;
   /** Global agent API name. Defaults to __MESURER__. */

@@ -76,6 +76,7 @@ jobs:
             type MountMeasurerOptions,
             type MountedMesurer,
             type MountedMeasurer,
+            type MesurerBuiltin,
             type MesurerPlugin,
             type MesurerTheme,
           } from "mesurer-solid";
@@ -88,18 +89,34 @@ jobs:
           } from "mesurer-solid/plugins";
           import {
             createMesurerPluginHost,
+            createMesurerRuntime,
             type MesurerPluginHost,
+            type MesurerRuntimeOptions,
           } from "mesurer-solid/core";
 
           const plugin: MesurerPlugin = defineMesurerPlugin({
             id: "consumer.types",
+            requires: [] as const,
+            provides: ["consumer:types"] as const,
             setup(ctx) {
               ctx.state.register({ id: "consumer", initial: 0, history: true });
             },
           });
           const theme: MesurerTheme = "dark";
-          const options: MountMesurerOptions = { agent: true, theme, plugins: [plugin, context()] };
+          const excludedBuiltin: MesurerBuiltin = "typography";
+          const plugins = [plugin, context()] as const;
+          const abortController = new AbortController();
+          const options: MountMesurerOptions = {
+            agent: true,
+            theme,
+            plugins,
+            excludeBuiltins: ["xray", excludedBuiltin, "colorPicker"],
+            signal: abortController.signal,
+          };
           const legacyOptions: MountMeasurerOptions = options;
+          const legacyBuiltinOptions: MountMesurerOptions = { excludePlugins: ["text-inspector", "color-picker"] };
+          // @ts-expect-error Canonical exclusions use public names such as "typography".
+          const invalidBuiltinOptions: MountMesurerOptions = { excludeBuiltins: ["text-inspector"] };
           const screenshotOptions: MesurerScreenshotPluginOptions = { copy: true, download: false };
           // @ts-expect-error Capture selection is internal; hosts expose capability instead.
           const invalidScreenshotCapture: MesurerScreenshotPluginOptions = { capture: async () => new Blob() };
@@ -109,11 +126,21 @@ jobs:
           const canonicalMounted: MountedMesurer | undefined = undefined;
           const legacyMounted: MountedMeasurer | undefined = canonicalMounted;
           const host: MesurerPluginHost = createMesurerPluginHost();
+          const runtimePlugins = [plugin] as const;
+          const runtimeOptions: MesurerRuntimeOptions = { plugins: runtimePlugins };
+          const runtimePromise: Promise<MesurerPluginHost> = createMesurerRuntime(runtimeOptions);
+          const readyHost = async (mounted: MountedMesurer): Promise<MesurerPluginHost> => mounted.ready;
           const resolveScreenshot = async (mounted: MountedMesurer) =>
             mounted.service<MesurerScreenshotService>("screenshot");
+          const describeMounted = async (mounted: MountedMesurer) => mounted.describe();
+          const selectReadonly = async (mounted: MountedMesurer) =>
+            mounted.select(["#first", "#second"] as const);
           void theme;
+          void excludedBuiltin;
           void options;
           void legacyOptions;
+          void legacyBuiltinOptions;
+          void invalidBuiltinOptions;
           void screenshotOptions;
           void invalidScreenshotCapture;
           void invalidScreenshotPreview;
@@ -123,7 +150,14 @@ jobs:
           void legacyMounted;
           void screenshot;
           void host;
+          void runtimePlugins;
+          void runtimeOptions;
+          void runtimePromise;
+          void readyHost;
           void resolveScreenshot;
+          void describeMounted;
+          void selectReadonly;
+          void abortController;
           void mountMesurer;
           void mountMeasurer;
           TS
@@ -226,6 +260,7 @@ jobs:
             setup(ctx) {
               ctx.state.register({ id: "package-smoke", initial: 0, history: true });
               ctx.service.provide("package-smoke", { ready: true });
+              ctx.service.provide("package-smoke-zero", 0);
               ctx.command.register("package-smoke.increment", () => {
                 let count = 0;
                 ctx.state.update("package-smoke", (value) => {
@@ -236,10 +271,97 @@ jobs:
               });
             },
           });
+          const preAbortedController = new AbortController();
+          preAbortedController.abort();
+          let preAborted = false;
+          try {
+            mountMesurer({ signal: preAbortedController.signal });
+          } catch (error) {
+            preAborted = error?.name === "AbortError";
+          }
+          if (!preAborted) throw new Error("Pre-aborted signal did not reject mountMesurer()");
+
+          const startupController = new AbortController();
+          const startupMount = mountMesurer({
+            target: document.body,
+            topLayer: false,
+            plugins: [],
+            persistKey: "package-smoke-startup-abort",
+            signal: startupController.signal,
+          });
+          startupController.abort();
+          let startupAborted = false;
+          try {
+            await startupMount.ready;
+          } catch (error) {
+            startupAborted = error?.name === "AbortError";
+          }
+          if (!startupAborted || startupMount.element.isConnected) {
+            throw new Error("AbortSignal did not cancel a starting Mesurer mount");
+          }
+
+          let resolveEarlyHost;
+          const earlyHost = new Promise((resolve) => { resolveEarlyHost = resolve; });
+          const stabilizationController = new AbortController();
+          const stabilizationMount = mountMesurer({
+            target: document.body,
+            topLayer: false,
+            plugins: [],
+            persistKey: "package-smoke-stabilization-abort",
+            signal: stabilizationController.signal,
+            onPluginHost: resolveEarlyHost,
+          });
+          await earlyHost;
+          stabilizationController.abort();
+          let stabilizationAborted = false;
+          try {
+            await stabilizationMount.ready;
+          } catch (error) {
+            stabilizationAborted = error?.name === "AbortError";
+          }
+          if (!stabilizationAborted || stabilizationMount.element.isConnected) {
+            throw new Error("AbortSignal did not cancel the final mounted readiness window");
+          }
+
+          const lifecycleController = new AbortController();
+          const lifecycleMount = mountMesurer({
+            target: document.body,
+            topLayer: false,
+            plugins: [],
+            excludeBuiltins: ["xray"],
+            persistKey: "package-smoke-lifecycle",
+            signal: lifecycleController.signal,
+          });
+          const lifecycleDescriptionPromise = lifecycleMount.describe();
+          const lifecycleHost = await lifecycleMount.ready;
+          if (lifecycleHost !== lifecycleMount.pluginHost) {
+            throw new Error("ready did not resolve the live plugin host");
+          }
+          const lifecycleDescription = await lifecycleDescriptionPromise;
+          if (lifecycleDescription.plugins.some((entry) => entry.id === "mesurer.xray")) {
+            throw new Error("excludeBuiltins did not remove X-ray");
+          }
+          lifecycleController.abort();
+          if (lifecycleMount.element.isConnected) {
+            throw new Error("AbortSignal did not dispose the Mesurer mount");
+          }
+          lifecycleMount.dispose();
+          lifecycleMount.dispose();
+
           const mesurer = mountMesurer({ agent: true, theme: "light", plugins: [plugin] });
-          await mesurer.ready;
-          const service = await mesurer.service("package-smoke");
+          const descriptionPromise = mesurer.describe();
+          const servicePromise = mesurer.service("package-smoke");
+          const zeroServicePromise = mesurer.service("package-smoke-zero");
+          const host = await mesurer.ready;
+          if (host !== mesurer.pluginHost) throw new Error("ready host does not match mounted plugin host");
+          const description = await descriptionPromise;
+          if (!description.plugins.some((entry) => entry.id === "package-smoke")) {
+            throw new Error("Mounted describe() did not include the configured plugin");
+          }
+          const service = await servicePromise;
           if (!service?.ready) throw new Error("Mounted service resolution failed");
+          const zeroService = await zeroServicePromise;
+          if (zeroService !== 0) throw new Error("Mounted service() rejected or changed a falsy service value");
           window.__HOST_READY__ = true;
           JS
 

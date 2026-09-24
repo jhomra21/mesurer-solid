@@ -41,6 +41,8 @@ For Vite, put this in the existing browser entry such as `src/main.tsx`, `src/ma
 
 `src/dev/mesurer.ts` is an optional organization pattern, not a required filename or directory. Do not mount Mesurer from `vite.config.ts`, server/API code, Node-only scripts, an Electron main process, or a module that also executes during SSR.
 
+The returned handle owns the mount. Await `mesurer.ready` when startup completion, initial rendered stability, or direct host access matters, call `mesurer.dispose()` for explicit cleanup, or pass `signal` when an existing lifecycle should own disposal.
+
 Full placement examples: [Getting started](https://github.com/jhomra21/mesurer-solid/blob/main/docs/GETTING_STARTED.md).
 
 ## First-party plugins
@@ -64,9 +66,11 @@ const mesurer = mountMesurer({
 
 The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. Native Color Picker is available only when the host exposes an operational `EyeDropper`.
 
-For explicit plugin composition, `mesurer-solid/plugins` also exports `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, `settings`, `defaults`, and `compose`.
+`mesurer-solid/plugins` also exports the built-in factories for lower-level composition. Normal mounts already include the built-ins. Use `excludeBuiltins` with names such as `"xray"`, `"typography"`, and `"colorPicker"` when a mount should omit one.
 
-Resolve plugin-owned capabilities with `await mesurer.service<T>(serviceId)`. The helper waits for configured plugins to finish loading and keeps normal consumers on the mounted API instead of requiring `pluginHost.service.get(...)`.
+Resolve plugin-owned capabilities with `await mesurer.service<T>(serviceId)`. The helper waits for configured plugins to finish loading and keeps normal consumers on the mounted interface instead of requiring `pluginHost.service.get(...)`. Falsy registered values are returned unchanged.
+
+Advanced integrations may supply their own `pluginHost`. That host remains caller-owned; disposing or aborting the Mesurer mount does not dispose it. Use `onPluginHost` only when code needs the host before startup settles.
 
 | Entry | Purpose |
 | --- | --- |

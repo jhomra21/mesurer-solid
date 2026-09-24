@@ -65,7 +65,7 @@ export type MesurerContextService = {
   context(request?: MesurerContextRequest): Promise<MesurerContextV1>;
   contextText(request?: MesurerContextRequest): Promise<string>;
   copyContext(request?: MesurerContextRequest): Promise<void>;
-  select(selectors: string | string[]): Promise<MesurerContextV1>;
+  select(selectors: string | readonly string[]): Promise<MesurerContextV1>;
   annotations(): Promise<MesurerAnnotation[]>;
   /** Remove one saved annotation after a trusted workflow has completed it. */
   removeAnnotation(annotationId: string): Promise<void>;
@@ -104,8 +104,9 @@ const createService = (
   const copyContext = async (request?: MesurerContextRequest) =>
     copyTextToClipboard(ownerDocument, ownerWindow, await contextText(request));
 
-  const select = async (selectors: string | string[]) => {
-    runtime.select(Array.isArray(selectors) ? selectors : [selectors]);
+  const select = async (selectors: string | readonly string[]) => {
+    const requested = Array.isArray(selectors) ? [...selectors] : [String(selectors)];
+    runtime.select(requested);
     await stable(ownerDocument, ownerWindow);
 
     return context({ scope: "selection" });

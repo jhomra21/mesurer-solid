@@ -50,7 +50,7 @@ All public plugin factories come from `mesurer-solid/plugins`.
 - Screenshot adds region capture with preview, clipboard copy, download, and programmatic capture. It selects an application-native host capability, the Chromium extension adapter, or browser display capture internally.
 - Codex adds optional Queue to Codex delivery, thread selection, delivery tracking, retry behavior, and completed-annotation cleanup.
 
-Each feature guide documents the service methods and behavior that belong to that plugin. The built-ins are also available as explicit plugin factories: `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, and `settings`. Use `defaults()` and `compose()` for explicit composition.
+Each feature guide documents the methods and behavior that belong to that plugin. The built-in factories are also exported for lower-level composition. Normal `mountMesurer()` callers get the built-ins automatically and can remove selected ones with `excludeBuiltins`.
 
 ## Agent API
 
@@ -64,15 +64,15 @@ Mounted-instance-only helpers include:
 
 | Member | Use |
 | --- | --- |
-| `ready` | Promise that resolves after the plugin host and configured plugins are ready. |
-| `service<T>(id)` | Resolve a typed plugin-owned service after the configured plugins are ready. |
+| `ready` | Promise that resolves to the live plugin host after plugin startup and the initial rendered state settle. |
+| `service<T>(id)` | Resolve a typed plugin-owned value after startup. Falsy registered values are returned unchanged. |
 | `copyContext(request?)` | Copy formatted Context through the enabled Context service. |
 | `bringToFront()` | Reassert the Mesurer host above later host-page overlays when the host layer supports it. |
-| `describe()` | Read the current plugin description from the mounted plugin host. |
-| `pluginHost` | Access the live plugin host when the caller explicitly needs plugin lifecycle control. |
+| `describe()` | Resolve the current plugin description after startup. |
+| `pluginHost` | Compatibility access to the host when advanced code needs the pre-ready value. Prefer `await ready` for normal use. |
 | `hostLayer` | Read the active Mesurer host-layer mode. |
 | `element` and `root` | Access the mounted island and its renderer root. |
-| `dispose()` | Remove the mounted Mesurer instance and restore any replaced agent global. |
+| `dispose()` | Idempotently remove the mounted Mesurer instance, detach lifecycle listeners, and restore any replaced agent global. |
 
 ### General inspection
 
@@ -143,7 +143,7 @@ Normal application code should use the mounted instance or `window.__MESURER__`.
 | --- | --- |
 | `defineMesurerPlugin(plugin)` | Preserve a plugin's inferred type while declaring it as a Mesurer plugin. |
 | `createMesurerPluginHost()` | Create an empty plugin host for code that manages plugin loading directly. |
-| `createMesurerRuntime({ plugins })` | Create a plugin host and load the supplied plugins before returning it. |
+| `createMesurerRuntime({ plugins })` | Create a plugin host and load a readonly initial plugin set. Failed startup disposes the partial host before rethrowing. |
 
 A plugin can register state, tools, settings, overlays, commands, hooks, services, and cleanup. State slices can opt into undo/redo history and persistence.
 
@@ -157,16 +157,20 @@ Renderer-only services remain private. Public plugins request them by service id
 
 | Area | Options |
 | --- | --- |
-| Host and isolation | `target`, `isolate`, `shadowMode`, `topLayer`, `agent` |
+| Host and lifecycle | `target`, `isolate`, `shadowMode`, `topLayer`, `agent`, `signal` |
 | Colors and appearance | `highlightColor`, `guideColor`, `hoverHighlightEnabled`, `theme` |
 | Persistence | `persistOnReload`, `persistKey`, `persistence`, `onPersistenceError` |
 | Shortcuts | `shortcutsEnabled` |
 | Color Picker | `colorPickerFormats`, `colorPickerClickFormat` |
 | Snapping and measurement | `snapEnabled`, `snapGuidesEnabled`, `selectNewGuideEnabled`, `multiMeasureEnabled` |
 | Guide and ruler presentation | `guideStyle`, `selectionSpacingStyle`, `rulerSettings` |
-| Plugins | `plugins`, `excludePlugins`, `pluginHost`, `onPluginHost`, `onPluginsReady`, `onPluginError` |
+| Plugins | `plugins`, `excludeBuiltins`, `pluginHost`, `onPluginHost`, `onPluginError` |
 
-When `agent` is an object instead of `true`, `AgentBridgeOptions` also accepts `globalName` and `root`.
+When `agent` is an object instead of `true`, `AgentBridgeOptions` also accepts `globalName` and `root`. The returned `mounted.agent` exists regardless; `agent` controls whether that interface is also installed on the owning window.
+
+`excludeBuiltins` uses the public built-in names `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, and `settings`. The older `excludePlugins` option and `onPluginsReady` callback remain compatibility surfaces; new code should use `excludeBuiltins` and `await mounted.ready`.
+
+A supplied `pluginHost` is caller-owned. Mount disposal removes the renderer but does not dispose that host. `onPluginHost` runs when the host becomes available, before configured plugin startup settles.
 
 Custom persistence implements `load()`, `saveSettings()`, `saveWorkspace()`, `clearWorkspace()`, and `clearSettings()`. It may also implement `setPageKey(pageKey)`, `subscribe()`, and `setErrorHandler()`. The default adapter scopes page-owned workspace state by pathname plus sorted query parameters (and hash routes that start with `#/`), while settings remain shared for the persistence key. Toolbar position is session UI state and is not stored in the page workspace.
 

@@ -539,7 +539,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (event.reason === "remove" && event.pluginId?.startsWith("mesurer.")) {
         const id = event.pluginId.slice("mesurer.".length);
 
-        if (isBuiltinPluginId(id)) requireBuiltinController().deactivate(id);
+        if (isBuiltinPluginId(id)) builtinController?.deactivate(id);
       }
     });
 

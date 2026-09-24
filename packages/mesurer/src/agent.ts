@@ -135,7 +135,7 @@ export type AgentViewportSnapshot = {
 export type AgentFeedbackSnapshot = {
   viewport: AgentViewportSnapshot;
   elements: AgentElementInspection[];
-  plugins: MesurerPluginDescription | undefined;
+  plugins: MesurerPluginDescription;
   pluginState: PluginStateSnapshot;
 };
 
@@ -143,7 +143,7 @@ type AgentCommandArgs = Parameters<MesurerPluginHost["command"]["execute"]>[1];
 
 export type MesurerAgentHarness = {
   ready(): Promise<void>;
-  describe(): Promise<MesurerPluginDescription | undefined>;
+  describe(): Promise<MesurerPluginDescription>;
   inspect(selector: string, index?: number): AgentElementInspection | null;
   inspectAll(selector: string, limit?: number): AgentElementInspection[];
   at(x: number, y: number): AgentElementInspection | null;

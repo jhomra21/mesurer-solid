@@ -138,8 +138,8 @@ export type MesurerPluginContext = {
 export type MesurerPlugin = {
   id: PluginId;
   version?: string;
-  requires?: string[];
-  provides?: string[];
+  requires?: readonly string[];
+  provides?: readonly string[];
   setup(context: MesurerPluginContext): void | Promise<void>;
 };
 
@@ -543,8 +543,8 @@ export function createMesurerPluginHost() {
         plugins: [...plugins.values()].map(({ plugin }) => ({
           id: plugin.id,
           version: plugin.version,
-          requires: plugin.requires ?? [],
-          provides: plugin.provides ?? [],
+          requires: [...(plugin.requires ?? [])],
+          provides: [...(plugin.provides ?? [])],
         })),
         tools: host.tools().map(({ active: _active, disabled: _disabled, hidden: _hidden, icon: _icon, menu: _menu, ...tool }) => tool),
         settings: host.settings().map(({ controls = [], ...section }) => ({
