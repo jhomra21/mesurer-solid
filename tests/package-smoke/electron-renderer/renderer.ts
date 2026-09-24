@@ -1,16 +1,9 @@
 import { mountMesurer } from "mesurer-solid";
 import {
   context,
-  createElectronScreenshotCaptureProvider,
   screenshot,
   type MesurerScreenshotService,
 } from "mesurer-solid/plugins";
-
-type ElectronCaptureResult = {
-  png: Uint8Array;
-  width: number;
-  height: number;
-};
 
 type ElectronTestSummary = {
   targetCount: number;
@@ -30,7 +23,6 @@ type ElectronTestSummary = {
 declare global {
   interface Window {
     electronMesurer: {
-      captureWindow(): Promise<ElectronCaptureResult>;
       complete(payload: {
         png: Uint8Array;
         summary: ElectronTestSummary;
@@ -60,16 +52,11 @@ style.textContent = `
 
 document.head.append(style);
 
-const captureVisibleTab = createElectronScreenshotCaptureProvider(
-  () => window.electronMesurer.captureWindow(),
-);
-
 const mesurer = mountMesurer({
   agent: true,
   plugins: [
     context(),
     screenshot({
-      captureVisibleTab,
       copy: false,
       download: false,
     }),
