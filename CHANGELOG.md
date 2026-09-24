@@ -4,10 +4,12 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.9-beta.1 - 2026-09-24
+
 - Fix Guide-to-element distance measurement to use the exact zero-thickness Guide coordinate instead of a one-pixel rectangle, while preserving the visible Guide hit target. Browser coverage now verifies exact vertical and horizontal distances.
 - Deepen the main `mountMesurer()` interface without adding another factory: `ready` now resolves the live plugin host after startup, `describe()` waits for readiness, `signal` can own disposal, readonly plugin arrays are accepted, and `excludeBuiltins` uses public names such as `typography` and `colorPicker`. The lower-level `createMesurerRuntime()` also accepts readonly plugin lists and disposes partial startup on failure. Keep `excludePlugins` and `onPluginsReady` as compatibility surfaces, and preserve falsy values returned by `service<T>()`.
-
-<!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.1.9-beta.0 - 2026-09-24
 
