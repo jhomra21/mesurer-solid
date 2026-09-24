@@ -67,7 +67,7 @@ When no host bridge is available, Screenshot uses `getDisplayMedia()` and reuses
 
 This keeps one Screenshot API across normal browser pages, the Chromium extension, Electron renderers, and other hosts that can provide the same capture capability. Detection is capability-based rather than tied to a user agent or framework.
 
-Advanced integrations and deterministic tests can still provide a custom `ScreenshotCaptureProvider`. Most applications should use `screenshot()` without a capture override.
+Advanced integrations and deterministic tests can still pass `capture` with a custom `ScreenshotCaptureProvider`. The older `captureVisibleTab` option remains compatible. Most applications should use `screenshot()` without a capture override.
 
 See [Electron renderer example](../examples/electron-renderer/README.md) and [Browser extension](../extension/README.md).
 
