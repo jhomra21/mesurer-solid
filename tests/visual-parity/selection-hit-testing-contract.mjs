@@ -209,18 +209,29 @@ try {
     "Physical Shift-click should add the second rendered target to the current selection",
   );
 
-  const aggregate = await box(selectedSurface(), "Shift-click aggregate selection");
   const transparentCurrent = await box(page.locator("#transparent-leaf"), "transparent leaf after Shift-click");
   const topCurrent = await box(topTarget, "top target after Shift-click");
-  const aggregateRight = aggregate.x + aggregate.width;
-  const aggregateBottom = aggregate.y + aggregate.height;
+  const targetOutlines = page.locator("[data-mesurer-selection-spacing-target='true']");
 
-  for (const [label, rect] of [["transparent leaf", transparentCurrent], ["top target", topCurrent]]) {
-    assert(aggregate.x <= rect.x + 2, `aggregate selection should include ${label} left edge`);
-    assert(aggregate.y <= rect.y + 2, `aggregate selection should include ${label} top edge`);
-    assert(aggregateRight >= rect.x + rect.width - 2, `aggregate selection should include ${label} right edge`);
-    assert(aggregateBottom >= rect.y + rect.height - 2, `aggregate selection should include ${label} bottom edge`);
-  }
+  assert.equal(await targetOutlines.count(), 2, "Physical Shift-click should render one visible outline per selected target");
+  assert.equal(
+    await page.locator("[data-mesurer-selection-group='true']").count(),
+    1,
+    "Physical Shift-click should render the grouped selection size surface",
+  );
+
+  const outlineBoxes = await targetOutlines.evaluateAll((elements) => elements.map((element) => {
+    const rect = element.getBoundingClientRect();
+
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  }));
+
+  const matchesTarget = (expected) => outlineBoxes.some((actual) =>
+    ["x", "y", "width", "height"].every((key) => Math.abs(actual[key] - expected[key]) <= 2)
+  );
+
+  assert(matchesTarget(transparentCurrent), "Multi-selection should visibly outline the transparent leaf");
+  assert(matchesTarget(topCurrent), "Multi-selection should visibly outline the Shift-clicked top target");
 
   const agentTop = await page.evaluate(
     ({ x, y }) => window.__MESURER__.at(x, y),
@@ -297,6 +308,7 @@ try {
     selectOffClearsSelection: true,
     selectOffPersistsWithoutLatentSelection: true,
     physicalShiftClickMultiSelection: true,
+    visibleMultiSelectionTargetOutlines: true,
     agentParity: true,
     nativeTargetPreserved: true,
     transformedGeometry: true,
