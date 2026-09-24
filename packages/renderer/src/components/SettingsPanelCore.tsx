@@ -96,6 +96,7 @@ function SliderControl(props: {
     <div class="msr:col-span-2 msr:grid msr:w-full msr:grid-cols-[78px_156px] msr:items-center msr:gap-3">
       <span class="msr:text-[11px] msr:font-medium msr:text-ink-700">{props.label}</span>
       <ControlShell
+        variant="legacy"
         left={
           <div
             ref={(element) => { sliderElement = element; }}
@@ -208,7 +209,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
 
       <Show when={props.model.state.settingsTab === "guides"}>
         <section class="msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1" aria-label="Guide settings">
-          <ColorField label="Color" value={settings().guideColor} fallback="#f97316" ownerWindow={props.ownerWindow} onChange={(guideColor) => props.model.updateSettings({ guideColor })} />
+          <ColorField variant="legacy" label="Color" value={settings().guideColor} fallback="#f97316" ownerWindow={props.ownerWindow} onChange={(guideColor) => props.model.updateSettings({ guideColor })} />
           <SliderControl label="Weight" min={1} max={4} step={1} value={settings().guideStyle.width} formatValue={(value) => `${value}px`} parseInput={(input) => Number.parseFloat(input)} onChange={(width) => updateGuide({ width })} />
           <div class="msr:col-span-2 msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-3">
             <span class="msr:text-[12px] msr:text-ink-700">Pattern</span>
@@ -247,7 +248,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
 
       <Show when={props.model.state.settingsTab === "select"}>
         <section class="msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-x-3 msr:gap-y-1" aria-label="Selection settings">
-          <ColorField label="Color" value={settings().highlightColor} fallback="#0d99ff" ownerWindow={props.ownerWindow} onChange={(highlightColor) => props.model.updateSettings({ highlightColor })} />
+          <ColorField variant="legacy" label="Color" value={settings().highlightColor} fallback="#0d99ff" ownerWindow={props.ownerWindow} onChange={(highlightColor) => props.model.updateSettings({ highlightColor })} />
           <SettingsSwitch label="Hover" checked={settings().hoverHighlightEnabled} onChange={(hoverHighlightEnabled) => props.model.updateSettings({ hoverHighlightEnabled })} />
           <SettingsSwitch label="Element snap" checked={settings().snapEnabled} onChange={(snapEnabled) => props.model.updateSettings({ snapEnabled })} />
           <SettingsSwitch label="Stack" checked={settings().multiMeasureEnabled} onChange={(multiMeasureEnabled) => props.model.updateSettings({ multiMeasureEnabled })} />
@@ -255,7 +256,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
           <div class="msr:col-span-2 msr:text-[10px] msr:font-semibold msr:text-ink-500">Selection spacing</div>
           <SettingsSwitch label="Show" checked={props.selectionSpacingStyle.enabled} onChange={(enabled) => updateSpacing({ enabled })} />
           <SettingsSwitch label="Diagonals" checked={props.selectionSpacingStyle.diagonals} onChange={(diagonals) => updateSpacing({ diagonals })} />
-          <ColorField label="Line color" value={props.selectionSpacingStyle.color} fallback="#2563eb" ownerWindow={props.ownerWindow} onChange={(color) => updateSpacing({ color })} />
+          <ColorField variant="legacy" label="Line color" value={props.selectionSpacingStyle.color} fallback="#2563eb" ownerWindow={props.ownerWindow} onChange={(color) => updateSpacing({ color })} />
           <SliderControl label="Weight" min={1} max={4} step={1} value={props.selectionSpacingStyle.width} formatValue={(value) => `${value}px`} parseInput={(input) => Number.parseFloat(input)} onChange={(width) => updateSpacing({ width })} />
           <div class="msr:col-span-2 msr:grid msr:grid-cols-[78px_156px] msr:items-center msr:gap-3">
             <span class="msr:text-[12px] msr:text-ink-700">Pattern</span>
