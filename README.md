@@ -72,7 +72,7 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 
 ## Features
 
-- **Select.** Inspect one or more rendered HTML or SVG elements.
+- **Select.** Inspect one or more rendered HTML or SVG elements. Turning Select off clears the current element and Guide selection instead of retaining hidden selection state.
 - **Distance.** Measure spacing and geometry, including pairwise multi-selection spacing.
 - **X-ray, Guides, and Rulers.** Inspect page structure and alignment.
 - **Layout Guides.** Add page-scoped columns, rows, or a pixel grid through the optional `layoutGuides()` plugin. Layout Guide mutations participate in plugin history, and Context includes the current page's saved guides with their visibility state.
@@ -83,7 +83,7 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 - **Plugins.** Add tools, commands, overlays, settings, state, hooks, and services at runtime.
 - **Compact toolbar.** Collapse inactive controls while every active tool remains visible. Expanding restores the same toolbar order and state.
 - **Appearance.** Use System, Light, or Dark without changing the inspected page. The same theme applies to the isolated toolbar and document-backed Context and Typography UI.
-- **Color Picker.** Use the browser's native `EyeDropper` when it is operational. Unsupported hosts do not advertise the tool.
+- **Color Picker.** Use the browser's native `EyeDropper` when it is operational. A successful sample is copied to the clipboard in the configured format; unsupported hosts do not advertise the tool.
 
 Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a toolbar mode. Clicking Arrange automatically enables Select; turning Arrange off leaves Select active, while turning Select off also exits Arrange.
 
