@@ -79,6 +79,7 @@ const mesurer = mountMesurer({
 await mesurer.ready;
 
 const selection = await mesurer.select('[data-testid="electron-target"]');
+
 const target = selection.targets[0];
 
 if (!target) throw new Error("Mesurer did not select the Electron renderer target.");
