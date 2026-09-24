@@ -122,6 +122,13 @@ try {
     await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.select");
   });
 
+  // Current React clears Guide selection when Select is invoked, then its
+  // Guide-to-element acceptance physically re-selects the Guide in Select.
+  await page.mouse.click(326, 280);
+  await page.waitForFunction(() =>
+    window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.model.current.selectedGuideIds.length === 1,
+  );
+
   const guideTargetBox = await page.locator("[data-spacing-card='a']").boundingBox();
   assert(guideTargetBox, "Card A must have a bounding box for guide distance");
   await page.keyboard.down("Alt");
@@ -160,10 +167,7 @@ try {
     await page.keyboard.up("Alt");
   }
 
-  // Select follows current React and clears Guide selection when it is invoked,
-  // so Delete no longer owns the Guide created above. Escape clears the
-  // temporary measurement workspace without weakening that Select lifecycle.
-  await page.keyboard.press("Escape");
+  await page.keyboard.press("Delete");
   await page.waitForFunction(() =>
     document.querySelectorAll('[data-mesurer-guide="true"]').length === 0,
   );
