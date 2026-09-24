@@ -148,6 +148,10 @@ if (/\bcapture\?:\s*ScreenshotCaptureProvider\b/.test(pluginDeclarations)) {
   throw new Error("Published Screenshot options must not expose the private capture-provider seam.");
 }
 
+if (/type\s+MesurerScreenshotPluginOptions\s*=\s*Partial<MesurerScreenshotSettings>/.test(pluginDeclarations)) {
+  throw new Error("Published Screenshot options must stay explicit instead of inheriting persisted settings.");
+}
+
 if (!/\bcaptureVisibleTab\?:[^;]*\bScreenshotCaptureProvider\b/.test(pluginDeclarations)) {
   throw new Error("Published Screenshot options must retain the deprecated captureVisibleTab compatibility hook.");
 }
