@@ -6,6 +6,28 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 <!-- Add user-facing changes here before preparing a release. -->
 
+## 0.1.9 - 2026-09-24
+
+- Match current React Select lifecycle: invoking Select now clears the current element/Guide selection before toggling the tool, so turning Select off cannot leave latent selection that reappears later. Browser acceptance now covers Select-off persistence, physical Shift-click multi-selection, and exact native Color Picker clipboard output.
+- Fix Guide-to-element distance measurement to use the exact zero-thickness Guide coordinate instead of a one-pixel rectangle, while preserving the visible Guide hit target. Browser coverage now verifies exact vertical and horizontal distances.
+- Deepen the main `mountMesurer()` interface without adding another factory: `ready` now resolves the live plugin host after startup, `describe()` waits for readiness, `signal` can own disposal, readonly plugin arrays are accepted, and `excludeBuiltins` uses public names such as `typography` and `colorPicker`. The lower-level `createMesurerRuntime()` also accepts readonly plugin lists and disposes partial startup on failure. Keep `excludePlugins` and `onPluginsReady` as compatibility surfaces, and preserve falsy values returned by `service<T>()`.
+- Match Layout Guides to the audited current React Mesurer component, including menu size, control fields, spacing, icon strokes, editor states, first-open default guide creation, and separate panel/overlay visibility. A focused browser parity job now compares the current component directly while the existing historical renderer parity suite remains unchanged.
+
+- Make Screenshot choose its capture path internally. Electron/native hosts can expose `window.__MESURER_HOST__.captureScreenshot`, the Chromium extension keeps its private adapter, and ordinary browser pages fall back to `getDisplayMedia()`. Renderer usage stays `screenshot()`. Existing provider and low-level helpers remain only for compatibility. Package smoke now runs the packed artifact in Electron 43 with context isolation and sandboxing enabled, node integration disabled, and a packaged `file://` renderer.
+- Fix the root `bun run dev` path under Vite 8 by removing JSX comma expressions from Layout Guides. CI now starts the root dev command and loads `layout-guides.html` so dependency-scan and pre-transform failures cannot pass unnoticed.
+- Add first-party **Layout Guides** as `layoutGuides()`: columns, rows, and pixel grids are plugin-owned, page-scoped, undoable through the existing command/history path, available through `MesurerLayoutGuidesService`, and included in Context evidence.
+- Scope default persisted workspace state to the current route so page-owned guides, selections, measurements, and annotations do not leak across in-tab navigation. Keep toolbar placement as tab-session UI and restore it across route changes and reloads.
+- Restore explicitly opened Chromium-extension sessions after reload or eligible in-tab navigation while retaining `activeTab` instead of requesting persistent site access. Recovery stops when the browser no longer grants access and resumes only after another explicit action click.
+- Remount extension-owned Mesurer when page DOM replacement disconnects its injected host, while keeping disconnected-host recovery opt-in for general programmatic injection.
+- Refine measurement geometry with shared-overlap anchors, true guide-line-to-box distances, and padding-box container spacing while retaining Mesurer Solid's multi-selection and diagonal evidence model.
+- Improve Inspect hit testing for pointer-transparent visual descendants and overlapping targets, and treat SVG elements as first-class Select, point-inspection, Context, and annotation targets.
+- Keep toolbar dragging separate from menu/dialog/form interaction: trigger drags close their open transient surface only after drag starts, while Guide menu state is exposed through `aria-expanded`.
+
+- Add persisted **System**, **Light**, and **Dark** appearance modes through Settings and the public `theme` mount option. The active theme now follows Mesurer UI across the isolated renderer, document-backed Context and Typography, direct editing, and portaled selection chrome.
+- Add a design-review contract for new Mesurer-owned UI, using current upstream floating-surface, control, density, motion, and ownership language without restyling accepted existing surfaces by default.
+- Let plugin commands return JSON-safe values through the core host and browser-agent command API instead of discarding handler results.
+- Add `MountedMesurer.service<T>(id)` for typed optional-plugin capabilities, make Codex `queue()` / `codex.queue` the canonical delivery API, and retain `send()` / `codex.send` as compatibility aliases.
+
 ## 0.1.9-beta.2 - 2026-09-24
 
 - Match current React Select lifecycle: invoking Select now clears the current element/Guide selection before toggling the tool, so turning Select off cannot leave latent selection that reappears later. Browser acceptance now covers Select-off persistence, physical Shift-click multi-selection, and exact native Color Picker clipboard output.
