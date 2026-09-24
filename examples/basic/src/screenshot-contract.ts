@@ -36,7 +36,7 @@ const subject = mountMesurer({
   plugins: [screenshot({
     copy: false,
     download: false,
-    captureVisibleTab: deterministicCapture,
+    capture: deterministicCapture,
   })],
   persistKey: "mesurer-screenshot-contract",
 });
