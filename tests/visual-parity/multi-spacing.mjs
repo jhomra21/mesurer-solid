@@ -160,7 +160,10 @@ try {
     await page.keyboard.up("Alt");
   }
 
-  await page.keyboard.press("Delete");
+  // Select follows current React and clears Guide selection when it is invoked,
+  // so Delete no longer owns the Guide created above. Escape clears the
+  // temporary measurement workspace without weakening that Select lifecycle.
+  await page.keyboard.press("Escape");
   await page.waitForFunction(() =>
     document.querySelectorAll('[data-mesurer-guide="true"]').length === 0,
   );
