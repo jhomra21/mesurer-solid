@@ -24,11 +24,19 @@ export type ScreenshotRect = {
   height: number;
 };
 
+/**
+ * @deprecated Retained for the legacy captureVisibleTab override.
+ * New hosts should expose the automatic Screenshot host capability.
+ */
 export type ScreenshotCaptureContext = {
   ownerDocument: Document;
   ownerWindow: Window;
 };
 
+/**
+ * @deprecated Retained for the legacy captureVisibleTab override.
+ * New hosts should expose the automatic Screenshot host capability.
+ */
 export type ScreenshotCaptureProvider = (
   context: ScreenshotCaptureContext,
 ) => Promise<Blob>;
