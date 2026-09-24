@@ -84,6 +84,7 @@ export const MESURER_SCREENSHOT_SERVICE_ID: string = rendererServiceId;
 
 export const MESURER_SCREENSHOT_SETTINGS_STATE_ID: string = rendererSettingsStateId;
 
+/** @deprecated Screenshot interaction thresholds are owned by the plugin. */
 export const MIN_SCREENSHOT_SELECTION: number = rendererMinSelection;
 
 /**
@@ -92,14 +93,17 @@ export const MIN_SCREENSHOT_SELECTION: number = rendererMinSelection;
  */
 export const captureVisibleTabPng: ScreenshotCaptureProvider = rendererCaptureVisibleTabPng;
 
+/** @deprecated Prefer screenshot() or MesurerScreenshotService. */
 export const copyPngToClipboard = (
   png: Blob | Promise<Blob>,
   ownerWindow: Window,
 ): Promise<void> => rendererCopyPngToClipboard(png, ownerWindow);
 
+/** @deprecated Prefer screenshot() or MesurerScreenshotService. */
 export const createScreenshotFilename = (now = new Date()): string =>
   rendererCreateScreenshotFilename(now);
 
+/** @deprecated Screenshot owns HiDPI region cropping internally. */
 export const cropPngToViewportRect = (
   blob: Blob,
   rect: ScreenshotRect,
@@ -107,17 +111,20 @@ export const cropPngToViewportRect = (
   ownerDocument: Document,
 ): Promise<Blob> => rendererCropPngToViewportRect(blob, rect, viewport, ownerDocument);
 
+/** @deprecated Screenshot owns region normalization internally. */
 export const normalizeScreenshotRect = (
   start: { x: number; y: number },
   end: { x: number; y: number },
   viewport: { width: number; height: number },
 ): ScreenshotRect => rendererNormalizeScreenshotRect(start, end, viewport);
 
+/** @deprecated Screenshot owns capture preparation internally. */
 export const prepareScreenshotCapture = (
   ownerDocument: Document,
   ownerWindow: Window,
 ): Promise<void> => rendererPrepareScreenshotCapture(ownerDocument, ownerWindow);
 
+/** @deprecated Screenshot owns capture lifecycle internally. */
 export const releaseScreenshotCapture = (ownerWindow: Window): void =>
   rendererReleaseScreenshotCapture(ownerWindow);
 
@@ -125,5 +132,6 @@ export const screenshot = (
   options: MesurerScreenshotPluginOptions = {},
 ): MesurerPlugin => ({ ...rendererScreenshotPlugin(options), version: MESURER_VERSION });
 
+/** @deprecated Screenshot owns capture paint coordination internally. */
 export const waitForNextPaint = (ownerWindow: Window): Promise<void> =>
   rendererWaitForNextPaint(ownerWindow);
