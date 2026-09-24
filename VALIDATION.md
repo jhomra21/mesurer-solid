@@ -30,6 +30,20 @@ Do not make production code accommodate missing jsdom/browser APIs merely to kee
 
 Implementation diagnostics such as data attributes, event counters, geometry-read counters, or hot-path instrumentation are useful only when paired with an end-to-end behavior contract. They can explain *how* a behavior stays correct or performant; they cannot substitute for proving that the behavior is correct.
 
+## Development server contract
+
+The root `bun run dev` command is a supported contributor path. CI starts it from a clean checkout, requests `/layout-guides.html`, and fails if Vite reports a dependency-scan, pre-transform, or internal-server error.
+
+This check matters because the basic example aliases renderer source directly. Syntax can pass the production transform while still failing Vite's dependency scanner. Changes to renderer TSX, example entries, aliases, or Vite configuration must keep the root dev smoke green.
+
+## Screenshot host contracts
+
+Screenshot host selection must be tested at the public plugin boundary. The Chromium Screenshot contract mounts `screenshot()`, exercises native host results as `Blob`, `ArrayBuffer`, `Uint8Array`, and wrapped `{ png, ...metadata }`, and verifies the cropped PNG result. Malformed host data must fail on the selected host path rather than falling through to a different capture permission flow.
+
+Package smoke builds and packs the exact npm artifact, installs it into a clean Electron consumer, and runs a real Electron renderer with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The Electron preload exposes the host capture capability, the main process backs it with `webContents.capturePage()`, and renderer code still mounts plain `screenshot()`.
+
+The Chromium extension keeps a separate private adapter backed by `chrome.tabs.captureVisibleTab()`. Its permission and injection behavior belongs to the extension contract, not to the public Screenshot configuration.
+
 ## Hot-path performance contracts
 
 Performance regressions should prefer structural contracts over timing thresholds when the required complexity can be stated directly. Timing is noisy across CI runners; synchronous DOM work is observable and deterministic.
@@ -47,7 +61,9 @@ Do not hand off a candidate SHA for manual acceptance merely because CI is green
 3. Verify actual user input reaches the intended rendered UI.
 4. Verify the resulting application state and visible geometry. Element presence alone is insufficient.
 5. Keep console/page errors at zero for the exercised path.
-6. Keep performance invariants paired with the visible behavior they protect.
-7. Treat manual acceptance as a separate final check; automation reduces regressions but does not replace the user's real-browser validation.
+6. Keep the root dev-server smoke green when changed renderer source is loaded directly by the basic example.
+7. For Screenshot host changes, keep both the Chromium host-result contract and the packed Electron contract green.
+8. Keep performance invariants paired with the visible behavior they protect.
+9. Treat manual acceptance as a separate final check; automation reduces regressions but does not replace the user's real-browser validation.
 
 A shallow green check is never permission to say a user-reported behavior is fixed.
