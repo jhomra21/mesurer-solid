@@ -55,6 +55,11 @@ export type MesurerScreenshotResult = {
   downloaded: boolean;
 };
 
+/**
+ * Configure Screenshot behavior. Capture-source selection is automatic.
+ * New native hosts should expose window.__MESURER_HOST__.captureScreenshot
+ * instead of adding another plugin option or factory.
+ */
 export type MesurerScreenshotPluginOptions = {
   toolEnabled?: boolean;
   copy?: boolean;
@@ -128,6 +133,7 @@ export const prepareScreenshotCapture = (
 export const releaseScreenshotCapture = (ownerWindow: Window): void =>
   rendererReleaseScreenshotCapture(ownerWindow);
 
+/** Create the Screenshot plugin with automatic host capture selection. */
 export const screenshot = (
   options: MesurerScreenshotPluginOptions = {},
 ): MesurerPlugin => ({ ...rendererScreenshotPlugin(options), version: MESURER_VERSION });
