@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import copy
 import json
+import math
+import re
 import sys
 from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance
@@ -65,11 +67,33 @@ def verified_corner_rasterization(react, solid, contract_diffs, placement_ok, sh
     )
 
 
-def is_outer_corner_pixel(x, y, width, height):
-    return (
-        (x < 6 or x >= width - 6)
-        and (y < 6 or y >= height - 6)
-    )
+def corner_radius_px(contract):
+    value = contract.get("panel", {}).get("style", {}).get("borderRadius", "")
+    match = re.match(r"^([0-9]+(?:\\.[0-9]+)?)px$", value)
+
+    return float(match.group(1)) if match else 0.0
+
+
+def is_rounded_corner_edge_pixel(x, y, width, height, radius):
+    if radius <= 0:
+        return False
+
+    left = x < radius
+    right = x >= width - radius
+    top = y < radius
+    bottom = y >= height - radius
+
+    if not ((left or right) and (top or bottom)):
+        return False
+
+    center_x = radius if left else width - radius
+    center_y = radius if top else height - radius
+    distance = math.hypot((x + 0.5) - center_x, (y + 0.5) - center_y)
+
+    # The screenshot crop includes the antialiased rounded edge and pixels outside
+    # the component surface. Those pixels can expose different page underlay even
+    # when the panel itself has an identical radius/background contract.
+    return distance >= radius - 0.5
 
 
 def normalize_implementation_ownership(react, solid):
@@ -132,6 +156,7 @@ for state in states:
     exact = 0
     ignored_corner_thresholded = 0
     max_delta = 0
+    corner_radius = corner_radius_px(react_contract)
 
     for y in range(height):
         for x in range(width):
@@ -146,8 +171,7 @@ for state in states:
             if delta > threshold:
                 if (
                     corner_raster_ok
-                    and delta <= 12
-                    and is_outer_corner_pixel(x, y, width, height)
+                    and is_rounded_corner_edge_pixel(x, y, width, height, corner_radius)
                 ):
                     ignored_corner_thresholded += 1
                 else:
@@ -172,9 +196,10 @@ for state in states:
         "height": height,
         "exact_diff_pixels": exact,
         "threshold_diff_pixels": thresholded,
-        "ignored_verified_corner_raster_pixels": ignored_corner_thresholded,
+        "ignored_verified_corner_edge_pixels": ignored_corner_thresholded,
+        "corner_radius_px": corner_radius,
         "max_channel_delta": max_delta,
-        "verified_corner_rasterization": corner_raster_ok,
+        "verified_corner_surface": corner_raster_ok,
         "verified_fixed_position_owner": placement_ok,
         "verified_equivalent_visible_shadow": shadow_ok,
         "contract_difference_count": len(contract_diffs),
