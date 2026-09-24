@@ -334,6 +334,14 @@ const delivery = result
 
 `queue()` is the canonical service method and returns `delivery: "queued"`; Mesurer does not claim that the active turn was steered. The 0.1.8 `send()` method remains as a compatibility alias.
 
+The plugin also registers the generic command id `codex.queue`. It follows the same current-page UI path as pressing **Queue to Codex**: current destination, current Context evidence, and the page's tracked delivery state. It does not accept the typed service request options and does not return `MesurerCodexQueueResult`.
+
+```js
+await window.__MESURER__.command("codex.queue")
+```
+
+`codex.send` remains registered as a compatibility alias for generic automation. New code should use `codex.queue`, or use `MesurerCodexService.queue()` when it needs a thread override, annotation subset, custom instruction, or typed queue result.
+
 Send only particular saved annotations:
 
 ```ts
