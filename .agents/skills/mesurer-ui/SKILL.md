@@ -236,6 +236,8 @@ Use `selection.visualContext.distances` first. For a needed pair without relevan
 window.__MESURER__.distance(selectorA, selectorB)
 ```
 
+Treat these as rendered CSS-pixel relationships. Container spacing is measured to the container padding box, ordinary Guides are line geometry, and separated boxes anchor spacing inside their shared perpendicular overlap when one exists. Multi-selection can preserve pairwise and diagonal evidence even when the visible overlay de-emphasizes a blocked projection.
+
 For small selections, preserve useful unique pair relationships. For large selections, focus on adjacent, repeated, or user-relevant pairs rather than dumping O(n²) noise.
 
 Use exact Mesurer geometry for numeric claims. Screenshots are for composition and visual judgment, not a substitute for reported pixel values.
@@ -320,7 +322,7 @@ Keep these delivery rules:
 - A completed matched turn may remove only the annotation ids included in that delivery. Interrupted, failed, or uncertain work keeps them.
 - Mesurer does not create Codex threads. Create or open the thread in Codex and let the trusted `SessionStart` connector register it.
 
-The typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `queue({ thread })`. `send()` is retained only as a compatibility alias.
+The typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `queue({ thread })`. `send()` is retained only as a compatibility alias. Generic automation uses `codex.queue`; `codex.send` remains its compatibility alias.
 
 Codex delivery tracks transport and turn lifecycle. It does not prove that the UI change is correct. Verify the rendered result through Mesurer before completing the task.
 
