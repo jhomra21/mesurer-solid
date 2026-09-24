@@ -26,6 +26,56 @@ export type ScreenshotCaptureProvider = (
   context: ScreenshotCaptureContext,
 ) => Promise<Blob>;
 
+type HostScreenshotPng = Blob | ArrayBuffer | Uint8Array;
+
+type HostScreenshotResult = HostScreenshotPng | {
+  png: HostScreenshotPng;
+};
+
+type MesurerHostCapabilities = {
+  captureScreenshot?: () => Promise<HostScreenshotResult>;
+};
+
+type HostWindow = Window & {
+  __MESURER_HOST__?: MesurerHostCapabilities;
+};
+
+const hostCapture = (ownerWindow: Window) =>
+  (ownerWindow as HostWindow).__MESURER_HOST__?.captureScreenshot;
+
+const hostPngBlob = (
+  result: HostScreenshotResult,
+  ownerWindow: Window,
+): Blob => {
+  const png = typeof result === "object"
+    && result !== null
+    && !(result instanceof ownerWindow.Blob)
+    && !(result instanceof ownerWindow.ArrayBuffer)
+    && !(result instanceof ownerWindow.Uint8Array)
+    && "png" in result
+    ? result.png
+    : result;
+
+  if (png instanceof ownerWindow.Blob) return png;
+
+  const bytes = png instanceof ownerWindow.Uint8Array
+    ? png
+    : new ownerWindow.Uint8Array(png);
+  const copy = new ownerWindow.Uint8Array(bytes.byteLength);
+
+  copy.set(bytes);
+
+  return new ownerWindow.Blob([copy.buffer], { type: "image/png" });
+};
+
+const captureViaHost = async (ownerWindow: Window): Promise<Blob | null> => {
+  const capture = hostCapture(ownerWindow);
+
+  if (!capture) return null;
+
+  return hostPngBlob(await capture(), ownerWindow);
+};
+
 export const normalizeScreenshotRect = (
   start: { x: number; y: number },
   end: { x: number; y: number },
@@ -324,14 +374,19 @@ export const prepareScreenshotCapture = async (
   ownerDocument: Document,
   ownerWindow: Window,
 ) => {
+  if (hostCapture(ownerWindow)) return;
   if (await pingCaptureBridge(ownerWindow)) return;
   await startTabCapture(ownerDocument, ownerWindow);
 };
 
-export const captureVisibleTabPng: ScreenshotCaptureProvider = async ({
+export const captureScreenshotPng: ScreenshotCaptureProvider = async ({
   ownerDocument,
   ownerWindow,
 }) => {
+  const hosted = await captureViaHost(ownerWindow);
+
+  if (hosted) return hosted;
+
   if (await pingCaptureBridge(ownerWindow)) {
     const bridged = await captureViaBridge(ownerWindow);
 
@@ -340,3 +395,6 @@ export const captureVisibleTabPng: ScreenshotCaptureProvider = async ({
 
   return captureViaDisplayMedia({ ownerDocument, ownerWindow });
 };
+
+/** @deprecated Use captureScreenshotPng(). */
+export const captureVisibleTabPng: ScreenshotCaptureProvider = captureScreenshotPng;
