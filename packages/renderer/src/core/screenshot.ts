@@ -412,11 +412,13 @@ const resolveCaptureAdapter = async (
 
   if (existing) return existing;
 
-  const adapter = hostCapture(context.ownerWindow)
-    ? hostCaptureAdapter
-    : await pingCaptureBridge(context.ownerWindow)
-      ? bridgeCaptureAdapter
-      : displayCaptureAdapter;
+  let adapter = displayCaptureAdapter;
+
+  if (hostCapture(context.ownerWindow)) {
+    adapter = hostCaptureAdapter;
+  } else if (await pingCaptureBridge(context.ownerWindow)) {
+    adapter = bridgeCaptureAdapter;
+  }
 
   captureAdapters.set(context.ownerWindow, adapter);
 
