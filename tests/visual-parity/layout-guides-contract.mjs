@@ -48,6 +48,7 @@ try {
   await panel.waitFor({ state: "hidden" });
 
   if ((await tool.getAttribute("aria-pressed")) !== "true") throw new Error("Outside-dismiss deactivated Layout Guides instead of closing only the panel");
+
   if (await bands.count() !== 5) throw new Error("Outside-dismiss hid active Layout Guides evidence");
 
   await page.evaluate(() => history.pushState({}, "", "?case=b"));
