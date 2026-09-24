@@ -1,22 +1,31 @@
 # Electron renderer example
 
-Mesurer runs in the Electron renderer process, where the inspected DOM exists. Keep Electron privileges in main or preload.
+Mesurer runs in the Electron renderer process, where the inspected DOM exists.
 
-A normal renderer mount needs no Electron API:
+Renderer setup stays the same as a browser app:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
+import { context, screenshot } from "mesurer-solid/plugins"
 
-const mesurer = mountMesurer({ target: document.body })
+const mesurer = mountMesurer({
+  agent: true,
+  plugins: [
+    context(),
+    screenshot(),
+  ],
+})
 ```
 
 Keep `contextIsolation` enabled and `nodeIntegration` disabled. Do not mount Mesurer from the Electron main process.
 
-## Diffusion Studio-style screenshot capture
+## Native window capture
 
-[Diffusion Studio Editor](https://github.com/diffusionstudio/editor) captures its window in the main process with `webContents.capturePage()` and returns PNG bytes to the renderer through its existing typed IPC bridge. Mesurer can use the same pattern.
+Screenshot chooses its capture path at runtime. If a Mesurer capture bridge is available, it uses that bridge. Otherwise it falls back to the normal browser `getDisplayMedia()` path.
 
-Main process:
+For Electron, the application can connect that internal bridge to `webContents.capturePage()`. This is host setup, not Screenshot configuration.
+
+A main-process handler can return the current window as PNG bytes:
 
 ```ts
 ipcMain.handle("window:capture", async (event) => {
@@ -36,45 +45,10 @@ ipcMain.handle("window:capture", async (event) => {
 })
 ```
 
-Preload:
+The preload script owns the privileged IPC call and answers Mesurer's internal capture bridge. The renderer still uses `screenshot()` with no Electron-specific option.
 
-```ts
-contextBridge.exposeInMainWorld("desktop", {
-  captureWindow: () => ipcRenderer.invoke("window:capture"),
-})
-```
+The package smoke workflow runs this path in Electron 43 with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The packaged app loads through `file://`, Mesurer selects a DOM target, and Screenshot captures that target through `capturePage()`.
 
-Renderer:
+Mesurer does not import `electron` in its browser runtime. The application keeps ownership of Electron permissions and IPC, while Screenshot keeps one host-neutral API.
 
-```ts
-import { mountMesurer } from "mesurer-solid"
-import {
-  context,
-  createElectronScreenshotCaptureProvider,
-  screenshot,
-} from "mesurer-solid/plugins"
-
-const captureVisibleTab = createElectronScreenshotCaptureProvider(
-  () => window.desktop.captureWindow(),
-)
-
-const mesurer = mountMesurer({
-  agent: true,
-  plugins: [
-    context(),
-    screenshot({
-      captureVisibleTab,
-      copy: false,
-      download: false,
-    }),
-  ],
-})
-```
-
-`createElectronScreenshotCaptureProvider()` accepts `ArrayBuffer`, `Uint8Array`, or an object with a `png` field containing either type. Extra fields such as `width` and `height` are allowed.
-
-Mesurer does not import `electron`. The application owns IPC channels, permissions, and the preload API. This keeps `contextIsolation`, sandboxing, and the application's existing security policy intact.
-
-The package smoke workflow runs this pattern in Electron 43 with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. It selects a DOM target, captures that target through the Screenshot plugin, and stores the PNG and JSON result as CI artifacts.
-
-See [Getting started](../../docs/GETTING_STARTED.md) for development guards and HMR cleanup, and [Screenshots](../../docs/SCREENSHOTS.md) for the capture provider contract.
+See [Getting started](../../docs/GETTING_STARTED.md) and [Screenshots](../../docs/SCREENSHOTS.md).
