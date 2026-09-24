@@ -122,7 +122,7 @@ async function exercise(page, implementation) {
   await page.locator(".mesurer-toolbar-surface").waitFor();
 
   await page.getByRole("button", { name: /^Layout guides/ }).first().click();
-  await captureState(page, implementation, "empty");
+  await captureState(page, implementation, "initial");
 
   const panel = page.getByRole("dialog", { name: "Layout guides" });
   await panel.getByRole("button", { name: "Add layout guide" }).click();
