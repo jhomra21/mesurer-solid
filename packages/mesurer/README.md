@@ -89,7 +89,7 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Add page-scoped columns, rows, or pixel grids with the optional `layoutGuides()` plugin; guide edits participate in plugin undo/redo and visible layout guides are included in Context.
 - Inspect Typography and preview reversible direct copy/style changes.
 - Arrange selected UI into a Desired position without changing source.
-- Capture visible-tab regions through the optional Screenshot plugin.
+- Capture page regions through the optional Screenshot plugin.
 - Read selection, measurements, guides, annotations, layout, styles, and saved human intent through Context and agent APIs.
 - Keep saved annotations across same-tab reloads and conservatively rebind them to their original DOM targets; markers, cards, and ownership evidence stay attached through scrolling, repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
 - Extend the runtime with tools, settings, overlays, commands, hooks, state, and services.
