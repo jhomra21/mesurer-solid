@@ -321,7 +321,7 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
                         <KindIcon kind={guide.kind} />
                       </span>
                       <span class="msr:min-w-0 msr:flex-1 msr:truncate">{layoutGuideLabel(guide)}</span>
-                      <CaretDownIcon size={8} class="msr:-rotate-90 msr:text-ink-400" />
+                      <CaretDownIcon size={8} class="msr:block msr:-rotate-90 msr:text-ink-400" />
                     </button>
                     <button
                       type="button"
@@ -338,7 +338,7 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
                       class="msr:flex msr:size-6 msr:items-center msr:justify-center msr:rounded-control msr:text-ink-400 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900"
                       onClick={() => props.onRemove(guide.id)}
                     >
-                      <MinusIcon size={10} />
+                      <MinusIcon size={10} class="msr:block" />
                     </button>
                   </li>
                 )}</For>
