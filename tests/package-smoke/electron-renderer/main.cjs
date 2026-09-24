@@ -1,12 +1,16 @@
 const { app, BrowserWindow, ipcMain, nativeImage } = require("electron");
+
 const { mkdirSync, writeFileSync } = require("node:fs");
+
 const path = require("node:path");
 
 const artifactDir = process.env.MESURER_ELECTRON_ARTIFACT_DIR
   ?? path.join(__dirname, "artifacts");
 
 let mainWindow = null;
+
 let finished = false;
+
 let timeoutId = null;
 
 function writeResult(result) {
@@ -115,4 +119,5 @@ app.whenReady().then(async () => {
 });
 
 process.on("uncaughtException", fail);
+
 process.on("unhandledRejection", fail);
