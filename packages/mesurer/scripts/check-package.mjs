@@ -132,11 +132,8 @@ const pluginDeclarations = readFileSync(new URL("plugins.d.ts", dist), "utf8");
 
 const codexDeclarations = readFileSync(new URL("codex-plugin.d.ts", dist), "utf8");
 
-if (!/\bcaptureScreenshotPng\b/.test(pluginDeclarations)) {
-  throw new Error("Published Screenshot API is missing canonical captureScreenshotPng().");
-}
-
 for (const leakedScreenshotApi of [
+  "captureScreenshotPng",
   "createElectronScreenshotCaptureProvider",
   "ElectronScreenshotCapture",
   "ElectronScreenshotCaptureSource",
