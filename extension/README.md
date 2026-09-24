@@ -51,7 +51,7 @@ See [Direct text editing and Typography](../docs/TEXT_EDITING.md).
 
 The extension automatically enables the first-party Screenshot plugin. Drag a viewport region with the camera tool to capture a PNG of the visible tab.
 
-The extension captures through `chrome.tabs.captureVisibleTab()` using the existing `activeTab` grant, so it does not need `<all_urls>` or a screen-share prompt. A small isolated-world bridge connects the page-mounted plugin to the extension background worker without exposing extension APIs to the page's main world.
+Screenshot discovers the extension capture path internally. The extension adapter calls `chrome.tabs.captureVisibleTab()` through the existing `activeTab` grant, so it does not need `<all_urls>` or a screen-share prompt. The isolated-world bridge connects the page-mounted plugin to the extension background worker without exposing extension APIs to the page's main world. There is no extension-specific Screenshot factory or public provider option.
 
 The normal Screenshot behavior still applies:
 
@@ -68,6 +68,6 @@ See [Screenshots](../docs/SCREENSHOTS.md).
 
 ## Architecture
 
-The extension shell owns active-tab execution, the visible-tab capture bridge, and injection/disposal. The shared Mesurer runtime owns inspection, Context, direct text editing, plugins, and agent APIs. Screenshot behavior remains inside `mesurer.screenshot` rather than the extension shell.
+The extension shell owns active-tab execution, its private capture adapter, and injection/disposal. The shared Mesurer runtime owns inspection, Context, direct text editing, plugins, and agent APIs. Screenshot owns region selection, cropping, output preferences, preview/viewer behavior, and capture lifecycle.
 
 For the wider integration model, see [Browser harness](../docs/BROWSER_HARNESS.md), [Host isolation](../docs/HOST_ISOLATION.md), and [Agent integration](../packages/mesurer/AGENT_INTEGRATION.md).
