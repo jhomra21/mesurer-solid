@@ -35,7 +35,7 @@ Do not create a new root directory when an existing package, `tests`, `scripts`,
 
 ## Documentation
 
-When user-facing behavior changes, update the owning guide in `docs/`. Update the root or package README when its public examples change. Add a `CHANGELOG.md` entry when the change belongs in release notes. Keep detailed agent procedure in `packages/mesurer/AGENT_INTEGRATION.md` and the portable skill.
+When user-facing behavior changes, update the owning guide in `docs/`. Core measurement changes belong in [Measurements and distance geometry](./docs/MEASUREMENTS.md); shared Mesurer UI rules belong in [Design language](./docs/DESIGN_LANGUAGE.md). Update the root or package README when its public examples change. Add a `CHANGELOG.md` entry when the change belongs in release notes. Keep detailed agent procedure in `packages/mesurer/AGENT_INTEGRATION.md` and the portable skill.
 
 Keep the two Agent Skill copies byte-identical:
 
