@@ -179,7 +179,7 @@ See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the package
 
 ### Queue human feedback to Codex
 
-Mount `codex()` next to Context when a person should be able to send the current Mesurer review to Codex:
+Mount `codex()` next to Context when a person should be able to queue the current Mesurer review to Codex:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
