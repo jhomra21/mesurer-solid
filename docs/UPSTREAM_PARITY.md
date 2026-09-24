@@ -25,6 +25,8 @@ Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and 
 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
 
+These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
+
 ### 2026-09-24 Select lifecycle follow-up
 
 | Upstream delta | Decision | Reason |
@@ -81,7 +83,7 @@ These decisions remain the current product boundary. The threaded-comment work i
 
 ### 2026-09-15 delta classification
 
-| Upstream delta | Decision | Reason for this release |
+| Upstream delta | Decision | Reason |
 | --- | --- | --- |
 | DOM-attached comment threads, replies, all-comments panel, persistence, and agent copy/export | **Intentional divergence** | Mesurer Solid ships the separately designed Context annotation model: target- or region-bound review notes with machine-readable baselines and agent APIs. The public package does not claim upstream threaded-comment parity. |
 | Iframe-aware selection, X-ray, and comment targeting | **Intentional divergence** | Mesurer Solid does not claim cross-frame inspection parity. Adopting upstream's shared document-tree targeting requires a separate host-isolation and browser-contract change. |
@@ -99,7 +101,7 @@ These classifications define the current product boundary. A newer upstream feat
 
 The previous audit covered `b14c2bed...`, **"feat: pin option measurements with option+s (#25)"**.
 
-| Upstream delta | Decision | Reason for this release |
+| Upstream delta | Decision | Reason |
 | --- | --- | --- |
 | `Option+S` pins the current Option-distance preview | **Intentional divergence** | Mesurer Solid exposes persisted held distances through its own measurement/workspace model and documents `Alt` / `Option` as the Distance overlay modifier. The public shortcut contract does not include `Option+S`; adopting it requires the full pin interaction and dedicated browser coverage. |
 | Upstream stops Alt-click distance holding from consuming Guide clicks | **Intentional divergence** | The behavior belongs to the same pinned-distance interaction redesign. Mesurer Solid keeps its held-distance interaction rather than importing one side of the upstream pin model by itself. |
