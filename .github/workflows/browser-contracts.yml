@@ -287,7 +287,7 @@ jobs:
           print("- Native top targets stay selected when snapping candidates overlap underneath them")
           print("- Transformed elements, canvas surfaces, closed-shadow hosts, and a 1,000-node fixture are exercised in Chromium")
           print("- Turning Select off clears logical selection, survives reload without latent selection, and re-enabling Select does not resurrect the old target")
-          print("- Physical held-Shift pointer input produces a two-target selection and aggregate visible selection geometry")
+          print("- Physical held-Shift pointer input produces a two-target selection with visible per-target outlines")
 
           print("")
           print("### Color Picker")
