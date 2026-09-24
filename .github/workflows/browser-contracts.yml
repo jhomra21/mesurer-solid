@@ -19,7 +19,9 @@ on:
       - "packages/renderer/src/components/Toolbar.tsx"
       - "packages/renderer/src/core/distances.ts"
       - "packages/renderer/src/core/geometry.ts"
+      - "packages/renderer/src/core/guides.ts"
       - "packages/renderer/src/core/layout-guides.ts"
+      - "packages/renderer/src/core/option-measurements.ts"
       - "packages/renderer/src/core/persistence.ts"
       - "packages/renderer/src/core/selection-helpers.ts"
       - "packages/renderer/src/core/selection.ts"
@@ -317,6 +319,7 @@ jobs:
               print(f"- Horizontal gaps: **{distances['aToB']['horizontalGap']}px**, **{distances['cToD']['horizontalGap']}px**")
               print(f"- Vertical gaps: **{distances['aToC']['verticalGap']}px**, **{distances['bToD']['verticalGap']}px**")
               print(f"- Spacing overlays: **{evidence['spacingOverlayCount']}**")
+              print("- Ordinary Guide-to-element Alt distance is measured from the exact guide coordinate")
           else:
               print("### Sparse multi-selection / spacing\n- Measurements were not produced.")
 

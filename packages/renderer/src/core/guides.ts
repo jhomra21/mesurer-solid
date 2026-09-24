@@ -6,7 +6,7 @@ import type { Guide, Point, Rect } from "./types";
 
 export const getGuideRect = (guide: Guide, ownerWindow: Window = window): Rect => { const viewport = getViewportSize(ownerWindow);
 
- return guide.orientation === "vertical" ? { left: guide.position, top: 0, width: 1, height: viewport.height } : { left: 0, top: guide.position, width: viewport.width, height: 1 }; };
+ return guide.orientation === "vertical" ? { left: guide.position, top: 0, width: 0, height: viewport.height } : { left: 0, top: guide.position, width: viewport.width, height: 0 }; };
 
 export const getGuideDistance = (guide: Guide, point: Point) => guide.orientation === "vertical" ? Math.abs(guide.position - point.x) : Math.abs(guide.position - point.y);
 

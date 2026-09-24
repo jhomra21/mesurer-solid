@@ -109,6 +109,62 @@ try {
     await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.select");
   });
 
+  // Prove the real Guides -> Select -> Alt path measures from the guide coordinate,
+  // not from the guide's wider interactive hitbox or a one-pixel geometry shim.
+  await page.evaluate(async () => {
+    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.guides");
+  });
+  await page.mouse.click(326, 280);
+  await page.waitForFunction(() =>
+    document.querySelectorAll('[data-mesurer-guide="true"]').length === 1,
+  );
+  await page.evaluate(async () => {
+    await window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.agent.command("builtin.select");
+  });
+
+  const guideTargetBox = await page.locator("[data-spacing-card='a']").boundingBox();
+  assert(guideTargetBox, "Card A must have a bounding box for guide distance");
+  await page.keyboard.down("Alt");
+
+  try {
+    await page.mouse.move(
+      guideTargetBox.x + guideTargetBox.width / 2,
+      guideTargetBox.y + guideTargetBox.height / 2,
+    );
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-mesurer-distance="true"]')]
+      .some((root) =>
+        root.getAttribute("data-mesurer-distance-kind") !== "selection-spacing"
+        && root.querySelector('[data-mesurer-distance-label="true"]')?.textContent?.trim() === "30"
+      ));
+
+    const guideDistance = await page.evaluate(() => {
+      const root = [...document.querySelectorAll('[data-mesurer-distance="true"]')]
+        .find((candidate) => candidate.getAttribute("data-mesurer-distance-kind") !== "selection-spacing");
+
+      const line = root?.querySelector('[data-mesurer-distance-line="horizontal"]');
+      const label = root?.querySelector('[data-mesurer-distance-label="true"]');
+
+      return {
+        label: label?.textContent?.trim() ?? null,
+        left: line instanceof HTMLElement ? Number.parseFloat(line.style.left) : null,
+        width: line instanceof HTMLElement ? Number.parseFloat(line.style.width) : null,
+      };
+    });
+
+    assert.deepEqual(guideDistance, {
+      label: "30",
+      left: 326,
+      width: 30,
+    });
+  } finally {
+    await page.keyboard.up("Alt");
+  }
+
+  await page.keyboard.press("Delete");
+  await page.waitForFunction(() =>
+    document.querySelectorAll('[data-mesurer-guide="true"]').length === 0,
+  );
+
   // First prove sparse direct-neighbor spacing remains unchanged.
   await clickCard("a");
   await page.keyboard.down("Shift");
