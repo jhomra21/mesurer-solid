@@ -28,6 +28,17 @@ const dismissColorPicker = (model: MesurerModel) => {
   });
 };
 
+const clearSelection = (model: MesurerModel) => {
+  model.setSelectedMeasurements([], null);
+  model.setSelectedGuideIds([]);
+  model.setTransient({
+    start: null,
+    end: null,
+    isDragging: false,
+    selectionOriginRect: null,
+  });
+};
+
 const activateMode = (model: MesurerModel, mode: ToolMode) => {
   model.setEnabled(true, !model.current.enabled);
   dismissColorPicker(model);
@@ -142,6 +153,7 @@ export function createMesurerBuiltinController(options: {
     async run(id) {
       switch (id) {
         case "select":
+          clearSelection(model);
           activateMode(model, "select");
 
           return;
@@ -189,6 +201,11 @@ export function createMesurerBuiltinController(options: {
     deactivate(id) {
       switch (id) {
         case "select":
+          clearSelection(model);
+
+          if (model.current.toolMode === id) model.setToolMode("none");
+
+          return;
         case "text-inspector":
         case "guides":
           if (model.current.toolMode === id) model.setToolMode("none");

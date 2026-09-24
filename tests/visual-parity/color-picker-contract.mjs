@@ -154,6 +154,19 @@ try {
       writable: true,
       value: 0,
     });
+    Object.defineProperty(window, "__mesurerClipboardWrites", {
+      configurable: true,
+      writable: true,
+      value: [],
+    });
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: {
+        async writeText(value) {
+          window.__mesurerClipboardWrites.push(value);
+        },
+      },
+    });
     Object.defineProperty(window, "EyeDropper", {
       configurable: true,
       value: class {
@@ -186,6 +199,12 @@ try {
     throw new Error("Color Picker button did not remain active after native sampling");
   }
 
+  const clipboardAfterFirst = await supportedPage.evaluate(() => window.__mesurerClipboardWrites);
+
+  if (JSON.stringify(clipboardAfterFirst) !== JSON.stringify(["#5eead4"])) {
+    throw new Error(`First native Color Picker sample did not copy exact formatted value: ${JSON.stringify(clipboardAfterFirst)}`);
+  }
+
   await clickLocatorCenter(colorButton);
   await panel.waitFor({ state: "detached" });
 
@@ -208,6 +227,12 @@ try {
   await supportedPage.waitForFunction(() =>
     document.querySelector(".mesurer-color-picker")?.textContent?.includes("#fb7185") === true,
   );
+
+  const clipboardWrites = await supportedPage.evaluate(() => window.__mesurerClipboardWrites);
+
+  if (JSON.stringify(clipboardWrites) !== JSON.stringify(["#5eead4", "#818cf8", "#fb7185"])) {
+    throw new Error(`Native Color Picker clipboard writes did not match sampled values: ${JSON.stringify(clipboardWrites)}`);
+  }
 
   const opens = await supportedPage.evaluate(() => window.__mesurerEyeDropperOpens);
 

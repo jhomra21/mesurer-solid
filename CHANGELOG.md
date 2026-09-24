@@ -4,6 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Match current React Select lifecycle: invoking Select now clears the current element/Guide selection before toggling the tool, so turning Select off cannot leave latent selection that reappears later. Browser acceptance now covers Select-off persistence, physical Shift-click multi-selection, and exact native Color Picker clipboard output.
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.1.9-beta.1 - 2026-09-24

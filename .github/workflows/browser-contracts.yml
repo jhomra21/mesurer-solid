@@ -286,11 +286,14 @@ jobs:
           print("- Browser Select and the public agent point API share the same visual hit target")
           print("- Native top targets stay selected when snapping candidates overlap underneath them")
           print("- Transformed elements, canvas surfaces, closed-shadow hosts, and a 1,000-node fixture are exercised in Chromium")
+          print("- Turning Select off clears logical selection, survives reload without latent selection, and re-enabling Select does not resurrect the old target")
+          print("- Physical held-Shift pointer input produces a two-target selection with visible per-target outlines")
 
           print("")
           print("### Color Picker")
           print("- Native EyeDropper absence is forced and the unavailable toolbar control is required to be absent")
           print("- A mocked native EyeDropper exercises upstream toolbar toggle-off, fresh P-key picking, and visible native results")
+          print("- Native sampled values are verified through the exact formatting → navigator.clipboard.writeText path")
           print("- No DOM/CSS Color Picker fallback is permitted")
 
           print("")
@@ -326,7 +329,7 @@ jobs:
           print("")
           print("### Layout Guides / route state")
           print("- First-party Layout Guides plugin UI and overlay exercised in Chromium")
-          print("- Visible Layout Guides are included in Context evidence")
+          print("- Saved Layout Guides are included in Context evidence with each guide\'s visible flag")
           print("- Per-route Layout Guide sets switch on in-tab navigation and survive reload")
           print("- Toolbar position survives route changes/reload as tab-session UI state")
 

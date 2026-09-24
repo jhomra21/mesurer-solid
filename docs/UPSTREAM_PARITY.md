@@ -8,7 +8,7 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
 | Previous upstream audit | `bdc027e51011898a1fcc2532da1db3acf63a84a3` (`main`, audited 2026-09-22) |
-| Current upstream audit | `d47fd6056a01da9c442ae04840ec4d0dd46a1257` (`main`, audited 2026-09-23) |
+| Current upstream audit | `d47fd6056a01da9c442ae04840ec4d0dd46a1257` (`main`, verified 2026-09-24) |
 
 The current delta is the merged `feat/add-grid` series centered on `03e7606997cb8a1c3f1214f61602210142ef67da`, followed by fixes such as `89e9c322...` for extension navigation and `1fdf75dfa...` for Layout Guide visibility. It combines Layout Guides, route-scoped page state, toolbar/session persistence, extension recovery, and several Inspect/measurement refinements.
 
@@ -24,6 +24,13 @@ When Mesurer Solid adopts or materially updates an upstream UI component, add a 
 Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and grid states compare directly with `d47fd6056a01da9c442ae04840ec4d0dd46a1257`. Mesurer Solid keeps its one-toolbar plugin architecture outside that component comparison.
 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
+
+### 2026-09-24 Select lifecycle follow-up
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Invoking Select clears the current selection before toggling the tool | **Adopted** | Current React calls its shared `clearSelection()` before switching Select on or off. Mesurer Solid now clears element and Guide selection at the same boundary, so turning Select off cannot leave latent selection that reappears later. Chromium covers off → reload → on and requires no current selection throughout. |
+| Shift-click adds or removes rendered Select targets | **Adopted and browser-covered** | Physical held-Shift pointer input now has an explicit Chromium contract that requires two selection Context targets and visible per-target outlines. This distinguishes product behavior from automation/input-channel uncertainty. |
 
 ### 2026-09-23 Layout Guides and page-state follow-up
 

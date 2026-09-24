@@ -46,6 +46,25 @@ const hoverSurface = () => page
   .locator("[data-mesurer-hover-measurement='true']")
   .first();
 
+const assertNoPublicSelection = async (label) => {
+  const result = await page.evaluate(async () => {
+    try {
+      const context = await window.__MESURER__.context({ scope: "selection" });
+
+      return { ok: true, targetCount: context.targets.length, message: "" };
+    } catch (error) {
+      return {
+        ok: false,
+        targetCount: -1,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  assert.equal(result.ok, false, `${label}: public selection context should be unavailable`);
+  assert.match(result.message, /no current selection/i, `${label}: expected the canonical empty-selection error`);
+};
+
 const pointFor = async (locator, label) => {
   await locator.scrollIntoViewIfNeeded();
   await settle();
@@ -116,6 +135,56 @@ try {
 
   await selectPoint(transparent.point, transparent.rect, "pointer-transparent leaf");
 
+  await selectButton.click();
+  assert.equal(await selectButton.getAttribute("aria-pressed"), "false", "Select button should toggle off");
+
+  await assertNoPublicSelection("Select off");
+  assert.equal(
+    await page.locator("[data-mesurer-selected-measurement='true']").count(),
+    0,
+    "Turning Select off should remove visible selection chrome",
+  );
+
+  await selectButton.click();
+  assert.equal(
+    await selectButton.getAttribute("aria-pressed"),
+    "true",
+    "Select should turn back on in the same mounted instance",
+  );
+  await assertNoPublicSelection("Select re-enabled without reload");
+
+  await selectPoint(transparent.point, transparent.rect, "pointer-transparent leaf before reload persistence");
+  await selectButton.click();
+  assert.equal(
+    await selectButton.getAttribute("aria-pressed"),
+    "false",
+    "Select should turn off again before the reload persistence check",
+  );
+  await assertNoPublicSelection("Select off before reload");
+
+  await page.waitForTimeout(320);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForFunction(() => Boolean(window.__MESURER_SELECTION_HIT_TESTING__ && window.__MESURER__));
+  await page.evaluate(() => window.__MESURER__.ready());
+
+  const selectButtonAfterReload = page.locator("button[data-mesurer-builtin='select']").first();
+  await selectButtonAfterReload.waitFor({ state: "visible" });
+  assert.equal(
+    await selectButtonAfterReload.getAttribute("aria-pressed"),
+    "false",
+    "Select-off state should survive reload",
+  );
+
+  await assertNoPublicSelection("Select off after reload");
+
+  await selectButtonAfterReload.click();
+  assert.equal(await selectButtonAfterReload.getAttribute("aria-pressed"), "true", "Select should turn back on");
+
+  await assertNoPublicSelection("Select re-enabled");
+
+  const transparentAfterReload = await pointFor(page.locator("#transparent-leaf"), "transparent leaf after reload");
+  await selectPoint(transparentAfterReload.point, transparentAfterReload.rect, "pointer-transparent leaf after reload");
+
   const topTarget = page.locator("#top-target");
 
   const underTarget = page.locator("#under-target");
@@ -145,12 +214,63 @@ try {
     "fixture must expose the large top target as the first page-owned browser hit",
   );
 
+  await page.keyboard.down("Shift");
+  await page.mouse.click(overlapPoint.x, overlapPoint.y);
+  await page.keyboard.up("Shift");
+  await settle();
+
+  const physicalMultiSelection = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
+  assert.deepEqual(
+    new Set(physicalMultiSelection.targets.map((target) => target.inspection.selector)),
+    new Set(["#transparent-leaf", "#top-target"]),
+    "Physical Shift-click should add the second rendered target to the current selection",
+  );
+
+  const transparentCurrent = await box(page.locator("#transparent-leaf"), "transparent leaf after Shift-click");
+  const topCurrent = await box(topTarget, "top target after Shift-click");
+  const targetOutlines = page.locator("[data-mesurer-selection-spacing-target='true']");
+
+  assert.equal(await targetOutlines.count(), 2, "Physical Shift-click should render one visible outline per selected target");
+  assert.equal(
+    await page.locator("[data-mesurer-selection-group='true']").count(),
+    1,
+    "Physical Shift-click should render the grouped selection size surface",
+  );
+
+  const outlineBoxes = await targetOutlines.evaluateAll((elements) => elements.map((element) => {
+    const rect = element.getBoundingClientRect();
+
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  }));
+
+  const matchesTarget = (expected) => outlineBoxes.some((actual) =>
+    ["x", "y", "width", "height"].every((key) => Math.abs(actual[key] - expected[key]) <= 2)
+  );
+
+  assert(matchesTarget(transparentCurrent), "Multi-selection should visibly outline the transparent leaf");
+  assert(matchesTarget(topCurrent), "Multi-selection should visibly outline the Shift-clicked top target");
+
   const agentTop = await page.evaluate(
     ({ x, y }) => window.__MESURER__.at(x, y),
     overlapPoint,
   );
 
   assert.equal(agentTop?.selector, "#top-target", "agent point inspection should preserve the native top target");
+
+  await selectButtonAfterReload.click();
+  assert.equal(
+    await selectButtonAfterReload.getAttribute("aria-pressed"),
+    "false",
+    "Select should toggle off after the multi-selection proof",
+  );
+  await assertNoPublicSelection("Select off after multi-selection");
+
+  await selectButtonAfterReload.click();
+  assert.equal(
+    await selectButtonAfterReload.getAttribute("aria-pressed"),
+    "true",
+    "Select should turn back on for the remaining single-selection hit-testing cases",
+  );
 
   await selectPoint(overlapPoint, topRect, "native direct target");
 
@@ -217,6 +337,10 @@ try {
 
   console.log("Inspect hit-testing contract: PASS", {
     transparentDescendant: true,
+    selectOffClearsSelection: true,
+    selectOffPersistsWithoutLatentSelection: true,
+    physicalShiftClickMultiSelection: true,
+    visibleMultiSelectionTargetOutlines: true,
     agentParity: true,
     nativeTargetPreserved: true,
     transformedGeometry: true,
