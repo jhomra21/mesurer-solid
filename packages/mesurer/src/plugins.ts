@@ -124,7 +124,6 @@ export {
   MESURER_SCREENSHOT_SERVICE_ID,
   MESURER_SCREENSHOT_SETTINGS_STATE_ID,
   MIN_SCREENSHOT_SELECTION,
-  captureScreenshotPng,
   captureVisibleTabPng,
   copyPngToClipboard,
   createScreenshotFilename,
