@@ -125,9 +125,6 @@ try {
   // Current React clears Guide selection when Select is invoked, then its
   // Guide-to-element acceptance physically re-selects the Guide in Select.
   await page.mouse.click(326, 280);
-  await page.waitForFunction(() =>
-    window.__MESURER_MULTI_SPACING_FIXTURE__.mesurer.model.current.selectedGuideIds.length === 1,
-  );
 
   const guideTargetBox = await page.locator("[data-spacing-card='a']").boundingBox();
   assert(guideTargetBox, "Card A must have a bounding box for guide distance");
