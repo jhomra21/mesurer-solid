@@ -4,7 +4,7 @@ import {
   MESURER_SCREENSHOT_SERVICE_ID as rendererServiceId,
   MESURER_SCREENSHOT_SETTINGS_STATE_ID as rendererSettingsStateId,
   MIN_SCREENSHOT_SELECTION as rendererMinSelection,
-  captureVisibleTabPng as rendererCaptureVisibleTabPng,
+  captureScreenshotPng as rendererCaptureScreenshotPng,
   copyPngToClipboard as rendererCopyPngToClipboard,
   createScreenshotFilename as rendererCreateScreenshotFilename,
   cropPngToViewportRect as rendererCropPngToViewportRect,
@@ -48,9 +48,11 @@ export type MesurerScreenshotResult = {
 };
 
 export type MesurerScreenshotPluginOptions = Partial<MesurerScreenshotSettings> & {
-  capture?: ScreenshotCaptureProvider;
+  /**
+   * @deprecated Screenshot selects the available host capture path automatically.
+   * Kept for compatibility with existing custom capture integrations.
+   */
   captureVisibleTab?: ScreenshotCaptureProvider;
-  previewDurationMs?: number;
 };
 
 export type MesurerScreenshotService = {
@@ -72,7 +74,10 @@ export const MESURER_SCREENSHOT_SETTINGS_STATE_ID: string = rendererSettingsStat
 
 export const MIN_SCREENSHOT_SELECTION: number = rendererMinSelection;
 
-export const captureVisibleTabPng: ScreenshotCaptureProvider = rendererCaptureVisibleTabPng;
+export const captureScreenshotPng: ScreenshotCaptureProvider = rendererCaptureScreenshotPng;
+
+/** @deprecated Use captureScreenshotPng(). */
+export const captureVisibleTabPng: ScreenshotCaptureProvider = captureScreenshotPng;
 
 export const copyPngToClipboard = (
   png: Blob | Promise<Blob>,
