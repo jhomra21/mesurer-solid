@@ -38,6 +38,14 @@ Do not make production code accommodate missing jsdom/browser APIs merely to kee
 
 Implementation diagnostics such as data attributes, event counters, geometry-read counters, or hot-path instrumentation are useful only when paired with an end-to-end behavior contract. They can explain *how* a behavior stays correct or performant; they cannot substitute for proving that the behavior is correct.
 
+## Visual parity contracts
+
+The historical React parity suite protects the accepted shared renderer presentation from its pinned baseline. Do not use that old baseline to approve a newly ported or materially restyled upstream component.
+
+A ported upstream component that can visibly drift needs a focused current-source browser comparison against the audited upstream commit. Isolate the component from intentional Mesurer Solid product differences around it. Compare rendered pixels and the component's geometry, computed styles, controls, options, and icon primitives. Do not normalize a real design difference out of the report.
+
+Layout Guides currently applies this rule to its empty, list, editor, aligned-editor, and grid states.
+
 ## Development server contract
 
 The root `bun run dev` command is a supported contributor path. CI starts it from a clean checkout, requests `/layout-guides.html`, and fails if Vite reports a dependency-scan, pre-transform, or internal-server error.
