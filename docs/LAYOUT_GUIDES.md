@@ -65,7 +65,7 @@ Mutating service methods use the same JSON-safe plugin commands as generic autom
 
 ## Context
 
-When Context and Layout Guides are both enabled, Context reads the service at capture time and includes the current page's guides in:
+When Context and Layout Guides are both enabled, Context reads the service at capture time and includes the current page's saved guides, including each guide's `visible` flag, in:
 
 ```ts
 context.visualContext.layoutGuides
