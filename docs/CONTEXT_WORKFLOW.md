@@ -147,6 +147,8 @@ Use `selection.visualContext.distances` first. For a needed pair without useful 
 window.__MESURER__.distance(selectorA, selectorB)
 ```
 
+Distance values follow Mesurer's rendered geometry rules for overlapping boxes, guide lines, container padding boxes, and multi-selection. See [Measurements and distance geometry](./MEASUREMENTS.md).
+
 For small selections, keep useful unique pair relationships. For large selections, focus on adjacent, repeated, or user-relevant pairs rather than generating mechanical O(n²) output.
 
 ## Annotations and review
