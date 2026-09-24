@@ -234,7 +234,13 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     };
 
     ctx.command.register(TOGGLE_COMMAND, () => {
-      setActive(!active());
+      const nextActive = !active();
+
+      if (nextActive && list().length === 0) {
+        updatePage(() => [normalizeLayoutGuide()]);
+      }
+
+      setActive(nextActive);
 
       return active();
     });
