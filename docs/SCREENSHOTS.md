@@ -63,6 +63,23 @@ Normal browser hosts use `getDisplayMedia()` and reuse a live capture stream whe
 
 Applications can provide a custom `ScreenshotCaptureProvider` for another capture source or deterministic testing. Import the provider and service types from `mesurer-solid/plugins`.
 
+Electron applications can keep capture in the main process and pass PNG bytes through their existing preload bridge. `createElectronScreenshotCaptureProvider()` converts that bridge result into the Blob provider expected by `screenshot()`:
+
+```ts
+import {
+  createElectronScreenshotCaptureProvider,
+  screenshot,
+} from "mesurer-solid/plugins"
+
+const captureVisibleTab = createElectronScreenshotCaptureProvider(
+  () => window.desktop.captureWindow(),
+)
+
+const plugin = screenshot({ captureVisibleTab })
+```
+
+The capture callback may return `ArrayBuffer`, `Uint8Array`, or `{ png }` with either byte type. This matches main-process capture patterns built on Electron `webContents.capturePage()`. Mesurer does not import Electron in the renderer.
+
 The first-party Chromium extension uses `chrome.tabs.captureVisibleTab()` through its existing `activeTab` permission and isolated-world bridge, so that path does not show the normal screen-share chooser. See [Browser extension](../extension/README.md).
 
 ## Injection
@@ -99,6 +116,7 @@ This service is plugin-local and is not part of the JSON-safe `window.__MESURER_
 | Export | Use |
 | --- | --- |
 | `captureVisibleTabPng` | Capture a visible-tab PNG through the normal browser capture provider. |
+| `createElectronScreenshotCaptureProvider` | Convert PNG bytes from an application-owned Electron bridge into a Screenshot capture provider. |
 | `copyPngToClipboard` | Copy PNG data to the clipboard. |
 | `createScreenshotFilename` | Create the default timestamped screenshot filename. |
 | `cropPngToViewportRect` | Crop captured PNG data to a CSS viewport rectangle using the captured bitmap dimensions. |
