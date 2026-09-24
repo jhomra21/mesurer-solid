@@ -149,7 +149,7 @@ const context = await window.__MESURER__.select([
 
 Each selector must resolve to exactly one target. Missing or ambiguous selectors throw rather than binding to a guess.
 
-For multi-selection, inspect every selected target and the relevant pair relationships. Prefer `selection.visualContext.distances`; use `distance(a, b)` when a needed pair has no existing evidence.
+For multi-selection, inspect every selected target and the relevant pair relationships. Prefer `selection.visualContext.distances`; use `distance(a, b)` when a needed pair has no existing evidence. Box, guide, container, and diagonal semantics are defined in [Measurements and distance geometry](../../docs/MEASUREMENTS.md).
 
 ## Arrange intent
 
