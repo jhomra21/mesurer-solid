@@ -64,7 +64,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. Native Color Picker is available only when the host exposes an operational `EyeDropper`.
+The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. Native Color Picker is available only when the host exposes an operational `EyeDropper`. A successful native sample is copied to the clipboard using `colorPickerClickFormat`.
 
 `mesurer-solid/plugins` also exports the built-in factories for lower-level composition. Normal mounts already include the built-ins. Use `excludeBuiltins` with names such as `"xray"`, `"typography"`, and `"colorPicker"` when a mount should omit one.
 
@@ -87,7 +87,7 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 
 ## Features
 
-- Select one or many rendered HTML or SVG elements and inspect exact geometry.
+- Select one or many rendered HTML or SVG elements and inspect exact geometry. Turning Select off clears the current element and Guide selection.
 - Measure distance and pairwise multi-selection spacing.
 - Use X-ray, guides, rulers, and persisted settings.
 - Add page-scoped columns, rows, or pixel grids with the optional `layoutGuides()` plugin. Guide edits participate in plugin undo/redo, and Context includes the current page's saved guides with their visibility state.
