@@ -61,7 +61,11 @@ export type MesurerScreenshotResult = {
   downloaded: boolean;
 };
 
-export type MesurerScreenshotPluginOptions = Partial<MesurerScreenshotSettings> & {
+export type MesurerScreenshotPluginOptions = {
+  toolEnabled?: boolean;
+  copy?: boolean;
+  download?: boolean;
+  includeMeasurements?: boolean;
   capture?: ScreenshotCaptureProvider;
   captureVisibleTab?: ScreenshotCaptureProvider;
   previewDurationMs?: number;
