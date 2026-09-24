@@ -85,6 +85,7 @@ const NumberField = (props: {
   const min = () => props.min ?? 0;
   const max = () => props.max ?? 9999;
   const clamp = (value: number) => Math.min(max(), Math.max(min(), value));
+
   const commit = (input: string) => {
     const next = Number(input.replace(/[^\d.-]/g, ""));
 
@@ -153,6 +154,7 @@ const LayoutGuideEditor = (props: {
     props.guide.kind === "rows"
       ? { stretch: "Stretch", min: "Top", center: "Center", max: "Bottom" }
       : { stretch: "Stretch", min: "Left", center: "Center", max: "Right" });
+
   const sizeLabel = createMemo(() =>
     props.guide.kind === "rows" ? "Height" : props.guide.kind === "grid" ? "Size" : "Width");
 
