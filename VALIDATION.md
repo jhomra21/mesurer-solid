@@ -10,7 +10,7 @@ Good acceptance contracts perform real input such as clicks, double-clicks, typi
 
 For regressions reported manually, reproduce the exact failed scenario before considering the fix complete. A test that does not actually reach the failed behavior or rendered state is not evidence, even if it is green.
 
-Inspect changes must cover the real browser hit-test path. Current acceptance includes pointer-transparent descendants, overlapping page targets, transformed elements, canvas, closed Shadow DOM boundaries, large DOMs, and physical SVG selection. Programmatic `select()` and Context must resolve the same SVG targets as the visible Select tool.
+Inspect changes must cover the real browser hit-test path. Current acceptance includes pointer-transparent descendants, overlapping page targets, transformed elements, canvas, closed Shadow DOM boundaries, large DOMs, and physical SVG selection. Programmatic `select()` and Context must resolve the same SVG targets as the visible Select tool. Select lifecycle acceptance also requires turning Select off to clear logical selection, preserving that empty state across reload, re-enabling without resurrecting the old target, and physical held-Shift input producing a real multi-selection. Native Color Picker acceptance verifies the sampled value reaches `navigator.clipboard.writeText` in the configured format.
 
 Toolbar interaction changes must prove both sides of pointer ownership. Dragging toolbar chrome or a trigger must move the toolbar after the drag threshold, while pointer activity inside menus, dialogs, form controls, editable regions, and sliders must leave the toolbar in place. Triggers that own expandable UI must also expose the rendered open state through `aria-expanded`.
 
