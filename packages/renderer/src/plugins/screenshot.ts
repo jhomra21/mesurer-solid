@@ -6,7 +6,7 @@ import {
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import {
   MIN_SCREENSHOT_SELECTION,
-  captureVisibleTabPng,
+  captureScreenshotPng,
   copyPngToClipboard,
   createScreenshotFilename,
   cropPngToViewportRect,
@@ -227,7 +227,8 @@ export const screenshotPlugin = (
     const { ownerDocument, ownerWindow } = runtime;
     const workspace = runtime.createWorkspaceRuntime();
     const inspectorMount = runtime.createInspectorMount();
-    const captureProvider = options.capture ?? options.captureVisibleTab ?? captureVisibleTabPng;
+    const captureOverride = options.capture ?? options.captureVisibleTab;
+    const captureProvider = captureOverride ?? captureScreenshotPng;
     const previewDurationMs = options.previewDurationMs ?? DEFAULT_PREVIEW_DURATION_MS;
 
     ctx.state.register<ScreenshotStateValue>({
@@ -601,7 +602,7 @@ export const screenshotPlugin = (
       previewController.dismiss();
 
       try {
-        if (options.captureVisibleTab === undefined) {
+        if (!captureOverride) {
           await prepareScreenshotCapture(ownerDocument, ownerWindow);
         }
 
