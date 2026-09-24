@@ -38,6 +38,10 @@ export type ColorPickerFormat = "hex" | "rgb" | "hsl" | "oklch";
 
 export type MesurerTheme = "system" | "light" | "dark";
 
+/** Public built-in names, aligned with the factories exported by `mesurer-solid/plugins`. */
+export type MesurerBuiltin = "select" | "xray" | "colorPicker" | "rulers" | "typography" | "guides" | "distance" | "settings";
+
+/** @deprecated Internal compatibility ids used by the older `excludePlugins` option. */
 export type MesurerBuiltinPluginId = "select" | "xray" | "color-picker" | "rulers" | "text-inspector" | "guides" | "distance" | "settings";
 
 export type LinePattern = "solid" | "dashed" | "dotted";
@@ -139,12 +143,32 @@ export type MesurerOptions = {
    * Omitted first-party plugins remain toggleable in Settings from the same canonical
    * registry; callers never maintain a separate availability or Settings list.
    */
-  plugins?: MesurerPlugin[];
-  excludePlugins?: MesurerBuiltinPluginId[];
+  plugins?: readonly MesurerPlugin[];
+  /** Built-in tools to omit from this mount. Names match the public plugin factories. */
+  excludeBuiltins?: readonly MesurerBuiltin[];
+  /** @deprecated Use `excludeBuiltins`. This compatibility option uses internal built-in ids. */
+  excludePlugins?: readonly MesurerBuiltinPluginId[];
+  /**
+   * Advanced: supply a plugin host owned outside this mount.
+   * The caller remains responsible for disposing the supplied host.
+   */
   pluginHost?: MesurerPluginHost;
+  /** Advanced: receive the live host before configured plugin setup settles. */
   onPluginHost?: (host: MesurerPluginHost) => void;
+  /** @deprecated Await `mounted.ready` instead. */
   onPluginsReady?: (host: MesurerPluginHost) => void;
   onPluginError?: (cause: unknown, pluginId: string) => void;
+};
+
+const BUILTIN_PLUGIN_ID: Record<MesurerBuiltin, MesurerBuiltinPluginId> = {
+  select: "select",
+  xray: "xray",
+  colorPicker: "color-picker",
+  rulers: "rulers",
+  typography: "text-inspector",
+  guides: "guides",
+  distance: "distance",
+  settings: "settings",
 };
 
 export type MountMesurerOptions = MesurerOptions & {
@@ -152,7 +176,16 @@ export type MountMesurerOptions = MesurerOptions & {
   isolate?: boolean;
   shadowMode?: ShadowRootMode;
   topLayer?: boolean;
+  /**
+   * Expose the browser agent API on the owning Window. The mounted handle always
+   * exposes `agent`; this option controls only the global bridge.
+   */
   agent?: boolean | AgentBridgeOptions;
+  /**
+   * Dispose this mount when the signal aborts.
+   * A caller-supplied pluginHost keeps its separate lifecycle.
+   */
+  signal?: AbortSignal;
 };
 
 export type MesurerAgentCapabilities = {
@@ -173,7 +206,7 @@ export type MesurerContextHarness = {
   capabilities(): MesurerAgentCapabilities;
   context(request?: MesurerContextRequest): Promise<MesurerContextV1>;
   contextText(request?: MesurerContextRequest): Promise<string>;
-  select(selectors: string | string[]): Promise<MesurerContextV1>;
+  select(selectors: string | readonly string[]): Promise<MesurerContextV1>;
   annotations(): Promise<MesurerAnnotation[]>;
   review(annotationId?: string): Promise<MesurerReviewV1 | MesurerReviewV1[]>;
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
@@ -192,17 +225,19 @@ export type MesurerArrangeHarness = {
 export type MesurerBrowserAgent = MesurerAgentHarness & MesurerContextHarness & MesurerArrangeHarness;
 
 export type MountedMesurer = {
-  element: HTMLDivElement;
-  root: HTMLDivElement | ShadowRoot;
+  readonly element: HTMLDivElement;
+  readonly root: HTMLDivElement | ShadowRoot;
   readonly hostLayer: MesurerHostLayerMode;
+  /** @deprecated Await `ready` when direct plugin-host access is required. */
   readonly pluginHost: MesurerPluginHost | undefined;
-  readonly ready: Promise<void>;
+  /** Resolves to the live plugin host after startup and initial rendered state settle. */
+  readonly ready: Promise<MesurerPluginHost>;
   readonly agent: MesurerBrowserAgent;
   service<T>(id: string): Promise<T>;
   context(request?: MesurerContextRequest): Promise<MesurerContextV1>;
   contextText(request?: MesurerContextRequest): Promise<string>;
   copyContext(request?: MesurerContextRequest): Promise<void>;
-  select(selectors: string | string[]): Promise<MesurerContextV1>;
+  select(selectors: string | readonly string[]): Promise<MesurerContextV1>;
   annotations(): Promise<MesurerAnnotation[]>;
   review(annotationId?: string): Promise<MesurerReviewV1 | MesurerReviewV1[]>;
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
@@ -216,7 +251,7 @@ export type MountedMesurer = {
   textEdits(): Promise<MesurerTextEditIntent[]>;
   textEdit(id: string): Promise<MesurerTextEditIntent>;
   bringToFront(): void;
-  describe(): MesurerPluginDescription | undefined;
+  describe(): Promise<MesurerPluginDescription>;
   dispose(): void;
 };
 
@@ -231,11 +266,22 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     shadowMode = "open",
     topLayer = true,
     agent: agentOption = false,
+    signal,
     onPluginHost,
     onPluginsReady,
     plugins,
+    excludeBuiltins,
+    excludePlugins,
     ...mesurerProps
   } = options;
+
+  if (signal?.aborted) {
+    throw signal.reason ?? new DOMException("Mesurer mount aborted.", "AbortError");
+  }
+
+  if (!target) {
+    throw new Error("mountMesurer() requires document.body to exist or an explicit target.");
+  }
 
   const ownerDocument = target.ownerDocument ?? document;
   const ownerWindow = ownerDocument.defaultView ?? window;
@@ -258,16 +304,26 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
 
   let pluginHost: MesurerPluginHost | undefined;
   let resolvePluginHost!: (host: MesurerPluginHost) => void;
+  let rejectPluginHost!: (cause: unknown) => void;
   let resolvePluginsReady!: (host: MesurerPluginHost) => void;
+  let rejectPluginsReady!: (cause: unknown) => void;
+  let pluginHostCreatedResolved = false;
   let pluginsReadyResolved = false;
 
-  const pluginHostCreated = new Promise<MesurerPluginHost>((resolve) => {
+  const pluginHostCreated = new Promise<MesurerPluginHost>((resolve, reject) => {
     resolvePluginHost = resolve;
+    rejectPluginHost = reject;
   });
 
-  const pluginsReady = new Promise<MesurerPluginHost>((resolve) => {
+  const pluginsReady = new Promise<MesurerPluginHost>((resolve, reject) => {
     resolvePluginsReady = resolve;
+    rejectPluginsReady = reject;
   });
+
+  // The caller may never await readiness. Keep lifecycle cancellation from
+  // surfacing as an unhandled rejection while preserving rejection for awaiters.
+  void pluginHostCreated.catch(() => undefined);
+  void pluginsReady.catch(() => undefined);
 
   const waitForPluginHost = async () => {
     await (pluginHost ? Promise.resolve(pluginHost) : pluginHostCreated);
@@ -294,7 +350,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     await waitForPluginHost();
     const value = pluginHost?.service.get<T>(id);
 
-    if (!value) throw new Error(`Mesurer service is unavailable: ${id}.`);
+    if (value === undefined) throw new Error(`Mesurer service is unavailable: ${id}.`);
 
     return value;
   };
@@ -324,7 +380,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
   const context = async (request?: MesurerContextRequest) => (await getContextService()).context(request);
   const contextText = async (request?: MesurerContextRequest) => (await getContextService()).contextText(request);
   const copyContext = async (request?: MesurerContextRequest) => (await getContextService()).copyContext(request);
-  const select = async (selectors: string | string[]) => (await getContextService()).select(selectors);
+  const select = async (selectors: string | readonly string[]) => (await getContextService()).select(selectors);
   const annotations = async () => (await getContextService()).annotations();
   const review = async (annotationId?: string) => (await getContextService()).review(annotationId);
   const capturePlan = async (request?: MesurerContextRequest) => (await getContextService()).capturePlan(request);
@@ -397,6 +453,9 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     ...mesurerProps,
     version: MESURER_VERSION,
     plugins: createPluginRegistry(plugins),
+    excludePlugins: excludeBuiltins
+      ? excludeBuiltins.map((id) => BUILTIN_PLUGIN_ID[id])
+      : [...(excludePlugins ?? [])],
   };
 
   const disposeRender = render(
@@ -406,7 +465,11 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
         portalTarget={portalTarget}
         pageTarget={target}
         onPluginHost={(host) => {
-          if (!pluginHost) resolvePluginHost(host);
+          if (!pluginHostCreatedResolved) {
+            pluginHostCreatedResolved = true;
+            resolvePluginHost(host);
+          }
+
           pluginHost = host;
           onPluginHost?.(host);
         }}
@@ -425,7 +488,25 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     mount,
   );
 
-  const ready = agent.ready();
+  let rejectReadiness!: (cause: unknown) => void;
+
+  const readinessCancelled = new Promise<never>((_resolve, reject) => {
+    rejectReadiness = reject;
+  });
+
+  void readinessCancelled.catch(() => undefined);
+
+  const ready = Promise.race([
+    (async () => {
+      await agent.ready();
+
+      return waitForPluginHost();
+    })(),
+    readinessCancelled,
+  ]);
+
+  void ready.catch(() => undefined);
+
   let restoreAgentGlobal: (() => void) | null = null;
 
   if (agentConfig) {
@@ -443,8 +524,16 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
   }
 
   let disposed = false;
+  let removeAbortListener: () => void = () => undefined;
 
-  return {
+  const cancelPendingReady = (cause: unknown) => {
+    if (!pluginHostCreatedResolved) rejectPluginHost(cause);
+
+    if (!pluginsReadyResolved) rejectPluginsReady(cause);
+    rejectReadiness(cause);
+  };
+
+  const mounted: MountedMesurer = {
     element: container,
     root,
     hostLayer: hostLayer.mode,
@@ -471,16 +560,35 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     textEdits,
     textEdit,
     bringToFront: hostLayer.bringToFront,
-    describe: () => pluginHost?.describe(),
+    describe: async () => (await ready).describe(),
     dispose() {
       if (disposed) return;
       disposed = true;
+      removeAbortListener();
+      cancelPendingReady(new DOMException("Mesurer was disposed before it became ready.", "AbortError"));
       restoreAgentGlobal?.();
       disposeRender();
       hostLayer.dispose();
       container.remove();
     },
   };
+
+  if (signal) {
+    const onAbort = () => {
+      if (disposed) return;
+      const reason = signal.reason ?? new DOMException("Mesurer mount aborted.", "AbortError");
+
+      cancelPendingReady(reason);
+      mounted.dispose();
+    };
+
+    signal.addEventListener("abort", onAbort, { once: true });
+    removeAbortListener = () => {
+      signal.removeEventListener("abort", onAbort);
+    };
+  }
+
+  return mounted;
 }
 
 /** @deprecated Use `MountMesurerOptions`. */

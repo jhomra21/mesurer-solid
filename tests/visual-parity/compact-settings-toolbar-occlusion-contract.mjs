@@ -107,11 +107,14 @@ try {
     const control = dialog.getByRole("switch", { name: label, exact: true });
     assert.equal(await control.getAttribute("aria-checked"), "true", `${label} should start enabled`);
     await control.click();
-    await page.waitForFunction((name) => {
-      const harness = window.__MESURER_PLUGIN_SETTINGS_TEST__;
+    await page.waitForFunction(async (name) => {
+      const subject = window.__MESURER_PLUGIN_SETTINGS_TEST__?.subject;
       const id = `mesurer.${name.toLowerCase()}`;
 
-      return !(harness?.subject.describe()?.plugins.some((plugin) => plugin.id === id) ?? true);
+      if (!subject) return false;
+      const description = await subject.describe();
+
+      return !description.plugins.some((plugin) => plugin.id === id);
     }, label);
   }
 

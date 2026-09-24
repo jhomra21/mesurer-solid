@@ -6,6 +6,8 @@ It owns observable state, events, plugin registration, commands, hooks, services
 
 Plugins can register tools, settings, overlays, commands, hooks, state, services, and lifecycle cleanup. Registrations are disposable, and asynchronous plugin setup can be cancelled so late registrations are cleaned up instead of leaking after their owner is gone. Cancellation is scoped to the load that owns those registrations; unrelated plugins on a shared host are not disposed.
 
+Use `createMesurerRuntime({ plugins })` when one owner should create a host and load an initial plugin set in one operation. The input accepts readonly plugin lists. If initial loading fails, the partial host is disposed before the error is rethrown. Use `createMesurerPluginHost()` directly when the caller needs to own incremental loading itself.
+
 ## Command and state values
 
 Plugin state, command arguments, command results, hook events, and command-source metadata use `PluginValue`: strings, numbers, booleans, null, arrays of those values, or objects containing those values.

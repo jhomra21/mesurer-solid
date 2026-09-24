@@ -45,7 +45,7 @@ if (import.meta.env.DEV) {
 
 For Vite, that usually means `src/main.tsx`, `src/main.ts`, or the equivalent browser entry. In Electron, use the renderer entry. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, the Screenshot plugin uses native window capture automatically and renderer configuration stays `screenshot()`. In SSR applications, mount from a client-only boundary. Do not mount Mesurer from server code, build configuration, or an Electron main process.
 
-See [Getting started](./docs/GETTING_STARTED.md) for framework-specific placement and HMR guidance. The [Electron renderer example](./examples/electron-renderer/README.md) documents native Screenshot capture through preload and `webContents.capturePage()`.
+The returned handle owns the mount. `dispose()` is idempotent, `ready` resolves to the live plugin host after startup and the initial rendered state settle, and an optional `AbortSignal` can own cleanup. See [Getting started](./docs/GETTING_STARTED.md) for lifecycle, framework placement, and HMR guidance. The [Electron renderer example](./examples/electron-renderer/README.md) documents native Screenshot capture through preload and `webContents.capturePage()`.
 
 ### Add first-party plugins
 
@@ -66,7 +66,9 @@ const mesurer = mountMesurer({
 })
 ```
 
-The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, `settings`, `defaults`, and `compose` for applications that want to build a custom plugin set explicitly. Optional plugin capabilities can be resolved from the mount with `await mesurer.service<T>(serviceId)` instead of reaching through the raw plugin host.
+The same entry exposes the built-in factories for lower-level composition. Normal `mountMesurer()` callers do not need to rebuild the built-in set. Use `excludeBuiltins` with public names such as `"xray"`, `"typography"`, or `"colorPicker"` when a built-in should be omitted.
+
+Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId)`. The method waits for startup and preserves any value the plugin registered, including `false`, `0`, and empty strings.
 
 ## Features
 

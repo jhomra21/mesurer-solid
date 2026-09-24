@@ -1,4 +1,7 @@
-import { createMesurerPluginHost as createInternalPluginHost } from "@jhomra21/mesurer-solid-core";
+import {
+  createMesurerPluginHost as createInternalPluginHost,
+  createMesurerRuntime as createInternalRuntime,
+} from "@jhomra21/mesurer-solid-core";
 
 export type Registration = { readonly dispose: () => void };
 
@@ -123,8 +126,8 @@ export type MesurerPluginContext = {
 export type MesurerPlugin = {
   id: PluginId;
   version?: string;
-  requires?: string[];
-  provides?: string[];
+  requires?: readonly string[];
+  provides?: readonly string[];
   setup(context: MesurerPluginContext): void | Promise<void>;
 };
 
@@ -179,12 +182,12 @@ export function createMesurerPluginHost(): MesurerPluginHost {
   return createInternalPluginHost();
 }
 
+export type MesurerRuntimeOptions = {
+  plugins?: readonly MesurerPlugin[];
+};
+
 export async function createMesurerRuntime(
-  options: { plugins?: MesurerPlugin[] } = {},
+  options: MesurerRuntimeOptions = {},
 ): Promise<MesurerPluginHost> {
-  const host = createMesurerPluginHost();
-
-  for (const plugin of options.plugins ?? []) await host.load(plugin);
-
-  return host;
+  return createInternalRuntime(options);
 }

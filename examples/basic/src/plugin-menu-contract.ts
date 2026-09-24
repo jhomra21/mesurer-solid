@@ -34,12 +34,12 @@ mountMesurer({
   isolate: false,
   topLayer: false,
   plugins: [threadMenu],
-  excludePlugins: [
+  excludeBuiltins: [
     "select",
     "xray",
-    "color-picker",
+    "colorPicker",
     "rulers",
-    "text-inspector",
+    "typography",
     "guides",
     "distance",
     "settings",
