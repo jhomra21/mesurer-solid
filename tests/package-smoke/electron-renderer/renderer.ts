@@ -12,19 +12,35 @@ type ElectronCaptureResult = {
   height: number;
 };
 
+type ElectronTestSummary = {
+  targetCount: number;
+  selector: string;
+  islandCount: number;
+  mime: string;
+  copied: boolean;
+  downloaded: boolean;
+  rect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+};
+
 declare global {
   interface Window {
     electronMesurer: {
       captureWindow(): Promise<ElectronCaptureResult>;
       complete(payload: {
         png: Uint8Array;
-        summary: Record<string, unknown>;
+        summary: ElectronTestSummary;
       }): Promise<void>;
     };
   }
 }
 
 const style = document.createElement("style");
+
 style.textContent = `
   html, body { margin: 0; min-height: 100%; background: #111318; color: #f7f7f7; }
   body { font-family: ui-sans-serif, system-ui, sans-serif; }
@@ -41,6 +57,7 @@ style.textContent = `
   h1 { margin: 0 0 12px; font-size: 24px; }
   p { margin: 0; line-height: 1.5; }
 `;
+
 document.head.append(style);
 
 const captureVisibleTab = createElectronScreenshotCaptureProvider(
@@ -67,12 +84,14 @@ const target = selection.targets[0];
 if (!target) throw new Error("Mesurer did not select the Electron renderer target.");
 
 const service = await mesurer.service<MesurerScreenshotService>("screenshot");
+
 const capture = await service.capture({
   left: target.inspection.rect.left,
   top: target.inspection.rect.top,
   width: target.inspection.rect.width,
   height: target.inspection.rect.height,
 });
+
 const png = new Uint8Array(await capture.blob.arrayBuffer());
 
 await window.electronMesurer.complete({
