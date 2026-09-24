@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { createMemo, createSignal } from "solid-js";
 import {
   defineMesurerPlugin,
   type MesurerPlugin,
@@ -213,6 +213,12 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const list = () => normalizeLayoutGuides(pageGuides(state(), pageKey));
 
+    const reactiveGuides = createMemo(() => {
+      revision();
+
+      return list();
+    });
+
     const setActive = (value: boolean) => {
       ctx.state.update<boolean>(MESURER_LAYOUT_GUIDES_ACTIVE_STATE_ID, () => value);
     };
@@ -336,7 +342,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     const disposeOverlay = render(
       () => {
         // SAFETY: solid-dom's universal renderer accepts compiled Solid JSX; its Node generic cannot express JSX.Element's nullable union.
-        return <LayoutGuidesOverlay guides={(revision(), list())} /> as Node;
+        return <LayoutGuidesOverlay guides={reactiveGuides()} /> as Node;
       },
       overlayMount,
     );
@@ -400,7 +406,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
         // SAFETY: solid-dom's universal renderer accepts compiled Solid JSX; its Node generic cannot express JSX.Element's nullable union.
         return (
           <LayoutGuidesPanel
-            guides={(revision(), list())}
+            guides={reactiveGuides()}
             onAdd={() => { void service.add().catch(() => undefined); }}
             onUpdate={(id, patch) => { void service.update(id, patch).catch(() => undefined); }}
             onRemove={(id) => { void service.remove(id).catch(() => undefined); }}
