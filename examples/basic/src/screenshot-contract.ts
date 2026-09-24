@@ -10,6 +10,12 @@ import {
 
 type HostCaptureFormat = "blob" | "array-buffer" | "uint8-array" | "wrapped" | "invalid";
 
+type HostCaptureResult =
+  | Blob
+  | ArrayBuffer
+  | Uint8Array
+  | { png?: Blob | ArrayBuffer | Uint8Array | null };
+
 let hostCaptureFormat: HostCaptureFormat = "blob";
 
 const deterministicPng = async () => {
@@ -57,7 +63,7 @@ const hostCapture = async () => {
 declare global {
   interface Window {
     __MESURER_HOST__?: {
-      captureScreenshot(): Promise<unknown>;
+      captureScreenshot(): Promise<HostCaptureResult>;
     };
   }
 }
