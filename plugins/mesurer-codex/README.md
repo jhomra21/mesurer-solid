@@ -51,6 +51,9 @@ After changing the canonical companion, run:
 ```bash
 bun run sync:codex-plugin
 bun run check:codex-plugin
+node --test scripts/codex-bridge.test.mjs scripts/codex-connect.test.mjs
 ```
+
+The bridge and connector tests also run correctly from a live Codex session. They clear ambient session and Desktop state and use a disposable Codex home when they write Codex data.
 
 Do not edit the generated plugin scripts directly.

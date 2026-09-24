@@ -145,6 +145,8 @@ The accepted Codex Desktop integration has specific correctness properties. Pres
 - Fail closed on ambiguous thread/delivery recovery.
 - Desktop lifecycle does not trust legacy per-turn lifecycle hooks; the trusted plugin hook is `SessionStart`.
 
+Bridge and connector tests clear ambient Codex thread, app-tools-pipe, Desktop-opener, and home state. A test adds only the state it needs.
+
 Any change to these rules requires the Codex bridge/plugin regressions plus real lifecycle acceptance when behavior changes.
 
 ## Host isolation invariants
@@ -242,13 +244,14 @@ When designing a subsystem:
 
 ## Validation
 
-Run the smallest relevant checks while iterating, then the repository gates required by the change.
+Run the smallest relevant checks while iterating, then the repository gates required by the change. On a fresh checkout or in a disposable worktree, run `bun run build:packages` before the root `bun run test`.
 
 Baseline source validation:
 
 ```bash
 bun run lint
 bun run typecheck
+bun run build:packages
 bun run test
 bun run build
 ```

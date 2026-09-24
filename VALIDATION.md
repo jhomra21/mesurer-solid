@@ -46,6 +46,12 @@ A ported upstream component that can visibly drift needs a focused current-sourc
 
 Layout Guides currently applies this rule to its initial, list, editor, aligned-editor, and grid states.
 
+## Fresh checkout and Codex test isolation
+
+The root `bun run test` command reads built package artifacts. On a fresh checkout or in a disposable worktree, run `bun run build:packages` first. Focused package tests can run directly when their required artifacts already exist.
+
+Codex bridge and connector tests must behave the same inside and outside a live Codex session. The test setup clears ambient thread, app-tools-pipe, Desktop-opener, and Codex-home state unless a case supplies that state itself. Tests that write Codex state use a disposable `CODEX_HOME`.
+
 ## Development server contract
 
 The root `bun run dev` command is a supported contributor path. CI starts it from a clean checkout, requests `/layout-guides.html`, and fails if Vite reports a dependency-scan, pre-transform, or internal-server error.

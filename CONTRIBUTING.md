@@ -8,9 +8,12 @@ Mesurer Solid is a Bun workspace with package-local source/tests and a small set
 bun install --frozen-lockfile
 bun run lint
 bun run typecheck
+bun run build:packages
 bun run test
 bun run build
 ```
+
+On a fresh checkout or in a disposable worktree, run `bun run build:packages` before the root `bun run test`. The root test command reads built package artifacts and does not create all of them first.
 
 Use `bun run dev` for the basic renderer playground. CI starts that exact root command and requests `/layout-guides.html`. It fails on Vite dependency-scan, pre-transform, or internal-server errors. Keep this path green when changing renderer TSX, Vite configuration, aliases, or example entries.
 
