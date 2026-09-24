@@ -8,7 +8,11 @@ import {
   type MesurerScreenshotService,
 } from "../../../packages/mesurer/src/plugins";
 
-const deterministicCapture = async () => {
+type HostCaptureFormat = "blob" | "array-buffer" | "uint8-array" | "wrapped";
+
+let hostCaptureFormat: HostCaptureFormat = "blob";
+
+const deterministicPng = async () => {
   const canvas = document.createElement("canvas");
   canvas.width = window.innerWidth * 2;
   canvas.height = window.innerHeight * 2;
@@ -28,16 +32,41 @@ const deterministicCapture = async () => {
   });
 };
 
+const hostCapture = async () => {
+  const blob = await deterministicPng();
+
+  if (hostCaptureFormat === "blob") return blob;
+
+  const buffer = await blob.arrayBuffer();
+
+  if (hostCaptureFormat === "array-buffer") return buffer;
+
+  const bytes = new Uint8Array(buffer);
+
+  if (hostCaptureFormat === "uint8-array") return bytes;
+
+  return {
+    png: bytes,
+    width: window.innerWidth * 2,
+    height: window.innerHeight * 2,
+  };
+};
+
 declare global {
   interface Window {
     __MESURER_HOST__?: {
-      captureScreenshot(): Promise<Blob>;
+      captureScreenshot(): Promise<
+        Blob
+        | ArrayBuffer
+        | Uint8Array
+        | { png: Uint8Array; width: number; height: number }
+      >;
     };
   }
 }
 
 window.__MESURER_HOST__ = {
-  captureScreenshot: deterministicCapture,
+  captureScreenshot: hostCapture,
 };
 
 const subject = mountMesurer({
@@ -58,6 +87,7 @@ const service = await subject.service<MesurerScreenshotService>(MESURER_SCREENSH
 type ScreenshotHarness = {
   subject: MountedMesurer;
   service: MesurerScreenshotService;
+  setHostCaptureFormat(format: HostCaptureFormat): void;
 };
 
 declare global {
@@ -66,4 +96,10 @@ declare global {
   }
 }
 
-window.__MESURER_SCREENSHOT_TEST__ = { subject, service };
+window.__MESURER_SCREENSHOT_TEST__ = {
+  subject,
+  service,
+  setHostCaptureFormat(format) {
+    hostCaptureFormat = format;
+  },
+};
