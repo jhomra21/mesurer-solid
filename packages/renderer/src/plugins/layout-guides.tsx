@@ -201,6 +201,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     });
 
     let pageKey = getMesurerPageKey(runtime.ownerWindow);
+    let panelOpen = false;
     const [revision, setRevision] = createSignal(0);
     const listeners = new Set<() => void>();
     let positionFrame = 0;
@@ -216,7 +217,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     const reactiveGuides = () => {
       revision();
 
-      return list();
+      return active() ? list() : [];
     };
 
     const setActive = (value: boolean) => {
@@ -240,6 +241,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
         updatePage(() => [normalizeLayoutGuide()]);
       }
 
+      panelOpen = nextActive;
       setActive(nextActive);
 
       return active();
@@ -368,7 +370,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     const positionPanel = () => {
       positionFrame = 0;
 
-      if (!active()) return;
+      if (!panelOpen) return;
 
       const anchor = runtime.portalTarget.querySelector<HTMLElement>(
         "[data-mesurer-tool-id='layout-guides']",
@@ -402,9 +404,9 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     };
 
     const syncPanel = () => {
-      panelMount.element.style.display = active() ? "block" : "none";
+      panelMount.element.style.display = panelOpen ? "block" : "none";
 
-      if (active()) schedulePanel();
+      if (panelOpen) schedulePanel();
     };
 
     const disposePanel = render(
@@ -441,7 +443,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     });
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!active()) return;
+      if (!panelOpen) return;
       const path = event.composedPath();
 
       if (path.includes(panelMount.element)) return;
@@ -452,13 +454,15 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       if (trigger && path.includes(trigger)) return;
 
-      setActive(false);
+      panelOpen = false;
+      syncPanel();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || !active()) return;
+      if (event.key !== "Escape" || !panelOpen) return;
 
-      setActive(false);
+      panelOpen = false;
+      syncPanel();
     };
 
     syncPanel();
