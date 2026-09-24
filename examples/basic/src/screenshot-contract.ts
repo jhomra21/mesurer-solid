@@ -6,13 +6,12 @@ import {
   MESURER_SCREENSHOT_SERVICE_ID,
   screenshot,
   type MesurerScreenshotService,
-  type ScreenshotCaptureProvider,
 } from "../../../packages/mesurer/src/plugins";
 
-const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, ownerWindow }) => {
-  const canvas = ownerDocument.createElement("canvas");
-  canvas.width = ownerWindow.innerWidth * 2;
-  canvas.height = ownerWindow.innerHeight * 2;
+const deterministicCapture = async () => {
+  const canvas = document.createElement("canvas");
+  canvas.width = window.innerWidth * 2;
+  canvas.height = window.innerHeight * 2;
   const context = canvas.getContext("2d");
 
   if (!context) throw new Error("Fixture canvas unavailable");
@@ -29,6 +28,18 @@ const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, 
   });
 };
 
+declare global {
+  interface Window {
+    __MESURER_HOST__?: {
+      captureScreenshot(): Promise<Blob>;
+    };
+  }
+}
+
+window.__MESURER_HOST__ = {
+  captureScreenshot: deterministicCapture,
+};
+
 const subject = mountMesurer({
   target: document.body,
   isolate: true,
@@ -36,7 +47,6 @@ const subject = mountMesurer({
   plugins: [screenshot({
     copy: false,
     download: false,
-    capture: deterministicCapture,
   })],
   persistKey: "mesurer-screenshot-contract",
 });
