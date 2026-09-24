@@ -183,20 +183,7 @@ export const TrashIcon = (props: IconProps) => (
 );
 
 export const CloseIcon = (props: IconProps) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={props.size ?? 14}
-    height={props.size ?? 14}
-    viewBox="0 0 24 24"
-    fill="none"
-    aria-hidden="true"
-    class={`msr:block${props.class ? ` ${props.class}` : ""}`}
-  >
-    <path
-      d="m6 6 12 12M18 6 6 18"
-      stroke="currentColor"
-      stroke-width="1.5"
-      stroke-linecap="round"
-    />
-  </svg>
+  <IconBase size={props.size ?? 18} class={props.class}>
+    <path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z" />
+  </IconBase>
 );
