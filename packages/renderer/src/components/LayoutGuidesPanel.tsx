@@ -15,7 +15,6 @@ import {
 } from "./ControlField";
 import {
   CaretDownIcon,
-  CloseIcon,
   EyeIcon,
   EyeOffIcon,
   LayoutColumnsIcon,
@@ -32,6 +31,25 @@ type LayoutGuidesPanelProps = {
   onUpdate(id: string, patch: Partial<Omit<LayoutGuide, "id">>): void;
   onRemove(id: string): void;
 };
+
+const LayoutGuideCloseIcon = (props: { size?: number }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={props.size ?? 14}
+    height={props.size ?? 14}
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+    class="msr:block"
+  >
+    <path
+      d="m6 6 12 12M18 6 6 18"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+    />
+  </svg>
+);
 
 const KindIcon = (props: { kind: LayoutGuideKind }) => {
   if (props.kind === "rows") return <LayoutRowsIcon size={14} />;
@@ -186,7 +204,7 @@ const LayoutGuideEditor = (props: {
           class="msr:flex msr:size-6 msr:items-center msr:justify-center msr:rounded-control msr:text-ink-500 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900"
           onClick={props.onBack}
         >
-          <CloseIcon />
+          <LayoutGuideCloseIcon />
         </button>
       </div>
 
