@@ -116,6 +116,42 @@ try {
 
   await selectPoint(transparent.point, transparent.rect, "pointer-transparent leaf");
 
+  await selectButton.click();
+  assert.equal(await selectButton.getAttribute("aria-pressed"), "false", "Select button should toggle off");
+
+  const disabledSelection = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
+  assert.equal(disabledSelection.targets.length, 0, "Turning Select off should clear the logical selection, not only hide its chrome");
+  assert.equal(
+    await page.locator("[data-mesurer-selected-measurement='true']").count(),
+    0,
+    "Turning Select off should remove visible selection chrome",
+  );
+
+  await page.waitForTimeout(320);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForFunction(() => Boolean(window.__MESURER_SELECTION_HIT_TESTING__ && window.__MESURER__));
+  await page.evaluate(() => window.__MESURER__.ready());
+
+  const selectButtonAfterReload = page.locator("button[data-mesurer-builtin='select']").first();
+  await selectButtonAfterReload.waitFor({ state: "visible" });
+  assert.equal(
+    await selectButtonAfterReload.getAttribute("aria-pressed"),
+    "false",
+    "Select-off state should survive reload",
+  );
+
+  const reloadedSelection = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
+  assert.equal(reloadedSelection.targets.length, 0, "Reload should not restore a selection while Select is off");
+
+  await selectButtonAfterReload.click();
+  assert.equal(await selectButtonAfterReload.getAttribute("aria-pressed"), "true", "Select should turn back on");
+
+  const reenabledSelection = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
+  assert.equal(reenabledSelection.targets.length, 0, "Turning Select back on should not resurrect the previous target");
+
+  const transparentAfterReload = await pointFor(page.locator("#transparent-leaf"), "transparent leaf after reload");
+  await selectPoint(transparentAfterReload.point, transparentAfterReload.rect, "pointer-transparent leaf after reload");
+
   const topTarget = page.locator("#top-target");
 
   const underTarget = page.locator("#under-target");
@@ -144,6 +180,31 @@ try {
     "top-target",
     "fixture must expose the large top target as the first page-owned browser hit",
   );
+
+  await page.keyboard.down("Shift");
+  await page.mouse.click(overlapPoint.x, overlapPoint.y);
+  await page.keyboard.up("Shift");
+  await settle();
+
+  const physicalMultiSelection = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
+  assert.deepEqual(
+    new Set(physicalMultiSelection.targets.map((target) => target.inspection.selector)),
+    new Set(["#transparent-leaf", "#top-target"]),
+    "Physical Shift-click should add the second rendered target to the current selection",
+  );
+
+  const aggregate = await box(selectedSurface(), "Shift-click aggregate selection");
+  const transparentCurrent = await box(page.locator("#transparent-leaf"), "transparent leaf after Shift-click");
+  const topCurrent = await box(topTarget, "top target after Shift-click");
+  const aggregateRight = aggregate.x + aggregate.width;
+  const aggregateBottom = aggregate.y + aggregate.height;
+
+  for (const [label, rect] of [["transparent leaf", transparentCurrent], ["top target", topCurrent]]) {
+    assert(aggregate.x <= rect.x + 2, `aggregate selection should include ${label} left edge`);
+    assert(aggregate.y <= rect.y + 2, `aggregate selection should include ${label} top edge`);
+    assert(aggregateRight >= rect.x + rect.width - 2, `aggregate selection should include ${label} right edge`);
+    assert(aggregateBottom >= rect.y + rect.height - 2, `aggregate selection should include ${label} bottom edge`);
+  }
 
   const agentTop = await page.evaluate(
     ({ x, y }) => window.__MESURER__.at(x, y),
@@ -217,6 +278,9 @@ try {
 
   console.log("Inspect hit-testing contract: PASS", {
     transparentDescendant: true,
+    selectOffClearsSelection: true,
+    selectOffPersistsWithoutLatentSelection: true,
+    physicalShiftClickMultiSelection: true,
     agentParity: true,
     nativeTargetPreserved: true,
     transformedGeometry: true,
