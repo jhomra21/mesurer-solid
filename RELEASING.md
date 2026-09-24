@@ -31,7 +31,7 @@ For a stable release:
 
 A newer upstream feature is not automatically a stable-release blocker. Mesurer Solid started as a source-first port, but it has its own plugin and agent-first product direction. The upstream audit exists to prevent accidental drift in behavior we adopt and to make deliberate differences explicit.
 
-For screenshot releases specifically, keep [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md), the public README, Agent Integration guide, Agent Skill, extension guide, architecture docs, and the screenshot browser contract aligned.
+For Screenshot releases specifically, keep [`docs/SCREENSHOTS.md`](./docs/SCREENSHOTS.md), the public README, package README, Electron renderer example, Agent Integration guide, Agent Skill, extension guide, architecture docs, and Screenshot browser contract aligned. Host-capture changes must also keep the packed Electron package smoke green.
 
 This check is intentionally done before version-only release preparation. The generated release PR is metadata-only and is not the place to fix stale feature documentation or unresolved adopted-contract regressions.
 
@@ -64,7 +64,7 @@ Review the version and changelog like any other code change. Merge only after **
 
 Use a normal **merge commit** for the generated release PR. Do **not** squash the generated release commit into `main`: the release commit deliberately contains `[skip ci]`, and a squash merge can preserve that marker in the new `main` commit, suppressing the push-trigger that normally dispatches publication. A normal merge commit keeps the metadata commit intact while producing a new `main` merge commit without the skip marker.
 
-`release-check` is intentionally lightweight because the generated release PR may change only `packages/mesurer/package.json` and `CHANGELOG.md`. It verifies the `release/v<version>` branch matches the package version, the version increases correctly, the matching changelog section exists, exactly those two files changed, `package.json` changed only its version field, and the release identity/tooling tests pass. Runtime, framework-host, browser, and package compatibility belong to the already-reviewed source changes and are not repeated on the metadata-only release PR.
+`release-check` is intentionally lightweight because the generated release PR may change only `packages/mesurer/package.json` and `CHANGELOG.md`. It verifies the `release/v<version>` branch matches the package version, the version increases correctly, the matching changelog section exists, exactly those two files changed, `package.json` changed only its version field, and the release identity/tooling tests pass. Runtime, framework-host, browser, package compatibility, and the root `bun run dev` smoke belong to the already-reviewed source changes and are not repeated on the metadata-only release PR.
 
 ## Automatic publish after merge
 
