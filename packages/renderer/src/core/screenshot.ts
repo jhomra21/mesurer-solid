@@ -26,14 +26,8 @@ export type ScreenshotCaptureProvider = (
   context: ScreenshotCaptureContext,
 ) => Promise<Blob>;
 
-type HostScreenshotPng = Blob | ArrayBuffer | Uint8Array;
-
-type HostScreenshotResult = HostScreenshotPng | {
-  png: HostScreenshotPng;
-};
-
 type MesurerHostCapabilities = {
-  captureScreenshot?: () => Promise<HostScreenshotResult>;
+  captureScreenshot?: () => Promise<unknown>;
 };
 
 declare global {
@@ -45,22 +39,32 @@ declare global {
 const hostCapture = (ownerWindow: Window) =>
   ownerWindow.__MESURER_HOST__?.captureScreenshot;
 
-const hostPngBlob = (result: HostScreenshotResult): Blob => {
-  const png = "png" in result
-    ? result.png
-    : result;
+const hostPngBlob = (result: unknown): Blob => {
+  if (result instanceof Blob) return result;
 
-  if (png instanceof Blob) return png;
+  if (result instanceof Uint8Array) {
+    const copy = new Uint8Array(result.byteLength);
 
-  const bytes = png instanceof Uint8Array
-    ? png
-    : new Uint8Array(png);
+    copy.set(result);
 
-  const copy = new Uint8Array(bytes.byteLength);
+    return new Blob([copy.buffer], { type: "image/png" });
+  }
 
-  copy.set(bytes);
+  if (result instanceof ArrayBuffer) {
+    return new Blob([result.slice(0)], { type: "image/png" });
+  }
 
-  return new Blob([copy.buffer], { type: "image/png" });
+  if (result === null || result === undefined) {
+    throw new Error("Host screenshot capture returned no PNG data.");
+  }
+
+  const png = Reflect.get(Object(result), "png");
+
+  if (png === undefined || png === result) {
+    throw new Error("Host screenshot capture returned unsupported PNG data.");
+  }
+
+  return hostPngBlob(png);
 };
 
 const captureViaHost = async (ownerWindow: Window): Promise<Blob | null> => {
