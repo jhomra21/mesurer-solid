@@ -530,7 +530,6 @@ body.mesurer-solid-xray .mesurer-ti-close {
 ) :is(.mesurer-settings-select, .mesurer-settings-select-menu) {
   background-color: var(--msr-surface-raised) !important;
   border-color: var(--msr-color-ink-200) !important;
-  color: var(--msr-content) !important;
 }
 
 :where(
