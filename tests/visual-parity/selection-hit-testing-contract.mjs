@@ -145,6 +145,23 @@ try {
     "Turning Select off should remove visible selection chrome",
   );
 
+  await selectButton.click();
+  assert.equal(
+    await selectButton.getAttribute("aria-pressed"),
+    "true",
+    "Select should turn back on in the same mounted instance",
+  );
+  await assertNoPublicSelection("Select re-enabled without reload");
+
+  await selectPoint(transparent.point, transparent.rect, "pointer-transparent leaf before reload persistence");
+  await selectButton.click();
+  assert.equal(
+    await selectButton.getAttribute("aria-pressed"),
+    "false",
+    "Select should turn off again before the reload persistence check",
+  );
+  await assertNoPublicSelection("Select off before reload");
+
   await page.waitForTimeout(320);
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForFunction(() => Boolean(window.__MESURER_SELECTION_HIT_TESTING__ && window.__MESURER__));
