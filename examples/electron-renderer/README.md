@@ -53,6 +53,8 @@ ipcMain.handle("window:capture", async (event) => {
 
 Mesurer detects `window.__MESURER_HOST__.captureScreenshot` before trying any browser capture path. The renderer does not import Electron and does not pass a provider to Screenshot.
 
+The capability may return a PNG `Blob`, `ArrayBuffer`, `Uint8Array`, or `{ png, width?, height? }`. Reject the promise when native capture fails; Mesurer reports that failure instead of changing capture permission models underneath the user.
+
 When the host capability is absent, Screenshot checks the first-party extension bridge and then falls back to `getDisplayMedia()`. The package smoke workflow verifies the Electron path from a packaged `file://` renderer with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`.
 
 See [Getting started](../../docs/GETTING_STARTED.md) and [Screenshots](../../docs/SCREENSHOTS.md).
