@@ -1,8 +1,6 @@
 # Electron renderer example
 
-Mesurer runs in the Electron renderer process, where the inspected DOM exists.
-
-Renderer setup stays the same as a browser app:
+Mesurer runs in the Electron renderer process because that is where the inspected DOM exists. Mount it the same way you would in a browser application:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -17,13 +15,28 @@ const mesurer = mountMesurer({
 })
 ```
 
-Keep `contextIsolation` enabled and `nodeIntegration` disabled. Do not mount Mesurer from the Electron main process.
+Keep Electron privileges in preload/main. The renderer does not import `electron`, and Screenshot does not need an Electron-specific factory or provider option.
 
-## Native window capture
+## BrowserWindow security
 
-Screenshot chooses its capture path internally. Renderer code stays `screenshot()`.
+A typical window keeps context isolation and sandboxing enabled and leaves Node integration off:
 
-For an Electron app, expose the privileged capture capability once from preload:
+```ts
+const window = new BrowserWindow({
+  webPreferences: {
+    preload,
+    contextIsolation: true,
+    sandbox: true,
+    nodeIntegration: false,
+  },
+})
+```
+
+Do not mount Mesurer from the main process.
+
+## Native Screenshot capture
+
+Screenshot chooses its capture path internally. For native Electron capture, expose one host capability from preload:
 
 ```ts
 contextBridge.exposeInMainWorld("__MESURER_HOST__", {
@@ -31,7 +44,7 @@ contextBridge.exposeInMainWorld("__MESURER_HOST__", {
 })
 ```
 
-The main process can back that capability with `webContents.capturePage()`:
+Back that IPC call in the main process with `webContents.capturePage()`:
 
 ```ts
 ipcMain.handle("window:capture", async (event) => {
@@ -51,10 +64,14 @@ ipcMain.handle("window:capture", async (event) => {
 })
 ```
 
-Mesurer detects `window.__MESURER_HOST__.captureScreenshot` before trying any browser capture path. The renderer does not import Electron and does not pass a provider to Screenshot.
+`captureScreenshot()` may return a PNG `Blob`, `ArrayBuffer`, `Uint8Array`, or an object with a `png` field containing one of those values. Extra metadata such as `width` and `height` is allowed. Mesurer hides its control UI, waits for paint, calls the host capability, and crops the selected region itself.
 
-The capability may return a PNG `Blob`, `ArrayBuffer`, `Uint8Array`, or `{ png, width?, height? }`. Reject the promise when native capture fails; Mesurer reports that failure instead of changing capture permission models underneath the user.
+Reject the promise when native capture fails. Once Screenshot has selected the Electron host capability, a failure stays on that path instead of opening a browser screen-share prompt.
 
-When the host capability is absent, Screenshot checks the first-party extension bridge and then falls back to `getDisplayMedia()`. The package smoke workflow verifies the Electron path from a packaged `file://` renderer with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`.
+When the native capability is absent, Screenshot checks the first-party Chromium extension adapter and then falls back to `getDisplayMedia()`. Packaged `file://` renderers are supported.
 
-See [Getting started](../../docs/GETTING_STARTED.md) and [Screenshots](../../docs/SCREENSHOTS.md).
+## Validation
+
+Package smoke installs the packed `mesurer-solid` artifact into a clean Electron 43 consumer. It runs with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`, selects a real DOM target through Mesurer, captures through preload and `webContents.capturePage()`, and verifies the PNG result.
+
+See [Getting started](../../docs/GETTING_STARTED.md), [Screenshots](../../docs/SCREENSHOTS.md), and [Host isolation](../../docs/HOST_ISOLATION.md).
