@@ -51,9 +51,11 @@ export const createElectronScreenshotCaptureProvider = (
   captureWindow: ElectronScreenshotCaptureSource,
 ): ScreenshotCaptureProvider => async () => {
   const captured = capturePngBytes(await captureWindow());
+
   const bytes = captured instanceof Uint8Array
     ? captured
     : new Uint8Array(captured);
+
   const copy = new Uint8Array(bytes.byteLength);
 
   copy.set(bytes);
