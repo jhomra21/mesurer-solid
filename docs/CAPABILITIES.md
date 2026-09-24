@@ -108,7 +108,7 @@ These methods require the Context capability.
 | `prepareCapture()` | Hide or adjust Mesurer presentation before an external screenshot. |
 | `finishCapture()` | Restore Mesurer presentation after the screenshot. |
 
-Context reports the page and viewport, selected or annotated targets, rulers/X-ray visibility, ordinary guides, visible Layout Guides, measurements, and relevant distances. Context reads Layout Guides through the plugin service at capture time, so Context and Layout Guides do not require a particular load order.
+Context reports the page and viewport, selected or annotated targets, rulers/X-ray visibility, ordinary guides, saved Layout Guides for the current page, measurements, and relevant distances. Each Layout Guide entry carries its own `visible` flag. Context reads the plugin service at capture time, so the two plugins do not require a particular load order.
 
 ### Arrange
 
