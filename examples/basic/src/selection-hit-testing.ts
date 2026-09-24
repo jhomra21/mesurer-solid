@@ -1,6 +1,7 @@
 import { mountMesurer, type MountedMesurer } from "../../../packages/mesurer/src/index";
 
 const key = "mesurer-selection-hit-testing";
+
 const fixtureInitKey = `${key}:fixture-initialized`;
 
 if (!window.sessionStorage.getItem(fixtureInitKey)) {
