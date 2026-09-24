@@ -8,11 +8,11 @@ This document is the review contract for new Mesurer-owned UI. It describes shar
 
 Use the existing accepted surfaces as the first reference before adding feature-specific chrome.
 
-Current upstream Mesurer at `c20ad51` is the reference for shared theme colors, 8px floating surfaces, 5px control radii, and floating shadows. Mesurer Solid adopts those theme tokens while keeping its existing feature geometry and ownership rules.
+The current audited upstream reference is `d47fd6056a01da9c442ae04840ec4d0dd46a1257`. Use its shared theme colors, 8px floating surfaces, 5px control radius, control density, and floating shadows when porting or changing upstream-owned UI. Existing Mesurer Solid surfaces keep their accepted geometry until a focused parity change updates them.
 
 - Reuse an existing Mesurer Solid surface when it already matches the feature.
 - New floating controls, menus, inspectors, and review cards should use the shared surface and shadow tokens instead of hard-coded light colors.
-- New small controls should use the current upstream 5px control radius unless their geometry has a stronger interaction reason.
+- New small controls should use the current upstream 5px control radius unless the source component uses different geometry.
 - The toolbar keeps its accepted Solid-specific motion and clipping structure unless a toolbar-focused parity change deliberately updates it.
 - Source evidence such as selection outlines, measurement geometry, guide lines, and annotation ownership edges is not a floating surface. Do not give evidence cards, borders, or shadows just to make it look like UI.
 - Dark transient previews may keep feature-specific presentation when the background itself carries the hierarchy.
@@ -58,7 +58,6 @@ Visual consistency does not override browser ownership. Pointer and accessibilit
 - Opening one transient surface should not leave another unrelated toolbar surface claiming pointer or focus ownership.
 
 
-
 - Viewport-owned chrome stays in the protected host/top-layer path.
 - Source-linked UI stays attached to its source using the established document inspector/native-anchor paths.
 - New surfaces must participate in Mesurer hit-test ownership so page targets cannot paint or receive clicks through them.
@@ -72,14 +71,15 @@ Before merging a new UI feature or surface:
 
 1. Classify it as source evidence, a source-linked inspector, or viewport-owned chrome.
 2. Find the nearest accepted Mesurer Solid surface before creating a new visual pattern.
-3. Compare shared colors, radii, shadows, density, and motion with the pinned upstream reference.
-4. State any deliberate visual difference in the feature PR instead of hiding it in implementation detail.
-5. Check keyboard focus, `aria-expanded` or equivalent state, outside-click/Escape dismissal, and competing transient-surface ownership.
-6. Verify pointer ownership from both sides: toolbar drag sources must drag after threshold, while controls inside open surfaces must not.
-7. Verify System, Light, and Dark appearance when the new surface uses Mesurer theme tokens.
-8. Verify compact and expanded toolbar states when the feature contributes a toolbar control.
-9. Verify isolated and non-isolated mounts when shared renderer chrome or document-backed UI changes.
-10. Add a browser contract for visible geometry, hit testing, focus, or intermediate motion that can regress.
-11. Keep feature behavior in its owning guide; update this document only when the shared design rules change.
+3. If the UI ports or updates an upstream component, compare it with the current audited upstream component, not only the historical renderer baseline.
+4. Match the source component's control geometry, icons, spacing, typography, colors, shadows, and visible states. Add a current-source browser parity check when pixels or layout can drift.
+5. State any deliberate visual difference in the feature PR instead of hiding it in implementation detail.
+6. Check keyboard focus, `aria-expanded` or equivalent state, outside-click/Escape dismissal, and competing transient-surface ownership.
+7. Verify pointer ownership from both sides. Toolbar drag sources must drag after threshold, while controls inside open surfaces must not.
+8. Verify System, Light, and Dark appearance when the new surface uses Mesurer theme tokens.
+9. Verify compact and expanded toolbar states when the feature contributes a toolbar control.
+10. Verify isolated and non-isolated mounts when shared renderer chrome or document-backed UI changes.
+11. Add a browser contract for visible geometry, hit testing, focus, or intermediate motion that can regress.
+12. Keep feature behavior in its owning guide. Update this document only when the shared design rules change.
 
-The goal is not pixel uniformity between unrelated tools. The goal is one visual system with explicit exceptions.
+Do not force unrelated tools into the same layout. When Mesurer Solid adopts a React Mesurer component, however, its visible presentation should match that component unless the product decision documents a difference.
