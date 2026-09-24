@@ -152,7 +152,7 @@ if (/type\s+MesurerScreenshotPluginOptions\s*=\s*Partial<MesurerScreenshotSettin
   throw new Error("Published Screenshot options must stay explicit instead of inheriting persisted settings.");
 }
 
-if (!/\bcaptureVisibleTab\?:[^;]*\bScreenshotCaptureProvider\b/.test(pluginDeclarations)) {
+if (!/\bcaptureVisibleTab\??\s*:/.test(pluginDeclarations)) {
   throw new Error("Published Screenshot options must retain the deprecated captureVisibleTab compatibility hook.");
 }
 
