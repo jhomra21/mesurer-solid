@@ -173,7 +173,7 @@ context:v1
 codex()
    ├─ Queue to Codex tool / command
    ├─ service: codex:v1
-   └─ browser HTTP only after send / chooser / explicit service call
+   └─ browser HTTP only after queue / chooser / explicit service call
                   │
                   ▼
           loopback companion
@@ -197,11 +197,11 @@ codex()
 
 The companion is outside the browser because a framework-agnostic web package cannot spawn the local Codex executable. It binds to `127.0.0.1`, limits request size and browser origins, and invokes Codex without a shell. `mesurer-codex-connect` is the normal Codex-controlled lifecycle: it reuses or starts the companion and registers the trusted session id plus project directory. The low-level `mesurer-codex` foreground command remains available for diagnostics and explicit ownership.
 
-The browser plugin performs no loopback request merely because it is mounted. The first send or **Choose Codex thread…** action establishes availability. A failed first contact becomes **Codex unavailable** with explicit retry rather than generating periodic CSP/network errors. After one successful contact, the page may health-check that known companion so a later outage disables the action and a restart restores it automatically.
+The browser plugin performs no loopback request merely because it is mounted. The first **Queue to Codex**, **Choose Codex thread…**, or explicit service call establishes availability. A failed first contact becomes **Codex unavailable** with explicit retry rather than generating periodic CSP/network errors. After one successful contact, the page may health-check that known companion so a later outage disables the action and a restart restores it automatically.
 
 The first unambiguous healthy thread observed by a page becomes that page's origin. The browser persists that origin and any explicit page-local override in per-tab `sessionStorage`, keyed by bridge endpoint plus page origin/pathname, so reloads preserve routing without creating a global browser preference. Later local registrations update the shared companion without silently retargeting the page. If no persisted affinity exists and multiple threads are registered, the browser requires an explicit choice rather than inheriting the bridge-wide active thread. The bridge uses Codex app-server `thread/list` with the trusted project directory to expose at most ten recent same-project threads, while the page picker starts with five and can expand once to ten.
 
-Thread registration remains a local-process capability. Browser code cannot register an arbitrary thread id, choose an arbitrary discovery directory, or widen the bridge to account-wide history. It may send to a locally registered thread or to a same-project recent thread that the bridge already discovered. The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, and `send({ thread })`.
+Thread registration remains a local-process capability. Browser code cannot register an arbitrary thread id, choose an arbitrary discovery directory, or widen the bridge to account-wide history. It may queue to a locally registered thread or to a same-project recent thread that the bridge already discovered. The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias. The generic plugin command is `codex.queue`; `codex.send` remains its compatibility alias.
 
 Mesurer does not create a Codex thread. New threads are created or opened in Codex, whose trusted `SessionStart` path registers the destination and its execution owner.
 
