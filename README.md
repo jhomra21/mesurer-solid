@@ -43,9 +43,9 @@ if (import.meta.env.DEV) {
 }
 ```
 
-For Vite, that usually means `src/main.tsx`, `src/main.ts`, or the equivalent browser entry. In Electron, use the renderer entry. In SSR applications, mount from a client-only boundary. Do not mount Mesurer from server code, build configuration, or an Electron main process.
+For Vite, that usually means `src/main.tsx`, `src/main.ts`, or the equivalent browser entry. In Electron, use the renderer entry. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, the Screenshot plugin uses native window capture automatically and renderer configuration stays `screenshot()`. In SSR applications, mount from a client-only boundary. Do not mount Mesurer from server code, build configuration, or an Electron main process.
 
-See [Getting started](./docs/GETTING_STARTED.md) for framework-specific placement and HMR guidance.
+See [Getting started](./docs/GETTING_STARTED.md) for framework-specific placement and HMR guidance. The [Electron renderer example](./examples/electron-renderer/README.md) documents native Screenshot capture through preload and `webContents.capturePage()`.
 
 ### Add first-party plugins
 
@@ -76,7 +76,7 @@ The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typograp
 - **Layout Guides.** Add page-scoped columns, rows, or a pixel grid through the optional `layoutGuides()` plugin. Layout Guide mutations participate in plugin history and visible guides are included in Context.
 - **Typography.** Inspect rendered type and preview reversible copy and typography changes.
 - **Arrange.** Drag selected UI into a Desired layout without writing application source.
-- **Screenshots.** Capture a dragged page region with the optional Screenshot plugin.
+- **Screenshots.** Capture a dragged page region with the optional Screenshot plugin. It selects application-native capture, the Chromium extension adapter, or browser display capture internally.
 - **Context and annotations.** Expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotations persist across same-tab reloads, conservatively rebind to their original DOM targets, stay attached through scrolling, keep repeated-note markers local, leave Add Note available while a saved note is open, and keep cards/composers above Select hover and selection chrome.
 - **Plugins.** Add tools, commands, overlays, settings, state, hooks, and services at runtime.
 - **Compact toolbar.** Collapse inactive controls while every active tool remains visible. Expanding restores the same toolbar order and state.
@@ -211,6 +211,7 @@ Start with the [documentation index](./docs/README.md).
 - [Arrange](./docs/ARRANGE.md)
 - [Layout Guides](./docs/LAYOUT_GUIDES.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
+- [Electron renderer example](./examples/electron-renderer/README.md)
 - [Context workflow](./docs/CONTEXT_WORKFLOW.md)
 - [Queue Context feedback to Codex](./docs/CODEX.md)
 - [Browser and agent integration](./docs/BROWSER_HARNESS.md)
