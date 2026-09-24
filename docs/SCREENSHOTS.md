@@ -63,7 +63,9 @@ Click the thumbnail to open a larger viewer with Copy, Save, and Close. Escape o
 
 A host-provided `window.__MESURER_HOST__.captureScreenshot` capability takes priority. Electron applications can expose it once from preload and back it with `webContents.capturePage()`; renderer code still uses plain `screenshot()`.
 
-The Chromium extension uses its isolated-world capture adapter with `chrome.tabs.captureVisibleTab()`. When neither host path is available, Screenshot uses `getDisplayMedia()` and reuses a live capture stream when possible. Browser permission and chooser behavior remain under browser and platform control.
+`captureScreenshot()` takes no arguments and returns the current visible renderer as PNG data. Mesurer accepts a PNG `Blob`, `ArrayBuffer`, `Uint8Array`, or an object with a `png` field containing one of those values. Objects may also carry host metadata such as `width` and `height`. Mesurer hides its own capture chrome and waits for paint before invoking the capability, then performs region cropping itself.
+
+If a configured host capability rejects or returns unusable capture data, Screenshot reports that capture failure. It does not silently switch to a different permission model. The Chromium extension follows the same rule through its isolated-world adapter and `chrome.tabs.captureVisibleTab()`. When no host adapter is available, Screenshot uses `getDisplayMedia()` and reuses a live capture stream when possible. Browser permission and chooser behavior remain under browser and platform control.
 
 This keeps one Screenshot factory across browser pages, the extension, Electron renderers, and future native hosts. Selection is capability-based rather than tied to a user agent or framework.
 
