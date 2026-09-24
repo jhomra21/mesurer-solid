@@ -72,7 +72,7 @@ This audit adds no upstream blocker for `0.1.8`: the new comment work belongs to
 | Configurable upstream feature flags and unified initial workspace/menu state | **Not applicable as a direct port** | Mesurer Solid exposes tools through its plugin runtime, mount options, and persisted workspace/settings contracts instead of upstream's React component feature-flag API. Equivalent product needs should be evaluated through those public APIs. |
 | Keyboard ownership, shortcut gating, host-menu protection, scoped styles, and page-focus isolation fixes | **Adopted outcome; independently implemented and validated** | These are already stable requirements in Mesurer Solid's host-isolation architecture. The accepted candidate passed host compatibility, browser contracts, plugin persistence, toolbar, Trusted/isolated interaction, and real-consumer tests without importing upstream's React-specific implementation. |
 | Live overlay positioning, animated-layout tracking, tooltip/card collision handling, and selection geometry hardening | **Adopted outcome; independently implemented and validated** | Mesurer Solid's document/native anchoring, cached scroll compensation, renderer-root ownership, and selection contracts cover the same class of adopted behavior. The accepted candidate passed window/nested scroll, Typography anchoring, visual parity, and manual 240px annotation tracking. |
-| Extension screenshot capture bridge removal | **Not applicable to the stable package contract** | Mesurer Solid's screenshot plugin and extension integration use a different capture architecture and already have their own package/extension documentation and contracts. No upstream capture-bridge compatibility is claimed. |
+| Extension screenshot capture bridge removal | **Intentional divergence** | Mesurer Solid keeps its own private Chromium extension adapter because the extension still captures with the temporary `activeTab` grant. The same Screenshot implementation can also use an application-owned native host capability or browser `getDisplayMedia()`. No upstream bridge compatibility is claimed. |
 | Upstream visual polish such as floating-card radii, cursor behavior, and hover-lightening | **Intentional divergence unless separately adopted** | Mesurer Solid keeps source-first shared behavior where it is part of the adopted contract, but its plugin-owned Context/Typography/Arrange surfaces have independent visual ownership and parity tests. Cosmetic upstream changes are not silently treated as stable requirements. |
 
 This classification satisfies the stable-readiness upstream gate without adding a large interaction model after the accepted release candidate. A newer upstream feature is not automatically a blocker when the product difference is explicit and the public package does not claim the capability.
@@ -97,7 +97,7 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | Native Color Picker | Adopt where `EyeDropper` is operational; hide in unsupported hosts |
 | Text Inspector | Adopt inspection behavior; visible label is **Typography**, internal id stays `text-inspector` |
 | Layout Guides | Adopt as optional `layoutGuides()` plugin with page-scoped state, history-aware commands, typed service, and Context evidence |
-| Screenshot region selection | Adopt as optional `screenshot()` from `mesurer-solid/plugins` and extend with preview/viewer and extension capture |
+| Screenshot region selection | Adopt as optional `screenshot()` from `mesurer-solid/plugins`; Mesurer Solid adds preview/viewer plus automatic native-host, Chromium-extension, and browser capture selection |
 | Global Shortcuts setting | Adopt the persisted master on/off switch; no per-command remapping UI is added |
 | Compact toolbar | Adopt presentation: one stable toolbar, full-height separators, active-tool retention, 150ms motion, reduced-motion support |
 | Option-distance pinning (`Option+S`) | Intentionally not adopted in the `0.1.8` stable line; Mesurer Solid retains its existing held-distance workflow |
@@ -148,7 +148,7 @@ Direct text editing covers exact copy/type intent; screenshots remain visual evi
 
 ### Screenshots
 
-Mesurer Solid keeps the upstream region-capture interaction behind optional `screenshot()` from `mesurer-solid/plugins`, then adapts output, preview/viewer, browser-provider, extension, and cleanup behavior to the plugin architecture. See [Screenshots](./SCREENSHOTS.md).
+Mesurer Solid keeps the upstream region-capture interaction behind optional `screenshot()` from `mesurer-solid/plugins`. Capture-source selection is private to the plugin. Application-native hosts can expose `window.__MESURER_HOST__.captureScreenshot`, the Chromium extension uses its own adapter, and ordinary browser pages use `getDisplayMedia()`. Mesurer Solid also owns output preferences, HiDPI cropping, preview/viewer behavior, and cleanup. See [Screenshots](./SCREENSHOTS.md).
 
 ## Release rule
 
