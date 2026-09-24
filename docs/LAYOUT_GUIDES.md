@@ -13,7 +13,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-The toolbar shows **Layout guides** with the `L` shortcut while the plugin is enabled. Opening it on a page with no saved guides creates the default five-column guide, matching React Mesurer. Dismissing the editor panel leaves the active guides visible. Pressing the active toolbar control turns Layout Guides off without deleting the saved guide set.
+The toolbar shows **Layout guides** with the `L` shortcut while the plugin is enabled. Opening it on a page with no saved guides creates the default five-column guide. Dismissing the editor panel leaves the active guides visible. Pressing the active toolbar control turns Layout Guides off without deleting the saved guide set.
 
 ## Guide types
 
