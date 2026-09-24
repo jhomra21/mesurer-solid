@@ -242,7 +242,7 @@ try {
 }
 ```
 
-The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separate camera workflow. It is not an agent delivery capability. Preserve an existing human preview unless the task is specifically about Screenshot behavior.
+The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separate camera workflow. It may use application-native, Chromium extension, or browser display capture internally, but none of those paths changes the agent contract above. Do not add or configure a host capture path only to collect coding-agent evidence. Preserve an existing human preview unless the task is specifically about Screenshot behavior.
 
 ## Optional human-to-Codex delivery
 
