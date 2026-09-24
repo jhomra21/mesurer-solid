@@ -13,7 +13,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-The toolbar shows **Layout guides** with the `L` shortcut while the plugin is enabled. Closing its panel does not hide existing guides. Visibility belongs to each guide, not to the panel.
+The toolbar shows **Layout guides** with the `L` shortcut while the plugin is enabled. Opening it on a page with no saved guides creates the default five-column guide. Dismissing the editor panel leaves the active guides visible. Pressing the active toolbar control turns Layout Guides off without deleting the saved guide set.
 
 ## Guide types
 
@@ -65,7 +65,7 @@ Mutating service methods use the same JSON-safe plugin commands as generic autom
 
 ## Context
 
-When Context and Layout Guides are both enabled, Context reads the service at capture time and includes the current page's guides in:
+When Context and Layout Guides are both enabled, Context reads the service at capture time and includes the current page's saved guides, including each guide's `visible` flag, in:
 
 ```ts
 context.visualContext.layoutGuides

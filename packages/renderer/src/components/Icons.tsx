@@ -72,14 +72,31 @@ export const ColorPickerIcon = (props: IconProps) => (
   </svg>
 );
 
-const LayoutFrameIcon = (props: IconProps & { children: any }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 256 256" fill="none" aria-hidden="true" class={props.class}>
-    <path d="M64 48H192a16 16 0 0 1 16 16v128a16 16 0 0 1-16 16H64a16 16 0 0 1-16-16V64a16 16 0 0 1 16-16Z" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
-    <g fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="butt">
-      {props.children}
-    </g>
-  </svg>
-);
+const layoutStrokeFor = (
+  size: number,
+  strokePx: number,
+  frameScale: number,
+) => (strokePx * 256) / size / frameScale;
+
+const LayoutFrameIcon = (
+  props: IconProps & {
+    children: any;
+    strokePx?: number;
+    frameScale?: number;
+  },
+) => {
+  const size = props.size ?? 20;
+  const stroke = layoutStrokeFor(size, props.strokePx ?? 1, props.frameScale ?? 1);
+
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 256 256" fill="none" aria-hidden="true" class={props.class}>
+      <path d="M64 48H192a16 16 0 0 1 16 16v128a16 16 0 0 1-16 16H64a16 16 0 0 1-16-16V64a16 16 0 0 1 16-16Z" fill="none" stroke="currentColor" stroke-width={stroke} stroke-linecap="round" stroke-linejoin="round" />
+      <g fill="none" stroke="currentColor" stroke-width={stroke} stroke-linecap="butt">
+        {props.children}
+      </g>
+    </svg>
+  );
+};
 
 export const LayoutGridIcon = (props: IconProps) => (
   <LayoutFrameIcon size={props.size ?? 20} class={props.class}>

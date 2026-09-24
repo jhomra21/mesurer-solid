@@ -25,12 +25,16 @@ try {
   await tool.click();
   const panel = page.locator("[data-mesurer-layout-guides-panel='true']");
   await panel.waitFor({ state: "visible" });
-  await panel.getByRole("button", { name: "Add layout guide" }).click();
 
   await page.waitForFunction(() => window.__MESURER_LAYOUT_GUIDES_TEST__?.service()?.list().length === 1);
   const initial = await serviceSnapshot();
 
-  if (initial[0]?.kind !== "columns" || initial[0]?.count !== 5) throw new Error(`Unexpected default layout guide: ${JSON.stringify(initial)}`);
+  if (initial[0]?.kind !== "columns" || initial[0]?.count !== 5) throw new Error(`Unexpected first-open layout guide: ${JSON.stringify(initial)}`);
+
+  await panel.getByRole("button", { name: "Add layout guide" }).click();
+  await page.waitForFunction(() => window.__MESURER_LAYOUT_GUIDES_TEST__?.service()?.list().length === 2);
+  await panel.getByRole("button", { name: "Remove 5 columns" }).last().click();
+  await page.waitForFunction(() => window.__MESURER_LAYOUT_GUIDES_TEST__?.service()?.list().length === 1);
 
   const bands = page.locator("[data-mesurer-layout-band='true']");
 
@@ -39,6 +43,13 @@ try {
   const context = await page.evaluate(() => window.__MESURER_LAYOUT_GUIDES_TEST__?.subject.context());
 
   if (context?.visualContext?.layoutGuides?.length !== 1) throw new Error(`Context did not expose Layout Guides: ${JSON.stringify(context?.visualContext)}`);
+
+  await page.mouse.click(900, 700);
+  await panel.waitFor({ state: "hidden" });
+
+  if ((await tool.getAttribute("aria-pressed")) !== "true") throw new Error("Outside-dismiss deactivated Layout Guides instead of closing only the panel");
+
+  if (await bands.count() !== 5) throw new Error("Outside-dismiss hid active Layout Guides evidence");
 
   await page.evaluate(() => history.pushState({}, "", "?case=b"));
   await page.waitForFunction(() => window.__MESURER_LAYOUT_GUIDES_TEST__?.service()?.list().length === 0);

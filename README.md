@@ -73,7 +73,7 @@ The same entry also exposes `select`, `xray`, `colorPicker`, `rulers`, `typograp
 - **Select.** Inspect one or more rendered HTML or SVG elements.
 - **Distance.** Measure spacing and geometry, including pairwise multi-selection spacing.
 - **X-ray, Guides, and Rulers.** Inspect page structure and alignment.
-- **Layout Guides.** Add page-scoped columns, rows, or a pixel grid through the optional `layoutGuides()` plugin. Layout Guide mutations participate in plugin history and visible guides are included in Context.
+- **Layout Guides.** Add page-scoped columns, rows, or a pixel grid through the optional `layoutGuides()` plugin. Layout Guide mutations participate in plugin history, and Context includes the current page's saved guides with their visibility state.
 - **Typography.** Inspect rendered type and preview reversible copy and typography changes.
 - **Arrange.** Drag selected UI into a Desired layout without writing application source.
 - **Screenshots.** Capture a dragged page region with the optional Screenshot plugin. It selects application-native capture, the Chromium extension adapter, or browser display capture internally.

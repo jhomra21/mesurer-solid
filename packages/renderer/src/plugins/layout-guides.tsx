@@ -38,7 +38,7 @@ const REMOVE_COMMAND = "layout-guides.remove";
 
 const CLEAR_COMMAND = "layout-guides.clear";
 
-const PANEL_WIDTH = 280;
+const PANEL_WIDTH = 240;
 
 const PANEL_GAP = 8;
 
@@ -201,6 +201,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     });
 
     let pageKey = getMesurerPageKey(runtime.ownerWindow);
+    let panelOpen = false;
     const [revision, setRevision] = createSignal(0);
     const listeners = new Set<() => void>();
     let positionFrame = 0;
@@ -216,7 +217,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     const reactiveGuides = () => {
       revision();
 
-      return list();
+      return active() ? list() : [];
     };
 
     const setActive = (value: boolean) => {
@@ -234,7 +235,14 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     };
 
     ctx.command.register(TOGGLE_COMMAND, () => {
-      setActive(!active());
+      const nextActive = !active();
+
+      if (nextActive && list().length === 0) {
+        updatePage(() => [normalizeLayoutGuide()]);
+      }
+
+      panelOpen = nextActive;
+      setActive(nextActive);
 
       return active();
     });
@@ -354,7 +362,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
       left: "0",
       top: "0",
       width: `${PANEL_WIDTH}px`,
-      zIndex: "95",
+      zIndex: "100",
       pointerEvents: "none",
       display: "none",
     });
@@ -362,7 +370,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     const positionPanel = () => {
       positionFrame = 0;
 
-      if (!active()) return;
+      if (!panelOpen) return;
 
       const anchor = runtime.portalTarget.querySelector<HTMLElement>(
         "[data-mesurer-tool-id='layout-guides']",
@@ -379,7 +387,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       const availableBelow = runtime.ownerWindow.innerHeight - rect.bottom - PANEL_GAP - VIEWPORT_PADDING;
 
-      const estimatedHeight = Math.min(480, runtime.ownerWindow.innerHeight - VIEWPORT_PADDING * 2);
+      const estimatedHeight = Math.min(320, runtime.ownerWindow.innerHeight - VIEWPORT_PADDING * 2);
 
       const top = availableBelow >= Math.min(estimatedHeight, 320)
         ? rect.bottom + PANEL_GAP
@@ -396,9 +404,9 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     };
 
     const syncPanel = () => {
-      panelMount.element.style.display = active() ? "block" : "none";
+      panelMount.element.style.display = panelOpen ? "block" : "none";
 
-      if (active()) schedulePanel();
+      if (panelOpen) schedulePanel();
     };
 
     const disposePanel = render(
@@ -407,6 +415,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
         return (
           <LayoutGuidesPanel
             guides={reactiveGuides()}
+            ownerWindow={runtime.ownerWindow}
             onAdd={() => { void service.add().catch(() => undefined); }}
             onUpdate={(id, patch) => { void service.update(id, patch).catch(() => undefined); }}
             onRemove={(id) => { void service.remove(id).catch(() => undefined); }}
@@ -434,7 +443,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
     });
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!active()) return;
+      if (!panelOpen) return;
       const path = event.composedPath();
 
       if (path.includes(panelMount.element)) return;
@@ -445,13 +454,15 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       if (trigger && path.includes(trigger)) return;
 
-      setActive(false);
+      panelOpen = false;
+      syncPanel();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || !active()) return;
+      if (event.key !== "Escape" || !panelOpen) return;
 
-      setActive(false);
+      panelOpen = false;
+      syncPanel();
     };
 
     syncPanel();

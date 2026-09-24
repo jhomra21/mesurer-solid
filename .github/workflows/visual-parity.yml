@@ -275,3 +275,135 @@ jobs:
             solid-vite.log
           if-no-files-found: warn
           retention-days: 14
+
+
+  current-layout-guides:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Mesurer Solid
+        uses: actions/checkout@v4
+
+      - name: Checkout current React source
+        uses: actions/checkout@v4
+        with:
+          repository: ibelick/mesurer
+          ref: d47fd6056a01da9c442ae04840ec4d0dd46a1257
+          path: upstream-current
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm for current React source
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.15.0 --activate
+
+      - name: Install Mesurer Solid workspace
+        run: bun install --frozen-lockfile
+
+      - name: Generate renderer styles
+        run: bun run --filter '@jhomra21/mesurer-solid-renderer' styles
+
+      - name: Install current React workspace
+        run: |
+          cd upstream-current
+          npm pkg set packageManager=pnpm@10.15.0
+          pnpm install --frozen-lockfile
+          pnpm --dir packages/mesurer generate:styles
+
+      - name: Install Chromium
+        working-directory: upstream-current/apps/site
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install image comparison dependency
+        run: python3 -m pip install --disable-pip-version-check pillow
+
+      - name: Prepare current Layout Guides fixtures
+        run: |
+          cp tests/visual-parity/current-layout-guides-react.tsx upstream-current/apps/site/e2e/fixtures/current-layout-guides.tsx
+          cp tests/visual-parity/current-layout-guides-react.html upstream-current/apps/site/e2e/fixtures/current-layout-guides.html
+          cp tests/visual-parity/current-layout-guides-solid.tsx examples/basic/src/current-layout-guides.tsx
+          cp tests/visual-parity/current-layout-guides-solid.html examples/basic/current-layout-guides.html
+          cp tests/visual-parity/current-layout-guides-capture.mjs upstream-current/apps/site/e2e/current-layout-guides-parity.mjs
+
+      - name: Start current React and Solid fixtures
+        run: |
+          (
+            cd upstream-current
+            pnpm --filter mesurer-site exec vite --force --host 127.0.0.1 --port 4183 > ../current-react-vite.log 2>&1 &
+            echo $! > ../current-react-vite.pid
+          )
+          (
+            cd examples/basic
+            bunx vite --host 127.0.0.1 --port 4184 --strictPort > ../../current-solid-vite.log 2>&1 &
+            echo $! > ../../current-solid-vite.pid
+          )
+
+          for url in             http://127.0.0.1:4183/e2e/fixtures/current-layout-guides.html             http://127.0.0.1:4184/current-layout-guides.html
+          do
+            ready=0
+            for attempt in $(seq 1 45); do
+              if curl --fail --silent --show-error "$url" >/dev/null; then
+                ready=1
+                break
+              fi
+              sleep 1
+            done
+            if [ "$ready" -ne 1 ]; then
+              echo "Fixture did not become ready: $url"
+              cat current-react-vite.log || true
+              cat current-solid-vite.log || true
+              exit 1
+            fi
+          done
+
+      - name: Capture current Layout Guides states
+        working-directory: upstream-current/apps/site
+        env:
+          CURRENT_PARITY_REACT_URL: http://127.0.0.1:4183/e2e/fixtures/current-layout-guides.html
+          CURRENT_PARITY_SOLID_URL: http://127.0.0.1:4184/current-layout-guides.html
+          CURRENT_PARITY_OUT: ${{ github.workspace }}/current-layout-guides-artifacts
+        run: node e2e/current-layout-guides-parity.mjs
+
+      - name: Compare current Layout Guides UI
+        run: python3 tests/visual-parity/compare-current-layout-guides.py current-layout-guides-artifacts
+
+      - name: Add current-source parity summary
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          path = Path("current-layout-guides-artifacts/report.json")
+          if not path.exists():
+              print("## Current React Layout Guides parity\n\nCapture did not produce a report.")
+              raise SystemExit(0)
+          report = json.loads(path.read_text())
+          print("## Current React Layout Guides parity")
+          print("")
+          print("Baseline: `ibelick/mesurer@d47fd6056a01da9c442ae04840ec4d0dd46a1257`")
+          print("")
+          print("| State | perceptible pixels | contract diffs |")
+          print("|---|---:|---:|")
+          for name, state in report["states"].items():
+              print(f"| {name} | {state['threshold_diff_pixels']} | {state['contract_difference_count']} |")
+          PY
+
+      - name: Upload current Layout Guides parity artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: current-react-layout-guides-parity
+          path: |
+            current-layout-guides-artifacts
+            current-react-vite.log
+            current-solid-vite.log
+          if-no-files-found: warn
+          retention-days: 14

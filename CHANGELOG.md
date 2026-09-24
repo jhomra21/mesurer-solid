@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Match Layout Guides to the audited current React Mesurer component, including menu size, control fields, spacing, icon strokes, editor states, first-open default guide creation, and separate panel/overlay visibility. A focused browser parity job now compares the current component directly while the existing historical renderer parity suite remains unchanged.
+
 - Make Screenshot choose its capture path internally. Electron/native hosts can expose `window.__MESURER_HOST__.captureScreenshot`, the Chromium extension keeps its private adapter, and ordinary browser pages fall back to `getDisplayMedia()`. Renderer usage stays `screenshot()`. Existing provider and low-level helpers remain only for compatibility. Package smoke now runs the packed artifact in Electron 43 with context isolation and sandboxing enabled, node integration disabled, and a packaged `file://` renderer.
 - Fix the root `bun run dev` path under Vite 8 by removing JSX comma expressions from Layout Guides. CI now starts the root dev command and loads `layout-guides.html` so dependency-scan and pre-transform failures cannot pass unnoticed.
 - Add first-party **Layout Guides** as `layoutGuides()`: columns, rows, and pixel grids are plugin-owned, page-scoped, undoable through the existing command/history path, available through `MesurerLayoutGuidesService`, and included in Context evidence.

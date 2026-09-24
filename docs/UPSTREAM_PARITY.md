@@ -14,11 +14,22 @@ The current delta is the merged `feat/add-grid` series centered on `03e7606997cb
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
+
+## Visual parity baselines
+
+The historical `605d202a4cd0404bb7a4808a11b574174bb14d1a` suite still protects the accepted shared renderer behavior that Mesurer Solid inherited before the current toolbar and Settings work. It is not evidence that a newly ported component matches current React Mesurer.
+
+When Mesurer Solid adopts or materially updates an upstream UI component, add a focused browser comparison against the current audited upstream commit. The comparison should isolate that component from intentional product differences around it and check rendered pixels plus its control, layout, style, and icon contract.
+
+Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and grid states compare directly with `d47fd6056a01da9c442ae04840ec4d0dd46a1257`. Mesurer Solid keeps its one-toolbar plugin architecture outside that component comparison.
+
+Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
+
 ### 2026-09-23 Layout Guides and page-state follow-up
 
 | Upstream delta | Decision | Reason |
 | --- | --- | --- |
-| Layout Guides with columns, rows, grid, visibility, color, opacity, count/size/gutter/offset/alignment controls | **Adopted through the plugin architecture** | Mesurer Solid exposes `layoutGuides()` as a first-party plugin with page-scoped persisted state, history-aware JSON commands, a typed `layout-guides:v1` service, plugin-owned panel, and evidence overlay. Pure normalization/geometry stays in core; the mounted root API does not gain one method per guide operation. |
+| Layout Guides with columns, rows, grid, visibility, color, opacity, count/size/gutter/offset/alignment controls | **Adopted through the plugin architecture** | Mesurer Solid exposes `layoutGuides()` as a first-party plugin with page-scoped persisted state, history-aware JSON commands, a typed `layout-guides:v1` service, plugin-owned panel, and evidence overlay. The panel uses the current React control and icon presentation and has a focused current-source visual parity gate. Pure normalization and geometry stay in core; the mounted root API does not gain one method per guide operation. |
 | Keep Layout Guides active after their menu closes | **Adopted** | Panel visibility and guide visibility are separate state. Closing the plugin panel leaves the saved guide overlay intact. |
 | Scope overlays/workspace to URL, including query strings, and merge persisted pages | **Adopted through a shared page-identity seam** | Default workspace persistence uses pathname plus sorted query parameters (and `#/` hash routes) and stores independent page snapshots. Context annotation persistence and Layout Guides use the same page ownership model rather than feature-specific URL checks. |
 | Remember toolbar position across page changes | **Adopted as tab-session UI state** | Toolbar placement survives route changes and reloads in `sessionStorage` but is deliberately excluded from page-owned workspace persistence. |
@@ -96,7 +107,7 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | SVG and general DOM `Element` selection | Adopted from the post-theme Inspect work; Select, point inspection, Context, and annotation geometry accept SVG while HTML-only editing/Arrange paths stay explicit |
 | Native Color Picker | Adopt where `EyeDropper` is operational; hide in unsupported hosts |
 | Text Inspector | Adopt inspection behavior; visible label is **Typography**, internal id stays `text-inspector` |
-| Layout Guides | Adopt as optional `layoutGuides()` plugin with page-scoped state, history-aware commands, typed service, and Context evidence |
+| Layout Guides | Adopt as optional `layoutGuides()` plugin with page-scoped state, history-aware commands, typed service, Context evidence, and current-source panel presentation |
 | Screenshot region selection | Adopt as optional `screenshot()` from `mesurer-solid/plugins`; Mesurer Solid adds preview/viewer plus automatic native-host, Chromium-extension, and browser capture selection |
 | Global Shortcuts setting | Adopt the persisted master on/off switch; no per-command remapping UI is added |
 | Compact toolbar | Adopt presentation: one stable toolbar, full-height separators, active-tool retention, 150ms motion, reduced-motion support |

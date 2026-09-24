@@ -86,7 +86,7 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Select one or many rendered HTML or SVG elements and inspect exact geometry.
 - Measure distance and pairwise multi-selection spacing.
 - Use X-ray, guides, rulers, and persisted settings.
-- Add page-scoped columns, rows, or pixel grids with the optional `layoutGuides()` plugin; guide edits participate in plugin undo/redo and visible layout guides are included in Context.
+- Add page-scoped columns, rows, or pixel grids with the optional `layoutGuides()` plugin. Guide edits participate in plugin undo/redo, and Context includes the current page's saved guides with their visibility state.
 - Inspect Typography and preview reversible direct copy/style changes.
 - Arrange selected UI into a Desired position without changing source.
 - Capture page regions through the optional Screenshot plugin. It selects native host capture, the Chromium extension adapter, or browser display capture internally.

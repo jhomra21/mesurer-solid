@@ -134,7 +134,7 @@ Its public interface is deliberately small: `MesurerLayoutGuidesService` lists g
 
 Pure guide normalization and layout geometry live in renderer core. The plugin owns page-scoped persisted guide state, the toolbar contribution, panel lifecycle, and evidence overlay. Columns, rows, and grids therefore remain removable without making renderer core depend on their UI.
 
-Context does not declare Layout Guides as a hard requirement. At capture time it resolves `layout-guides:v1` if present and serializes the currently visible guides into `visualContext.layoutGuides`. This keeps plugin load order and availability independent while preserving the human's layout intent for agents.
+Context does not declare Layout Guides as a hard requirement. At capture time it resolves `layout-guides:v1` if present and serializes the current page's saved guides into `visualContext.layoutGuides`, including each guide's `visible` flag. This keeps plugin load order and availability independent while preserving the saved layout intent for agents.
 
 ## Context
 
