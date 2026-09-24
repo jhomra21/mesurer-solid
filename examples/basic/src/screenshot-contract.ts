@@ -8,7 +8,7 @@ import {
   type MesurerScreenshotService,
 } from "../../../packages/mesurer/src/plugins";
 
-type HostCaptureFormat = "blob" | "array-buffer" | "uint8-array" | "wrapped";
+type HostCaptureFormat = "blob" | "array-buffer" | "uint8-array" | "wrapped" | "invalid";
 
 let hostCaptureFormat: HostCaptureFormat = "blob";
 
@@ -45,6 +45,8 @@ const hostCapture = async () => {
 
   if (hostCaptureFormat === "uint8-array") return bytes;
 
+  if (hostCaptureFormat === "invalid") return {};
+
   return {
     png: bytes,
     width: window.innerWidth * 2,
@@ -55,12 +57,7 @@ const hostCapture = async () => {
 declare global {
   interface Window {
     __MESURER_HOST__?: {
-      captureScreenshot(): Promise<
-        Blob
-        | ArrayBuffer
-        | Uint8Array
-        | { png: Uint8Array; width: number; height: number }
-      >;
+      captureScreenshot(): Promise<unknown>;
     };
   }
 }
