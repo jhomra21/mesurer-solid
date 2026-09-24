@@ -50,7 +50,6 @@ ipcMain.handle("mesurer:capture-window", async (event) => {
 
 ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
   if (finished) return;
-  finished = true;
 
   const png = Buffer.from(payload.png);
   const image = nativeImage.createFromBuffer(png);
@@ -70,6 +69,8 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
   ) {
     throw new Error(`Unexpected Mesurer Electron result: ${JSON.stringify(summary)}`);
   }
+
+  finished = true;
 
   mkdirSync(artifactDir, { recursive: true });
   writeFileSync(path.join(artifactDir, "capture.png"), png);
