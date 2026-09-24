@@ -129,6 +129,11 @@ const randomRequestId = (ownerWindow: Window) =>
 const bridgeMessage = (type: string, id: string, payload = "") =>
   `${type}:${id}:${payload}`;
 
+const bridgeTargetOrigin = (ownerWindow: Window) =>
+  ownerWindow.location.origin === "null"
+    ? "*"
+    : ownerWindow.location.origin;
+
 const bridgeReply = (
   message: string,
   type: string,
@@ -160,7 +165,10 @@ const pingCaptureBridge = (ownerWindow: Window) =>
     }, 80);
 
     ownerWindow.addEventListener("message", onMessage);
-    ownerWindow.postMessage(bridgeMessage(MESURER_CAPTURE_BRIDGE_PING, id), origin);
+    ownerWindow.postMessage(
+      bridgeMessage(MESURER_CAPTURE_BRIDGE_PING, id),
+      bridgeTargetOrigin(ownerWindow),
+    );
   });
 
 const captureViaBridge = (ownerWindow: Window) =>
@@ -202,7 +210,10 @@ const captureViaBridge = (ownerWindow: Window) =>
     }, 4000);
 
     ownerWindow.addEventListener("message", onMessage);
-    ownerWindow.postMessage(bridgeMessage(MESURER_CAPTURE_BRIDGE_REQUEST, id), origin);
+    ownerWindow.postMessage(
+      bridgeMessage(MESURER_CAPTURE_BRIDGE_REQUEST, id),
+      bridgeTargetOrigin(ownerWindow),
+    );
   });
 
 type TabCapture = {
