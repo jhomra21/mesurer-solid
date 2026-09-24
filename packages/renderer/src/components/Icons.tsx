@@ -72,14 +72,31 @@ export const ColorPickerIcon = (props: IconProps) => (
   </svg>
 );
 
-const LayoutFrameIcon = (props: IconProps & { children: any }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={props.size ?? 20} height={props.size ?? 20} viewBox="0 0 256 256" fill="none" aria-hidden="true" class={props.class}>
-    <path d="M64 48H192a16 16 0 0 1 16 16v128a16 16 0 0 1-16 16H64a16 16 0 0 1-16-16V64a16 16 0 0 1 16-16Z" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
-    <g fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="butt">
-      {props.children}
-    </g>
-  </svg>
-);
+const layoutStrokeFor = (
+  size: number,
+  strokePx: number,
+  frameScale: number,
+) => (strokePx * 256) / size / frameScale;
+
+const LayoutFrameIcon = (
+  props: IconProps & {
+    children: any;
+    strokePx?: number;
+    frameScale?: number;
+  },
+) => {
+  const size = props.size ?? 20;
+  const stroke = layoutStrokeFor(size, props.strokePx ?? 1, props.frameScale ?? 1);
+
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 256 256" fill="none" aria-hidden="true" class={props.class}>
+      <path d="M64 48H192a16 16 0 0 1 16 16v128a16 16 0 0 1-16 16H64a16 16 0 0 1-16-16V64a16 16 0 0 1 16-16Z" fill="none" stroke="currentColor" stroke-width={stroke} stroke-linecap="round" stroke-linejoin="round" />
+      <g fill="none" stroke="currentColor" stroke-width={stroke} stroke-linecap="butt">
+        {props.children}
+      </g>
+    </svg>
+  );
+};
 
 export const LayoutGridIcon = (props: IconProps) => (
   <LayoutFrameIcon size={props.size ?? 20} class={props.class}>
@@ -166,7 +183,20 @@ export const TrashIcon = (props: IconProps) => (
 );
 
 export const CloseIcon = (props: IconProps) => (
-  <IconBase size={props.size ?? 18} class={props.class}>
-    <path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z" />
-  </IconBase>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={props.size ?? 14}
+    height={props.size ?? 14}
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+    class={`msr:block${props.class ? ` ${props.class}` : ""}`}
+  >
+    <path
+      d="m6 6 12 12M18 6 6 18"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+    />
+  </svg>
 );
