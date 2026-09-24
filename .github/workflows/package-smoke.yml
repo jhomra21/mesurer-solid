@@ -80,6 +80,8 @@ jobs:
             type MesurerTheme,
           } from "mesurer-solid";
           import {
+            captureScreenshotPng,
+            captureVisibleTabPng,
             context,
             screenshot,
             type MesurerScreenshotPluginOptions,
@@ -100,6 +102,10 @@ jobs:
           const options: MountMesurerOptions = { agent: true, theme, plugins: [plugin, context()] };
           const legacyOptions: MountMeasurerOptions = options;
           const screenshotOptions: MesurerScreenshotPluginOptions = { copy: true, download: false };
+          // @ts-expect-error Capture selection is internal; hosts expose capability instead.
+          const invalidScreenshotCapture: MesurerScreenshotPluginOptions = { capture: async () => new Blob() };
+          // @ts-expect-error Preview timing is private renderer/test configuration.
+          const invalidScreenshotPreview: MesurerScreenshotPluginOptions = { previewDurationMs: 1 };
           const screenshotService: MesurerScreenshotService | undefined = undefined;
           const canonicalMounted: MountedMesurer | undefined = undefined;
           const legacyMounted: MountedMeasurer | undefined = canonicalMounted;
@@ -110,7 +116,11 @@ jobs:
           void options;
           void legacyOptions;
           void screenshotOptions;
+          void invalidScreenshotCapture;
+          void invalidScreenshotPreview;
           void screenshotService;
+          void captureScreenshotPng;
+          void captureVisibleTabPng;
           void canonicalMounted;
           void legacyMounted;
           void screenshot;
