@@ -21,11 +21,17 @@ Keep `contextIsolation` enabled and `nodeIntegration` disabled. Do not mount Mes
 
 ## Native window capture
 
-Screenshot chooses its capture path at runtime. If a Mesurer capture bridge is available, it uses that bridge. Otherwise it falls back to the normal browser `getDisplayMedia()` path.
+Screenshot chooses its capture path internally. Renderer code stays `screenshot()`.
 
-For Electron, the application can connect that internal bridge to `webContents.capturePage()`. This is host setup, not Screenshot configuration.
+For an Electron app, expose the privileged capture capability once from preload:
 
-A main-process handler can return the current window as PNG bytes:
+```ts
+contextBridge.exposeInMainWorld("__MESURER_HOST__", {
+  captureScreenshot: () => ipcRenderer.invoke("window:capture"),
+})
+```
+
+The main process can back that capability with `webContents.capturePage()`:
 
 ```ts
 ipcMain.handle("window:capture", async (event) => {
@@ -45,10 +51,8 @@ ipcMain.handle("window:capture", async (event) => {
 })
 ```
 
-The preload script owns the privileged IPC call and answers Mesurer's internal capture bridge. The renderer still uses `screenshot()` with no Electron-specific option.
+Mesurer detects `window.__MESURER_HOST__.captureScreenshot` before trying any browser capture path. The renderer does not import Electron and does not pass a provider to Screenshot.
 
-The package smoke workflow runs this path in Electron 43 with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The packaged app loads through `file://`, Mesurer selects a DOM target, and Screenshot captures that target through `capturePage()`.
-
-Mesurer does not import `electron` in its browser runtime. The application keeps ownership of Electron permissions and IPC, while Screenshot keeps one host-neutral API.
+When the host capability is absent, Screenshot checks the first-party extension bridge and then falls back to `getDisplayMedia()`. The package smoke workflow verifies the Electron path from a packaged `file://` renderer with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`.
 
 See [Getting started](../../docs/GETTING_STARTED.md) and [Screenshots](../../docs/SCREENSHOTS.md).
