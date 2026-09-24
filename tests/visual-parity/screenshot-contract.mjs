@@ -264,6 +264,33 @@ try {
     }
   }
 
+  const invalidHostCapture = await page.evaluate(async () => {
+    const harness = window.__MESURER_SCREENSHOT_TEST__;
+
+    if (!harness) throw new Error("Screenshot harness unavailable");
+
+    harness.setHostCaptureFormat("invalid");
+
+    try {
+      await harness.service.capture({
+        left: 100,
+        top: 100,
+        width: 120,
+        height: 80,
+      });
+
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    } finally {
+      harness.setHostCaptureFormat("blob");
+    }
+  });
+
+  if (invalidHostCapture !== "Host screenshot capture returned unsupported PNG data.") {
+    throw new Error(`Malformed host capture did not fail at the host seam: ${invalidHostCapture}`);
+  }
+
   await preview.waitFor({ state: "visible" });
 
   const automaticCopyFallback = await page.evaluate(async () => {
@@ -293,6 +320,7 @@ try {
     viewer: viewerSize,
     programmatic,
     hostCaptureFormats,
+    invalidHostCapture,
     automaticCopyFallback,
   }, null, 2));
 } finally {
