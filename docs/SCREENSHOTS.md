@@ -106,15 +106,15 @@ This service is plugin-local and is not part of the JSON-safe `window.__MESURER_
 
 | Export | Use |
 | --- | --- |
-| `captureVisibleTabPng` | Deprecated compatibility hook. New integrations should use `screenshot()` and host capability detection. |
-| `copyPngToClipboard` | Copy PNG data to the clipboard. |
-| `createScreenshotFilename` | Create the default timestamped screenshot filename. |
-| `cropPngToViewportRect` | Crop captured PNG data to a CSS viewport rectangle using the captured bitmap dimensions. |
-| `normalizeScreenshotRect` | Normalize two drag points into a viewport-bounded screenshot rectangle. |
-| `prepareScreenshotCapture` | Hide Mesurer control UI before capture. |
-| `releaseScreenshotCapture` | Restore Mesurer control UI after capture. |
-| `waitForNextPaint` | Wait for the next browser paint before capture work continues. |
-| `MIN_SCREENSHOT_SELECTION` | Minimum accepted region-selection size used by the Screenshot tool. |
+| `captureVisibleTabPng` | Deprecated capture hook retained for compatibility. |
+| `copyPngToClipboard` | Deprecated low-level clipboard helper. |
+| `createScreenshotFilename` | Deprecated low-level filename helper. |
+| `cropPngToViewportRect` | Deprecated low-level crop helper. |
+| `normalizeScreenshotRect` | Deprecated low-level region helper. |
+| `prepareScreenshotCapture` | Deprecated capture-lifecycle helper. |
+| `releaseScreenshotCapture` | Deprecated capture-lifecycle helper. |
+| `waitForNextPaint` | Deprecated capture-timing helper. |
+| `MIN_SCREENSHOT_SELECTION` | Deprecated plugin implementation threshold. |
 
 Advanced plugin integrations can also import the public Screenshot plugin, service, active-state, and settings-state ids.
 
