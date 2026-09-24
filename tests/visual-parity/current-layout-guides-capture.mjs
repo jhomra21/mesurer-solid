@@ -106,6 +106,7 @@ const panelContract = async (panel) => panel.evaluate((root, keys) => {
 async function captureState(page, implementation, state) {
   const panel = page.getByRole("dialog", { name: "Layout guides" });
   await panel.waitFor({ state: "visible" });
+  await page.mouse.move(900, 700);
   await page.waitForTimeout(100);
   await panel.screenshot({
     path: path.join(outputDir, `${implementation}-${state}.png`),
