@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Add `createElectronScreenshotCaptureProvider()` so Electron renderers can use PNG bytes from an application-owned preload bridge, including `webContents.capturePage()` results, without importing Electron in Mesurer or renderer code. Add a real Electron 43 package-smoke contract with context isolation, sandboxing, and node integration disabled.
+- Make Screenshot choose its capture path internally. Host capture bridges now cover the Chromium extension and Electron `webContents.capturePage()`, with `getDisplayMedia()` as the browser fallback. Add a real Electron 43 package-smoke contract with context isolation and sandboxing enabled, node integration disabled, and packaged `file://` origin coverage.
 - Add first-party **Layout Guides** as `layoutGuides()`: columns, rows, and pixel grids are plugin-owned, page-scoped, undoable through the existing command/history path, available through `MesurerLayoutGuidesService`, and included in Context evidence.
 - Scope default persisted workspace state to the current route so page-owned guides, selections, measurements, and annotations do not leak across in-tab navigation. Keep toolbar placement as tab-session UI and restore it across route changes and reloads.
 - Restore explicitly opened Chromium-extension sessions after reload or eligible in-tab navigation while retaining `activeTab` instead of requesting persistent site access. Recovery stops when the browser no longer grants access and resumes only after another explicit action click.
