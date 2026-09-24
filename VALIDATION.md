@@ -12,7 +12,7 @@ For regressions reported manually, reproduce the exact failed scenario before co
 
 Inspect changes must cover the real browser hit-test path. Current acceptance includes pointer-transparent descendants, overlapping page targets, transformed elements, canvas, closed Shadow DOM boundaries, large DOMs, and physical SVG selection. Programmatic `select()` and Context must resolve the same SVG targets as the visible Select tool.
 
-Toolbar interaction changes must prove both sides of pointer ownership. Dragging toolbar chrome or a trigger must move the toolbar after the drag threshold, while pointer activity inside menus, dialogs, form controls, editable regions, and sliders must leave the toolbar in place.
+Toolbar interaction changes must prove both sides of pointer ownership. Dragging toolbar chrome or a trigger must move the toolbar after the drag threshold, while pointer activity inside menus, dialogs, form controls, editable regions, and sliders must leave the toolbar in place. Triggers that own expandable UI must also expose the rendered open state through `aria-expanded`.
 
 ## Measure rendered output, not a proxy
 
@@ -21,6 +21,14 @@ When a regression is about visible spacing, overlap, or jitter, assert the geome
 For direct text editing, this means measuring the real edit/selection geometry, the rendered dimensions pill, and the visible Typography card. If the intended gaps are symmetric, compare those rendered gaps directly. When a late anchor handoff can rewrite geometry, the contract should perturb that handoff and prove the visible elements recover to the intended relationship.
 
 Pointer-motion regressions must be sampled while the pointer is moving. A before/after assertion can miss a visible intermediate-frame oscillation that returns to the starting coordinate. When a user reports jitter, sample the rendered card on successive animation frames and fail on intermediate movement or unexpected placement-style writes.
+
+## Measurement geometry contracts
+
+Distance regressions must verify the rendered geometry that the user sees.
+
+Current contracts cover shared-overlap anchors for separated boxes, guide-line-to-box edge distances, padding-box container spacing, and pairwise multi-selection geometry. A change to these rules should exercise the corresponding visible overlay or browser/geometry contract and keep Context/agent evidence aligned with the same result.
+
+See [Measurements and distance geometry](./docs/MEASUREMENTS.md).
 
 ## Supporting tests
 

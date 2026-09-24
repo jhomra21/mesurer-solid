@@ -12,7 +12,7 @@ This page lists the public Mesurer features and the APIs that expose them. Featu
 | Rulers | Show viewport rulers and ruler settings. |
 | Typography | Inspect rendered typography. Double-click a valid direct-text target to record reversible copy and style intent. |
 | Guides | Add horizontal and vertical guides, including snapping behavior. |
-| Distance | Show spacing between rendered targets. Multi-selection Context can also report pairwise distances. |
+| Distance | Show spacing between rendered targets. Box-to-box lines use shared-overlap anchors, guide distances use the guide as line geometry, and container spacing uses the padding box. Multi-selection Context also reports pairwise distances. |
 | Settings | Control Mesurer preferences, plugin availability, shortcuts, appearance, and presentation options. |
 
 The default keyboard shortcuts are listed in the root [README](../README.md).
@@ -24,10 +24,13 @@ The default keyboard shortcuts are listed in the root [README](../README.md).
 | Direct text editing | Double-click or double-tap a valid direct text run in an HTML element while Select or Typography is active. Mixed inline copy can target the exact run under the pointer while preserving inline children. SVG selection does not enable direct text editing. Mesurer records reversible Desired copy and style intent without editing application source. |
 | Compact toolbar | Hide inactive controls without changing the active tool set or toolbar order. Expanding restores the same controls and state. Toolbar dragging starts after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. |
 | Multi-selection | Extend Select across multiple targets and inspect group geometry plus pairwise relationships. |
+| Visual hit testing | Select and agent point inspection share the rendered-point resolver. It follows the native front-to-back hit stack, traverses open shadow roots, and can recover visible `pointer-events:none` descendants that native hit testing would otherwise skip. |
 | Presentation ownership | Arrange and text previews restore only values Mesurer still owns. Host-authored changes remain untouched. |
 | Appearance | Use persisted System, Light, or Dark themes across isolated and document-backed Mesurer UI. System follows `prefers-color-scheme`. |
 
 Direct text editing respects native form controls and `contenteditable` ownership. Mixed-inline targeting is kept in Mesurer-owned runtime state; it does not replace or redefine the host element's native `childNodes` surface. See [Direct text editing and Typography](./TEXT_EDITING.md).
+
+Distance and measurement geometry are documented in [Measurements and distance geometry](./MEASUREMENTS.md).
 
 ## First-party plugins
 

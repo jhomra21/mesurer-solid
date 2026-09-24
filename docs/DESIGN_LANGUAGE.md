@@ -48,9 +48,16 @@ Motion explains ownership or state; it should not decorate the tool.
 - Floating surfaces should enter, close, or retarget without overshoot.
 - Any intermediate-frame positioning or resize change needs a rendered browser contract, not only an end-state assertion.
 
-## Ownership
+## Interaction ownership
 
-Visual consistency does not override browser ownership.
+Visual consistency does not override browser ownership. Pointer and accessibility state must describe the same owner the user sees.
+
+- Toolbar drag starts only after the drag threshold. Pressing a Settings, Guide, or plugin trigger may become a toolbar drag; if it does, close the trigger's open transient surface when the drag actually starts, not on pointer down.
+- Pointer activity inside menus, dialogs, form controls, editable regions, and sliders belongs to that control and must not move the toolbar.
+- A trigger that owns an expandable menu or panel exposes its current open state through `aria-expanded`. Keep the accessibility state synchronized with the rendered surface.
+- Opening one transient surface should not leave another unrelated toolbar surface claiming pointer or focus ownership.
+
+
 
 - Viewport-owned chrome stays in the protected host/top-layer path.
 - Source-linked UI stays attached to its source using the established document inspector/native-anchor paths.
@@ -63,13 +70,16 @@ See [Host isolation](./HOST_ISOLATION.md) for the browser rules behind those cho
 
 Before merging a new UI feature or surface:
 
-1. Identify whether it is source evidence, a source-linked inspector, or viewport-owned chrome.
-2. Reuse an existing surface class/token and control radius before creating styling.
-3. Compare it with the nearest existing Mesurer surface and current upstream Mesurer.
-4. Check keyboard focus, outside-click/Escape dismissal, and competing transient-surface ownership.
-5. Verify compact and expanded toolbar states if the feature appears in the toolbar.
-6. Verify isolated and non-isolated mounts when shared renderer chrome changes.
-7. Add a browser contract for visible geometry, hit testing, or intermediate motion that can regress.
-8. Keep feature behavior in its own guide; update this document only when the shared design language changes.
+1. Classify it as source evidence, a source-linked inspector, or viewport-owned chrome.
+2. Find the nearest accepted Mesurer Solid surface before creating a new visual pattern.
+3. Compare shared colors, radii, shadows, density, and motion with the pinned upstream reference.
+4. State any deliberate visual difference in the feature PR instead of hiding it in implementation detail.
+5. Check keyboard focus, `aria-expanded` or equivalent state, outside-click/Escape dismissal, and competing transient-surface ownership.
+6. Verify pointer ownership from both sides: toolbar drag sources must drag after threshold, while controls inside open surfaces must not.
+7. Verify System, Light, and Dark appearance when the new surface uses Mesurer theme tokens.
+8. Verify compact and expanded toolbar states when the feature contributes a toolbar control.
+9. Verify isolated and non-isolated mounts when shared renderer chrome or document-backed UI changes.
+10. Add a browser contract for visible geometry, hit testing, focus, or intermediate motion that can regress.
+11. Keep feature behavior in its owning guide; update this document only when the shared design rules change.
 
 The goal is not pixel uniformity between unrelated tools. The goal is one visual system with explicit exceptions.

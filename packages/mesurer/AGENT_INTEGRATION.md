@@ -149,7 +149,7 @@ const context = await window.__MESURER__.select([
 
 Each selector must resolve to exactly one target. Missing or ambiguous selectors throw rather than binding to a guess.
 
-For multi-selection, inspect every selected target and the relevant pair relationships. Prefer `selection.visualContext.distances`; use `distance(a, b)` when a needed pair has no existing evidence.
+For multi-selection, inspect every selected target and the relevant pair relationships. Prefer `selection.visualContext.distances`; use `distance(a, b)` when a needed pair has no existing evidence. Box, guide, container, and diagonal semantics are defined in [Measurements and distance geometry](../../docs/MEASUREMENTS.md).
 
 ## Arrange intent
 
@@ -254,7 +254,7 @@ Delivery uses Codex's native durable queue. Mesurer queues once and keeps the qu
 
 The browser plugin connects lazily on the first Queue to Codex or thread-picker action. Page affinity and an explicit destination override persist per tab. If several registered threads are visible and the page has no saved destination, the user must choose one.
 
-The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `send({ thread })`. Queue submission is single-flight. A matched completed turn may remove only the annotation ids sent with that delivery; interrupted, failed, ambiguous, or unreadable work keeps them.
+The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias. The generic plugin command is `codex.queue`; `codex.send` remains its compatibility alias. Queue submission is single-flight. A matched completed turn may remove only the annotation ids sent with that delivery; interrupted, failed, ambiguous, or unreadable work keeps them.
 
 Mesurer does not create new Codex threads. Create or open the thread in Codex and let `SessionStart` register it. Turn completion is transport lifecycle, not proof that the requested UI result is correct.
 

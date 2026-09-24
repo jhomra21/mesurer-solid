@@ -179,7 +179,7 @@ See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the package
 
 ### Queue human feedback to Codex
 
-Mount `codex()` next to Context when a person should be able to send the current Mesurer review to Codex:
+Mount `codex()` next to Context when a person should be able to queue the current Mesurer review to Codex:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
@@ -210,6 +210,7 @@ Start with the [documentation index](./docs/README.md).
 - [Direct text editing and Typography](./docs/TEXT_EDITING.md)
 - [Arrange](./docs/ARRANGE.md)
 - [Layout Guides](./docs/LAYOUT_GUIDES.md)
+- [Measurements and distance geometry](./docs/MEASUREMENTS.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
 - [Electron renderer example](./examples/electron-renderer/README.md)
 - [Context workflow](./docs/CONTEXT_WORKFLOW.md)
