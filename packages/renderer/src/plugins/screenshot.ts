@@ -62,6 +62,7 @@ export type MesurerScreenshotResult = {
 };
 
 export type MesurerScreenshotPluginOptions = Partial<MesurerScreenshotSettings> & {
+  capture?: ScreenshotCaptureProvider;
   captureVisibleTab?: ScreenshotCaptureProvider;
   previewDurationMs?: number;
 };
@@ -226,7 +227,7 @@ export const screenshotPlugin = (
     const { ownerDocument, ownerWindow } = runtime;
     const workspace = runtime.createWorkspaceRuntime();
     const inspectorMount = runtime.createInspectorMount();
-    const captureVisibleTab = options.captureVisibleTab ?? captureVisibleTabPng;
+    const capture = options.capture ?? options.captureVisibleTab ?? captureVisibleTabPng;
     const previewDurationMs = options.previewDurationMs ?? DEFAULT_PREVIEW_DURATION_MS;
 
     ctx.state.register<ScreenshotStateValue>({
@@ -531,7 +532,7 @@ export const screenshotPlugin = (
         // shade, and size tag cannot leak into the screenshot itself.
         overlay.style.visibility = "hidden";
         await waitForNextPaint(ownerWindow);
-        const full = await captureVisibleTab({ ownerDocument, ownerWindow } satisfies ScreenshotCaptureContext);
+        const full = await capture({ ownerDocument, ownerWindow } satisfies ScreenshotCaptureContext);
 
         const cropped = await cropPngToViewportRect(
           full,
