@@ -38,7 +38,7 @@ const REMOVE_COMMAND = "layout-guides.remove";
 
 const CLEAR_COMMAND = "layout-guides.clear";
 
-const PANEL_WIDTH = 280;
+const PANEL_WIDTH = 240;
 
 const PANEL_GAP = 8;
 
@@ -354,7 +354,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
       left: "0",
       top: "0",
       width: `${PANEL_WIDTH}px`,
-      zIndex: "95",
+      zIndex: "100",
       pointerEvents: "none",
       display: "none",
     });
@@ -379,7 +379,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       const availableBelow = runtime.ownerWindow.innerHeight - rect.bottom - PANEL_GAP - VIEWPORT_PADDING;
 
-      const estimatedHeight = Math.min(480, runtime.ownerWindow.innerHeight - VIEWPORT_PADDING * 2);
+      const estimatedHeight = Math.min(320, runtime.ownerWindow.innerHeight - VIEWPORT_PADDING * 2);
 
       const top = availableBelow >= Math.min(estimatedHeight, 320)
         ? rect.bottom + PANEL_GAP
@@ -407,6 +407,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
         return (
           <LayoutGuidesPanel
             guides={reactiveGuides()}
+            ownerWindow={runtime.ownerWindow}
             onAdd={() => { void service.add().catch(() => undefined); }}
             onUpdate={(id, patch) => { void service.update(id, patch).catch(() => undefined); }}
             onRemove={(id) => { void service.remove(id).catch(() => undefined); }}

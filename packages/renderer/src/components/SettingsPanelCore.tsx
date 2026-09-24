@@ -1,9 +1,10 @@
 import { For, Show, createSignal, onSettled } from "solid-js";
-import { colorToHex, parseCssColor, type ColorPickerFormat } from "../core/colors";
+import type { ColorPickerFormat } from "../core/colors";
 import { trySetPointerCapture } from "../core/events";
 import type { GuideStyle, MesurerTheme, SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel, SettingsTab } from "../model/create-mesurer-model";
 import { useMesurerPluginSettings } from "../plugins/settings-runtime";
+import { ColorField, ControlShell } from "./ControlField";
 import { CaretDownIcon } from "./Icons";
 import { Tooltip, createTooltip } from "./Tooltip";
 
@@ -20,15 +21,6 @@ const GUIDE_PATTERNS: Array<{ value: GuideStyle["pattern"]; label: string }> = [
   { value: "dashed", label: "Dashed" },
   { value: "dotted", label: "Dotted" },
 ];
-
-function ControlShell(props: { left: any; right: any }) {
-  return (
-    <div class="mesurer-control-shell msr:group msr:flex msr:h-6 msr:w-full msr:min-w-0 msr:items-center msr:overflow-hidden msr:rounded-[5px] msr:border msr:border-transparent msr:bg-ink-50 msr:hover:border-ink-200">
-      <div class="mesurer-control-focus msr:flex msr:h-full msr:min-w-0 msr:flex-1 msr:items-center msr:focus-within:rounded-l-[5px] msr:focus-within:outline msr:focus-within:outline-1 msr:focus-within:outline-[#0d99ff] msr:focus-within:outline-offset-[-1px]">{props.left}</div>
-      <div class="mesurer-control-focus msr:box-border msr:flex msr:h-full msr:w-12 msr:shrink-0 msr:items-center msr:border-l msr:border-transparent msr:group-hover:border-ink-200 msr:focus-within:rounded-r-[5px] msr:focus-within:outline msr:focus-within:outline-1 msr:focus-within:outline-[#0d99ff] msr:focus-within:outline-offset-[-1px]">{props.right}</div>
-    </div>
-  );
-}
 
 function SettingsSwitch(props: { label: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) {
   return (
@@ -161,91 +153,6 @@ function SliderControl(props: {
             onKeyDown={(event) => { event.stopPropagation();
 
  if (event.key === "Enter") event.currentTarget.blur(); }}
-          />
-        }
-      />
-    </div>
-  );
-}
-
-function ColorField(props: { label: string; value: string; fallback: string; ownerWindow: Window; onChange: (value: string) => void }) {
-  const sample = () => {
-    const parsed = parseCssColor(props.value);
-
-    if (parsed) return parsed;
-    const canvas = props.ownerWindow.document.createElement("canvas");
-    const context = canvas.getContext("2d");
-
-    if (!context) return null;
-    context.fillStyle = props.value;
-
-    return parseCssColor(String(context.fillStyle));
-  };
-
-  const hex = () => {
-    const color = sample();
-
-    return color ? colorToHex({ ...color, alpha: 1 }).slice(1).toUpperCase() : props.fallback.slice(1).toUpperCase();
-  };
-
-  const alpha = () => {
-    const color = sample();
-
-    return color ? Math.round(color.alpha * 100) : 100;
-  };
-
-  const inputValue = () => `#${hex().slice(0, 6)}`;
-  const supportsColor = () => props.ownerWindow.document.defaultView?.CSS?.supports("color", props.value) === true;
-  const swatch = () => supportsColor() ? props.value : props.fallback;
-  const [hexDraft, setHexDraft] = createSignal("");
-  const [alphaDraft, setAlphaDraft] = createSignal("");
-  const [hexFocused, setHexFocused] = createSignal(false);
-  const [alphaFocused, setAlphaFocused] = createSignal(false);
-
-  const updateColor = (nextHex: string, nextAlpha: number) => {
-    if (!/^[\da-f]{6}$/i.test(nextHex)) return;
-    const parsed = parseCssColor(`#${nextHex}`);
-
-    if (!parsed) return;
-    props.onChange(colorToHex({ ...parsed, alpha: Math.min(100, Math.max(0, nextAlpha)) / 100 }));
-  };
-
-  return (
-    <div class="msr:col-span-2 msr:grid msr:w-full msr:grid-cols-[78px_156px] msr:items-center msr:gap-3 msr:text-[12px] msr:text-ink-700">
-      <span>{props.label}</span>
-      <ControlShell
-        left={
-          <>
-            <span class="msr:relative msr:ml-1 msr:block msr:size-4 msr:shrink-0 msr:overflow-hidden msr:rounded-[3px] msr:border msr:border-black/10" style={{ "background-color": swatch() }}>
-              <input type="color" aria-label={`${props.label} color picker`} value={inputValue()} class="msr:absolute msr:inset-0 msr:size-full msr:cursor-pointer msr:opacity-0" onInput={(event) => props.onChange(event.currentTarget.value)} />
-            </span>
-            <input
-              aria-label={`${props.label} hex value`}
-              type="text"
-              value={hexFocused() ? hexDraft() : hex()}
-              maxlength={6}
-              class="msr:min-w-0 msr:flex-1 msr:bg-transparent msr:px-2 msr:font-mono msr:text-[12px] msr:tabular-nums msr:text-ink-700 msr:outline-none"
-              onFocus={() => { setHexDraft(hex()); setHexFocused(true); }}
-              onBlur={() => { setHexFocused(false); }}
-              onInput={(event) => { const next = event.currentTarget.value.replace(/[^\da-f]/gi, "").slice(0, 6).toUpperCase(); setHexDraft(next); updateColor(next, alphaFocused() ? Number(alphaDraft()) : alpha()); }}
-              onPointerDown={(event) => event.stopPropagation()}
-            />
-          </>
-        }
-        right={
-          <input
-            aria-label={`${props.label} opacity value`}
-            type="text"
-            inputmode="numeric"
-            value={alphaFocused() ? `${alphaDraft()}%` : `${alpha()}%`}
-            maxlength={4}
-            class="msr:h-full msr:w-full msr:bg-transparent msr:px-1 msr:text-center msr:font-mono msr:text-[12px] msr:tabular-nums msr:text-ink-700 msr:outline-none"
-            onFocus={() => { setAlphaDraft(String(alpha())); setAlphaFocused(true); }}
-            onBlur={() => { setAlphaFocused(false); }}
-            onInput={(event) => { const next = event.currentTarget.value.replace(/[^\d]/g, "").slice(0, 3); setAlphaDraft(next); const numeric = Number(next);
-
- if (Number.isFinite(numeric)) updateColor(hexFocused() ? hexDraft() : hex(), numeric); }}
-            onPointerDown={(event) => event.stopPropagation()}
           />
         }
       />

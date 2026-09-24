@@ -586,3 +586,50 @@ body.mesurer-solid-xray .mesurer-ti-close {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--msr-accent) 25%, transparent) !important;
 }
 
+
+
+/* Current React Mesurer control tokens used by newly ported panels. */
+:where([data-mesurer-root="true"], [data-mesurer-inspector-ui="true"]) {
+  --msr-radius-control: 5px;
+}
+
+@layer utilities {
+  .msr\:rounded-control {
+    border-radius: var(--msr-radius-control);
+  }
+
+  .msr\:shadow-floating {
+    box-shadow: var(--msr-shadow-floating);
+  }
+}
+
+.mesurer-thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--msr-color-ink-200) transparent;
+}
+
+.mesurer-thin-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.mesurer-thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mesurer-thin-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--msr-color-ink-200);
+  border-radius: var(--msr-radius-control);
+}
+
+.mesurer-thin-scrollbar:hover {
+  scrollbar-color: var(--msr-color-ink-300) transparent;
+}
+
+.mesurer-thin-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: var(--msr-color-ink-300);
+}
+
+.mesurer-thin-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}

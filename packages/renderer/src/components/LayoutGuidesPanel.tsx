@@ -1,10 +1,18 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
-import type {
-  LayoutGuide,
-  LayoutGuideAlign,
-  LayoutGuideKind,
+import { colorToHex, parseCssColor } from "../core/colors";
+import {
+  DEFAULT_LAYOUT_GUIDE_COLOR,
+  type LayoutGuide,
+  type LayoutGuideAlign,
+  type LayoutGuideKind,
 } from "../core/layout-guides";
 import { layoutGuideLabel } from "../core/layout-guides";
+import {
+  ColorField,
+  ControlShell,
+  SettingsSelectCaret,
+  settingsSelectClassName,
+} from "./ControlField";
 import {
   CaretDownIcon,
   CloseIcon,
@@ -19,21 +27,11 @@ import {
 
 type LayoutGuidesPanelProps = {
   guides: LayoutGuide[];
+  ownerWindow: Window;
   onAdd(): void;
   onUpdate(id: string, patch: Partial<Omit<LayoutGuide, "id">>): void;
   onRemove(id: string): void;
 };
-
-const selectClass =
-  "msr:h-7 msr:w-full msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-2 msr:text-[11px] msr:text-ink-700 msr:outline-none msr:focus:border-[#0d99ff]";
-
-const inputClass =
-  "msr:h-7 msr:w-full msr:min-w-0 msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-white msr:px-2 msr:font-mono msr:text-[11px] msr:tabular-nums msr:text-ink-700 msr:outline-none msr:focus:border-[#0d99ff]";
-
-const LAYOUT_GUIDE_ALIGNS: readonly LayoutGuideAlign[] = ["stretch", "min", "center", "max"];
-
-const parseLayoutGuideKind = (value: string): LayoutGuideKind =>
-  value === "rows" || value === "grid" ? value : "columns";
 
 const KindIcon = (props: { kind: LayoutGuideKind }) => {
   if (props.kind === "rows") return <LayoutRowsIcon size={14} />;
@@ -43,60 +41,111 @@ const KindIcon = (props: { kind: LayoutGuideKind }) => {
   return <LayoutColumnsIcon size={14} />;
 };
 
-const parseLayoutGuideAlign = (value: string): LayoutGuideAlign =>
-  value === "min" || value === "center" || value === "max" ? value : "stretch";
-
-const IconButton = (props: {
-  label: string;
-  pressed?: boolean;
-  onClick(): void;
-  children: any;
-}) => (
-  <button
-    type="button"
-    aria-label={props.label}
-    aria-pressed={props.pressed === undefined ? undefined : props.pressed ? "true" : "false"}
-    class="msr:flex msr:size-7 msr:shrink-0 msr:items-center msr:justify-center msr:rounded-[5px] msr:border-0 msr:bg-transparent msr:text-ink-500 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900"
-    onClick={props.onClick}
-  >
-    {props.children}
-  </button>
-);
+const FIELD_COLUMNS = "msr:grid-cols-[78px_minmax(0,1fr)]";
 
 const Field = (props: { label: string; children: any }) => (
-  <label class="msr:grid msr:grid-cols-[72px_minmax(0,1fr)] msr:items-center msr:gap-2 msr:text-[11px] msr:text-ink-700">
+  <label class={`msr:col-span-2 msr:grid msr:h-8 msr:w-full ${FIELD_COLUMNS} msr:items-center msr:gap-0 msr:text-[12px] msr:text-ink-700`}>
     <span>{props.label}</span>
     {props.children}
   </label>
 );
 
+const NativeSelect = (props: {
+  label: string;
+  value: string;
+  onChange(value: string): void;
+  children: any;
+}) => (
+  <span class="msr:relative msr:block msr:w-full">
+    <select
+      aria-label={props.label}
+      value={props.value}
+      class={settingsSelectClassName}
+      onPointerDown={(event) => event.stopPropagation()}
+      onChange={(event) => props.onChange(event.currentTarget.value)}
+    >
+      {props.children}
+    </select>
+    <SettingsSelectCaret />
+  </span>
+);
+
+const numberInputClassName =
+  "msr:h-full msr:w-full msr:min-w-0 msr:border-0 msr:bg-transparent msr:px-2 msr:font-mono msr:text-[12px] msr:font-medium msr:tabular-nums msr:text-ink-700 msr:outline-none";
+
 const NumberField = (props: {
   label: string;
   value: number;
-  min: number;
-  max: number;
-  step?: number;
+  min?: number;
+  max?: number;
   onChange(value: number): void;
-}) => (
-  <input
-    aria-label={props.label}
-    type="number"
-    min={props.min}
-    max={props.max}
-    step={props.step ?? 1}
-    value={props.value}
-    class={inputClass}
-    onPointerDown={(event) => event.stopPropagation()}
-    onInput={(event) => {
-      const value = Number(event.currentTarget.value);
+}) => {
+  const [focused, setFocused] = createSignal(false);
+  const [draft, setDraft] = createSignal(String(props.value));
+  const min = () => props.min ?? 0;
+  const max = () => props.max ?? 9999;
+  const clamp = (value: number) => Math.min(max(), Math.max(min(), value));
+  const commit = (input: string) => {
+    const next = Number(input.replace(/[^\d.-]/g, ""));
 
-      if (Number.isFinite(value)) props.onChange(Math.min(props.max, Math.max(props.min, value)));
-    }}
-  />
-);
+    if (!Number.isFinite(next)) {
+      setDraft(String(props.value));
+
+      return;
+    }
+
+    props.onChange(clamp(next));
+  };
+
+  return (
+    <ControlShell
+      left={
+        <input
+          aria-label={props.label}
+          type="text"
+          inputmode="numeric"
+          value={focused() ? draft() : String(props.value)}
+          class={numberInputClassName}
+          onFocus={() => {
+            setDraft(String(props.value));
+            setFocused(true);
+          }}
+          onBlur={() => {
+            commit(draft());
+            setFocused(false);
+          }}
+          onInput={(event) => {
+            const next = event.currentTarget.value.replace(/[^\d.-]/g, "");
+            setDraft(next);
+            const parsed = Number(next);
+
+            if (Number.isFinite(parsed)) props.onChange(clamp(parsed));
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+            event.preventDefault();
+            const current = Number(draft());
+            const base = Number.isFinite(current) ? current : props.value;
+            const next = clamp(base + (event.key === "ArrowUp" ? 1 : -1));
+            setDraft(String(next));
+            props.onChange(next);
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+        />
+      }
+    />
+  );
+};
+
+const parseLayoutGuideKind = (value: string): LayoutGuideKind =>
+  value === "rows" || value === "grid" ? value : "columns";
+
+const parseLayoutGuideAlign = (value: string): LayoutGuideAlign =>
+  value === "min" || value === "center" || value === "max" ? value : "stretch";
 
 const LayoutGuideEditor = (props: {
   guide: LayoutGuide;
+  ownerWindow: Window;
   onBack(): void;
   onUpdate(patch: Partial<Omit<LayoutGuide, "id">>): void;
 }) => {
@@ -104,38 +153,40 @@ const LayoutGuideEditor = (props: {
     props.guide.kind === "rows"
       ? { stretch: "Stretch", min: "Top", center: "Center", max: "Bottom" }
       : { stretch: "Stretch", min: "Left", center: "Center", max: "Right" });
-
   const sizeLabel = createMemo(() =>
     props.guide.kind === "rows" ? "Height" : props.guide.kind === "grid" ? "Size" : "Width");
 
   return (
-    <div class="msr:flex msr:min-h-0 msr:flex-1 msr:flex-col msr:gap-2 msr:overflow-y-auto msr:p-3">
+    <div class="mesurer-thin-scrollbar msr:flex msr:min-h-0 msr:flex-1 msr:flex-col msr:gap-2 msr:overflow-y-auto msr:p-3">
       <div class="msr:flex msr:items-center msr:justify-between msr:gap-2">
-        <strong class="msr:text-[11px] msr:font-semibold msr:text-ink-700">
-          {layoutGuideLabel(props.guide)}
-        </strong>
-        <IconButton label="Back to layout guides" onClick={props.onBack}><CloseIcon size={12} /></IconButton>
-      </div>
-
-      <Field label="Type">
-        <select
-          aria-label="Layout guide type"
+        <NativeSelect
+          label="Layout guide type"
           value={props.guide.kind}
-          class={selectClass}
-          onPointerDown={(event) => event.stopPropagation()}
-          onChange={(event) => {
-            const kind = parseLayoutGuideKind(event.currentTarget.value);
+          onChange={(value) => {
+            const kind = parseLayoutGuideKind(value);
             props.onUpdate({
               kind,
-              align: kind === "grid" ? "min" : props.guide.kind === "grid" ? "stretch" : props.guide.align,
+              align: kind === "grid"
+                ? "min"
+                : props.guide.align === "stretch" || kind === props.guide.kind
+                  ? props.guide.align
+                  : "stretch",
             });
           }}
         >
           <option value="columns">Columns</option>
           <option value="rows">Rows</option>
           <option value="grid">Grid</option>
-        </select>
-      </Field>
+        </NativeSelect>
+        <button
+          type="button"
+          aria-label="Back to layout guides"
+          class="msr:flex msr:size-6 msr:items-center msr:justify-center msr:rounded-control msr:text-ink-500 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900"
+          onClick={props.onBack}
+        >
+          <CloseIcon />
+        </button>
+      </div>
 
       <Show when={props.guide.kind !== "grid"}>
         <Field label="Count">
@@ -149,59 +200,35 @@ const LayoutGuideEditor = (props: {
         </Field>
       </Show>
 
-      <Field label="Color">
-        <div class="msr:flex msr:items-center msr:gap-2">
-          <input
-            aria-label="Layout guide color"
-            type="color"
-            value={props.guide.color}
-            class="msr:h-7 msr:w-9 msr:shrink-0 msr:cursor-pointer msr:rounded-[5px] msr:border msr:border-ink-200 msr:bg-transparent msr:p-0.5"
-            onPointerDown={(event) => event.stopPropagation()}
-            onInput={(event) => props.onUpdate({ color: event.currentTarget.value })}
-          />
-          <input
-            aria-label="Layout guide color value"
-            value={props.guide.color}
-            class={inputClass}
-            onPointerDown={(event) => event.stopPropagation()}
-            onChange={(event) => props.onUpdate({ color: event.currentTarget.value })}
-          />
-        </div>
-      </Field>
-
-      <Field label="Opacity">
-        <div class="msr:flex msr:items-center msr:gap-2">
-          <input
-            aria-label="Layout guide opacity"
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={props.guide.opacity}
-            class="msr:min-w-0 msr:flex-1"
-            data-slider-container="true"
-            onPointerDown={(event) => event.stopPropagation()}
-            onInput={(event) => props.onUpdate({ opacity: Number(event.currentTarget.value) })}
-          />
-          <span class="msr:w-9 msr:text-right msr:font-mono msr:text-[10px] msr:tabular-nums msr:text-ink-500">
-            {Math.round(props.guide.opacity * 100)}%
-          </span>
-        </div>
-      </Field>
+      <ColorField
+        label="Color"
+        columns={FIELD_COLUMNS}
+        value={colorToHex({
+          ...(parseCssColor(props.guide.color) ?? parseCssColor(DEFAULT_LAYOUT_GUIDE_COLOR)!),
+          alpha: props.guide.opacity,
+        })}
+        fallback={DEFAULT_LAYOUT_GUIDE_COLOR}
+        ownerWindow={props.ownerWindow}
+        onChange={(next) => {
+          const parsed = parseCssColor(next);
+          props.onUpdate({
+            color: parsed ? colorToHex({ ...parsed, alpha: 1 }).slice(0, 7) : next,
+            opacity: parsed?.alpha ?? props.guide.opacity,
+          });
+        }}
+      />
 
       <Show when={props.guide.kind !== "grid"}>
-        <Field label="Align">
-          <select
-            aria-label="Layout guide alignment"
+        <Field label="Type">
+          <NativeSelect
+            label="Alignment"
             value={props.guide.align}
-            class={selectClass}
-            onPointerDown={(event) => event.stopPropagation()}
-            onChange={(event) => props.onUpdate({ align: parseLayoutGuideAlign(event.currentTarget.value) })}
+            onChange={(value) => props.onUpdate({ align: parseLayoutGuideAlign(value) })}
           >
-            <For each={LAYOUT_GUIDE_ALIGNS}>{(align) => (
+            <For each={["stretch", "min", "center", "max"] as const}>{(align) => (
               <option value={align}>{alignLabel()[align]}</option>
             )}</For>
-          </select>
+          </NativeSelect>
         </Field>
       </Show>
 
@@ -218,15 +245,6 @@ const LayoutGuideEditor = (props: {
       </Show>
 
       <Show when={props.guide.kind !== "grid"}>
-        <Field label="Gutter">
-          <NumberField
-            label="Gutter"
-            value={props.guide.gutter}
-            min={0}
-            max={800}
-            onChange={(gutter) => props.onUpdate({ gutter })}
-          />
-        </Field>
         <Field label="Offset">
           <NumberField
             label="Offset"
@@ -234,6 +252,15 @@ const LayoutGuideEditor = (props: {
             min={0}
             max={4096}
             onChange={(offset) => props.onUpdate({ offset })}
+          />
+        </Field>
+        <Field label="Gutter">
+          <NumberField
+            label="Gutter"
+            value={props.guide.gutter}
+            min={0}
+            max={800}
+            onChange={(gutter) => props.onUpdate({ gutter })}
           />
         </Field>
       </Show>
@@ -250,54 +277,67 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
       data-mesurer-layout-guides-panel="true"
       role="dialog"
       aria-label="Layout guides"
-      class="mesurer-menu-surface msr:pointer-events-auto msr:flex msr:max-h-[min(480px,calc(100vh-16px))] msr:w-[280px] msr:flex-col msr:overflow-hidden msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:text-ink-700"
+      class="mesurer-menu-surface msr:pointer-events-auto msr:flex msr:max-h-[min(320px,calc(100vh-16px))] msr:w-60 msr:flex-col msr:overflow-hidden msr:rounded-lg msr:bg-white msr:p-0 msr:shadow-floating"
       onPointerDown={(event) => event.stopPropagation()}
+      onPointerMove={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
       <Show
         when={editing()}
         fallback={
-          <div class="msr:flex msr:min-h-0 msr:flex-1 msr:flex-col">
-            <div class="msr:flex msr:h-10 msr:shrink-0 msr:items-center msr:justify-between msr:border-b msr:border-ink-100 msr:px-3">
-              <strong class="msr:text-[11px] msr:font-semibold">Layout guides</strong>
-              <IconButton label="Add layout guide" onClick={props.onAdd}><PlusIcon size={12} /></IconButton>
+          <div class="msr:flex msr:min-h-0 msr:flex-1 msr:flex-col msr:gap-1 msr:p-2">
+            <div class="msr:flex msr:h-7 msr:shrink-0 msr:items-center msr:justify-between msr:px-1">
+              <h2 class="msr:text-[11px] msr:font-semibold msr:text-ink-700">Layout guides</h2>
+              <button
+                type="button"
+                aria-label="Add layout guide"
+                class="msr:flex msr:size-6 msr:items-center msr:justify-center msr:rounded-control msr:text-ink-500 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900"
+                onClick={props.onAdd}
+              >
+                <PlusIcon />
+              </button>
             </div>
 
             <Show
               when={props.guides.length > 0}
               fallback={
-                <p class="msr:m-0 msr:px-3 msr:py-4 msr:text-[11px] msr:text-ink-500">
+                <p class="msr:px-1 msr:pb-2 msr:text-[11px] msr:text-ink-500">
                   Add columns, rows, or a pixel grid on the page.
                 </p>
               }
             >
-              <ul class="mesurer-thin-scrollbar msr:m-0 msr:min-h-0 msr:list-none msr:overflow-y-auto msr:p-2">
+              <ul class="mesurer-thin-scrollbar msr:m-0 msr:flex msr:min-h-0 msr:flex-1 msr:list-none msr:flex-col msr:gap-0.5 msr:overflow-y-auto msr:p-0">
                 <For each={props.guides}>{(guide) => (
                   <li class="msr:flex msr:items-center msr:gap-0.5">
                     <button
                       type="button"
-                      class="msr:flex msr:min-w-0 msr:flex-1 msr:items-center msr:gap-2 msr:rounded-[5px] msr:border-0 msr:bg-transparent msr:px-2 msr:py-1.5 msr:text-left msr:text-[11px] msr:text-ink-700 msr:outline-none msr:hover:bg-ink-100"
+                      class="msr:flex msr:min-w-0 msr:flex-1 msr:items-center msr:gap-2 msr:rounded-control msr:px-1 msr:py-1 msr:text-left msr:text-[11px] msr:text-ink-700 msr:outline-none msr:hover:bg-ink-100"
                       onClick={() => setEditingId(guide.id)}
                     >
-                      <span class="msr:shrink-0 msr:text-ink-500" aria-hidden="true">
+                      <span class="msr:text-ink-500">
                         <KindIcon kind={guide.kind} />
                       </span>
                       <span class="msr:min-w-0 msr:flex-1 msr:truncate">{layoutGuideLabel(guide)}</span>
                       <CaretDownIcon size={8} class="msr:-rotate-90 msr:text-ink-400" />
                     </button>
-                    <IconButton
-                      label={guide.visible ? `Hide ${layoutGuideLabel(guide)}` : `Show ${layoutGuideLabel(guide)}`}
-                      pressed={guide.visible}
+                    <button
+                      type="button"
+                      aria-label={guide.visible ? `Hide ${layoutGuideLabel(guide)}` : `Show ${layoutGuideLabel(guide)}`}
+                      aria-pressed={guide.visible ? "true" : "false"}
+                      class={`msr:flex msr:size-6 msr:items-center msr:justify-center msr:rounded-control msr:outline-none msr:hover:bg-ink-100 ${guide.visible ? "msr:text-ink-700" : "msr:text-ink-400"}`}
                       onClick={() => props.onUpdate(guide.id, { visible: !guide.visible })}
                     >
-                      {guide.visible ? <EyeIcon size={14} /> : <EyeOffIcon size={14} />}
-                    </IconButton>
-                    <IconButton
-                      label={`Remove ${layoutGuideLabel(guide)}`}
+                      {guide.visible ? <EyeIcon /> : <EyeOffIcon />}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${layoutGuideLabel(guide)}`}
+                      class="msr:flex msr:size-6 msr:items-center msr:justify-center msr:rounded-control msr:text-ink-400 msr:outline-none msr:hover:bg-ink-100 msr:hover:text-ink-900"
                       onClick={() => props.onRemove(guide.id)}
                     >
                       <MinusIcon size={10} />
-                    </IconButton>
+                    </button>
                   </li>
                 )}</For>
               </ul>
@@ -308,6 +348,7 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
         {(guide) => (
           <LayoutGuideEditor
             guide={guide()}
+            ownerWindow={props.ownerWindow}
             onBack={() => setEditingId(null)}
             onUpdate={(patch) => props.onUpdate(guide().id, patch)}
           />
