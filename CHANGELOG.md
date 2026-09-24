@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.1.9-beta.0 - 2026-09-24
+
 - Match Layout Guides to the audited current React Mesurer component, including menu size, control fields, spacing, icon strokes, editor states, first-open default guide creation, and separate panel/overlay visibility. A focused browser parity job now compares the current component directly while the existing historical renderer parity suite remains unchanged.
 
 - Make Screenshot choose its capture path internally. Electron/native hosts can expose `window.__MESURER_HOST__.captureScreenshot`, the Chromium extension keeps its private adapter, and ordinary browser pages fall back to `getDisplayMedia()`. Renderer usage stays `screenshot()`. Existing provider and low-level helpers remain only for compatibility. Package smoke now runs the packed artifact in Electron 43 with context isolation and sandboxing enabled, node integration disabled, and a packaged `file://` renderer.
@@ -20,8 +24,6 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 - Add a design-review contract for new Mesurer-owned UI, using current upstream floating-surface, control, density, motion, and ownership language without restyling accepted existing surfaces by default.
 - Let plugin commands return JSON-safe values through the core host and browser-agent command API instead of discarding handler results.
 - Add `MountedMesurer.service<T>(id)` for typed optional-plugin capabilities, make Codex `queue()` / `codex.queue` the canonical delivery API, and retain `send()` / `codex.send` as compatibility aliases.
-
-<!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.1.8 - 2026-09-21
 
@@ -115,4 +117,3 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 - Keep the historical `@jhomra21/mesurer-solid` package name as a compatibility alias while publishing the canonical npm package as `mesurer-solid`.
 
 ## 0.1.0 - 2026-08-30
-
