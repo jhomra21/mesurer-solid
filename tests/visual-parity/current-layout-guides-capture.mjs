@@ -3,7 +3,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const reactUrl = process.env.CURRENT_PARITY_REACT_URL;
+
 const solidUrl = process.env.CURRENT_PARITY_SOLID_URL;
+
 const outputDir = process.env.CURRENT_PARITY_OUT;
 
 if (!reactUrl || !solidUrl || !outputDir) {
@@ -23,6 +25,7 @@ const styleKeys = [
 
 const panelContract = async (panel) => panel.evaluate((root, keys) => {
   const base = root.getBoundingClientRect();
+
   const rectOf = (element) => {
     const rect = element.getBoundingClientRect();
 
@@ -33,17 +36,20 @@ const panelContract = async (panel) => panel.evaluate((root, keys) => {
       height: rect.height,
     };
   };
+
   const styleOf = (element) => {
     const style = getComputedStyle(element);
 
     return Object.fromEntries(keys.map((key) => [key, style[key]]));
   };
+
   const semanticName = (element) =>
     element.getAttribute("aria-label")
     ?? element.getAttribute("name")
     ?? element.getAttribute("title")
     ?? element.textContent?.trim()
     ?? "";
+
   const svgContract = (svg) => ({
     rect: rectOf(svg),
     viewBox: svg.getAttribute("viewBox"),
@@ -142,6 +148,7 @@ try {
       colorScheme: "light",
       locale: "en-US",
     });
+
     const page = await context.newPage();
 
     await exercise(page, implementation);
