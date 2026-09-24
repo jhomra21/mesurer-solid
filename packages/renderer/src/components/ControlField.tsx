@@ -50,16 +50,19 @@ export function ColorField(props: {
 
     return parseCssColor(String(context.fillStyle)) ?? parseCssColor(props.fallback);
   };
+
   const hexValue = () => {
     const color = sample();
 
     return color ? colorToHex({ ...color, alpha: 1 }).slice(1).toUpperCase() : "000000";
   };
+
   const alphaValue = () => {
     const color = sample();
 
     return color ? Math.round(color.alpha * 100) : 100;
   };
+
   const inputValue = () => `#${hexValue().slice(0, 6)}`;
   const supportsColor = () => props.ownerWindow.CSS?.supports("color", props.value) === true;
   const swatchColor = () => supportsColor() ? props.value : props.fallback;
