@@ -44,7 +44,7 @@ All public plugin factories come from `mesurer-solid/plugins`.
 - Context adds structured Context, exact selection, saved annotations, review, capture planning, Copy Context, Copy Selection, and Add Note.
 - Arrange adds reversible Before/Desired layout intent, snapping, multi-selection moves, presentation switching, capture plans, and Live review.
 - Layout Guides adds page-scoped columns, rows, and pixel grids. Mutations run through JSON-safe plugin commands, participate in plugin history, and are available through the typed `layout-guides:v1` service.
-- Screenshot adds host-neutral region capture with preview, clipboard copy, download, and programmatic capture. Host selection stays internal.
+- Screenshot adds region capture with preview, clipboard copy, download, and programmatic capture. It selects an application-native host capability, the Chromium extension adapter, or browser display capture internally.
 - Codex adds optional Queue to Codex delivery, thread selection, delivery tracking, retry behavior, and completed-annotation cleanup.
 
 Each feature guide documents the service methods and behavior that belong to that plugin. The built-ins are also available as explicit plugin factories: `select`, `xray`, `colorPicker`, `rulers`, `typography`, `guides`, `distance`, and `settings`. Use `defaults()` and `compose()` for explicit composition.
@@ -182,11 +182,11 @@ See [Getting started](./GETTING_STARTED.md) for placement examples and the TypeS
 | `mesurer-codex` | Run the optional local Codex queue companion. |
 | `mesurer-codex-connect` | Start or reuse the matching companion and register the current Codex session. |
 
-The repository also ships a Chromium extension that injects Mesurer into the active tab and provides extension-backed visible-tab screenshot capture. See the [browser extension](../extension/README.md).
+The repository also ships a Chromium extension that injects Mesurer into the active tab and provides extension-backed screenshot capture. See the [browser extension](../extension/README.md). Electron applications can provide native window capture from preload/main without changing renderer plugin configuration; see the [Electron renderer example](../examples/electron-renderer/README.md).
 
 ## Browser and application support
 
-Mesurer can run in browser applications built with Solid 1 or 2, React, Vue, Svelte, vanilla DOM, and Electron renderer pages. The public package ships its own Solid 2 renderer. Electron/native hosts can provide the Screenshot host capability from preload; renderer code still mounts `screenshot()` normally.
+Mesurer can run in browser applications built with Solid 1 or 2, React, Vue, Svelte, vanilla DOM, and Electron renderer pages. The public package ships its own Solid 2 renderer. Electron/native hosts can provide `window.__MESURER_HOST__.captureScreenshot` from preload; renderer code still mounts `screenshot()` normally.
 
 Mount or inject Mesurer only where a DOM exists. Do not mount it in server code, an Electron main process, or another Node-only environment.
 
