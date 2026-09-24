@@ -210,6 +210,7 @@ Start with the [documentation index](./docs/README.md).
 - [Direct text editing and Typography](./docs/TEXT_EDITING.md)
 - [Arrange](./docs/ARRANGE.md)
 - [Layout Guides](./docs/LAYOUT_GUIDES.md)
+- [Measurements and distance geometry](./docs/MEASUREMENTS.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
 - [Electron renderer example](./examples/electron-renderer/README.md)
 - [Context workflow](./docs/CONTEXT_WORKFLOW.md)
