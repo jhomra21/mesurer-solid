@@ -15,9 +15,9 @@ A meaningful Mesurer step must return evidence the agent actually uses.
 
 ## Know the available capabilities
 
-The base inspector has Select, X-ray, Rulers, Typography, Guides, Distance, and Settings. Color Picker is available when the browser exposes a working `EyeDropper`.
+The base inspector has Select, X-ray, Rulers, Typography, Guides, Distance, and Settings. Color Picker is available when the browser exposes a working `EyeDropper`; a successful sample copies the configured format to the clipboard.
 
-Optional first-party plugins add Context, Arrange, Layout Guides, Screenshot, and Codex delivery. Context carries annotations and structured evidence. Arrange carries Before/Desired/Live geometry intent. Layout Guides carries page-scoped column/row/grid intent and exposes visible guides through Context. Screenshot is a human capture tool. Codex is an optional human queue transport, not the normal agent protocol.
+Optional first-party plugins add Context, Arrange, Layout Guides, Screenshot, and Codex delivery. Context carries annotations and structured evidence. Arrange carries Before/Desired/Live geometry intent. Layout Guides carries page-scoped column/row/grid intent and exposes saved guides through Context with each guide's `visible` flag. Screenshot is a human capture tool. Codex is an optional human queue transport, not the normal agent protocol.
 
 The JSON-safe `window.__MESURER__` object exposes the full agent API. Lifecycle and discovery methods are `ready()`, `capabilities()`, `describe()`, `state()`, and `stable()`. Inspection methods are `inspect()`, `inspectAll()`, `at()`, `distance()`, `viewport()`, and `feedback()`. `command()` runs registered Mesurer commands.
 
