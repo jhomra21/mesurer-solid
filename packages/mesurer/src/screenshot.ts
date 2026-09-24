@@ -48,6 +48,7 @@ export type MesurerScreenshotResult = {
 };
 
 export type MesurerScreenshotPluginOptions = Partial<MesurerScreenshotSettings> & {
+  capture?: ScreenshotCaptureProvider;
   captureVisibleTab?: ScreenshotCaptureProvider;
   previewDurationMs?: number;
 };
