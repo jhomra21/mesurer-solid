@@ -320,6 +320,8 @@ jobs:
           bun init -y >/dev/null
           bun add "$PACKAGE_TGZ"
           bun add electron@43.1.1 --trust
+          bun node_modules/electron/install.js
+          test -f node_modules/electron/dist/chrome-sandbox
           sudo chown root:root node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
           bun build renderer.ts --target browser --format esm --outfile=renderer.js
