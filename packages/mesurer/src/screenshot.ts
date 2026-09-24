@@ -33,6 +33,34 @@ export type ScreenshotCaptureProvider = (
   context: ScreenshotCaptureContext,
 ) => Promise<Blob>;
 
+export type ElectronScreenshotCapture =
+  | ArrayBuffer
+  | Uint8Array
+  | {
+    png: ArrayBuffer | Uint8Array;
+  };
+
+export type ElectronScreenshotCaptureSource = () => Promise<ElectronScreenshotCapture>;
+
+const capturePngBytes = (capture: ElectronScreenshotCapture): ArrayBuffer | Uint8Array =>
+  capture instanceof ArrayBuffer || capture instanceof Uint8Array
+    ? capture
+    : capture.png;
+
+export const createElectronScreenshotCaptureProvider = (
+  captureWindow: ElectronScreenshotCaptureSource,
+): ScreenshotCaptureProvider => async () => {
+  const captured = capturePngBytes(await captureWindow());
+  const bytes = captured instanceof Uint8Array
+    ? captured
+    : new Uint8Array(captured);
+  const copy = new Uint8Array(bytes.byteLength);
+
+  copy.set(bytes);
+
+  return new Blob([copy.buffer], { type: "image/png" });
+};
+
 export type MesurerScreenshotSettings = {
   toolEnabled: boolean;
   copy: boolean;
