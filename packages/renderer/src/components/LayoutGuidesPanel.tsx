@@ -332,7 +332,7 @@ export function LayoutGuidesPanel(props: LayoutGuidesPanelProps) {
                   <li class="msr:flex msr:items-center msr:gap-0.5">
                     <button
                       type="button"
-                      class="msr:flex msr:min-w-0 msr:flex-1 msr:items-center msr:gap-2 msr:rounded-control msr:px-1 msr:py-1 msr:text-left msr:text-[11px] msr:text-ink-700 msr:outline-none msr:hover:bg-ink-100"
+                      class="msr:flex msr:h-[27px] msr:min-w-0 msr:flex-1 msr:items-center msr:gap-2 msr:rounded-control msr:px-1 msr:py-1 msr:text-left msr:text-[11px] msr:text-ink-700 msr:outline-none msr:hover:bg-ink-100"
                       onClick={() => setEditingId(guide.id)}
                     >
                       <span class="msr:text-ink-500">
