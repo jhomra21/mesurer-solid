@@ -83,7 +83,7 @@ Context, Arrange, Screenshot, and optional transports such as Codex do not requi
 
 Do not call `mountMesurer()` from build configuration, API/server code, Node-only scripts, an Electron main process, or a module that also executes during SSR.
 
-For SSR frameworks, use the framework's normal client-only boundary. For Electron, use the renderer process where the DOM exists. Keep Electron privileges behind preload/main and expose `window.__MESURER_HOST__.captureScreenshot` when native window capture is available. Renderer setup remains `screenshot()`. See the [Electron renderer example](../examples/electron-renderer/README.md).
+For SSR frameworks, use the framework's normal client-only boundary. For Electron, use the renderer process where the DOM exists and keep privileged APIs in preload/main. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native capture automatically. Renderer setup remains `screenshot()`; do not add an Electron-specific Screenshot factory or provider option. See the [Electron renderer example](../examples/electron-renderer/README.md).
 
 If Mesurer should ship in the browser build instead of being development-only, remove the development guard and keep the returned instance so it can be disposed later.
 
