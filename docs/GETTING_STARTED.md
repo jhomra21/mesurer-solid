@@ -110,6 +110,7 @@ First-party plugin shortcuts are available only when global shortcuts are enable
 - [Capabilities](./CAPABILITIES.md)
 - [Direct text editing and Typography](./TEXT_EDITING.md)
 - [Arrange](./ARRANGE.md)
+- [Measurements and distance geometry](./MEASUREMENTS.md)
 - [Screenshots](./SCREENSHOTS.md)
 - [Context](./CONTEXT_WORKFLOW.md)
 - [Agent integration](../packages/mesurer/AGENT_INTEGRATION.md)
