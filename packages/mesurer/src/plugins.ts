@@ -126,6 +126,7 @@ export {
   MIN_SCREENSHOT_SELECTION,
   captureVisibleTabPng,
   copyPngToClipboard,
+  createElectronScreenshotCaptureProvider,
   createScreenshotFilename,
   cropPngToViewportRect,
   normalizeScreenshotRect,
@@ -135,6 +136,8 @@ export {
 } from "./screenshot";
 
 export type {
+  ElectronScreenshotCapture,
+  ElectronScreenshotCaptureSource,
   MesurerScreenshotPluginOptions,
   MesurerScreenshotResult,
   MesurerScreenshotService,
