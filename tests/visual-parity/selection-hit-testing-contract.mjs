@@ -240,6 +240,21 @@ try {
 
   assert.equal(agentTop?.selector, "#top-target", "agent point inspection should preserve the native top target");
 
+  await selectButtonAfterReload.click();
+  assert.equal(
+    await selectButtonAfterReload.getAttribute("aria-pressed"),
+    "false",
+    "Select should toggle off after the multi-selection proof",
+  );
+  await assertNoPublicSelection("Select off after multi-selection");
+
+  await selectButtonAfterReload.click();
+  assert.equal(
+    await selectButtonAfterReload.getAttribute("aria-pressed"),
+    "true",
+    "Select should turn back on for the remaining single-selection hit-testing cases",
+  );
+
   await selectPoint(overlapPoint, topRect, "native direct target");
 
   const transformed = page.locator("#transform-target");
