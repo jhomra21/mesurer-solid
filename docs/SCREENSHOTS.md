@@ -25,14 +25,9 @@ const mesurer = mountMesurer({
 
 The plugin adds the camera tool and `Shift+S`. It owns region selection, output settings, HiDPI cropping, capture status, thumbnail preview, viewer, service, commands, state, and cleanup.
 
-Settings include:
+The public factory accepts `toolEnabled`, `copy`, `download`, and `includeMeasurements`. These map to the same persisted Screenshot settings shown in the camera menu.
 
-- Screenshot tool visibility
-- Auto-copy
-- Auto-download
-- Include measurements
-
-The camera chevron exposes Auto-copy, Auto-download, and Include measurements through the same persisted state.
+The camera chevron exposes Auto-copy, Auto-download, and Include measurements.
 
 ## Capture a region
 
@@ -61,15 +56,15 @@ Click the thumbnail to open a larger viewer with Copy, Save, and Close. Escape o
 
 `screenshot()` chooses the available capture path internally.
 
-A host-provided `window.__MESURER_HOST__.captureScreenshot` capability takes priority. Electron applications can expose it once from preload and back it with `webContents.capturePage()`; renderer code still uses plain `screenshot()`.
+A host-provided `window.__MESURER_HOST__.captureScreenshot` capability takes priority. Electron applications can expose it once from preload and back it with `webContents.capturePage()`. Renderer code still uses plain `screenshot()`; there is no Electron-specific Screenshot factory.
 
-`captureScreenshot()` takes no arguments and returns the current visible renderer as PNG data. Mesurer accepts a PNG `Blob`, `ArrayBuffer`, `Uint8Array`, or an object with a `png` field containing one of those values. Objects may also carry host metadata such as `width` and `height`. Mesurer hides its own capture chrome and waits for paint before invoking the capability, then performs region cropping itself.
+`captureScreenshot()` takes no arguments and returns the current renderer window as PNG data. Mesurer accepts a PNG `Blob`, `ArrayBuffer`, `Uint8Array`, or an object with a `png` field containing one of those values. The object may also include metadata such as `width` and `height`. Mesurer hides its control UI, waits for paint, invokes the host capability, and performs region cropping itself.
 
-If a configured host capability rejects or returns unusable capture data, Screenshot reports that capture failure. It does not silently switch to a different permission model. The Chromium extension follows the same rule through its isolated-world adapter and `chrome.tabs.captureVisibleTab()`. When no host adapter is available, Screenshot uses `getDisplayMedia()` and reuses a live capture stream when possible. Browser permission and chooser behavior remain under browser and platform control.
+Expose this capability only from application-owned host code that can capture the same renderer window Mesurer is inspecting. In Electron, keep the privileged call in preload/main with `contextIsolation` enabled and `nodeIntegration` disabled. Packaged `file://` renderers are supported.
 
-This keeps one Screenshot factory across browser pages, the extension, Electron renderers, and future native hosts. Selection is capability-based rather than tied to a user agent or framework.
+If the selected native host capability rejects or returns unusable PNG data, Screenshot reports that failure. It does not silently open a browser screen-share flow. The Chromium extension follows the same rule through its private adapter backed by `chrome.tabs.captureVisibleTab()`. When no native or extension adapter is available, Screenshot uses `getDisplayMedia()` and reuses a live capture stream when possible. Browser permission and chooser behavior remain under browser and platform control.
 
-The old `captureVisibleTab` option remains supported for published-package compatibility, but new application integrations should use automatic host capture instead of passing providers to `screenshot()`.
+The old `captureVisibleTab` option remains supported for published-package compatibility. New integrations should not pass a capture provider to `screenshot()`.
 
 See [Electron renderer example](../examples/electron-renderer/README.md) and [Browser extension](../extension/README.md).
 
@@ -116,7 +111,7 @@ This service is plugin-local and is not part of the JSON-safe `window.__MESURER_
 | `waitForNextPaint` | Deprecated capture-timing helper. |
 | `MIN_SCREENSHOT_SELECTION` | Deprecated plugin implementation threshold. |
 
-Advanced plugin integrations can also import the public Screenshot plugin, service, active-state, and settings-state ids.
+Advanced integrations can also import the Screenshot plugin, service, active-state, and settings-state ids. Do not use the deprecated helpers to add a new host. Add the host capability or an internal adapter instead.
 
 ## Agent screenshot evidence
 
@@ -137,4 +132,8 @@ Use `{ annotation: annotationId }` for a saved annotation baseline.
 
 Use Mesurer context for exact geometry and screenshots for composition and visual judgment. Do not estimate dimensions or spacing from pixels when Mesurer can report them directly.
 
-See [Context](./CONTEXT_WORKFLOW.md) for the evidence workflow and [Upstream parity](./UPSTREAM_PARITY.md) for screenshot provenance.
+## Validation
+
+The Chromium Screenshot contract exercises every supported native host PNG form and verifies malformed host data fails on the selected path. Package smoke installs the packed npm artifact into a clean Electron 43 renderer with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`, then captures through preload and `webContents.capturePage()`.
+
+See [Context](./CONTEXT_WORKFLOW.md) for the evidence workflow, [Electron renderer example](../examples/electron-renderer/README.md) for native host wiring, and [Upstream parity](./UPSTREAM_PARITY.md) for screenshot provenance.
