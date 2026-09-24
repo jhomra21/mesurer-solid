@@ -37,7 +37,7 @@ if (import.meta.env.DEV) {
 }
 ```
 
-For Vite, put this in the existing browser entry such as `src/main.tsx`, `src/main.ts`, or `src/index.tsx`. In Electron, use the renderer entry and keep privileged Electron work in main or preload. Screenshot detects Mesurer's host capture bridge automatically, so the renderer still uses `screenshot()`. In SSR applications, mount from a client-only module or lifecycle.
+For Vite, put this in the existing browser entry such as `src/main.tsx`, `src/main.ts`, or `src/index.tsx`. In Electron, use the renderer entry and keep privileged Electron work in main or preload. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses it automatically; renderer configuration remains `screenshot()`. In SSR applications, mount from a client-only module or lifecycle.
 
 `src/dev/mesurer.ts` is an optional organization pattern, not a required filename or directory. Do not mount Mesurer from `vite.config.ts`, server/API code, Node-only scripts, an Electron main process, or a module that also executes during SSR.
 
