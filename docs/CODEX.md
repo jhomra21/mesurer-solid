@@ -332,7 +332,7 @@ const delivery = result
   : undefined
 ```
 
-`queue()` is the canonical service method and returns `delivery: "queued"`; Mesurer does not claim that the active turn was steered. The 0.1.8 `send()` method remains as a compatibility alias.
+`queue()` is the canonical service method and returns `delivery: "queued"`; Mesurer does not claim that the active turn was steered. The legacy `send()` method remains as a compatibility alias.
 
 The plugin also registers the generic command id `codex.queue`. It follows the same current-page UI path as pressing **Queue to Codex**: current destination, current Context evidence, and the page's tracked delivery state. It does not accept the typed service request options and does not return `MesurerCodexQueueResult`.
 

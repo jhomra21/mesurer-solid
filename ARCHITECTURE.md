@@ -273,7 +273,7 @@ Temporary Mesurer presentation expresses intent or evidence; it is not proof tha
 
 ## Distribution and release
 
-The public package bundles the private workspaces into self-contained artifacts and is validated as an exact packed npm candidate across clean React, Solid 1, and Solid 2 consumers.
+The public package bundles the private workspaces into self-contained artifacts. Before publication, the exact packed npm artifact is validated across clean React, Solid 1, and Solid 2 consumers.
 
 Release validation also covers browser contracts, host isolation, screenshots, the unified public plugins entry and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery also validates the packaged companion binary, loopback boundary, registered-thread routing, and exact `codex queue` argument contract before release.
 

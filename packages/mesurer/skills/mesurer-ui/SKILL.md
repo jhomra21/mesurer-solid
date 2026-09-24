@@ -25,6 +25,8 @@ Context adds `context()`, `contextText()`, `select()`, `annotations()`, `review(
 
 Select, point inspection, and Context can target general DOM elements, including SVG. Direct text editing and Arrange remain HTML-only mutation surfaces; SVG selection does not imply that either operation is available for that target.
 
+Human Select lifecycle is explicit. Invoking Select clears the current element and Guide selection before toggling the tool. Holding Shift while clicking rendered targets adds or removes them from the human multi-selection. Do not expect hidden selection state to return after Select is turned off or after an off-state reload.
+
 ## Reuse the live instance
 
 Never reinject, dispose, or replace Mesurer just because this skill loaded. A person may already have selected elements, guides, measurements, annotations, Arrange intent, text/style Desired intent, plugin state, or a screenshot preview open.

@@ -28,15 +28,15 @@ Mesurer Solid is an interaction-heavy browser tool and a Solid 2 port/extension 
 
 Read [CONTRIBUTING.md](./CONTRIBUTING.md), [Repository structure](./docs/REPOSITORY_STRUCTURE.md), and [VALIDATION.md](./VALIDATION.md) before broad changes.
 
-## Launch evolution
+## Compatibility evolution
 
-Mesurer Solid has launched but currently has no production data or user state that requires migration-preserving internal designs. Revisit this rule before the first production deployment that creates such obligations.
+Keep internal compatibility only when a released contract requires it. Public package APIs, documented persistence behavior, extension/session recovery, and agent or Codex integration are release contracts. Private workspaces and internal ids can still change atomically when no public or persisted contract depends on them.
 
-Until then:
+When changing internal behavior:
 
-- remove obsolete internal code, schemas, aliases, and transitional paths directly;
-- update internal callers/tests atomically instead of adding compatibility shims;
-- treat development/test data as disposable;
+- remove obsolete internal code, schemas, aliases, and transitional paths directly when no released contract depends on them;
+- update internal callers and tests atomically instead of adding compatibility shims;
+- treat development and test data as disposable unless a test is proving released persistence compatibility;
 - keep migrations, persistence invariants, and deterministic setup coherent;
 - do not rewrite release history or public compatibility promises casually.
 
