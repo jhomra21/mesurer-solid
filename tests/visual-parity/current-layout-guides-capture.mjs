@@ -94,6 +94,10 @@ const panelContract = async (panel) => panel.evaluate((root, keys) => {
   });
 
   return {
+    ownership: {
+      dialogPosition: getComputedStyle(root).position,
+      parentPosition: root.parentElement ? getComputedStyle(root.parentElement).position : null,
+    },
     panel: {
       rect: { x: 0, y: 0, width: base.width, height: base.height },
       style: styleOf(root),
