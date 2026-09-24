@@ -197,7 +197,9 @@ export function ColorField(props: {
                 alphaFocused() ? alphaDraft() : String(alphaValue()),
                 10,
               );
+
               const direction = event.key === "ArrowUp" ? 1 : -1;
+
               const nextValue = Math.min(
                 100,
                 Math.max(0, (Number.isFinite(parsed) ? parsed : 0) + direction),
