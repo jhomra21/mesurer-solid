@@ -80,7 +80,6 @@ jobs:
             type MesurerTheme,
           } from "mesurer-solid";
           import {
-            captureScreenshotPng,
             captureVisibleTabPng,
             context,
             screenshot,
@@ -119,7 +118,6 @@ jobs:
           void invalidScreenshotCapture;
           void invalidScreenshotPreview;
           void screenshotService;
-          void captureScreenshotPng;
           void captureVisibleTabPng;
           void canonicalMounted;
           void legacyMounted;
