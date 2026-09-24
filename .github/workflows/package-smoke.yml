@@ -81,7 +81,6 @@ jobs:
           } from "mesurer-solid";
           import {
             context,
-            createElectronScreenshotCaptureProvider,
             screenshot,
             type MesurerScreenshotPluginOptions,
             type MesurerScreenshotService,
@@ -102,11 +101,6 @@ jobs:
           const legacyOptions: MountMeasurerOptions = options;
           const screenshotOptions: MesurerScreenshotPluginOptions = { copy: true, download: false };
           const screenshotService: MesurerScreenshotService | undefined = undefined;
-          const electronCapture = createElectronScreenshotCaptureProvider(async () => ({
-            png: new Uint8Array([137, 80, 78, 71]),
-            width: 1,
-            height: 1,
-          }));
           const canonicalMounted: MountedMesurer | undefined = undefined;
           const legacyMounted: MountedMeasurer | undefined = canonicalMounted;
           const host: MesurerPluginHost = createMesurerPluginHost();
@@ -117,7 +111,6 @@ jobs:
           void legacyOptions;
           void screenshotOptions;
           void screenshotService;
-          void electronCapture;
           void canonicalMounted;
           void legacyMounted;
           void screenshot;
