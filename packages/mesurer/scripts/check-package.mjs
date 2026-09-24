@@ -84,6 +84,7 @@ for (const file of [
   "inject.d.ts",
   "inject-script.js",
   "codex-plugin.d.ts",
+  "screenshot.d.ts",
 ]) {
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
@@ -132,27 +133,32 @@ const pluginDeclarations = readFileSync(new URL("plugins.d.ts", dist), "utf8");
 
 const codexDeclarations = readFileSync(new URL("codex-plugin.d.ts", dist), "utf8");
 
-for (const leakedScreenshotApi of [
+const screenshotDeclarations = readFileSync(new URL("screenshot.d.ts", dist), "utf8");
+
+for (const leakedScreenshotExport of [
   "captureScreenshotPng",
   "createElectronScreenshotCaptureProvider",
   "ElectronScreenshotCapture",
   "ElectronScreenshotCaptureSource",
-  "previewDurationMs",
 ]) {
-  if (pluginDeclarations.includes(leakedScreenshotApi)) {
-    throw new Error(`Published Screenshot API leaked internal host/test detail: ${leakedScreenshotApi}.`);
+  if (pluginDeclarations.includes(leakedScreenshotExport)) {
+    throw new Error(`Published Screenshot API leaked internal host detail: ${leakedScreenshotExport}.`);
   }
 }
 
-if (/\bcapture\?:\s*ScreenshotCaptureProvider\b/.test(pluginDeclarations)) {
+if (/\bpreviewDurationMs\??\s*:/.test(screenshotDeclarations)) {
+  throw new Error("Published Screenshot options leaked the renderer-only preview timing control.");
+}
+
+if (/\bcapture\??\s*:\s*ScreenshotCaptureProvider\b/.test(screenshotDeclarations)) {
   throw new Error("Published Screenshot options must not expose the private capture-provider seam.");
 }
 
-if (/type\s+MesurerScreenshotPluginOptions\s*=\s*Partial<MesurerScreenshotSettings>/.test(pluginDeclarations)) {
+if (/type\s+MesurerScreenshotPluginOptions\s*=\s*Partial<MesurerScreenshotSettings>/.test(screenshotDeclarations)) {
   throw new Error("Published Screenshot options must stay explicit instead of inheriting persisted settings.");
 }
 
-if (!/\bcaptureVisibleTab\??\s*:/.test(pluginDeclarations)) {
+if (!/\bcaptureVisibleTab\??\s*:/.test(screenshotDeclarations)) {
   throw new Error("Published Screenshot options must retain the deprecated captureVisibleTab compatibility hook.");
 }
 
