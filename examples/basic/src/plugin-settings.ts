@@ -94,7 +94,7 @@ const subject = mountMesurer({
       copy: false,
       download: false,
       includeMeasurements: false,
-      captureVisibleTab: deterministicCapture,
+      capture: deterministicCapture,
     }),
   ],
 });
