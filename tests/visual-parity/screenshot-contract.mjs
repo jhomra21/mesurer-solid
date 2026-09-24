@@ -242,6 +242,7 @@ try {
         width: 120,
         height: 80,
       });
+
       const bitmap = await createImageBitmap(result.blob);
 
       results.push({
@@ -250,6 +251,7 @@ try {
         height: bitmap.height,
         type: result.blob.type,
       });
+
       bitmap.close();
     }
 
