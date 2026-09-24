@@ -316,6 +316,7 @@ jobs:
           cd upstream-current
           npm pkg set packageManager=pnpm@10.15.0
           pnpm install --frozen-lockfile
+          pnpm --dir packages/mesurer generate:styles
 
       - name: Install Chromium
         working-directory: upstream-current/apps/site
