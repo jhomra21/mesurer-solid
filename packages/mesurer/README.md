@@ -37,7 +37,7 @@ if (import.meta.env.DEV) {
 }
 ```
 
-For Vite, put this in the existing browser entry such as `src/main.tsx`, `src/main.ts`, or `src/index.tsx`. In Electron, use the renderer entry and keep privileged Electron work in main or preload. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses it automatically; renderer configuration remains `screenshot()`. In SSR applications, mount from a client-only module or lifecycle.
+For Vite, put this in the existing browser entry such as `src/main.tsx`, `src/main.ts`, or `src/index.tsx`. In Electron, use the renderer entry and keep privileged Electron work in preload/main. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native capture automatically. Renderer configuration remains `screenshot()`; there is no Electron-specific Screenshot factory or provider option. In SSR applications, mount from a client-only module or lifecycle.
 
 `src/dev/mesurer.ts` is an optional organization pattern, not a required filename or directory. Do not mount Mesurer from `vite.config.ts`, server/API code, Node-only scripts, an Electron main process, or a module that also executes during SSR.
 
@@ -89,7 +89,7 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Add page-scoped columns, rows, or pixel grids with the optional `layoutGuides()` plugin; guide edits participate in plugin undo/redo and visible layout guides are included in Context.
 - Inspect Typography and preview reversible direct copy/style changes.
 - Arrange selected UI into a Desired position without changing source.
-- Capture page regions through the optional Screenshot plugin.
+- Capture page regions through the optional Screenshot plugin. It selects native host capture, the Chromium extension adapter, or browser display capture internally.
 - Read selection, measurements, guides, annotations, layout, styles, and saved human intent through Context and agent APIs.
 - Keep saved annotations across same-tab reloads and conservatively rebind them to their original DOM targets; markers, cards, and ownership evidence stay attached through scrolling, repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
 - Extend the runtime with tools, settings, overlays, commands, hooks, state, and services.
@@ -195,6 +195,7 @@ See [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/
 - [Direct text editing and Typography](https://github.com/jhomra21/mesurer-solid/blob/main/docs/TEXT_EDITING.md)
 - [Arrange](https://github.com/jhomra21/mesurer-solid/blob/main/docs/ARRANGE.md) and [Layout Guides](https://github.com/jhomra21/mesurer-solid/blob/main/docs/LAYOUT_GUIDES.md)
 - [Screenshots](https://github.com/jhomra21/mesurer-solid/blob/main/docs/SCREENSHOTS.md)
+- [Electron renderer example](https://github.com/jhomra21/mesurer-solid/blob/main/examples/electron-renderer/README.md)
 - [Context workflow](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CONTEXT_WORKFLOW.md)
 - [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md)
 - [Browser and agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/docs/BROWSER_HARNESS.md)
