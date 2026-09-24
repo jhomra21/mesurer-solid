@@ -24,6 +24,7 @@ The default keyboard shortcuts are listed in the root [README](../README.md).
 | Direct text editing | Double-click or double-tap a valid direct text run in an HTML element while Select or Typography is active. Mixed inline copy can target the exact run under the pointer while preserving inline children. SVG selection does not enable direct text editing. Mesurer records reversible Desired copy and style intent without editing application source. |
 | Compact toolbar | Hide inactive controls without changing the active tool set or toolbar order. Expanding restores the same controls and state. Toolbar dragging starts after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. |
 | Multi-selection | Extend Select across multiple targets and inspect group geometry plus pairwise relationships. |
+| Visual hit testing | Select and agent point inspection share the rendered-point resolver. It follows the native front-to-back hit stack, traverses open shadow roots, and can recover visible `pointer-events:none` descendants that native hit testing would otherwise skip. |
 | Presentation ownership | Arrange and text previews restore only values Mesurer still owns. Host-authored changes remain untouched. |
 | Appearance | Use persisted System, Light, or Dark themes across isolated and document-backed Mesurer UI. System follows `prefers-color-scheme`. |
 
