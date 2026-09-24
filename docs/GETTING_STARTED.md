@@ -77,7 +77,7 @@ if (import.meta.env.DEV) {
 }
 ```
 
-Context, Arrange, Screenshot, and optional transports such as Codex do not require separate application files. For explicit custom composition, the same `mesurer-solid/plugins` entry also exposes the built-in factories.
+Context, Arrange, Layout Guides, Screenshot, and optional transports such as Codex do not require separate application files. Add `layoutGuides()` when the page needs columns, rows, or a pixel grid. For explicit custom composition, the same `mesurer-solid/plugins` entry also exposes the built-in factories.
 
 ## Browser-only boundary
 
@@ -103,13 +103,16 @@ Global shortcuts are enabled by default. Disable them from **Settings > General 
 
 Mesurer uses **Settings > General > Appearance** for System, Light, and Dark modes. System is the default and follows `prefers-color-scheme`. Set `theme: "light"` or `theme: "dark"` on `mountMesurer()` when the initial appearance should not follow the system. The setting persists with the other Mesurer preferences.
 
-First-party plugin shortcuts are available only when global shortcuts are enabled and their plugin is mounted and enabled: `Shift+A` for Arrange, `Shift+S` for Screenshot, and `C` / `Shift+C` / `N` for Context actions.
+Default workspace persistence is page-scoped. The page key uses pathname plus sorted query parameters and includes `#/` hash routes. Navigating within one tab swaps page-owned selection, measurements, annotations, and Layout Guides instead of carrying them into another route. Toolbar position is tab-session UI and survives route changes and reloads separately from page workspace state.
+
+First-party plugin shortcuts are available only when global shortcuts are enabled and their plugin is mounted and enabled: `Shift+A` for Arrange, `L` for Layout Guides, `Shift+S` for Screenshot, and `C` / `Shift+C` / `N` for Context actions.
 
 ## Next
 
 - [Capabilities](./CAPABILITIES.md)
 - [Direct text editing and Typography](./TEXT_EDITING.md)
 - [Arrange](./ARRANGE.md)
+- [Layout Guides](./LAYOUT_GUIDES.md)
 - [Measurements and distance geometry](./MEASUREMENTS.md)
 - [Screenshots](./SCREENSHOTS.md)
 - [Context](./CONTEXT_WORKFLOW.md)
