@@ -224,7 +224,7 @@ See [Queue Context feedback to Codex](./docs/CODEX.md).
 
 `mesurer.screenshot` is an optional first-party plugin exposed as `screenshot()` from `mesurer-solid/plugins`.
 
-It owns camera activation, region selection, capture selection, HiDPI crop logic, output preferences, status, thumbnail/viewer UI, commands, service, and cleanup. Screenshot probes for Mesurer's internal host capture bridge first, then falls back to `getDisplayMedia()`. The Chromium extension connects the bridge to `chrome.tabs.captureVisibleTab()`; Electron hosts can connect the same bridge to `webContents.capturePage()` from preload/main code. Mesurer does not import Electron or own the application's IPC channels.
+It owns camera activation, region selection, host capture selection, HiDPI crop logic, output preferences, status, thumbnail/viewer UI, commands, service, and cleanup. Screenshot first checks `window.__MESURER_HOST__.captureScreenshot`, then the first-party extension adapter, then `getDisplayMedia()`. Electron preload/main can back the host capability with `webContents.capturePage()`. Mesurer does not import Electron or own the application's IPC channels. The capture-provider seam stays private to the Screenshot implementation; normal callers configure only `screenshot()`.
 
 Screenshot bytes are not part of `MesurerContextV1`. Human camera capture and coding-agent screenshot evidence remain separate paths.
 
