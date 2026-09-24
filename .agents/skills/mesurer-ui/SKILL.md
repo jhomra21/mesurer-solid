@@ -282,7 +282,7 @@ try {
 
 Use `{ annotation: annotationId }` for a saved annotation baseline.
 
-The optional Screenshot plugin is a separate human camera workflow. Preserve an existing human thumbnail/viewer unless the task specifically concerns that feature.
+The optional Screenshot plugin is a separate human camera workflow. Native host or extension capture inside that plugin does not change the coding-agent screenshot path above. Do not add host capture wiring only to collect agent evidence. Preserve an existing human thumbnail/viewer unless the task specifically concerns that feature.
 
 ## Optional Codex thread handoff
 

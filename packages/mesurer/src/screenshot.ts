@@ -24,11 +24,19 @@ export type ScreenshotRect = {
   height: number;
 };
 
+/**
+ * @deprecated Retained for the legacy captureVisibleTab override.
+ * New hosts should expose the automatic Screenshot host capability.
+ */
 export type ScreenshotCaptureContext = {
   ownerDocument: Document;
   ownerWindow: Window;
 };
 
+/**
+ * @deprecated Retained for the legacy captureVisibleTab override.
+ * New hosts should expose the automatic Screenshot host capability.
+ */
 export type ScreenshotCaptureProvider = (
   context: ScreenshotCaptureContext,
 ) => Promise<Blob>;
@@ -47,9 +55,21 @@ export type MesurerScreenshotResult = {
   downloaded: boolean;
 };
 
-export type MesurerScreenshotPluginOptions = Partial<MesurerScreenshotSettings> & {
+/**
+ * Configure Screenshot behavior. Capture-source selection is automatic.
+ * New native hosts should expose window.__MESURER_HOST__.captureScreenshot
+ * instead of adding another plugin option or factory.
+ */
+export type MesurerScreenshotPluginOptions = {
+  toolEnabled?: boolean;
+  copy?: boolean;
+  download?: boolean;
+  includeMeasurements?: boolean;
+  /**
+   * @deprecated Screenshot selects the available host capture path automatically.
+   * Kept for compatibility with existing custom capture integrations.
+   */
   captureVisibleTab?: ScreenshotCaptureProvider;
-  previewDurationMs?: number;
 };
 
 export type MesurerScreenshotService = {
@@ -69,18 +89,26 @@ export const MESURER_SCREENSHOT_SERVICE_ID: string = rendererServiceId;
 
 export const MESURER_SCREENSHOT_SETTINGS_STATE_ID: string = rendererSettingsStateId;
 
+/** @deprecated Screenshot interaction thresholds are owned by the plugin. */
 export const MIN_SCREENSHOT_SELECTION: number = rendererMinSelection;
 
+/**
+ * @deprecated Screenshot selects its capture host automatically.
+ * Prefer screenshot() or MesurerScreenshotService.
+ */
 export const captureVisibleTabPng: ScreenshotCaptureProvider = rendererCaptureVisibleTabPng;
 
+/** @deprecated Prefer screenshot() or MesurerScreenshotService. */
 export const copyPngToClipboard = (
   png: Blob | Promise<Blob>,
   ownerWindow: Window,
 ): Promise<void> => rendererCopyPngToClipboard(png, ownerWindow);
 
+/** @deprecated Prefer screenshot() or MesurerScreenshotService. */
 export const createScreenshotFilename = (now = new Date()): string =>
   rendererCreateScreenshotFilename(now);
 
+/** @deprecated Screenshot owns HiDPI region cropping internally. */
 export const cropPngToViewportRect = (
   blob: Blob,
   rect: ScreenshotRect,
@@ -88,23 +116,28 @@ export const cropPngToViewportRect = (
   ownerDocument: Document,
 ): Promise<Blob> => rendererCropPngToViewportRect(blob, rect, viewport, ownerDocument);
 
+/** @deprecated Screenshot owns region normalization internally. */
 export const normalizeScreenshotRect = (
   start: { x: number; y: number },
   end: { x: number; y: number },
   viewport: { width: number; height: number },
 ): ScreenshotRect => rendererNormalizeScreenshotRect(start, end, viewport);
 
+/** @deprecated Screenshot owns capture preparation internally. */
 export const prepareScreenshotCapture = (
   ownerDocument: Document,
   ownerWindow: Window,
 ): Promise<void> => rendererPrepareScreenshotCapture(ownerDocument, ownerWindow);
 
+/** @deprecated Screenshot owns capture lifecycle internally. */
 export const releaseScreenshotCapture = (ownerWindow: Window): void =>
   rendererReleaseScreenshotCapture(ownerWindow);
 
+/** Create the Screenshot plugin with automatic host capture selection. */
 export const screenshot = (
   options: MesurerScreenshotPluginOptions = {},
 ): MesurerPlugin => ({ ...rendererScreenshotPlugin(options), version: MESURER_VERSION });
 
+/** @deprecated Screenshot owns capture paint coordination internally. */
 export const waitForNextPaint = (ownerWindow: Window): Promise<void> =>
   rendererWaitForNextPaint(ownerWindow);

@@ -12,7 +12,7 @@ bun run test
 bun run build
 ```
 
-Use `bun run dev` for the basic renderer playground.
+Use `bun run dev` for the basic renderer playground. CI starts that exact root command and requests `/layout-guides.html`. It fails on Vite dependency-scan, pre-transform, or internal-server errors. Keep this path green when changing renderer TSX, Vite configuration, aliases, or example entries.
 
 For focused work, run the owning package's test command. Browser-visible regressions still require the matching end-to-end contract described in [VALIDATION.md](./VALIDATION.md).
 
@@ -51,7 +51,8 @@ Follow [VALIDATION.md](./VALIDATION.md). In particular:
 - unit/jsdom tests support a change but do not replace browser acceptance for interaction regressions;
 - reproduce the actual failed topology for manual regressions;
 - keep browser warnings/errors at zero on accepted flows;
-- use packed-consumer checks for published-package changes;
+- use packed-consumer checks for published-package changes, including the real Electron renderer contract when Screenshot host capture changes;
+- run the root dev-server smoke when renderer source or Vite entry behavior changes;
 - keep visual parity and interaction parity green when renderer behavior changes.
 
 ## Pull requests

@@ -80,6 +80,7 @@ jobs:
             type MesurerTheme,
           } from "mesurer-solid";
           import {
+            captureVisibleTabPng,
             context,
             screenshot,
             type MesurerScreenshotPluginOptions,
@@ -100,6 +101,10 @@ jobs:
           const options: MountMesurerOptions = { agent: true, theme, plugins: [plugin, context()] };
           const legacyOptions: MountMeasurerOptions = options;
           const screenshotOptions: MesurerScreenshotPluginOptions = { copy: true, download: false };
+          // @ts-expect-error Capture selection is internal; hosts expose capability instead.
+          const invalidScreenshotCapture: MesurerScreenshotPluginOptions = { capture: async () => new Blob() };
+          // @ts-expect-error Preview timing is private renderer/test configuration.
+          const invalidScreenshotPreview: MesurerScreenshotPluginOptions = { previewDurationMs: 1 };
           const screenshotService: MesurerScreenshotService | undefined = undefined;
           const canonicalMounted: MountedMesurer | undefined = undefined;
           const legacyMounted: MountedMeasurer | undefined = canonicalMounted;
@@ -110,7 +115,10 @@ jobs:
           void options;
           void legacyOptions;
           void screenshotOptions;
+          void invalidScreenshotCapture;
+          void invalidScreenshotPreview;
           void screenshotService;
+          void captureVisibleTabPng;
           void canonicalMounted;
           void legacyMounted;
           void screenshot;
@@ -303,6 +311,48 @@ jobs:
 
       - name: Install headless Chromium shell
         run: bunx playwright install --with-deps --only-shell chromium
+
+      - name: Create clean Electron renderer consumer
+        run: |
+          rm -rf /tmp/mesurer-electron
+          mkdir -p /tmp/mesurer-electron
+          cp tests/package-smoke/electron-renderer/* /tmp/mesurer-electron/
+          cd /tmp/mesurer-electron
+          bun init -y >/dev/null
+          bun add "$PACKAGE_TGZ"
+          bun add electron@43.1.1 --trust
+          bun node_modules/electron/install.js
+          test -f node_modules/electron/dist/chrome-sandbox
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+          bun build renderer.ts --target browser --format esm --outfile=renderer.js
+
+      - name: Exercise exact packed package in a real Electron renderer
+        env:
+          MESURER_ELECTRON_ARTIFACT_DIR: /tmp/mesurer-electron/artifacts
+        run: |
+          rm -rf electron-renderer-artifacts
+          set +e
+          (
+            cd /tmp/mesurer-electron
+            timeout 60s xvfb-run -a ./node_modules/.bin/electron main.cjs
+          )
+          status=$?
+          set -e
+          if [ -d /tmp/mesurer-electron/artifacts ]; then
+            cp -R /tmp/mesurer-electron/artifacts electron-renderer-artifacts
+            cat electron-renderer-artifacts/result.json || true
+          fi
+          exit "$status"
+
+      - name: Upload Electron renderer evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: electron-renderer-e2e
+          path: electron-renderer-artifacts
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Start packed-package consumers
         run: |

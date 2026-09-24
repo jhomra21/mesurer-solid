@@ -227,6 +227,73 @@ try {
     throw new Error(`Screenshot fixture settings did not persist: ${JSON.stringify(programmatic)}`);
   }
 
+  const hostCaptureFormats = await page.evaluate(async () => {
+    const harness = window.__MESURER_SCREENSHOT_TEST__;
+
+    if (!harness) throw new Error("Screenshot harness unavailable");
+
+    const results = [];
+
+    for (const format of ["blob", "array-buffer", "uint8-array", "wrapped"]) {
+      harness.setHostCaptureFormat(format);
+
+      const result = await harness.service.capture({
+        left: 100,
+        top: 100,
+        width: 120,
+        height: 80,
+      });
+
+      const bitmap = await createImageBitmap(result.blob);
+
+      results.push({
+        format,
+        width: bitmap.width,
+        height: bitmap.height,
+        type: result.blob.type,
+      });
+
+      bitmap.close();
+    }
+
+    harness.setHostCaptureFormat("blob");
+
+    return results;
+  });
+
+  for (const result of hostCaptureFormats) {
+    if (result.width !== 240 || result.height !== 160 || result.type !== "image/png") {
+      throw new Error(`Host screenshot format did not preserve PNG capture: ${JSON.stringify(result)}`);
+    }
+  }
+
+  const invalidHostCapture = await page.evaluate(async () => {
+    const harness = window.__MESURER_SCREENSHOT_TEST__;
+
+    if (!harness) throw new Error("Screenshot harness unavailable");
+
+    harness.setHostCaptureFormat("invalid");
+
+    try {
+      await harness.service.capture({
+        left: 100,
+        top: 100,
+        width: 120,
+        height: 80,
+      });
+
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    } finally {
+      harness.setHostCaptureFormat("blob");
+    }
+  });
+
+  if (invalidHostCapture !== "Host screenshot capture returned unsupported PNG data.") {
+    throw new Error(`Malformed host capture did not fail at the host seam: ${invalidHostCapture}`);
+  }
+
   await preview.waitFor({ state: "visible" });
 
   const automaticCopyFallback = await page.evaluate(async () => {
@@ -255,6 +322,8 @@ try {
     dragCrop: previewSize,
     viewer: viewerSize,
     programmatic,
+    hostCaptureFormats,
+    invalidHostCapture,
     automaticCopyFallback,
   }, null, 2));
 } finally {

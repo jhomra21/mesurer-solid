@@ -45,7 +45,7 @@ Its current high-level split is meaningful:
 - `components/`. Rendered UI.
 - `core/`. Geometry, selection, persistence, targets, and other renderer-domain helpers.
 - `model/`. Renderer model construction.
-- `plugins/`. Renderer-side first-party plugin implementations.
+- `plugins/`. Renderer-side first-party plugin implementations. Screenshot host selection and its native, extension, and browser adapters stay private here.
 - `runtime/`. Host and browser interaction coordination.
 - `runtime/text-editing/`. Direct-edit intent, editing and presentation coordination, and direct-edit-only UI ownership.
 - `runtime/typography/`. Shared Typography inspector code used by both the built-in inspector and direct editing.
@@ -95,8 +95,8 @@ Cross-package and real-host validation lives under `tests/`:
 ```text
 tests/
 ├── host-compat/      real host/runtime compatibility smoke tests
-├── package-smoke/    packed-package consumer acceptance
-└── visual-parity/   browser contracts, visual parity, and interaction parity
+├── package-smoke/    packed-package consumers, including real Electron acceptance
+└── visual-parity/    browser contracts, visual parity, and interaction parity
 ```
 
 These suites may exercise examples and multiple packages, so placing them inside one package would give the wrong ownership signal.
@@ -107,7 +107,7 @@ Workflow definitions remain in `.github/workflows/`; they should call these suit
 
 `examples/` exists for runnable applications and browser fixtures. Reusable implementation code belongs in a package.
 
-If an example exists only to reproduce a contract, keep it minimal and let the contract itself live under `tests/`.
+If an example exists only to reproduce a contract, keep it minimal and let the contract itself live under `tests/`. The Electron documentation example explains application wiring; executable Electron acceptance stays under `tests/package-smoke/`.
 
 ## Scripts and tools
 

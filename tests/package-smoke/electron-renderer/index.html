@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' blob: data:"
+    >
+    <title>Mesurer Electron host contract</title>
+  </head>
+  <body>
+    <main id="app">
+      <section data-testid="electron-target">
+        <h1>Electron renderer</h1>
+        <p>Mesurer should inspect and capture this card through the preload bridge.</p>
+      </section>
+    </main>
+    <script type="module" src="./renderer.js"></script>
+  </body>
+</html>

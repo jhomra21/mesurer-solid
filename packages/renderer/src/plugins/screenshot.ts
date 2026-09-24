@@ -6,7 +6,7 @@ import {
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import {
   MIN_SCREENSHOT_SELECTION,
-  captureVisibleTabPng,
+  captureScreenshotPng,
   copyPngToClipboard,
   createScreenshotFilename,
   cropPngToViewportRect,
@@ -61,7 +61,12 @@ export type MesurerScreenshotResult = {
   downloaded: boolean;
 };
 
-export type MesurerScreenshotPluginOptions = Partial<MesurerScreenshotSettings> & {
+export type MesurerScreenshotPluginOptions = {
+  toolEnabled?: boolean;
+  copy?: boolean;
+  download?: boolean;
+  includeMeasurements?: boolean;
+  capture?: ScreenshotCaptureProvider;
   captureVisibleTab?: ScreenshotCaptureProvider;
   previewDurationMs?: number;
 };
@@ -226,7 +231,8 @@ export const screenshotPlugin = (
     const { ownerDocument, ownerWindow } = runtime;
     const workspace = runtime.createWorkspaceRuntime();
     const inspectorMount = runtime.createInspectorMount();
-    const captureVisibleTab = options.captureVisibleTab ?? captureVisibleTabPng;
+    const captureOverride = options.capture ?? options.captureVisibleTab;
+    const captureProvider = captureOverride ?? captureScreenshotPng;
     const previewDurationMs = options.previewDurationMs ?? DEFAULT_PREVIEW_DURATION_MS;
 
     ctx.state.register<ScreenshotStateValue>({
@@ -531,7 +537,7 @@ export const screenshotPlugin = (
         // shade, and size tag cannot leak into the screenshot itself.
         overlay.style.visibility = "hidden";
         await waitForNextPaint(ownerWindow);
-        const full = await captureVisibleTab({ ownerDocument, ownerWindow } satisfies ScreenshotCaptureContext);
+        const full = await captureProvider({ ownerDocument, ownerWindow } satisfies ScreenshotCaptureContext);
 
         const cropped = await cropPngToViewportRect(
           full,
@@ -600,7 +606,7 @@ export const screenshotPlugin = (
       previewController.dismiss();
 
       try {
-        if (options.captureVisibleTab === undefined) {
+        if (!captureOverride) {
           await prepareScreenshotCapture(ownerDocument, ownerWindow);
         }
 

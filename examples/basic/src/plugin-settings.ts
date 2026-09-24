@@ -8,7 +8,6 @@ import {
   MESURER_SCREENSHOT_SERVICE_ID,
   screenshot,
   type MesurerScreenshotService,
-  type ScreenshotCaptureProvider,
 } from "../../../packages/mesurer/src/plugins";
 
 const pluginStorageKey = "mesurer-plugin-settings";
@@ -59,15 +58,15 @@ const presentationVisible = (
   Array.from(root.querySelectorAll<HTMLElement>(selector)).some(isVisible),
 );
 
-const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, ownerWindow }) => {
+const deterministicCapture = async () => {
   captures.push({
     measurementVisible: presentationVisible("[data-mesurer-measurement='true']", visibleMeasurement),
     screenshotSelectionVisible: presentationVisible("[data-mesurer-screenshot-select='true']"),
   });
 
-  const canvas = ownerDocument.createElement("canvas");
-  canvas.width = ownerWindow.innerWidth;
-  canvas.height = ownerWindow.innerHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
   const context2d = canvas.getContext("2d");
 
   if (!context2d) throw new Error("Plugin settings fixture canvas unavailable");
@@ -84,6 +83,10 @@ const deterministicCapture: ScreenshotCaptureProvider = async ({ ownerDocument, 
   });
 };
 
+window.__MESURER_HOST__ = {
+  captureScreenshot: deterministicCapture,
+};
+
 const subject = mountMesurer({
   target: document.body,
   isolate: true,
@@ -94,7 +97,6 @@ const subject = mountMesurer({
       copy: false,
       download: false,
       includeMeasurements: false,
-      captureVisibleTab: deterministicCapture,
     }),
   ],
 });

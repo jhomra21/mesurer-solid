@@ -84,6 +84,7 @@ for (const file of [
   "inject.d.ts",
   "inject-script.js",
   "codex-plugin.d.ts",
+  "screenshot.d.ts",
 ]) {
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
@@ -131,6 +132,35 @@ const rootDeclarations = readFileSync(new URL("index.d.ts", dist), "utf8");
 const pluginDeclarations = readFileSync(new URL("plugins.d.ts", dist), "utf8");
 
 const codexDeclarations = readFileSync(new URL("codex-plugin.d.ts", dist), "utf8");
+
+const screenshotDeclarations = readFileSync(new URL("screenshot.d.ts", dist), "utf8");
+
+for (const leakedScreenshotExport of [
+  "captureScreenshotPng",
+  "createElectronScreenshotCaptureProvider",
+  "ElectronScreenshotCapture",
+  "ElectronScreenshotCaptureSource",
+]) {
+  if (pluginDeclarations.includes(leakedScreenshotExport)) {
+    throw new Error(`Published Screenshot API leaked internal host detail: ${leakedScreenshotExport}.`);
+  }
+}
+
+if (/\bpreviewDurationMs\??\s*:/.test(screenshotDeclarations)) {
+  throw new Error("Published Screenshot options leaked the renderer-only preview timing control.");
+}
+
+if (/\bcapture\??\s*:\s*ScreenshotCaptureProvider\b/.test(screenshotDeclarations)) {
+  throw new Error("Published Screenshot options must not expose the private capture-provider seam.");
+}
+
+if (/type\s+MesurerScreenshotPluginOptions\s*=\s*Partial<MesurerScreenshotSettings>/.test(screenshotDeclarations)) {
+  throw new Error("Published Screenshot options must stay explicit instead of inheriting persisted settings.");
+}
+
+if (!/\bcaptureVisibleTab\??\s*:/.test(screenshotDeclarations)) {
+  throw new Error("Published Screenshot options must retain the deprecated captureVisibleTab compatibility hook.");
+}
 
 const publishedDeclarations = distFiles
   .filter((file) => file.endsWith(".d.ts"))

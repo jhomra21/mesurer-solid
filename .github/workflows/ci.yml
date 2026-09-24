@@ -20,5 +20,40 @@ jobs:
       - run: bun run lint
       - run: bun run typecheck
       - run: bun run test
+      - name: Smoke root dev server
+        shell: bash
+        run: |
+          cleanup() {
+            if [ -f root-dev.pid ]; then
+              pid="$(cat root-dev.pid)"
+              kill "$pid" 2>/dev/null || true
+              pkill -P "$pid" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          bun run dev > root-dev.log 2>&1 &
+          echo $! > root-dev.pid
+
+          ready=0
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent --show-error "http://localhost:3000/layout-guides.html" >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            cat root-dev.log || true
+            exit 1
+          fi
+
+          sleep 1
+
+          if grep -E "Failed to parse source for import analysis|Pre-transform error|Internal server error" root-dev.log; then
+            cat root-dev.log
+            exit 1
+          fi
       - run: bun run build
       - run: bun run --filter 'mesurer-solid-renderer-example' build

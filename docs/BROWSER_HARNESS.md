@@ -54,7 +54,7 @@ Mesurer owns:
 - Mesurer-owned UI;
 - optional human screenshot UI.
 
-The screenshot plugin is not a replacement for the browser controller's task screenshot capability.
+The Screenshot plugin is not a replacement for the browser controller's task screenshot capability. Do not add an Electron preload/main capture bridge only to collect coding-agent evidence. Native host capture belongs to applications that intentionally expose the human Screenshot feature in an Electron renderer.
 
 ## Existing human state
 

@@ -24,6 +24,7 @@ Mesurer Solid is an interaction-heavy browser tool and a Solid 2 port/extension 
 - Preserve public compatibility only where the published package contract or documented migration requires it.
 - Do not make production code accommodate missing jsdom/browser APIs merely to satisfy tests.
 - Browser-visible correctness must be proven in the real rendered topology, not inferred from source or mocks.
+- Renderer source aliased into the basic example must parse under the root `bun run dev` Vite dependency scan. A production transform passing is not enough.
 
 Read [CONTRIBUTING.md](./CONTRIBUTING.md), [Repository structure](./docs/REPOSITORY_STRUCTURE.md), and [VALIDATION.md](./VALIDATION.md) before broad changes.
 
@@ -109,6 +110,8 @@ The root export owns mounting, public domain types, and the agent API. `/plugins
 Do not expose private workspace package names or renderer-specific types through the staged public artifact.
 
 Public plugin factories use direct feature names such as `context()`, `arrange()`, `screenshot()`, `codex()`, `select()`, and `typography()`. Do not reintroduce redundant `*Plugin` factory aliases or one-plugin-per-subpath exports.
+
+Screenshot capture-source selection is internal. Application-owned native hosts may expose `window.__MESURER_HOST__.captureScreenshot`; the Chromium extension uses its private adapter; ordinary browser pages fall back to `getDisplayMedia()`. Do not add host-specific Screenshot factories or a new public provider option. The older provider hook and low-level Screenshot helpers remain compatibility-only. Once Screenshot selects a host path, capture errors stay on that path instead of silently opening a different permission flow.
 
 The visible tool is **Typography**; the internal compatibility id/command remains `text-inspector` / `builtin.text-inspector`.
 

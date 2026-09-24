@@ -44,7 +44,7 @@ Document-backed nodes are still Mesurer UI. They carry the inspector hit-test bo
 
 When a document-backed inspector must occlude page selection evidence, the related Select paint must use the lower document evidence layer too. A browser top-layer node outranks ordinary document `z-index`, so keeping Select hover in the top-layer island while a Context card lives in the document would allow blue hover paint to cross the card. Context therefore moves Select hover into the document evidence layer while its document-backed annotation UI owns that page region, including non-isolated source mounts that still use browser top-layer promotion.
 
-During screenshot capture, Mesurer control chrome is hidden and then restored through the shared capture-presentation boundary.
+During screenshot capture, Mesurer control chrome is hidden and then restored through the shared capture-presentation boundary. Native host capture, Chromium extension capture, and browser display capture all use that path. If a selected native or extension capture path fails, Screenshot reports the error instead of switching to another permission model.
 
 ## What is tested
 
@@ -56,7 +56,8 @@ Package smoke exercises the exact packed npm artifact under adversarial host con
 - later top-layer popovers;
 - modal dialogs;
 - hit testing and plugin controls;
-- React, Solid 1, and Solid 2 host applications.
+- React, Solid 1, and Solid 2 host applications;
+- a packed Electron renderer with context isolation and sandboxing enabled and Node integration disabled.
 
 Rendered browser contracts separately exercise direct editing, Typography, Arrange, Screenshot, Context document ownership, toolbar pointer ownership, and Inspect hit testing. Inspect coverage includes SVG targets, pointer-transparent descendants, overlapping page targets, transformed elements, canvas, closed Shadow DOM boundaries, and a large DOM fixture. Context coverage includes source-attached window and nested scrolling, repeated-note marker placement, one clean annotation ownership edge, and create/saved annotation cards occluding real Select hover in a non-isolated browser top-layer host.
 

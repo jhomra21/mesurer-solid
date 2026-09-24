@@ -112,6 +112,7 @@ export type {
 } from "./plugins/screenshot";
 
 export {
+  captureScreenshotPng,
   captureVisibleTabPng,
   copyPngToClipboard,
   createScreenshotFilename,
