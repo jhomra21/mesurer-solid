@@ -22,6 +22,11 @@ const parseMessage = (value, type) => {
 const reply = (type, id, payload = "") =>
   `${type}:${id}:${payload}`;
 
+const targetOrigin = () =>
+  window.location.origin === "null"
+    ? "*"
+    : window.location.origin;
+
 if (!globalThis.__MESURER_CAPTURE_BRIDGE_INSTALLED__) {
   globalThis.__MESURER_CAPTURE_BRIDGE_INSTALLED__ = true;
 
@@ -31,7 +36,7 @@ if (!globalThis.__MESURER_CAPTURE_BRIDGE_INSTALLED__) {
     const pingId = parseMessage(event.data, PING);
 
     if (pingId) {
-      window.postMessage(reply(PONG, pingId), window.location.origin);
+      window.postMessage(reply(PONG, pingId), targetOrigin());
 
       return;
     }
@@ -43,7 +48,7 @@ if (!globalThis.__MESURER_CAPTURE_BRIDGE_INSTALLED__) {
       const error = chrome.runtime.lastError?.message;
 
       if (error) {
-        window.postMessage(reply(RESPONSE, requestId, `error:${error}`), window.location.origin);
+        window.postMessage(reply(RESPONSE, requestId, `error:${error}`), targetOrigin());
 
         return;
       }
@@ -54,7 +59,7 @@ if (!globalThis.__MESURER_CAPTURE_BRIDGE_INSTALLED__) {
         ? `ok:${dataUrl}`
         : `error:${String(response?.error ?? "Capture failed")}`;
 
-      window.postMessage(reply(RESPONSE, requestId, payload), window.location.origin);
+      window.postMessage(reply(RESPONSE, requestId, payload), targetOrigin());
     });
   });
 }
