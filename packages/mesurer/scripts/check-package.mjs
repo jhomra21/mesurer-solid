@@ -132,6 +132,29 @@ const pluginDeclarations = readFileSync(new URL("plugins.d.ts", dist), "utf8");
 
 const codexDeclarations = readFileSync(new URL("codex-plugin.d.ts", dist), "utf8");
 
+if (!/\bcaptureScreenshotPng\b/.test(pluginDeclarations)) {
+  throw new Error("Published Screenshot API is missing canonical captureScreenshotPng().");
+}
+
+for (const leakedScreenshotApi of [
+  "createElectronScreenshotCaptureProvider",
+  "ElectronScreenshotCapture",
+  "ElectronScreenshotCaptureSource",
+  "previewDurationMs",
+]) {
+  if (pluginDeclarations.includes(leakedScreenshotApi)) {
+    throw new Error(`Published Screenshot API leaked internal host/test detail: ${leakedScreenshotApi}.`);
+  }
+}
+
+if (/\bcapture\?:\s*ScreenshotCaptureProvider\b/.test(pluginDeclarations)) {
+  throw new Error("Published Screenshot options must not expose the private capture-provider seam.");
+}
+
+if (!/\bcaptureVisibleTab\?:\s*ScreenshotCaptureProvider\b/.test(pluginDeclarations)) {
+  throw new Error("Published Screenshot options must retain the deprecated captureVisibleTab compatibility hook.");
+}
+
 const publishedDeclarations = distFiles
   .filter((file) => file.endsWith(".d.ts"))
   .map((file) => readFileSync(new URL(file, dist), "utf8"))
