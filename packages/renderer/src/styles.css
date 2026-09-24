@@ -586,7 +586,6 @@ body.mesurer-solid-xray .mesurer-ti-close {
 }
 
 
-
 /* Current React Mesurer control tokens used by newly ported panels. */
 :where([data-mesurer-root="true"], [data-mesurer-inspector-ui="true"]) {
   --msr-radius-control: 5px;
@@ -595,10 +594,6 @@ body.mesurer-solid-xray .mesurer-ti-close {
 @layer utilities {
   .msr\:rounded-control {
     border-radius: var(--msr-radius-control);
-  }
-
-  .msr\:shadow-floating {
-    box-shadow: var(--msr-shadow-floating);
   }
 }
 
