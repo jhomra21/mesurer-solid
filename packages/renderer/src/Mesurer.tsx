@@ -225,12 +225,14 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   let guideDragHoldTimer = 0;
   let guideDragHoldId: string | null = null;
   let scrollPosition = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
+
   const builtinController = createMesurerBuiltinController({
     model,
     ownerWindow,
     ownerDocument,
     uiRoot: () => rootElement,
   });
+
   const builtinActionDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => input.isBuiltinActionDisabled?.(id) ?? false;
 
   const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">, restartColorPicker = false) => {
