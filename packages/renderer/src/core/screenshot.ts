@@ -52,7 +52,7 @@ const hostCapture = (ownerWindow: Window) =>
   ownerWindow.__MESURER_HOST__?.captureScreenshot;
 
 export const hasHostScreenshotCapture = (ownerWindow: Window) =>
-  typeof hostCapture(ownerWindow) === "function";
+  hostCapture(ownerWindow) !== undefined;
 
 const hostPngBlob = (result: HostScreenshotResult): Blob => {
   if (result instanceof Blob) return result;
