@@ -38,6 +38,7 @@ export function ColorPicker(props: {
   onSettled(() => {
     let frame = 0;
     let observedToolbar: HTMLElement | null = null;
+    // SAFETY: ownerWindow owns the rendered document and therefore its DOM constructors.
     const MutationObserverCtor = (props.ownerWindow as Window & typeof globalThis).MutationObserver;
 
     const positionPanel = () => {
