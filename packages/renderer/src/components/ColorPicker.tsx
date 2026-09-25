@@ -115,7 +115,7 @@ export function ColorPicker(props: {
           data-mesurer-color-picker-target="true"
           data-mesurer-inspector-ui="true"
           aria-hidden="true"
-          class="msr:pointer-events-auto msr:fixed msr:inset-0 msr:z-[85] msr:cursor-crosshair"
+          class="msr:pointer-events-auto msr:fixed msr:inset-0 msr:z-[60] msr:cursor-crosshair"
           onPointerDown={(event) => {
             if (event.button !== 0) return;
             event.preventDefault();
