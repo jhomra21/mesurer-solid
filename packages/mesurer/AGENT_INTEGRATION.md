@@ -25,7 +25,7 @@ The installer writes a self-contained skill and injection artifact:
 
 ## Know the available capabilities
 
-The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, and Settings. Native Color Picker appears only when the browser exposes a working `EyeDropper`.
+The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, and Settings. Color Picker uses application-local host capture when available and otherwise uses a working browser `EyeDropper`.
 
 First-party plugins add Context, Arrange, Screenshot, and optional Codex delivery. The complete public map, including the low-level inspection methods and plugin host, is in [Capabilities](../../docs/CAPABILITIES.md).
 
