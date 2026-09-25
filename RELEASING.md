@@ -81,7 +81,7 @@ This push-trigger bridge is intentionally separate from the generated release PR
 5. Downloads the same artifact in the publish job and recomputes SHA-512 over the downloaded bytes before any registry action.
 6. If the npm version does not exist, publishes that exact `.tgz` through Trusted Publishing/OIDC.
 7. If the npm version already exists, verifies its registry integrity matches the tarball and continues recovery instead of republishing.
-8. Verifies the expected npm dist-tag is `latest`.
+8. Waits for npm registry propagation, verifies the exact published integrity, and verifies the expected dist-tag (`beta` for prereleases, `latest` for stable releases).
 9. Creates `v<version>` only after npm succeeds, and refuses an existing tag that points at another commit.
 10. Creates the GitHub Release from the matching changelog section.
 
@@ -104,7 +104,7 @@ A GitHub deployment Environment can be added later as an additional approval bou
 
 If npm publication succeeds but a later tag/GitHub Release step fails, first rerun the failed GitHub Actions job/run. That preserves the original release commit and is the safest recovery path.
 
-npm can accept a publish and still take time to expose the new version, integrity metadata, or dist-tag consistently through `npm view`. If the publish step reports success but the following registry verification times out, rerun the failed publish job after registry propagation. The recovery path detects the existing version, requires its integrity to match the original packed artifact, verifies the `latest` dist-tag, and only then creates the Git tag and GitHub Release. Do not run `npm publish` again manually and do not create the release tag by hand while the registry is still catching up.
+npm can accept a publish while the new version is still staged and unavailable through `npm view`. The publisher tolerates npm's staged-version `409`, then waits up to five minutes for the exact integrity and expected dist-tag to become visible before creating the Git tag and GitHub Release. If that propagation window still expires, rerun the failed publish job after npm catches up. The recovery path verifies the existing registry artifact against the original packed SHA-512 before doing any post-publish work. Do not run `npm publish` manually and do not create the release tag by hand while the registry is still catching up.
 
 `publish.yml` also supports direct `workflow_dispatch` for recovery of the version currently on `main`. Manual recovery is rejected from any other ref. It verifies the package source has not changed since the release commit and verifies any already-published npm integrity before doing post-publish work.
 
