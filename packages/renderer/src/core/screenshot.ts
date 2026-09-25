@@ -26,19 +26,19 @@ export type ScreenshotCaptureProvider = (
   context: ScreenshotCaptureContext,
 ) => Promise<Blob>;
 
-type HostScreenshotPng = Blob | ArrayBuffer | Uint8Array;
+export type HostScreenshotPng = Blob | ArrayBuffer | Uint8Array;
 
-type HostScreenshotEnvelope = {
+export type HostScreenshotEnvelope = {
   png?: HostScreenshotPng | null;
 };
 
-type HostScreenshotResult =
+export type HostScreenshotResult =
   | HostScreenshotPng
   | HostScreenshotEnvelope
   | null
   | undefined;
 
-type MesurerHostCapabilities = {
+export type MesurerHostCapabilities = {
   captureScreenshot?: () => Promise<HostScreenshotResult>;
 };
 
@@ -50,6 +50,9 @@ declare global {
 
 const hostCapture = (ownerWindow: Window) =>
   ownerWindow.__MESURER_HOST__?.captureScreenshot;
+
+export const hasHostScreenshotCapture = (ownerWindow: Window) =>
+  typeof hostCapture(ownerWindow) === "function";
 
 const hostPngBlob = (result: HostScreenshotResult): Blob => {
   if (result instanceof Blob) return result;
@@ -77,7 +80,7 @@ const hostPngBlob = (result: HostScreenshotResult): Blob => {
   return hostPngBlob(result.png);
 };
 
-const captureViaHost = async (ownerWindow: Window): Promise<Blob | null> => {
+export const captureHostScreenshotPng = async (ownerWindow: Window): Promise<Blob | null> => {
   const capture = hostCapture(ownerWindow);
 
   if (!capture) return null;
@@ -388,7 +391,7 @@ type ScreenshotCaptureAdapter = {
 const hostCaptureAdapter: ScreenshotCaptureAdapter = {
   prepare: async () => undefined,
   capture: async ({ ownerWindow }) => {
-    const captured = await captureViaHost(ownerWindow);
+    const captured = await captureHostScreenshotPng(ownerWindow);
 
     if (!captured) throw new Error("Host screenshot capture is unavailable.");
 
