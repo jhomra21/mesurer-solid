@@ -133,7 +133,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `M` | Toggle Mesurer |
 | `S` | Select |
 | `X` | X-ray |
-| `P` | Native Color Picker when supported |
+| `P` | Color Picker when supported |
 | `R` | Rulers |
 | `A` | Typography |
 | `G` | Guides |
