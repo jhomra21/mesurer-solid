@@ -74,6 +74,6 @@ When the native capability is absent, Screenshot checks the first-party Chromium
 
 ## Validation
 
-Package smoke installs the packed `mesurer-solid` artifact into a clean Electron 43 consumer. It runs with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`, selects a real DOM target through Mesurer, captures through preload and `webContents.capturePage()`, and verifies the PNG result.
+Package smoke installs the packed `mesurer-solid` artifact into a clean Electron 43 consumer. It runs with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The smoke samples a deterministic color through the current-window host path without calling native `EyeDropper`, then selects a real DOM target, captures through preload and `webContents.capturePage()`, and verifies the PNG result and exact capture count.
 
 See [Getting started](../../docs/GETTING_STARTED.md), [Screenshots](../../docs/SCREENSHOTS.md), and [Host isolation](../../docs/HOST_ISOLATION.md).
