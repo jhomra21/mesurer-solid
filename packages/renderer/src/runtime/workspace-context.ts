@@ -282,33 +282,60 @@ export function createMesurerWorkspaceRuntime(options: {
   const uniqueRebindCandidate = (target: MesurerAnnotationTarget) => {
     if (!isElementFingerprintRebindable(target.fingerprint)) return null;
 
-    let selectorMatches: Element[] = [];
+    let rawSelectorMatches: Element[] = [];
 
     try {
-      selectorMatches = queryCandidates(target.selector)
-        .filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
+      rawSelectorMatches = queryCandidates(target.selector);
     } catch {
       return null;
     }
 
-    if (selectorMatches.length !== 1) return null;
+    const selectorMatches = rawSelectorMatches
+      .filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
 
-    if (!target.fingerprint.id && !target.fingerprint.testId) {
-      let fingerprintMatches: Element[] = [];
+    if (selectorMatches.length === 1) {
+      if (!target.fingerprint.id && !target.fingerprint.testId) {
+        let fingerprintMatches: Element[] = [];
 
-      try {
-        fingerprintMatches = queryCandidates(target.fingerprint.tag)
-          .filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
-      } catch {
-        return null;
+        try {
+          fingerprintMatches = queryCandidates(target.fingerprint.tag)
+            .filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
+        } catch {
+          return null;
+        }
+
+        if (fingerprintMatches.length !== 1 || fingerprintMatches[0] !== selectorMatches[0]) {
+          return null;
+        }
       }
 
-      if (fingerprintMatches.length !== 1 || fingerprintMatches[0] !== selectorMatches[0]) {
-        return null;
-      }
+      return selectorMatches[0] ?? null;
     }
 
-    return selectorMatches[0] ?? null;
+    // Framework-owned class names, labels, or text may legitimately change across
+    // a reload even when the structural selector still resolves to the same page
+    // target. Accept that fallback only when the selector is unique, the tag is
+    // unchanged, and the rendered box is still effectively the saved box.
+    if (rawSelectorMatches.length !== 1 || target.fingerprint.id || target.fingerprint.testId) {
+      return null;
+    }
+
+    const candidate = rawSelectorMatches[0];
+
+    if (!candidate || candidate.localName !== target.fingerprint.tag) return null;
+
+    const currentRect = getRectFromDom(candidate);
+    const savedRect = target.lastRect;
+    const positionTolerance = Math.max(4, Math.max(savedRect.width, savedRect.height) * 0.05);
+    const sizeTolerance = Math.max(2, Math.max(savedRect.width, savedRect.height) * 0.03);
+
+    const sameGeometry =
+      Math.abs(currentRect.left - savedRect.left) <= positionTolerance
+      && Math.abs(currentRect.top - savedRect.top) <= positionTolerance
+      && Math.abs(currentRect.width - savedRect.width) <= sizeTolerance
+      && Math.abs(currentRect.height - savedRect.height) <= sizeTolerance;
+
+    return sameGeometry ? candidate : null;
   };
 
   const resolveTarget = (annotationId: string, target: MesurerAnnotationTarget) => {

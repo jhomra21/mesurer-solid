@@ -4,6 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep saved Context annotations connected across renderer reloads when a framework changes non-identity classes but the unique structural target and rendered geometry remain stable. Review also stops treating the transient Select measurement box as missing durable evidence when the annotated target itself reconnects.
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.0-beta.0 - 2026-09-25

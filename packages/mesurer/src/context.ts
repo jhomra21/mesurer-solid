@@ -543,6 +543,12 @@ const addMissing = (
   label: string,
 ) => changes.push({ kind: "missing", evidence, id, label });
 
+const sameRect = (left: MesurerContextRect, right: MesurerContextRect) =>
+  Math.abs(left.left - right.left) < 0.01
+  && Math.abs(left.top - right.top) < 0.01
+  && Math.abs(left.width - right.width) < 0.01
+  && Math.abs(left.height - right.height) < 0.01;
+
 export function reviewMesurerAnnotation(options: {
   runtime: MesurerWorkspaceContextSource;
   ownerDocument: Document;
@@ -608,7 +614,18 @@ export function reviewMesurerAnnotation(options: {
       ?? workspaceMeasurements.find((measurement) => measurement.id === baseline.id);
 
     if (!value) {
-      addMissing(changes, "measurement", baseline.id, baseline.id);
+      const targetBaseline = annotation.baseline.targets.find((target) => sameRect(target.rect, baseline.rect));
+
+      const targetStillConnected = targetBaseline
+        ? current.targets.some((target) => target.ref === targetBaseline.id)
+        : false;
+
+      // A selection measurement duplicates the selected target's own box. Select
+      // state is intentionally transient across reloads, while the annotation
+      // target and its baseline are durable. Do not report that duplicate box as
+      // missing when the annotated target itself reconnected successfully.
+
+      if (!targetStillConnected) addMissing(changes, "measurement", baseline.id, baseline.id);
       continue;
     }
 
