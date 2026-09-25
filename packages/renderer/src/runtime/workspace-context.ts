@@ -323,6 +323,7 @@ export function createMesurerWorkspaceRuntime(options: {
     const candidate = rawSelectorMatches[0];
 
     if (!candidate || candidate.localName !== target.fingerprint.tag) return null;
+
     const currentRect = getRectFromDom(candidate);
     const savedRect = target.lastRect;
     const positionTolerance = Math.max(4, Math.max(savedRect.width, savedRect.height) * 0.05);
