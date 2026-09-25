@@ -21,8 +21,8 @@ if (url.searchParams.get("reset") === "1") {
   window.localStorage.removeItem(pluginAvailabilityStorageKey);
 }
 
-// This fixture owns plugin lifecycle and Settings geometry. Native Color Picker
-// capability has its own browser contract, so keep toolbar composition stable here.
+// This fixture owns plugin lifecycle and Settings geometry. Color Picker has its
+// own browser and Electron contracts, so omit it to keep toolbar composition stable.
 Reflect.deleteProperty(window, "EyeDropper");
 
 type CapturePresentation = {
@@ -91,6 +91,7 @@ const subject = mountMesurer({
   target: document.body,
   isolate: true,
   topLayer: false,
+  excludeBuiltins: ["colorPicker"],
   plugins: [
     context(),
     screenshot({
