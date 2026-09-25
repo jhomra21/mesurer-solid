@@ -102,6 +102,7 @@ const mesurer = mountMesurer({
 await mesurer.ready;
 
 const island = await waitFor(() => document.querySelector<HTMLElement>("[data-mesurer-island='true']"));
+
 const shadow = island.shadowRoot;
 
 if (!shadow) throw new Error("Mesurer Electron island has no open shadow root.");
@@ -119,6 +120,7 @@ const pickerTarget = await waitFor(() =>
 const swatch = document.querySelector<HTMLElement>("[data-testid='electron-color-swatch']");
 
 if (!swatch) throw new Error("Missing Electron color sample target.");
+
 const swatchRect = swatch.getBoundingClientRect();
 
 pickerTarget.dispatchEvent(new PointerEvent("pointerdown", {
@@ -131,7 +133,9 @@ pickerTarget.dispatchEvent(new PointerEvent("pointerdown", {
 }));
 
 const colorPanel = await waitFor(() => shadow.querySelector<HTMLElement>(".mesurer-color-picker"));
+
 const colorPickerMode = colorPanel.dataset.mesurerColorPickerMode ?? null;
+
 const colorPickerValue = colorPanel.textContent ?? "";
 
 if (colorPickerMode !== "host" || !colorPickerValue.includes("#123456")) {
