@@ -22,7 +22,7 @@ if (url.searchParams.get("reset") === "1") {
 }
 
 // This fixture owns plugin lifecycle and Settings geometry. Color Picker has its
-// own browser and Electron contracts, so omit it to keep toolbar composition stable.
+// own browser and Electron contracts, so keep native capability unavailable here.
 Reflect.deleteProperty(window, "EyeDropper");
 
 type CapturePresentation = {
@@ -83,21 +83,17 @@ const deterministicCapture = async () => {
   });
 };
 
-window.__MESURER_HOST__ = {
-  captureScreenshot: deterministicCapture,
-};
-
 const subject = mountMesurer({
   target: document.body,
   isolate: true,
   topLayer: false,
-  excludeBuiltins: ["colorPicker"],
   plugins: [
     context(),
     screenshot({
       copy: false,
       download: false,
       includeMeasurements: false,
+      capture: deterministicCapture,
     }),
   ],
 });
