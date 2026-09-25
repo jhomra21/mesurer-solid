@@ -7,8 +7,8 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `bdc027e51011898a1fcc2532da1db3acf63a84a3` (`main`, audited 2026-09-22) |
-| Current upstream audit | `d47fd6056a01da9c442ae04840ec4d0dd46a1257` (`main`, verified 2026-09-24) |
+| Previous upstream audit | `d47fd6056a01da9c442ae04840ec4d0dd46a1257` (`main`, verified 2026-09-24) |
+| Current upstream audit | `33ffecfa7682b25dff5ada2a507feedfa18c745b` (`main`, verified 2026-09-25) |
 
 The current delta is the merged `feat/add-grid` series centered on `03e7606997cb8a1c3f1214f61602210142ef67da`, followed by fixes such as `89e9c322...` for extension navigation and `1fdf75dfa...` for Layout Guide visibility. It combines Layout Guides, route-scoped page state, toolbar/session persistence, extension recovery, and several Inspect/measurement refinements.
 
@@ -26,6 +26,16 @@ Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
+
+### 2026-09-25 upstream 0.2.0 release audit
+
+Upstream `33ffecfa7682b25dff5ada2a507feedfa18c745b` is the 0.2.0 release commit. Compared with the previously audited `d47fd6056a01da9c442ae04840ec4d0dd46a1257`, it changes release metadata and documentation only. No renderer or library source file changed, so the adopted runtime decisions from the 2026-09-24 audit remain current.
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Package version and 0.2.0 changelog | **Adopt as release context** | The changelog names the feature set already audited from upstream source. It does not introduce a new runtime implementation to port. Mesurer Solid is also preparing a 0.2.0 release, but keeps its own public API, plugin model, agent features, and Electron/native-host support. |
+| README wording for Color Picker and browser requirements | **Intentional extension** | Upstream documents the browser `EyeDropper` path. Mesurer Solid keeps that browser fallback and also uses `window.__MESURER_HOST__.captureScreenshot` for application-local sampling in Electron/native hosts. |
+| Extension, store, privacy, and site documentation changes | **Not applicable to library parity** | These changes do not alter the upstream Mesurer runtime. Mesurer Solid keeps its own extension, documentation, and release files. |
 
 ### 2026-09-24 Select lifecycle follow-up
 
@@ -114,7 +124,7 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | Core measurement, X-ray, guides, rulers, settings | Source-first port with historical visual/interaction validation |
 | System, Light, and Dark appearance | Adopted from upstream `c20ad51`; theme state also follows Mesurer Solid document-backed UI |
 | SVG and general DOM `Element` selection | Adopted from the post-theme Inspect work; Select, point inspection, Context, and annotation geometry accept SVG while HTML-only editing/Arrange paths stay explicit |
-| Native Color Picker | Adopt where `EyeDropper` is operational; hide in unsupported hosts |
+| Color Picker | Adopt the operational browser `EyeDropper` path; native application hosts use their existing `captureScreenshot` capability for application-local sampling |
 | Text Inspector | Adopt inspection behavior; visible label is **Typography**, internal id stays `text-inspector` |
 | Layout Guides | Adopt as optional `layoutGuides()` plugin with page-scoped state, history-aware commands, typed service, Context evidence, and current-source panel presentation |
 | Screenshot region selection | Adopt as optional `screenshot()` from `mesurer-solid/plugins`; Mesurer Solid adds preview/viewer plus automatic native-host, Chromium-extension, and browser capture selection |
@@ -168,7 +178,7 @@ Direct text editing covers exact copy/type intent; screenshots remain visual evi
 
 ### Screenshots
 
-Mesurer Solid keeps the upstream region-capture interaction behind optional `screenshot()` from `mesurer-solid/plugins`. Capture-source selection is private to the plugin. Application-native hosts can expose `window.__MESURER_HOST__.captureScreenshot`, the Chromium extension uses its own adapter, and ordinary browser pages use `getDisplayMedia()`. Mesurer Solid also owns output preferences, HiDPI cropping, preview/viewer behavior, and cleanup. See [Screenshots](./SCREENSHOTS.md).
+Mesurer Solid keeps the upstream region-capture interaction behind optional `screenshot()` from `mesurer-solid/plugins`. Capture-source selection is private to the plugin. Application-native hosts can expose `window.__MESURER_HOST__.captureScreenshot`, the Chromium extension uses its own adapter, and ordinary browser pages use `getDisplayMedia()`. The native host capability also powers application-local Color Picker sampling, while browser-only hosts retain the operational `EyeDropper` path. Mesurer Solid owns output preferences, HiDPI cropping, preview/viewer behavior, and cleanup. See [Screenshots](./SCREENSHOTS.md).
 
 ## Release rule
 
