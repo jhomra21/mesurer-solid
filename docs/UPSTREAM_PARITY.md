@@ -10,7 +10,7 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Previous upstream audit | `d47fd6056a01da9c442ae04840ec4d0dd46a1257` (`main`, verified 2026-09-24) |
 | Current upstream audit | `33ffecfa7682b25dff5ada2a507feedfa18c745b` (`main`, verified 2026-09-25) |
 
-The current delta is the merged `feat/add-grid` series centered on `03e7606997cb8a1c3f1214f61602210142ef67da`, followed by fixes such as `89e9c322...` for extension navigation and `1fdf75dfa...` for Layout Guide visibility. It combines Layout Guides, route-scoped page state, toolbar/session persistence, extension recovery, and several Inspect/measurement refinements.
+The current audit advances from `d47fd6056a01da9c442ae04840ec4d0dd46a1257` to upstream's 0.2.0 release commit. That release commit changes documentation and release metadata only, so the latest runtime delta remains the previously audited `feat/add-grid` series with its Layout Guides, route-scoped page state, toolbar/session persistence, extension recovery, and Inspect/measurement refinements.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
