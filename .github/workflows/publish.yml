@@ -300,7 +300,7 @@ jobs:
           TARBALL: ${{ steps.artifact.outputs.tarball }}
         shell: bash
         run: |
-          remote_integrity=$(npm view "${PACKAGE}@${VERSION}" dist.integrity 2>/dev/null || true)
+          remote_integrity=$(npm view "${PACKAGE}@${VERSION}" dist.integrity --prefer-online 2>/dev/null || true)
           if [[ -n "$remote_integrity" ]]; then
             if [[ "$remote_integrity" != "$INTEGRITY" ]]; then
               echo "${PACKAGE}@${VERSION} already exists but its integrity does not match this artifact."
@@ -308,10 +308,22 @@ jobs:
             fi
             echo "${PACKAGE}@${VERSION} is already published with matching integrity; continuing recovery."
           else
+            set +e
             if [[ "$VERSION" == *-* ]]; then
-              npm publish "$TARBALL" --access public --tag beta
+              publish_output=$(npm publish "$TARBALL" --access public --tag beta 2>&1)
             else
-              npm publish "$TARBALL" --access public
+              publish_output=$(npm publish "$TARBALL" --access public 2>&1)
+            fi
+            publish_status=$?
+            set -e
+            printf '%s\n' "$publish_output"
+
+            if [[ "$publish_status" -ne 0 ]]; then
+              if grep -qE 'E409|Cannot publish over previously staged version' <<<"$publish_output"; then
+                echo "${PACKAGE}@${VERSION} is staged in npm but not queryable yet; continuing to registry verification."
+              else
+                exit "$publish_status"
+              fi
             fi
           fi
 
@@ -322,25 +334,31 @@ jobs:
           INTEGRITY: ${{ steps.artifact.outputs.integrity }}
         shell: bash
         run: |
+          expected_tag=latest
+          if [[ "$VERSION" == *-* ]]; then expected_tag=beta; fi
+
           verified=0
-          for attempt in $(seq 1 12); do
-            remote_integrity=$(npm view "${PACKAGE}@${VERSION}" dist.integrity 2>/dev/null || true)
-            if [[ "$remote_integrity" == "$INTEGRITY" ]]; then
+          for attempt in $(seq 1 60); do
+            remote_integrity=$(npm view "${PACKAGE}@${VERSION}" dist.integrity --prefer-online 2>/dev/null || true)
+
+            if [[ -n "$remote_integrity" && "$remote_integrity" != "$INTEGRITY" ]]; then
+              echo "${PACKAGE}@${VERSION} became visible with unexpected integrity."
+              exit 1
+            fi
+
+            tagged_version=$(npm view "$PACKAGE" dist-tags --json --prefer-online 2>/dev/null               | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => { try { const tags=JSON.parse(s); process.stdout.write(tags[process.argv[1]] ?? ""); } catch {} })' "$expected_tag"               || true)
+
+            if [[ "$remote_integrity" == "$INTEGRITY" && "$tagged_version" == "$VERSION" ]]; then
               verified=1
               break
             fi
+
+            echo "Waiting for npm registry propagation (${attempt}/60): integrity=${remote_integrity:-<missing>} tag=${tagged_version:-<missing>}"
             sleep 5
           done
-          if [[ "$verified" -ne 1 ]]; then
-            echo "Registry integrity never matched the published artifact."
-            exit 1
-          fi
 
-          expected_tag=latest
-          if [[ "$VERSION" == *-* ]]; then expected_tag=beta; fi
-          tagged_version=$(npm view "$PACKAGE" dist-tags --json | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => { const tags=JSON.parse(s); process.stdout.write(tags[process.argv[1]] ?? ""); })' "$expected_tag")
-          if [[ "$tagged_version" != "$VERSION" ]]; then
-            echo "Expected dist-tag ${expected_tag} -> ${VERSION}, got ${tagged_version:-<missing>}."
+          if [[ "$verified" -ne 1 ]]; then
+            echo "Registry state never converged on the published artifact and expected dist-tag."
             exit 1
           fi
 
