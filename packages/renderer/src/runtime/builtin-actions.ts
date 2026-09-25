@@ -139,6 +139,7 @@ const sampleHostScreenshotPixel = async (
   png: Blob,
   point: ColorPickerPoint,
 ): Promise<ColorSample> => {
+  // SAFETY: ownerWindow is the browsing-context global for ownerDocument and owns createImageBitmap.
   const realm = ownerWindow as Window & typeof globalThis;
   const bitmap = await realm.createImageBitmap(png);
 
@@ -244,6 +245,8 @@ export function createMesurerBuiltinController(options: {
     model.setToolMode("none", model.current.toolMode !== "none");
     // SAFETY: supportsNativeColorPicker checked this optional browser extension before construction.
     const EyeDropper = (ownerWindow as WindowWithEyeDropper).EyeDropper!;
+
+    // SAFETY: ownerWindow is the browsing-context global that owns the EyeDropper invocation.
     const AbortControllerCtor = (ownerWindow as Window & typeof globalThis).AbortController;
     const abortController = new AbortControllerCtor();
     nativeAbortController = abortController;
@@ -323,6 +326,7 @@ export function createMesurerBuiltinController(options: {
     const revision = ++captureRevision;
     localPickActive = false;
     removeLocalCancellationListeners();
+
     const restorePresentation = hideMesurerForHostColorCapture(
       ownerDocument,
       options.uiRoot?.() ?? model.rendererRoot,
