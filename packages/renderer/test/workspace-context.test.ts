@@ -229,6 +229,52 @@ describe("createMesurerWorkspaceRuntime", () => {
     sessionStorage.removeItem(storageKey);
   });
 
+  it("rebinds a uniquely located annotation when framework classes change across reload", () => {
+    const storageKey = "workspace-context:dynamic-class-reload";
+    sessionStorage.removeItem(storageKey);
+
+    const original = document.createElement("canvas");
+    original.className = "editor-canvas before-reload";
+    document.body.append(original);
+    selectionFor(original);
+
+    const firstModel = createMesurerModel({ initialEnabled: true });
+    firstModel.setSelectedMeasurements([selectionFor(original)]);
+
+    const firstRuntime = createMesurerWorkspaceRuntime({
+      model: firstModel,
+      ownerDocument: document,
+      ownerWindow: window,
+      persistenceKey: storageKey,
+    });
+
+    const saved = firstRuntime.addSelectionAnnotation("Keep canvas review attached");
+    firstRuntime.dispose();
+    firstModel.dispose();
+    original.remove();
+
+    const replacement = document.createElement("canvas");
+    replacement.className = "editor-canvas after-reload";
+    selectionFor(replacement);
+    document.body.append(replacement);
+
+    const secondModel = createMesurerModel({ initialEnabled: true });
+    const secondRuntime = createMesurerWorkspaceRuntime({
+      model: secondModel,
+      ownerDocument: document,
+      ownerWindow: window,
+      persistenceKey: storageKey,
+    });
+
+    expect(secondRuntime.annotation(saved.id)?.resolvedTargets[0]?.element).toBe(replacement);
+
+    secondRuntime.removeAnnotation(saved.id);
+    secondRuntime.dispose();
+    secondModel.dispose();
+    replacement.remove();
+    sessionStorage.removeItem(storageKey);
+  });
+
   it("restores the exact inline display value and priority after capture", () => {
     const uiRoot = document.createElement("div");
     const chrome = document.createElement("div");
