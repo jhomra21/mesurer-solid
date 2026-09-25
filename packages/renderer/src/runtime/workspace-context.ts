@@ -328,6 +328,7 @@ export function createMesurerWorkspaceRuntime(options: {
     const savedRect = target.lastRect;
     const positionTolerance = Math.max(4, Math.max(savedRect.width, savedRect.height) * 0.05);
     const sizeTolerance = Math.max(2, Math.max(savedRect.width, savedRect.height) * 0.03);
+
     const sameGeometry =
       Math.abs(currentRect.left - savedRect.left) <= positionTolerance
       && Math.abs(currentRect.top - savedRect.top) <= positionTolerance
