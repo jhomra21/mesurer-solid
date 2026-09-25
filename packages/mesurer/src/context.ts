@@ -623,6 +623,7 @@ export function reviewMesurerAnnotation(options: {
       // state is intentionally transient across reloads, while the annotation
       // target and its baseline are durable. Do not report that duplicate box as
       // missing when the annotated target itself reconnected successfully.
+
       if (!targetStillConnected) addMissing(changes, "measurement", baseline.id, baseline.id);
       continue;
     }
