@@ -259,6 +259,7 @@ describe("createMesurerWorkspaceRuntime", () => {
     document.body.append(replacement);
 
     const secondModel = createMesurerModel({ initialEnabled: true });
+
     const secondRuntime = createMesurerWorkspaceRuntime({
       model: secondModel,
       ownerDocument: document,
