@@ -615,6 +615,7 @@ export function reviewMesurerAnnotation(options: {
 
     if (!value) {
       const targetBaseline = annotation.baseline.targets.find((target) => sameRect(target.rect, baseline.rect));
+
       const targetStillConnected = targetBaseline
         ? current.targets.some((target) => target.ref === targetBaseline.id)
         : false;
