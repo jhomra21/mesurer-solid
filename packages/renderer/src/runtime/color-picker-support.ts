@@ -1,3 +1,5 @@
+import { hasHostScreenshotCapture } from "../core/screenshot";
+
 type EyeDropperConstructor = {
   new (): object;
   prototype: { open: Function };
@@ -41,3 +43,6 @@ export const supportsNativeColorPicker = (ownerWindow: Window) => {
 
   return isEyeDropperConstructor(candidate);
 };
+
+export const supportsColorPicker = (ownerWindow: Window) =>
+  hasHostScreenshotCapture(ownerWindow) || supportsNativeColorPicker(ownerWindow);
