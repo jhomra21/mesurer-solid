@@ -28,9 +28,11 @@ describe("native-host Color Picker", () => {
     const nativeOpen = vi.fn(async () => ({ sRGBHex: "#ffffff" }));
     const bitmap = { width: 400, height: 200, close: vi.fn() };
     const drawImage = vi.fn();
+
     const getImageData = vi.fn(() => ({
       data: new Uint8ClampedArray([0x12, 0x34, 0x56, 0xff]),
     }));
+
     const writeText = vi.fn(async () => undefined);
 
     Object.defineProperty(window, "__MESURER_HOST__", {
@@ -53,15 +55,18 @@ describe("native-host Color Picker", () => {
     });
     vi.spyOn(window, "innerWidth", "get").mockReturnValue(200);
     vi.spyOn(window, "innerHeight", "get").mockReturnValue(100);
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
-      drawImage,
-      getImageData,
-    } as unknown as CanvasRenderingContext2D);
+    const partialCanvasContext = { drawImage, getImageData };
+
+    // SAFETY: this test exercises only drawImage/getImageData, the two 2D context methods used by host color sampling.
+    const canvasContext = partialCanvasContext as CanvasRenderingContext2D;
+
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(canvasContext);
 
     const uiRoot = document.createElement("div");
     document.body.append(uiRoot);
     const model = createMesurerModel({ initialEnabled: true });
     model.rendererRoot = uiRoot;
+
     const controller = createMesurerBuiltinController({
       model,
       ownerWindow: window,
@@ -101,6 +106,7 @@ describe("native-host Color Picker", () => {
     });
 
     const model = createMesurerModel({ initialEnabled: true });
+
     const controller = createMesurerBuiltinController({
       model,
       ownerWindow: window,
@@ -122,16 +128,19 @@ describe("native-host Color Picker", () => {
 
   it("does not keep an animation-frame loop alive while the picker is idle", async () => {
     const callbacks: FrameRequestCallback[] = [];
+
     const requestAnimationFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
       callbacks.push(callback);
 
       return callbacks.length;
     });
+
     vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
 
     const model = createMesurerModel({ initialEnabled: true });
     const host = document.createElement("div");
     document.body.append(host);
+
     const dispose = render(
       () => <ColorPicker model={model} ownerWindow={window} />,
       host,
