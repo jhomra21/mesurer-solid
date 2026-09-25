@@ -225,14 +225,21 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   let guideDragHoldTimer = 0;
   let guideDragHoldId: string | null = null;
   let scrollPosition = { x: ownerWindow.scrollX, y: ownerWindow.scrollY };
-  const builtinController = createMesurerBuiltinController({ model, ownerWindow });
+
+  const builtinController = createMesurerBuiltinController({
+    model,
+    ownerWindow,
+    ownerDocument,
+    uiRoot: () => rootElement,
+  });
+
   const builtinActionDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => input.isBuiltinActionDisabled?.(id) ?? false;
 
   const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">, restartColorPicker = false) => {
     if (builtinActionDisabled(id)) return;
 
     if (id === "color-picker" && restartColorPicker && model.current.colorPickerActive) {
-      model.setTransient({ colorPickerActive: false });
+      builtinController.deactivate("color-picker");
     }
 
     void builtinController.run(id);
@@ -796,7 +803,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
  return; }
 
-        if (model.current.colorPickerActive) { model.setTransient({ colorPickerActive: false });
+        if (model.current.colorPickerActive) { builtinController.deactivate("color-picker");
 
  return; }
 
@@ -837,7 +844,9 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
  return;
       }
 
-      if (key === "m") { model.toggleEnabled(true);
+      if (key === "m") {
+        if (model.current.colorPickerActive) builtinController.deactivate("color-picker");
+        model.toggleEnabled(true);
 
  return; }
 
@@ -973,6 +982,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       ownerWindow.removeEventListener("pointercancel", globalGuideEnd, true);
       textInspector?.destroy(); textInspector = null;
       xrayScope.dispose();
+      builtinController.dispose();
       input.onBuiltinController?.(null);
     };
   });
@@ -1011,7 +1021,11 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           onGuidePointerDown={guidePointerDown}
           onGuidePointerUp={guidePointerUp}
         />
-        <ColorPicker model={model} ownerWindow={ownerWindow} />
+        <ColorPicker
+          model={model}
+          ownerWindow={ownerWindow}
+          onHostPick={(point) => { void builtinController.pickColorAt(point); }}
+        />
         <Toolbar
           model={model}
           ownerWindow={ownerWindow}

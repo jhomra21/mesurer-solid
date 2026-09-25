@@ -18,6 +18,7 @@ afterEach(async () => {
   resetNativeColorPickerOperationalState(window);
   Reflect.deleteProperty(window, "EyeDropper");
   Reflect.deleteProperty(window, "__codexWebMcpModelContext");
+  Reflect.deleteProperty(window, "__MESURER_HOST__");
   localStorage.clear();
   document.body.replaceChildren();
   document.head.querySelectorAll("#mesurer-solid-styles, #mesurer-solid-xray-styles").forEach((node) => node.remove());
@@ -26,6 +27,39 @@ afterEach(async () => {
 });
 
 describe("native Color Picker operational support", () => {
+  it("advertises the app-local picker when a native host capture capability exists", async () => {
+    Object.defineProperty(window, "__MESURER_HOST__", {
+      configurable: true,
+      value: {
+        captureScreenshot: vi.fn(async () => new Blob(["png"], { type: "image/png" })),
+      },
+    });
+
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    const dispose = render(
+      () => <ComposableMesurer persistKey="color-picker-host-capture" />,
+      host,
+    );
+
+    mounted.push(dispose);
+
+    const button = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]');
+      expect(value).toBeTruthy();
+
+      return value!;
+    });
+
+    button.click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("[data-mesurer-color-picker-target='true']")).toBeTruthy();
+    });
+    expect(document.querySelector(".mesurer-color-picker")).toBeNull();
+  });
+
   it("does not advertise Color Picker when the Codex host bridge is present", async () => {
     let opens = 0;
     Object.defineProperty(window, "__codexWebMcpModelContext", {

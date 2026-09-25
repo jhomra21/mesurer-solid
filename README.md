@@ -43,9 +43,9 @@ if (import.meta.env.DEV) {
 }
 ```
 
-For Vite, that usually means `src/main.tsx`, `src/main.ts`, or the equivalent browser entry. In Electron, use the renderer entry. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, the Screenshot plugin uses native window capture automatically and renderer configuration stays `screenshot()`. In SSR applications, mount from a client-only boundary. Do not mount Mesurer from server code, build configuration, or an Electron main process.
+For Vite, that usually means `src/main.tsx`, `src/main.ts`, or the equivalent browser entry. In Electron, use the renderer entry. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native window capture and Color Picker samples the current application window through the same capability. Renderer configuration stays `screenshot()`; Color Picker needs no Electron-specific setup. In SSR applications, mount from a client-only boundary. Do not mount Mesurer from server code, build configuration, or an Electron main process.
 
-The returned handle owns the mount. `dispose()` is idempotent, `ready` resolves to the live plugin host after startup and the initial rendered state settle, and an optional `AbortSignal` can own cleanup. See [Getting started](./docs/GETTING_STARTED.md) for lifecycle, framework placement, and HMR guidance. The [Electron renderer example](./examples/electron-renderer/README.md) documents native Screenshot capture through preload and `webContents.capturePage()`.
+The returned handle owns the mount. `dispose()` is idempotent, `ready` resolves to the live plugin host after startup and the initial rendered state settle, and an optional `AbortSignal` can own cleanup. See [Getting started](./docs/GETTING_STARTED.md) for lifecycle, framework placement, and HMR guidance. The [Electron renderer example](./examples/electron-renderer/README.md) documents native current-window capture for Screenshot and Color Picker through preload and `webContents.capturePage()`.
 
 ### Add first-party plugins
 
@@ -83,7 +83,7 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 - **Plugins.** Add tools, commands, overlays, settings, state, hooks, and services at runtime.
 - **Compact toolbar.** Collapse inactive controls while every active tool remains visible. Expanding restores the same toolbar order and state.
 - **Appearance.** Use System, Light, or Dark without changing the inspected page. The same theme applies to the isolated toolbar and document-backed Context and Typography UI.
-- **Color Picker.** Use the browser's native `EyeDropper` when it is operational. A successful sample is copied to the clipboard in the configured format; unsupported hosts do not advertise the tool.
+- **Color Picker.** Native hosts with `window.__MESURER_HOST__.captureScreenshot` use a current-window picker that captures once when the user chooses a pixel. Other supported browser hosts use the native `EyeDropper`. A successful sample is copied to the clipboard in the configured format.
 
 Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a toolbar mode. Clicking Arrange automatically enables Select; turning Arrange off leaves Select active, while turning Select off also exits Arrange.
 
@@ -112,7 +112,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `M` | Toggle Mesurer |
 | `S` | Select |
 | `X` | X-ray |
-| `P` | Native Color Picker when supported |
+| `P` | Color Picker when supported |
 | `R` | Rulers |
 | `A` | Typography |
 | `G` | Guides |
@@ -231,7 +231,7 @@ Contributor setup, validation expectations, and repository ownership are documen
 
 ## Upstream
 
-Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@d47fd6056a01da9c442ae04840ec4d0dd46a1257`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@33ffecfa7682b25dff5ada2a507feedfa18c745b`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 

@@ -3,7 +3,7 @@ import type { ToolContribution, ToolMenuItemContribution } from "@jhomra21/mesur
 import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
-import { supportsNativeColorPicker } from "../runtime/color-picker-support";
+import { supportsColorPicker } from "../runtime/color-picker-support";
 import { SettingsPanel } from "./SettingsPanel";
 import { Tooltip, createTooltip } from "./Tooltip";
 import {
@@ -192,7 +192,7 @@ export function Toolbar(props: ToolbarProps) {
       colorPickerConfirmTimer = 0;
     }
 
-    if (!supportsNativeColorPicker(candidateWindow)) {
+    if (!supportsColorPicker(candidateWindow)) {
       commitColorPickerCapability(false, revision);
 
       return;
@@ -203,7 +203,7 @@ export function Toolbar(props: ToolbarProps) {
 
       if (revision !== colorPickerCapabilityRevision) return;
       commitColorPickerCapability(
-        supportsNativeColorPicker(colorPickerOwnerWindow()),
+        supportsColorPicker(colorPickerOwnerWindow()),
         revision,
       );
     }, 100);
@@ -509,7 +509,6 @@ export function Toolbar(props: ToolbarProps) {
 
   onSettled(() => {
     refreshColorPickerCapability();
-    const capabilityInterval = props.ownerWindow.setInterval(refreshColorPickerCapability, 500);
     const handleCapabilityRefresh = () => refreshColorPickerCapability();
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -555,7 +554,6 @@ export function Toolbar(props: ToolbarProps) {
     toolbarElement?.addEventListener("click", handleClickCapture, true);
 
     return () => {
-      props.ownerWindow.clearInterval(capabilityInterval);
       colorPickerCapabilityRevision += 1;
 
       if (colorPickerConfirmTimer) {

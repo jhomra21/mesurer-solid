@@ -56,7 +56,7 @@ Click the thumbnail to open a larger viewer with Copy, Save, and Close. Escape o
 
 `screenshot()` chooses the available capture path internally.
 
-A host-provided `window.__MESURER_HOST__.captureScreenshot` capability takes priority. Electron applications can expose it once from preload and back it with `webContents.capturePage()`. Renderer code still uses plain `screenshot()`; there is no Electron-specific Screenshot factory.
+A host-provided `window.__MESURER_HOST__.captureScreenshot` capability takes priority. Electron applications can expose it once from preload and back it with `webContents.capturePage()`. Screenshot and the built-in Color Picker share this current-window capability. Color Picker captures once after the user selects a pixel; it does not continuously capture while the pointer moves or invoke the screen-wide browser EyeDropper. Renderer code still uses plain `screenshot()`; there is no Electron-specific Screenshot or Color Picker factory.
 
 `captureScreenshot()` takes no arguments and returns the current renderer window as PNG data. Mesurer accepts a PNG `Blob`, `ArrayBuffer`, `Uint8Array`, or an object with a `png` field containing one of those values. The object may also include metadata such as `width` and `height`. Mesurer hides its control UI, waits for paint, invokes the host capability, and performs region cropping itself.
 

@@ -304,6 +304,26 @@ describe("page interaction coordination", () => {
     });
   });
 
+  it("does not poll Color Picker capability while the toolbar is idle", async () => {
+    installStaticEyeDropper();
+    const setInterval = vi.spyOn(window, "setInterval");
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    const dispose = render(
+      () => <ComposableMesurer persistKey="interaction-color-picker-no-polling" />,
+      host,
+    );
+
+    mounted.push(dispose);
+
+    await vi.waitFor(() => {
+      expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeTruthy();
+    });
+
+    expect(setInterval.mock.calls.some(([, delay]) => delay === 500)).toBe(false);
+  });
+
   it("shows and executes shortcuts for first-party Arrange and Screenshot tools", async () => {
     const host = document.createElement("div");
     document.body.append(host);

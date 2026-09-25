@@ -8,7 +8,7 @@ This document is the review contract for new Mesurer-owned UI. It describes shar
 
 Use the existing accepted surfaces as the first reference before adding feature-specific chrome.
 
-The current audited upstream reference is `d47fd6056a01da9c442ae04840ec4d0dd46a1257`. Use its shared theme colors, 8px floating surfaces, 5px control radius, control density, and floating shadows when porting or changing upstream-owned UI. Existing Mesurer Solid surfaces keep their accepted geometry until a focused parity change updates them.
+The current audited upstream release reference is `33ffecfa7682b25dff5ada2a507feedfa18c745b`. Its 0.2.0 release commit does not change renderer source from `d47fd6056a01da9c442ae04840ec4d0dd46a1257`, so the accepted shared theme colors, 8px floating surfaces, 5px control radius, control density, and floating shadows remain the visual reference. Existing Mesurer Solid surfaces keep their accepted geometry until a focused parity change updates them.
 
 - Reuse an existing Mesurer Solid surface when it already matches the feature.
 - New floating controls, menus, inspectors, and review cards should use the shared surface and shadow tokens instead of hard-coded light colors.

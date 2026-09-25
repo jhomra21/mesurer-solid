@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep Color Picker inside native application hosts that expose `window.__MESURER_HOST__.captureScreenshot`: Mesurer now samples the current renderer window with one host capture after the user clicks, maps CSS coordinates to the returned PNG dimensions for HiDPI displays, and keeps browser `EyeDropper` as the fallback when no host capture capability exists.
+- Remove the Color Picker's permanent animation-frame positioning loop and 500 ms capability poll. Positioning and capability checks now run from relevant state, resize, focus, visibility, and toolbar events instead of waking an idle Electron renderer continuously.
+- Expand the packed Electron package smoke to verify application-local Color Picker sampling, zero native `EyeDropper` calls on the host-capture path, exact host capture count, native Screenshot capture, and isolated renderer security settings.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.1.9 - 2026-09-24

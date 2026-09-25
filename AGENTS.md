@@ -111,7 +111,7 @@ Do not expose private workspace package names or renderer-specific types through
 
 Public plugin factories use direct feature names such as `context()`, `arrange()`, `screenshot()`, `codex()`, `select()`, and `typography()`. Do not reintroduce redundant `*Plugin` factory aliases or one-plugin-per-subpath exports.
 
-Screenshot capture-source selection is internal. Application-owned native hosts may expose `window.__MESURER_HOST__.captureScreenshot`; the Chromium extension uses its private adapter; ordinary browser pages fall back to `getDisplayMedia()`. Do not add host-specific Screenshot factories or a new public provider option. The older provider hook and low-level Screenshot helpers remain compatibility-only. Once Screenshot selects a host path, capture errors stay on that path instead of silently opening a different permission flow.
+Screenshot capture-source selection is internal. Application-owned native hosts may expose `window.__MESURER_HOST__.captureScreenshot`; the Chromium extension uses its private adapter; ordinary browser pages fall back to `getDisplayMedia()`. The built-in Color Picker also uses the native host capability when present and must not invoke the screen-wide browser `EyeDropper` on that path. Do not add host-specific Screenshot or Color Picker factories or a new public provider option. The older provider hook and low-level Screenshot helpers remain compatibility-only. Once Screenshot selects a host path, capture errors stay on that path instead of silently opening a different permission flow.
 
 The visible tool is **Typography**; the internal compatibility id/command remains `text-inspector` / `builtin.text-inspector`.
 

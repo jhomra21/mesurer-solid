@@ -13,6 +13,8 @@ let finished = false;
 
 let timeoutId = null;
 
+let captureCount = 0;
+
 function writeResult(result) {
   mkdirSync(artifactDir, { recursive: true });
   writeFileSync(
@@ -31,6 +33,7 @@ function fail(error) {
 }
 
 ipcMain.handle("mesurer:capture-window", async (event) => {
+  captureCount += 1;
   const window = BrowserWindow.fromWebContents(event.sender);
 
   if (!window || window.isDestroyed()) {
@@ -66,6 +69,11 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || summary.mime !== "image/png"
     || summary.copied !== false
     || summary.downloaded !== false
+    || summary.colorPickerMode !== "host"
+    || !String(summary.colorPickerValue ?? "").includes("#123456")
+    || summary.nativeEyeDropperOpens !== 0
+    || summary.colorPickerOverlayRemoved !== true
+    || captureCount !== 2
   ) {
     throw new Error(`Unexpected Mesurer Electron result: ${JSON.stringify(summary)}`);
   }
@@ -80,6 +88,7 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     pngBytes: png.byteLength,
     imageWidth: size.width,
     imageHeight: size.height,
+    captureCount,
   });
 
   console.log(

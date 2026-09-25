@@ -134,7 +134,7 @@ Context, Arrange, Layout Guides, Screenshot, and optional transports such as Cod
 
 Do not call `mountMesurer()` from build configuration, API/server code, Node-only scripts, an Electron main process, or a module that also executes during SSR.
 
-For SSR frameworks, use the framework's normal client-only boundary. For Electron, use the renderer process where the DOM exists and keep privileged APIs in preload/main. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native capture automatically. Renderer setup remains `screenshot()`; do not add an Electron-specific Screenshot factory or provider option. See the [Electron renderer example](../examples/electron-renderer/README.md).
+For SSR frameworks, use the framework's normal client-only boundary. For Electron, use the renderer process where the DOM exists and keep privileged APIs in preload/main. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native capture and Color Picker uses the same capability for current-window pixel sampling. Renderer setup remains `screenshot()`; do not add Electron-specific Screenshot or Color Picker factories. See the [Electron renderer example](../examples/electron-renderer/README.md).
 
 If Mesurer should ship in the browser build instead of being development-only, remove the development guard and keep the returned instance so it can be disposed later.
 
@@ -148,7 +148,7 @@ Once mounted:
 - use the compact control to hide inactive toolbar items without changing active tool state.
 - drag the toolbar from its chrome or tool triggers; menus, dialogs, form controls, editable regions, and sliders keep pointer ownership.
 
-The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, direct text editing, and plugin hosting. Native Color Picker appears only when `EyeDropper` is operational in the current host.
+The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, direct text editing, and plugin hosting. Color Picker appears when the host has `window.__MESURER_HOST__.captureScreenshot` or a working browser `EyeDropper`.
 
 Global shortcuts are enabled by default. Disable them from **Settings > General > Shortcuts** or mount with `shortcutsEnabled: false`; toolbar controls and Escape/cancel behavior remain available.
 
