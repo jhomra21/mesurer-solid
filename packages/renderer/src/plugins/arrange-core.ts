@@ -1243,17 +1243,28 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       presentation = { intentId: null, state: "desired" };
       applyPresentation();
+      const previousTargets = latestResolvedTargets(currentIntents());
       const previousOffsets = effectiveOffsets(currentIntents());
+      const selected = new Set(elements);
       clearPreviewStyles();
 
       const targets = elements.map((element, index): DragTarget => {
         const natural = getRectFromDom(element);
-        const beforeOffset = previousOffsets.get(element) ?? { x: 0, y: 0 };
+        const inheritedOffset = inheritedArrangeOffset(element, previousOffsets);
+        const beforeOffset = previousOffsets.get(element) ?? inheritedOffset;
+        const previousTarget = previousTargets.get(element);
+        const storedLocalOffset = previousTarget ? targetLocalOffset(previousTarget) : null;
+        const beforeLocalOffset = storedLocalOffset ?? {
+          x: beforeOffset.x - inheritedOffset.x,
+          y: beforeOffset.y - inheritedOffset.y,
+        };
         const before = addOffset(natural, beforeOffset);
         const fingerprint = getElementFingerprint(element);
+        const movesDirectly = nearestTrackedAncestor(element, selected) === null;
 
         return {
           element,
+          movesDirectly,
           target: {
             id: `target-${index + 1}`,
             selector: getElementSelector(element),
@@ -1276,6 +1287,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
             beforeOffsetY: beforeOffset.y,
             desiredOffsetX: beforeOffset.x,
             desiredOffsetY: beforeOffset.y,
+            offsetSpace: "local",
+            beforeLocalOffsetX: beforeLocalOffset.x,
+            beforeLocalOffsetY: beforeLocalOffset.y,
+            desiredLocalOffsetX: beforeLocalOffset.x,
+            desiredLocalOffsetY: beforeLocalOffset.y,
           },
         };
       });
@@ -1316,6 +1332,27 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       box.setPointerCapture?.(event.pointerId);
     };
 
+    const dragLocalOverrides = (
+      value: DragState,
+      dx: number,
+      dy: number,
+    ) => {
+      const offsets = new Map<HTMLElement, ArrangeOffset>();
+
+      for (const item of value.targets) {
+        const beforeLocal = {
+          x: item.target.beforeLocalOffsetX ?? 0,
+          y: item.target.beforeLocalOffsetY ?? 0,
+        };
+
+        offsets.set(item.element, item.movesDirectly
+          ? { x: beforeLocal.x + dx, y: beforeLocal.y + dy }
+          : beforeLocal);
+      }
+
+      return offsets;
+    };
+
     const updateDrag = (event: PointerEvent) => {
       if (!drag || event.pointerId !== drag.pointerId) return;
       let dx = event.clientX - drag.originX;
@@ -1340,14 +1377,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       drag.dx = dx;
       drag.dy = dy;
 
-      const offsets = effectiveOffsets(currentIntents());
-
-      for (const item of drag.targets) {
-        offsets.set(item.element, {
-          x: item.target.beforeOffsetX + dx,
-          y: item.target.beforeOffsetY + dy,
-        });
-      }
+      const offsets = effectiveOffsets(currentIntents(), dragLocalOverrides(drag, dx, dy));
 
       applyOffsets(offsets);
       const moved = addOffset(drag.groupBefore, { x: dx, y: dy });
@@ -1385,17 +1415,38 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         return;
       }
 
+      const desiredOffsets = effectiveOffsets(
+        currentIntents(),
+        dragLocalOverrides(completed, completed.dx, completed.dy),
+      );
+
       pendingIntent = {
         id: randomId(ownerWindow, "arrange"),
         createdAt: Date.now(),
         pageUrl: currentPage(),
-        targets: completed.targets.map(({ target }) => ({
-          ...target,
-          desiredLeft: target.beforeLeft + completed.dx,
-          desiredTop: target.beforeTop + completed.dy,
-          desiredOffsetX: target.beforeOffsetX + completed.dx,
-          desiredOffsetY: target.beforeOffsetY + completed.dy,
-        })),
+        targets: completed.targets.map(({ element, movesDirectly, target }) => {
+          const beforeLocal = {
+            x: target.beforeLocalOffsetX ?? 0,
+            y: target.beforeLocalOffsetY ?? 0,
+          };
+          const desiredLocal = movesDirectly
+            ? { x: beforeLocal.x + completed.dx, y: beforeLocal.y + completed.dy }
+            : beforeLocal;
+          const desiredOffset = desiredOffsets.get(element) ?? {
+            x: target.beforeOffsetX + completed.dx,
+            y: target.beforeOffsetY + completed.dy,
+          };
+
+          return {
+            ...target,
+            desiredLeft: target.beforeLeft + completed.dx,
+            desiredTop: target.beforeTop + completed.dy,
+            desiredOffsetX: desiredOffset.x,
+            desiredOffsetY: desiredOffset.y,
+            desiredLocalOffsetX: desiredLocal.x,
+            desiredLocalOffsetY: desiredLocal.y,
+          };
+        }),
       };
       void ctx.command.execute(COMMIT_COMMAND).catch(() => {
         pendingIntent = null;
