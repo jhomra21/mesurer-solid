@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_TOOLBAR_POSITION,
   MACOS_ELECTRON_TOOLBAR_POSITION,
+  MACOS_ELECTRON_TRAFFIC_LIGHT_SAFE_AREA,
+  constrainToolbarPosition,
   getDefaultToolbarPosition,
   resolveInitialToolbarPosition,
   type ToolbarHostEnvironment,
@@ -43,13 +45,70 @@ describe("default toolbar position", () => {
     expect(getDefaultToolbarPosition(ownerWindow)).toEqual(MACOS_ELECTRON_TOOLBAR_POSITION);
   });
 
-  it("preserves a saved position on macOS Electron", () => {
+  it("preserves a saved position below the macOS traffic lights", () => {
     const ownerWindow = fakeWindow({
       platform: "MacIntel",
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/150.0.0.0 Electron/43.1.1 Safari/537.36",
     });
 
     expect(resolveInitialToolbarPosition(ownerWindow, { x: 24, y: 72 })).toEqual({ x: 24, y: 72 });
+  });
+
+  it("moves a saved position out of the macOS traffic-light area", () => {
+    const ownerWindow = fakeWindow({
+      platform: "MacIntel",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/150.0.0.0 Electron/43.1.1 Safari/537.36",
+    });
+
+    expect(resolveInitialToolbarPosition(ownerWindow, { x: 16, y: 16 })).toEqual({
+      x: MACOS_ELECTRON_TRAFFIC_LIGHT_SAFE_AREA.right,
+      y: 16,
+    });
+  });
+
+  it("prevents dragging into the macOS traffic-light area", () => {
+    const ownerWindow = fakeWindow({
+      platform: "MacIntel",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/150.0.0.0 Electron/43.1.1 Safari/537.36",
+    });
+
+    expect(constrainToolbarPosition(
+      ownerWindow,
+      { x: 8, y: 8 },
+      { width: 438, height: 40 },
+      { width: 900, height: 700 },
+    )).toEqual({
+      x: MACOS_ELECTRON_TRAFFIC_LIGHT_SAFE_AREA.right,
+      y: 8,
+    });
+  });
+
+  it("allows the toolbar against the left edge below the macOS titlebar controls", () => {
+    const ownerWindow = fakeWindow({
+      platform: "MacIntel",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/150.0.0.0 Electron/43.1.1 Safari/537.36",
+    });
+
+    expect(constrainToolbarPosition(
+      ownerWindow,
+      { x: 8, y: 72 },
+      { width: 438, height: 40 },
+      { width: 900, height: 700 },
+    )).toEqual({ x: 8, y: 72 });
+  });
+
+  it("does not apply the traffic-light drag exclusion in a normal macOS browser", () => {
+    const ownerWindow = fakeWindow({
+      platform: "MacIntel",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15",
+    });
+
+    expect(constrainToolbarPosition(
+      ownerWindow,
+      { x: 8, y: 8 },
+      { width: 438, height: 40 },
+      { width: 900, height: 700 },
+    )).toEqual({ x: 8, y: 8 });
   });
 
   it("keeps the browser default on macOS outside Electron", () => {
