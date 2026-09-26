@@ -4,9 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Keep nested Arrange selections together across repeated moves. A descendant now keeps its own adjustment relative to an arranged ancestor, so selecting a child after moving its parent no longer makes that child jump, counter-move, or detach on later parent drags.
-
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.0-beta.12 - 2026-09-26
+
+- Keep nested Arrange selections together across repeated moves. A descendant now keeps its own adjustment relative to an arranged ancestor, so selecting a child after moving its parent no longer makes that child jump, counter-move, or detach on later parent drags.
 
 ## 0.2.0-beta.11 - 2026-09-26
 
