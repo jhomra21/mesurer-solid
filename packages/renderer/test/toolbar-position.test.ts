@@ -3,6 +3,7 @@ import {
   DEFAULT_TOOLBAR_POSITION,
   MACOS_ELECTRON_TOOLBAR_POSITION,
   getDefaultToolbarPosition,
+  resolveInitialToolbarPosition,
 } from "../src/runtime/toolbar-position";
 
 const fakeWindow = (options: {
@@ -39,6 +40,15 @@ describe("default toolbar position", () => {
     });
 
     expect(getDefaultToolbarPosition(ownerWindow)).toEqual(MACOS_ELECTRON_TOOLBAR_POSITION);
+  });
+
+  it("preserves a saved position on macOS Electron", () => {
+    const ownerWindow = fakeWindow({
+      platform: "MacIntel",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/150.0.0.0 Electron/43.1.1 Safari/537.36",
+    });
+
+    expect(resolveInitialToolbarPosition(ownerWindow, { x: 24, y: 72 })).toEqual({ x: 24, y: 72 });
   });
 
   it("keeps the browser default on macOS outside Electron", () => {
