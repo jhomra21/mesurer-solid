@@ -25,7 +25,9 @@ Mount it from the same browser-only Mesurer setup described in [Getting started]
 
 Arrange can be activated before a selection exists. It enables Select automatically and preserves any existing selection.
 
-Arrange depends on Select, but the dependency is one-way: turning Arrange off leaves Select active; turning Select off while Arrange is active also exits Arrange.
+Arrange depends on Select, but the dependency is one-way. Turning Arrange off leaves Select active. Turning Select off while Arrange is active also exits Arrange.
+
+Escape cancels an active drag first. Otherwise, Escape clears the current Arrange selection while keeping Arrange and Select active, so the next element can be selected immediately. Press Escape again with no selection to exit Arrange. While a target is selected, Arrange hides Select's hover box so a nested parent or child does not look like a second selection.
 
 Arrange is a normal optional tool in one stable toolbar, not a toolbar mode.
 

@@ -1085,11 +1085,22 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       if (drag) {
         cancelDrag();
-      } else {
-        ctx.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => false);
-        returnToLive();
-        renderBox();
+
+        return;
       }
+
+      const selection = workspace.currentSelection();
+
+      if (selection.elements.length > 0 || selection.region) {
+        workspace.clearSelection();
+        renderBox();
+
+        return;
+      }
+
+      ctx.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => false);
+      returnToLive();
+      renderBox();
     };
 
     box.addEventListener("pointerdown", beginDrag);
