@@ -129,21 +129,6 @@ const toolbar = await waitFor(() =>
 
 const toolbarInitialBounds = toolbar.getBoundingClientRect();
 
-await window.electronMesurer.dragToolbar({
-  start: {
-    x: toolbarInitialBounds.left + 20,
-    y: toolbarInitialBounds.top + 20,
-  },
-  end: {
-    x: 20,
-    y: toolbarInitialBounds.top + 20,
-  },
-});
-
-await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
-const toolbarDraggedBounds = toolbar.getBoundingClientRect();
-
 const colorButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]'),
 );
@@ -202,6 +187,21 @@ const capture = await service.capture({
 });
 
 const png = new Uint8Array(await capture.blob.arrayBuffer());
+
+await window.electronMesurer.dragToolbar({
+  start: {
+    x: toolbarInitialBounds.left + 20,
+    y: toolbarInitialBounds.top + 20,
+  },
+  end: {
+    x: 20,
+    y: toolbarInitialBounds.top + 20,
+  },
+});
+
+await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+const toolbarDraggedBounds = toolbar.getBoundingClientRect();
 
 await window.electronMesurer.complete({
   png,
