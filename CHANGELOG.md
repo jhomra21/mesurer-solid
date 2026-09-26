@@ -4,8 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Keep persisted Context annotations connected after reload when their saved selector still uniquely identifies the same compatible target, even if the host contains other matching elements of the same tag such as multiple editor canvases.
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.0-beta.2 - 2026-09-26
+
+- Keep persisted Context annotations connected after reload when their saved selector still uniquely identifies the same compatible target, even if the host contains other matching elements of the same tag such as multiple editor canvases.
 
 ## 0.2.0-beta.1 - 2026-09-25
 
