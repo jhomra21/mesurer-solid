@@ -125,11 +125,11 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
   if (
     process.platform === "darwin"
     && (
-      Number(toolbarInitialRect.left) < 80
-      || Number(toolbarDraggedRect.left) < 80
+      Number(toolbarInitialRect.top) < 48
+      || Number(toolbarDraggedRect.top) < 48
     )
   ) {
-    throw new Error(`Mesurer toolbar overlaps the macOS traffic-light area: ${JSON.stringify({
+    throw new Error(`Mesurer toolbar overlaps the native macOS titlebar area: ${JSON.stringify({
       toolbarInitialRect,
       toolbarDraggedRect,
     })}`);
