@@ -54,6 +54,7 @@ export type MesurerWorkspaceRuntime = {
   snapshot(): MesurerWorkspaceSnapshot;
   currentSelection(): { elements: Element[]; region: Rect | null };
   clearSelection(): void;
+  toggleSelection(element: Element): void;
   selectGestureActive(): boolean;
   select(selectors: string[]): Element[];
   hoveredElement(): Element | null;
@@ -619,6 +620,19 @@ export function createMesurerWorkspaceRuntime(options: {
         isDragging: false,
         selectionOriginRect: null,
       });
+    },
+    toggleSelection(element) {
+      if (!element.isConnected || !isInPageTarget(element)) return;
+
+      const exists = model.current.selectedMeasurements.some((item) => item.elementRef === element);
+
+      const next = exists
+        ? model.current.selectedMeasurements.filter((item) => item.elementRef !== element)
+        : [...model.current.selectedMeasurements, getInspectMeasurement<Element>(element, ownerWindow)];
+
+      model.checkpoint();
+      model.setSelectedMeasurements(next, next.at(-1) ?? null);
+      model.setTransient({ selectionOriginRect: null });
     },
     selectGestureActive() {
       return model.current.toolMode === "select" && model.current.start !== null;

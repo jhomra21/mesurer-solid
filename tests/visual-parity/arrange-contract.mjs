@@ -204,6 +204,238 @@ try {
 
   await page.evaluate(() => document.querySelector("[data-testid='arrange-regression-parent']")?.remove());
 
+  const multiSelect = await page.evaluate(() => {
+    const first = document.createElement("button");
+    first.dataset.testid = "arrange-multi-first";
+    first.textContent = "First";
+    const middle = document.createElement("button");
+    middle.dataset.testid = "arrange-multi-middle";
+    middle.textContent = "Middle";
+    const last = document.createElement("button");
+    last.dataset.testid = "arrange-multi-last";
+    last.textContent = "Last";
+
+    for (const [element, left] of [[first, 700], [middle, 800], [last, 900]]) {
+      Object.assign(element.style, {
+        position: "fixed",
+        left: `${left}px`,
+        top: "540px",
+        width: "64px",
+        height: "48px",
+        zIndex: "20",
+      });
+    }
+
+    const pageRoot = document.getElementById("root");
+
+    if (!pageRoot) throw new Error("Arrange multi-select fixture requires #root.");
+    pageRoot.append(first, middle, last);
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { first: rect(first), middle: rect(middle), last: rect(last) };
+  });
+
+  await page.mouse.click(
+    multiSelect.first.x + multiSelect.first.width / 2,
+    multiSelect.first.y + multiSelect.first.height / 2,
+  );
+  await page.keyboard.down("Shift");
+  await page.mouse.click(
+    multiSelect.last.x + multiSelect.last.width / 2,
+    multiSelect.last.y + multiSelect.last.height / 2,
+  );
+  await page.keyboard.up("Shift");
+  assert.equal(
+    await page.locator("[data-mesurer-selection-spacing-target='true']").count(),
+    2,
+    "Shift-click should build a two-element Arrange selection",
+  );
+
+  const twoTargetArrangeBox = await arrangeBox.boundingBox();
+  assert(twoTargetArrangeBox, "Arrange should render the two-target group box");
+  assert(
+    multiSelect.middle.x > twoTargetArrangeBox.x
+      && multiSelect.middle.x + multiSelect.middle.width < twoTargetArrangeBox.x + twoTargetArrangeBox.width,
+    "The third fixture target should sit underneath the two-target Arrange group box",
+  );
+
+  await page.keyboard.down("Shift");
+  await page.mouse.click(
+    multiSelect.middle.x + multiSelect.middle.width / 2,
+    multiSelect.middle.y + multiSelect.middle.height / 2,
+  );
+  await page.keyboard.up("Shift");
+  assert.equal(
+    await page.locator("[data-mesurer-selection-spacing-target='true']").count(),
+    3,
+    "Shift-click through the Arrange group box should add another page element",
+  );
+  evidence.shiftExtendThroughArrangeBox = 3;
+
+  await page.keyboard.press("Escape");
+  await arrangeBox.waitFor({ state: "hidden" });
+  await page.evaluate(() => {
+    document.querySelector("[data-testid='arrange-multi-first']")?.remove();
+    document.querySelector("[data-testid='arrange-multi-middle']")?.remove();
+    document.querySelector("[data-testid='arrange-multi-last']")?.remove();
+  });
+
+  const nestedMove = await page.evaluate(() => {
+    const parent = document.createElement("div");
+    parent.dataset.testid = "arrange-move-parent";
+    Object.assign(parent.style, {
+      position: "fixed",
+      left: "760px",
+      top: "620px",
+      width: "260px",
+      height: "180px",
+      background: "rgba(255,255,255,0.02)",
+      zIndex: "20",
+    });
+
+    const child = document.createElement("button");
+    child.dataset.testid = "arrange-move-child";
+    child.textContent = "Nested";
+    Object.assign(child.style, {
+      position: "absolute",
+      left: "24px",
+      top: "28px",
+      width: "88px",
+      height: "52px",
+    });
+    parent.append(child);
+
+    const pageRoot = document.getElementById("root");
+
+    if (!pageRoot) throw new Error("Arrange nested-move fixture requires #root.");
+    pageRoot.append(parent);
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { parent: rect(parent), child: rect(child) };
+  });
+
+  await page.mouse.click(
+    nestedMove.parent.x + nestedMove.parent.width - 24,
+    nestedMove.parent.y + nestedMove.parent.height - 24,
+  );
+  await page.keyboard.down("Shift");
+  await page.mouse.click(
+    nestedMove.child.x + nestedMove.child.width / 2,
+    nestedMove.child.y + nestedMove.child.height / 2,
+  );
+  await page.keyboard.up("Shift");
+  assert.equal(
+    await page.locator("[data-mesurer-selection-spacing-target='true']").count(),
+    2,
+    "Arrange should allow a parent and its child in the same multi-selection",
+  );
+
+  const nestedGroupBefore = await arrangeBox.boundingBox();
+
+  assert(nestedGroupBefore, "Nested Arrange multi-selection should have a group box");
+
+  const dragStart = {
+    x: nestedMove.parent.x + nestedMove.parent.width - 28,
+    y: nestedMove.parent.y + nestedMove.parent.height - 28,
+  };
+
+  await page.mouse.move(dragStart.x, dragStart.y);
+  await page.mouse.down();
+  await page.mouse.move(dragStart.x + 46, dragStart.y + 31, { steps: 4 });
+  await page.mouse.up();
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+
+  const nestedAfter = await page.evaluate(() => {
+    const parent = document.querySelector("[data-testid='arrange-move-parent']");
+    const child = document.querySelector("[data-testid='arrange-move-child']");
+
+    if (!(parent instanceof HTMLElement) || !(child instanceof HTMLElement)) {
+      throw new Error("Arrange nested-move fixture disappeared.");
+    }
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { parent: rect(parent), child: rect(child) };
+  });
+
+  const parentDelta = {
+    x: nestedAfter.parent.x - nestedMove.parent.x,
+    y: nestedAfter.parent.y - nestedMove.parent.y,
+  };
+
+  const childDelta = {
+    x: nestedAfter.child.x - nestedMove.child.x,
+    y: nestedAfter.child.y - nestedMove.child.y,
+  };
+
+  const nestedGroupAfter = await arrangeBox.boundingBox();
+
+  assert(nestedGroupAfter, "Nested Arrange group box should remain visible after drag");
+
+  const groupDelta = {
+    x: nestedGroupAfter.x - nestedGroupBefore.x,
+    y: nestedGroupAfter.y - nestedGroupBefore.y,
+  };
+
+  assert(
+    Math.abs(parentDelta.x - childDelta.x) <= 1
+      && Math.abs(parentDelta.y - childDelta.y) <= 1,
+    `Nested Arrange targets must move by the same visual delta: ${JSON.stringify({ parentDelta, childDelta })}`,
+  );
+  assert(
+    Math.abs(parentDelta.x - groupDelta.x) <= 1
+      && Math.abs(parentDelta.y - groupDelta.y) <= 1,
+    `Nested Arrange target movement must match the group box: ${JSON.stringify({ parentDelta, groupDelta })}`,
+  );
+  evidence.nestedMultiDrag = { parentDelta, childDelta, groupDelta };
+
+  await page.keyboard.press("Escape");
+  await arrangeBox.waitFor({ state: "hidden" });
+  const regressionArrangeOptions = page.getByRole("button", { name: "Arrange options", exact: true });
+  const regressionArrangeMenu = page.getByRole("menu", { name: "Arrange options", exact: true });
+
+  await regressionArrangeOptions.click();
+  await regressionArrangeMenu.waitFor({ state: "visible" });
+  const regressionResetAll = regressionArrangeMenu.getByRole("menuitem", { name: "Reset all positions", exact: true });
+  assert.equal(await regressionResetAll.isDisabled(), false, "Nested multi-drag should create resettable Arrange intent");
+  await regressionResetAll.click();
+  await regressionArrangeMenu.waitFor({ state: "hidden" });
+  await page.waitForFunction(({ parentX, parentY, childX, childY }) => {
+    const parent = document.querySelector("[data-testid='arrange-move-parent']");
+    const child = document.querySelector("[data-testid='arrange-move-child']");
+
+    if (!(parent instanceof HTMLElement) || !(child instanceof HTMLElement)) return false;
+    const parentRect = parent.getBoundingClientRect();
+    const childRect = child.getBoundingClientRect();
+
+    return Math.abs(parentRect.x - parentX) <= 1
+      && Math.abs(parentRect.y - parentY) <= 1
+      && Math.abs(childRect.x - childX) <= 1
+      && Math.abs(childRect.y - childY) <= 1;
+  }, {
+    parentX: nestedMove.parent.x,
+    parentY: nestedMove.parent.y,
+    childX: nestedMove.child.x,
+    childY: nestedMove.child.y,
+  });
+  await page.evaluate(() => document.querySelector("[data-testid='arrange-move-parent']")?.remove());
+
   const before = await target.boundingBox();
   const referenceBox = await reference.boundingBox();
   assert(before, "Arrange contract target must have a bounding box");

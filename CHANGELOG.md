@@ -4,6 +4,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Fix Arrange multi-selection when selected elements are nested. Parent and child targets now move by the same rendered delta instead of applying the drag twice to the child.
+- Let Shift-click extend or reduce a Select/Arrange multi-selection through the Arrange group box. Shift-drag on an already selected target still locks movement to the dominant axis.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.0-beta.9 - 2026-09-26
