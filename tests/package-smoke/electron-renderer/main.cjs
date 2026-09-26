@@ -63,6 +63,12 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     throw new Error("Mesurer Electron capture produced an empty PNG.");
   }
 
+  const toolbarRect = summary.toolbarRect ?? {};
+
+  if (process.platform === "darwin" && Number(toolbarRect.left) < 80) {
+    throw new Error(`Mesurer toolbar overlaps the macOS traffic-light area: ${JSON.stringify(toolbarRect)}`);
+  }
+
   if (
     summary.targetCount !== 1
     || summary.islandCount !== 1
@@ -104,6 +110,7 @@ app.whenReady().then(async () => {
     show: false,
     width: 900,
     height: 700,
+    ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset" } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
