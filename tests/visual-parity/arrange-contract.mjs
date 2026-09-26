@@ -60,7 +60,7 @@ try {
       width: "260px",
       height: "220px",
       background: "rgba(255,255,255,0.02)",
-      zIndex: "1",
+      zIndex: "2147480000",
     });
 
     const child = document.createElement("div");
