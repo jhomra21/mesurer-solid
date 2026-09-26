@@ -193,10 +193,12 @@ type ArrangeSettingsValue = {
   snapLines: boolean;
 };
 
-type InlineTransform = {
+type InlineStyleValue = {
   value: string;
   priority: string;
 };
+
+type InlineTransform = InlineStyleValue;
 
 type InlineVisibility = {
   value: string;
@@ -386,13 +388,18 @@ const publicIntent = (intent: ArrangeIntentValue): ArrangeIntent => ({
   targets: intent.targets.map(publicTarget),
 });
 
-const inlineTransform = (element: HTMLElement): InlineTransform => ({
-  value: element.style.getPropertyValue("transform"),
-  priority: element.style.getPropertyPriority("transform"),
+const inlineStyleValue = (element: HTMLElement, property: string): InlineStyleValue => ({
+  value: element.style.getPropertyValue(property),
+  priority: element.style.getPropertyPriority(property),
 });
 
-const sameInlineTransform = (left: InlineTransform, right: InlineTransform) =>
+const inlineTransform = (element: HTMLElement): InlineTransform =>
+  inlineStyleValue(element, "transform");
+
+const sameInlineStyleValue = (left: InlineStyleValue, right: InlineStyleValue) =>
   left.value === right.value && left.priority === right.priority;
+
+const sameInlineTransform = sameInlineStyleValue;
 
 const restoreTransform = (preview: AppliedPreview) => {
   const { element, beforeTransform, appliedTransform } = preview;
@@ -493,6 +500,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     root.append(verticalSnapLine, horizontalSnapLine, box);
 
     const previews = new Map<HTMLElement, AppliedPreview>();
+    const transitionBaselines = new Map<HTMLElement, InlineStyleValue>();
     const hiddenMeasurements = new Map<HTMLElement, InlineVisibility>();
     const resetButtons = new Map<HTMLElement, HTMLButtonElement>();
     let presentation: PresentationState = { intentId: null, state: "desired" };
@@ -581,9 +589,56 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       return selectorMatches[0] ?? null;
     };
 
+    const transitionOverride: InlineStyleValue = { value: "none", priority: "important" };
+
+    const suppressTransformTransition = (element: HTMLElement) => {
+      const current = inlineStyleValue(element, "transition-property");
+      const baseline = transitionBaselines.get(element);
+
+      if (!baseline || !sameInlineStyleValue(current, transitionOverride)) {
+        transitionBaselines.set(element, current);
+      }
+
+      if (!sameInlineStyleValue(current, transitionOverride)) {
+        element.style.setProperty("transition-property", transitionOverride.value, transitionOverride.priority);
+      }
+    };
+
+    const restoreTransformTransition = (element: HTMLElement) => {
+      const baseline = transitionBaselines.get(element);
+
+      if (!baseline) return;
+      const current = inlineStyleValue(element, "transition-property");
+
+      if (sameInlineStyleValue(current, transitionOverride)) {
+        if (baseline.value || baseline.priority) {
+          element.style.setProperty("transition-property", baseline.value, baseline.priority);
+        } else {
+          element.style.removeProperty("transition-property");
+        }
+      }
+
+      transitionBaselines.delete(element);
+    };
+
+    const restoreUnusedTransformTransitions = (activeElements: Set<HTMLElement>) => {
+      for (const element of [...transitionBaselines.keys()]) {
+        if (!activeElements.has(element)) restoreTransformTransition(element);
+      }
+    };
+
+    const restoreAllTransformTransitions = () => {
+      for (const element of [...transitionBaselines.keys()]) restoreTransformTransition(element);
+    };
+
     const clearPreviewStyles = () => {
       for (const preview of previews.values()) restoreTransform(preview);
       previews.clear();
+    };
+
+    const clearPresentationStyles = () => {
+      clearPreviewStyles();
+      restoreAllTransformTransitions();
     };
 
     const hideSnapLines = () => {
@@ -702,20 +757,23 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     };
 
     const applyOffsets = (offsets: Map<HTMLElement, ArrangeOffset>) => {
-      clearPreviewStyles();
-
-      for (const [element, desiredOffset] of offsets) {
-        if (!element.isConnected || !isPageElement(element)) continue;
-
+      const next = [...offsets].flatMap(([element, desiredOffset]) => {
+        if (!element.isConnected || !isPageElement(element)) return [];
         const inheritedOffset = inheritedArrangeOffset(element, offsets);
-
         const offset = {
           x: desiredOffset.x - inheritedOffset.x,
           y: desiredOffset.y - inheritedOffset.y,
         };
 
-        if (offset.x === 0 && offset.y === 0) continue;
+        return offset.x === 0 && offset.y === 0 ? [] : [{ element, offset }];
+      });
 
+      const activeElements = new Set(next.map(({ element }) => element));
+
+      for (const { element } of next) suppressTransformTransition(element);
+      clearPreviewStyles();
+
+      for (const { element, offset } of next) {
         const beforeTransform = inlineTransform(element);
         const computed = ownerWindow.getComputedStyle(element).transform;
         const base = computed && computed !== "none" ? ` ${computed}` : "";
@@ -730,6 +788,8 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           appliedTransform: inlineTransform(element),
         });
       }
+
+      restoreUnusedTransformTransitions(activeElements);
     };
 
     const applyPresentation = () => applyOffsets(presentationOffsets());
@@ -1046,7 +1106,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const returnToLive = () => {
       presentation = { intentId: null, state: "live" };
-      clearPreviewStyles();
+      clearPresentationStyles();
       hideSnapLines();
       restoreMeasurementOverlays();
     };
@@ -1626,7 +1686,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     ctx.command.register(CLEAR_COMMAND, () => {
       ctx.state.update<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID, () => ({ intents: [] }));
       presentation = { intentId: null, state: "desired" };
-      clearPreviewStyles();
+      clearPresentationStyles();
       hideSnapLines();
 
       if (active()) hideMeasurementOverlays();
@@ -1654,7 +1714,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       pageTarget.removeEventListener("scroll", scheduleRefresh, true);
       workspaceUnsubscribe();
       stateSubscription.dispose();
-      clearPreviewStyles();
+      clearPresentationStyles();
       clearResetButtons();
       hideSnapLines();
       restoreMeasurementOverlays();
