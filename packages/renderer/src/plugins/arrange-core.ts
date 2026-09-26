@@ -622,13 +622,13 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     };
 
     const restoreUnusedTransformTransitions = (activeElements: Set<HTMLElement>) => {
-      for (const element of [...transitionBaselines.keys()]) {
+      for (const element of transitionBaselines.keys()) {
         if (!activeElements.has(element)) restoreTransformTransition(element);
       }
     };
 
     const restoreAllTransformTransitions = () => {
-      for (const element of [...transitionBaselines.keys()]) restoreTransformTransition(element);
+      for (const element of transitionBaselines.keys()) restoreTransformTransition(element);
     };
 
     const clearPreviewStyles = () => {
@@ -759,6 +759,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     const applyOffsets = (offsets: Map<HTMLElement, ArrangeOffset>) => {
       const next = [...offsets].flatMap(([element, desiredOffset]) => {
         if (!element.isConnected || !isPageElement(element)) return [];
+
         const inheritedOffset = inheritedArrangeOffset(element, offsets);
         const offset = {
           x: desiredOffset.x - inheritedOffset.x,
