@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep the default Mesurer toolbar clear of the native macOS window controls in Electron renderers. Browser defaults and user-saved toolbar positions stay unchanged.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.0-beta.2 - 2026-09-26
