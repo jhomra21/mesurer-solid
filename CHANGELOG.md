@@ -4,8 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Keep standalone Typography inspection from looking or clicking through its own visible card into host text underneath it. Hovering the card now preserves the current inspection instead of spawning or pinning overlapping inspections behind the card.
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.0-beta.6 - 2026-09-26
+
+- Keep standalone Typography inspection from looking or clicking through its own visible card into host text underneath it. Hovering the card now preserves the current inspection instead of spawning or pinning overlapping inspections behind the card.
 
 ## 0.2.0-beta.5 - 2026-09-26
 
