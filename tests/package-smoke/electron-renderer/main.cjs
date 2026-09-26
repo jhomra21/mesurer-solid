@@ -106,11 +106,10 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
 });
 
 app.whenReady().then(async () => {
-  mainWindow = new BrowserWindow({
+  const windowOptions = {
     show: false,
     width: 900,
     height: 700,
-    ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset" } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -118,7 +117,11 @@ app.whenReady().then(async () => {
       sandbox: true,
       backgroundThrottling: false,
     },
-  });
+  };
+
+  if (process.platform === "darwin") windowOptions.titleBarStyle = "hiddenInset";
+
+  mainWindow = new BrowserWindow(windowOptions);
 
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
     fail(new Error(`Electron renderer exited: ${details.reason} (${details.exitCode})`));
