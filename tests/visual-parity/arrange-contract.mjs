@@ -436,6 +436,249 @@ try {
   });
   await page.evaluate(() => document.querySelector("[data-testid='arrange-move-parent']")?.remove());
 
+  const transitionMove = await page.evaluate(() => {
+    const first = document.createElement("button");
+    first.dataset.testid = "arrange-transition-first";
+    first.textContent = "Transition first";
+    const second = document.createElement("button");
+    second.dataset.testid = "arrange-transition-second";
+    second.textContent = "Transition second";
+
+    Object.assign(first.style, {
+      position: "fixed",
+      left: "710px",
+      top: "570px",
+      width: "120px",
+      height: "48px",
+      zIndex: "20",
+      transition: "all 2s linear",
+    });
+    Object.assign(second.style, {
+      position: "fixed",
+      left: "880px",
+      top: "650px",
+      width: "130px",
+      height: "48px",
+      zIndex: "20",
+      transition: "all 4s ease",
+    });
+
+    const pageRoot = document.getElementById("root");
+
+    if (!pageRoot) throw new Error("Arrange transition fixture requires #root.");
+    pageRoot.append(first, second);
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { first: rect(first), second: rect(second) };
+  });
+
+  await page.mouse.click(
+    transitionMove.first.x + transitionMove.first.width / 2,
+    transitionMove.first.y + transitionMove.first.height / 2,
+  );
+  await page.keyboard.down("Shift");
+  await page.mouse.click(
+    transitionMove.second.x + transitionMove.second.width / 2,
+    transitionMove.second.y + transitionMove.second.height / 2,
+  );
+  await page.keyboard.up("Shift");
+  assert.equal(
+    await page.locator("[data-mesurer-selection-spacing-target='true']").count(),
+    2,
+    "Transition fixture should form a two-element Arrange selection",
+  );
+
+  const transitionGroupBefore = await arrangeBox.boundingBox();
+
+  assert(transitionGroupBefore, "Transition fixture should have an Arrange group box");
+
+  const transitionDragStart = {
+    x: transitionGroupBefore.x + transitionGroupBefore.width / 2,
+    y: transitionGroupBefore.y + transitionGroupBefore.height / 2,
+  };
+
+  await page.mouse.move(transitionDragStart.x, transitionDragStart.y);
+  await page.mouse.down();
+  await page.mouse.move(transitionDragStart.x + 74, transitionDragStart.y + 43);
+
+  const transitionDuringDrag = await page.evaluate(() => {
+    const first = document.querySelector("[data-testid='arrange-transition-first']");
+    const second = document.querySelector("[data-testid='arrange-transition-second']");
+
+    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement)) {
+      throw new Error("Arrange transition fixture disappeared during drag.");
+    }
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return {
+      first: rect(first),
+      second: rect(second),
+      firstTransition: {
+        property: getComputedStyle(first).transitionProperty,
+        duration: getComputedStyle(first).transitionDuration,
+      },
+      secondTransition: {
+        property: getComputedStyle(second).transitionProperty,
+        duration: getComputedStyle(second).transitionDuration,
+      },
+    };
+  });
+
+  const transitionGroupDuringDrag = await arrangeBox.boundingBox();
+
+  assert(transitionGroupDuringDrag, "Transition fixture group box should move during drag");
+
+  const transitionGroupDelta = {
+    x: transitionGroupDuringDrag.x - transitionGroupBefore.x,
+    y: transitionGroupDuringDrag.y - transitionGroupBefore.y,
+  };
+
+  const transitionFirstDelta = {
+    x: transitionDuringDrag.first.x - transitionMove.first.x,
+    y: transitionDuringDrag.first.y - transitionMove.first.y,
+  };
+
+  const transitionSecondDelta = {
+    x: transitionDuringDrag.second.x - transitionMove.second.x,
+    y: transitionDuringDrag.second.y - transitionMove.second.y,
+  };
+
+  assert.equal(transitionDuringDrag.firstTransition.property, "none", "Arrange must suppress transition-all on the first moved target");
+  assert.equal(transitionDuringDrag.secondTransition.property, "none", "Arrange must suppress transition-all on the second moved target");
+  assert(
+    Math.abs(transitionFirstDelta.x - transitionGroupDelta.x) <= 1
+      && Math.abs(transitionFirstDelta.y - transitionGroupDelta.y) <= 1
+      && Math.abs(transitionSecondDelta.x - transitionGroupDelta.x) <= 1
+      && Math.abs(transitionSecondDelta.y - transitionGroupDelta.y) <= 1,
+    `Transitioning Arrange targets must follow the pointer without easing lag: ${JSON.stringify({
+      transitionGroupDelta,
+      transitionFirstDelta,
+      transitionSecondDelta,
+    })}`,
+  );
+
+  await page.mouse.up();
+
+  const transitionAtRelease = await page.evaluate(() => {
+    const first = document.querySelector("[data-testid='arrange-transition-first']");
+    const second = document.querySelector("[data-testid='arrange-transition-second']");
+
+    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement)) {
+      throw new Error("Arrange transition fixture disappeared at release.");
+    }
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { first: rect(first), second: rect(second) };
+  });
+
+  await page.waitForTimeout(350);
+
+  const transitionAfterRelease = await page.evaluate(() => {
+    const first = document.querySelector("[data-testid='arrange-transition-first']");
+    const second = document.querySelector("[data-testid='arrange-transition-second']");
+
+    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement)) {
+      throw new Error("Arrange transition fixture disappeared after release.");
+    }
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { first: rect(first), second: rect(second) };
+  });
+
+  for (const key of ["first", "second"]) {
+    assert(
+      Math.abs(transitionAtRelease[key].x - transitionAfterRelease[key].x) <= 0.5
+        && Math.abs(transitionAtRelease[key].y - transitionAfterRelease[key].y) <= 0.5,
+      `Arrange target must stop moving at pointer release even with host transitions: ${key} ${JSON.stringify({
+        atRelease: transitionAtRelease[key],
+        afterRelease: transitionAfterRelease[key],
+      })}`,
+    );
+  }
+
+  evidence.transitionMultiDrag = {
+    groupDelta: transitionGroupDelta,
+    firstDelta: transitionFirstDelta,
+    secondDelta: transitionSecondDelta,
+    atRelease: transitionAtRelease,
+    afterRelease: transitionAfterRelease,
+  };
+
+  await page.keyboard.press("Escape");
+  await arrangeBox.waitFor({ state: "hidden" });
+  await regressionArrangeOptions.click();
+  await regressionArrangeMenu.waitFor({ state: "visible" });
+  const transitionResetAll = regressionArrangeMenu.getByRole("menuitem", { name: "Reset all positions", exact: true });
+
+  assert.equal(await transitionResetAll.isDisabled(), false, "Transition multi-drag should create resettable Arrange intent");
+  await transitionResetAll.click();
+  await regressionArrangeMenu.waitFor({ state: "hidden" });
+  await page.waitForFunction(({ firstX, firstY, secondX, secondY }) => {
+    const first = document.querySelector("[data-testid='arrange-transition-first']");
+    const second = document.querySelector("[data-testid='arrange-transition-second']");
+
+    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement)) return false;
+    const firstRect = first.getBoundingClientRect();
+    const secondRect = second.getBoundingClientRect();
+
+    return Math.abs(firstRect.x - firstX) <= 1
+      && Math.abs(firstRect.y - firstY) <= 1
+      && Math.abs(secondRect.x - secondX) <= 1
+      && Math.abs(secondRect.y - secondY) <= 1;
+  }, {
+    firstX: transitionMove.first.x,
+    firstY: transitionMove.first.y,
+    secondX: transitionMove.second.x,
+    secondY: transitionMove.second.y,
+  });
+
+  const restoredTransitions = await page.evaluate(() => {
+    const first = document.querySelector("[data-testid='arrange-transition-first']");
+    const second = document.querySelector("[data-testid='arrange-transition-second']");
+
+    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement)) {
+      throw new Error("Arrange transition fixture disappeared after reset.");
+    }
+
+    const firstStyle = getComputedStyle(first);
+    const secondStyle = getComputedStyle(second);
+
+    return {
+      first: { property: firstStyle.transitionProperty, duration: firstStyle.transitionDuration },
+      second: { property: secondStyle.transitionProperty, duration: secondStyle.transitionDuration },
+    };
+  });
+
+  assert.equal(restoredTransitions.first.property, "all", "Reset must restore the first target's transition property");
+  assert.equal(restoredTransitions.first.duration, "2s", "Reset must restore the first target's transition duration");
+  assert.equal(restoredTransitions.second.property, "all", "Reset must restore the second target's transition property");
+  assert.equal(restoredTransitions.second.duration, "4s", "Reset must restore the second target's transition duration");
+  evidence.transitionRestoration = restoredTransitions;
+  await page.evaluate(() => {
+    document.querySelector("[data-testid='arrange-transition-first']")?.remove();
+    document.querySelector("[data-testid='arrange-transition-second']")?.remove();
+  });
+
   const before = await target.boundingBox();
   const referenceBox = await reference.boundingBox();
   assert(before, "Arrange contract target must have a bounding box");

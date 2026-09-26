@@ -257,6 +257,7 @@ jobs:
           print("- Saved Arrange intent survives Original/Desired presentation switching without another drag")
           print("- Escape clears the current Arrange/Select selection first, then deactivates the remaining selection tools")
           print("- Per-element Reset position and Arrange-menu Reset all positions restore original geometry")
+          print("- Multi-selection stays frame-locked through host transition-all styles and stops moving at pointer release")
 
           print("")
           print("### Presentation settings")
