@@ -931,14 +931,28 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         return;
       }
 
-      const offsets = effectiveOffsets(currentIntents());
+      const intents = currentIntents();
+      const targets = latestResolvedTargets(intents);
+      const offsets = effectiveOffsets(intents);
       const visible = new Set<HTMLElement>();
 
       for (const element of selectedElements()) {
-        const offset = offsets.get(element);
+        const target = targets.get(element);
 
-        if (!offset
-          || (Math.abs(offset.x) <= RESET_POSITION_EPSILON && Math.abs(offset.y) <= RESET_POSITION_EPSILON)) continue;
+        if (!target) continue;
+        const absolute = offsets.get(element);
+
+        if (!absolute) continue;
+        const inherited = inheritedArrangeOffset(element, offsets);
+        const local = targetLocalOffset(target) ?? {
+          x: absolute.x - inherited.x,
+          y: absolute.y - inherited.y,
+        };
+
+        if (
+          Math.abs(local.x) <= RESET_POSITION_EPSILON
+          && Math.abs(local.y) <= RESET_POSITION_EPSILON
+        ) continue;
         visible.add(element);
         let button = resetButtons.get(element);
 
