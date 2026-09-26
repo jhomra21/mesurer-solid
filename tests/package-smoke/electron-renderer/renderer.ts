@@ -16,6 +16,12 @@ type ElectronTestSummary = {
   colorPickerValue: string;
   nativeEyeDropperOpens: number;
   colorPickerOverlayRemoved: boolean;
+  toolbarRect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
   rect: {
     left: number;
     top: number;
@@ -107,6 +113,12 @@ const shadow = island.shadowRoot;
 
 if (!shadow) throw new Error("Mesurer Electron island has no open shadow root.");
 
+const toolbar = await waitFor(() =>
+  shadow.querySelector<HTMLElement>("[data-mesurer-toolbar='true']"),
+);
+
+const toolbarBounds = toolbar.getBoundingClientRect();
+
 const colorButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]'),
 );
@@ -179,6 +191,12 @@ await window.electronMesurer.complete({
     colorPickerValue,
     nativeEyeDropperOpens,
     colorPickerOverlayRemoved: shadow.querySelector("[data-mesurer-color-picker-target='true']") === null,
+    toolbarRect: {
+      left: toolbarBounds.left,
+      top: toolbarBounds.top,
+      width: toolbarBounds.width,
+      height: toolbarBounds.height,
+    },
     rect: capture.rect,
   },
 });

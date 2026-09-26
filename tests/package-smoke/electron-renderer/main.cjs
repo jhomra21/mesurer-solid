@@ -63,6 +63,12 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     throw new Error("Mesurer Electron capture produced an empty PNG.");
   }
 
+  const toolbarRect = summary.toolbarRect ?? {};
+
+  if (process.platform === "darwin" && Number(toolbarRect.left) < 80) {
+    throw new Error(`Mesurer toolbar overlaps the macOS traffic-light area: ${JSON.stringify(toolbarRect)}`);
+  }
+
   if (
     summary.targetCount !== 1
     || summary.islandCount !== 1
@@ -100,7 +106,7 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
 });
 
 app.whenReady().then(async () => {
-  mainWindow = new BrowserWindow({
+  const windowOptions = {
     show: false,
     width: 900,
     height: 700,
@@ -111,7 +117,11 @@ app.whenReady().then(async () => {
       sandbox: true,
       backgroundThrottling: false,
     },
-  });
+  };
+
+  if (process.platform === "darwin") windowOptions.titleBarStyle = "hiddenInset";
+
+  mainWindow = new BrowserWindow(windowOptions);
 
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
     fail(new Error(`Electron renderer exited: ${details.reason} (${details.exitCode})`));

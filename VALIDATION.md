@@ -14,6 +14,8 @@ Inspect changes must cover the real browser hit-test path. Current acceptance in
 
 Toolbar interaction changes must prove both sides of pointer ownership. Dragging toolbar chrome or a trigger must move the toolbar after the drag threshold, while pointer activity inside menus, dialogs, form controls, editable regions, and sliders must leave the toolbar in place. Triggers that own expandable UI must also expose the rendered open state through `aria-expanded`.
 
+Host-specific toolbar placement needs host-specific acceptance. On macOS Electron, verify the unsaved default toolbar clears the native traffic-light controls. Verify normal browsers keep the browser default and a previously dragged toolbar position still wins over the host-specific default.
+
 ## Measure rendered output, not a proxy
 
 When a regression is about visible spacing, overlap, or jitter, assert the geometry the user actually sees. Do not infer visible correctness from an internal shell coordinate, a synthetic fallback lane, or a placement constant when another wrapper/card can add its own offset.
