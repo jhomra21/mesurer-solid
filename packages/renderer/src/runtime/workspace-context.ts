@@ -623,6 +623,7 @@ export function createMesurerWorkspaceRuntime(options: {
     },
     toggleSelection(element) {
       if (!element.isConnected || !isInPageTarget(element)) return;
+
       const exists = model.current.selectedMeasurements.some((item) => item.elementRef === element);
       const next = exists
         ? model.current.selectedMeasurements.filter((item) => item.elementRef !== element)
