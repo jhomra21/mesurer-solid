@@ -229,6 +229,73 @@ describe("createMesurerWorkspaceRuntime", () => {
     sessionStorage.removeItem(storageKey);
   });
 
+  it("rebinds a uniquely selected canvas even when matching sibling canvases exist", () => {
+    const storageKey = "workspace-context:multiple-canvas-reload";
+    sessionStorage.removeItem(storageKey);
+
+    const before = document.createElement("canvas");
+    before.className = "editor-canvas";
+    const original = document.createElement("canvas");
+    original.className = "editor-canvas";
+    const after = document.createElement("canvas");
+    after.className = "editor-canvas";
+    document.body.append(before, original, after);
+    selectionFor(before);
+    selectionFor(original);
+    selectionFor(after);
+
+    const firstModel = createMesurerModel({ initialEnabled: true });
+    firstModel.setSelectedMeasurements([selectionFor(original)]);
+
+    const firstRuntime = createMesurerWorkspaceRuntime({
+      model: firstModel,
+      ownerDocument: document,
+      ownerWindow: window,
+      persistenceKey: storageKey,
+    });
+
+    const saved = firstRuntime.addSelectionAnnotation("Keep the selected canvas attached");
+
+    firstRuntime.dispose();
+    firstModel.dispose();
+    before.remove();
+    original.remove();
+    after.remove();
+
+    const replacementBefore = document.createElement("canvas");
+    replacementBefore.className = "editor-canvas";
+    const replacement = document.createElement("canvas");
+    replacement.className = "editor-canvas";
+    const replacementAfter = document.createElement("canvas");
+    replacementAfter.className = "editor-canvas";
+    document.body.append(replacementBefore, replacement, replacementAfter);
+    selectionFor(replacementBefore);
+    selectionFor(replacement);
+    selectionFor(replacementAfter);
+
+    const secondModel = createMesurerModel({ initialEnabled: true });
+
+    const secondRuntime = createMesurerWorkspaceRuntime({
+      model: secondModel,
+      ownerDocument: document,
+      ownerWindow: window,
+      persistenceKey: storageKey,
+    });
+
+    const restored = secondRuntime.annotation(saved.id);
+
+    expect(restored?.resolvedTargets[0]?.target.selector).toContain("canvas:nth-of-type(2)");
+    expect(restored?.resolvedTargets[0]?.element).toBe(replacement);
+
+    secondRuntime.removeAnnotation(saved.id);
+    secondRuntime.dispose();
+    secondModel.dispose();
+    replacementBefore.remove();
+    replacement.remove();
+    replacementAfter.remove();
+    sessionStorage.removeItem(storageKey);
+  });
+
   it("rebinds a uniquely located annotation when framework classes change across reload", () => {
     const storageKey = "workspace-context:dynamic-class-reload";
     sessionStorage.removeItem(storageKey);
