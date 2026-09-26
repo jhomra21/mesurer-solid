@@ -4,10 +4,13 @@ import { chromium } from "playwright";
 const url = process.env.TYPOGRAPHY_HOVER_BOUNDARY_URL ?? "http://127.0.0.1:4174/";
 
 const browser = await chromium.launch({ headless: true });
+
 const page = await browser.newPage({ viewport: { width: 1100, height: 760 } });
+
 const errors = [];
 
 page.on("pageerror", (error) => errors.push(String(error)));
+
 page.on("console", (message) => {
   if (message.type() === "error") errors.push(message.text());
 });
@@ -68,6 +71,7 @@ try {
 
     if (!(card instanceof HTMLElement)) return null;
     const rect = card.getBoundingClientRect();
+
     const point = {
       x: rect.right - 18,
       y: rect.bottom - 18,
