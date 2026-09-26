@@ -49,6 +49,86 @@ try {
 
   await transientCard.waitFor({ state: "visible" });
 
+  const transientProbe = await page.evaluate(() => {
+    const card = Array.from(document.querySelectorAll(".mesurer-ti-card"))
+      .find((candidate) => (
+        candidate instanceof HTMLElement
+        && candidate.dataset.state === "visible"
+        && !candidate.querySelector(".mesurer-ti-close")
+      ));
+
+    if (!(card instanceof HTMLElement)) return null;
+    const rect = card.getBoundingClientRect();
+    const point = {
+      x: rect.right - 18,
+      y: rect.bottom - 18,
+    };
+
+    const underlay = document.createElement("button");
+    underlay.type = "button";
+    underlay.dataset.testid = "typography-transient-under-card";
+    underlay.textContent = "Transient Typography underlay sentinel";
+    Object.assign(underlay.style, {
+      position: "fixed",
+      left: `${point.x - 90}px`,
+      top: `${point.y - 18}px`,
+      width: "180px",
+      height: "36px",
+      zIndex: "1",
+      fontSize: "14px",
+      lineHeight: "36px",
+      pointerEvents: "auto",
+    });
+    underlay.addEventListener("click", () => {
+      underlay.dataset.clicked = "true";
+    });
+    document.body.append(underlay);
+
+    return { point };
+  });
+
+  assert(transientProbe, "Could not prepare transient Typography hover-boundary probe");
+
+  const transientTextBefore = await transientCard.textContent();
+  await page.mouse.move(transientProbe.point.x, transientProbe.point.y);
+  await settle();
+  await page.waitForTimeout(40);
+
+  assert.equal(
+    await transientCard.count(),
+    1,
+    "Hovering the transient Typography card must keep exactly one transient inspector visible",
+  );
+  assert.equal(
+    await transientCard.textContent(),
+    transientTextBefore,
+    "Hovering the transient Typography card must not retarget inspection to page text underneath it",
+  );
+  assert(
+    !(await transientCard.textContent())?.includes("Transient Typography underlay sentinel"),
+    "Transient Typography inspected page text underneath its own card",
+  );
+
+  await page.mouse.click(transientProbe.point.x, transientProbe.point.y);
+  await settle();
+
+  assert.equal(
+    await page.locator("[data-testid='typography-transient-under-card']").getAttribute("data-clicked"),
+    null,
+    "Clicking the transient Typography card must not click host content underneath it",
+  );
+  assert.equal(
+    await page.locator(".mesurer-ti-card[data-state='visible']:has(.mesurer-ti-close)").count(),
+    0,
+    "Clicking the transient Typography card must not pin host text underneath it",
+  );
+
+  await page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    targetBox.y + targetBox.height / 2,
+  );
+  await transientCard.waitFor({ state: "visible" });
+
   await page.mouse.click(
     targetBox.x + targetBox.width / 2,
     targetBox.y + targetBox.height / 2,
