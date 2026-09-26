@@ -148,6 +148,7 @@ jobs:
       - name: Exercise Arrange toolbar and drag
         env:
           ARRANGE_URL: http://127.0.0.1:4174/
+          ARRANGE_OUT: arrange-artifacts
         run: bun tests/visual-parity/arrange-contract.mjs
 
       - name: Exercise Arrange presentation preference
@@ -254,6 +255,8 @@ jobs:
           print("- Nearby-element, X-ray-outline, and guide alignment snapping exercised in Chromium")
           print("- Desired layout is tool-owned by default; General → Keep Arrange changes explicitly opts it into other tools")
           print("- Saved Arrange intent survives Original/Desired presentation switching without another drag")
+          print("- Escape clears the current Arrange/Select selection first, then deactivates the remaining selection tools")
+          print("- Per-element Reset position and Arrange-menu Reset all positions restore original geometry")
 
           print("")
           print("### Presentation settings")
@@ -346,6 +349,15 @@ jobs:
           print("- Plugin-local persistence is exercised independently of the General presentation switches")
           print("- Deterministic defaults reset remains exercised")
           PY
+
+      - name: Upload Arrange evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-arrange
+          path: arrange-artifacts
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload self-hosting evidence
         if: always()
