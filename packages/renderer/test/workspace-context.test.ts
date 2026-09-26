@@ -274,6 +274,7 @@ describe("createMesurerWorkspaceRuntime", () => {
     selectionFor(replacementAfter);
 
     const secondModel = createMesurerModel({ initialEnabled: true });
+
     const secondRuntime = createMesurerWorkspaceRuntime({
       model: secondModel,
       ownerDocument: document,
