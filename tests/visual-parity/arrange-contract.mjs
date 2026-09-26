@@ -72,7 +72,11 @@ try {
     });
 
     parent.append(child);
-    document.body.append(parent);
+
+    const pageRoot = document.getElementById("root");
+
+    if (!pageRoot) throw new Error("Arrange regression fixture requires #root.");
+    pageRoot.append(parent);
 
     const parentRect = parent.getBoundingClientRect();
     const childRect = child.getBoundingClientRect();
@@ -98,6 +102,18 @@ try {
     nested.child.y + nested.child.height / 2,
   );
   await arrangeBox.waitFor({ state: "visible" });
+  const nestedArrangeBox = await arrangeBox.boundingBox();
+  assert(nestedArrangeBox, "Arrange should render a box for the nested child");
+  assert(
+    Math.abs(nestedArrangeBox.x - nested.child.x) <= 1
+      && Math.abs(nestedArrangeBox.y - nested.child.y) <= 1
+      && Math.abs(nestedArrangeBox.width - nested.child.width) <= 1
+      && Math.abs(nestedArrangeBox.height - nested.child.height) <= 1,
+    `Arrange should select the nested child before testing hover ownership: ${JSON.stringify({
+      expected: nested.child,
+      actual: nestedArrangeBox,
+    })}`,
+  );
 
   await page.mouse.move(
     nested.parent.x + nested.parent.width / 2,
