@@ -4,13 +4,14 @@ import {
   MACOS_ELECTRON_TOOLBAR_POSITION,
   getDefaultToolbarPosition,
   resolveInitialToolbarPosition,
+  type ToolbarHostEnvironment,
 } from "../src/runtime/toolbar-position";
 
 const fakeWindow = (options: {
   platform: string;
   userAgent: string;
   electronVersion?: string;
-}) => ({
+}) : ToolbarHostEnvironment => ({
   navigator: {
     platform: options.platform,
     userAgent: options.userAgent,
@@ -18,7 +19,7 @@ const fakeWindow = (options: {
   process: options.electronVersion
     ? { type: "renderer", versions: { electron: options.electronVersion } }
     : undefined,
-}) as unknown as Window;
+});
 
 describe("default toolbar position", () => {
   it("clears the macOS traffic-light area in Electron", () => {
