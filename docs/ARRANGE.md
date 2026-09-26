@@ -33,7 +33,7 @@ Arrange is a normal optional tool in one stable toolbar, not a toolbar mode.
 
 ## Reset positions
 
-A moved selected element gets a compact **Reset position** button beside its Arrange box. In a multi-selection, each moved element gets its own button. Resetting one element removes that element's accumulated Arrange position for the current page and returns it to its original position.
+A selected element with its own Arrange adjustment gets a compact **Reset position** button beside its Arrange box. In a multi-selection, inherited movement from a selected ancestor does not create a redundant child reset. Resetting an element removes that element's accumulated local Arrange adjustment for the current page and returns that adjustment to its original value.
 
 The Arrange options menu also has **Reset all positions**. It removes all saved Arrange positions for the current page without changing Arrange state saved for other routes.
 
@@ -52,7 +52,7 @@ The Arrange chevron and Settings expose the same persisted preferences:
 - Prefer X-ray edges
 - Alignment rulers
 
-X and Y are evaluated independently. With Shift axis locking, only the active movement axis can snap. Multi-selection snaps the group bounding box and applies the same rendered delta to every selected element. If both a parent and one of its descendants are selected, the descendant does not receive the parent's movement a second time.
+X and Y are evaluated independently. With Shift axis locking, only the active movement axis can snap. Multi-selection snaps the group bounding box and applies the same rendered delta to every selected element. Nested adjustments are stored relative to the nearest arranged ancestor. If both a parent and one of its descendants are selected, the descendant rides the parent and keeps only its own local adjustment instead of receiving the drag twice. That relationship remains intact on later parent-only drags.
 
 Arrange owns movement timing while its temporary transform is visible. If a selected element has a host CSS transition such as `transition-all` or a transform transition, Mesurer temporarily disables that transition for the element it is moving. This keeps the rendered element attached to the pointer and prevents post-release easing. When the Arrange preview is removed, the host transition behavior is restored.
 
@@ -66,7 +66,7 @@ Arrange keeps three presentations separate:
 - **Desired.** The human-arranged result.
 - **Live.** The application page with Arrange preview removed.
 
-Each completed drag records target identity, Before and Desired rectangles, offsets, page scope, and creation time. Intent participates in Mesurer history and can persist when the target can be rebound safely.
+Each completed drag records target identity, Before and Desired rectangles, offsets, page scope, and creation time. Public offsets describe rendered movement; the saved renderer state also keeps local descendant offsets so nested targets can follow arranged ancestors without losing their own adjustment. Intent participates in Mesurer history and can persist when the target can be rebound safely.
 
 The preview is temporary browser presentation. Arrange never writes production CSS, templates, component source, or application state.
 
