@@ -810,10 +810,12 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       const targets = new Set(elements);
 
       if (!targets.size) return;
+
       ctx.state.update<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID, (current) => {
         let changed = false;
         const intents = current.intents.flatMap((intent) => {
           if (intent.pageUrl !== currentPage()) return [intent];
+
           const remaining = intent.targets.filter((target) => {
             const element = resolveTarget(target);
             const remove = element !== null && targets.has(element);
