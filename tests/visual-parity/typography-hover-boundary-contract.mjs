@@ -58,6 +58,7 @@ try {
       ));
 
     if (!(card instanceof HTMLElement)) return null;
+
     const rect = card.getBoundingClientRect();
     const point = {
       x: rect.right - 18,
