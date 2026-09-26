@@ -251,7 +251,7 @@ try {
   );
   await page.keyboard.up("Shift");
   assert.equal(
-    await page.locator("[data-mesurer-selected-measurement='true']").count(),
+    await page.locator("[data-mesurer-selection-spacing-target='true']").count(),
     2,
     "Shift-click should build a two-element Arrange selection",
   );
@@ -271,7 +271,7 @@ try {
   );
   await page.keyboard.up("Shift");
   assert.equal(
-    await page.locator("[data-mesurer-selected-measurement='true']").count(),
+    await page.locator("[data-mesurer-selection-spacing-target='true']").count(),
     3,
     "Shift-click through the Arrange group box should add another page element",
   );
@@ -335,7 +335,7 @@ try {
   );
   await page.keyboard.up("Shift");
   assert.equal(
-    await page.locator("[data-mesurer-selected-measurement='true']").count(),
+    await page.locator("[data-mesurer-selection-spacing-target='true']").count(),
     2,
     "Arrange should allow a parent and its child in the same multi-selection",
   );
