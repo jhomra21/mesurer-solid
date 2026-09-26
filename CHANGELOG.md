@@ -4,10 +4,12 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.0-beta.9 - 2026-09-26
+
 - Make Escape progressive for Select and Arrange. The first press clears the current selection and keeps the selection tool active. A second press with nothing selected exits Select, or exits both Arrange and its dependent Select.
 - Add a compact Reset position control for each moved Arrange target and a Reset all positions action to the Arrange menu. Resets remove the saved position intent for the current page and participate in Arrange history.
-
-<!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.0-beta.8 - 2026-09-26
 
