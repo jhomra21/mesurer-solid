@@ -1457,7 +1457,9 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
             id: "reset-all-positions",
             label: "Reset all positions",
             disabled: () => currentIntents().length === 0,
-            run: () => ctx.command.execute(RESET_ALL_COMMAND, undefined, { source: "arrange-menu" }),
+            run: async () => {
+              await ctx.command.execute(RESET_ALL_COMMAND, undefined, { source: "arrange-menu" });
+            },
           },
         ],
       },
