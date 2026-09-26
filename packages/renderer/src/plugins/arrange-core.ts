@@ -813,6 +813,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       ctx.state.update<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID, (current) => {
         let changed = false;
+
         const intents = current.intents.flatMap((intent) => {
           if (intent.pageUrl !== currentPage()) return [intent];
 
