@@ -31,6 +31,7 @@ const COLOR_PICKER_USABLE_OPEN_MS = 200;
 
 export type MesurerBuiltinController = {
   run(id: Exclude<MesurerBuiltinPluginId, "distance">): Promise<void>;
+  clearSelection(): void;
   deactivate(id: MesurerBuiltinPluginId): void;
   pickColorAt(point: ColorPickerPoint): Promise<void>;
   dispose(): void;
@@ -401,6 +402,9 @@ export function createMesurerBuiltinController(options: {
           return;
         }
       }
+    },
+    clearSelection() {
+      clearSelection(model);
     },
     deactivate(id) {
       switch (id) {
