@@ -168,6 +168,11 @@ type ArrangeTargetValue = {
   beforeOffsetY: number;
   desiredOffsetX: number;
   desiredOffsetY: number;
+  offsetSpace: string | null;
+  beforeLocalOffsetX: number | null;
+  beforeLocalOffsetY: number | null;
+  desiredLocalOffsetX: number | null;
+  desiredLocalOffsetY: number | null;
 };
 
 type ArrangeIntentValue = {
@@ -214,6 +219,7 @@ type AppliedPreview = {
 type DragTarget = {
   element: HTMLElement;
   target: ArrangeTargetValue;
+  movesDirectly: boolean;
 };
 
 type SnapCandidate = {
@@ -695,42 +701,6 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       hiddenMeasurements.clear();
     };
 
-    const effectiveOffsets = (intents = currentIntents()) => {
-      const offsets = new Map<HTMLElement, ArrangeOffset>();
-
-      for (const intent of intents) {
-        for (const target of intent.targets) {
-          const element = resolveTarget(target);
-
-          if (!element) continue;
-          offsets.set(element, { x: target.desiredOffsetX, y: target.desiredOffsetY });
-        }
-      }
-
-      return offsets;
-    };
-
-    const presentationOffsets = () => {
-      if (presentation.state === "live") return new Map<HTMLElement, ArrangeOffset>();
-
-      if (!presentation.intentId) return effectiveOffsets();
-      const intent = state().intents.find((candidate) => candidate.id === presentation.intentId);
-
-      if (!intent) return effectiveOffsets();
-      const offsets = new Map<HTMLElement, ArrangeOffset>();
-
-      for (const target of intent.targets) {
-        const element = resolveTarget(target);
-
-        if (!element) continue;
-        offsets.set(element, presentation.state === "before"
-          ? { x: target.beforeOffsetX, y: target.beforeOffsetY }
-          : { x: target.desiredOffsetX, y: target.desiredOffsetY });
-      }
-
-      return offsets;
-    };
-
     const composedParentElement = (element: HTMLElement): HTMLElement | null => {
       if (element.parentElement instanceof realm.HTMLElement) return element.parentElement;
       const elementRoot = element.getRootNode();
@@ -754,6 +724,108 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       }
 
       return { x: 0, y: 0 };
+    };
+
+    const latestResolvedTargets = (intents = currentIntents()) => {
+      const targets = new Map<HTMLElement, ArrangeTargetValue>();
+
+      for (const intent of intents) {
+        for (const target of intent.targets) {
+          const element = resolveTarget(target);
+
+          if (!element) continue;
+          targets.set(element, target);
+        }
+      }
+
+      return targets;
+    };
+
+    const targetLocalOffset = (target: ArrangeTargetValue): ArrangeOffset | null => {
+      if (
+        target.offsetSpace !== "local"
+        || typeof target.desiredLocalOffsetX !== "number"
+        || typeof target.desiredLocalOffsetY !== "number"
+      ) return null;
+
+      return { x: target.desiredLocalOffsetX, y: target.desiredLocalOffsetY };
+    };
+
+    const nearestTrackedAncestor = (
+      element: HTMLElement,
+      tracked: Set<HTMLElement>,
+    ): HTMLElement | null => {
+      let ancestor = composedParentElement(element);
+
+      while (ancestor) {
+        if (tracked.has(ancestor)) return ancestor;
+        ancestor = composedParentElement(ancestor);
+      }
+
+      return null;
+    };
+
+    const effectiveOffsets = (
+      intents = currentIntents(),
+      localOverrides = new Map<HTMLElement, ArrangeOffset>(),
+    ) => {
+      const targets = latestResolvedTargets(intents);
+      const tracked = new Set<HTMLElement>([...targets.keys(), ...localOverrides.keys()]);
+      const offsets = new Map<HTMLElement, ArrangeOffset>();
+      const resolving = new Set<HTMLElement>();
+
+      const resolveOffset = (element: HTMLElement): ArrangeOffset => {
+        const cached = offsets.get(element);
+
+        if (cached) return cached;
+
+        const target = targets.get(element);
+        const local = localOverrides.get(element) ?? (target ? targetLocalOffset(target) : null);
+
+        if (!local && target) {
+          const legacy = { x: target.desiredOffsetX, y: target.desiredOffsetY };
+          offsets.set(element, legacy);
+
+          return legacy;
+        }
+
+        if (!local) return { x: 0, y: 0 };
+
+        if (resolving.has(element)) return local;
+        resolving.add(element);
+        const ancestor = nearestTrackedAncestor(element, tracked);
+        const inherited = ancestor ? resolveOffset(ancestor) : { x: 0, y: 0 };
+        const resolved = { x: inherited.x + local.x, y: inherited.y + local.y };
+        resolving.delete(element);
+        offsets.set(element, resolved);
+
+        return resolved;
+      };
+
+      for (const element of tracked) resolveOffset(element);
+
+      return offsets;
+    };
+
+    const presentationOffsets = () => {
+      if (presentation.state === "live") return new Map<HTMLElement, ArrangeOffset>();
+
+      if (!presentation.intentId) return effectiveOffsets();
+      const intent = state().intents.find((candidate) => candidate.id === presentation.intentId);
+
+      if (!intent) return effectiveOffsets();
+      const offsets = new Map<HTMLElement, ArrangeOffset>();
+
+      for (const target of intent.targets) {
+        const element = resolveTarget(target);
+
+        if (!element) continue;
+        offsets.set(element, presentation.state === "before"
+          ? { x: target.beforeOffsetX, y: target.beforeOffsetY }
+          : { x: target.desiredOffsetX, y: target.desiredOffsetY });
+      }
+
+      return offsets;
     };
 
     const applyOffsets = (offsets: Map<HTMLElement, ArrangeOffset>) => {
