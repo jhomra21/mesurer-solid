@@ -13,6 +13,7 @@ import {
   type TypographyInfo,
 } from "./typography";
 import type { MesurerTheme } from "../../core/persistence";
+import { isMesurerInputBoundary } from "../../core/events";
 import { hasNativeScrollAnchoring } from "../native-scroll-registry";
 
 const DEFAULT_SKIP_TAGS = [
@@ -181,10 +182,18 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
 
   const inspectable = (el: Element | null): el is HTMLElement =>
     !!el && el instanceof HTMLElementCtor && !(el instanceof SVGElementCtor) &&
-    !ignored.has(el.tagName) && hasDirectText(el) && !el.closest("[data-mesurer-root]");
+    !ignored.has(el.tagName) && hasDirectText(el) &&
+    !el.closest("[data-mesurer-root], [data-mesurer-inspector-ui='true']");
 
-  const pick = (x: number, y: number) =>
-    doc.elementsFromPoint(x, y).find((el): el is HTMLElement => inspectable(el)) ?? null;
+  const pick = (x: number, y: number) => {
+    for (const element of doc.elementsFromPoint(x, y)) {
+      if (isMesurerInputBoundary(element, win)) return null;
+
+      if (inspectable(element)) return element;
+    }
+
+    return null;
+  };
 
   const hideHover = () => {
     hoveredEl = null;
@@ -414,7 +423,20 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     raf = win.requestAnimationFrame(() => { raf = 0; sync(); });
   };
 
-  const onMove = (event: MouseEvent) => { pointer = { x: event.clientX, y: event.clientY }; schedule(); };
+  const uiEvent = (event: Event) =>
+    event.composedPath().some((node) => isMesurerInputBoundary(node, win));
+
+  const onMove = (event: MouseEvent) => {
+    pointer = { x: event.clientX, y: event.clientY };
+
+    if (uiEvent(event)) {
+      hideHover();
+
+      return;
+    }
+
+    schedule();
+  };
 
   const shiftFallback = (element: HTMLElement | null, dx: number, dy: number) => {
     if (!element || element.dataset.mesurerNativeScrollAnchor) return;
@@ -469,13 +491,6 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   };
 
   const onOut = (event: MouseEvent) => { if (!event.relatedTarget) hideHover(); };
-
-  const uiEvent = (event: Event) => event.composedPath().some((node) =>
-    node instanceof HTMLElementCtor && (
-      node.id === overlayId || node.hasAttribute("data-mesurer-root") ||
-      node.classList.contains("mesurer-ti-card") || node.classList.contains("mesurer-ti-close")
-    ),
-  );
 
   const onClick = (event: MouseEvent) => {
     if (uiEvent(event)) return;
