@@ -761,6 +761,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         if (!element.isConnected || !isPageElement(element)) return [];
 
         const inheritedOffset = inheritedArrangeOffset(element, offsets);
+
         const offset = {
           x: desiredOffset.x - inheritedOffset.x,
           y: desiredOffset.y - inheritedOffset.y,
