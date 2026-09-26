@@ -49,6 +49,7 @@ try {
   });
 
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
+
   const nested = await page.evaluate(() => {
     const parent = document.createElement("div");
     parent.dataset.testid = "arrange-regression-parent";
