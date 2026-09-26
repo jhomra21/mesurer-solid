@@ -25,6 +25,7 @@ export type MesurerOverlayProps = {
   hoverGuide: Guide | null;
   selectionSpacingStyle: SelectionSpacingStyle;
   interactive: boolean;
+  suppressHoverWhenSelected: boolean;
   onPointerDown: (event: OverlayPointerEvent) => void;
   onPointerMove: (event: PointerEvent) => void;
   onPointerUp: (event: OverlayPointerEvent) => void;
@@ -441,7 +442,13 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           <Tag axis="x" left={props.activeRect!.left + props.activeRect!.width / 2} top={props.activeRect!.top + props.activeRect!.height + MEASURE_LABEL_OFFSET}>{formatValue(props.activeRect!.width)} x {formatValue(props.activeRect!.height)}</Tag>
         </></Show>
 
-        <Show when={props.model.state.hoverRect && props.model.state.settings.hoverHighlightEnabled && selectedMeasurements().length <= 1 && !hoverTargetsSelected()}>
+        <Show when={
+          props.model.state.hoverRect
+          && props.model.state.settings.hoverHighlightEnabled
+          && selectedMeasurements().length <= 1
+          && !(props.suppressHoverWhenSelected && selectedMeasurements().length > 0)
+          && !hoverTargetsSelected()
+        }>
           <Show when={hoverPortalTarget()} fallback={hoverSurface()}>
             {(mount) => <Portal mount={mount()}>{hoverSurface()}</Portal>}
           </Show>

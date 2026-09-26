@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep Arrange active when Escape clears the current target. While Arrange has a selection, Select hover chrome stays hidden so nested page elements do not look simultaneously selected. Pressing Escape again with no selection still exits Arrange.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.0-beta.7 - 2026-09-26

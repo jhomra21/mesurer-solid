@@ -87,6 +87,8 @@ export type MesurerProps = {
   onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
   isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;
   onBuiltinController?: (controller: MesurerBuiltinController | null) => void;
+  /** Internal composable-runtime flag used when Arrange owns the selected-target chrome. */
+  suppressSelectHoverWhenSelected?: boolean;
 };
 
 type Environment = {
@@ -1014,6 +1016,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           hoverGuide={hoverGuide()}
           selectionSpacingStyle={props.selectionSpacingStyle}
           interactive={model.state.enabled && !model.state.settingsOpen}
+          suppressHoverWhenSelected={input.suppressSelectHoverWhenSelected ?? false}
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
           onPointerUp={pointerUp}

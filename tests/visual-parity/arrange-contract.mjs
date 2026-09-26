@@ -48,13 +48,138 @@ try {
       && arrange.getAttribute("aria-pressed") === "true";
   });
 
+  const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
+
+  const nested = await page.evaluate(() => {
+    const parent = document.createElement("div");
+    parent.dataset.testid = "arrange-regression-parent";
+    Object.assign(parent.style, {
+      position: "fixed",
+      left: "930px",
+      top: "520px",
+      width: "260px",
+      height: "220px",
+      background: "rgba(255,255,255,0.02)",
+      zIndex: "2147480000",
+    });
+
+    const child = document.createElement("div");
+    child.dataset.testid = "arrange-regression-child";
+    Object.assign(child.style, {
+      width: "100%",
+      height: "120px",
+      background: "rgba(255,255,255,0.02)",
+    });
+
+    parent.append(child);
+
+    const pageRoot = document.getElementById("root");
+
+    if (!pageRoot) throw new Error("Arrange regression fixture requires #root.");
+    pageRoot.append(parent);
+
+    const parentRect = parent.getBoundingClientRect();
+    const childRect = child.getBoundingClientRect();
+
+    return {
+      parent: {
+        x: parentRect.x,
+        y: parentRect.y,
+        width: parentRect.width,
+        height: parentRect.height,
+      },
+      child: {
+        x: childRect.x,
+        y: childRect.y,
+        width: childRect.width,
+        height: childRect.height,
+      },
+    };
+  });
+
+  await page.mouse.click(
+    nested.child.x + nested.child.width / 2,
+    nested.child.y + nested.child.height / 2,
+  );
+  await arrangeBox.waitFor({ state: "visible" });
+  const nestedArrangeBox = await arrangeBox.boundingBox();
+  assert(nestedArrangeBox, "Arrange should render a box for the nested child");
+  assert(
+    Math.abs(nestedArrangeBox.x - nested.child.x) <= 1
+      && Math.abs(nestedArrangeBox.y - nested.child.y) <= 1
+      && Math.abs(nestedArrangeBox.width - nested.child.width) <= 1
+      && Math.abs(nestedArrangeBox.height - nested.child.height) <= 1,
+    `Arrange should select the nested child before testing hover ownership: ${JSON.stringify({
+      expected: nested.child,
+      actual: nestedArrangeBox,
+    })}`,
+  );
+
+  await page.mouse.move(
+    nested.parent.x + nested.parent.width / 2,
+    nested.parent.y + nested.parent.height - 24,
+  );
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+
+  assert.equal(
+    await page.locator("[data-mesurer-selected-measurement='true']").count(),
+    1,
+    "Arrange should keep one logical selection for the nested child",
+  );
+  assert.equal(
+    await page.locator("[data-mesurer-hover-measurement='true']").count(),
+    0,
+    "Arrange should not paint a second Select hover box while a target is selected",
+  );
+
+  await page.keyboard.press("Escape");
+  await arrangeBox.waitFor({ state: "hidden" });
+  assert.equal(
+    await arrangeButton.getAttribute("aria-pressed"),
+    "true",
+    "Escape should clear the current Arrange target without deactivating Arrange",
+  );
+  assert.equal(
+    await selectButton.getAttribute("aria-pressed"),
+    "true",
+    "Escape should keep Select active while clearing an Arrange target",
+  );
+  assert.equal(
+    await page.locator("[data-mesurer-selected-measurement='true']").count(),
+    0,
+    "Escape should clear the current Arrange selection",
+  );
+
+  await page.mouse.move(
+    nested.parent.x + nested.parent.width / 2 + 8,
+    nested.parent.y + nested.parent.height - 32,
+  );
+
+  const resumedHover = page.locator("[data-mesurer-hover-measurement='true']");
+  await resumedHover.waitFor({ state: "visible" });
+  const resumedHoverBox = await resumedHover.boundingBox();
+  assert(resumedHoverBox, "Select hover should resume after Escape clears the Arrange selection");
+  assert(
+    Math.abs(resumedHoverBox.x - nested.parent.x) <= 1
+      && Math.abs(resumedHoverBox.y - nested.parent.y) <= 1
+      && Math.abs(resumedHoverBox.width - nested.parent.width) <= 1
+      && Math.abs(resumedHoverBox.height - nested.parent.height) <= 1,
+    `Select hover should resume on the nested parent after Arrange clears selection: ${JSON.stringify({
+      expected: nested.parent,
+      actual: resumedHoverBox,
+    })}`,
+  );
+
+  await page.evaluate(() => document.querySelector("[data-testid='arrange-regression-parent']")?.remove());
+
   const before = await target.boundingBox();
   const referenceBox = await reference.boundingBox();
   assert(before, "Arrange contract target must have a bounding box");
   assert(referenceBox, "Arrange reference element must have a bounding box");
   await page.mouse.click(before.x + before.width / 2, before.y + before.height / 2);
 
-  const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
   await arrangeBox.waitFor({ state: "visible" });
   assert.equal(await arrangeButton.isDisabled(), false, "Arrange should remain available after selecting a page element");
 
