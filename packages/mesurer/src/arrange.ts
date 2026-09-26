@@ -106,6 +106,8 @@ export type MesurerArrangeService = {
   showCurrent(): void;
   capturePlan(id: string, state: ArrangePresentation): ArrangeCapturePlan;
   review(id: string, tolerance?: number): ArrangeReview;
+  resetSelection(): Promise<void>;
+  resetAll(): Promise<void>;
   clear(): Promise<void>;
 };
 
