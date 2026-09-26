@@ -706,6 +706,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       for (const [element, desiredOffset] of offsets) {
         if (!element.isConnected || !isPageElement(element)) continue;
+
         const inheritedOffset = inheritedArrangeOffset(element, offsets);
         const offset = {
           x: desiredOffset.x - inheritedOffset.x,
@@ -713,6 +714,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         };
 
         if (offset.x === 0 && offset.y === 0) continue;
+
         const beforeTransform = inlineTransform(element);
         const computed = ownerWindow.getComputedStyle(element).transform;
         const base = computed && computed !== "none" ? ` ${computed}` : "";
@@ -1078,6 +1080,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       const elements = selectedElements();
 
       if (!elements.length) return;
+
       const shiftTarget = event.shiftKey
         ? withPointerEventsDisabled(root, () => getVisualElementAtPoint(
             { x: event.clientX, y: event.clientY },
