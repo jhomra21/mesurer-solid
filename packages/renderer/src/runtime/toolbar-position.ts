@@ -31,3 +31,8 @@ export const getDefaultToolbarPosition = (ownerWindow: Window): ToolbarPosition 
   isElectronWindow(ownerWindow) && isMacOSWindow(ownerWindow)
     ? MACOS_ELECTRON_TOOLBAR_POSITION
     : DEFAULT_TOOLBAR_POSITION;
+
+export const resolveInitialToolbarPosition = (
+  ownerWindow: Window,
+  savedPosition?: ToolbarPosition,
+): ToolbarPosition => savedPosition ?? getDefaultToolbarPosition(ownerWindow);
