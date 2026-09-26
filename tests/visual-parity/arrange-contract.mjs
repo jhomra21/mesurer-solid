@@ -533,6 +533,7 @@ try {
       },
     };
   });
+
   const transitionGroupDuringDrag = await arrangeBox.boundingBox();
 
   assert(transitionGroupDuringDrag, "Transition fixture group box should move during drag");
@@ -541,10 +542,12 @@ try {
     x: transitionGroupDuringDrag.x - transitionGroupBefore.x,
     y: transitionGroupDuringDrag.y - transitionGroupBefore.y,
   };
+
   const transitionFirstDelta = {
     x: transitionDuringDrag.first.x - transitionMove.first.x,
     y: transitionDuringDrag.first.y - transitionMove.first.y,
   };
+
   const transitionSecondDelta = {
     x: transitionDuringDrag.second.x - transitionMove.second.x,
     y: transitionDuringDrag.second.y - transitionMove.second.y,
@@ -565,6 +568,7 @@ try {
   );
 
   await page.mouse.up();
+
   const transitionAtRelease = await page.evaluate(() => {
     const first = document.querySelector("[data-testid='arrange-transition-first']");
     const second = document.querySelector("[data-testid='arrange-transition-second']");
@@ -583,6 +587,7 @@ try {
   });
 
   await page.waitForTimeout(350);
+
   const transitionAfterRelease = await page.evaluate(() => {
     const first = document.querySelector("[data-testid='arrange-transition-first']");
     const second = document.querySelector("[data-testid='arrange-transition-second']");
