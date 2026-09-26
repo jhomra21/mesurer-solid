@@ -4,9 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Prevent the Mesurer toolbar from being dragged under the native macOS close, minimize, and full-screen controls in Electron. Unsafe saved positions are moved out of that control area on the next mount, while positions elsewhere remain unchanged.
-
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.0-beta.4 - 2026-09-26
+
+- Prevent the Mesurer toolbar from being dragged under the native macOS close, minimize, and full-screen controls in Electron. Unsafe saved positions are moved out of that control area on the next mount, while positions elsewhere remain unchanged.
 
 ## 0.2.0-beta.3 - 2026-09-26
 
