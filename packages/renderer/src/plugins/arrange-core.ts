@@ -744,8 +744,8 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     const targetLocalOffset = (target: ArrangeTargetValue): ArrangeOffset | null => {
       if (
         target.offsetSpace !== "local"
-        || typeof target.desiredLocalOffsetX !== "number"
-        || typeof target.desiredLocalOffsetY !== "number"
+        || target.desiredLocalOffsetX === null
+        || target.desiredLocalOffsetY === null
       ) return null;
 
       return { x: target.desiredLocalOffsetX, y: target.desiredLocalOffsetY };
@@ -940,10 +940,13 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         const target = targets.get(element);
 
         if (!target) continue;
+
         const absolute = offsets.get(element);
 
         if (!absolute) continue;
+
         const inherited = inheritedArrangeOffset(element, offsets);
+
         const local = targetLocalOffset(target) ?? {
           x: absolute.x - inherited.x,
           y: absolute.y - inherited.y,
@@ -1267,7 +1270,9 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         const inheritedOffset = inheritedArrangeOffset(element, previousOffsets);
         const beforeOffset = previousOffsets.get(element) ?? inheritedOffset;
         const previousTarget = previousTargets.get(element);
+
         const storedLocalOffset = previousTarget ? targetLocalOffset(previousTarget) : null;
+
         const beforeLocalOffset = storedLocalOffset ?? {
           x: beforeOffset.x - inheritedOffset.x,
           y: beforeOffset.y - inheritedOffset.y,
@@ -1443,9 +1448,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
             x: target.beforeLocalOffsetX ?? 0,
             y: target.beforeLocalOffsetY ?? 0,
           };
+
           const desiredLocal = movesDirectly
             ? { x: beforeLocal.x + completed.dx, y: beforeLocal.y + completed.dy }
             : beforeLocal;
+
           const desiredOffset = desiredOffsets.get(element) ?? {
             x: target.beforeOffsetX + completed.dx,
             y: target.beforeOffsetY + completed.dy,
