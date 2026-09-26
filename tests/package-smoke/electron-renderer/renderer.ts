@@ -16,7 +16,13 @@ type ElectronTestSummary = {
   colorPickerValue: string;
   nativeEyeDropperOpens: number;
   colorPickerOverlayRemoved: boolean;
-  toolbarRect: {
+  toolbarInitialRect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+  toolbarDraggedRect: {
     left: number;
     top: number;
     width: number;
@@ -36,6 +42,10 @@ declare global {
       complete(payload: {
         png: Uint8Array;
         summary: ElectronTestSummary;
+      }): Promise<void>;
+      dragToolbar(payload: {
+        start: { x: number; y: number };
+        end: { x: number; y: number };
       }): Promise<void>;
     };
   }
@@ -117,7 +127,7 @@ const toolbar = await waitFor(() =>
   shadow.querySelector<HTMLElement>("[data-mesurer-toolbar='true']"),
 );
 
-const toolbarBounds = toolbar.getBoundingClientRect();
+const toolbarInitialBounds = toolbar.getBoundingClientRect();
 
 const colorButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]'),
@@ -178,6 +188,21 @@ const capture = await service.capture({
 
 const png = new Uint8Array(await capture.blob.arrayBuffer());
 
+await window.electronMesurer.dragToolbar({
+  start: {
+    x: toolbarInitialBounds.left + 20,
+    y: toolbarInitialBounds.top + 20,
+  },
+  end: {
+    x: 20,
+    y: toolbarInitialBounds.top + 20,
+  },
+});
+
+await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+const toolbarDraggedBounds = toolbar.getBoundingClientRect();
+
 await window.electronMesurer.complete({
   png,
   summary: {
@@ -191,11 +216,17 @@ await window.electronMesurer.complete({
     colorPickerValue,
     nativeEyeDropperOpens,
     colorPickerOverlayRemoved: shadow.querySelector("[data-mesurer-color-picker-target='true']") === null,
-    toolbarRect: {
-      left: toolbarBounds.left,
-      top: toolbarBounds.top,
-      width: toolbarBounds.width,
-      height: toolbarBounds.height,
+    toolbarInitialRect: {
+      left: toolbarInitialBounds.left,
+      top: toolbarInitialBounds.top,
+      width: toolbarInitialBounds.width,
+      height: toolbarInitialBounds.height,
+    },
+    toolbarDraggedRect: {
+      left: toolbarDraggedBounds.left,
+      top: toolbarDraggedBounds.top,
+      width: toolbarDraggedBounds.width,
+      height: toolbarDraggedBounds.height,
     },
     rect: capture.rect,
   },

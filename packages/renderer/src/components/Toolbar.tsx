@@ -4,6 +4,7 @@ import type { SelectionSpacingStyle } from "../core/persistence";
 import type { MesurerModel } from "../model/create-mesurer-model";
 import type { MesurerBuiltinPluginId } from "../plugins/builtins";
 import { supportsColorPicker } from "../runtime/color-picker-support";
+import { constrainToolbarPosition } from "../runtime/toolbar-position";
 import { SettingsPanel } from "./SettingsPanel";
 import { Tooltip, createTooltip } from "./Tooltip";
 import {
@@ -416,9 +417,12 @@ export function Toolbar(props: ToolbarProps) {
       }
 
       didDrag = true;
-      const maxX = Math.max(8, props.ownerWindow.innerWidth - rect.width - 8);
-      const maxY = Math.max(8, props.ownerWindow.innerHeight - rect.height - 8);
-      setPosition({ x: Math.min(maxX, Math.max(8, origin.x + dx)), y: Math.min(maxY, Math.max(8, origin.y + dy)) });
+      setPosition(constrainToolbarPosition(
+        props.ownerWindow,
+        { x: origin.x + dx, y: origin.y + dy },
+        { width: rect.width, height: rect.height },
+        { width: props.ownerWindow.innerWidth, height: props.ownerWindow.innerHeight },
+      ));
     };
 
     const end = (next: PointerEvent) => {

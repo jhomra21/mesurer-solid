@@ -51,6 +51,62 @@ ipcMain.handle("mesurer:capture-window", async (event) => {
   };
 });
 
+ipcMain.handle("mesurer:drag-toolbar", async (event, payload) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+
+  if (!window || window.isDestroyed()) {
+    throw new Error("Electron toolbar drag requested without a live BrowserWindow.");
+  }
+
+  const start = payload?.start;
+  const end = payload?.end;
+
+  if (
+    !Number.isFinite(start?.x)
+    || !Number.isFinite(start?.y)
+    || !Number.isFinite(end?.x)
+    || !Number.isFinite(end?.y)
+  ) {
+    throw new Error("Electron toolbar drag received invalid coordinates.");
+  }
+
+  const webContents = window.webContents;
+  const startX = Math.round(start.x);
+  const startY = Math.round(start.y);
+  const endX = Math.round(end.x);
+  const endY = Math.round(end.y);
+
+  webContents.sendInputEvent({ type: "mouseMove", x: startX, y: startY });
+  webContents.sendInputEvent({
+    type: "mouseDown",
+    x: startX,
+    y: startY,
+    button: "left",
+    clickCount: 1,
+  });
+
+  for (let step = 1; step <= 8; step += 1) {
+    const progress = step / 8;
+
+    webContents.sendInputEvent({
+      type: "mouseMove",
+      x: Math.round(startX + (endX - startX) * progress),
+      y: Math.round(startY + (endY - startY) * progress),
+      button: "left",
+    });
+  }
+
+  webContents.sendInputEvent({
+    type: "mouseUp",
+    x: endX,
+    y: endY,
+    button: "left",
+    clickCount: 1,
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+});
+
 ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
   if (finished) return;
 
@@ -63,10 +119,20 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     throw new Error("Mesurer Electron capture produced an empty PNG.");
   }
 
-  const toolbarRect = summary.toolbarRect ?? {};
+  const toolbarInitialRect = summary.toolbarInitialRect ?? {};
+  const toolbarDraggedRect = summary.toolbarDraggedRect ?? {};
 
-  if (process.platform === "darwin" && Number(toolbarRect.left) < 80) {
-    throw new Error(`Mesurer toolbar overlaps the macOS traffic-light area: ${JSON.stringify(toolbarRect)}`);
+  if (
+    process.platform === "darwin"
+    && (
+      Number(toolbarInitialRect.left) < 80
+      || Number(toolbarDraggedRect.left) < 80
+    )
+  ) {
+    throw new Error(`Mesurer toolbar overlaps the macOS traffic-light area: ${JSON.stringify({
+      toolbarInitialRect,
+      toolbarDraggedRect,
+    })}`);
   }
 
   if (
