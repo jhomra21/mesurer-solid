@@ -222,7 +222,7 @@ try {
         top: "540px",
         width: "64px",
         height: "48px",
-        zIndex: "2147479000",
+        zIndex: "20",
       });
     }
 
@@ -295,7 +295,7 @@ try {
       width: "260px",
       height: "180px",
       background: "rgba(255,255,255,0.02)",
-      zIndex: "2147479000",
+      zIndex: "20",
     });
 
     const child = document.createElement("button");
