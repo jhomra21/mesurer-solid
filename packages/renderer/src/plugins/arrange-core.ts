@@ -35,6 +35,10 @@ const COMMIT_COMMAND = "arrange.commit";
 
 const CLEAR_COMMAND = "arrange.clear";
 
+const RESET_SELECTION_COMMAND = "arrange.reset-selection";
+
+const RESET_ALL_COMMAND = "arrange.reset-all";
+
 const SELECTION_AVAILABLE_STATE_ID = "mesurer.arrange.selection-available";
 
 const MAX_INTENTS = 100;
@@ -48,6 +52,14 @@ const SNAP_RELEVANCE_DISTANCE = 160;
 const MAX_SNAP_ELEMENTS = 500;
 
 const SNAP_LINE_COLOR = "#ef4444";
+
+const RESET_BUTTON_SIZE = 24;
+
+const RESET_BUTTON_GAP = 6;
+
+const RESET_BUTTON_STACK_OFFSET = 30;
+
+const RESET_POSITION_EPSILON = 0.5;
 
 export type ArrangeRect = {
   left: number;
@@ -126,6 +138,8 @@ export type MesurerArrangeService = {
   showCurrent(): void;
   capturePlan(id: string, state: ArrangePresentation): ArrangeCapturePlan;
   review(id: string, tolerance?: number): ArrangeReview;
+  resetSelection(): Promise<void>;
+  resetAll(): Promise<void>;
   clear(): Promise<void>;
 };
 
@@ -477,9 +491,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const previews = new Map<HTMLElement, AppliedPreview>();
     const hiddenMeasurements = new Map<HTMLElement, InlineVisibility>();
+    const resetButtons = new Map<HTMLElement, HTMLButtonElement>();
     let presentation: PresentationState = { intentId: null, state: "desired" };
     let drag: DragState | null = null;
     let pendingIntent: ArrangeIntentValue | null = null;
+    let pendingResetElements: HTMLElement[] | null = null;
     let disposed = false;
     let refreshFrame = 0;
     let observer: MutationObserver | null = null;
@@ -716,6 +732,118 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const selectionRect = () => unionRects(selectedElements().map((element) => getRectFromDom(element)));
 
+    const clearResetButtons = () => {
+      for (const button of resetButtons.values()) button.remove();
+      resetButtons.clear();
+    };
+
+    const resetButtonPosition = (element: HTMLElement) => {
+      const rect = element.getBoundingClientRect();
+      const padding = 4;
+      let left = rect.right + RESET_BUTTON_GAP;
+
+      if (left + RESET_BUTTON_SIZE > ownerWindow.innerWidth - padding) {
+        left = Math.max(padding, rect.left - RESET_BUTTON_SIZE - RESET_BUTTON_GAP);
+      }
+
+      const top = Math.min(
+        Math.max(padding, rect.top + RESET_BUTTON_STACK_OFFSET),
+        Math.max(padding, ownerWindow.innerHeight - RESET_BUTTON_SIZE - padding),
+      );
+
+      return { left, top };
+    };
+
+    const syncResetButtons = () => {
+      if (!active() || drag) {
+        clearResetButtons();
+
+        return;
+      }
+
+      const offsets = effectiveOffsets(currentIntents());
+      const visible = new Set<HTMLElement>();
+
+      for (const element of selectedElements()) {
+        const offset = offsets.get(element);
+
+        if (!offset
+          || (Math.abs(offset.x) <= RESET_POSITION_EPSILON && Math.abs(offset.y) <= RESET_POSITION_EPSILON)) continue;
+        visible.add(element);
+        let button = resetButtons.get(element);
+
+        if (!button) {
+          button = ownerDocument.createElement("button");
+          button.type = "button";
+          button.dataset.mesurerArrangeReset = "true";
+          button.dataset.mesurerInspectorUi = "true";
+          button.setAttribute("aria-label", "Reset position");
+          button.title = "Reset position";
+          button.textContent = "↺";
+          button.className = "msr:pointer-events-auto msr:flex msr:size-6 msr:items-center msr:justify-center msr:rounded-[7px] msr:border msr:border-ink-200 msr:bg-white msr:text-[14px] msr:leading-none msr:text-black msr:outline-none msr:hover:bg-ink-50 msr:focus-visible:border-[#0d99ff]";
+          button.style.position = "fixed";
+          button.addEventListener("pointerdown", (event) => event.stopPropagation());
+          button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            pendingResetElements = [element];
+            void ctx.command.execute(RESET_SELECTION_COMMAND, undefined, { source: "arrange-reset-button" })
+              .catch(() => { pendingResetElements = null; });
+          });
+          resetButtons.set(element, button);
+          root.append(button);
+        }
+
+        const position = resetButtonPosition(element);
+        button.style.left = `${position.left}px`;
+        button.style.top = `${position.top}px`;
+      }
+
+      for (const [element, button] of resetButtons) {
+        if (visible.has(element)) continue;
+        button.remove();
+        resetButtons.delete(element);
+      }
+    };
+
+    const resetElements = (elements: HTMLElement[]) => {
+      const targets = new Set(elements);
+
+      if (!targets.size) return;
+      ctx.state.update<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID, (current) => {
+        let changed = false;
+        const intents = current.intents.flatMap((intent) => {
+          if (intent.pageUrl !== currentPage()) return [intent];
+          const remaining = intent.targets.filter((target) => {
+            const element = resolveTarget(target);
+            const remove = element !== null && targets.has(element);
+
+            if (remove) changed = true;
+
+            return !remove;
+          });
+
+          if (!remaining.length) return [];
+
+          return remaining.length === intent.targets.length ? [intent] : [{ ...intent, targets: remaining }];
+        });
+
+        return changed ? { intents } : current;
+      });
+      showCurrentDesired();
+      renderBox();
+    };
+
+    const resetAllPositions = () => {
+      ctx.state.update<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID, (current) => {
+        const intents = current.intents.filter((intent) => intent.pageUrl !== currentPage());
+
+        return intents.length === current.intents.length ? current : { intents };
+      });
+      showCurrentDesired();
+      renderBox();
+    };
+
     const collectSnapCandidates = (elements: HTMLElement[]) => {
       const snapSettings = settings();
 
@@ -844,6 +972,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     const renderBox = (override?: ArrangeRect | null) => {
       if (!active()) {
         box.style.display = "none";
+        clearResetButtons();
 
         return;
       }
@@ -852,6 +981,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       if (!value) {
         box.style.display = "none";
+        clearResetButtons();
 
         return;
       }
@@ -861,6 +991,9 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       box.style.top = `${value.top}px`;
       box.style.width = `${value.width}px`;
       box.style.height = `${value.height}px`;
+
+      if (drag) clearResetButtons();
+      else syncResetButtons();
     };
 
     const showCurrentDesired = () => {
@@ -1101,6 +1234,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       ctx.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => false);
       returnToLive();
       renderBox();
+      void ctx.command.execute(BUILTIN_SELECT_COMMAND, undefined, { source: "arrange-escape" }).catch(() => undefined);
     };
 
     box.addEventListener("pointerdown", beginDrag);
@@ -1253,6 +1387,12 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         };
       },
       review,
+      resetSelection: async () => {
+        await ctx.command.execute(RESET_SELECTION_COMMAND);
+      },
+      resetAll: async () => {
+        await ctx.command.execute(RESET_ALL_COMMAND);
+      },
       clear: async () => {
         await ctx.command.execute(CLEAR_COMMAND);
       },
@@ -1309,6 +1449,12 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
             checked: () => settings().snapLines,
             disabled: () => !settings().snapping,
             run: () => updateSettings({ snapLines: !settings().snapLines }),
+          },
+          {
+            id: "reset-all-positions",
+            label: "Reset all positions",
+            disabled: () => currentIntents().length === 0,
+            run: () => ctx.command.execute(RESET_ALL_COMMAND, undefined, { source: "arrange-menu" }),
           },
         ],
       },
@@ -1401,6 +1547,12 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       showCurrentDesired();
       renderBox();
     });
+    ctx.command.register(RESET_SELECTION_COMMAND, () => {
+      const elements = pendingResetElements ?? selectedElements();
+      pendingResetElements = null;
+      resetElements(elements);
+    });
+    ctx.command.register(RESET_ALL_COMMAND, resetAllPositions);
     ctx.command.register(CLEAR_COMMAND, () => {
       ctx.state.update<ArrangeStateValue>(MESURER_ARRANGE_STATE_ID, () => ({ intents: [] }));
       presentation = { intentId: null, state: "desired" };
@@ -1433,6 +1585,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       workspaceUnsubscribe();
       stateSubscription.dispose();
       clearPreviewStyles();
+      clearResetButtons();
       hideSnapLines();
       restoreMeasurementOverlays();
       workspace.dispose();
