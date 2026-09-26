@@ -53,6 +53,7 @@ import {
 import { hasNativeScrollAnchoring } from "./runtime/native-scroll-registry";
 import { getMesurerPageKey, subscribeMesurerPageKey } from "./runtime/page-location";
 import { ensureMesurerStyles } from "./runtime/style-inject";
+import { getDefaultToolbarPosition, type ToolbarPosition } from "./runtime/toolbar-position";
 import { createTextInspector, type TextInspectorAPI } from "./runtime/typography";
 import { createXrayScope } from "./runtime/xray-scope";
 import type { MesurerBuiltinPluginId } from "./plugins/builtins";
@@ -106,7 +107,6 @@ const LEGACY_STORAGE_KEY = "mesurer-state";
 
 const NATIVE_SCROLL_SETTLE_MS = 80;
 
-type ToolbarPosition = { x: number; y: number };
 
 const readToolbarPosition = (ownerWindow: Window, storageKey: string): ToolbarPosition | undefined => {
   try {
@@ -1038,7 +1038,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           selectionSpacingStyle={props.selectionSpacingStyle}
           onSelectionSpacingStyleChange={onSelectionSpacingStyleChange}
           onResetSettings={() => { model.resetSettings(); onResetSelectionSpacingStyle(); activePersistence?.clearSettings(); }}
-          initialPosition={readToolbarPosition(ownerWindow, storageKey)}
+          initialPosition={readToolbarPosition(ownerWindow, storageKey) ?? getDefaultToolbarPosition(ownerWindow)}
           onPositionChange={(position) => writeToolbarPosition(ownerWindow, storageKey, position)}
         />
       </div>
