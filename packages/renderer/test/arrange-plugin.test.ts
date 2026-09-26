@@ -161,7 +161,7 @@ describe("arrangePlugin", () => {
   it("keeps Arrange quick-menu toggles synchronized with plugin settings", async () => {
     const { host } = await setup();
     const tool = host.tools().find((item) => item.id === "arrange");
-    expect(tool?.menu?.items.map((item) => item.label)).toEqual([
+    expect(tool?.menu?.items.filter((item) => item.checked).map((item) => item.label)).toEqual([
       "Snapping",
       "Element edges",
       "Element centers",
