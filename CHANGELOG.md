@@ -4,9 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Keep the Mesurer toolbar below the native macOS Electron titlebar area across the full window width. Dragging and saved positions can no longer place toolbar controls where macOS treats pointer input as window movement.
-
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.0-beta.7 - 2026-09-26
+
+- Keep the Mesurer toolbar below the native macOS Electron titlebar area across the full window width. Dragging and saved positions can no longer place toolbar controls where macOS treats pointer input as window movement.
 
 ## 0.2.0-beta.6 - 2026-09-26
 
