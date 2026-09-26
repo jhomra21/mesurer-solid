@@ -23,7 +23,7 @@ Mount it from the same browser-only Mesurer setup described in [Getting started]
 3. Drag the selection to the desired position.
 4. Release the pointer to save that placement as Desired intent.
 
-Arrange can be activated before a selection exists. It enables Select automatically and preserves any existing selection.
+Arrange can be activated before a selection exists. It enables Select automatically and preserves any existing selection. Hold Shift while clicking page elements to add or remove targets from the selection, including elements that sit underneath the current Arrange group box.
 
 Arrange depends on Select, but the dependency is one-way. Turning Arrange off leaves Select active. Turning Select off while Arrange is active also exits Arrange.
 
@@ -52,7 +52,7 @@ The Arrange chevron and Settings expose the same persisted preferences:
 - Prefer X-ray edges
 - Alignment rulers
 
-X and Y are evaluated independently. With Shift axis locking, only the active movement axis can snap. Multi-selection snaps the group bounding box and applies the final delta to each selected element.
+X and Y are evaluated independently. With Shift axis locking, only the active movement axis can snap. Multi-selection snaps the group bounding box and applies the same rendered delta to every selected element. If both a parent and one of its descendants are selected, the descendant does not receive the parent's movement a second time.
 
 When X-ray is visible and **Prefer X-ray edges** is enabled, the visible X-ray boxes become snap targets.
 
