@@ -1083,11 +1083,12 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (!elements.length) return;
 
       const shiftTarget = event.shiftKey
-        ? withPointerEventsDisabled(root, () => getVisualElementAtPoint(
-            { x: event.clientX, y: event.clientY },
-            pageTarget,
-            ownerDocument,
-          ))
+        ? withPointerEventsDisabled(runtime.rendererRoot ?? null, () =>
+            withPointerEventsDisabled(root, () => getVisualElementAtPoint(
+              { x: event.clientX, y: event.clientY },
+              pageTarget,
+              ownerDocument,
+            )))
         : null;
 
       if (
