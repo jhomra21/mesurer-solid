@@ -533,10 +533,12 @@ try {
     x: afterParentMove.parent.x - nestedFollowUp.parent.x,
     y: afterParentMove.parent.y - nestedFollowUp.parent.y,
   };
+
   const childFirstDelta = {
     x: afterParentMove.child.x - nestedFollowUp.child.x,
     y: afterParentMove.child.y - nestedFollowUp.child.y,
   };
+
   const leafFirstDelta = {
     x: afterParentMove.leaf.x - nestedFollowUp.leaf.x,
     y: afterParentMove.leaf.y - nestedFollowUp.leaf.y,
@@ -622,10 +624,12 @@ try {
     x: atFollowRelease.parent.x - afterParentMove.parent.x,
     y: atFollowRelease.parent.y - afterParentMove.parent.y,
   };
+
   const childFollowDelta = {
     x: atFollowRelease.child.x - afterParentMove.child.x,
     y: atFollowRelease.child.y - afterParentMove.child.y,
   };
+
   const leafFollowDelta = {
     x: atFollowRelease.leaf.x - afterParentMove.leaf.x,
     y: atFollowRelease.leaf.y - afterParentMove.leaf.y,
@@ -706,10 +710,12 @@ try {
     x: afterParentAgain.parent.x - afterFollowRelease.parent.x,
     y: afterParentAgain.parent.y - afterFollowRelease.parent.y,
   };
+
   const childAgainDelta = {
     x: afterParentAgain.child.x - afterFollowRelease.child.x,
     y: afterParentAgain.child.y - afterFollowRelease.child.y,
   };
+
   const leafAgainDelta = {
     x: afterParentAgain.leaf.x - afterFollowRelease.leaf.x,
     y: afterParentAgain.leaf.y - afterFollowRelease.leaf.y,
