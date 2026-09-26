@@ -4,9 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Keep standalone Typography hover inspection from looking through pinned Mesurer Typography cards into page text underneath them. Pointer movement and clicks on Typography UI now stay owned by Mesurer until the pointer leaves the card.
-
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.0-beta.5 - 2026-09-26
+
+- Keep standalone Typography hover inspection from looking through pinned Mesurer Typography cards into page text underneath them. Pointer movement and clicks on Typography UI now stay owned by Mesurer until the pointer leaves the card.
 
 ## 0.2.0-beta.4 - 2026-09-26
 
