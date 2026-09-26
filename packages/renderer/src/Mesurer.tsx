@@ -809,6 +809,18 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
  return; }
 
+        if (model.current.toolMode === "select") {
+          const hasSelection = model.current.selectedMeasurements.length > 0
+            || model.current.selectedMeasurement !== null
+            || model.current.selectionOriginRect !== null
+            || model.current.selectedGuideIds.length > 0;
+
+          if (hasSelection) builtinController.clearSelection();
+          else builtinController.deactivate("select");
+
+          return;
+        }
+
         if (model.current.toolMode === "text-inspector") textInspector?.clear();
         model.clearAll();
 
