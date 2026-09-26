@@ -1277,6 +1277,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           x: beforeOffset.x - inheritedOffset.x,
           y: beforeOffset.y - inheritedOffset.y,
         };
+
         const before = addOffset(natural, beforeOffset);
         const fingerprint = getElementFingerprint(element);
         const movesDirectly = nearestTrackedAncestor(element, selected) === null;
