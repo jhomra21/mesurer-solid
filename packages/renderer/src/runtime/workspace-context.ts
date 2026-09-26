@@ -293,22 +293,7 @@ export function createMesurerWorkspaceRuntime(options: {
     const selectorMatches = rawSelectorMatches
       .filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
 
-    if (selectorMatches.length === 1) {
-      if (!target.fingerprint.id && !target.fingerprint.testId) {
-        let fingerprintMatches: Element[] = [];
-
-        try {
-          fingerprintMatches = queryCandidates(target.fingerprint.tag)
-            .filter((candidate) => isElementFingerprintCompatible(candidate, target.fingerprint));
-        } catch {
-          return null;
-        }
-
-        if (fingerprintMatches.length !== 1 || fingerprintMatches[0] !== selectorMatches[0]) {
-          return null;
-        }
-      }
-
+    if (rawSelectorMatches.length === 1 && selectorMatches.length === 1) {
       return selectorMatches[0] ?? null;
     }
 
