@@ -201,6 +201,16 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
     visible(hoverCard, false);
   };
 
+  const pointInsideCard = (card: HTMLElement | null, x: number, y: number) => {
+    if (!card || card.dataset.state !== "visible") return false;
+    const rect = card.getBoundingClientRect();
+
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  };
+
+  const pointInsidePinnedCard = (x: number, y: number) =>
+    pins.some((pin) => pointInsideCard(pin.card, x, y));
+
   const inspect = (element: HTMLElement) => {
     if (!enabled || !inspectable(element)) return false;
     ensureHover();
@@ -429,11 +439,16 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
   const onMove = (event: MouseEvent) => {
     pointer = { x: event.clientX, y: event.clientY };
 
-    if (uiEvent(event)) {
+    if (uiEvent(event) || pointInsidePinnedCard(event.clientX, event.clientY)) {
       hideHover();
 
       return;
     }
+
+    // The transient Typography card is intentionally non-interactive, but it is
+    // still a visible Mesurer surface. Keep the current inspection stable while
+    // the pointer is over that card instead of looking through it at host text.
+    if (pointInsideCard(hoverCard, event.clientX, event.clientY)) return;
 
     schedule();
   };
@@ -494,6 +509,17 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
 
   const onClick = (event: MouseEvent) => {
     if (uiEvent(event)) return;
+
+    if (
+      pointInsideCard(hoverCard, event.clientX, event.clientY)
+      || pointInsidePinnedCard(event.clientX, event.clientY)
+    ) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      return;
+    }
+
     event.preventDefault(); event.stopImmediatePropagation();
 
     if (event.button === 0) {
@@ -505,6 +531,17 @@ export function createTextInspector(options: TextInspectorOptions = {}, legacy =
 
   const onAux = (event: MouseEvent) => {
     if (uiEvent(event)) return;
+
+    if (
+      pointInsideCard(hoverCard, event.clientX, event.clientY)
+      || pointInsidePinnedCard(event.clientX, event.clientY)
+    ) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      return;
+    }
+
     event.preventDefault(); event.stopImmediatePropagation();
   };
 
