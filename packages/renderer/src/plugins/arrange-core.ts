@@ -8,9 +8,11 @@ import {
   getElementFingerprint,
   getElementSelector,
   getRectFromDom,
+  getVisualElementAtPoint,
   isElementFingerprintCompatible,
   isElementFingerprintRebindable,
   isElementWithinDomTarget,
+  withPointerEventsDisabled,
 } from "@jhomra21/mesurer-solid-dom";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { GUIDE_SNAP_DISTANCE } from "../core/constants";
@@ -232,6 +234,7 @@ type DragState = {
   targets: DragTarget[];
   groupBefore: ArrangeRect;
   snapCandidates: SnapCandidate[];
+  shiftToggleElement: HTMLElement | null;
   dx: number;
   dy: number;
 };
@@ -673,11 +676,41 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       return offsets;
     };
 
+    const composedParentElement = (element: HTMLElement): HTMLElement | null => {
+      if (element.parentElement instanceof realm.HTMLElement) return element.parentElement;
+      const elementRoot = element.getRootNode();
+
+      return elementRoot instanceof realm.ShadowRoot && elementRoot.host instanceof realm.HTMLElement
+        ? elementRoot.host
+        : null;
+    };
+
+    const inheritedArrangeOffset = (
+      element: HTMLElement,
+      offsets: Map<HTMLElement, ArrangeOffset>,
+    ): ArrangeOffset => {
+      let ancestor = composedParentElement(element);
+
+      while (ancestor) {
+        const offset = offsets.get(ancestor);
+
+        if (offset) return offset;
+        ancestor = composedParentElement(ancestor);
+      }
+
+      return { x: 0, y: 0 };
+    };
+
     const applyOffsets = (offsets: Map<HTMLElement, ArrangeOffset>) => {
       clearPreviewStyles();
 
-      for (const [element, offset] of offsets) {
+      for (const [element, desiredOffset] of offsets) {
         if (!element.isConnected || !isPageElement(element)) continue;
+        const inheritedOffset = inheritedArrangeOffset(element, offsets);
+        const offset = {
+          x: desiredOffset.x - inheritedOffset.x,
+          y: desiredOffset.y - inheritedOffset.y,
+        };
 
         if (offset.x === 0 && offset.y === 0) continue;
         const beforeTransform = inlineTransform(element);
@@ -1045,6 +1078,27 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       const elements = selectedElements();
 
       if (!elements.length) return;
+      const shiftTarget = event.shiftKey
+        ? withPointerEventsDisabled(root, () => getVisualElementAtPoint(
+            { x: event.clientX, y: event.clientY },
+            pageTarget,
+            ownerDocument,
+          ))
+        : null;
+
+      if (
+        event.shiftKey
+        && shiftTarget instanceof realm.HTMLElement
+        && isPageElement(shiftTarget)
+        && !elements.includes(shiftTarget)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        workspace.toggleSelection(shiftTarget);
+
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
 
@@ -1110,6 +1164,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         targets,
         groupBefore,
         snapCandidates: collectSnapCandidates(elements),
+        shiftToggleElement: event.shiftKey
+          && shiftTarget instanceof realm.HTMLElement
+          && elements.includes(shiftTarget)
+          ? shiftTarget
+          : null,
         dx: 0,
         dy: 0,
       };
@@ -1180,6 +1239,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       hideSnapLines();
 
       if (completed.dx === 0 && completed.dy === 0) {
+        if (completed.shiftToggleElement) workspace.toggleSelection(completed.shiftToggleElement);
         showCurrentDesired();
         renderBox();
 
