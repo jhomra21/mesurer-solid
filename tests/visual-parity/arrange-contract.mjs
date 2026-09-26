@@ -341,11 +341,14 @@ try {
   );
 
   const nestedGroupBefore = await arrangeBox.boundingBox();
+
   assert(nestedGroupBefore, "Nested Arrange multi-selection should have a group box");
+
   const dragStart = {
     x: nestedMove.parent.x + nestedMove.parent.width - 28,
     y: nestedMove.parent.y + nestedMove.parent.height - 28,
   };
+
   await page.mouse.move(dragStart.x, dragStart.y);
   await page.mouse.down();
   await page.mouse.move(dragStart.x + 46, dragStart.y + 31, { steps: 4 });
@@ -370,16 +373,21 @@ try {
 
     return { parent: rect(parent), child: rect(child) };
   });
+
   const parentDelta = {
     x: nestedAfter.parent.x - nestedMove.parent.x,
     y: nestedAfter.parent.y - nestedMove.parent.y,
   };
+
   const childDelta = {
     x: nestedAfter.child.x - nestedMove.child.x,
     y: nestedAfter.child.y - nestedMove.child.y,
   };
+
   const nestedGroupAfter = await arrangeBox.boundingBox();
+
   assert(nestedGroupAfter, "Nested Arrange group box should remain visible after drag");
+
   const groupDelta = {
     x: nestedGroupAfter.x - nestedGroupBefore.x,
     y: nestedGroupAfter.y - nestedGroupBefore.y,
