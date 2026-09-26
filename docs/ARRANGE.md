@@ -54,6 +54,8 @@ The Arrange chevron and Settings expose the same persisted preferences:
 
 X and Y are evaluated independently. With Shift axis locking, only the active movement axis can snap. Multi-selection snaps the group bounding box and applies the same rendered delta to every selected element. If both a parent and one of its descendants are selected, the descendant does not receive the parent's movement a second time.
 
+Arrange owns movement timing while its temporary transform is visible. If a selected element has a host CSS transition such as `transition-all` or a transform transition, Mesurer temporarily disables that transition for the element it is moving. This keeps the rendered element attached to the pointer and prevents post-release easing. When the Arrange preview is removed, the host transition behavior is restored.
+
 When X-ray is visible and **Prefer X-ray edges** is enabled, the visible X-ray boxes become snap targets.
 
 ## Before, Desired, and Live
@@ -85,9 +87,9 @@ The same General panel contains **Keep text changes** for Typography/direct text
 
 ## Transform ownership
 
-Arrange previews movement with an inline transform while retaining the element's previous inline transform value and priority as its baseline.
+Arrange previews movement with an inline transform while retaining the element's previous inline transform value and priority as its baseline. While that transform is owned, Arrange also suppresses CSS transitions on the moved element so the browser cannot interpolate the preview behind the pointer.
 
-Mesurer restores that baseline only while the current transform still matches the exact preview value and priority it applied. If the application changes the transform, Mesurer relinquishes ownership and preserves the host-authored value through Live review, refresh, plugin removal, and disposal.
+Mesurer restores the transform baseline only while the current transform still matches the exact preview value and priority it applied. If the application changes the transform, Mesurer relinquishes ownership and preserves the host-authored value through Live review, refresh, plugin removal, and disposal. Transition suppression is temporary: when the preview is removed, Mesurer restores the host transition property it observed, including a newer host-authored value seen while the preview was active.
 
 This prevents stale Arrange state from overwriting a real source update.
 
