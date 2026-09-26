@@ -100,7 +100,7 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Compact the toolbar to active controls without changing tool state or order.
 - Choose System, Light, or Dark appearance while keeping the same theme across isolated and document-backed Mesurer UI.
 
-Arrange is not a toolbar mode. It can be activated before a selection exists and enables Select automatically. Turning Arrange off leaves Select active; turning Select off exits Arrange.
+Arrange is not a toolbar mode. It can be activated before a selection exists and enables Select automatically. Turning Arrange off leaves Select active; turning Select off exits Arrange. Escape clears the current Select or Arrange selection first. A second Escape with nothing selected exits Select, or exits both Arrange and Select. Each moved Arrange target has a Reset position control, and the Arrange menu can reset all positions on the current page.
 
 Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
 
