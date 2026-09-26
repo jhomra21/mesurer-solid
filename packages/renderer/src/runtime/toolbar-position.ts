@@ -76,6 +76,7 @@ export const constrainToolbarPosition = (
     viewportPadding,
     viewportSize.width - toolbarSize.width - viewportPadding,
   );
+
   const maxY = Math.max(
     viewportPadding,
     viewportSize.height - toolbarSize.height - viewportPadding,
