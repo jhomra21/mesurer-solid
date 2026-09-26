@@ -61,7 +61,7 @@ function App() {
 
       <footer class="page-footer">
         <strong>Keyboard checks</strong>
-        <p>Delete removes selected guides. Escape clears measurements/guides. Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z undo/redo. Cmd/Ctrl+, opens settings.</p>
+        <p>Escape clears the current Select or Arrange selection first, then exits the selection tool on the next press. Delete removes selected guides. Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z undo/redo. Cmd/Ctrl+, opens settings.</p>
       </footer>
     </main>
   );
