@@ -436,6 +436,343 @@ try {
   });
   await page.evaluate(() => document.querySelector("[data-testid='arrange-move-parent']")?.remove());
 
+  const nestedFollowUp = await page.evaluate(() => {
+    const parent = document.createElement("div");
+    parent.dataset.testid = "arrange-follow-parent";
+    Object.assign(parent.style, {
+      position: "fixed",
+      left: "720px",
+      top: "560px",
+      width: "300px",
+      height: "210px",
+      background: "rgba(255,255,255,0.02)",
+      zIndex: "20",
+      transition: "all 2s linear",
+    });
+
+    const child = document.createElement("div");
+    child.dataset.testid = "arrange-follow-child";
+    Object.assign(child.style, {
+      position: "absolute",
+      left: "32px",
+      top: "36px",
+      width: "190px",
+      height: "118px",
+      transition: "all 4s ease",
+    });
+
+    const leaf = document.createElement("button");
+    leaf.dataset.testid = "arrange-follow-leaf";
+    leaf.textContent = "Nested leaf";
+    Object.assign(leaf.style, {
+      position: "absolute",
+      left: "18px",
+      top: "22px",
+      width: "112px",
+      height: "44px",
+    });
+
+    child.append(leaf);
+    parent.append(child);
+
+    const pageRoot = document.getElementById("root");
+
+    if (!pageRoot) throw new Error("Arrange follow-up fixture requires #root.");
+    pageRoot.append(parent);
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { parent: rect(parent), child: rect(child), leaf: rect(leaf) };
+  });
+
+  await page.mouse.click(
+    nestedFollowUp.parent.x + nestedFollowUp.parent.width - 20,
+    nestedFollowUp.parent.y + nestedFollowUp.parent.height - 20,
+  );
+
+  const parentOnlyGroup = await arrangeBox.boundingBox();
+
+  assert(parentOnlyGroup, "Parent-only Arrange selection should have a group box");
+
+  const firstDragStart = {
+    x: parentOnlyGroup.x + parentOnlyGroup.width - 24,
+    y: parentOnlyGroup.y + parentOnlyGroup.height - 24,
+  };
+
+  await page.mouse.move(firstDragStart.x, firstDragStart.y);
+  await page.mouse.down();
+  await page.mouse.move(firstDragStart.x + 58, firstDragStart.y + 34, { steps: 4 });
+  await page.mouse.up();
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+
+  const afterParentMove = await page.evaluate(() => {
+    const parent = document.querySelector("[data-testid='arrange-follow-parent']");
+    const child = document.querySelector("[data-testid='arrange-follow-child']");
+    const leaf = document.querySelector("[data-testid='arrange-follow-leaf']");
+
+    if (!(parent instanceof HTMLElement) || !(child instanceof HTMLElement) || !(leaf instanceof HTMLElement)) {
+      throw new Error("Arrange follow-up fixture disappeared after parent move.");
+    }
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { parent: rect(parent), child: rect(child), leaf: rect(leaf) };
+  });
+
+  const parentFirstDelta = {
+    x: afterParentMove.parent.x - nestedFollowUp.parent.x,
+    y: afterParentMove.parent.y - nestedFollowUp.parent.y,
+  };
+
+  const childFirstDelta = {
+    x: afterParentMove.child.x - nestedFollowUp.child.x,
+    y: afterParentMove.child.y - nestedFollowUp.child.y,
+  };
+
+  const leafFirstDelta = {
+    x: afterParentMove.leaf.x - nestedFollowUp.leaf.x,
+    y: afterParentMove.leaf.y - nestedFollowUp.leaf.y,
+  };
+
+  assert(
+    Math.abs(parentFirstDelta.x - childFirstDelta.x) <= 1
+      && Math.abs(parentFirstDelta.y - childFirstDelta.y) <= 1
+      && Math.abs(parentFirstDelta.x - leafFirstDelta.x) <= 1
+      && Math.abs(parentFirstDelta.y - leafFirstDelta.y) <= 1,
+    `Moving a parent alone must carry its subtree: ${JSON.stringify({
+      parentFirstDelta,
+      childFirstDelta,
+      leafFirstDelta,
+    })}`,
+  );
+
+  await page.keyboard.down("Shift");
+  await page.mouse.click(
+    afterParentMove.child.x + afterParentMove.child.width / 2,
+    afterParentMove.child.y + afterParentMove.child.height / 2,
+  );
+  await page.keyboard.up("Shift");
+  assert.equal(
+    await page.locator("[data-mesurer-selection-spacing-target='true']").count(),
+    2,
+    "Shift-click should add the already-moved parent's child to the Arrange selection",
+  );
+
+  const followGroupBefore = await arrangeBox.boundingBox();
+
+  assert(followGroupBefore, "Parent-plus-child follow-up selection should have a group box");
+
+  const followDragStart = {
+    x: followGroupBefore.x + followGroupBefore.width - 22,
+    y: followGroupBefore.y + followGroupBefore.height - 22,
+  };
+
+  await page.mouse.move(followDragStart.x, followDragStart.y);
+  await page.mouse.down();
+  await page.mouse.move(followDragStart.x + 47, followDragStart.y + 29, { steps: 4 });
+  await page.mouse.up();
+
+  const atFollowRelease = await page.evaluate(() => {
+    const parent = document.querySelector("[data-testid='arrange-follow-parent']");
+    const child = document.querySelector("[data-testid='arrange-follow-child']");
+    const leaf = document.querySelector("[data-testid='arrange-follow-leaf']");
+
+    if (!(parent instanceof HTMLElement) || !(child instanceof HTMLElement) || !(leaf instanceof HTMLElement)) {
+      throw new Error("Arrange follow-up fixture disappeared at release.");
+    }
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { parent: rect(parent), child: rect(child), leaf: rect(leaf) };
+  });
+
+  await page.waitForTimeout(350);
+
+  const afterFollowRelease = await page.evaluate(() => {
+    const parent = document.querySelector("[data-testid='arrange-follow-parent']");
+    const child = document.querySelector("[data-testid='arrange-follow-child']");
+    const leaf = document.querySelector("[data-testid='arrange-follow-leaf']");
+
+    if (!(parent instanceof HTMLElement) || !(child instanceof HTMLElement) || !(leaf instanceof HTMLElement)) {
+      throw new Error("Arrange follow-up fixture disappeared after release.");
+    }
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { parent: rect(parent), child: rect(child), leaf: rect(leaf) };
+  });
+
+  const parentFollowDelta = {
+    x: atFollowRelease.parent.x - afterParentMove.parent.x,
+    y: atFollowRelease.parent.y - afterParentMove.parent.y,
+  };
+
+  const childFollowDelta = {
+    x: atFollowRelease.child.x - afterParentMove.child.x,
+    y: atFollowRelease.child.y - afterParentMove.child.y,
+  };
+
+  const leafFollowDelta = {
+    x: atFollowRelease.leaf.x - afterParentMove.leaf.x,
+    y: atFollowRelease.leaf.y - afterParentMove.leaf.y,
+  };
+
+  assert(
+    Math.abs(parentFollowDelta.x - childFollowDelta.x) <= 1
+      && Math.abs(parentFollowDelta.y - childFollowDelta.y) <= 1
+      && Math.abs(parentFollowDelta.x - leafFollowDelta.x) <= 1
+      && Math.abs(parentFollowDelta.y - leafFollowDelta.y) <= 1,
+    `Adding a child after moving its parent must keep the nested subtree locked together: ${JSON.stringify({
+      parentFollowDelta,
+      childFollowDelta,
+      leafFollowDelta,
+    })}`,
+  );
+
+  for (const key of ["parent", "child", "leaf"]) {
+    assert(
+      Math.abs(atFollowRelease[key].x - afterFollowRelease[key].x) <= 0.5
+        && Math.abs(atFollowRelease[key].y - afterFollowRelease[key].y) <= 0.5,
+      `Nested follow-up Arrange target must stop at pointer release: ${key} ${JSON.stringify({
+        atRelease: atFollowRelease[key],
+        afterRelease: afterFollowRelease[key],
+      })}`,
+    );
+  }
+
+  evidence.nestedFollowUpDrag = {
+    first: { parent: parentFirstDelta, child: childFirstDelta, leaf: leafFirstDelta },
+    follow: { parent: parentFollowDelta, child: childFollowDelta, leaf: leafFollowDelta },
+    atRelease: atFollowRelease,
+    afterRelease: afterFollowRelease,
+  };
+
+  await page.keyboard.press("Escape");
+  await arrangeBox.waitFor({ state: "hidden" });
+  await page.mouse.click(
+    afterFollowRelease.parent.x + afterFollowRelease.parent.width - 18,
+    afterFollowRelease.parent.y + afterFollowRelease.parent.height - 18,
+  );
+  await arrangeBox.waitFor({ state: "visible" });
+
+  const parentAgainGroup = await arrangeBox.boundingBox();
+
+  assert(parentAgainGroup, "Parent-only follow-up selection should have an Arrange group box");
+
+  const parentAgainStart = {
+    x: parentAgainGroup.x + parentAgainGroup.width - 24,
+    y: parentAgainGroup.y + parentAgainGroup.height - 24,
+  };
+
+  await page.mouse.move(parentAgainStart.x, parentAgainStart.y);
+  await page.mouse.down();
+  await page.mouse.move(parentAgainStart.x + 33, parentAgainStart.y + 21, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForTimeout(350);
+
+  const afterParentAgain = await page.evaluate(() => {
+    const parent = document.querySelector("[data-testid='arrange-follow-parent']");
+    const child = document.querySelector("[data-testid='arrange-follow-child']");
+    const leaf = document.querySelector("[data-testid='arrange-follow-leaf']");
+
+    if (!(parent instanceof HTMLElement) || !(child instanceof HTMLElement) || !(leaf instanceof HTMLElement)) {
+      throw new Error("Arrange follow-up fixture disappeared after the parent-only replay.");
+    }
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { parent: rect(parent), child: rect(child), leaf: rect(leaf) };
+  });
+
+  const parentAgainDelta = {
+    x: afterParentAgain.parent.x - afterFollowRelease.parent.x,
+    y: afterParentAgain.parent.y - afterFollowRelease.parent.y,
+  };
+
+  const childAgainDelta = {
+    x: afterParentAgain.child.x - afterFollowRelease.child.x,
+    y: afterParentAgain.child.y - afterFollowRelease.child.y,
+  };
+
+  const leafAgainDelta = {
+    x: afterParentAgain.leaf.x - afterFollowRelease.leaf.x,
+    y: afterParentAgain.leaf.y - afterFollowRelease.leaf.y,
+  };
+
+  assert(
+    Math.abs(parentAgainDelta.x - childAgainDelta.x) <= 1
+      && Math.abs(parentAgainDelta.y - childAgainDelta.y) <= 1
+      && Math.abs(parentAgainDelta.x - leafAgainDelta.x) <= 1
+      && Math.abs(parentAgainDelta.y - leafAgainDelta.y) <= 1,
+    `A descendant previously selected with its parent must keep following later parent-only drags: ${JSON.stringify({
+      parentAgainDelta,
+      childAgainDelta,
+      leafAgainDelta,
+    })}`,
+  );
+  evidence.nestedParentReplay = {
+    parent: parentAgainDelta,
+    child: childAgainDelta,
+    leaf: leafAgainDelta,
+  };
+
+  await page.keyboard.press("Escape");
+  await arrangeBox.waitFor({ state: "hidden" });
+  await regressionArrangeOptions.click();
+  await regressionArrangeMenu.waitFor({ state: "visible" });
+  const followResetAll = regressionArrangeMenu.getByRole("menuitem", { name: "Reset all positions", exact: true });
+
+  assert.equal(await followResetAll.isDisabled(), false, "Nested follow-up drag should create resettable Arrange intent");
+  await followResetAll.click();
+  await regressionArrangeMenu.waitFor({ state: "hidden" });
+  await page.waitForFunction(({ parentX, parentY, childX, childY, leafX, leafY }) => {
+    const parent = document.querySelector("[data-testid='arrange-follow-parent']");
+    const child = document.querySelector("[data-testid='arrange-follow-child']");
+    const leaf = document.querySelector("[data-testid='arrange-follow-leaf']");
+
+    if (!(parent instanceof HTMLElement) || !(child instanceof HTMLElement) || !(leaf instanceof HTMLElement)) return false;
+    const parentRect = parent.getBoundingClientRect();
+    const childRect = child.getBoundingClientRect();
+    const leafRect = leaf.getBoundingClientRect();
+
+    return Math.abs(parentRect.x - parentX) <= 1
+      && Math.abs(parentRect.y - parentY) <= 1
+      && Math.abs(childRect.x - childX) <= 1
+      && Math.abs(childRect.y - childY) <= 1
+      && Math.abs(leafRect.x - leafX) <= 1
+      && Math.abs(leafRect.y - leafY) <= 1;
+  }, {
+    parentX: nestedFollowUp.parent.x,
+    parentY: nestedFollowUp.parent.y,
+    childX: nestedFollowUp.child.x,
+    childY: nestedFollowUp.child.y,
+    leafX: nestedFollowUp.leaf.x,
+    leafY: nestedFollowUp.leaf.y,
+  });
+  await page.evaluate(() => document.querySelector("[data-testid='arrange-follow-parent']")?.remove());
+
   const transitionMove = await page.evaluate(() => {
     const first = document.createElement("button");
     first.dataset.testid = "arrange-transition-first";

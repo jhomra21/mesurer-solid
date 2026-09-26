@@ -124,7 +124,7 @@ Arrange is a renderer-aware first-party plugin exposed as `arrange()` from `mesu
 
 It owns active state, `Shift+A`, snapping, drag preview, Before/Desired intent, persistence, and review. Activating Arrange enables Select; turning Arrange off leaves Select active; turning Select off exits Arrange.
 
-Arrange previews movement with an inline transform but records the previous value and priority as its baseline. Cleanup restores that baseline only while the current transform still matches Mesurer's preview. Host-authored transform changes take ownership and survive Live review, refresh, and disposal.
+Arrange previews movement with an inline transform but records the previous value and priority as its baseline. Nested Arrange state keeps descendant movement relative to the nearest arranged ancestor while the public intent retains rendered Before and Desired geometry. A parent drag therefore carries nested targets without applying the same delta twice or pinning descendants to an older viewport position. Cleanup restores the transform baseline only while the current transform still matches Mesurer's preview. Host-authored transform changes take ownership and survive Live review, refresh, and disposal.
 
 See [Arrange](./docs/ARRANGE.md).
 
