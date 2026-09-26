@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 const url = process.env.ARRANGE_URL ?? "http://127.0.0.1:4174/";
+
+const outDir = process.env.ARRANGE_OUT ?? "arrange-artifacts";
+
+await mkdir(outDir, { recursive: true });
+
+const evidence = {};
 
 const browser = await chromium.launch({ headless: true });
 
@@ -172,6 +179,29 @@ try {
     })}`,
   );
 
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => {
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
+    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
+
+    return select instanceof HTMLButtonElement
+      && select.getAttribute("aria-pressed") === "false"
+      && arrange instanceof HTMLButtonElement
+      && arrange.getAttribute("aria-pressed") === "false";
+  });
+  evidence.arrangeEscape = { first: "clears selection", second: "deactivates Arrange and Select" };
+
+  await arrangeButton.click();
+  await page.waitForFunction(() => {
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
+    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
+
+    return select instanceof HTMLButtonElement
+      && select.getAttribute("aria-pressed") === "true"
+      && arrange instanceof HTMLButtonElement
+      && arrange.getAttribute("aria-pressed") === "true";
+  });
+
   await page.evaluate(() => document.querySelector("[data-testid='arrange-regression-parent']")?.remove());
 
   const before = await target.boundingBox();
@@ -186,11 +216,13 @@ try {
   const arrangeOptionsButton = page.getByRole("button", { name: "Arrange options", exact: true });
   const arrangeMenu = page.getByRole("menu", { name: "Arrange options", exact: true });
   const quickSnapping = () => arrangeMenu.getByRole("menuitemcheckbox", { name: "Snapping", exact: true });
+  const resetAllPositions = () => arrangeMenu.getByRole("menuitem", { name: "Reset all positions", exact: true });
 
   await arrangeOptionsButton.click();
   await arrangeMenu.waitFor({ state: "visible" });
   const expectedArrangeOptions = ["Snapping", "Element edges", "Element centers", "Guides", "Prefer X-ray edges", "Alignment rulers"];
   assert.deepEqual((await arrangeMenu.getByRole("menuitemcheckbox").allTextContents()).map((value) => value.trim()), expectedArrangeOptions);
+  assert.equal(await resetAllPositions().isDisabled(), true, "Reset all positions should be disabled before any Arrange move exists");
 
   const arrangeMenuMetrics = await arrangeMenu.getByRole("menuitemcheckbox").evaluateAll((items) => items.map((item) => ({
     whiteSpace: getComputedStyle(item).whiteSpace,
@@ -397,6 +429,81 @@ try {
 
   assert.equal(hiddenAfterRelease, true, "Stale Mesurer measurement overlays should stay hidden while Arrange remains active");
 
+  const resetPositionButton = page.getByRole("button", { name: "Reset position", exact: true });
+  await resetPositionButton.waitFor({ state: "visible" });
+  const resetButtonBox = await resetPositionButton.boundingBox();
+  assert(resetButtonBox, "Moved Arrange targets should expose a reset-position button");
+  assert(
+    Math.abs(resetButtonBox.width - 24) <= 1 && Math.abs(resetButtonBox.height - 24) <= 1,
+    `Reset position should use the compact 24px contextual control: ${JSON.stringify(resetButtonBox)}`,
+  );
+  await page.screenshot({ path: `${outDir}/arrange-reset-position.png`, fullPage: true });
+
+  evidence.before = before;
+  evidence.moved = afterRelease;
+  evidence.resetButton = resetButtonBox;
+
+  await resetPositionButton.click();
+  await page.waitForFunction(({ left, top }) => {
+    const element = document.querySelector(".primary-action");
+
+    if (!(element instanceof HTMLElement)) return false;
+    const rect = element.getBoundingClientRect();
+
+    return Math.abs(rect.left - left) <= 1 && Math.abs(rect.top - top) <= 1;
+  }, { left: before.x, top: before.y });
+  await resetPositionButton.waitFor({ state: "hidden" });
+  const afterElementReset = await target.boundingBox();
+  assert(afterElementReset, "Arrange target must keep geometry after resetting one position");
+  evidence.afterElementReset = afterElementReset;
+
+  await arrangeOptionsButton.click();
+  await arrangeMenu.waitFor({ state: "visible" });
+  await quickSnapping().click();
+  await arrangeMenu.waitFor({ state: "hidden" });
+
+  for (const delta of [{ x: 36, y: 18 }, { x: 24, y: 14 }]) {
+    const boxValue = await arrangeBox.boundingBox();
+    assert(boxValue, "Arrange box should remain available for cumulative reset-all setup");
+    const x = boxValue.x + boxValue.width / 2;
+    const y = boxValue.y + boxValue.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + delta.x, y + delta.y, { steps: 3 });
+    await page.mouse.up();
+  }
+
+  const beforeResetAll = await target.boundingBox();
+  assert(beforeResetAll, "Arrange target must have geometry before reset all");
+  assert(
+    Math.abs(beforeResetAll.x - before.x) > 1 || Math.abs(beforeResetAll.y - before.y) > 1,
+    "Cumulative Arrange moves should move the target before Reset all positions",
+  );
+  evidence.beforeResetAll = beforeResetAll;
+
+  await arrangeOptionsButton.click();
+  await arrangeMenu.waitFor({ state: "visible" });
+  assert.equal(await resetAllPositions().isDisabled(), false, "Reset all positions should enable after Arrange moves exist");
+  await resetAllPositions().click();
+  await arrangeMenu.waitFor({ state: "hidden" });
+  await page.waitForFunction(({ left, top }) => {
+    const element = document.querySelector(".primary-action");
+
+    if (!(element instanceof HTMLElement)) return false;
+    const rect = element.getBoundingClientRect();
+
+    return Math.abs(rect.left - left) <= 1 && Math.abs(rect.top - top) <= 1;
+  }, { left: before.x, top: before.y });
+  await resetPositionButton.waitFor({ state: "hidden" });
+  const afterResetAll = await target.boundingBox();
+  assert(afterResetAll, "Arrange target must keep geometry after resetting all positions");
+  evidence.afterResetAll = afterResetAll;
+
+  await arrangeOptionsButton.click();
+  await arrangeMenu.waitFor({ state: "visible" });
+  await quickSnapping().click();
+  await arrangeMenu.waitFor({ state: "hidden" });
+
   await arrangeButton.click();
   await page.waitForFunction(({ left, top }) => {
     const element = document.querySelector(".primary-action");
@@ -431,9 +538,31 @@ try {
     `Mesurer measurement overlays should be restored after Arrange deactivates: ${JSON.stringify(restoredMeasurementState)}`,
   );
 
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => {
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
+
+    return select instanceof HTMLButtonElement
+      && select.getAttribute("aria-pressed") === "true"
+      && document.querySelectorAll("[data-mesurer-selected-measurement='true']").length === 0;
+  });
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => {
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
+
+    return select instanceof HTMLButtonElement && select.getAttribute("aria-pressed") === "false";
+  });
+  evidence.selectEscape = { first: "clears selection", second: "deactivates Select" };
+
+  await writeFile(
+    `${outDir}/arrange-contract.json`,
+    `${JSON.stringify(evidence, null, 2)}\n`,
+    "utf8",
+  );
+
   assert.equal(pageErrors.length, 0, `Arrange browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Arrange browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log("Arrange-first activation + quick menu + compact settings + X-ray edge snapping + persistent Desired placement: PASS");
+  console.log("Arrange Escape lifecycle + per-element reset + reset all + snapping + presentation: PASS");
 } finally {
   await browser.close();
 }

@@ -85,7 +85,7 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 - **Appearance.** Use System, Light, or Dark without changing the inspected page. The same theme applies to the isolated toolbar and document-backed Context and Typography UI.
 - **Color Picker.** Native hosts with `window.__MESURER_HOST__.captureScreenshot` use a current-window picker that captures once when the user chooses a pixel. Other supported browser hosts use the native `EyeDropper`. A successful sample is copied to the clipboard in the configured format.
 
-Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a toolbar mode. Clicking Arrange automatically enables Select; turning Arrange off leaves Select active, while turning Select off also exits Arrange.
+Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a toolbar mode. Clicking Arrange automatically enables Select; turning Arrange off leaves Select active, while turning Select off also exits Arrange. Escape clears the current Select or Arrange selection first. A second Escape with nothing selected exits Select, or exits both Arrange and Select. Moved Arrange targets have a per-element Reset position control, and the Arrange menu can reset all positions on the current page.
 
 Toolbar dragging starts only after the pointer crosses the drag threshold. A drag from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders stays with those controls.
 

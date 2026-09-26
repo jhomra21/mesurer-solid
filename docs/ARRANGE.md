@@ -27,9 +27,17 @@ Arrange can be activated before a selection exists. It enables Select automatica
 
 Arrange depends on Select, but the dependency is one-way. Turning Arrange off leaves Select active. Turning Select off while Arrange is active also exits Arrange.
 
-Escape cancels an active drag first. Otherwise, Escape clears the current Arrange selection while keeping Arrange and Select active, so the next element can be selected immediately. Press Escape again with no selection to exit Arrange. While a target is selected, Arrange hides Select's hover box so a nested parent or child does not look like a second selection.
+Escape cancels an active drag first. Otherwise, the first Escape clears the current Arrange selection while keeping Arrange and Select active, so the next element can be selected immediately. Press Escape again with no selection to exit both Arrange and its dependent Select. While a target is selected, Arrange hides Select's hover box so a nested parent or child does not look like a second selection.
 
 Arrange is a normal optional tool in one stable toolbar, not a toolbar mode.
+
+## Reset positions
+
+A moved selected element gets a compact **Reset position** button beside its Arrange box. In a multi-selection, each moved element gets its own button. Resetting one element removes that element's accumulated Arrange position for the current page and returns it to its original position.
+
+The Arrange options menu also has **Reset all positions**. It removes all saved Arrange positions for the current page without changing Arrange state saved for other routes.
+
+Both reset actions change Arrange intent through the normal command history, so undo can restore the removed position. They only change Mesurer's Desired preview and saved intent. They do not edit application source.
 
 Hold Shift while dragging to lock movement to the dominant axis. One completed drag creates one history entry. Repeated drags start from the current Desired position so the layout can be refined incrementally.
 
@@ -124,7 +132,9 @@ Application code with access to the plugin host can resolve `MesurerArrangeServi
 | `showCurrent()` | Restore the presentation that current Arrange state calls for. |
 | `capturePlan(id, state)` | Return screenshot regions for one presentation. |
 | `review(id, tolerance?)` | Compare Live geometry with Desired. |
-| `clear()` | Clear saved Arrange intent through the plugin service. |
+| `resetSelection()` | Reset the selected elements to their original positions on the current page. |
+| `resetAll()` | Reset all Arrange positions on the current page. |
+| `clear()` | Clear all saved Arrange intent through the plugin service. |
 
 The agent-facing methods use the longer names `arrangements()`, `arrange()`, `showArrange()`, `arrangeCapturePlan()`, and `reviewArrange()` so they remain unambiguous on `window.__MESURER__`.
 

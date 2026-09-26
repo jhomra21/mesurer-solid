@@ -143,6 +143,7 @@ If Mesurer should ship in the browser build instead of being development-only, r
 Once mounted:
 
 - press `S` and click a rendered HTML or SVG element to select it; invoking Select again turns it off and clears the current element and Guide selection;
+- with Select or Arrange active, press Escape once to clear the current selection and keep the tool active; press Escape again with nothing selected to exit Select, or to exit both Arrange and Select;
 - hold Shift while selecting to build a multi-selection;
 - hold `Alt` / `Option` for the distance overlay;
 - use the compact control to hide inactive toolbar items without changing active tool state.
