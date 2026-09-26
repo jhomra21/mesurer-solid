@@ -17,7 +17,7 @@ const mesurer = mountMesurer({
 
 Keep Electron privileges in preload/main. The renderer does not import `electron`, and Screenshot does not need an Electron-specific factory or provider option. The same host capture capability also keeps Color Picker inside the Electron window.
 
-On macOS Electron renderers, Mesurer keeps the toolbar out of the native close, minimize, and full-screen control area. The default starts to their right. Dragging can still place the toolbar against the left edge below the titlebar controls. Tab-session persistence remains in place, and an older saved position inside the native control area is moved to the nearest allowed top-row position on the next mount.
+On macOS Electron renderers, Mesurer keeps the toolbar below the native titlebar area across the full window width. This avoids both the close, minimize, and full-screen controls and the titlebar region that macOS uses for window dragging. The toolbar can still sit against the left edge below that strip. Tab-session persistence remains in place, and an older saved position inside the titlebar area is moved down on the next mount.
 
 ## BrowserWindow security
 

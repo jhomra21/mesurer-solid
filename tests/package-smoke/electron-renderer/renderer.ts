@@ -194,8 +194,8 @@ await window.electronMesurer.dragToolbar({
     y: toolbarInitialBounds.top + 20,
   },
   end: {
-    x: 20,
-    y: toolbarInitialBounds.top + 20,
+    x: toolbarInitialBounds.left + 20,
+    y: 8,
   },
 });
 
