@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep Arrange multi-drag frame-locked on pages that use CSS transitions such as `transition-all`. Arrange now suppresses host transitions only while it owns a temporary transform, so selected elements stop at pointer release instead of easing to different positions afterward.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.0-beta.10 - 2026-09-26
