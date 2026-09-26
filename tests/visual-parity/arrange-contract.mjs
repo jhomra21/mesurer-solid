@@ -663,6 +663,77 @@ try {
 
   await page.keyboard.press("Escape");
   await arrangeBox.waitFor({ state: "hidden" });
+  await page.mouse.click(
+    afterFollowRelease.parent.x + afterFollowRelease.parent.width - 18,
+    afterFollowRelease.parent.y + afterFollowRelease.parent.height - 18,
+  );
+  await arrangeBox.waitFor({ state: "visible" });
+
+  const parentAgainGroup = await arrangeBox.boundingBox();
+
+  assert(parentAgainGroup, "Parent-only follow-up selection should have an Arrange group box");
+
+  const parentAgainStart = {
+    x: parentAgainGroup.x + parentAgainGroup.width - 24,
+    y: parentAgainGroup.y + parentAgainGroup.height - 24,
+  };
+
+  await page.mouse.move(parentAgainStart.x, parentAgainStart.y);
+  await page.mouse.down();
+  await page.mouse.move(parentAgainStart.x + 33, parentAgainStart.y + 21, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForTimeout(350);
+
+  const afterParentAgain = await page.evaluate(() => {
+    const parent = document.querySelector("[data-testid='arrange-follow-parent']");
+    const child = document.querySelector("[data-testid='arrange-follow-child']");
+    const leaf = document.querySelector("[data-testid='arrange-follow-leaf']");
+
+    if (!(parent instanceof HTMLElement) || !(child instanceof HTMLElement) || !(leaf instanceof HTMLElement)) {
+      throw new Error("Arrange follow-up fixture disappeared after the parent-only replay.");
+    }
+
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { parent: rect(parent), child: rect(child), leaf: rect(leaf) };
+  });
+
+  const parentAgainDelta = {
+    x: afterParentAgain.parent.x - afterFollowRelease.parent.x,
+    y: afterParentAgain.parent.y - afterFollowRelease.parent.y,
+  };
+  const childAgainDelta = {
+    x: afterParentAgain.child.x - afterFollowRelease.child.x,
+    y: afterParentAgain.child.y - afterFollowRelease.child.y,
+  };
+  const leafAgainDelta = {
+    x: afterParentAgain.leaf.x - afterFollowRelease.leaf.x,
+    y: afterParentAgain.leaf.y - afterFollowRelease.leaf.y,
+  };
+
+  assert(
+    Math.abs(parentAgainDelta.x - childAgainDelta.x) <= 1
+      && Math.abs(parentAgainDelta.y - childAgainDelta.y) <= 1
+      && Math.abs(parentAgainDelta.x - leafAgainDelta.x) <= 1
+      && Math.abs(parentAgainDelta.y - leafAgainDelta.y) <= 1,
+    `A descendant previously selected with its parent must keep following later parent-only drags: ${JSON.stringify({
+      parentAgainDelta,
+      childAgainDelta,
+      leafAgainDelta,
+    })}`,
+  );
+  evidence.nestedParentReplay = {
+    parent: parentAgainDelta,
+    child: childAgainDelta,
+    leaf: leafAgainDelta,
+  };
+
+  await page.keyboard.press("Escape");
+  await arrangeBox.waitFor({ state: "hidden" });
   await regressionArrangeOptions.click();
   await regressionArrangeMenu.waitFor({ state: "visible" });
   const followResetAll = regressionArrangeMenu.getByRole("menuitem", { name: "Reset all positions", exact: true });
