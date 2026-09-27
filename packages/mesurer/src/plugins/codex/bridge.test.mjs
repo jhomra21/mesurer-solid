@@ -3,7 +3,7 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { codexBridge } from "../packages/mesurer/plugins/codex/bridge.mjs";
+import { codexBridge } from "./bridge.mjs";
 
 const readJsonLines = async (path) => {
   const text = await readFile(path, "utf8");
