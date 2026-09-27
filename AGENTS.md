@@ -139,10 +139,12 @@ The accepted Codex integration has specific correctness properties. Preserve the
 - Correlate lifecycle from the same shared daemon using the exact queued prompt and bounded turn history.
 - Preserve interrupted or failed review evidence; remove only the exact annotations included in a matched completed delivery.
 - Persist browser delivery/routing state across same-tab reloads and fail closed on ambiguous routing.
-- Mesurer may start Codex's own shared daemon when its control socket is absent, but it must not stop that daemon when Mesurer closes.
+- Mesurer may start Codex's shared daemon when its control socket is absent only through a complete standalone Codex installation. Check managed packages under `CODEX_HOME` before `PATH`. Do not use a bare executable from ChatGPT.app, Codex.app, or another Desktop bundle as a daemon bootstrap.
+- A private Codex Desktop stdio app-server is not the shared transport. Do not attach to Desktop's private app-tools pipe or start a parallel Codex server to work around that boundary.
+- Mesurer must not stop Codex's shared daemon when Mesurer closes.
 - The native Codex Bridge must remain safe to bundle into an Electron main process as CommonJS. Do not rely on `import.meta.url`, `process.execPath`, or sibling runtime-file discovery.
 
-Codex integration tests use a disposable `CODEX_HOME` and fake shared-daemon transport. Packed Electron smoke must bundle the main process with esbuild before launch so the host topology matches real bundled applications.
+Codex integration tests use a disposable `CODEX_HOME` and fake shared-daemon transport. Packed runtime smoke must prove that Desktop-bundled bare executables are not launched and that a complete standalone package can start the shared daemon. Packed Electron smoke must bundle the main process with esbuild before launch so the host topology matches real bundled applications.
 
 Any change to these rules requires the Codex process/package regressions plus real lifecycle acceptance when behavior changes.
 
