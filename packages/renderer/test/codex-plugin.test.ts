@@ -431,11 +431,13 @@ describe("codex", () => {
     }));
     await host.load(codex());
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/health"))).toBe(true);
+    });
+
     const initial = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(initial?.label).toBe("Queue to Codex");
     expect(initial?.disabled?.()).toBe(false);
-    expect(initial?.menu?.items.map((item) => item.label)).toEqual(["Choose Codex thread…"]);
     await initial?.menu?.items[0]?.run();
 
     await vi.waitFor(() => {
@@ -1240,7 +1242,7 @@ describe("codex", () => {
     secondHost.dispose();
   });
 
-  it("does not probe loopback until the user asks for Codex, then marks a missing bridge unavailable", async () => {
+  it("checks the native Codex Bridge when the enabled plugin loads and marks an unavailable host", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
@@ -1259,20 +1261,14 @@ describe("codex", () => {
     }));
     await host.load(codex());
 
-    const initial = host.tools().find((candidate) => candidate.id === "codex.send");
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(initial?.label).toBe("Queue to Codex");
-    expect(initial?.disabled?.()).toBe(false);
-    expect(initial?.menu?.items.map((item) => item.label)).toEqual(["Choose Codex thread…"]);
+    await vi.waitFor(() => {
+      const unavailable = host.tools().find((candidate) => candidate.id === "codex.send");
 
-    await expect(host.command.execute("codex.send")).rejects.toThrow(
-      "Codex Bridge is unavailable in this host.",
-    );
+      expect(unavailable?.label).toBe("Codex unavailable");
+      expect(unavailable?.disabled?.()).toBe(true);
+      expect(unavailable?.menu?.items.map((item) => item.label)).toEqual(["Retry Codex connection"]);
+    });
 
-    const unavailable = host.tools().find((candidate) => candidate.id === "codex.send");
-    expect(unavailable?.label).toBe("Codex unavailable");
-    expect(unavailable?.disabled?.()).toBe(true);
-    expect(unavailable?.menu?.items.map((item) => item.label)).toEqual(["Retry Codex connection"]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     host.dispose();
   });
