@@ -280,7 +280,10 @@ const bridgeEnv = (root, fixture) => ({
 
 const acquire = async (bridgeUrl, clientId) => {
   const response = await post(bridgeUrl, "clients/acquire", { clientId });
-  assert.equal(response.status, 200, await response.text());
+
+  if (response.status !== 200) {
+    throw new Error(`Bridge lease acquisition returned HTTP ${response.status}: ${await response.text()}`);
+  }
 
   return response.json();
 };
