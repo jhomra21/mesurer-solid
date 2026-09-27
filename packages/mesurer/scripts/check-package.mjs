@@ -16,8 +16,6 @@ const skillBinPath = "scripts/install-skill.mjs";
 
 const codexBinPath = "scripts/codex-bridge.mjs";
 
-const codexConnectBinPath = "scripts/codex-connect.mjs";
-
 if (packageJson.name !== "@jhomra21/mesurer-solid") {
   throw new Error(`Expected internal workspace package name @jhomra21/mesurer-solid, got ${packageJson.name}.`);
 }
@@ -30,17 +28,13 @@ if (packageJson.bin?.["mesurer-codex"] !== codexBinPath) {
   throw new Error(`Expected mesurer-codex bin path ${codexBinPath}, got ${packageJson.bin?.["mesurer-codex"] ?? "<missing>"}.`);
 }
 
-if (packageJson.bin?.["mesurer-codex-connect"] !== codexConnectBinPath) {
-  throw new Error(`Expected mesurer-codex-connect bin path ${codexConnectBinPath}, got ${packageJson.bin?.["mesurer-codex-connect"] ?? "<missing>"}.`);
-}
-
 if (packageJson.private === true) throw new Error("The public Mesurer package workspace cannot be private.");
 
 if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
   throw new Error("The public Mesurer package must not publish runtime workspace dependencies.");
 }
 
-for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script"]) {
+for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script", "./codex-host"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
 }
 
@@ -365,21 +359,9 @@ if (!existsSync(bridgeScript)) throw new Error("Missing packaged Codex bridge sc
 
 const bridgeHelp = execFileSync(process.execPath, [fileURLToPath(bridgeScript), "--help"], { encoding: "utf8" });
 
-for (const helpContract of ["CODEX_THREAD_ID", "--register-current", "--register <value>"]) {
+for (const helpContract of ["shared local app-server daemon", "--origin <origin>", "--codex <path>"]) {
   if (!bridgeHelp.includes(helpContract)) {
     throw new Error(`Mesurer Codex bridge help is missing thread handoff contract: ${helpContract}.`);
-  }
-}
-
-const connectScript = new URL("../codex/codex-connect.mjs", import.meta.url);
-
-if (!existsSync(connectScript)) throw new Error("Missing packaged Codex connect script.");
-
-const connectHelp = execFileSync(process.execPath, [fileURLToPath(connectScript), "--help"], { encoding: "utf8" });
-
-for (const helpContract of ["CODEX_THREAD_ID", "Ensures the Mesurer Codex bridge is running", "--bridge <url>"]) {
-  if (!connectHelp.includes(helpContract)) {
-    throw new Error(`Mesurer Codex connect help is missing lifecycle contract: ${helpContract}.`);
   }
 }
 
@@ -401,10 +383,6 @@ if (stagedPackageJson.bin?.["mesurer-codex"] !== codexBinPath) {
   throw new Error(`Expected staged mesurer-codex bin path ${codexBinPath}, got ${stagedPackageJson.bin?.["mesurer-codex"] ?? "<missing>"}.`);
 }
 
-if (stagedPackageJson.bin?.["mesurer-codex-connect"] !== codexConnectBinPath) {
-  throw new Error(`Expected staged mesurer-codex-connect bin path ${codexConnectBinPath}, got ${stagedPackageJson.bin?.["mesurer-codex-connect"] ?? "<missing>"}.`);
-}
-
 if (!stagedPackageJson.exports?.["./plugins"]) {
   throw new Error("Staged npm package is missing the ./plugins export.");
 }
@@ -419,14 +397,10 @@ if (!existsSync(new URL("../.publish/scripts/codex-bridge.mjs", import.meta.url)
   throw new Error("Staged npm package is missing scripts/codex-bridge.mjs.");
 }
 
-if (!existsSync(new URL("../.publish/scripts/codex-connect.mjs", import.meta.url))) {
-  throw new Error("Staged npm package is missing scripts/codex-connect.mjs.");
-}
-
 for (const path of [
   "../.publish/codex/codex-bridge.mjs",
-  "../.publish/codex/codex-connect.mjs",
-  "../.publish/codex/codex-lifecycle.mjs",
+  "../.publish/codex/host.mjs",
+  "../.publish/codex/host.d.ts",
 ]) {
   if (!existsSync(new URL(path, import.meta.url))) {
     throw new Error(`Staged npm package is missing canonical Codex companion: ${path.replace("../.publish/", "")}.`);
@@ -449,15 +423,12 @@ try {
   const installedSkill = join(installRoot, ".agents/skills/mesurer-ui/SKILL.md");
   const installedInjector = join(installRoot, ".agents/skills/mesurer-ui/assets/inject-script.js");
   const installedCodexBridge = join(installRoot, ".agents/skills/mesurer-ui/assets/codex-bridge.mjs");
-  const installedCodexConnect = join(installRoot, ".agents/skills/mesurer-ui/assets/codex-connect.mjs");
-
   if (!existsSync(installedSkill)) throw new Error("mesurer-skill install did not create SKILL.md.");
 
   if (!existsSync(installedInjector)) throw new Error("mesurer-skill install did not create assets/inject-script.js.");
 
   if (!existsSync(installedCodexBridge)) throw new Error("mesurer-skill install did not create assets/codex-bridge.mjs.");
 
-  if (!existsSync(installedCodexConnect)) throw new Error("mesurer-skill install did not create assets/codex-connect.mjs.");
   const sourceSkill = readFileSync(skillSource, "utf8");
   const copiedSkill = readFileSync(installedSkill, "utf8");
 
@@ -476,11 +447,8 @@ try {
     throw new Error("Installed Agent Skill Codex bridge does not match the packaged companion.");
   }
 
-  if (readFileSync(installedCodexConnect, "utf8") !== readFileSync(connectScript, "utf8")) {
-    throw new Error("Installed Agent Skill Codex connect helper does not match the packaged companion.");
-  }
 } finally {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, auto-connectable thread-aware optional Codex delivery, agent context, Arrange, text edit intents, screenshot tooling, and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, packaged Codex host bridge, agent context, Arrange, text edit intents, screenshot tooling, and Agent Skill installer are self-contained.`);
