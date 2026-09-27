@@ -9,6 +9,7 @@ import test from "node:test";
 import { ensureMesurerCodexBridge } from "../packages/mesurer/codex/host.mjs";
 
 const bridgeScript = new URL("../packages/mesurer/codex/codex-bridge.mjs", import.meta.url);
+
 const origin = "http://localhost:5173";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -18,17 +19,15 @@ const freePort = async () => new Promise((resolve, reject) => {
   server.once("error", reject);
   server.listen(0, "127.0.0.1", () => {
     const address = server.address();
-    const port = typeof address === "object" && address ? address.port : 0;
+    const port = address?.port ?? 0;
+
     server.close((error) => error ? reject(error) : resolve(port));
   });
 });
 
 const waitForLine = (stream, prefix, timeoutMs = 10_000) => new Promise((resolve, reject) => {
   let buffer = "";
-  const timeout = setTimeout(() => {
-    cleanup();
-    reject(new Error(`Timed out waiting for ${prefix}`));
-  }, timeoutMs);
+  let timeout;
 
   const cleanup = () => {
     clearTimeout(timeout);
@@ -46,6 +45,11 @@ const waitForLine = (stream, prefix, timeoutMs = 10_000) => new Promise((resolve
       return;
     }
   };
+
+  timeout = setTimeout(() => {
+    cleanup();
+    reject(new Error(`Timed out waiting for ${prefix}`));
+  }, timeoutMs);
 
   stream.on("data", onData);
 });
@@ -84,15 +88,17 @@ const waitForUnavailable = async (bridgeUrl, timeoutMs = 8_000) => {
   throw new Error(`Bridge stayed available at ${bridgeUrl}.`);
 };
 
-const post = (bridgeUrl, path, body, requestOrigin = origin) =>
-  fetch(`${bridgeUrl}/${path}`, {
+const post = (bridgeUrl, path, body, requestOrigin = origin) => {
+  const headers = { "Content-Type": "application/json" };
+
+  if (requestOrigin) headers.Origin = requestOrigin;
+
+  return fetch(`${bridgeUrl}/${path}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(requestOrigin ? { Origin: requestOrigin } : {}),
-    },
+    headers,
     body: JSON.stringify(body),
   });
+};
 
 const readJsonLines = async (path) => {
   const text = await readFile(path, "utf8");
@@ -282,6 +288,7 @@ const acquire = async (bridgeUrl, clientId) => {
 test("Codex bridge discovers loaded daemon threads, queues to them, reconciles delivery, and exits after the last Mesurer client", async () => {
   const root = await mkdtemp(join(tmpdir(), "mesurer-codex-daemon-"));
   const fixture = await writeFakeCodex(root);
+
   const child = spawn(process.execPath, [
     bridgeScript.pathname,
     "--port",
