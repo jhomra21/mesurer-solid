@@ -98,6 +98,32 @@ const runSessionStart = async ({ bridgeUrl, sessionId, codex, env = {} }) => {
   return { code, stdout, stderr };
 };
 
+const runSessionEnd = async ({ bridgeUrl, sessionId, env = {} }) => {
+  const child = spawn(process.execPath, [
+    connectScript.pathname,
+    "--session-end",
+    "--bridge",
+    bridgeUrl,
+  ], {
+    env: { ...testProcessEnv(env), CODEX_THREAD_ID: "ignored-in-hook-mode" },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
+  child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+  child.stdin.end(JSON.stringify({
+    session_id: sessionId,
+    cwd: process.cwd(),
+    hook_event_name: "SessionEnd",
+    reason: "other",
+  }));
+  const code = await waitForExit(child);
+
+  return { code, stdout, stderr };
+};
+
 test("Codex SessionStart auto-connect starts once, stays silent, and reuses the bridge", async () => {
   const root = await mkdtemp(join(tmpdir(), "mesurer-codex-connect-"));
   const argsPath = join(root, "args.jsonl");
@@ -182,6 +208,86 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
       });
     } catch {}
 
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+
+test("Codex SessionEnd keeps a shared bridge until its last registered thread exits", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-session-end-"));
+  const port = await freePort();
+  const bridgeUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    const first = await runSessionStart({
+      bridgeUrl,
+      sessionId: "thread-owner-a",
+      env: { CODEX_HOME: root },
+    });
+    assert.equal(first.code, 0, first.stderr);
+
+    const second = await runSessionStart({
+      bridgeUrl,
+      sessionId: "thread-owner-b",
+      env: { CODEX_HOME: root },
+    });
+    assert.equal(second.code, 0, second.stderr);
+
+    const firstEnd = await runSessionEnd({
+      bridgeUrl,
+      sessionId: "thread-owner-a",
+      env: { CODEX_HOME: root },
+    });
+    assert.equal(firstEnd.code, 0, firstEnd.stderr);
+    assert.equal(firstEnd.stdout, "");
+
+    const health = await fetch(`${bridgeUrl}/health`);
+    assert.equal(health.status, 200);
+    const healthPayload = await health.json();
+    assert.equal(healthPayload.thread, "thread-owner-b");
+    assert.deepEqual(healthPayload.threads, ["thread-owner-b"]);
+
+    const secondEnd = await runSessionEnd({
+      bridgeUrl,
+      sessionId: "thread-owner-b",
+      env: { CODEX_HOME: root },
+    });
+    assert.equal(secondEnd.code, 0, secondEnd.stderr);
+    assert.equal(secondEnd.stdout, "");
+
+    await waitForUnavailable(bridgeUrl);
+  } finally {
+    try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Codex Desktop owner loss reaps the detached bridge when SessionEnd cannot run", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-owner-anchor-"));
+  const ownerAnchor = join(root, "desktop-owner.sock");
+  await writeFile(ownerAnchor, "owner");
+  const port = await freePort();
+  const bridgeUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    const start = await runSessionStart({
+      bridgeUrl,
+      sessionId: "thread-desktop-owner",
+      env: {
+        CODEX_HOME: root,
+        CODEX_APP_TOOLS_PIPE_PATH: ownerAnchor,
+        MESURER_CODEX_OWNER_POLL_MS: "50",
+      },
+    });
+    assert.equal(start.code, 0, start.stderr);
+
+    const health = await fetch(`${bridgeUrl}/health`);
+    assert.equal(health.status, 200);
+
+    await rm(ownerAnchor, { force: true });
+    await waitForUnavailable(bridgeUrl);
+  } finally {
+    try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -303,7 +409,7 @@ test("generated Codex plugin distribution mirrors the canonical companion and ke
   assert.deepEqual(marketplace.plugins.map((entry) => entry.name), ["mesurer-codex"]);
   assert.equal(marketplace.plugins[0].source.path, "./plugins/mesurer-codex");
   assert.equal(manifest.name, "mesurer-codex");
-  assert.equal(manifest.version, "0.1.8-beta.1");
+  assert.equal(manifest.version, "0.1.8-beta.2");
 
   const sessionStart = hooks.hooks.SessionStart[0];
   assert.equal(sessionStart.matcher, "^(startup|resume|clear)$");
@@ -312,7 +418,14 @@ test("generated Codex plugin distribution mirrors the canonical companion and ke
   assert.match(sessionStart.hooks[0].command, /\$\{PLUGIN_ROOT\}\/scripts\/codex-connect\.mjs/);
   assert.match(sessionStart.hooks[0].command, /--session-start/);
 
-  assert.deepEqual(Object.keys(hooks.hooks), ["SessionStart"]);
+  const sessionEnd = hooks.hooks.SessionEnd[0];
+  assert.equal(sessionEnd.matcher, "^other$");
+  assert.equal(sessionEnd.hooks.length, 1);
+  assert.equal(sessionEnd.hooks[0].timeout, 1);
+  assert.match(sessionEnd.hooks[0].command, /\$\{PLUGIN_ROOT\}\/scripts\/codex-connect\.mjs/);
+  assert.match(sessionEnd.hooks[0].command, /--session-end/);
+
+  assert.deepEqual(Object.keys(hooks.hooks), ["SessionStart", "SessionEnd"]);
 
   assert.equal(
     await readFile(new URL("scripts/codex-connect.mjs", pluginRoot), "utf8"),
