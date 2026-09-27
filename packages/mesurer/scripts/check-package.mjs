@@ -354,6 +354,7 @@ if (readFileSync(repositorySkill, "utf8") !== readFileSync(skillSource, "utf8"))
 }
 
 const codexHostScript = new URL("../codex/host.mjs", import.meta.url);
+
 const codexHostTypes = new URL("../codex/host.d.ts", import.meta.url);
 
 if (!existsSync(codexHostScript) || !existsSync(codexHostTypes)) {
@@ -442,6 +443,7 @@ try {
   const installedSkill = join(installRoot, ".agents/skills/mesurer-ui/SKILL.md");
   const installedInjector = join(installRoot, ".agents/skills/mesurer-ui/assets/inject-script.js");
   const installedCodexBridge = join(installRoot, ".agents/skills/mesurer-ui/assets/codex-bridge.mjs");
+
   if (!existsSync(installedSkill)) throw new Error("mesurer-skill install did not create SKILL.md.");
 
   if (!existsSync(installedInjector)) throw new Error("mesurer-skill install did not create assets/inject-script.js.");
