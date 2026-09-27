@@ -975,6 +975,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             action: "target",
             thread: target,
           });
+
           const health = bridgeHealth(response);
 
           codexRuntime = bridgeRuntime(response) ?? codexRuntime;
