@@ -8,6 +8,7 @@ import { screenshot, MESURER_SCREENSHOT_PLUGIN_ID } from "./screenshot";
 type MesurerPluginRegistryEntry = {
   id: string;
   label?: string;
+  description?: string;
   order?: number;
   enabled?: boolean;
   create(): MesurerPlugin | Promise<MesurerPlugin>;
@@ -18,7 +19,9 @@ type MesurerPluginRegistryEntry = {
 export type MesurerPluginCatalogEntry = {
   id: string;
   label: string;
+  description?: string;
   order?: number;
+  enabled?: boolean;
   create(): MesurerPlugin;
   settingsIds?: string[];
   hiddenSettingsControlIds?: string[];
@@ -64,7 +67,9 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
   {
     id: MESURER_CODEX_PLUGIN_ID,
     label: "Codex",
+    description: "Starts Mesurer's local companion and connects it to your open Codex threads on this computer.",
     order: 45,
+    enabled: false,
     create: codex,
   },
 ];
@@ -72,8 +77,9 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
 /**
  * Resolve the single renderer plugin registry for one mount.
  *
- * With no explicit `plugins`, every first-party registration starts enabled.
- * When callers provide `plugins`, that list is the initial enabled set while
+ * With no explicit `plugins`, first-party registrations use their catalog defaults.
+ * Codex is opt-in because enabling it starts a local companion process. When callers
+ * provide `plugins`, that list is the initial enabled set while
  * omitted first-party registrations remain known to Settings and can be enabled
  * later. Explicit first-party instances retain their caller-supplied options
  * across disable/re-enable cycles.
@@ -94,7 +100,7 @@ export const createPluginRegistry = (
       hiddenSettingsControlIds: entry.hiddenSettingsControlIds
         ? [...entry.hiddenSettingsControlIds]
         : undefined,
-      enabled: hasExplicitSet ? Boolean(explicit) : true,
+      enabled: hasExplicitSet ? Boolean(explicit) : entry.enabled !== false,
       create: explicit ? () => explicit : entry.create,
     };
   });
