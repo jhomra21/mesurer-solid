@@ -353,6 +353,21 @@ if (readFileSync(repositorySkill, "utf8") !== readFileSync(skillSource, "utf8"))
   throw new Error("Repository and packaged Mesurer Agent Skills must remain byte-identical.");
 }
 
+const codexHostScript = new URL("../codex/host.mjs", import.meta.url);
+const codexHostTypes = new URL("../codex/host.d.ts", import.meta.url);
+
+if (!existsSync(codexHostScript) || !existsSync(codexHostTypes)) {
+  throw new Error("Missing packaged Codex native-host bootstrap.");
+}
+
+const codexHostSource = readFileSync(codexHostScript, "utf8");
+
+for (const contract of ["ensureMesurerCodexBridge", "ELECTRON_RUN_AS_NODE", "sourceHash"]) {
+  if (!codexHostSource.includes(contract)) {
+    throw new Error(`Packaged Codex host bootstrap is missing contract: ${contract}.`);
+  }
+}
+
 const bridgeScript = new URL("../codex/codex-bridge.mjs", import.meta.url);
 
 if (!existsSync(bridgeScript)) throw new Error("Missing packaged Codex bridge script.");
@@ -385,6 +400,10 @@ if (stagedPackageJson.bin?.["mesurer-codex"] !== codexBinPath) {
 
 if (!stagedPackageJson.exports?.["./plugins"]) {
   throw new Error("Staged npm package is missing the ./plugins export.");
+}
+
+if (!stagedPackageJson.exports?.["./codex-host"]) {
+  throw new Error("Staged npm package is missing the ./codex-host export.");
 }
 
 for (const removedExport of ["./arrange", "./codex", "./screenshot"]) {
