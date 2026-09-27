@@ -3,9 +3,13 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 const DEFAULT_BRIDGE = "http://127.0.0.1:47365";
+
 const BRIDGE_NAME = "mesurer-codex";
+
 const BRIDGE_PROTOCOL_VERSION = 1;
+
 const START_TIMEOUT_MS = 8_000;
+
 const STOP_TIMEOUT_MS = 3_000;
 
 const bridgeScript = new URL("./codex-bridge.mjs", import.meta.url);
@@ -78,6 +82,7 @@ export async function ensureMesurerCodexBridge(options = {}) {
 
   const parsedBridgeUrl = new URL(bridgeUrl);
   const port = parsedBridgeUrl.port || "47365";
+
   const args = [
     bridgeScript.pathname,
     "--port",
@@ -88,12 +93,13 @@ export async function ensureMesurerCodexBridge(options = {}) {
 
   if (options.codex?.trim()) args.push("--codex", options.codex.trim());
 
+  const childEnv = { ...process.env };
+
+  if (process.versions.electron) childEnv.ELECTRON_RUN_AS_NODE = "1";
+
   const child = spawn(process.execPath, args, {
     cwd: options.cwd,
-    env: {
-      ...process.env,
-      ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
-    },
+    env: childEnv,
     detached: true,
     stdio: "ignore",
     windowsHide: true,
