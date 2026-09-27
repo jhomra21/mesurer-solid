@@ -16,7 +16,9 @@ export type CodexBridgeRequest = {
 };
 
 export type CodexBridgeOptions = {
+  /** Explicit Codex executable used only to start the shared app-server when no control socket exists. */
   codex?: string;
+  /** Codex state directory. Defaults to CODEX_HOME, then ~/.codex. */
   codexHome?: string;
 };
 
