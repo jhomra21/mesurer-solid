@@ -46,7 +46,7 @@ const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
 
 const DELIVERY_TTL_MS = 2 * 60 * 60_000;
 
-const DESKTOP_TURN_HISTORY_LIMIT = 10;
+const TURN_HISTORY_LIMIT = 10;
 
 const DELIVERY_TURN_START_SKEW_MS = 60_000;
 
@@ -648,7 +648,7 @@ const runCodexTurnHistory = async (thread) => {
       "thread/turns/list",
       {
         threadId: thread,
-        limit: DESKTOP_TURN_HISTORY_LIMIT,
+        limit: TURN_HISTORY_LIMIT,
         sortDirection: "desc",
         itemsView: "summary",
       },
