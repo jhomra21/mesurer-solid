@@ -368,7 +368,7 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                 <div class="msr:flex msr:flex-col" data-mesurer-plugin-settings-list="true">
                   <For each={pluginEntries()}>{(plugin) => {
                     const expanded = () => expandedPluginSections().includes(plugin.id);
-                    const canExpand = () => plugin.enabled && plugin.sections.length > 0;
+                    const canExpand = () => Boolean(plugin.description) || (plugin.enabled && plugin.sections.length > 0);
 
                     const toggleExpanded = () => {
                       if (!canExpand()) return;
@@ -419,6 +419,14 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                         </div>
                         <Show when={canExpand() && expanded()}>
                           <div class="msr:flex msr:flex-col msr:gap-0.5 msr:bg-white/60 msr:py-1" data-mesurer-plugin-settings-controls={plugin.id}>
+                            <Show when={plugin.description}>
+                              <p
+                                class="msr:m-0 msr:px-2 msr:py-1 msr:text-[10px] msr:leading-4 msr:text-ink-500"
+                                data-mesurer-plugin-description={plugin.id}
+                              >
+                                {plugin.description}
+                              </p>
+                            </Show>
                             <For each={plugin.sections}>{(section) => (
                               <For each={section.controls ?? []}>{(control) => (
                                 <PluginSettingsSwitch
