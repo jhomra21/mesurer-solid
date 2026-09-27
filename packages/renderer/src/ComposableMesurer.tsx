@@ -57,8 +57,6 @@ export type MesurerPluginRegistration = {
   description?: string;
   order?: number;
   enabled?: boolean;
-  /** Ignore pre-opt-in availability once, then persist an explicit user choice normally. */
-  optIn?: boolean;
   create(): MesurerPlugin | Promise<MesurerPlugin>;
   /** Settings section ids owned by this plugin when known before first load. */
   settingsIds?: string[];
@@ -99,7 +97,7 @@ const BUILTIN_TOOL_IDS = [
 
 const DEFAULT_PLUGIN_STORAGE_KEY = "mesurer-plugin-settings";
 
-const PLUGIN_REGISTRY_STORAGE_VERSION = 2;
+const PLUGIN_REGISTRY_STORAGE_VERSION = 3;
 
 type StoredPluginRegistryState = {
   version: number;
@@ -476,11 +474,15 @@ export default function ComposableMesurer(props: MesurerProps) {
         // SAFETY: This versioned, namespaced payload is written only by writePluginRegistryState below; incompatible JSON is ignored by the version gate or caught by this boundary.
         const parsed = JSON.parse(stored) as StoredPluginRegistryState;
 
-        if (parsed?.version === 1 || parsed?.version === PLUGIN_REGISTRY_STORAGE_VERSION) {
-          const legacyAvailability = parsed.version === 1;
-
+        if (
+          parsed?.version === 1
+          || parsed?.version === 2
+          || parsed?.version === PLUGIN_REGISTRY_STORAGE_VERSION
+        ) {
           for (const [id, enabled] of Object.entries(parsed.enabled ?? {})) {
-            if (legacyAvailability && pluginRegistry.get(id)?.optIn) continue;
+            // 0.2.0-beta.12 temporarily made Codex opt-in. Ignore that one
+            // availability value once so the restored default remains enabled.
+            if (parsed.version === 2 && id === "mesurer.codex") continue;
             storedEnabled.set(id, enabled);
           }
 
