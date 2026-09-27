@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createMesurerPluginHost,
   defineMesurerPlugin,
@@ -13,6 +13,7 @@ import type { MesurerContextService } from "../../mesurer/src/context-plugin";
 
 afterEach(() => {
   vi.useRealTimers();
+  delete window.__MESURER_HOST__;
   sessionStorage.clear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -63,6 +64,90 @@ const createContextService = () => {
 
 const DELIVERY_POLL_MS_FOR_TEST = 750;
 
+const bridgeUrlForRequest = (request: { action: string; [key: string]: unknown }) => {
+  if (request.action === "health") return { url: "http://127.0.0.1:47365/health" };
+
+  if (request.action === "threads") {
+    const params = new URLSearchParams();
+    params.set("limit", String(request.limit ?? 10));
+
+    if (typeof request.thread === "string" && request.thread) params.set("thread", request.thread);
+
+    return { url: `http://127.0.0.1:47365/threads?${params.toString()}` };
+  }
+
+  if (request.action === "target") {
+    return {
+      url: "http://127.0.0.1:47365/target",
+      init: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ thread: request.thread }),
+      },
+    };
+  }
+
+  if (request.action === "queue") {
+    return {
+      url: "http://127.0.0.1:47365/send",
+      init: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: request.message, thread: request.thread }),
+      },
+    };
+  }
+
+  if (request.action === "delivery") {
+    return {
+      url: `http://127.0.0.1:47365/deliveries/${encodeURIComponent(String(request.deliveryId ?? ""))}`,
+    };
+  }
+
+  if (request.action === "restore") {
+    return {
+      url: "http://127.0.0.1:47365/deliveries/restore",
+      init: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deliveryId: request.deliveryId,
+          thread: request.thread,
+          queuedSubmissionId: request.queuedSubmissionId,
+        }),
+      },
+    };
+  }
+
+  throw new Error(`Unexpected Codex Bridge action: ${request.action}`);
+};
+
+beforeEach(() => {
+  window.__MESURER_HOST__ = {
+    codexBridge: async (request) => {
+      const mapped = bridgeUrlForRequest(request);
+
+      try {
+        const response = await fetch(mapped.url, mapped.init);
+        const text = await response.text();
+        const payload = text ? JSON.parse(text) : {};
+
+        if (!response.ok || payload.ok === false) {
+          throw new Error(payload.error || `Codex Bridge returned HTTP ${response.status}.`);
+        }
+
+        return payload;
+      } catch (cause) {
+        if (cause instanceof TypeError) {
+          throw new Error("Codex Bridge is unavailable in this host.");
+        }
+
+        throw cause;
+      }
+    },
+  };
+});
+
 type BridgeMockResponse = {
   ok: boolean;
   status: number;
@@ -96,7 +181,7 @@ const withBridgeLease = (handler: BridgeMockHandler) => vi.fn(async (
 });
 
 describe("codex", () => {
-  it("sends saved Context evidence through the explicit loopback transport", async () => {
+  it("sends saved Context evidence through the native Codex Bridge", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService, contextText } = createContextService();
 
@@ -254,7 +339,7 @@ describe("codex", () => {
     });
   });
 
-  it("lists app-server thread metadata through the bridge", async () => {
+  it("lists loaded app-server thread metadata through Codex Bridge", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
