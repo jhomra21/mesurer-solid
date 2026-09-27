@@ -139,9 +139,9 @@ export type MesurerOptions = {
   selectionSpacingStyle?: Partial<SelectionSpacingStyle>;
   rulerSettings?: Partial<RulerSettings>;
   /**
-   * Initial enabled plugin set. Omit this to enable every first-party Mesurer plugin.
-   * Omitted first-party plugins remain toggleable in Settings from the same canonical
-   * registry; callers never maintain a separate availability or Settings list.
+   * Initial enabled plugin set. Omit this to use the first-party catalog defaults.
+   * Codex is opt-in because enabling it starts Mesurer's local companion. Omitted
+   * first-party plugins remain toggleable in Settings from the same canonical registry.
    */
   plugins?: readonly MesurerPlugin[];
   /** Built-in tools to omit from this mount. Names match the public plugin factories. */
