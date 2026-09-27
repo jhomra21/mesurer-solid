@@ -39,8 +39,12 @@ export type HostScreenshotResult =
   | undefined;
 
 export type HostCodexBridgeRequest = {
-  action: string;
-  [key: string]: string | number | boolean | null | undefined;
+  action: "health" | "threads" | "target" | "queue" | "delivery" | "restore";
+  thread?: string;
+  limit?: number;
+  message?: string;
+  deliveryId?: string;
+  queuedSubmissionId?: string;
 };
 
 export type HostCodexBridgeResult = Record<string, unknown>;
