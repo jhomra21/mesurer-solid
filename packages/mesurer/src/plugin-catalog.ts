@@ -23,6 +23,7 @@ export type MesurerPluginCatalogEntry = {
   description?: string;
   order?: number;
   enabled?: boolean;
+  optIn?: boolean;
   create(): MesurerPlugin;
   settingsIds?: string[];
   hiddenSettingsControlIds?: string[];
