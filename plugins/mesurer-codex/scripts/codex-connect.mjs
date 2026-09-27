@@ -25,6 +25,7 @@ and makes that session the active Mesurer destination.
 Options:
   --thread <value>   Codex session UUID or exact session name
   --session-start    Read a Codex SessionStart hook event from stdin
+  --session-end      Read a Codex SessionEnd hook event from stdin
   --bridge <url>     Bridge URL (default: ${DEFAULT_BRIDGE})
   --codex <path>     Codex executable passed to a newly-started bridge
   --once             Start a new bridge with --once (primarily useful for tests)
@@ -38,6 +39,7 @@ const { values } = parseArgs({
   options: {
     thread: { type: "string" },
     "session-start": { type: "boolean", default: false },
+    "session-end": { type: "boolean", default: false },
     bridge: { type: "string", default: DEFAULT_BRIDGE },
     codex: { type: "string" },
     once: { type: "boolean", default: false },
@@ -71,26 +73,37 @@ const explicitThread = values.thread?.trim() || null;
 
 const fromSessionStart = values["session-start"];
 
-if (explicitThread && fromSessionStart) {
-  fail("Use either --thread or --session-start, not both.", 2);
+const fromSessionEnd = values["session-end"];
+
+const routingModes = [Boolean(explicitThread), fromSessionStart, fromSessionEnd].filter(Boolean).length;
+
+if (routingModes > 1) {
+  fail("Use only one of --thread, --session-start, or --session-end.", 2);
 }
 
 let thread = explicitThread ?? process.env.CODEX_THREAD_ID?.trim() ?? null;
 
 let cwd = process.cwd();
 
-if (fromSessionStart) {
+if (fromSessionStart || fromSessionEnd) {
   const input = await readStdin();
   let event;
 
   try {
     event = JSON.parse(input);
   } catch {
-    fail("--session-start requires one Codex SessionStart JSON event on stdin.", 2);
+    fail(
+      fromSessionStart
+        ? "--session-start requires one Codex SessionStart JSON event on stdin."
+        : "--session-end requires one Codex SessionEnd JSON event on stdin.",
+      2,
+    );
   }
 
-  if (event?.hook_event_name !== "SessionStart") {
-    fail(`Expected hook_event_name SessionStart, got ${event?.hook_event_name ?? "<missing>"}.`, 2);
+  const expectedEvent = fromSessionStart ? "SessionStart" : "SessionEnd";
+
+  if (event?.hook_event_name !== expectedEvent) {
+    fail(`Expected hook_event_name ${expectedEvent}, got ${event?.hook_event_name ?? "<missing>"}.`, 2);
   }
 
   thread = event?.session_id?.trim?.() || null;
@@ -101,12 +114,14 @@ if (!thread) {
   fail(
     fromSessionStart
       ? "Codex SessionStart input did not include a session_id."
-      : "mesurer-codex-connect requires --thread, CODEX_THREAD_ID, or --session-start.",
+      : fromSessionEnd
+        ? "Codex SessionEnd input did not include a session_id."
+        : "mesurer-codex-connect requires --thread, CODEX_THREAD_ID, --session-start, or --session-end.",
     2,
   );
 }
 
-const quiet = values.quiet || fromSessionStart;
+const quiet = values.quiet || fromSessionStart || fromSessionEnd;
 
 const bridge = values.bridge?.trim() || DEFAULT_BRIDGE;
 
@@ -187,6 +202,39 @@ const isExactBridge = (payload) =>
   payload?.bridge?.name === BRIDGE_NAME
   && payload.bridge.protocol === BRIDGE_PROTOCOL_VERSION
   && payload.bridge.sourceHash === expectedSourceHash;
+
+if (fromSessionEnd) {
+  let current;
+
+  try {
+    current = await health();
+  } catch {
+    process.exit(0);
+  }
+
+  if (!current || !isExactBridge(current)) process.exit(0);
+
+  let response;
+
+  try {
+    response = await fetch(new URL("threads/unregister", bridgeUrl), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread }),
+      signal: AbortSignal.timeout(750),
+    });
+  } catch {
+    process.exit(0);
+  }
+
+  const payload = await readPayload(response);
+
+  if (!response.ok || payload.ok === false) {
+    fail(payload.error || `Mesurer Codex bridge returned HTTP ${response.status} while unregistering ${thread}.`);
+  }
+
+  process.exit(0);
+}
 
 const waitForBridgeToStop = async () => {
   const deadline = Date.now() + START_TIMEOUT_MS;

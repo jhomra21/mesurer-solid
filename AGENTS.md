@@ -143,7 +143,11 @@ The accepted Codex Desktop integration has specific correctness properties. Pres
 - Remove only the exact annotations included in a matched completed delivery.
 - Persist browser delivery/routing state across same-tab reloads.
 - Fail closed on ambiguous thread/delivery recovery.
-- Desktop lifecycle does not trust legacy per-turn lifecycle hooks; the trusted plugin hook is `SessionStart`.
+- Desktop delivery lifecycle does not trust legacy per-turn lifecycle hooks.
+- `SessionStart` acquires one registered bridge owner for the Codex thread. `SessionEnd` releases that same thread.
+- A shared bridge must stay alive while any registered thread still owns it, then exit after the last owner releases it.
+- Bridge shutdown must terminate Mesurer-owned helper processes. Do not stop a Codex-owned shared daemon just because the Mesurer bridge exits.
+- Desktop owner loss must reap an otherwise unused detached bridge when the app-owned tools pipe disappears before `SessionEnd` can run.
 
 Bridge and connector tests clear ambient Codex thread, app-tools-pipe, Desktop-opener, and home state. A test adds only the state it needs.
 
