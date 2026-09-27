@@ -130,6 +130,8 @@ const startDaemon = (options) =>
     "Codex app-server daemon start",
   );
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const daemonRequestOnce = (
   method,
   params,
@@ -242,9 +244,22 @@ const daemonRequest = async (
   } catch (cause) {
     if (!missingDaemonSocket(cause)) throw cause;
     await startDaemon(options);
-
-    return daemonRequestOnce(method, params, options, experimentalApi);
   }
+
+  const deadline = Date.now() + DAEMON_START_TIMEOUT_MS;
+  let lastError = null;
+
+  while (Date.now() < deadline) {
+    try {
+      return await daemonRequestOnce(method, params, options, experimentalApi);
+    } catch (cause) {
+      if (!missingDaemonSocket(cause)) throw cause;
+      lastError = cause;
+      await sleep(50);
+    }
+  }
+
+  throw lastError ?? new Error("Codex app-server daemon did not become available.");
 };
 
 const loadedThreadIds = async (options) => {
