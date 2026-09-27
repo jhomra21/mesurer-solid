@@ -11,7 +11,6 @@ type MesurerPluginRegistryEntry = {
   description?: string;
   order?: number;
   enabled?: boolean;
-  optIn?: boolean;
   create(): MesurerPlugin | Promise<MesurerPlugin>;
   settingsIds?: string[];
   hiddenSettingsControlIds?: string[];
