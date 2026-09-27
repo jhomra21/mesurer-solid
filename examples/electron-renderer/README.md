@@ -62,7 +62,7 @@ contextBridge.exposeInMainWorld("__MESURER_HOST__", {
 
 If the application also exposes `captureScreenshot`, put both functions on the same host object.
 
-Codex Bridge runs inside Electron main. It does not create an HTTP server or launch another Electron/Node helper. It talks to Codex's shared local app-server through Codex's `stdio-to-uds` relay and queues through `thread/queue/add`.
+Codex Bridge runs inside Electron main. It does not create an HTTP server or launch another Electron/Node helper. It talks to Codex's shared local app-server through the Codex shared app-server socket and queues through `thread/queue/add`.
 
 The package smoke bundles this main-process topology to CommonJS with esbuild before launching Electron. The native bridge must therefore remain independent of `import.meta.url`, `process.execPath`, and sibling runtime-file lookup.
 
