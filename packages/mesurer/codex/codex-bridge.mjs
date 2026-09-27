@@ -120,8 +120,6 @@ const codexBin = values.codex?.trim() || process.env.CODEX_BIN?.trim() || "codex
 
 const additionalOrigins = new Set(values.origin ?? []);
 
-const registeredThreads = new Map();
-
 const discoveredThreads = new Map();
 
 const loadedThreadIds = new Set();
@@ -129,14 +127,6 @@ const loadedThreadIds = new Set();
 const browserClients = new Map();
 
 const deliveries = new Map();
-
-const terminalTurnEvents = new Map();
-
-const desktopDispatchTimers = new Map();
-
-const desktopLifecycleChecks = new Map();
-
-const desktopLifecycleLastCheckedAt = new Map();
 
 const ownedChildren = new Set();
 
@@ -1110,7 +1100,7 @@ server = createServer(async (request, response) => {
       return;
     }
 
-    scheduleDesktopLifecycleCheck(delivery);
+    await reconcileDelivery(delivery).catch(() => undefined);
     writeJson(response, 200, { ok: true, ...publicDelivery(delivery) }, origin);
 
     return;
@@ -1143,7 +1133,7 @@ server = createServer(async (request, response) => {
       const existing = deliveries.get(deliveryId);
 
       if (existing) {
-        if (existing.transport === "desktop-app") scheduleDesktopDispatch(existing.thread);
+        await reconcileDelivery(existing).catch(() => undefined);
         writeJson(response, 200, { ok: true, restored: false, ...publicDelivery(existing) }, origin);
 
         return;
@@ -1357,20 +1347,24 @@ server.on("error", (error) => {
 });
 
 server.listen(parsedPort, "127.0.0.1", () => {
-  for (const [thread, record] of registeredThreads) {
-    if (record.appToolsPipe) scheduleDesktopDispatch(thread);
-  }
-
   const address = server.address();
   const port = address?.port ?? parsedPort;
   const url = `http://127.0.0.1:${port}`;
   console.log(`Mesurer Codex bridge listening on ${url}`);
-
-  if (activeThread) console.log(`Active Codex thread: ${activeThread}`);
-  else console.log("No Codex thread is registered yet.");
+  console.log("Codex threads are discovered from the shared local app-server daemon.");
   console.log(`BRIDGE_URL=${url}`);
 
-  if (activeThread) console.log(`BRIDGE_THREAD=${activeThread}`);
+  clientLeaseTimer = setInterval(pruneExpiredClients, CLIENT_LEASE_POLL_MS);
+  clientLeaseTimer.unref?.();
+
+  startupShutdownTimer = setTimeout(() => {
+    startupShutdownTimer = null;
+
+    if (!hasEverClient && browserClients.size === 0) void shutdownBridge();
+  }, STARTUP_CLIENT_GRACE_MS);
+  startupShutdownTimer.unref?.();
+
+  void refreshDiscoveredThreads().catch(() => undefined);
 });
 
 async function shutdownBridge() {
@@ -1379,13 +1373,15 @@ async function shutdownBridge() {
   shutdownStarted = true;
   cancelIdleShutdown();
 
-  if (ownerHealthTimer) {
-    clearInterval(ownerHealthTimer);
-    ownerHealthTimer = null;
+  if (clientLeaseTimer) {
+    clearInterval(clientLeaseTimer);
+    clientLeaseTimer = null;
   }
 
-  for (const timer of desktopDispatchTimers.values()) clearTimeout(timer);
-  desktopDispatchTimers.clear();
+  if (startupShutdownTimer) {
+    clearTimeout(startupShutdownTimer);
+    startupShutdownTimer = null;
+  }
 
   const children = [...ownedChildren];
 
