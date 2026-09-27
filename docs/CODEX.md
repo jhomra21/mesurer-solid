@@ -172,7 +172,7 @@ type MesurerCodexService = {
 
 Context owns the human evidence, so Codex delivery requires `context()`.
 
-`MesurerCodexHealth.runtime` is an optional diagnostic. It reports the runtime selected by the bridge as `shared`, `standalone`, `desktop`, or `none`, plus the transport and a machine-readable unavailable reason. It is informational. Callers should not branch into separate CLI and Desktop delivery code.
+Runtime diagnostics stay on the native bridge. The public `codex:v1` service does not report or accept a CLI/Desktop runtime choice, so callers use the same health, thread, queue, and delivery methods in every supported Codex environment.
 
 ## Security and privacy
 
