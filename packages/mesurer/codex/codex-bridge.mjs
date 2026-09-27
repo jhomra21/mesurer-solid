@@ -601,11 +601,13 @@ const runCodexQueueLookup = async (thread, queuedSubmissionId = null) => {
     };
 
     if (cursor) params.cursor = cursor;
+
     const result = await runCodexDaemonRequest(
       "thread/queue/list",
       params,
       { experimentalApi: true },
     );
+
     const data = Array.isArray(result?.data) ? result.data : [];
     const nextCursor = normalizeThread(result?.nextCursor);
 
@@ -703,6 +705,7 @@ const appServerSummary = (thread) => {
 
 const refreshDiscoveredThreads = async () => {
   const loaded = await runCodexLoadedThreadList(MAX_DISCOVERED_THREADS);
+
   const ids = Array.isArray(loaded?.data)
     ? loaded.data.map(normalizeThread).filter(Boolean)
     : [];
@@ -754,7 +757,7 @@ const refreshDiscoveredThreads = async () => {
     summaries.push(summary);
   }
 
-  for (const id of [...discoveredThreads.keys()]) {
+  for (const id of discoveredThreads.keys()) {
     if (!loadedThreadIds.has(id)) discoveredThreads.delete(id);
   }
 
@@ -772,7 +775,9 @@ const listThreadSummaries = async (scopeThread, limit) => {
   const preferredThread = scopeThread && loadedThreadIds.has(scopeThread)
     ? scopeThread
     : activeThread;
+
   const ordered = [];
+
   const seen = new Set();
 
   const push = (summary) => {
@@ -838,7 +843,9 @@ const pruneDeliveries = () => {
 
 const createDelivery = (thread, message) => {
   pruneDeliveries();
+
   const now = Date.now();
+
   const delivery = {
     id: randomUUID(),
     thread,
@@ -882,6 +889,7 @@ const deliveryTurn = (delivery, turns) => {
   }
 
   const earliestStartedAt = delivery.createdAt - DELIVERY_TURN_START_SKEW_MS;
+
   const matches = turns.filter((turn) => {
     const turnId = normalizeThread(turn?.id);
     const startedAt = Number(turn?.startedAt);
@@ -922,8 +930,11 @@ const reconcileDelivery = async (delivery) => {
   }
 
   if (!turnId || !nextStatus) return;
+
   const failed = turn.status === "failed";
+
   const failureMessage = normalizeThread(turn?.error?.message) ?? "Codex turn failed.";
+
   const changed = delivery.turnId !== turnId
     || delivery.status !== nextStatus
     || (failed && delivery.dispatchError !== failureMessage);
@@ -1130,7 +1141,9 @@ server = createServer(async (request, response) => {
       }
 
       pruneDeliveries();
+
       const now = Date.now();
+
       const delivery = {
         id: deliveryId,
         thread,
