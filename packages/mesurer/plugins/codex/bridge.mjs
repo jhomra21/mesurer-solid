@@ -424,7 +424,7 @@ const loadDeliveries = async (options) => {
         status,
         turnId: normalizeString(value?.turnId),
         queuedSubmissionId: normalizeString(value?.queuedSubmissionId),
-        dispatch: normalizeString(value?.dispatch) ?? "persisted",
+        dispatch: "persisted",
         dispatchError: normalizeString(value?.dispatchError),
         createdAt: Number.isFinite(value?.createdAt) ? Number(value.createdAt) : Date.now(),
         updatedAt: Number.isFinite(value?.updatedAt) ? Number(value.updatedAt) : Date.now(),
