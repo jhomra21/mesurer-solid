@@ -640,162 +640,48 @@ const runCodexThreadList = (cwd, limit) => {
 const runCodexLoadedThreadList = (limit) =>
   runCodexDaemonRequest("thread/loaded/list", { limit });
 
-const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((resolve, reject) => {
-  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
-    env: process.env,
-    shell: false,
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  });
-
-  let stdoutBuffer = "";
-  let stderr = "";
-  let settled = false;
-  let timeout;
+const runCodexQueueLookup = async (thread, queuedSubmissionId = null) => {
   let cursor = null;
-  let page = 0;
 
-  const finish = (error, result) => {
-    if (settled) return;
-    settled = true;
-
-    if (timeout) clearTimeout(timeout);
-
-    if (child.exitCode === null) child.kill("SIGTERM");
-
-    if (error) reject(error);
-    else resolve(result);
-  };
-
-  const send = (message) => {
-    child.stdin.write(`${JSON.stringify(message)}\n`);
-  };
-
-  const requestPage = () => {
-    page += 1;
-
+  while (true) {
     const params = {
       threadId: thread,
       limit: queuedSubmissionId ? 100 : 2,
     };
 
     if (cursor) params.cursor = cursor;
-    send({
-      id: `mesurer-queue-list-${page}`,
-      method: "thread/queue/list",
+    const result = await runCodexDaemonRequest(
+      "thread/queue/list",
       params,
-    });
-  };
-
-  const handleMessage = (message) => {
-    if (message?.id === "mesurer-queue-init") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex app-server initialize failed."));
-
-        return;
-      }
-
-      send({ method: "initialized" });
-      requestPage();
-
-      return;
-    }
-
-    const messageId = message?.id == null ? "" : String(message.id);
-
-    if (!messageId.startsWith("mesurer-queue-list-")) return;
-
-    if (message.error) {
-      finish(new Error(message.error.message || "Codex app-server thread/queue/list failed."));
-
-      return;
-    }
-
-    const data = Array.isArray(message.result?.data) ? message.result.data : [];
-    const nextCursor = normalizeThread(message.result?.nextCursor);
+      { experimentalApi: true },
+    );
+    const data = Array.isArray(result?.data) ? result.data : [];
+    const nextCursor = normalizeThread(result?.nextCursor);
 
     if (queuedSubmissionId) {
       const submission = data.find((candidate) => candidate?.id === queuedSubmissionId);
 
-      if (submission) {
-        finish(null, { submission, ambiguous: false });
-
-        return;
-      }
+      if (submission) return { submission, ambiguous: false };
 
       if (nextCursor) {
         cursor = nextCursor;
-        requestPage();
 
-        return;
+        continue;
       }
 
-      finish(null, { submission: null, ambiguous: false });
-
-      return;
+      return { submission: null, ambiguous: false };
     }
 
     if (data.length === 1 && !nextCursor) {
-      finish(null, { submission: data[0], ambiguous: false });
-
-      return;
+      return { submission: data[0], ambiguous: false };
     }
 
-    finish(null, {
+    return {
       submission: null,
       ambiguous: data.length > 1 || Boolean(nextCursor),
-    });
-  };
-
-  child.stdout.on("data", (chunk) => {
-    stdoutBuffer += chunk.toString();
-
-    while (true) {
-      const newline = stdoutBuffer.indexOf("\n");
-
-      if (newline < 0) break;
-      const line = stdoutBuffer.slice(0, newline).trim();
-      stdoutBuffer = stdoutBuffer.slice(newline + 1);
-
-      if (!line) continue;
-
-      try {
-        handleMessage(JSON.parse(line));
-      } catch {
-        // App-server protocol is JSONL; ignore unrelated stdout defensively.
-      }
-    }
-  });
-  child.stderr.on("data", (chunk) => {
-    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
-  });
-  child.on("error", (error) => finish(error));
-  child.on("close", (code, signal) => {
-    if (settled) return;
-    const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
-    finish(new Error(`Codex app-server exited before thread/queue/list completed: ${detail}`));
-  });
-
-  timeout = setTimeout(() => {
-    child.kill("SIGTERM");
-    finish(new Error(`Codex app-server thread/queue/list timed out after ${APP_SERVER_TIMEOUT_MS}ms.`));
-  }, APP_SERVER_TIMEOUT_MS);
-
-  send({
-    id: "mesurer-queue-init",
-    method: "initialize",
-    params: {
-      clientInfo: {
-        name: "mesurer-solid",
-        title: "Mesurer Solid",
-        version: "1",
-      },
-      capabilities: {
-        experimentalApi: true,
-      },
-    },
-  });
-});
+    };
+  }
+};
 
 const queuedSubmissionMessage = (submission) => {
   if (!Array.isArray(submission?.input) || submission.input.length !== 1) return null;
@@ -805,264 +691,31 @@ const queuedSubmissionMessage = (submission) => {
   return input?.type === "text" && text.trim() ? text : null;
 };
 
-const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
-  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
-    env: process.env,
-    shell: false,
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  });
-
-  let stdoutBuffer = "";
-  let stderr = "";
-  let settled = false;
-  let timeout;
-
-  const finish = (error, turns) => {
-    if (settled) return;
-    settled = true;
-
-    if (timeout) clearTimeout(timeout);
-
-    if (child.exitCode === null) child.kill("SIGTERM");
-
-    if (error) reject(error);
-    else resolve(turns);
-  };
-
-  const send = (message) => {
-    child.stdin.write(`${JSON.stringify(message)}\n`);
-  };
-
-  const handleMessage = (message) => {
-    if (message?.id === "mesurer-history-init") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex app-server initialize failed."));
-
-        return;
-      }
-
-      send({ method: "initialized" });
-      send({
-        id: "mesurer-history-turns",
-        method: "thread/turns/list",
-        params: {
-          threadId: thread,
-          limit: DESKTOP_TURN_HISTORY_LIMIT,
-          sortDirection: "desc",
-          itemsView: "summary",
-        },
-      });
-
-      return;
-    }
-
-    if (message?.id === "mesurer-history-turns") {
-      if (message.error) {
-        send({
-          id: "mesurer-history-read",
-          method: "thread/read",
-          params: {
-            threadId: thread,
-            includeTurns: true,
-          },
-        });
-
-        return;
-      }
-
-      finish(null, Array.isArray(message.result?.data) ? message.result.data : []);
-
-      return;
-    }
-
-    if (message?.id === "mesurer-history-read") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex app-server thread history read failed."));
-
-        return;
-      }
-
-      finish(null, Array.isArray(message.result?.thread?.turns) ? message.result.thread.turns : []);
-    }
-  };
-
-  child.stdout.on("data", (chunk) => {
-    stdoutBuffer += chunk.toString();
-
-    while (true) {
-      const newline = stdoutBuffer.indexOf("\n");
-
-      if (newline < 0) break;
-      const line = stdoutBuffer.slice(0, newline).trim();
-      stdoutBuffer = stdoutBuffer.slice(newline + 1);
-
-      if (!line) continue;
-
-      try {
-        handleMessage(JSON.parse(line));
-      } catch {
-        // App-server protocol is JSONL; ignore unrelated stdout defensively.
-      }
-    }
-  });
-  child.stderr.on("data", (chunk) => {
-    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
-  });
-  child.on("error", (error) => finish(error));
-  child.on("close", (code, signal) => {
-    if (settled) return;
-    const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
-    finish(new Error(`Codex app-server exited before lifecycle history completed: ${detail}`));
-  });
-
-  timeout = setTimeout(() => {
-    child.kill("SIGTERM");
-    finish(new Error(`Codex app-server lifecycle history timed out after ${APP_SERVER_TIMEOUT_MS}ms.`));
-  }, APP_SERVER_TIMEOUT_MS);
-
-  send({
-    id: "mesurer-history-init",
-    method: "initialize",
-    params: {
-      clientInfo: {
-        name: "mesurer-solid",
-        title: "Mesurer Solid",
-        version: "1",
-      },
-      capabilities: {
-        experimentalApi: true,
-      },
-    },
-  });
-});
-
-const openDesktopThread = (thread) => new Promise((resolveOpen, rejectOpen) => {
-  const url = `codex://threads/${thread}`;
-  const override = process.env.MESURER_CODEX_DESKTOP_OPEN_BIN?.trim();
-  let command;
-  let args;
-
-  if (override) {
-    command = override;
-    args = [url];
-  } else if (process.platform === "darwin") {
-    command = "/usr/bin/open";
-    args = [url];
-  } else if (process.platform === "win32") {
-    command = "powershell.exe";
-    const quotedUrl = url.replaceAll("'", "''");
-    args = [
-      "-NoProfile",
-      "-Command",
-      `Start-Process -FilePath '${quotedUrl}'`,
-    ];
-  } else {
-    rejectOpen(new Error(
-      `Codex Desktop thread wake is unsupported on platform ${process.platform}.`,
-    ));
-
-    return;
-  }
-
-  const child = spawnOwned(command, args, {
-    env: process.env,
-    shell: false,
-    stdio: ["ignore", "ignore", "pipe"],
-    windowsHide: true,
-  });
-
-  let stderr = "";
-  let settled = false;
-
-  const timeout = setTimeout(() => {
-    child.kill("SIGTERM");
-
-    if (settled) return;
-    settled = true;
-    rejectOpen(new Error("Codex Desktop thread open timed out."));
-  }, APP_SERVER_TIMEOUT_MS);
-
-  child.stderr.on("data", (chunk) => {
-    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
-  });
-  child.on("error", (error) => {
-    if (settled) return;
-    settled = true;
-    clearTimeout(timeout);
-    rejectOpen(error);
-  });
-  child.on("close", (code, signal) => {
-    if (settled) return;
-    settled = true;
-    clearTimeout(timeout);
-
-    if (code === 0) {
-      resolveOpen({ url });
-
-      return;
-    }
-
-    const detail = stderr.trim()
-      || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
-
-    rejectOpen(new Error(`Codex Desktop thread open failed: ${detail}`));
-  });
-});
-
-let maybeDispatchDesktopThread = async (_thread) => {};
-
-const scheduleDesktopDispatch = (thread, delay = 0) => {
-  if (desktopDispatchTimers.has(thread)) return;
-
-  const timer = setTimeout(() => {
-    desktopDispatchTimers.delete(thread);
-    void maybeDispatchDesktopThread(thread);
-  }, delay);
-
-  desktopDispatchTimers.set(thread, timer);
-};
-
-maybeDispatchDesktopThread = async (thread) => {
-  const record = registeredThreads.get(thread);
-
-  if (!record?.appToolsPipe) return;
-
-  const delivery = [...deliveries.values()]
-    .filter((candidate) =>
-      candidate.thread === thread
-      && candidate.transport === "desktop-app"
-      && candidate.status === "queued"
-      && candidate.dispatch !== "desktop-opened")
-    .sort((left, right) => left.createdAt - right.createdAt)[0];
-
-  if (!delivery) return;
-
+const runCodexTurnHistory = async (thread) => {
   try {
-    if (!delivery.queuedSubmissionId) {
-      const output = await runCodexQueue(thread, delivery.message);
-      delivery.queuedSubmissionId = queuedSubmissionFromOutput(output, thread);
+    const result = await runCodexDaemonRequest(
+      "thread/turns/list",
+      {
+        threadId: thread,
+        limit: DESKTOP_TURN_HISTORY_LIMIT,
+        sortDirection: "desc",
+        itemsView: "summary",
+      },
+      { experimentalApi: true },
+    );
 
-      if (!delivery.queuedSubmissionId) {
-        throw new Error("Codex queue succeeded but did not return a queued submission id.");
-      }
+    return Array.isArray(result?.data) ? result.data : [];
+  } catch {
+    const result = await runCodexDaemonRequest(
+      "thread/read",
+      {
+        threadId: thread,
+        includeTurns: true,
+      },
+      { experimentalApi: true },
+    );
 
-      delivery.dispatch = "persisted";
-      delivery.dispatchError = null;
-      delivery.updatedAt = Date.now();
-      await persistDeliveryState();
-    }
-
-    await openDesktopThread(thread);
-    delivery.dispatch = "desktop-opened";
-    delivery.dispatchError = null;
-    delivery.updatedAt = Date.now();
-    persistDeliveryStateSoon();
-  } catch (cause) {
-    delivery.dispatch = "desktop-wait-failed";
-    delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
-    delivery.updatedAt = Date.now();
-    persistDeliveryStateSoon();
+    return Array.isArray(result?.thread?.turns) ? result.thread.turns : [];
   }
 };
 
