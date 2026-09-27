@@ -39,12 +39,19 @@ export type HostScreenshotResult =
   | undefined;
 
 export type HostCodexBridgeRequest = {
-  action: "health" | "threads" | "target" | "queue" | "delivery" | "restore";
+  action: "runtime" | "health" | "threads" | "target" | "queue" | "delivery" | "restore";
   thread?: string;
   limit?: number;
   message?: string;
   deliveryId?: string;
   queuedSubmissionId?: string;
+};
+
+export type HostCodexBridgeRuntime = {
+  source: "shared" | "standalone" | "desktop" | "none";
+  transport: "shared-app-server" | "private-stdio" | "none";
+  available: boolean;
+  reason: "desktop-private-transport" | "runtime-not-found" | null;
 };
 
 export type HostCodexBridgeThread = {
@@ -56,6 +63,7 @@ export type HostCodexBridgeThread = {
 
 export type HostCodexBridgeResult = {
   ok?: boolean;
+  runtime?: HostCodexBridgeRuntime;
   thread?: string | null;
   threads?: string[];
   threadDetails?: HostCodexBridgeThread[];

@@ -72,11 +72,13 @@ A short-lived beta made Codex opt-in. Mesurer's current plugin-persistence migra
 
 ## Desktop and standalone runtimes
 
-Mesurer queues through Codex's shared app-server control socket.
+The Codex plugin has one API for Codex. Callers do not select a CLI or Desktop implementation.
 
-A complete standalone Codex installation can start that shared daemon. When the socket is absent, Codex Bridge checks managed Codex packages under `CODEX_HOME`, then a non-Desktop `codex` executable on `PATH`. It does not launch the bare Codex executable bundled inside ChatGPT.app or Codex.app.
+The native bridge resolves the runtime behind that API. A reachable shared app-server is used as-is. If no shared server is running, the bridge can start one from an existing complete standalone Codex installation. It checks managed packages under `CODEX_HOME` before `PATH`. Mesurer never installs Codex.
 
-Codex Desktop sessions work through the same path when Desktop is attached to the shared app-server. When Desktop owns its normal private stdio app-server instead, that process does not expose the shared socket used by Mesurer. Mesurer does not attach to Desktop's private app-tools pipe. The Codex plugin remains enabled, but those private Desktop sessions are not queue targets until Codex exposes them through the shared app-server.
+Codex Desktop uses the same Mesurer API when Desktop is attached to the shared app-server. Current Desktop builds may instead own a private stdio app-server. The bridge detects that case but does not execute the Desktop-bundled CLI or connect to Desktop's private app-tools pipe. Those private sessions are not externally queueable through a supported Codex transport today.
+
+Runtime choice stays inside the Codex plugin. Host applications expose only `codexBridge(request)`, and renderer code keeps using `codex:v1` for health, thread discovery, target selection, queueing, and delivery state.
 
 ## Thread discovery
 
@@ -145,7 +147,7 @@ Codex turn completion is transport state, not proof that the requested visual re
 
 Mesurer no longer owns a long-running Codex bridge process.
 
-Each Codex Bridge request opens a short-lived connection to Codex's shared app-server control socket and closes it after the response. If that socket is unavailable, Codex Bridge asks a complete standalone Codex installation to start the shared daemon, waits for the socket, and retries. It checks Codex's managed package directories before `PATH` and rejects Desktop-bundled bare executables.
+Each Codex Bridge request opens a short-lived connection to Codex's shared app-server control socket and closes it after the response. If that socket is unavailable, Codex Bridge checks whether an existing standalone installation can start the shared daemon. It also reports when the only detected runtime is Codex Desktop with a private stdio transport. The bridge never launches a Desktop-bundled bare executable.
 
 Mesurer does not stop Codex's shared app-server daemon when a page closes or when the plugin is disabled.
 
@@ -169,6 +171,8 @@ type MesurerCodexService = {
 `queue()` is canonical. `send()` remains a compatibility alias.
 
 Context owns the human evidence, so Codex delivery requires `context()`.
+
+Runtime diagnostics stay on the native bridge. The public `codex:v1` service does not report or accept a CLI/Desktop runtime choice, so callers use the same health, thread, queue, and delivery methods in every supported Codex environment.
 
 ## Security and privacy
 

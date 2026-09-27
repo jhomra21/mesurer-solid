@@ -307,6 +307,10 @@ for (const contractName of [
   }
 }
 
+if (/\bMesurerCodexRuntime\b/.test(pluginDeclarations)) {
+  throw new Error("Published codex:v1 declarations must not expose CLI/Desktop runtime selection.");
+}
+
 for (const codexMember of ["queue(", "send(", "delivery(", "listThreads", "useThread", "thread?: string", "threads: string[]", 'delivery: "queued"', "deliveryId", "annotationIds"]) {
   if (!codexDeclarations.includes(codexMember)) {
     throw new Error(`Published Codex plugin declarations are missing thread-routing contract: ${codexMember}.`);
@@ -369,6 +373,10 @@ for (const contract of [
   "createConnection",
   "packagedCodexBins",
   "desktopBundledCodex",
+  "installedDesktopCodexBins",
+  "bootstrapRuntime",
+  "inspectRuntime",
+  "\"desktop-private-transport\"",
   "\"packages\", \"app-server-daemon\"",
   "\"packages\", \"standalone\"",
 ]) {

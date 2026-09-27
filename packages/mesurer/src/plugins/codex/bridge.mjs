@@ -120,36 +120,159 @@ const desktopBundledCodex = (path) => {
 
   if (value.includes(".app/contents/resources/")) return true;
 
+  if (value.includes("/microsoft/windowsapps/codex.exe")) return true;
+
   return value.includes("/windowsapps/")
     && (value.includes("openai.codex") || value.includes("chatgpt"));
 };
 
-const daemonStartBin = async (options) => {
-  const explicit = explicitCodexBin(options);
-
-  if (explicit) return explicit;
-
-  for (const candidate of packagedCodexBins(options)) {
-    if (await canExecute(candidate)) return candidate;
+const installedDesktopCodexBins = () => {
+  if (process.platform === "darwin") {
+    return [
+      "/Applications/Codex.app/Contents/Resources/codex",
+      "/Applications/ChatGPT.app/Contents/Resources/codex",
+      join(homedir(), "Applications", "Codex.app", "Contents", "Resources", "codex"),
+      join(homedir(), "Applications", "ChatGPT.app", "Contents", "Resources", "codex"),
+    ];
   }
 
-  const environment = environmentCodexBin();
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA?.trim();
+
+    return localAppData
+      ? [join(localAppData, "Microsoft", "WindowsApps", "codex.exe")]
+      : [];
+  }
+
+  return [];
+};
+
+const publicRuntime = (source, transport, available, reason = null) => ({
+  source,
+  transport,
+  available,
+  reason,
+});
+
+const resolveCommand = async (command) => {
+  if (!command) return null;
+
+  if (command.includes("/") || command.includes("\\")) {
+    return realpath(command).catch(() => command);
+  }
+
+  return resolvePathCommand(command);
+};
+
+const bootstrapRuntime = async (options) => {
+  const explicit = await resolveCommand(explicitCodexBin(options));
+
+  if (explicit && await canExecute(explicit)) {
+    if (desktopBundledCodex(explicit)) {
+      return {
+        ...publicRuntime("desktop", "private-stdio", false, "desktop-private-transport"),
+        command: explicit,
+      };
+    }
+
+    return {
+      ...publicRuntime("standalone", "shared-app-server", true),
+      command: explicit,
+    };
+  }
+
+  for (const candidate of packagedCodexBins(options)) {
+    if (await canExecute(candidate)) {
+      return {
+        ...publicRuntime("standalone", "shared-app-server", true),
+        command: candidate,
+      };
+    }
+  }
+
+  const environment = await resolveCommand(environmentCodexBin());
 
   if (environment) {
-    const resolvedEnvironment = environment.includes("/") || environment.includes("\\")
-      ? await realpath(environment).catch(() => environment)
-      : await resolvePathCommand(environment);
+    if (desktopBundledCodex(environment)) {
+      return {
+        ...publicRuntime("desktop", "private-stdio", false, "desktop-private-transport"),
+        command: environment,
+      };
+    }
 
-    if (!resolvedEnvironment || desktopBundledCodex(resolvedEnvironment)) return null;
-
-    return resolvedEnvironment;
+    return {
+      ...publicRuntime("standalone", "shared-app-server", true),
+      command: environment,
+    };
   }
 
   const fromPath = await resolvePathCommand("codex");
 
-  if (!fromPath || desktopBundledCodex(fromPath)) return null;
+  if (fromPath) {
+    if (desktopBundledCodex(fromPath)) {
+      return {
+        ...publicRuntime("desktop", "private-stdio", false, "desktop-private-transport"),
+        command: fromPath,
+      };
+    }
 
-  return fromPath;
+    return {
+      ...publicRuntime("standalone", "shared-app-server", true),
+      command: fromPath,
+    };
+  }
+
+  for (const candidate of installedDesktopCodexBins()) {
+    if (await canExecute(candidate)) {
+      return {
+        ...publicRuntime("desktop", "private-stdio", false, "desktop-private-transport"),
+        command: candidate,
+      };
+    }
+  }
+
+  return {
+    ...publicRuntime("none", "none", false, "runtime-not-found"),
+    command: null,
+  };
+};
+
+const sharedSocketAvailable = (options) => new Promise((resolve) => {
+  const socket = createConnection(controlSocketPath(options));
+  let settled = false;
+
+  const finish = (available) => {
+    if (settled) return;
+    settled = true;
+    socket.destroy();
+    resolve(available);
+  };
+
+  const timeout = setTimeout(() => finish(false), 250);
+
+  socket.once("connect", () => {
+    clearTimeout(timeout);
+    finish(true);
+  });
+  socket.once("error", () => {
+    clearTimeout(timeout);
+    finish(false);
+  });
+});
+
+const inspectRuntime = async (options) => {
+  if (await sharedSocketAvailable(options)) {
+    return publicRuntime("shared", "shared-app-server", true);
+  }
+
+  const runtime = await bootstrapRuntime(options);
+
+  return publicRuntime(
+    runtime.source,
+    runtime.transport,
+    runtime.available,
+    runtime.reason,
+  );
 };
 
 const codexEnv = (options) => {
@@ -232,11 +355,21 @@ const spawnCommand = (
 });
 
 const startDaemon = async (options) => {
-  const command = await daemonStartBin(options);
+  const runtime = await bootstrapRuntime(options);
+
+  const command = runtime.available && runtime.source === "standalone"
+    ? runtime.command
+    : null;
 
   if (!command) {
+    if (runtime.source === "desktop") {
+      throw new Error(
+        "Codex shared app-server is not running. Codex Desktop is installed, but its private app-server is not exposed through the shared local socket.",
+      );
+    }
+
     throw new Error(
-      "Codex shared app-server is not running. Mesurer found no standalone Codex installation that can start it. Codex Desktop's private app-server is not exposed through the shared local socket.",
+      "Codex shared app-server is not running. Mesurer found no standalone Codex installation that can start it.",
     );
   }
 
@@ -771,6 +904,7 @@ const health = async (preferredThread, options) => {
     ok: true,
     thread,
     threads: ids,
+    runtime: publicRuntime("shared", "shared-app-server", true),
   };
 };
 
@@ -973,9 +1107,16 @@ export async function codexBridge(request, options = {}) {
     throw new Error("Codex Bridge request must be an object.");
   }
 
-  await ensureDeliveriesLoaded(options);
-
   const action = normalizeString(request.action);
+
+  if (action === "runtime") {
+    return {
+      ok: true,
+      runtime: await inspectRuntime(options),
+    };
+  }
+
+  await ensureDeliveriesLoaded(options);
 
   if (action === "health") {
     return health(normalizeString(request.thread), options);
