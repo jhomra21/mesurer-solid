@@ -65,31 +65,21 @@ const LAST_CLIENT_SHUTDOWN_DELAY_MS = 1_000;
 const OWNED_CHILD_SHUTDOWN_GRACE_MS = 250;
 
 const usage = `Usage:
-  mesurer-codex [--thread <session-id-or-name>] [options]
-  mesurer-codex --register-current [--bridge <url>]
-  mesurer-codex --register <session-id-or-name> [--bridge <url>]
+  mesurer-codex [options]
 
-Server options:
-  --thread <value>    Initial Codex session UUID or exact session name.
-                      Defaults to CODEX_THREAD_ID when launched by Codex.
-  --cwd <path>        Project directory used to scope recent-thread discovery.
-                      Defaults to the current working directory.
+Options:
+  --thread <value>    Preferred Codex session UUID or exact session name.
+                      The bridge normally discovers loaded threads from Codex directly.
+  --cwd <path>        Optional project directory used to scope recent-thread discovery.
   --port <number>     Loopback port (default: ${DEFAULT_PORT}; use 0 for any free port)
   --origin <origin>   Additional allowed browser Origin. Repeatable.
   --codex <path>      Codex executable (default: CODEX_BIN or codex)
   --once              Exit after one successful queued message
-
-Thread registration:
-  --register-current  Register CODEX_THREAD_ID with a running bridge and make it active.
-  --register <value>  Register a specific existing/newly-created Codex thread and make it active.
-  --bridge <url>      Running bridge URL for registration (default: ${DEFAULT_BRIDGE})
-
-Other:
   --help              Show this help
 
 Loopback browser origins such as http://localhost:* and http://127.0.0.1:* are allowed by default.
 For file:// or Electron pages, pass --origin null explicitly.
-Browser pages may send to locally registered threads and same-project recent threads returned by Codex app-server discovery.
+The bridge discovers live Codex threads through Codex's shared local app-server daemon.
 `;
 
 const { values } = parseArgs({
@@ -100,9 +90,6 @@ const { values } = parseArgs({
     origin: { type: "string", multiple: true },
     codex: { type: "string" },
     once: { type: "boolean", default: false },
-    register: { type: "string" },
-    "register-current": { type: "boolean", default: false },
-    bridge: { type: "string", default: DEFAULT_BRIDGE },
     help: { type: "boolean", default: false },
   },
   allowPositionals: false,
@@ -118,62 +105,6 @@ const normalizeThread = (value) => value?.trim() || null;
 
 const normalizeCwd = (value) => value?.trim() || null;
 
-const envThread = normalizeThread(process.env.CODEX_THREAD_ID);
-
-const requestedRegistration = normalizeThread(values.register);
-
-const registerCurrent = values["register-current"];
-
-if (requestedRegistration && registerCurrent) {
-  process.stderr.write("Use either --register or --register-current, not both.\n");
-  process.exit(2);
-}
-
-const registrationThread = registerCurrent ? envThread : requestedRegistration;
-
-if (registerCurrent && !registrationThread) {
-  process.stderr.write("--register-current requires CODEX_THREAD_ID. Run it from a Codex shell/tool command or use --register <thread>.\n");
-  process.exit(2);
-}
-
-if (registrationThread) {
-  const bridge = values.bridge?.trim() || DEFAULT_BRIDGE;
-  const cwd = normalizeCwd(values.cwd) ?? process.cwd();
-  let response;
-
-  try {
-    response = await fetch(new URL("threads/register", bridge.endsWith("/") ? bridge : `${bridge}/`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ thread: registrationThread, cwd }),
-    });
-  } catch (cause) {
-    const error = cause instanceof Error ? cause.message : String(cause);
-    process.stderr.write(`Could not reach Mesurer Codex bridge at ${bridge}: ${error}\n`);
-    process.exit(1);
-  }
-
-  const text = await response.text();
-  let payload = {};
-
-  if (text) {
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = { error: text };
-    }
-  }
-
-  if (!response.ok || payload.ok === false) {
-    process.stderr.write(`${payload.error || `Mesurer Codex bridge returned HTTP ${response.status}.`}\n`);
-    process.exit(1);
-  }
-
-  console.log(`Registered Codex thread: ${registrationThread}`);
-  console.log(`BRIDGE_THREAD=${registrationThread}`);
-  process.exit(0);
-}
-
 const parsedPort = Number(values.port);
 
 if (!Number.isInteger(parsedPort) || parsedPort < 0 || parsedPort > 65_535) {
@@ -181,13 +112,9 @@ if (!Number.isInteger(parsedPort) || parsedPort < 0 || parsedPort > 65_535) {
   process.exit(2);
 }
 
-const initialThread = normalizeThread(values.thread) ?? envThread;
+const initialThread = normalizeThread(values.thread) ?? normalizeThread(process.env.CODEX_THREAD_ID);
 
-const initialCwd = initialThread ? (normalizeCwd(values.cwd) ?? process.cwd()) : null;
-
-const initialAppToolsPipe = normalizeThread(process.env.CODEX_APP_TOOLS_PIPE_PATH);
-
-const initialCodexHome = normalizeCwd(process.env.CODEX_HOME);
+const initialCwd = normalizeCwd(values.cwd);
 
 const codexBin = values.codex?.trim() || process.env.CODEX_BIN?.trim() || "codex";
 
@@ -196,6 +123,10 @@ const additionalOrigins = new Set(values.origin ?? []);
 const registeredThreads = new Map();
 
 const discoveredThreads = new Map();
+
+const loadedThreadIds = new Set();
+
+const browserClients = new Map();
 
 const deliveries = new Map();
 
@@ -209,13 +140,17 @@ const desktopLifecycleLastCheckedAt = new Map();
 
 const ownedChildren = new Set();
 
-let activeThread = null;
+let activeThread = initialThread;
 
-let activeCwd = null;
+let activeCwd = initialCwd;
 
 let idleShutdownTimer = null;
 
-let ownerHealthTimer = null;
+let clientLeaseTimer = null;
+
+let startupShutdownTimer = null;
+
+let hasEverClient = false;
 
 let server = null;
 
@@ -238,111 +173,46 @@ const cancelIdleShutdown = () => {
   idleShutdownTimer = null;
 };
 
-const ownerAnchorExists = async (path) => {
-  try {
-    await stat(path);
-
-    return true;
-  } catch (cause) {
-    return cause?.code !== "ENOENT" && cause?.code !== "ENOTDIR";
-  }
-};
-
-const refreshOwnerHealthMonitor = () => {
-  const needsMonitor = process.platform !== "win32"
-    && [...registeredThreads.values()].some((record) => record.appToolsPipe);
-
-  if (!needsMonitor) {
-    if (ownerHealthTimer) clearInterval(ownerHealthTimer);
-    ownerHealthTimer = null;
-
-    return;
-  }
-
-  if (ownerHealthTimer) return;
-
-  ownerHealthTimer = setInterval(() => {
-    void pruneMissingDesktopOwners();
-  }, OWNER_HEALTH_POLL_MS);
-  ownerHealthTimer.unref?.();
-};
-
 const scheduleIdleShutdown = () => {
-  if (shutdownStarted || registeredThreads.size > 0 || idleShutdownTimer) return;
+  if (shutdownStarted || !hasEverClient || browserClients.size > 0 || idleShutdownTimer) return;
 
   idleShutdownTimer = setTimeout(() => {
     idleShutdownTimer = null;
 
-    if (registeredThreads.size === 0) void shutdownBridge();
-  }, LAST_OWNER_SHUTDOWN_DELAY_MS);
+    if (browserClients.size === 0) void shutdownBridge();
+  }, LAST_CLIENT_SHUTDOWN_DELAY_MS);
   idleShutdownTimer.unref?.();
 };
 
-const unregisterThread = (thread) => {
-  const record = registeredThreads.get(thread);
-
-  if (!record) return false;
-
-  registeredThreads.delete(thread);
-
-  const dispatchTimer = desktopDispatchTimers.get(thread);
-
-  if (dispatchTimer) {
-    clearTimeout(dispatchTimer);
-    desktopDispatchTimers.delete(thread);
-  }
-
-  if (activeThread === thread) {
-    const next = [...registeredThreads.values()]
-      .sort((left, right) => right.seenAt - left.seenAt)[0] ?? null;
-
-    activeThread = next?.id ?? null;
-    activeCwd = next?.cwd ?? null;
-  }
-
-  refreshOwnerHealthMonitor();
-  scheduleIdleShutdown();
-
-  return true;
-};
-
-async function pruneMissingDesktopOwners() {
-  for (const record of registeredThreads.values()) {
-    if (!record.appToolsPipe) continue;
-
-    if (!(await ownerAnchorExists(record.appToolsPipe))) {
-      unregisterThread(record.id);
-    }
-  }
-}
-
-const registerThread = (thread, cwd, registration = {}) => {
+const touchClient = (clientId) => {
+  hasEverClient = true;
   cancelIdleShutdown();
 
-  const previous = registeredThreads.get(thread);
-  const nextCwd = normalizeCwd(cwd) ?? previous?.cwd ?? null;
-  const appToolsPipe = normalizeThread(registration.appToolsPipe) ?? previous?.appToolsPipe ?? null;
-  const codexHome = normalizeCwd(registration.codexHome) ?? previous?.codexHome ?? null;
-  registeredThreads.set(thread, {
-    id: thread,
-    cwd: nextCwd,
-    appToolsPipe,
-    codexHome,
-    seenAt: Date.now(),
-  });
-  activeThread = thread;
+  if (startupShutdownTimer) {
+    clearTimeout(startupShutdownTimer);
+    startupShutdownTimer = null;
+  }
 
-  if (nextCwd) activeCwd = nextCwd;
-
-  refreshOwnerHealthMonitor();
+  browserClients.set(clientId, Date.now());
 };
 
-if (initialThread) {
-  registerThread(initialThread, initialCwd, {
-    appToolsPipe: initialAppToolsPipe,
-    codexHome: initialCodexHome,
-  });
-}
+const releaseClient = (clientId) => {
+  const removed = browserClients.delete(clientId);
+
+  if (browserClients.size === 0) scheduleIdleShutdown();
+
+  return removed;
+};
+
+const pruneExpiredClients = () => {
+  const cutoff = Date.now() - CLIENT_LEASE_TTL_MS;
+
+  for (const [clientId, seenAt] of browserClients) {
+    if (seenAt < cutoff) browserClients.delete(clientId);
+  }
+
+  if (browserClients.size === 0) scheduleIdleShutdown();
+};
 
 const isLoopbackOrigin = (origin) => {
   try {
