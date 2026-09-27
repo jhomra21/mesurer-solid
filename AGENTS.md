@@ -132,7 +132,7 @@ The accepted Codex integration has specific correctness properties. Preserve the
 - Codex is enabled by default with the first-party plugin catalog and remains toggleable in Settings.
 - All Codex implementation belongs to the Codex plugin; the native helper lives under `packages/mesurer/src/plugins/codex/`.
 - Keep the public Codex service runtime-neutral. Callers must not choose CLI versus Desktop, and host applications must not gain separate runtime-specific Codex APIs.
-- The Codex plugin owns runtime discovery, transport selection, structured runtime diagnostics, and any supported bootstrap behavior behind `codex:v1` and `codexBridge(request)`.
+- The Codex plugin owns runtime discovery, transport selection, and supported bootstrap behavior. Runtime diagnostics stay in the native bridge and private plugin state; do not expose CLI/Desktop selection through `codex:v1`.
 - Do not introduce a Mesurer localhost bridge server, standalone bridge process, Electron helper process, marketplace package, or SessionStart/SessionEnd hook dependency.
 - Renderer code crosses only `window.__MESURER_HOST__.codexBridge(request)`; native filesystem, process, and socket access stay in the host process.
 - Discover sendable destinations from Codex's shared local app-server; `thread/loaded/list` is authoritative.
