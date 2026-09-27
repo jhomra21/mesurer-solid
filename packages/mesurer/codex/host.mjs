@@ -76,7 +76,15 @@ export async function ensureMesurerCodexBridge(options = {}) {
     );
   }
 
-  const args = [bridgeScript.pathname, "--origin", options.origin ?? "null"];
+  const parsedBridgeUrl = new URL(bridgeUrl);
+  const port = parsedBridgeUrl.port || "47365";
+  const args = [
+    bridgeScript.pathname,
+    "--port",
+    port,
+    "--origin",
+    options.origin ?? "null",
+  ];
 
   if (options.codex?.trim()) args.push("--codex", options.codex.trim());
 
