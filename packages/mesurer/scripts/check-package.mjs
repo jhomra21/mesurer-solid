@@ -367,6 +367,10 @@ for (const contract of [
   "thread/loaded/list",
   "thread/queue/add",
   "createConnection",
+  "packagedCodexBins",
+  "desktopBundledCodex",
+  "\"packages\", \"app-server-daemon\"",
+  "\"packages\", \"standalone\"",
 ]) {
   if (!codexBridgeSource.includes(contract)) {
     throw new Error(`Packaged Codex Bridge is missing contract: ${contract}.`);
