@@ -74,6 +74,8 @@ bunx mesurer-codex-connect
 4. Starts the packaged bridge as a detached local process when no compatible bridge is running.
 5. Registers the current Codex thread and project directory and makes that thread the bridge default.
 
+The Codex plugin pairs that startup path with a trusted `SessionEnd` hook. Ending one thread unregisters only that thread. The shared bridge stays running while another registered Codex thread still owns it, then exits after the last owner ends. On Desktop, the bridge also watches the app-owned tools pipe. If the app exits without running `SessionEnd`, losing that pipe releases the Desktop owner and lets an otherwise unused bridge exit.
+
 The portable `mesurer-ui` skill installs the same connector and bridge beside its injector. A Codex agent using that skill should run:
 
 ```bash
@@ -94,7 +96,7 @@ This is the supported zero-manual path for a Codex-controlled local project. The
 
 Turning Codex on in **Settings -> Plugins** loads `codex()` immediately. No refresh is required. Turning it off removes the browser service, command, and toolbar action immediately. Re-enabling it restores them.
 
-Disabling the browser plugin does not stop the local companion. The companion can be shared by more than one page or registered Codex thread, and stopping it when one page toggles Codex off could break another client. While no page sends feedback, the companion waits on loopback and does no Codex work.
+Disabling the browser plugin does not stop the local companion. The companion can be shared by more than one page or registered Codex thread, and stopping it when one page toggles Codex off could break another client. Codex session ownership controls the companion lifetime instead. The last registered `SessionEnd`, or loss of the last Desktop owner after an unclean app exit, closes the bridge and its bridge-owned helper processes.
 
 Loading `codex()` does not probe `127.0.0.1` by itself. The first **Queue to Codex** press or **Choose Codex thread…** menu action performs the initial bridge check. This keeps ordinary Mesurer mounts free of ambient loopback traffic and avoids CSP console errors on pages that never use Codex delivery.
 
@@ -126,7 +128,7 @@ codex({ clearCompletedAnnotations: false })
 
 This rule tracks Codex turn completion. It does not prove that the requested UI change is correct. The default queued instruction still tells Codex to verify the affected UI in the live page before claiming completion.
 
-Current lifecycle tracking does not require `UserPromptSubmit`, `Stop`, or `Interrupt` hooks. The trusted `SessionStart` hook is only responsible for local bridge bootstrap, project scope, and thread registration. The browser stores the active delivery id, destination thread, lifecycle state, and exact annotation ids in per-tab `sessionStorage` while a delivery is queued, working, or interrupted. Interrupted state re-enables Queue immediately but remains reconcilable for a bounded period, so a later authoritative correction to Working or Completed updates the live page and completion can still retire the exact sent annotations. If the page reloads during that window, `codex()` resumes polling that delivery instead of freezing the stale terminal label.
+Current delivery tracking does not require `UserPromptSubmit`, `Stop`, or `Interrupt` hooks. The trusted `SessionStart` hook owns local bridge bootstrap, project scope, and thread registration. The trusted `SessionEnd` hook releases that thread from the shared bridge. The browser stores the active delivery id, destination thread, lifecycle state, and exact annotation ids in per-tab `sessionStorage` while a delivery is queued, working, or interrupted. Interrupted state re-enables Queue immediately but remains reconcilable for a bounded period, so a later authoritative correction to Working or Completed updates the live page and completion can still retire the exact sent annotations. If the page reloads during that window, `codex()` resumes polling that delivery instead of freezing the stale terminal label.
 
 If Codex history cannot be read or the exact queued prompt cannot be correlated unambiguously, Mesurer leaves the delivery and annotation intact. It never infers completion from a missing queue item or an unrelated newer turn. On bridge startup, persisted Desktop records are rechecked against the authoritative turn when possible, so an older bridge's premature terminal state can be corrected after upgrading.
 
