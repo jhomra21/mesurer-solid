@@ -84,6 +84,7 @@ export type {
   MesurerCodexPluginOptions,
   MesurerCodexQueueRequest,
   MesurerCodexQueueResult,
+  MesurerCodexRuntime,
   MesurerCodexSendRequest,
   MesurerCodexSendResult,
   MesurerCodexService,
