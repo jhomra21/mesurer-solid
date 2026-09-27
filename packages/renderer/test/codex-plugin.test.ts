@@ -159,26 +159,7 @@ type BridgeMockHandler = (
   init?: RequestInit,
 ) => Promise<BridgeMockResponse>;
 
-const withBridgeLease = (handler: BridgeMockHandler) => vi.fn(async (
-  input: RequestInfo | URL,
-  init?: RequestInit,
-) => {
-  const url = String(input);
-
-  if (
-    url.endsWith("/clients/acquire")
-    || url.endsWith("/clients/heartbeat")
-    || url.endsWith("/clients/release")
-  ) {
-    return {
-      ok: true,
-      status: 200,
-      text: async () => JSON.stringify({ ok: true }),
-    };
-  }
-
-  return handler(input, init);
-});
+const bridgeFetchMock = (handler: BridgeMockHandler) => vi.fn(handler);
 
 describe("codex", () => {
   it("sends saved Context evidence through the native Codex Bridge", async () => {
@@ -200,7 +181,7 @@ describe("codex", () => {
         ctx.service.provide("context:v1", contextService);
       },
     }));
-    await host.load(codex({ endpoint: "http://127.0.0.1:47365", ui: false }));
+    await host.load(codex({ ui: false }));
 
     const service = host.service.get<MesurerCodexService>(MESURER_CODEX_SERVICE_ID);
     expect(service).toBeDefined();
@@ -270,13 +251,13 @@ describe("codex", () => {
         ctx.service.provide("context:v1", contextService);
       },
     }));
-    await host.load(codex({ endpoint: "http://127.0.0.1:47365" }));
+    await host.load(codex());
 
     await expect(host.command.execute("codex.queue")).rejects.toThrow(
-      "Codex integration needs a native host that can start Mesurer's packaged local companion.",
+      "Codex Bridge is unavailable in this host.",
     );
     expect(errorSpy).toHaveBeenCalledWith(
-      "[Mesurer] Failed to queue feedback for Codex: Codex integration needs a native host that can start Mesurer's packaged local companion.",
+      "[Mesurer] Failed to queue feedback for Codex: Codex Bridge is unavailable in this host.",
     );
     host.dispose();
   });
@@ -1288,7 +1269,7 @@ describe("codex", () => {
     expect(initial?.menu?.items.map((item) => item.label)).toEqual(["Choose Codex thread…"]);
 
     await expect(host.command.execute("codex.send")).rejects.toThrow(
-      "Codex integration needs a native host that can start Mesurer's packaged local companion.",
+      "Codex Bridge is unavailable in this host.",
     );
 
     const unavailable = host.tools().find((candidate) => candidate.id === "codex.send");
