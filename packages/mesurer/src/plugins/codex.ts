@@ -73,20 +73,7 @@ export type MesurerCodexSendRequest = MesurerCodexQueueRequest;
 
 export type MesurerCodexDeliveryStatus = "queued" | "working" | "completed" | "interrupted";
 
-export type MesurerCodexDispatchStatus =
-  | "persisting"
-  | "persisted"
-  | "resumed"
-  | "already-loaded"
-  | "unsupported"
-  | "wake-failed"
-  | "untracked"
-  | "desktop-local"
-  | "waiting-active"
-  | "desktop-sent"
-  | "desktop-opened"
-  | "desktop-send-uncertain"
-  | "desktop-wait-failed";
+export type MesurerCodexDispatchStatus = "persisted";
 
 export type MesurerCodexDelivery = {
   id: string;
@@ -97,7 +84,7 @@ export type MesurerCodexDelivery = {
   queuedSubmissionId?: string | null;
   /** Codex delivery state after Codex durably accepted the queue item. */
   dispatch?: MesurerCodexDispatchStatus;
-  /** Non-fatal wake diagnostic when persistence succeeded but dispatch could not be verified. */
+  /** Optional Codex lifecycle diagnostic. */
   dispatchError?: string | null;
   createdAt: number;
   updatedAt: number;
@@ -125,7 +112,7 @@ export type MesurerCodexQueueResult = {
 export type MesurerCodexSendResult = MesurerCodexQueueResult;
 
 export type MesurerCodexHealth = {
-  /** Current current loaded Codex target. Null when no loaded Codex thread is selected. */
+  /** Current loaded Codex target. Null when no loaded Codex thread is selected. */
   thread: string | null;
   /** Codex threads currently loaded in the shared local app-server. */
   threads: string[];
@@ -149,7 +136,7 @@ export type MesurerCodexThreadList = {
 };
 
 export type MesurerCodexThreadListOptions = {
-  /** Maximum number of threads to return. The bridge clamps this to 10. */
+  /** Maximum number of threads to return. Codex Bridge clamps this to 10. */
   limit?: number;
   /** Loaded thread to place first when it remains available. */
   thread?: string;
@@ -590,10 +577,6 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       const deliveryBusy = () => activeDelivery !== null
         && ["queueing", "queued", "working", "completed"].includes(activeDelivery.status);
 
-      const deliveryBlocked = () => activeDelivery?.status === "queued"
-        && (activeDelivery.dispatch === "desktop-send-uncertain"
-          || activeDelivery.dispatch === "desktop-wait-failed");
-
       const deliveryStatusText = (status: UiDeliveryStatus) => {
         if (status === "queueing") return "Queueing…";
 
@@ -612,8 +595,6 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         if (!activeDelivery) return null;
 
         if (activeDelivery.status === "queueing") return "Queueing to Codex…";
-
-        if (deliveryBlocked()) return "Codex delivery blocked";
 
         if (activeDelivery.status === "queued") return "Queued for Codex";
 
@@ -690,7 +671,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
               : "";
 
           const deliverySuffix = activeDelivery?.thread === thread.id
-            ? ` · ${deliveryBlocked() ? "Blocked" : deliveryStatusText(activeDelivery.status)}`
+            ? ` · ${deliveryStatusText(activeDelivery.status)}`
             : "";
 
           return {
@@ -1064,7 +1045,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
                 }, DELIVERY_POLL_MS);
               }
             } else {
-              // Older companion: queue acceptance is known, lifecycle completion is not.
+              // A host that omits delivery ids cannot provide lifecycle completion.
               completedVisibleTimer = globalThis.setTimeout(() => {
                 completedVisibleTimer = 0;
 
