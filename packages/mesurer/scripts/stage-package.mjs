@@ -13,7 +13,6 @@ mkdirSync(stageDir, { recursive: true });
 for (const path of [
   "dist",
   "skills",
-  "plugins/codex",
   "scripts/install-skill.mjs",
   "README.md",
   "AGENT_INTEGRATION.md",
@@ -21,6 +20,15 @@ for (const path of [
   "THIRD_PARTY_LICENSES.md",
 ]) {
   cpSync(new URL(path, packageDir), new URL(path, stageDir), { recursive: true });
+}
+
+mkdirSync(new URL("plugins/codex/", stageDir), { recursive: true });
+
+for (const file of ["bridge.mjs", "bridge.d.ts"]) {
+  cpSync(
+    new URL(`src/plugins/codex/${file}`, packageDir),
+    new URL(`plugins/codex/${file}`, stageDir),
+  );
 }
 
 const published = { ...packageJson, name: "mesurer-solid" };
