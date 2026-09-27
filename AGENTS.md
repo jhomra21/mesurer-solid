@@ -66,15 +66,17 @@ Create feature directories here only when files have clear shared ownership and 
 
 ### `packages/mesurer`
 
-Public `mesurer-solid` package. It owns mounting/injection, first-party public plugin factories, package staging, public agent APIs, and the canonical Codex companion implementation.
+Public `mesurer-solid` package. It owns mounting/injection, first-party public plugin factories, package staging, public agent APIs, and Codex integration.
 
-The canonical Codex companion source is:
+Codex implementation stays under its plugin ownership:
 
 ```text
-packages/mesurer/codex/
+packages/mesurer/src/plugins/codex/index.ts
+packages/mesurer/src/plugins/codex/bridge.mjs
+packages/mesurer/src/plugins/codex/bridge.d.ts
 ```
 
-The `mesurer-codex` npm bin is a tiny stable launcher. Native hosts start or reuse the same canonical bridge through `mesurer-solid/codex-host`. Do not add a second generated Codex distribution or marketplace-owned copy.
+The renderer plugin owns UI and Context delivery. The native Codex Bridge owns process/socket access and is published as `mesurer-solid/plugins/codex/bridge`. Do not add a separate Mesurer Codex process, localhost server, marketplace distribution, or hook-owned copy.
 
 ### Repository-level areas
 
@@ -96,7 +98,7 @@ mesurer-solid/plugins
 mesurer-solid/core
 mesurer-solid/inject
 mesurer-solid/inject-script
-mesurer-solid/codex-host
+mesurer-solid/plugins/codex/bridge
 ```
 
 The root export owns mounting, public domain types, and the agent API. `/plugins` owns first-party plugin factories and contracts. `/core` stays framework-neutral. Injection entries are for development, testing, and agent-controlled browser evaluation.
@@ -127,21 +129,20 @@ Renderer-aware plugin UI must cross the existing opaque renderer service boundar
 
 The accepted Codex integration has specific correctness properties. Preserve them unless deliberately redesigning the feature and its acceptance suite.
 
-- Codex is opt-in because enabling it starts Mesurer's local companion.
-- Do not treat legacy default-on persistence as the new user opt-in.
-- Do not introduce a Codex marketplace, Mesurer Codex plugin, or SessionStart/SessionEnd hook dependency.
+- Codex is enabled by default with the first-party plugin catalog and remains toggleable in Settings.
+- All Codex implementation belongs to the Codex plugin; the native helper lives under `packages/mesurer/src/plugins/codex/`.
+- Do not introduce a Mesurer localhost bridge server, standalone bridge process, Electron helper process, marketplace package, or SessionStart/SessionEnd hook dependency.
+- Renderer code crosses only `window.__MESURER_HOST__.codexBridge(request)`; native filesystem, process, and socket access stay in the host process.
 - Discover sendable destinations from Codex's shared local app-server; `thread/loaded/list` is authoritative.
-- Queue exactly once through Codex's native durable queue and preserve the queued-submission id.
-- Do not create threads, use `turn/steer`, delete/requeue a native item during recovery, or start a parallel app-server for delivery.
-- Correlate lifecycle from the same shared daemon using the exact queued prompt/turn history.
-- Treat genuine ended interruption/failure as terminal and preserve annotations for retry.
-- Remove only the exact annotations included in a matched completed delivery.
+- Queue exactly once through the shared app-server's `thread/queue/add` and preserve the queued-submission id.
+- Do not shell through `codex queue`, create threads, use `turn/steer`, delete/requeue native items during recovery, or start a parallel app-server for delivery.
+- Correlate lifecycle from the same shared daemon using the exact queued prompt and bounded turn history.
+- Preserve interrupted or failed review evidence; remove only the exact annotations included in a matched completed delivery.
 - Persist browser delivery/routing state across same-tab reloads and fail closed on ambiguous routing.
-- Native hosts start or reuse the packaged bridge through `mesurer-solid/codex-host`; stale Mesurer-owned bridges are replaced by source identity.
-- A browser client owns a short bridge lease. Multiple clients may share one bridge; the last release or expired last lease shuts it down.
-- Bridge shutdown must terminate Mesurer-owned helper processes without stopping Codex's shared app-server daemon.
+- Mesurer may start Codex's own shared daemon when its control socket is absent, but it must not stop that daemon when Mesurer closes.
+- The native Codex Bridge must remain safe to bundle into an Electron main process as CommonJS. Do not rely on `import.meta.url`, `process.execPath`, or sibling runtime-file discovery.
 
-Codex process tests use a disposable `CODEX_HOME` and fake daemon transport. Package smoke must prove the native-host bootstrap export remains available from a secure Electron renderer topology.
+Codex integration tests use a disposable `CODEX_HOME` and fake shared-daemon transport. Packed Electron smoke must bundle the main process with esbuild before launch so the host topology matches real bundled applications.
 
 Any change to these rules requires the Codex process/package regressions plus real lifecycle acceptance when behavior changes.
 

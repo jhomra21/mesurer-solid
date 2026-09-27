@@ -8,8 +8,7 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "mesurer-skill": "scripts/install-skill.mjs",
-    "mesurer-codex": "scripts/codex-bridge.mjs"
+    "mesurer-skill": "scripts/install-skill.mjs"
   },
   "exports": {
     ".": {
@@ -30,17 +29,16 @@
     },
     "./inject-script": "./dist/inject-script.js",
     "./package.json": "./package.json",
-    "./codex-host": {
-      "types": "./codex/host.d.ts",
-      "default": "./codex/host.mjs"
+    "./plugins/codex/bridge": {
+      "types": "./plugins/codex/bridge.d.ts",
+      "default": "./plugins/codex/bridge.mjs"
     }
   },
   "files": [
     "dist",
     "skills",
-    "codex",
+    "plugins/codex",
     "scripts/install-skill.mjs",
-    "scripts/codex-bridge.mjs",
     "README.md",
     "AGENT_INTEGRATION.md",
     "LICENSE",

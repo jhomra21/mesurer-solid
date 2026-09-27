@@ -11,7 +11,7 @@ import {
   xrayPlugin as rendererXrayPlugin,
 } from "@jhomra21/mesurer-solid-renderer";
 import { arrange } from "./arrange";
-import { codex } from "./codex-plugin";
+import { codex } from "./plugins/codex";
 import { context } from "./context-plugin";
 import { layoutGuides } from "./layout-guides";
 import type { MesurerPlugin } from "./core";
@@ -75,7 +75,7 @@ export type {
 export {
   MESURER_CODEX_PLUGIN_ID,
   MESURER_CODEX_SERVICE_ID,
-} from "./codex-plugin";
+} from "./plugins/codex";
 
 export type {
   MesurerCodexDelivery,
@@ -90,7 +90,7 @@ export type {
   MesurerCodexThread,
   MesurerCodexThreadList,
   MesurerCodexThreadListOptions,
-} from "./codex-plugin";
+} from "./plugins/codex";
 
 export {
   MESURER_CONTEXT_PLUGIN_ID,

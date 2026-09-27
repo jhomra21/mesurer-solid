@@ -181,15 +181,13 @@ See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the package
 
 ### Queue human feedback to Codex
 
-Codex is an opt-in Mesurer plugin. In native hosts, enabling it starts or reuses the local companion bundled with `mesurer-solid`, then discovers open Codex threads through Codex's shared local app-server.
+Codex is enabled by default as a first-party Mesurer plugin. Native hosts expose one narrow `window.__MESURER_HOST__.codexBridge(request)` capability backed by `codexBridge()` from `mesurer-solid/plugins/codex/bridge`.
 
-There is no Codex marketplace plugin or hook installation.
+Codex Bridge runs inside the native host process. It talks directly to Codex's existing shared local app-server, discovers loaded threads, and queues through `thread/queue/add`. Mesurer does not run a localhost bridge server, start another Electron process, install a Codex marketplace plugin, or depend on lifecycle hooks.
 
-Electron and other native applications expose the packaged bootstrap once through `window.__MESURER_HOST__.startCodexBridge`; after that, the user's workflow is only the Codex switch in **Settings -> Plugins**. The choice persists across reloads and updates.
+**Queue to Codex** keeps each page pinned to a loaded Codex thread, tracks the exact queued delivery, and never creates a new thread or uses Steer. Saved annotations included in a successful delivery are removed only after the exact matched Codex turn completes.
 
-**Queue to Codex** uses Codex's native durable queue. Mesurer queues one message to a currently loaded thread, tracks that exact delivery through the shared daemon, and never creates a new thread or uses Steer. Saved annotations included in a successful delivery are removed only after the exact matched Codex turn completes.
-
-See [Queue Context feedback to Codex](./docs/CODEX.md) for native-host wiring, browser-only fallback, loaded-thread routing, cleanup, recovery, and the typed `codex:v1` service.
+See [Queue Context feedback to Codex](./docs/CODEX.md) for native-host wiring, loaded-thread routing, recovery, and the typed `codex:v1` service.
 
 ## Documentation
 

@@ -7,9 +7,9 @@ description: Use Mesurer for frontend UI implementation, review, debugging, layo
 
 Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. The rendered page is the integration boundary.
 
-The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the browser controller already provides and read `window.__MESURER__` directly. The optional `codex()` plugin and local Codex companion are a separate human-initiated convenience for routing Context feedback to explicitly registered Codex threads.
+The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the browser controller already provides and read `window.__MESURER__` directly. The first-party `codex()` plugin is a separate human-initiated convenience for routing Context feedback to loaded Codex threads through the application's native host.
 
-When the current agent is Codex and the user has explicitly asked for Codex delivery, or the live Mesurer instance already has `mesurer.codex` enabled, ensure the packaged local companion is ready from the Codex process. Do not expect browser JavaScript to spawn a local executable.
+Do not add a second Mesurer process for Codex delivery. Native applications expose the narrow `window.__MESURER_HOST__.codexBridge(request)` capability; the host-side implementation talks to Codex's shared local app-server.
 
 A meaningful Mesurer step must return evidence the agent actually uses.
 
@@ -290,22 +290,22 @@ The optional Screenshot plugin is a separate human camera workflow. Native host 
 
 ## Optional Codex thread handoff
 
-Use this only when the user asked for Mesurer-to-Codex delivery or the live Mesurer instance already has `mesurer.codex` enabled. Normal agent work still uses `window.__MESURER__` and browser verification.
+Use this only when the user asked for Mesurer-to-Codex delivery or the live Mesurer instance has `mesurer.codex` enabled. Normal agent work still uses `window.__MESURER__` and browser verification.
 
-Codex delivery is package-native. Mesurer's local companion discovers currently loaded Codex threads from the shared local app-server. There is no Codex marketplace plugin, SessionStart hook, or thread-registration command.
+Codex delivery uses the native host's in-process Codex Bridge. There is no Mesurer Codex server, bridge port, marketplace plugin, SessionStart hook, or thread-registration command.
 
 Keep these delivery rules:
 
 - Mesurer uses Queue, never `turn/steer`.
-- Codex's native durable queue is the message source of truth.
+- Codex's shared app-server and durable queue are the message source of truth.
 - Only threads reported as loaded by Codex are sendable.
-- Do not delete and resend a queued item after a bridge restart. Mesurer's persistence file tracks correlation and lifecycle; it is not another message queue.
-- A native host may start or reuse the packaged companion through `window.__MESURER_HOST__.startCodexBridge`. Do not add a separate Codex plugin or hook installation path.
+- The host-side bridge uses `thread/queue/add` directly. Do not shell through `codex queue` or start a parallel app-server.
+- Mesurer's persistence file tracks correlation and lifecycle; it is not another message queue.
 - Each page keeps its explicitly chosen thread in per-tab state. If routing is ambiguous, require a human choice.
 - Queue submission is single-flight. Do not bypass duplicate suppression with a second request.
 - A completed matched turn may remove only the annotation ids included in that delivery. Interrupted, failed, ambiguous, or unreadable work keeps them.
 - Mesurer does not create Codex threads. Create or open the thread in Codex first, then use it once Codex reports it as loaded.
-- The local companion belongs to active Mesurer clients. Do not kill Codex's shared app-server daemon when Mesurer shuts down.
+- Do not stop Codex's shared app-server daemon when Mesurer closes.
 
 The typed `codex:v1` service supports `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and `queue({ thread })`. `send()` is retained only as a compatibility alias. Generic automation uses `codex.queue`; `codex.send` remains its compatibility alias.
 

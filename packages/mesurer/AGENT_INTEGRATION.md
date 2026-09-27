@@ -248,19 +248,17 @@ The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separ
 
 ## Optional human-to-Codex delivery
 
-A page can enable `codex()` next to Context for explicit human-triggered delivery. This is optional and does not add a generic send method to `window.__MESURER__`.
+The first-party `codex()` plugin is enabled by default and remains toggleable in Mesurer Settings. It is a human-triggered delivery path and does not add a generic send method to `window.__MESURER__`.
 
-The local companion is packaged with `mesurer-solid`. Native hosts may expose `window.__MESURER_HOST__.startCodexBridge`; enabling Codex in Mesurer starts or reuses that packaged companion and acquires a client lease. No Codex plugin, marketplace, or lifecycle hook is part of this path.
+Native hosts expose `window.__MESURER_HOST__.codexBridge(request)`. The matching `codexBridge()` implementation is published from `mesurer-solid/plugins/codex/bridge` and runs in the host process. It relays bounded requests to Codex's existing shared local app-server. There is no Mesurer Codex daemon, localhost listener, marketplace plugin, or lifecycle hook.
 
-The companion asks Codex's shared local app-server for currently loaded threads. Only loaded threads are sendable. Page affinity and explicit destination overrides persist per tab; if several loaded threads are available and no valid saved destination exists, the user must choose one.
+Only threads reported by Codex as loaded are sendable. Page affinity and explicit destination overrides persist per tab; if several loaded threads are available and no valid saved destination exists, the user must choose one.
 
-Delivery uses Codex's native durable queue. Mesurer never calls `turn/steer`, never creates a thread, and never reconstructs a second user-message queue. The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias.
+Delivery calls the shared app-server's `thread/queue/add` directly. Mesurer never calls `turn/steer`, never creates a thread, and never reconstructs a second user-message queue. The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias.
 
 Queue submission is single-flight. A matched completed turn may remove only the annotation ids sent with that delivery; interrupted, failed, ambiguous, or unreadable work keeps them. Turn completion is transport state, not proof that the requested UI result is correct.
 
-Mesurer does not create new Codex threads. Create or open the thread in Codex first; once Codex reports it as loaded, Mesurer can target it.
-
-See [Queue Context feedback to Codex](../../docs/CODEX.md) for host setup, routing, cleanup, privacy, and failure behavior.
+See [Queue Context feedback to Codex](../../docs/CODEX.md) for host wiring, routing, recovery, privacy, and failure behavior.
 
 ## Revalidate after source edits
 

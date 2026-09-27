@@ -4,8 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Make Codex integration package-native and opt-in. Mesurer now ships a native-host bootstrap helper, discovers sendable threads from Codex's shared local app-server, queues and reconciles against that same daemon, and removes the separate Codex marketplace/plugin/hook setup.
-- Own the local Codex companion with Mesurer client leases. Multiple pages can share one bridge; the last client release or expired crash lease shuts it down, package updates replace stale Mesurer-owned bridges by source identity, and Codex's shared daemon remains untouched.
+- Keep Codex enabled by default and move all Codex implementation under the Codex plugin. The native Codex Bridge now runs in the application host process, talks directly to Codex's shared app-server, and queues through `thread/queue/add`.
+- Remove the separate Mesurer Codex server, bridge port, helper Electron process, marketplace/hooks setup, client leases, and package-relative bridge bootstrap. Electron package smoke now bundles main to CommonJS with esbuild before launch to cover real bundled-host integration.
 
 <!-- Add user-facing changes here before preparing a release. -->
 

@@ -1,6 +1,6 @@
 import type { MesurerPlugin } from "./core";
 import { arrange, MESURER_ARRANGE_PLUGIN_ID } from "./arrange";
-import { codex, MESURER_CODEX_PLUGIN_ID } from "./codex-plugin";
+import { codex, MESURER_CODEX_PLUGIN_ID } from "./plugins/codex";
 import { context, MESURER_CONTEXT_PLUGIN_ID } from "./context-plugin";
 import { layoutGuides, MESURER_LAYOUT_GUIDES_PLUGIN_ID } from "./layout-guides";
 import { screenshot, MESURER_SCREENSHOT_PLUGIN_ID } from "./screenshot";
@@ -11,7 +11,6 @@ type MesurerPluginRegistryEntry = {
   description?: string;
   order?: number;
   enabled?: boolean;
-  optIn?: boolean;
   create(): MesurerPlugin | Promise<MesurerPlugin>;
   settingsIds?: string[];
   hiddenSettingsControlIds?: string[];
@@ -69,10 +68,8 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
   {
     id: MESURER_CODEX_PLUGIN_ID,
     label: "Codex",
-    description: "Starts Mesurer's local companion and connects it to your open Codex threads on this computer.",
+    description: "Connects Mesurer to your open Codex threads on this computer.",
     order: 45,
-    enabled: false,
-    optIn: true,
     create: codex,
   },
 ];
@@ -81,8 +78,7 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
  * Resolve the single renderer plugin registry for one mount.
  *
  * With no explicit `plugins`, first-party registrations use their catalog defaults.
- * Codex is opt-in because enabling it starts a local companion process. When callers
- * provide `plugins`, that list is the initial enabled set while
+ * When callers provide `plugins`, that list is the initial enabled set while
  * omitted first-party registrations remain known to Settings and can be enabled
  * later. Explicit first-party instances retain their caller-supplied options
  * across disable/re-enable cycles.

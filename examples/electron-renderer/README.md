@@ -36,18 +36,18 @@ const window = new BrowserWindow({
 
 Do not mount Mesurer from the main process.
 
-## Codex local companion
+## Codex Bridge
 
-Codex stays opt-in in Mesurer Settings. To let the renderer start the companion after the user enables it, expose one native-host capability through the same `__MESURER_HOST__` object used by Screenshot.
+Codex is enabled by default in Mesurer Settings. To let the sandboxed renderer reach local Codex safely, expose one native-host capability through the same `__MESURER_HOST__` object used by Screenshot.
 
 In main:
 
 ```ts
 import { ipcMain } from "electron"
-import { ensureMesurerCodexBridge } from "mesurer-solid/codex-host"
+import { codexBridge } from "mesurer-solid/plugins/codex/bridge"
 
-ipcMain.handle("mesurer:start-codex-bridge", () =>
-  ensureMesurerCodexBridge()
+ipcMain.handle("mesurer:codex-bridge", (_event, request) =>
+  codexBridge(request)
 )
 ```
 
@@ -55,15 +55,18 @@ In preload:
 
 ```ts
 contextBridge.exposeInMainWorld("__MESURER_HOST__", {
-  startCodexBridge: () => ipcRenderer.invoke("mesurer:start-codex-bridge"),
+  codexBridge: (request) =>
+    ipcRenderer.invoke("mesurer:codex-bridge", request),
 })
 ```
 
-If the application also exposes `captureScreenshot`, put both functions on that same host object.
+If the application also exposes `captureScreenshot`, put both functions on the same host object.
 
-The helper starts the companion bundled with the installed `mesurer-solid` package, replaces an older self-identifying Mesurer bridge after an update, and reuses the current bridge when it already matches. Users do not install a Codex marketplace plugin or trust lifecycle hooks.
+Codex Bridge runs inside Electron main. It does not create an HTTP server or launch another Electron/Node helper. It talks to Codex's shared local app-server through the Codex shared app-server socket and queues through `thread/queue/add`.
 
-Once this host capability exists, enabling Codex in **Settings -> Plugins** is the complete end-user setup. The choice persists. The browser plugin acquires a lease while enabled, and the bridge exits after the last Mesurer client releases or expires.
+The package smoke bundles this main-process topology to CommonJS with esbuild before launching Electron. The native bridge must therefore remain independent of `import.meta.url`, `process.execPath`, and sibling runtime-file lookup.
+
+Users do not install a Codex marketplace plugin, trust lifecycle hooks, or manage a bridge process.
 
 ## Native Screenshot capture
 

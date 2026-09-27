@@ -45,7 +45,7 @@ Keep the two Agent Skill copies byte-identical:
 - `.agents/skills/mesurer-ui/SKILL.md`
 - `packages/mesurer/skills/mesurer-ui/SKILL.md`
 
-Codex companion implementation lives in `packages/mesurer/codex/`. Keep one canonical bridge plus the native-host bootstrap exported as `mesurer-solid/codex-host`; do not add a generated marketplace/plugin copy. The `mesurer-codex` npm bin remains a small launcher for explicit browser-only or diagnostic use.
+Codex implementation stays under the Codex plugin: renderer behavior in `packages/mesurer/src/plugins/codex/index.ts` and native host transport in `packages/mesurer/src/plugins/codex/`. Keep `mesurer-solid/plugins/codex/bridge` in-process; do not add a standalone Mesurer bridge process, localhost listener, marketplace copy, or hook-owned copy.
 
 ## Validation
 

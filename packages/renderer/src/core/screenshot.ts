@@ -38,13 +38,45 @@ export type HostScreenshotResult =
   | null
   | undefined;
 
+export type HostCodexBridgeRequest = {
+  action: "health" | "threads" | "target" | "queue" | "delivery" | "restore";
+  thread?: string;
+  limit?: number;
+  message?: string;
+  deliveryId?: string;
+  queuedSubmissionId?: string;
+};
+
+export type HostCodexBridgeThread = {
+  id: string;
+  title: string;
+  updatedAt: number | null;
+  connected: boolean;
+};
+
 export type HostCodexBridgeResult = {
-  endpoint?: string | null;
-} | void;
+  ok?: boolean;
+  thread?: string | null;
+  threads?: string[];
+  threadDetails?: HostCodexBridgeThread[];
+  hasMore?: boolean;
+  output?: string;
+  delivery?: "queued";
+  deliveryId?: string;
+  status?: "queued" | "working" | "completed" | "interrupted";
+  turnId?: string | null;
+  queuedSubmissionId?: string | null;
+  dispatch?: "persisted";
+  dispatchError?: string | null;
+  createdAt?: number;
+  updatedAt?: number;
+  restored?: boolean;
+  error?: string;
+};
 
 export type MesurerHostCapabilities = {
   captureScreenshot?: () => Promise<HostScreenshotResult>;
-  startCodexBridge?: () => Promise<HostCodexBridgeResult>;
+  codexBridge?: (request: HostCodexBridgeRequest) => Promise<HostCodexBridgeResult>;
 };
 
 declare global {

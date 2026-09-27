@@ -32,10 +32,10 @@ function fail(error) {
   app.exit(1);
 }
 
-ipcMain.handle("mesurer:start-codex-bridge", async () => {
-  const { ensureMesurerCodexBridge } = await import("mesurer-solid/codex-host");
+ipcMain.handle("mesurer:codex-bridge", async (_event, request) => {
+  const { codexBridge } = await import("mesurer-solid/plugins/codex/bridge");
 
-  return ensureMesurerCodexBridge();
+  return codexBridge(request);
 });
 
 ipcMain.handle("mesurer:capture-window", async (event) => {

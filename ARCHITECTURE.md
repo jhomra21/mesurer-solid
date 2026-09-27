@@ -166,38 +166,40 @@ See [Context](./docs/CONTEXT_WORKFLOW.md) and [Agent integration](./packages/mes
 
 ## Codex delivery
 
-`mesurer.codex` is an optional first-party transport plugin exposed as `codex()` from `mesurer-solid/plugins`. It depends on Context rather than duplicating annotation or inspection state.
+`mesurer.codex` is a first-party transport plugin exposed as `codex()` from `mesurer-solid/plugins`. It depends on Context rather than duplicating annotation or inspection state.
 
 ```text
 context:v1
    │
    ▼
-codex() ── loopback HTTP ──► packaged Mesurer companion
-                                 │
-                                 ├─ thread/loaded/list
-                                 ├─ thread/list
-                                 ├─ thread/turns/list
-                                 └─ codex queue --thread … --message …
-                                        │
-                                        ▼
-                               Codex shared local app-server
+codex() in renderer
+   │
+   │ window.__MESURER_HOST__.codexBridge(request)
+   ▼
+Codex Bridge in native host
+   │
+   │ app-server control socket
+   ▼
+Codex shared local app-server
+   ├─ thread/loaded/list
+   ├─ thread/list / thread/read
+   ├─ thread/queue/add
+   └─ thread/turns/list
 ```
 
-There is no Codex-side Mesurer plugin, marketplace, or lifecycle hook. The companion asks Codex's shared local app-server which threads are loaded and treats that set as authoritative. Recent but unloaded threads do not become send targets merely because they exist in history.
+Codex Bridge belongs to the Codex plugin at `packages/mesurer/src/plugins/codex/bridge.mjs` and is published as `mesurer-solid/plugins/codex/bridge`. There is no separate Mesurer Codex process, HTTP listener, port, marketplace package, lifecycle hook, or generated copy.
 
-A normal browser realm cannot spawn a process. Native hosts may expose `window.__MESURER_HOST__.startCodexBridge`; Electron main/preload can back it with `ensureMesurerCodexBridge()` from `mesurer-solid/codex-host`. The helper reuses only the exact packaged bridge identity, replaces stale self-identifying Mesurer bridges after updates, and fails closed on unrelated port occupants. Browser-only development may run the packaged `mesurer-codex` command manually.
+The renderer receives only a narrow host capability. Electron main/preload can back it with the in-process `codexBridge()` helper. That helper uses the Codex shared app-server control socket directly and calls `thread/queue/add` directly. It does not shell through `codex queue`, start a parallel app-server, or locate a sibling runtime file.
 
-Codex is opt-in in Settings because enabling it starts local process work. Once enabled, the normal plugin-availability persistence retains the user's choice across reloads and updates. Legacy default-on state from older releases is not treated as the new opt-in.
+Codex is enabled by default with the first-party catalog and remains toggleable in Settings. The plugin's availability persistence treats the temporary beta default-off state as a one-time migration rather than a permanent opt-out.
 
-The browser plugin acquires a short client lease after the companion is reachable and heartbeats it while Codex stays enabled. Multiple Mesurer pages can share one bridge. Disabling or disposing one page releases only that lease. The bridge exits after the last client releases, and expired leases reap an otherwise unused bridge after renderer crashes. Shutdown terminates only Mesurer-owned helper processes; it does not stop Codex's shared daemon.
-
-One page keeps its selected destination in per-tab `sessionStorage`. A saved target remains valid only while Codex reports it as loaded. If no valid target exists and several loaded threads are available, Mesurer requires an explicit human choice instead of inheriting an arbitrary destination.
+One page keeps its selected destination in per-tab `sessionStorage`. A saved target remains valid only while Codex reports it as loaded. If no valid target exists and several loaded threads are available, Mesurer requires an explicit human choice.
 
 The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias. Mesurer does not create threads and never invokes `turn/steer`.
 
-Codex's native queued-user-message store is the durable source of truth. The bridge retains only bounded correlation metadata in `$CODEX_HOME/mesurer/codex-deliveries.json`. It reads bounded turn history from the same shared daemon and accepts lifecycle changes only when the exact queued Mesurer payload can be correlated unambiguously. Completion may retire only the annotation ids included in that delivery.
+Codex's native queued-user-message store is the durable source of truth. Mesurer retains only bounded correlation metadata in `$CODEX_HOME/mesurer/codex-deliveries.json` and reads bounded turn history from the same shared daemon. Completion may retire only the annotation ids included in that delivery.
 
-This transport is deliberately separate from `window.__MESURER__`. Coding agents continue to consume Context through their existing browser controller; Codex delivery is the inverse human action of sending live-page review intent into an already open Codex thread.
+This transport remains separate from `window.__MESURER__`. Coding agents consume Context through the browser controller; Codex delivery is the inverse human action of sending live-page review intent into an already open Codex thread.
 
 ## Screenshot
 

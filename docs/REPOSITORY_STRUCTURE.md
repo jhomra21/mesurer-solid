@@ -61,11 +61,19 @@ The public `mesurer-solid` package. It owns public mounting/injection, first-par
 
 Package scripts that ship with `mesurer-solid` stay here even when a repository-level test exercises them.
 
-## Codex companion
+## Codex plugin
 
-`packages/mesurer/codex/` is the canonical Codex companion implementation. It owns the loopback bridge and the native-host bootstrap exported as `mesurer-solid/codex-host`.
+Codex stays under the Mesurer plugin boundary:
 
-The stable `mesurer-codex` npm bin under `packages/mesurer/scripts/` launches the canonical bridge for explicit browser-only or diagnostic use. There is no generated Codex marketplace distribution and no second hook-owned copy of the companion.
+```text
+packages/mesurer/src/plugins/codex/index.ts
+packages/mesurer/src/plugins/codex/bridge.mjs
+packages/mesurer/src/plugins/codex/bridge.d.ts
+```
+
+The TypeScript plugin owns renderer-facing UI, routing, Context composition, and the `codex:v1` service. The native bridge is published as `mesurer-solid/plugins/codex/bridge` and owns only the host-side Codex app-server transport.
+
+There is no separate `packages/mesurer/codex/` subsystem, standalone `mesurer-codex` process, generated marketplace distribution, or hook-owned copy.
 
 The repository and packaged Mesurer agent skill must remain byte-identical:
 
