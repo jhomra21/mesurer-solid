@@ -16,7 +16,7 @@ Mesurer Context / saved notes
            v
   Codex Bridge in the native host process
            |
-           | codex stdio-to-uds
+           | app-server control socket
            v
   Codex shared local app-server
            |
@@ -137,7 +137,7 @@ Codex turn completion is transport state, not proof that the requested visual re
 
 Mesurer no longer owns a long-running Codex bridge process.
 
-Each Codex Bridge request uses the Codex shared app-server socket to reach the existing shared app-server. The relay is scoped to that request and exits afterward. If the shared daemon socket does not exist, Codex Bridge asks Codex to start its own app-server daemon and retries.
+Each Codex Bridge request opens a short-lived connection to Codex's shared app-server control socket and closes it after the response. If that socket is unavailable, Codex Bridge asks Codex to start its own app-server daemon, waits for the socket, and retries.
 
 Mesurer does not stop Codex's shared app-server daemon when a page closes or when the plugin is disabled.
 
