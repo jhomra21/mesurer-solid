@@ -119,9 +119,31 @@ const desktopBundledCodex = (path) => {
   const value = path.replaceAll("\\", "/").toLowerCase();
 
   if (value.includes(".app/contents/resources/")) return true;
+  if (value.includes("/microsoft/windowsapps/codex.exe")) return true;
 
   return value.includes("/windowsapps/")
     && (value.includes("openai.codex") || value.includes("chatgpt"));
+};
+
+const installedDesktopCodexBins = () => {
+  if (process.platform === "darwin") {
+    return [
+      "/Applications/Codex.app/Contents/Resources/codex",
+      "/Applications/ChatGPT.app/Contents/Resources/codex",
+      join(homedir(), "Applications", "Codex.app", "Contents", "Resources", "codex"),
+      join(homedir(), "Applications", "ChatGPT.app", "Contents", "Resources", "codex"),
+    ];
+  }
+
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA?.trim();
+
+    return localAppData
+      ? [join(localAppData, "Microsoft", "WindowsApps", "codex.exe")]
+      : [];
+  }
+
+  return [];
 };
 
 const publicRuntime = (source, transport, available, reason = null) => ({
@@ -144,7 +166,7 @@ const resolveCommand = async (command) => {
 const bootstrapRuntime = async (options) => {
   const explicit = await resolveCommand(explicitCodexBin(options));
 
-  if (explicit) {
+  if (explicit && await canExecute(explicit)) {
     if (desktopBundledCodex(explicit)) {
       return {
         ...publicRuntime("desktop", "private-stdio", false, "desktop-private-transport"),
@@ -197,6 +219,15 @@ const bootstrapRuntime = async (options) => {
       ...publicRuntime("standalone", "shared-app-server", true),
       command: fromPath,
     };
+  }
+
+  for (const candidate of installedDesktopCodexBins()) {
+    if (await canExecute(candidate)) {
+      return {
+        ...publicRuntime("desktop", "private-stdio", false, "desktop-private-transport"),
+        command: candidate,
+      };
+    }
   }
 
   return {
