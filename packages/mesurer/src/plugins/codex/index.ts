@@ -111,7 +111,20 @@ export type MesurerCodexQueueResult = {
 /** @deprecated Use `MesurerCodexQueueResult`. */
 export type MesurerCodexSendResult = MesurerCodexQueueResult;
 
+export type MesurerCodexRuntime = {
+  /** Runtime source selected by the native Codex bridge. Callers do not choose this value. */
+  source: "shared" | "standalone" | "desktop" | "none";
+  /** Transport available for Codex delivery. */
+  transport: "shared-app-server" | "private-stdio" | "none";
+  /** Whether this runtime can serve Mesurer requests without user setup. */
+  available: boolean;
+  /** Machine-readable reason when the detected runtime is not usable by Mesurer. */
+  reason: "desktop-private-transport" | "runtime-not-found" | null;
+};
+
 export type MesurerCodexHealth = {
+  /** Runtime selected by the Codex plugin. Runtime choice is internal to the plugin. */
+  runtime?: MesurerCodexRuntime;
   /** Current loaded Codex target. Null when no loaded Codex thread is selected. */
   thread: string | null;
   /** Codex threads currently loaded in the shared local app-server. */
@@ -168,6 +181,7 @@ type BridgeThread = {
 
 type BridgeResponse = {
   ok?: boolean;
+  runtime?: MesurerCodexRuntime;
   thread?: string | null;
   threads?: string[];
   threadDetails?: BridgeThread[];
@@ -291,7 +305,7 @@ const writeBrowserState = (state: PersistedCodexUiState) => {
 };
 
 type CodexBridgeHostRequest = {
-  action: "health" | "threads" | "target" | "queue" | "delivery" | "restore";
+  action: "runtime" | "health" | "threads" | "target" | "queue" | "delivery" | "restore";
   thread?: string;
   limit?: number;
   message?: string;
@@ -315,12 +329,36 @@ const bridgeRequest = async (
   return response;
 };
 
-const bridgeHealth = (response: BridgeResponse): MesurerCodexHealth => ({
-  thread: response.thread?.trim() || null,
-  threads: Array.isArray(response.threads)
-    ? response.threads.filter((thread) => thread.trim().length > 0)
-    : [],
-});
+const bridgeRuntime = (response: BridgeResponse): MesurerCodexRuntime | null => {
+  const runtime = response.runtime;
+
+  if (!runtime) return null;
+
+  if (!["shared", "standalone", "desktop", "none"].includes(runtime.source)) return null;
+  if (!["shared-app-server", "private-stdio", "none"].includes(runtime.transport)) return null;
+  if (runtime.reason !== null
+    && runtime.reason !== "desktop-private-transport"
+    && runtime.reason !== "runtime-not-found") return null;
+
+  return {
+    source: runtime.source,
+    transport: runtime.transport,
+    available: runtime.available === true,
+    reason: runtime.reason,
+  };
+};
+
+const bridgeHealth = (response: BridgeResponse): MesurerCodexHealth => {
+  const runtime = bridgeRuntime(response);
+
+  return {
+    ...(runtime ? { runtime } : {}),
+    thread: response.thread?.trim() || null,
+    threads: Array.isArray(response.threads)
+      ? response.threads.filter((thread) => thread.trim().length > 0)
+      : [],
+  };
+};
 
 const bridgeDelivery = (response: BridgeResponse): MesurerCodexDelivery => {
   const id = response.deliveryId?.trim();
@@ -447,6 +485,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       const persistedUiState = withUi ? readBrowserState() : null;
       let bridgeAvailability: BridgeAvailability = "unknown";
+      let codexRuntime: MesurerCodexRuntime | null = null;
       let everConnected = false;
       let originThread: string | null = persistedUiState?.originThread ?? null;
 
@@ -481,10 +520,25 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       let uiSendPromise: Promise<void> | null = null;
       let disposed = false;
 
-      const fetchHealth = async () => bridgeHealth(await bridgeRequest({
-        action: "health",
-        thread: selectedThread ?? originThread ?? undefined,
-      }));
+      const fetchRuntime = async () => {
+        const runtime = bridgeRuntime(await bridgeRequest({ action: "runtime" }));
+
+        if (!runtime) throw new Error("Codex Bridge returned an invalid runtime state.");
+        codexRuntime = runtime;
+
+        return runtime;
+      };
+
+      const fetchHealth = async () => {
+        const health = bridgeHealth(await bridgeRequest({
+          action: "health",
+          thread: selectedThread ?? originThread ?? undefined,
+        }));
+
+        if (health.runtime) codexRuntime = health.runtime;
+
+        return health;
+      };
 
       const ensureBridgeAvailable = fetchHealth;
 
@@ -640,10 +694,15 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       const menuItems = (): ToolMenuItemContribution[] => {
         if (bridgeAvailability !== "available") {
+          const desktopPrivate = codexRuntime?.source === "desktop"
+            && codexRuntime.reason === "desktop-private-transport";
+
           return [{
             id: "codex.thread.connect",
             label: bridgeAvailability === "unavailable"
-              ? "Retry Codex connection"
+              ? desktopPrivate
+                ? "Retry Codex Desktop"
+                : "Retry Codex connection"
               : "Choose Codex thread…",
             run: () => refreshRuntime(true),
           }];
@@ -702,15 +761,21 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           && bridgeAvailability !== "unavailable"
           && (bridgeAvailability === "unknown" || Boolean(target));
 
+        const desktopPrivate = codexRuntime?.source === "desktop"
+          && codexRuntime.reason === "desktop-private-transport";
+
         const label = deliveryToolLabel()
           ?? (bridgeAvailability === "unavailable"
-            ? "Codex unavailable"
+            ? desktopPrivate
+              ? "Codex Desktop not connected"
+              : "Codex unavailable"
             : routeNeedsSelection || (bridgeAvailability === "available" && !target)
               ? "Choose Codex thread"
               : "Queue to Codex");
 
         const signature = JSON.stringify({
           bridgeAvailability,
+          codexRuntime,
           routeNeedsSelection,
           target,
           label,
@@ -782,6 +847,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             if (!routeNeedsSelection && restoredTarget) persistUiState();
           } catch (cause) {
             bridgeAvailability = "unavailable";
+            codexRuntime = await fetchRuntime().catch(() => codexRuntime);
             throw cause;
           } finally {
             refreshPromise = null;
