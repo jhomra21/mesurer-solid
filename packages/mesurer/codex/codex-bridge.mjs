@@ -1657,7 +1657,7 @@ for (const delivery of deliveries.values()) scheduleDesktopLifecycleCheck(delive
 
 let successfulSends = 0;
 
-const server = createServer(async (request, response) => {
+server = createServer(async (request, response) => {
   const originHeaderPresent = Object.hasOwn(request.headers, "origin");
   const origin = [request.headers.origin].flat().find((value) => value !== undefined);
 
@@ -1683,9 +1683,7 @@ const server = createServer(async (request, response) => {
 
     response.setHeader("Connection", "close");
     response.once("finish", () => {
-      server.close();
-      server.closeAllConnections?.();
-      setImmediate(() => process.exit(0));
+      void shutdownBridge();
     });
     writeJson(response, 200, { ok: true }, origin);
 
@@ -1853,6 +1851,40 @@ const server = createServer(async (request, response) => {
 
     const payload = await listThreadSummaries(scopeThread, limit);
     writeJson(response, 200, { ok: true, ...payload }, origin);
+
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/threads/unregister") {
+    if (originHeaderPresent) {
+      writeJson(response, 403, {
+        ok: false,
+        error: "Thread unregistration is available only to a local process, not a browser Origin.",
+      }, origin);
+
+      return;
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      const thread = normalizeThread(body?.thread);
+
+      if (!thread) {
+        writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
+
+        return;
+      }
+
+      const removed = unregisterThread(thread);
+      writeJson(response, 200, {
+        ok: true,
+        removed,
+        ...threadPayload(),
+      }, origin);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      writeJson(response, 400, { ok: false, error }, origin);
+    }
 
     return;
   }
@@ -2072,7 +2104,7 @@ const server = createServer(async (request, response) => {
         ...publicDelivery(delivery),
       }, origin);
 
-      if (values.once && successfulSends >= 1) setImmediate(() => server.close());
+      if (values.once && successfulSends >= 1) setImmediate(() => void shutdownBridge());
 
       return;
     }
@@ -2119,7 +2151,7 @@ const server = createServer(async (request, response) => {
       ...publicDelivery(delivery),
     }, origin);
 
-    if (values.once && successfulSends >= 1) setImmediate(() => server.close());
+    if (values.once && successfulSends >= 1) setImmediate(() => void shutdownBridge());
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : String(cause);
     writeJson(response, 502, { ok: false, error }, origin);
@@ -2148,8 +2180,72 @@ server.listen(parsedPort, "127.0.0.1", () => {
   if (activeThread) console.log(`BRIDGE_THREAD=${activeThread}`);
 });
 
-const shutdown = () => server.close(() => process.exit(0));
+async function shutdownBridge() {
+  if (shutdownStarted) return;
 
-process.on("SIGINT", shutdown);
+  shutdownStarted = true;
+  cancelIdleShutdown();
 
-process.on("SIGTERM", shutdown);
+  if (ownerHealthTimer) {
+    clearInterval(ownerHealthTimer);
+    ownerHealthTimer = null;
+  }
+
+  for (const timer of desktopDispatchTimers.values()) clearTimeout(timer);
+  desktopDispatchTimers.clear();
+
+  const children = [...ownedChildren];
+
+  for (const child of children) {
+    if (child.exitCode === null && child.signalCode === null) {
+      try {
+        child.kill("SIGTERM");
+      } catch {}
+    }
+  }
+
+  const closeServer = new Promise((resolve) => {
+    if (!server?.listening) {
+      resolve();
+
+      return;
+    }
+
+    server.close(() => resolve());
+    server.closeAllConnections?.();
+  });
+
+  const childExit = Promise.allSettled(children.map((child) => new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      resolve();
+
+      return;
+    }
+
+    child.once("close", resolve);
+    child.once("error", resolve);
+  })));
+
+  await Promise.race([
+    Promise.all([closeServer, childExit]),
+    new Promise((resolve) => setTimeout(resolve, OWNED_CHILD_SHUTDOWN_GRACE_MS)),
+  ]);
+
+  for (const child of ownedChildren) {
+    if (child.exitCode === null && child.signalCode === null) {
+      try {
+        child.kill("SIGKILL");
+      } catch {}
+    }
+  }
+
+  process.exit(0);
+}
+
+process.on("SIGINT", () => {
+  void shutdownBridge();
+});
+
+process.on("SIGTERM", () => {
+  void shutdownBridge();
+});
