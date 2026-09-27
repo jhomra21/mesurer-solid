@@ -30,7 +30,10 @@
     },
     "./inject-script": "./dist/inject-script.js",
     "./package.json": "./package.json",
-    "./codex-host": "./codex/host.mjs"
+    "./codex-host": {
+      "types": "./codex/host.d.ts",
+      "default": "./codex/host.mjs"
+    }
   },
   "files": [
     "dist",
