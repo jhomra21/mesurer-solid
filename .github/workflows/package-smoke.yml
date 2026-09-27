@@ -93,6 +93,11 @@ jobs:
             type MesurerPluginHost,
             type MesurerRuntimeOptions,
           } from "mesurer-solid/core";
+          import {
+            codexBridge,
+            type CodexBridgeRequest,
+            type CodexBridgeResponse,
+          } from "mesurer-solid/plugins/codex/bridge";
 
           const plugin: MesurerPlugin = defineMesurerPlugin({
             id: "consumer.types",
@@ -126,6 +131,8 @@ jobs:
           const canonicalMounted: MountedMesurer | undefined = undefined;
           const legacyMounted: MountedMeasurer | undefined = canonicalMounted;
           const host: MesurerPluginHost = createMesurerPluginHost();
+          const codexBridgeRequest: CodexBridgeRequest = { action: "health" };
+          const codexBridgeResult: Promise<CodexBridgeResponse> = codexBridge(codexBridgeRequest);
           const runtimePlugins = [plugin] as const;
           const runtimeOptions: MesurerRuntimeOptions = { plugins: runtimePlugins };
           const runtimePromise: Promise<MesurerPluginHost> = createMesurerRuntime(runtimeOptions);
@@ -150,6 +157,8 @@ jobs:
           void legacyMounted;
           void screenshot;
           void host;
+          void codexBridgeRequest;
+          void codexBridgeResult;
           void runtimePlugins;
           void runtimeOptions;
           void runtimePromise;
