@@ -62,7 +62,7 @@ Layout Guides currently applies this rule to its initial, list, editor, aligned-
 
 The root `bun run test` command reads built package artifacts. On a fresh checkout or in a disposable worktree, run `bun run build:packages` first. Focused package tests can run directly when their required artifacts already exist.
 
-Codex process tests must not depend on the developer's live Codex session. They use a disposable `CODEX_HOME` and a fake shared-daemon transport to prove loaded-thread discovery, native queue submission, exact delivery reconciliation, client leases, last-client shutdown, and packaged-host stale-bridge replacement.
+Codex process tests must not depend on the developer's live Codex session. They use a disposable `CODEX_HOME` and a fake shared-daemon transport to prove loaded-thread discovery, direct `thread/queue/add` submission, and exact delivery reconciliation. Package smoke bundles the Electron main process to CommonJS with esbuild before launch so package-relative ESM assumptions such as `import.meta.url` cannot pass unnoticed.
 
 ## Development server contract
 
