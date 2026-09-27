@@ -21,7 +21,7 @@ Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron
              │               │
              │         Layout Guides plugin
              │
-             └── optional Codex plugin ──► loopback companion ──► Codex queue
+             └── optional Codex plugin ──► native host Bridge ──► Codex shared app-server
              │               │                 │
              └───────────────┼─────────────────┘
                              ▼
@@ -44,7 +44,7 @@ Users install `mesurer-solid`.
 | `mesurer-solid/inject` | Programmatic injection helper |
 | `mesurer-solid/inject-script` | Self-contained classic browser payload |
 
-The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, the optional `mesurer-codex` loopback companion, and `mesurer-solid/codex-host` for native-host bootstrap. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
+The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, and `mesurer-solid/plugins/codex/bridge` for native-host Codex access. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
 
 Public first-party plugin factories use their feature name directly. Applications import `context`, `arrange`, `layoutGuides`, `screenshot`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
 
@@ -189,7 +189,7 @@ Codex shared local app-server
 
 Codex Bridge belongs to the Codex plugin at `packages/mesurer/src/plugins/codex/bridge.mjs` and is published as `mesurer-solid/plugins/codex/bridge`. There is no separate Mesurer Codex process, HTTP listener, port, marketplace package, lifecycle hook, or generated copy.
 
-The renderer receives only a narrow host capability. Electron main/preload can back it with the in-process `codexBridge()` helper. That helper uses the Codex shared app-server control socket directly and calls `thread/queue/add` directly. It does not shell through `codex queue`, start a parallel app-server, or locate a sibling runtime file.
+The renderer receives only a narrow host capability. Electron main/preload can back it with the in-process `codexBridge()` helper. That helper uses the Codex shared app-server control socket directly and calls `thread/queue/add` directly. If the socket is absent, it can start Codex's shared daemon only from a complete standalone installation. It checks managed packages under `CODEX_HOME` before `PATH`, rejects Desktop-bundled bare executables, does not attach to Desktop's private stdio app-server, does not shell through `codex queue`, and does not locate a sibling runtime file.
 
 Codex is enabled by default with the first-party catalog and remains toggleable in Settings. The plugin's availability persistence treats the temporary beta default-off state as a one-time migration rather than a permanent opt-out.
 
