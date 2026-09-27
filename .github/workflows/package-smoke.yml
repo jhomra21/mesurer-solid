@@ -442,14 +442,25 @@ jobs:
           cd /tmp/mesurer-electron
           bun init -y >/dev/null
           bun add "$PACKAGE_TGZ"
-          bun add electron@43.1.1 --trust
+          bun add electron@43.1.1 esbuild@0.25.10 --trust
           bun node_modules/electron/install.js
           test -f node_modules/electron/dist/chrome-sandbox
           sudo chown root:root node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
           bun build renderer.ts --target browser --format esm --outfile=renderer.js
+          ./node_modules/.bin/esbuild main.cjs \
+            --bundle \
+            --platform=node \
+            --format=cjs \
+            --target=node24 \
+            --external:electron \
+            --outfile=main-bundled.cjs
+          if grep -q "import_meta" main-bundled.cjs; then
+            echo "Bundled Electron main retained an import.meta compatibility shim."
+            exit 1
+          fi
 
-      - name: Exercise exact packed package in a real Electron renderer
+      - name: Exercise exact packed package in an esbuild-bundled Electron renderer
         env:
           MESURER_ELECTRON_ARTIFACT_DIR: /tmp/mesurer-electron/artifacts
         run: |
@@ -457,7 +468,7 @@ jobs:
           set +e
           (
             cd /tmp/mesurer-electron
-            timeout 60s xvfb-run -a ./node_modules/.bin/electron main.cjs
+            timeout 60s xvfb-run -a ./node_modules/.bin/electron main-bundled.cjs
           )
           status=$?
           set -e
@@ -558,16 +569,23 @@ jobs:
           cd /tmp/mesurer-electron-macos
           bun init -y >/dev/null
           bun add "$PACKAGE_TGZ"
-          bun add electron@43.1.1 --trust
+          bun add electron@43.1.1 esbuild@0.25.10 --trust
           bun node_modules/electron/install.js
           bun build renderer.ts --target browser --format esm --outfile=renderer.js
+          ./node_modules/.bin/esbuild main.cjs \
+            --bundle \
+            --platform=node \
+            --format=cjs \
+            --target=node24 \
+            --external:electron \
+            --outfile=main-bundled.cjs
 
-      - name: Verify macOS traffic-light clearance in Electron
+      - name: Verify macOS traffic-light clearance in bundled Electron
         env:
           MESURER_ELECTRON_ARTIFACT_DIR: /tmp/mesurer-electron-macos/artifacts
         run: |
           cd /tmp/mesurer-electron-macos
-          ./node_modules/.bin/electron main.cjs
+          ./node_modules/.bin/electron main-bundled.cjs
           cat artifacts/result.json
 
       - name: Upload macOS Electron evidence
