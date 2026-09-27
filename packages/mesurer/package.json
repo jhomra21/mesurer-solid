@@ -9,8 +9,7 @@
   "types": "./dist/index.d.ts",
   "bin": {
     "mesurer-skill": "scripts/install-skill.mjs",
-    "mesurer-codex": "scripts/codex-bridge.mjs",
-    "mesurer-codex-connect": "scripts/codex-connect.mjs"
+    "mesurer-codex": "scripts/codex-bridge.mjs"
   },
   "exports": {
     ".": {
@@ -30,7 +29,8 @@
       "import": "./dist/inject.js"
     },
     "./inject-script": "./dist/inject-script.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./codex-host": "./codex/host.mjs"
   },
   "files": [
     "dist",
@@ -38,8 +38,6 @@
     "codex",
     "scripts/install-skill.mjs",
     "scripts/codex-bridge.mjs",
-    "scripts/codex-connect.mjs",
-    "scripts/codex-lifecycle.mjs",
     "README.md",
     "AGENT_INTEGRATION.md",
     "LICENSE",
