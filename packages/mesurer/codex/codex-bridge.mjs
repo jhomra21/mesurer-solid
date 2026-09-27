@@ -3,7 +3,7 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -54,13 +54,13 @@ const DESKTOP_TURN_HISTORY_LIMIT = 10;
 
 const DELIVERY_TURN_START_SKEW_MS = 60_000;
 
-const LAST_OWNER_SHUTDOWN_DELAY_MS = 250;
+const CLIENT_LEASE_TTL_MS = 15_000;
 
-const configuredOwnerHealthPollMs = Number(process.env.MESURER_CODEX_OWNER_POLL_MS);
+const CLIENT_LEASE_POLL_MS = 5_000;
 
-const OWNER_HEALTH_POLL_MS = Number.isFinite(configuredOwnerHealthPollMs) && configuredOwnerHealthPollMs > 0
-  ? Math.max(50, configuredOwnerHealthPollMs)
-  : 5_000;
+const STARTUP_CLIENT_GRACE_MS = 15_000;
+
+const LAST_CLIENT_SHUTDOWN_DELAY_MS = 1_000;
 
 const OWNED_CHILD_SHUTDOWN_GRACE_MS = 250;
 
