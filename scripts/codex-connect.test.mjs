@@ -155,6 +155,7 @@ test("Codex SessionStart auto-connect starts once, stays silent, and reuses the 
     assert.equal(second.stdout, "", "Reusing the bridge must also stay silent.");
 
     const health = await fetch(`${bridgeUrl}/health`);
+
     assert.equal(health.status, 200);
     const healthPayload = await health.json();
     assert.equal(healthPayload.ok, true);
@@ -224,6 +225,7 @@ test("Codex SessionEnd keeps a shared bridge until its last registered thread ex
       sessionId: "thread-owner-a",
       env: { CODEX_HOME: root },
     });
+
     assert.equal(first.code, 0, first.stderr);
 
     const second = await runSessionStart({
@@ -231,6 +233,7 @@ test("Codex SessionEnd keeps a shared bridge until its last registered thread ex
       sessionId: "thread-owner-b",
       env: { CODEX_HOME: root },
     });
+
     assert.equal(second.code, 0, second.stderr);
 
     const firstEnd = await runSessionEnd({
@@ -238,10 +241,12 @@ test("Codex SessionEnd keeps a shared bridge until its last registered thread ex
       sessionId: "thread-owner-a",
       env: { CODEX_HOME: root },
     });
+
     assert.equal(firstEnd.code, 0, firstEnd.stderr);
     assert.equal(firstEnd.stdout, "");
 
     const health = await fetch(`${bridgeUrl}/health`);
+
     assert.equal(health.status, 200);
     const healthPayload = await health.json();
     assert.equal(healthPayload.thread, "thread-owner-b");
@@ -252,12 +257,14 @@ test("Codex SessionEnd keeps a shared bridge until its last registered thread ex
       sessionId: "thread-owner-b",
       env: { CODEX_HOME: root },
     });
+
     assert.equal(secondEnd.code, 0, secondEnd.stderr);
     assert.equal(secondEnd.stdout, "");
 
     await waitForUnavailable(bridgeUrl);
   } finally {
     try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
+
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -279,15 +286,18 @@ test("Codex Desktop owner loss reaps the detached bridge when SessionEnd cannot 
         MESURER_CODEX_OWNER_POLL_MS: "50",
       },
     });
+
     assert.equal(start.code, 0, start.stderr);
 
     const health = await fetch(`${bridgeUrl}/health`);
+
     assert.equal(health.status, 200);
 
     await rm(ownerAnchor, { force: true });
     await waitForUnavailable(bridgeUrl);
   } finally {
     try { await fetch(`${bridgeUrl}/shutdown`, { method: "POST" }); } catch {}
+
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -385,6 +395,7 @@ test("Codex SessionStart replaces a stale self-identifying bridge with its packa
     assert.equal(result.stdout, "");
     assert.equal(shutdowns, 1);
     const health = await fetch(`${bridgeUrl}/health`);
+
     assert.equal(health.status, 200);
     const healthPayload = await health.json();
     assert.equal(healthPayload.bridge?.name, "mesurer-codex");
