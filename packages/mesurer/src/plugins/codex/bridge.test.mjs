@@ -1,198 +1,194 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { codexBridge } from "./bridge.mjs";
 
-const readJsonLines = async (path) => {
-  const text = await readFile(path, "utf8");
+const createFakeAppServer = async (root, turnsPath) => {
+  const controlDir = join(root, "app-server-control");
+  const socketPath = join(controlDir, "app-server-control.sock");
+  const queue = [];
 
-  return text.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
-};
+  await mkdir(controlDir, { recursive: true });
 
-const writeFakeCodex = async (root) => {
-  const fakeCodex = join(root, "fake-codex.mjs");
-  const turnsPath = join(root, "turns.json");
-  const queuePath = join(root, "queue.json");
-  const argsPath = join(root, "args.jsonl");
+  const server = createServer((socket) => {
+    socket.setEncoding("utf8");
+    let buffer = "";
 
-  await writeFile(turnsPath, "[]");
-  await writeFile(queuePath, "[]");
-  await writeFile(argsPath, "");
+    const send = (value) => socket.write(`${JSON.stringify(value)}\n`);
 
-  await writeFile(fakeCodex, `#!/usr/bin/env node
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+    socket.on("data", (chunk) => {
+      buffer += chunk;
 
-const args = process.argv.slice(2);
-const write = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
-appendFileSync(process.env.MESURER_FAKE_CODEX_ARGS, JSON.stringify(args) + "\\n");
+      while (true) {
+        const newline = buffer.indexOf("\n");
 
-if (args[0] === "app-server" && args[1] === "daemon" && args[2] === "start") {
-  console.log("started");
-} else if (args[0] === "stdio-to-uds") {
-  process.stdin.setEncoding("utf8");
-  let buffer = "";
+        if (newline < 0) break;
+        const line = buffer.slice(0, newline).trim();
+        buffer = buffer.slice(newline + 1);
 
-  process.stdin.on("data", (chunk) => {
-    buffer += chunk;
+        if (!line) continue;
+        const message = JSON.parse(line);
 
-    while (true) {
-      const newline = buffer.indexOf("\\n");
+        if (message.method === "initialize") {
+          send({
+            id: message.id,
+            result: {
+              userAgent: "fake-codex",
+              codexHome: root,
+            },
+          });
+          continue;
+        }
 
-      if (newline < 0) break;
-      const line = buffer.slice(0, newline).trim();
-      buffer = buffer.slice(newline + 1);
+        if (message.method === "initialized") continue;
 
-      if (!line) continue;
-      const message = JSON.parse(line);
+        if (message.method === "thread/loaded/list") {
+          send({
+            id: message.id,
+            result: {
+              data: ["thread-a", "thread-b"],
+              nextCursor: null,
+            },
+          });
+          continue;
+        }
 
-      if (message.method === "initialize") {
-        write({
-          id: message.id,
-          result: {
-            userAgent: "fake-codex",
-            codexHome: process.env.CODEX_HOME,
-          },
-        });
-        continue;
-      }
+        if (message.method === "thread/list") {
+          send({
+            id: message.id,
+            result: {
+              data: [
+                {
+                  id: "thread-a",
+                  name: "Diffusion editor",
+                  preview: "",
+                  recencyAt: 200,
+                  updatedAt: 200,
+                },
+                {
+                  id: "thread-b",
+                  name: null,
+                  preview: "Fix selected UI",
+                  recencyAt: 190,
+                  updatedAt: 190,
+                },
+                {
+                  id: "thread-cold",
+                  name: "Old unloaded thread",
+                  preview: "",
+                  recencyAt: 180,
+                  updatedAt: 180,
+                },
+              ],
+              nextCursor: null,
+            },
+          });
+          continue;
+        }
 
-      if (message.method === "initialized") continue;
-
-      if (message.method === "thread/loaded/list") {
-        write({
-          id: message.id,
-          result: {
-            data: ["thread-a", "thread-b"],
-            nextCursor: null,
-          },
-        });
-        continue;
-      }
-
-      if (message.method === "thread/list") {
-        write({
-          id: message.id,
-          result: {
-            data: [
-              {
-                id: "thread-a",
-                name: "Diffusion editor",
+        if (message.method === "thread/read") {
+          send({
+            id: message.id,
+            result: {
+              thread: {
+                id: message.params.threadId,
+                name: message.params.threadId === "thread-a"
+                  ? "Diffusion editor"
+                  : "Fix selected UI",
                 preview: "",
                 recencyAt: 200,
                 updatedAt: 200,
+                turns: JSON.parse(awaitRead(turnsPath)),
               },
-              {
-                id: "thread-b",
-                name: null,
-                preview: "Fix selected UI",
-                recencyAt: 190,
-                updatedAt: 190,
-              },
-              {
-                id: "thread-cold",
-                name: "Old unloaded thread",
-                preview: "",
-                recencyAt: 180,
-                updatedAt: 180,
-              },
-            ],
-            nextCursor: null,
-          },
-        });
-        continue;
-      }
-
-      if (message.method === "thread/read") {
-        write({
-          id: message.id,
-          result: {
-            thread: {
-              id: message.params.threadId,
-              name: message.params.threadId === "thread-a" ? "Diffusion editor" : "Fix selected UI",
-              preview: "",
-              recencyAt: 200,
-              updatedAt: 200,
-              turns: JSON.parse(readFileSync(process.env.MESURER_FAKE_TURNS, "utf8")),
             },
+          });
+          continue;
+        }
+
+        if (message.method === "thread/turns/list") {
+          send({
+            id: message.id,
+            result: {
+              data: JSON.parse(awaitRead(turnsPath)),
+              nextCursor: null,
+              backwardsCursor: null,
+            },
+          });
+          continue;
+        }
+
+        if (message.method === "thread/queue/add") {
+          const queuedSubmission = {
+            id: `queue-${message.params.threadId}`,
+            input: message.params.input,
+            clientUserMessageId: message.params.clientUserMessageId,
+          };
+
+          queue.push(queuedSubmission);
+          send({
+            id: message.id,
+            result: { queuedSubmission },
+          });
+          continue;
+        }
+
+        if (message.method === "thread/queue/list") {
+          send({
+            id: message.id,
+            result: {
+              data: queue,
+              nextCursor: null,
+            },
+          });
+          continue;
+        }
+
+        send({
+          id: message.id,
+          error: {
+            code: -32601,
+            message: `unsupported fake method ${message.method}`,
           },
         });
-        continue;
       }
-
-      if (message.method === "thread/turns/list") {
-        write({
-          id: message.id,
-          result: {
-            data: JSON.parse(readFileSync(process.env.MESURER_FAKE_TURNS, "utf8")),
-            nextCursor: null,
-            backwardsCursor: null,
-          },
-        });
-        continue;
-      }
-
-      if (message.method === "thread/queue/add") {
-        const queued = {
-          id: "queue-" + message.params.threadId,
-          input: message.params.input,
-          clientUserMessageId: message.params.clientUserMessageId,
-        };
-
-        const existing = JSON.parse(readFileSync(process.env.MESURER_FAKE_QUEUE, "utf8"));
-        writeFileSync(process.env.MESURER_FAKE_QUEUE, JSON.stringify([...existing, queued]));
-        write({
-          id: message.id,
-          result: { queuedSubmission: queued },
-        });
-        continue;
-      }
-
-      if (message.method === "thread/queue/list") {
-        write({
-          id: message.id,
-          result: {
-            data: JSON.parse(readFileSync(process.env.MESURER_FAKE_QUEUE, "utf8")),
-            nextCursor: null,
-          },
-        });
-        continue;
-      }
-
-      write({
-        id: message.id,
-        error: { code: -32601, message: "unsupported fake method " + message.method },
-      });
-    }
+    });
   });
-} else {
-  process.stderr.write("unexpected fake Codex invocation: " + args.join(" ") + "\\n");
-  process.exit(97);
-}
-`);
-  await chmod(fakeCodex, 0o755);
 
-  return { fakeCodex, turnsPath, queuePath, argsPath };
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(socketPath, resolve);
+  });
+
+  return {
+    socketPath,
+    close: () => new Promise((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    }),
+  };
 };
 
-test("Codex Bridge uses the shared app-server for loaded threads, durable queueing, and delivery lifecycle", async () => {
+const fileCache = new Map();
+
+const awaitRead = (path) => fileCache.get(path) ?? "[]";
+
+const writeTurns = async (path, turns) => {
+  const value = JSON.stringify(turns);
+
+  fileCache.set(path, value);
+  await writeFile(path, value);
+};
+
+test("Codex Bridge uses the existing shared app-server directly", async () => {
   const root = await mkdtemp(join(tmpdir(), "mesurer-codex-bridge-"));
-  const fixture = await writeFakeCodex(root);
-  const previous = {
-    CODEX_HOME: process.env.CODEX_HOME,
-    MESURER_FAKE_CODEX_ARGS: process.env.MESURER_FAKE_CODEX_ARGS,
-    MESURER_FAKE_TURNS: process.env.MESURER_FAKE_TURNS,
-    MESURER_FAKE_QUEUE: process.env.MESURER_FAKE_QUEUE,
-  };
+  const turnsPath = join(root, "turns.json");
 
-  process.env.CODEX_HOME = root;
-  process.env.MESURER_FAKE_CODEX_ARGS = fixture.argsPath;
-  process.env.MESURER_FAKE_TURNS = fixture.turnsPath;
-  process.env.MESURER_FAKE_QUEUE = fixture.queuePath;
-
+  await writeTurns(turnsPath, []);
+  const appServer = await createFakeAppServer(root, turnsPath);
   const options = {
-    codex: fixture.fakeCodex,
+    codex: join(root, "must-not-run"),
     codexHome: root,
   };
 
@@ -233,7 +229,7 @@ test("Codex Bridge uses the shared app-server for loaded threads, durable queuei
 
     const nowSeconds = Math.floor(Date.now() / 1_000);
 
-    await writeFile(fixture.turnsPath, JSON.stringify([{
+    await writeTurns(turnsPath, [{
       id: "turn-b",
       items: [{
         type: "userMessage",
@@ -250,7 +246,7 @@ test("Codex Bridge uses the shared app-server for loaded threads, durable queuei
       startedAt: nowSeconds,
       completedAt: null,
       durationMs: null,
-    }]));
+    }]);
 
     const working = await codexBridge({
       action: "delivery",
@@ -260,7 +256,7 @@ test("Codex Bridge uses the shared app-server for loaded threads, durable queuei
     assert.equal(working.status, "working");
     assert.equal(working.turnId, "turn-b");
 
-    await writeFile(fixture.turnsPath, JSON.stringify([{
+    await writeTurns(turnsPath, [{
       id: "turn-b",
       items: [{
         type: "userMessage",
@@ -277,7 +273,7 @@ test("Codex Bridge uses the shared app-server for loaded threads, durable queuei
       startedAt: nowSeconds,
       completedAt: nowSeconds + 1,
       durationMs: 1_000,
-    }]));
+    }]);
 
     const completed = await codexBridge({
       action: "delivery",
@@ -286,26 +282,14 @@ test("Codex Bridge uses the shared app-server for loaded threads, durable queuei
 
     assert.equal(completed.status, "completed");
 
-    const invocations = await readJsonLines(fixture.argsPath);
+    const state = JSON.parse(await readFile(
+      join(root, "mesurer", "codex-deliveries.json"),
+      "utf8",
+    ));
 
-    assert.equal(
-      invocations.some((args) => args[0] === "queue"),
-      false,
-      "Mesurer must not shell through codex queue when the shared app-server can accept thread/queue/add directly",
-    );
-
-    assert.equal(
-      invocations.every((args) =>
-        args[0] === "stdio-to-uds"
-        || (args[0] === "app-server" && args[1] === "daemon" && args[2] === "start")),
-      true,
-    );
+    assert.equal(state.deliveries[0]?.queuedSubmissionId, "queue-thread-b");
   } finally {
-    for (const [key, value] of Object.entries(previous)) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-
+    await appServer.close();
     await rm(root, { recursive: true, force: true });
   }
 });
