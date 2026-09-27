@@ -335,7 +335,9 @@ const bridgeRuntime = (response: BridgeResponse): MesurerCodexRuntime | null => 
   if (!runtime) return null;
 
   if (!["shared", "standalone", "desktop", "none"].includes(runtime.source)) return null;
+
   if (!["shared-app-server", "private-stdio", "none"].includes(runtime.transport)) return null;
+
   if (runtime.reason !== null
     && runtime.reason !== "desktop-private-transport"
     && runtime.reason !== "runtime-not-found") return null;
@@ -351,13 +353,16 @@ const bridgeRuntime = (response: BridgeResponse): MesurerCodexRuntime | null => 
 const bridgeHealth = (response: BridgeResponse): MesurerCodexHealth => {
   const runtime = bridgeRuntime(response);
 
-  return {
-    ...(runtime ? { runtime } : {}),
+  const health: MesurerCodexHealth = {
     thread: response.thread?.trim() || null,
     threads: Array.isArray(response.threads)
       ? response.threads.filter((thread) => thread.trim().length > 0)
       : [],
   };
+
+  if (runtime) health.runtime = runtime;
+
+  return health;
 };
 
 const bridgeDelivery = (response: BridgeResponse): MesurerCodexDelivery => {
