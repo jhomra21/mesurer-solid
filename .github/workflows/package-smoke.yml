@@ -87,6 +87,28 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      - name: Exercise Codex runtime selection from the packed package
+        env:
+          MESURER_CODEX_RUNTIME_ARTIFACT_DIR: ${{ github.workspace }}/codex-runtime-artifacts
+        run: |
+          rm -rf /tmp/mesurer-codex-runtime codex-runtime-artifacts
+          mkdir -p /tmp/mesurer-codex-runtime
+          cd /tmp/mesurer-codex-runtime
+          bun init -y >/dev/null
+          bun add "$PACKAGE_TGZ"
+          export MESURER_CODEX_BRIDGE_PATH="$(realpath node_modules/mesurer-solid/plugins/codex/bridge.mjs)"
+          bun "$GITHUB_WORKSPACE/tests/package-smoke/codex-runtime-smoke.mjs"
+          cat "$MESURER_CODEX_RUNTIME_ARTIFACT_DIR/result.json"
+
+      - name: Upload Codex runtime evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: codex-runtime-e2e
+          path: codex-runtime-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Typecheck canonical and legacy names from a clean consumer
         run: |
           rm -rf /tmp/mesurer-types
