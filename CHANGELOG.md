@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Release the local Codex bridge when its last registered Codex session ends. The Codex plugin now pairs `SessionStart` registration with `SessionEnd` cleanup, keeps shared bridges alive while another session still owns them, and reaps a detached Desktop bridge when its app-owned pipe disappears after an unclean exit.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.0-beta.12 - 2026-09-26
