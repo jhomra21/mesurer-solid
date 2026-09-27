@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { access, mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 
 const APP_SERVER_TIMEOUT_MS = 10_000;
 
@@ -52,10 +53,91 @@ const codexHome = (options) =>
   || process.env.CODEX_HOME?.trim()
   || join(homedir(), ".codex");
 
-const codexBin = (options) =>
+const explicitCodexBin = (options) =>
   options.codex?.trim()
   || process.env.CODEX_BIN?.trim()
-  || "codex";
+  || null;
+
+const codexExecutableName = () => process.platform === "win32" ? "codex.exe" : "codex";
+
+const packagedCodexBins = (options) => {
+  const home = codexHome(options);
+  const executable = codexExecutableName();
+
+  return [
+    join(home, "packages", "app-server-daemon", "current", "bin", executable),
+    join(home, "packages", "standalone", "current", executable),
+    join(home, "packages", "standalone", "current", "bin", executable),
+  ];
+};
+
+const canExecute = async (path) => {
+  try {
+    await access(
+      path,
+      process.platform === "win32" ? fsConstants.F_OK : fsConstants.X_OK,
+    );
+
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const resolvePathCodex = async () => {
+  const pathValue = process.env.PATH?.trim();
+
+  if (!pathValue) return null;
+
+  const executableNames = process.platform === "win32"
+    ? ["codex.exe", "codex.com"]
+    : ["codex"];
+
+  for (const directory of pathValue.split(delimiter)) {
+    const root = directory.trim().replace(/^"(.*)"$/, "$1");
+
+    if (!root) continue;
+
+    for (const executable of executableNames) {
+      const candidate = join(root, executable);
+
+      if (!await canExecute(candidate)) continue;
+
+      try {
+        return await realpath(candidate);
+      } catch {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+};
+
+const desktopBundledCodex = (path) => {
+  const value = path.replaceAll("\\", "/").toLowerCase();
+
+  if (value.includes(".app/contents/resources/")) return true;
+
+  return value.includes("/windowsapps/")
+    && (value.includes("openai.codex") || value.includes("chatgpt"));
+};
+
+const daemonStartBin = async (options) => {
+  const explicit = explicitCodexBin(options);
+
+  if (explicit) return explicit;
+
+  for (const candidate of packagedCodexBins(options)) {
+    if (await canExecute(candidate)) return candidate;
+  }
+
+  const fromPath = await resolvePathCodex();
+
+  if (!fromPath || desktopBundledCodex(fromPath)) return null;
+
+  return fromPath;
+};
 
 const codexEnv = (options) => {
   const env = { ...process.env };
@@ -136,14 +218,41 @@ const spawnCommand = (
   });
 });
 
-const startDaemon = (options) =>
-  spawnCommand(
-    codexBin(options),
-    ["app-server", "daemon", "start"],
-    options,
-    DAEMON_START_TIMEOUT_MS,
-    "Codex app-server daemon start",
-  );
+const startDaemon = async (options) => {
+  const command = await daemonStartBin(options);
+
+  if (!command) {
+    throw new Error(
+      "Codex shared app-server is not running. Mesurer found no standalone Codex installation that can start it. Codex Desktop's private app-server is not exposed through the shared local socket.",
+    );
+  }
+
+  try {
+    return await spawnCommand(
+      command,
+      ["app-server", "daemon", "start"],
+      options,
+      DAEMON_START_TIMEOUT_MS,
+      "Codex app-server daemon start",
+    );
+  } catch (cause) {
+    if (
+      cause instanceof Error
+      && (
+        cause.message.includes("no complete local package")
+        || cause.message.includes("install a packaged Codex CLI")
+        || cause.message.includes("standalone installer")
+      )
+    ) {
+      throw new Error(
+        "Codex shared app-server is not running. The discovered Codex executable cannot provide a standalone daemon, so Mesurer did not start another Codex server. Codex Desktop's private app-server is not exposed through the shared local socket.",
+        { cause },
+      );
+    }
+
+    throw cause;
+  }
+};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
