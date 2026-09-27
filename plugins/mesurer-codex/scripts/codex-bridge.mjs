@@ -295,6 +295,7 @@ const unregisterThread = (thread) => {
   if (activeThread === thread) {
     const next = [...registeredThreads.values()]
       .sort((left, right) => right.seenAt - left.seenAt)[0] ?? null;
+
     activeThread = next?.id ?? null;
     activeCwd = next?.cwd ?? null;
   }
@@ -306,7 +307,7 @@ const unregisterThread = (thread) => {
 };
 
 async function pruneMissingDesktopOwners() {
-  for (const record of [...registeredThreads.values()]) {
+  for (const record of registeredThreads.values()) {
     if (!record.appToolsPipe) continue;
 
     if (!(await ownerAnchorExists(record.appToolsPipe))) {
