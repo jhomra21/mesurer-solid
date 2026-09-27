@@ -2,7 +2,7 @@
 
 Mesurer's agent integration is the rendered page itself. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
 
-The normal agent workflow requires no Mesurer MCP server, localhost daemon, Send-to-agent callback, or browser-tool-specific transport. The optional `codex()` plugin is a separate human convenience path for explicitly sending Context feedback to Codex threads that a local Codex process or the user has registered with the loopback companion; it does not replace the browser-state contract described here.
+The normal agent workflow requires no Mesurer MCP server, localhost daemon, Send-to-agent callback, or browser-tool-specific transport. The optional `codex()` plugin is a separate human convenience path for sending Context feedback to threads reported as loaded by Codex's shared app-server; it does not replace the browser-state contract described here.
 
 ## Install the agent skill
 
