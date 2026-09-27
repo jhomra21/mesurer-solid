@@ -48,9 +48,9 @@ All public plugin factories come from `mesurer-solid/plugins`.
 - Arrange adds reversible Before/Desired layout intent, snapping, multi-selection moves, presentation switching, capture plans, and Live review.
 - Layout Guides adds page-scoped columns, rows, and pixel grids. Mutations run through JSON-safe plugin commands, participate in plugin history, and are available through the typed `layout-guides:v1` service.
 - Screenshot adds region capture with preview, clipboard copy, download, and programmatic capture. It selects an application-native host capability, the Chromium extension adapter, or browser display capture internally.
-- Codex adds optional Queue to Codex delivery, thread selection, delivery tracking, retry behavior, and completed-annotation cleanup.
+- Codex is opt-in. It starts or reuses the packaged local companion through a native host, discovers loaded threads from Codex's shared app-server, queues through Codex's durable queue, tracks delivery, and cleans up only the annotations included in a completed delivery.
 
-Each feature guide documents the methods and behavior that belong to that plugin. The built-in factories are also exported for lower-level composition. Normal `mountMesurer()` callers get the built-ins automatically and can remove selected ones with `excludeBuiltins`.
+Each feature guide documents the methods and behavior that belong to that plugin. The built-in factories are also exported for lower-level composition. Normal `mountMesurer()` callers get the catalog defaults automatically. Codex remains available in Settings but starts off until the user enables it.
 
 ## Agent API
 
@@ -186,8 +186,8 @@ See [Getting started](./GETTING_STARTED.md) for placement examples and the TypeS
 | `mesurer-solid/inject` | Programmatic browser injection. |
 | `mesurer-solid/inject-script` | Built classic-script artifact for browser evaluation without application source changes. |
 | `mesurer-skill` | Install the portable Mesurer coding-agent skill and its packaged assets. |
-| `mesurer-codex` | Run the optional local Codex queue companion. |
-| `mesurer-codex-connect` | Start or reuse the matching companion and register the current Codex session. |
+| `mesurer-solid/codex-host` | Start or reuse the packaged Codex companion from a native host. |
+| `mesurer-codex` | Run the optional local Codex companion manually for browser-only development. |
 
 The repository also ships a Chromium extension that injects Mesurer into the active tab and provides extension-backed screenshot capture. See the [browser extension](../extension/README.md). Electron applications can provide native window capture from preload/main without changing renderer plugin configuration; see the [Electron renderer example](../examples/electron-renderer/README.md).
 
