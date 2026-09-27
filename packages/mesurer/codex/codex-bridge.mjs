@@ -1465,6 +1465,73 @@ server = createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "POST" && request.url === "/clients/acquire") {
+    try {
+      const body = await readJsonBody(request);
+      const clientId = normalizeThread(body?.clientId);
+
+      if (!clientId) {
+        writeJson(response, 400, { ok: false, error: "clientId must be a non-empty string." }, origin);
+
+        return;
+      }
+
+      touchClient(clientId);
+      writeJson(response, 200, {
+        ok: true,
+        clientId,
+        leaseTtlMs: CLIENT_LEASE_TTL_MS,
+      }, origin);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      writeJson(response, 400, { ok: false, error }, origin);
+    }
+
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/clients/heartbeat") {
+    try {
+      const body = await readJsonBody(request);
+      const clientId = normalizeThread(body?.clientId);
+
+      if (!clientId) {
+        writeJson(response, 400, { ok: false, error: "clientId must be a non-empty string." }, origin);
+
+        return;
+      }
+
+      touchClient(clientId);
+      writeJson(response, 200, { ok: true, clientId }, origin);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      writeJson(response, 400, { ok: false, error }, origin);
+    }
+
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/clients/release") {
+    try {
+      const body = await readJsonBody(request);
+      const clientId = normalizeThread(body?.clientId);
+
+      if (!clientId) {
+        writeJson(response, 400, { ok: false, error: "clientId must be a non-empty string." }, origin);
+
+        return;
+      }
+
+      const removed = releaseClient(clientId);
+      writeJson(response, 200, { ok: true, clientId, removed }, origin);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      writeJson(response, 400, { ok: false, error }, origin);
+    }
+
+    return;
+  }
+
   if (request.method === "POST" && request.url === "/shutdown") {
     if (originHeaderPresent) {
       writeJson(response, 403, { ok: false, error: "Bridge shutdown is local-process-only." }, origin);
@@ -1482,7 +1549,12 @@ server = createServer(async (request, response) => {
   }
 
   if (request.method === "GET" && request.url === "/health") {
-    writeJson(response, 200, { ok: true, bridge: BRIDGE_IDENTITY, ...threadPayload() }, origin);
+    writeJson(response, 200, {
+      ok: true,
+      bridge: BRIDGE_IDENTITY,
+      clients: browserClients.size,
+      ...threadPayload(),
+    }, origin);
 
     return;
   }
@@ -1642,75 +1714,6 @@ server = createServer(async (request, response) => {
 
     const payload = await listThreadSummaries(scopeThread, limit);
     writeJson(response, 200, { ok: true, ...payload }, origin);
-
-    return;
-  }
-
-  if (request.method === "POST" && request.url === "/threads/unregister") {
-    if (originHeaderPresent) {
-      writeJson(response, 403, {
-        ok: false,
-        error: "Thread unregistration is available only to a local process, not a browser Origin.",
-      }, origin);
-
-      return;
-    }
-
-    try {
-      const body = await readJsonBody(request);
-      const thread = normalizeThread(body?.thread);
-
-      if (!thread) {
-        writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
-
-        return;
-      }
-
-      const removed = unregisterThread(thread);
-      writeJson(response, 200, {
-        ok: true,
-        removed,
-        ...threadPayload(),
-      }, origin);
-    } catch (cause) {
-      const error = cause instanceof Error ? cause.message : String(cause);
-      writeJson(response, 400, { ok: false, error }, origin);
-    }
-
-    return;
-  }
-
-  if (request.method === "POST" && request.url === "/threads/register") {
-    if (originHeaderPresent) {
-      writeJson(response, 403, {
-        ok: false,
-        error: "Thread registration is available only to a local process, not a browser Origin.",
-      }, origin);
-
-      return;
-    }
-
-    try {
-      const body = await readJsonBody(request);
-      const thread = normalizeThread(body?.thread);
-      const cwd = normalizeCwd(body?.cwd);
-      const appToolsPipe = normalizeThread(body?.appToolsPipe);
-      const codexHome = normalizeCwd(body?.codexHome);
-
-      if (!thread) {
-        writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
-
-        return;
-      }
-
-      registerThread(thread, cwd, { appToolsPipe, codexHome });
-
-      if (appToolsPipe) scheduleDesktopDispatch(thread);
-      writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
-    } catch (cause) {
-      const error = cause instanceof Error ? cause.message : String(cause);
-      writeJson(response, 400, { ok: false, error }, origin);
-    }
 
     return;
   }
