@@ -653,12 +653,21 @@ const listThreads = async (request, options) => {
 
 const queueMessage = async (request, options) => {
   const message = normalizeString(request.message);
-  const thread = normalizeString(request.thread);
+  let thread = normalizeString(request.thread);
 
   if (!message) throw new Error("message must be a non-empty string.");
-  if (!thread) throw new Error("thread must be a non-empty string.");
 
-  await validateLoadedThread(thread, options);
+  if (!thread) {
+    const ids = await loadedThreadIds(options);
+
+    if (ids.length !== 1) {
+      throw new Error("Choose a Codex thread before queueing feedback.");
+    }
+
+    [thread] = ids;
+  } else {
+    await validateLoadedThread(thread, options);
+  }
 
   const result = await daemonRequest(
     "thread/queue/add",
