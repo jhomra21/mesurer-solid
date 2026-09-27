@@ -30,10 +30,13 @@ const result = {
   desktop: {
     bundledExecutableRan: null,
     rejectedPrivateRuntime: false,
+    runtime: null,
     error: null,
   },
   standalone: {
     packagedExecutableRan: false,
+    runtimeBeforeStart: null,
+    runtimeAfterStart: null,
     healthOk: false,
     threads: null,
   },
@@ -73,6 +76,19 @@ exit 0
   process.env.PATH = desktopBinDir;
   process.env.CODEX_HOME = desktopHome;
   delete process.env.CODEX_BIN;
+
+  const desktopRuntime = await codexBridge(
+    { action: "runtime" },
+    { codexHome: desktopHome },
+  );
+
+  assert.deepEqual(desktopRuntime.runtime, {
+    source: "desktop",
+    transport: "private-stdio",
+    available: false,
+    reason: "desktop-private-transport",
+  });
+  result.desktop.runtime = desktopRuntime.runtime;
 
   try {
     await codexBridge({ action: "health" }, { codexHome: desktopHome });
@@ -162,7 +178,7 @@ const server = createServer((socket) => {
       }
 
       if (requests >= 2) {
-        setTimeout(() => server.close(() => process.exit(0)), 100);
+        setTimeout(() => server.close(() => process.exit(0)), 500);
       }
     }
   });
@@ -205,6 +221,19 @@ child.unref();
   process.env.MESURER_CODEX_SMOKE_HELPER = helperPath;
   delete process.env.CODEX_BIN;
 
+  const runtimeBeforeStart = await codexBridge(
+    { action: "runtime" },
+    { codexHome: standaloneHome },
+  );
+
+  assert.deepEqual(runtimeBeforeStart.runtime, {
+    source: "standalone",
+    transport: "shared-app-server",
+    available: true,
+    reason: null,
+  });
+  result.standalone.runtimeBeforeStart = runtimeBeforeStart.runtime;
+
   const health = await codexBridge(
     { action: "health" },
     { codexHome: standaloneHome },
@@ -216,8 +245,22 @@ child.unref();
   assert.equal(marker.codexHome, standaloneHome);
   assert.equal(health.ok, true);
   assert.deepEqual(health.threads, []);
+  assert.deepEqual(health.runtime, {
+    source: "shared",
+    transport: "shared-app-server",
+    available: true,
+    reason: null,
+  });
+
+  const runtimeAfterStart = await codexBridge(
+    { action: "runtime" },
+    { codexHome: standaloneHome },
+  );
+
+  assert.deepEqual(runtimeAfterStart.runtime, health.runtime);
 
   result.standalone.packagedExecutableRan = true;
+  result.standalone.runtimeAfterStart = runtimeAfterStart.runtime;
   result.standalone.healthOk = true;
   result.standalone.threads = health.threads;
 
