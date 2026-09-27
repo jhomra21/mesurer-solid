@@ -347,9 +347,9 @@ if (readFileSync(repositorySkill, "utf8") !== readFileSync(skillSource, "utf8"))
   throw new Error("Repository and packaged Mesurer Agent Skills must remain byte-identical.");
 }
 
-const codexBridgeScript = new URL("../plugins/codex/bridge.mjs", import.meta.url);
+const codexBridgeScript = new URL("../src/plugins/codex/bridge.mjs", import.meta.url);
 
-const codexBridgeTypes = new URL("../plugins/codex/bridge.d.ts", import.meta.url);
+const codexBridgeTypes = new URL("../src/plugins/codex/bridge.d.ts", import.meta.url);
 
 if (!existsSync(codexBridgeScript) || !existsSync(codexBridgeTypes)) {
   throw new Error("Missing packaged Codex Bridge plugin helper.");
