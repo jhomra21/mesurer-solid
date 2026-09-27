@@ -71,9 +71,9 @@ Public `mesurer-solid` package. It owns mounting/injection, first-party public p
 Codex implementation stays under its plugin ownership:
 
 ```text
-packages/mesurer/src/plugins/codex.ts
-packages/mesurer/plugins/codex/bridge.mjs
-packages/mesurer/plugins/codex/bridge.d.ts
+packages/mesurer/src/plugins/codex/index.ts
+packages/mesurer/src/plugins/codex/bridge.mjs
+packages/mesurer/src/plugins/codex/bridge.d.ts
 ```
 
 The renderer plugin owns UI and Context delivery. The native Codex Bridge owns process/socket access and is published as `mesurer-solid/plugins/codex/bridge`. Do not add a separate Mesurer Codex process, localhost server, marketplace distribution, or hook-owned copy.
@@ -130,7 +130,7 @@ Renderer-aware plugin UI must cross the existing opaque renderer service boundar
 The accepted Codex integration has specific correctness properties. Preserve them unless deliberately redesigning the feature and its acceptance suite.
 
 - Codex is enabled by default with the first-party plugin catalog and remains toggleable in Settings.
-- All Codex implementation belongs to the Codex plugin; the native helper lives under `packages/mesurer/plugins/codex/`.
+- All Codex implementation belongs to the Codex plugin; the native helper lives under `packages/mesurer/src/plugins/codex/`.
 - Do not introduce a Mesurer localhost bridge server, standalone bridge process, Electron helper process, marketplace package, or SessionStart/SessionEnd hook dependency.
 - Renderer code crosses only `window.__MESURER_HOST__.codexBridge(request)`; native filesystem, process, and socket access stay in the host process.
 - Discover sendable destinations from Codex's shared local app-server; `thread/loaded/list` is authoritative.
