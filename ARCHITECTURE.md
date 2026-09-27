@@ -178,7 +178,7 @@ codex() in renderer
    ▼
 Codex Bridge in native host
    │
-   │ codex stdio-to-uds
+   │ app-server control socket
    ▼
 Codex shared local app-server
    ├─ thread/loaded/list
