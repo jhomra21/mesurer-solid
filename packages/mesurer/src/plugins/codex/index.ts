@@ -111,7 +111,7 @@ export type MesurerCodexQueueResult = {
 /** @deprecated Use `MesurerCodexQueueResult`. */
 export type MesurerCodexSendResult = MesurerCodexQueueResult;
 
-export type MesurerCodexRuntime = {
+type MesurerCodexRuntime = {
   /** Runtime source selected by the native Codex bridge. Callers do not choose this value. */
   source: "shared" | "standalone" | "desktop" | "none";
   /** Transport available for Codex delivery. */
@@ -123,8 +123,6 @@ export type MesurerCodexRuntime = {
 };
 
 export type MesurerCodexHealth = {
-  /** Runtime selected by the Codex plugin. Runtime choice is internal to the plugin. */
-  runtime?: MesurerCodexRuntime;
   /** Current loaded Codex target. Null when no loaded Codex thread is selected. */
   thread: string | null;
   /** Codex threads currently loaded in the shared local app-server. */
@@ -350,20 +348,12 @@ const bridgeRuntime = (response: BridgeResponse): MesurerCodexRuntime | null => 
   };
 };
 
-const bridgeHealth = (response: BridgeResponse): MesurerCodexHealth => {
-  const runtime = bridgeRuntime(response);
-
-  const health: MesurerCodexHealth = {
-    thread: response.thread?.trim() || null,
-    threads: Array.isArray(response.threads)
-      ? response.threads.filter((thread) => thread.trim().length > 0)
-      : [],
-  };
-
-  if (runtime) health.runtime = runtime;
-
-  return health;
-};
+const bridgeHealth = (response: BridgeResponse): MesurerCodexHealth => ({
+  thread: response.thread?.trim() || null,
+  threads: Array.isArray(response.threads)
+    ? response.threads.filter((thread) => thread.trim().length > 0)
+    : [],
+});
 
 const bridgeDelivery = (response: BridgeResponse): MesurerCodexDelivery => {
   const id = response.deliveryId?.trim();
@@ -535,14 +525,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       };
 
       const fetchHealth = async () => {
-        const health = bridgeHealth(await bridgeRequest({
+        const response = await bridgeRequest({
           action: "health",
           thread: selectedThread ?? originThread ?? undefined,
-        }));
+        });
 
-        if (health.runtime) codexRuntime = health.runtime;
+        codexRuntime = bridgeRuntime(response) ?? codexRuntime;
 
-        return health;
+        return bridgeHealth(response);
       };
 
       const ensureBridgeAvailable = fetchHealth;
@@ -981,11 +971,13 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
           if (!target) throw new Error("Codex thread must be a non-empty string.");
 
-          const health = bridgeHealth(await bridgeRequest({
+          const response = await bridgeRequest({
             action: "target",
             thread: target,
-          }));
+          });
+          const health = bridgeHealth(response);
 
+          codexRuntime = bridgeRuntime(response) ?? codexRuntime;
           bindPageThread(target, !originThread);
           lastBridgeThread = health.thread;
           loadedThreadIds = health.threads;
