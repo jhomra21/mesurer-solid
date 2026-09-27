@@ -6,21 +6,32 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 const APP_SERVER_TIMEOUT_MS = 10_000;
+
 const DAEMON_START_TIMEOUT_MS = 10_000;
+
 const MAX_DISCOVERED_THREADS = 10;
+
 const TURN_HISTORY_LIMIT = 100;
+
 const DELIVERY_TTL_MS = 24 * 60 * 60_000;
+
 const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
+
 const DELIVERY_TURN_START_SKEW_MS = 5_000;
+
 const MAX_DELIVERIES = 100;
 
 const deliveries = new Map();
 
 let deliveryStateLoadPromise = null;
 
-const normalizeString = (value) => typeof value === "string" && value.trim()
-  ? value.trim()
-  : null;
+const normalizeString = (value) => {
+  if (value?.constructor !== String) return null;
+
+  const text = value.trim();
+
+  return text || null;
+};
 
 const normalizeTitle = (value) => {
   const title = normalizeString(value)?.replace(/\s+/g, " ");
@@ -46,10 +57,14 @@ const codexBin = (options) =>
   || process.env.CODEX_BIN?.trim()
   || "codex";
 
-const codexEnv = (options) => ({
-  ...process.env,
-  ...(options.codexHome?.trim() ? { CODEX_HOME: options.codexHome.trim() } : {}),
-});
+const codexEnv = (options) => {
+  const env = { ...process.env };
+  const home = options.codexHome?.trim();
+
+  if (home) env.CODEX_HOME = home;
+
+  return env;
+};
 
 const controlSocketPath = (options) =>
   join(codexHome(options), "app-server-control", "app-server-control.sock");
@@ -323,6 +338,7 @@ const listLoadedThreads = async (options) => {
         { threadId: id, includeTurns: false },
         options,
       );
+
       const summary = threadSummary(result?.thread, loadedIds);
 
       if (summary) byId.set(id, summary);
@@ -392,6 +408,7 @@ const persistDeliveries = async (options) => {
   const path = deliveryStatePath(options);
   const directory = join(path, "..");
   const tmp = `${path}.${process.pid}.tmp`;
+
   const payload = {
     version: 1,
     deliveries: [...deliveries.values()].map(persistedDelivery),
@@ -531,8 +548,11 @@ const reconcileDelivery = async (delivery, options) => {
   let nextStatus = null;
 
   if (turn.status === "inProgress") nextStatus = "working";
+
   if (turn.status === "interrupted" && !ended) nextStatus = "working";
+
   if (turn.status === "completed") nextStatus = "completed";
+
   if ((turn.status === "interrupted" && ended) || turn.status === "failed") {
     nextStatus = "interrupted";
   }
@@ -540,7 +560,9 @@ const reconcileDelivery = async (delivery, options) => {
   if (!turnId || !nextStatus) return;
 
   const failed = turn.status === "failed";
+
   const failureMessage = normalizeString(turn?.error?.message) ?? "Codex turn failed.";
+
   const changed = delivery.turnId !== turnId
     || delivery.status !== nextStatus
     || (failed && delivery.dispatchError !== failureMessage);
@@ -616,7 +638,9 @@ const validateLoadedThread = async (thread, options) => {
 
 const health = async (preferredThread, options) => {
   const threads = await listLoadedThreads(options);
+
   const ids = threads.map((thread) => thread.id);
+
   const thread = preferredThread && ids.includes(preferredThread)
     ? preferredThread
     : ids[0] ?? null;
@@ -630,12 +654,15 @@ const health = async (preferredThread, options) => {
 
 const listThreads = async (request, options) => {
   const threads = await listLoadedThreads(options);
+
   const limit = Number.isInteger(request.limit)
     ? Math.min(MAX_DISCOVERED_THREADS, Math.max(1, request.limit))
     : 5;
 
   const ids = threads.map((thread) => thread.id);
+
   const preferred = normalizeString(request.thread);
+
   const selected = preferred && ids.includes(preferred)
     ? preferred
     : ids[0] ?? null;
@@ -695,6 +722,7 @@ const queueMessage = async (request, options) => {
   }
 
   const now = Date.now();
+
   const delivery = {
     id: randomUUID(),
     thread,
@@ -785,6 +813,7 @@ const restoreDelivery = async (request, options) => {
   }
 
   const now = Date.now();
+
   const delivery = {
     id: deliveryId,
     thread,
@@ -818,7 +847,7 @@ const restoreDelivery = async (request, options) => {
  * app-server, and queue delivery uses thread/queue/add on that same daemon.
  */
 export async function codexBridge(request, options = {}) {
-  if (!request || typeof request !== "object") {
+  if (request?.constructor !== Object) {
     throw new Error("Codex Bridge request must be an object.");
   }
 
