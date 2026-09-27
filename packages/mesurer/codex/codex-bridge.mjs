@@ -855,8 +855,6 @@ const threadPayload = () => ({
 
 const hashMessage = (message) => createHash("sha256").update(message).digest("hex");
 
-const turnKey = (thread, turnId) => `${thread}:${turnId}`;
-
 const publicDelivery = (delivery) => ({
   deliveryId: delivery.id,
   thread: delivery.thread,
@@ -878,13 +876,7 @@ const pruneDeliveries = () => {
 
     if (now - delivery.updatedAt > (terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS)) {
       deliveries.delete(id);
-      desktopLifecycleChecks.delete(id);
-      desktopLifecycleLastCheckedAt.delete(id);
     }
-  }
-
-  for (const [key, event] of terminalTurnEvents) {
-    if (now - event.at > TERMINAL_DELIVERY_TTL_MS) terminalTurnEvents.delete(key);
   }
 
   if (deliveries.size <= MAX_DELIVERIES) return;
@@ -895,16 +887,15 @@ const pruneDeliveries = () => {
   }
 };
 
-const createDelivery = (thread, message, transport = "codex-queue") => {
+const createDelivery = (thread, message) => {
   pruneDeliveries();
   const now = Date.now();
-
   const delivery = {
     id: randomUUID(),
     thread,
     message,
     messageHash: hashMessage(message),
-    transport,
+    transport: "codex-queue",
     status: "queued",
     turnId: null,
     queuedSubmissionId: null,
@@ -915,26 +906,9 @@ const createDelivery = (thread, message, transport = "codex-queue") => {
   };
 
   deliveries.set(delivery.id, delivery);
-
-  if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
+  persistDeliveryStateSoon();
 
   return delivery;
-};
-
-const xmlEscape = (value) => value
-  .replaceAll("&", "&amp;")
-  .replaceAll("<", "&lt;")
-  .replaceAll(">", "&gt;")
-  .replaceAll('"', "&quot;")
-  .replaceAll("'", "&apos;");
-
-const promptMatchesDelivery = (delivery, prompt) => {
-  if (delivery.messageHash === hashMessage(prompt)) return true;
-
-  if (delivery.transport !== "desktop-app" || !delivery.message) return false;
-
-  return prompt.includes(delivery.message)
-    || prompt.includes(`<input>${xmlEscape(delivery.message)}</input>`);
 };
 
 const turnUserMessages = (turn) => {
@@ -959,7 +933,6 @@ const deliveryTurn = (delivery, turns) => {
   }
 
   const earliestStartedAt = delivery.createdAt - DELIVERY_TURN_START_SKEW_MS;
-
   const matches = turns.filter((turn) => {
     const turnId = normalizeThread(turn?.id);
     const startedAt = Number(turn?.startedAt);
@@ -968,16 +941,16 @@ const deliveryTurn = (delivery, turns) => {
       return false;
     }
 
-    return turnUserMessages(turn).some((prompt) => promptMatchesDelivery(delivery, prompt));
+    return turnUserMessages(turn).some((prompt) =>
+      hashMessage(prompt) === delivery.messageHash
+      || prompt.includes(delivery.message));
   });
 
   return matches.length === 1 ? matches[0] : null;
 };
 
-const reconcileDesktopDelivery = async (delivery) => {
-  if (delivery.transport !== "desktop-app" || delivery.dispatch !== "desktop-opened") {
-    return;
-  }
+const reconcileDelivery = async (delivery) => {
+  if (delivery.status === "completed" || delivery.status === "interrupted") return;
 
   const turns = await runCodexTurnHistory(delivery.thread);
 
@@ -985,7 +958,6 @@ const reconcileDesktopDelivery = async (delivery) => {
   const turn = deliveryTurn(delivery, turns);
 
   if (!turn) return;
-
   const turnId = normalizeThread(turn.id);
   const ended = turn.completedAt != null && Number.isFinite(Number(turn.completedAt));
   let nextStatus = null;
@@ -1001,16 +973,13 @@ const reconcileDesktopDelivery = async (delivery) => {
   }
 
   if (!turnId || !nextStatus) return;
-
   const failed = turn.status === "failed";
   const failureMessage = normalizeThread(turn?.error?.message) ?? "Codex turn failed.";
-
   const changed = delivery.turnId !== turnId
     || delivery.status !== nextStatus
     || (failed && delivery.dispatchError !== failureMessage);
 
   if (!changed) return;
-
   delivery.turnId = turnId;
   delivery.status = nextStatus;
 
@@ -1019,85 +988,7 @@ const reconcileDesktopDelivery = async (delivery) => {
   await persistDeliveryState();
 };
 
-const scheduleDesktopLifecycleCheck = (delivery) => {
-  if (delivery.transport !== "desktop-app"
-    || delivery.dispatch !== "desktop-opened"
-    || desktopLifecycleChecks.has(delivery.id)) {
-    return;
-  }
-
-  const now = Date.now();
-  const lastCheckedAt = desktopLifecycleLastCheckedAt.get(delivery.id) ?? 0;
-
-  if (now - lastCheckedAt < DESKTOP_LIFECYCLE_POLL_MS) return;
-  desktopLifecycleLastCheckedAt.set(delivery.id, now);
-
-  const check = reconcileDesktopDelivery(delivery)
-    .catch(() => undefined)
-    .finally(() => {
-      if (desktopLifecycleChecks.get(delivery.id) === check) {
-        desktopLifecycleChecks.delete(delivery.id);
-      }
-    });
-
-  desktopLifecycleChecks.set(delivery.id, check);
-};
-
-const markPromptStarted = (thread, turnId, prompt) => {
-  const delivery = [...deliveries.values()]
-    .filter((candidate) =>
-      candidate.thread === thread
-      && promptMatchesDelivery(candidate, prompt)
-      && candidate.status === "queued")
-    .sort((a, b) => a.createdAt - b.createdAt)[0];
-
-  if (!delivery) return null;
-  delivery.status = "working";
-  delivery.turnId = turnId;
-  delivery.updatedAt = Date.now();
-
-  if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
-  const terminal = terminalTurnEvents.get(turnKey(thread, turnId));
-
-  if (terminal) {
-    delivery.status = terminal.status;
-    delivery.updatedAt = Math.max(delivery.updatedAt, terminal.at);
-    terminalTurnEvents.delete(turnKey(thread, turnId));
-
-    if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
-  }
-
-  return delivery;
-};
-
-const markTurnTerminal = (thread, turnId, status) => {
-  const delivery = [...deliveries.values()].find((candidate) =>
-    candidate.thread === thread
-    && candidate.turnId === turnId
-    && candidate.status === "working");
-
-  if (delivery) {
-    delivery.status = status;
-    delivery.updatedAt = Date.now();
-
-    if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
-
-    return delivery;
-  }
-
-  terminalTurnEvents.set(turnKey(thread, turnId), { status, at: Date.now() });
-
-  return null;
-};
-
-const desktopOwnsLifecycle = (thread) =>
-  Boolean(registeredThreads.get(thread)?.appToolsPipe)
-  || [...deliveries.values()].some((delivery) =>
-    delivery.thread === thread && delivery.transport === "desktop-app");
-
 await loadDeliveryState();
-
-for (const delivery of deliveries.values()) scheduleDesktopLifecycleCheck(delivery);
 
 let successfulSends = 0;
 
