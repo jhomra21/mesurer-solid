@@ -53,10 +53,9 @@ const codexHome = (options) =>
   || process.env.CODEX_HOME?.trim()
   || join(homedir(), ".codex");
 
-const explicitCodexBin = (options) =>
-  options.codex?.trim()
-  || process.env.CODEX_BIN?.trim()
-  || null;
+const explicitCodexBin = (options) => options.codex?.trim() || null;
+
+const environmentCodexBin = () => process.env.CODEX_BIN?.trim() || null;
 
 const codexExecutableName = () => process.platform === "win32" ? "codex.exe" : "codex";
 
@@ -84,14 +83,15 @@ const canExecute = async (path) => {
   }
 };
 
-const resolvePathCodex = async () => {
+const resolvePathCommand = async (command) => {
   const pathValue = process.env.PATH?.trim();
 
   if (!pathValue) return null;
 
   const executableNames = process.platform === "win32"
-    ? ["codex.exe", "codex.com"]
-    : ["codex"];
+    ? [command.endsWith(".exe") || command.endsWith(".com") ? command : `${command}.exe`,
+        command.endsWith(".exe") || command.endsWith(".com") ? command : `${command}.com`]
+    : [command];
 
   for (const directory of pathValue.split(delimiter)) {
     const root = directory.trim().replace(/^"(.*)"$/, "$1");
@@ -132,7 +132,19 @@ const daemonStartBin = async (options) => {
     if (await canExecute(candidate)) return candidate;
   }
 
-  const fromPath = await resolvePathCodex();
+  const environment = environmentCodexBin();
+
+  if (environment) {
+    const resolvedEnvironment = environment.includes("/") || environment.includes("\\")
+      ? await realpath(environment).catch(() => environment)
+      : await resolvePathCommand(environment);
+
+    if (!resolvedEnvironment || desktopBundledCodex(resolvedEnvironment)) return null;
+
+    return resolvedEnvironment;
+  }
+
+  const fromPath = await resolvePathCommand("codex");
 
   if (!fromPath || desktopBundledCodex(fromPath)) return null;
 
