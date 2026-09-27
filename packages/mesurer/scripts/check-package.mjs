@@ -294,7 +294,6 @@ for (const contractName of [
   "MesurerCodexService",
   "MesurerCodexQueueRequest",
   "MesurerCodexQueueResult",
-  "MesurerCodexRuntime",
   "MesurerCodexSendRequest",
   "MesurerCodexSendResult",
   "MesurerContextService",
