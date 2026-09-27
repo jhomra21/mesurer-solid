@@ -89,8 +89,9 @@ const resolvePathCommand = async (command) => {
   if (!pathValue) return null;
 
   const executableNames = process.platform === "win32"
-    ? [command.endsWith(".exe") || command.endsWith(".com") ? command : `${command}.exe`,
-        command.endsWith(".exe") || command.endsWith(".com") ? command : `${command}.com`]
+    ? command.endsWith(".exe") || command.endsWith(".com")
+      ? [command]
+      : [`${command}.exe`, `${command}.com`]
     : [command];
 
   for (const directory of pathValue.split(delimiter)) {
@@ -101,7 +102,7 @@ const resolvePathCommand = async (command) => {
     for (const executable of executableNames) {
       const candidate = join(root, executable);
 
-      if (!await canExecute(candidate)) continue;
+      if (!(await canExecute(candidate))) continue;
 
       try {
         return await realpath(candidate);
