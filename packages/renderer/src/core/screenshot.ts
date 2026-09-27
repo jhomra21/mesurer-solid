@@ -47,7 +47,32 @@ export type HostCodexBridgeRequest = {
   queuedSubmissionId?: string;
 };
 
-export type HostCodexBridgeResult = Record<string, unknown>;
+export type HostCodexBridgeThread = {
+  id: string;
+  title: string;
+  updatedAt: number | null;
+  connected: boolean;
+};
+
+export type HostCodexBridgeResult = {
+  ok?: boolean;
+  thread?: string | null;
+  threads?: string[];
+  threadDetails?: HostCodexBridgeThread[];
+  hasMore?: boolean;
+  output?: string;
+  delivery?: "queued";
+  deliveryId?: string;
+  status?: "queued" | "working" | "completed" | "interrupted";
+  turnId?: string | null;
+  queuedSubmissionId?: string | null;
+  dispatch?: "persisted";
+  dispatchError?: string | null;
+  createdAt?: number;
+  updatedAt?: number;
+  restored?: boolean;
+  error?: string;
+};
 
 export type MesurerHostCapabilities = {
   captureScreenshot?: () => Promise<HostScreenshotResult>;
