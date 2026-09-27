@@ -361,7 +361,7 @@ for (const contract of [
   "export async function codexBridge",
   "thread/loaded/list",
   "thread/queue/add",
-  "stdio-to-uds",
+  "createConnection",
 ]) {
   if (!codexBridgeSource.includes(contract)) {
     throw new Error(`Packaged Codex Bridge is missing contract: ${contract}.`);
@@ -374,6 +374,7 @@ for (const removedPattern of [
   "process.execPath",
   "import.meta.url",
   "ELECTRON_RUN_AS_NODE",
+  "stdio-to-uds",
 ]) {
   if (codexBridgeSource.includes(removedPattern)) {
     throw new Error(`Packaged Codex Bridge retained removed companion-process behavior: ${removedPattern}.`);
