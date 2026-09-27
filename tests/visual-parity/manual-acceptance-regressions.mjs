@@ -146,7 +146,7 @@ try {
     ["mesurer.context", "Context", true],
     ["mesurer.arrange", "Arrange", true],
     ["mesurer.screenshot", "Screenshot", true],
-    ["mesurer.codex", "Codex", false],
+    ["mesurer.codex", "Codex", true],
   ];
 
   for (const [id, label, enabled] of expectedPlugins) {
@@ -164,8 +164,8 @@ try {
   await codexNotice.waitFor({ state: "visible" });
   assert.match(
     (await codexNotice.textContent()) ?? "",
-    /local companion.*open Codex threads/i,
-    "Codex opt-in should explain the local companion before it is enabled",
+    /open Codex threads/i,
+    "Codex Settings should explain the local thread connection",
   );
 
   const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
@@ -192,7 +192,7 @@ try {
   await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "visible" });
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; first-party plugins are present, Codex is an explained opt-in, and Context can be toggled off and back on: PASS");
+  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; first-party plugins are present, Codex is enabled by default with its host connection explained, and Context can be toggled off and back on: PASS");
 } finally {
   await settingsPage?.close();
   await page?.close();
