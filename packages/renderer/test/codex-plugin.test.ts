@@ -10,6 +10,7 @@ import {
 } from "../../mesurer/src/plugins";
 import type { MesurerAnnotation, MesurerContextRequest } from "../../mesurer/src/context";
 import type { MesurerContextService } from "../../mesurer/src/context-plugin";
+import type { HostCodexBridgeRequest } from "../src/core/screenshot";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -64,14 +65,14 @@ const createContextService = () => {
 
 const DELIVERY_POLL_MS_FOR_TEST = 750;
 
-const bridgeUrlForRequest = (request: { action: string; [key: string]: unknown }) => {
+const bridgeUrlForRequest = (request: HostCodexBridgeRequest) => {
   if (request.action === "health") return { url: "http://127.0.0.1:47365/health" };
 
   if (request.action === "threads") {
     const params = new URLSearchParams();
     params.set("limit", String(request.limit ?? 10));
 
-    if (typeof request.thread === "string" && request.thread) params.set("thread", request.thread);
+    if (request.thread) params.set("thread", request.thread);
 
     return { url: `http://127.0.0.1:47365/threads?${params.toString()}` };
   }
