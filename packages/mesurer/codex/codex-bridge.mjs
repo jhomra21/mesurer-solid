@@ -1129,10 +1129,12 @@ server = createServer(async (request, response) => {
         return;
       }
 
-      if (!registeredThreads.has(thread) && !discoveredThreads.has(thread)) {
+      await refreshDiscoveredThreads();
+
+      if (!loadedThreadIds.has(thread)) {
         writeJson(response, 409, {
           ok: false,
-          error: `Codex thread is not available to this bridge: ${thread}`,
+          error: `Codex thread is not loaded: ${thread}`,
         }, origin);
 
         return;
@@ -1174,15 +1176,12 @@ server = createServer(async (request, response) => {
 
       pruneDeliveries();
       const now = Date.now();
-      const record = registeredThreads.get(thread);
-      const transport = record?.appToolsPipe ? "desktop-app" : "codex-queue";
-
       const delivery = {
         id: deliveryId,
         thread,
         message,
         messageHash: hashMessage(message),
-        transport,
+        transport: "codex-queue",
         status: "queued",
         turnId: null,
         queuedSubmissionId: lookup.submission.id,
@@ -1195,24 +1194,17 @@ server = createServer(async (request, response) => {
       deliveries.set(delivery.id, delivery);
       await persistDeliveryState();
 
-      if (transport === "desktop-app") {
-        delivery.dispatch = "persisted";
+      try {
+        const wake = await resumeColdCodexThread(thread);
+        delivery.dispatch = wake.action;
         delivery.updatedAt = Date.now();
-        await persistDeliveryState();
-        scheduleDesktopDispatch(thread);
-      } else {
-        try {
-          const wake = await resumeColdCodexThread(thread);
-          delivery.dispatch = wake.action;
-          delivery.updatedAt = Date.now();
-        } catch (cause) {
-          delivery.dispatch = "wake-failed";
-          delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
-          delivery.updatedAt = Date.now();
-        }
-
-        persistDeliveryStateSoon();
+      } catch (cause) {
+        delivery.dispatch = "wake-failed";
+        delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
+        delivery.updatedAt = Date.now();
       }
+
+      persistDeliveryStateSoon();
 
       writeJson(response, 200, {
         ok: true,
@@ -1243,90 +1235,8 @@ server = createServer(async (request, response) => {
       : 5;
 
     const scopeThread = normalizeThread(url.searchParams.get("thread")) ?? activeThread;
-
-    if (scopeThread && !registeredThreads.has(scopeThread) && !discoveredThreads.has(scopeThread)) {
-      writeJson(response, 409, { ok: false, error: `Codex thread is not known to this bridge: ${scopeThread}` }, origin);
-
-      return;
-    }
-
     const payload = await listThreadSummaries(scopeThread, limit);
     writeJson(response, 200, { ok: true, ...payload }, origin);
-
-    return;
-  }
-
-  if (request.method === "POST" && request.url === "/lifecycle") {
-    if (originHeaderPresent) {
-      writeJson(response, 403, {
-        ok: false,
-        error: "Codex lifecycle updates are available only to a local process, not a browser Origin.",
-      }, origin);
-
-      return;
-    }
-
-    try {
-      const body = await readJsonBody(request);
-      const event = body?.event;
-      const thread = normalizeThread(body?.sessionId);
-      const turnId = normalizeThread(body?.turnId);
-
-      if (!thread || !turnId) {
-        writeJson(response, 400, { ok: false, error: "sessionId and turnId are required." }, origin);
-
-        return;
-      }
-
-      if (desktopOwnsLifecycle(thread)) {
-        writeJson(response, 200, {
-          ok: true,
-          matched: false,
-          ignored: "desktop-history-authoritative",
-        }, origin);
-
-        return;
-      }
-
-      let delivery = null;
-
-      if (event === "UserPromptSubmit") {
-        const prompt = body?.prompt?.trim?.() ?? "";
-
-        if (!prompt) {
-          writeJson(response, 400, { ok: false, error: "UserPromptSubmit requires prompt." }, origin);
-
-          return;
-        }
-
-        delivery = markPromptStarted(thread, turnId, prompt);
-      } else if (event === "Stop") {
-        delivery = markTurnTerminal(thread, turnId, "completed");
-        scheduleDesktopDispatch(thread);
-      } else if (event === "Interrupt") {
-        delivery = markTurnTerminal(thread, turnId, "interrupted");
-        scheduleDesktopDispatch(thread);
-      } else {
-        writeJson(response, 400, { ok: false, error: `Unsupported Codex lifecycle event: ${event ?? "<missing>"}` }, origin);
-
-        return;
-      }
-
-      pruneDeliveries();
-
-      if (delivery) {
-        writeJson(response, 200, {
-          ok: true,
-          matched: true,
-          ...publicDelivery(delivery),
-        }, origin);
-      } else {
-        writeJson(response, 200, { ok: true, matched: false }, origin);
-      }
-    } catch (cause) {
-      const error = cause instanceof Error ? cause.message : String(cause);
-      writeJson(response, 400, { ok: false, error }, origin);
-    }
 
     return;
   }
@@ -1342,24 +1252,23 @@ server = createServer(async (request, response) => {
         return;
       }
 
-      const record = registeredThreads.get(thread);
+      await refreshDiscoveredThreads();
 
-      if (!record) {
+      if (!loadedThreadIds.has(thread)) {
         writeJson(response, 409, {
           ok: false,
-          error: `Codex thread is not registered with this bridge: ${thread}`,
+          error: `Codex thread is not loaded: ${thread}`,
         }, origin);
 
         return;
       }
 
       activeThread = thread;
-
-      if (record.cwd) activeCwd = record.cwd;
+      activeCwd = discoveredThreads.get(thread)?.cwd ?? null;
       writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);
-      writeJson(response, 400, { ok: false, error }, origin);
+      writeJson(response, 502, { ok: false, error }, origin);
     }
 
     return;
@@ -1375,7 +1284,6 @@ server = createServer(async (request, response) => {
     const body = await readJsonBody(request);
     const message = body?.message?.trim?.() ?? "";
     const requestedThread = normalizeThread(body?.thread);
-    const thread = requestedThread ?? activeThread;
 
     if (!message) {
       writeJson(response, 400, { ok: false, error: "message must be a non-empty string." }, origin);
@@ -1383,65 +1291,28 @@ server = createServer(async (request, response) => {
       return;
     }
 
+    await refreshDiscoveredThreads();
+    const thread = requestedThread ?? activeThread;
+
     if (!thread) {
       writeJson(response, 409, {
         ok: false,
-        error: "No Codex thread is registered. Start the bridge from Codex, pass --thread, or run mesurer-codex --register-current.",
+        error: "No loaded Codex thread is available. Open a Codex thread and retry.",
       }, origin);
 
       return;
     }
 
-    if (!registeredThreads.has(thread) && !discoveredThreads.has(thread)) {
+    if (!loadedThreadIds.has(thread)) {
       writeJson(response, 409, {
         ok: false,
-        error: `Codex thread is not available to this bridge: ${thread}`,
+        error: `Codex thread is not loaded: ${thread}`,
       }, origin);
 
       return;
     }
 
-    const record = registeredThreads.get(thread);
-
-    if (record?.appToolsPipe) {
-      const delivery = createDelivery(thread, message, "desktop-app");
-      let output;
-
-      try {
-        output = await runCodexQueue(thread, message);
-      } catch (cause) {
-        deliveries.delete(delivery.id);
-        persistDeliveryStateSoon();
-        throw cause;
-      }
-
-      delivery.queuedSubmissionId = queuedSubmissionFromOutput(output, thread);
-
-      if (!delivery.queuedSubmissionId) {
-        deliveries.delete(delivery.id);
-        persistDeliveryStateSoon();
-        throw new Error("Codex queue succeeded but did not return a queued submission id.");
-      }
-
-      delivery.dispatch = "persisted";
-      delivery.updatedAt = Date.now();
-      await persistDeliveryState();
-      scheduleDesktopDispatch(thread);
-      successfulSends += 1;
-      writeJson(response, 200, {
-        ok: true,
-        thread,
-        output,
-        delivery: "queued",
-        ...publicDelivery(delivery),
-      }, origin);
-
-      if (values.once && successfulSends >= 1) setImmediate(() => void shutdownBridge());
-
-      return;
-    }
-
-    const delivery = createDelivery(thread, message, "codex-queue");
+    const delivery = createDelivery(thread, message);
     let output;
 
     try {
@@ -1453,26 +1324,16 @@ server = createServer(async (request, response) => {
     }
 
     delivery.queuedSubmissionId = queuedSubmissionFromOutput(output, thread);
-    delivery.dispatch = "persisted";
-    delivery.updatedAt = Date.now();
 
-    if (delivery.queuedSubmissionId) {
-      try {
-        const wake = await resumeColdCodexThread(thread);
-        delivery.dispatch = wake.action;
-        delivery.updatedAt = Date.now();
-      } catch (cause) {
-        delivery.dispatch = "wake-failed";
-        delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
-        delivery.updatedAt = Date.now();
-      }
-    } else {
-      delivery.dispatch = "untracked";
-      delivery.dispatchError = "Codex queue succeeded but did not return a queued submission id.";
-      delivery.updatedAt = Date.now();
+    if (!delivery.queuedSubmissionId) {
+      deliveries.delete(delivery.id);
+      persistDeliveryStateSoon();
+      throw new Error("Codex queue succeeded but did not return a queued submission id.");
     }
 
-    persistDeliveryStateSoon();
+    delivery.dispatch = "persisted";
+    delivery.updatedAt = Date.now();
+    await persistDeliveryState();
 
     successfulSends += 1;
     writeJson(response, 200, {
