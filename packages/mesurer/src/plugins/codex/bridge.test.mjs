@@ -186,7 +186,9 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
   const turnsPath = join(root, "turns.json");
 
   await writeTurns(turnsPath, []);
+
   const appServer = await createFakeAppServer(root, turnsPath);
+
   const options = {
     codex: join(root, "must-not-run"),
     codexHome: root,
