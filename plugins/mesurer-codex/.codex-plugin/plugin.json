@@ -1,6 +1,6 @@
 {
   "name": "mesurer-codex",
-  "version": "0.1.8-beta.1",
+  "version": "0.1.8-beta.2",
   "description": "Queues Mesurer browser feedback to Codex and reports the matching turn lifecycle through a local loopback companion.",
   "author": {
     "name": "Mesurer Solid"
