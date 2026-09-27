@@ -291,13 +291,7 @@ const persistedDelivery = (delivery) => ({
 });
 
 const persistDeliveryState = () => {
-  const persistedDeliveries = [];
-
-  for (const delivery of deliveries.values()) {
-    if (delivery.transport === "desktop-app") {
-      persistedDeliveries.push(persistedDelivery(delivery));
-    }
-  }
+  const persistedDeliveries = [...deliveries.values()].map(persistedDelivery);
 
   const state = {
     version: DELIVERY_STATE_VERSION,
@@ -341,7 +335,7 @@ const loadDeliveryState = async () => {
     const id = normalizeThread(value?.id);
     const thread = normalizeThread(value?.thread);
     const message = value?.message == null ? "" : String(value.message);
-    const transport = value?.transport === "desktop-app" ? "desktop-app" : "codex-queue";
+    const transport = "codex-queue";
     const status = value?.status;
     const createdAt = Number(value?.createdAt);
     const updatedAt = Number(value?.updatedAt);
