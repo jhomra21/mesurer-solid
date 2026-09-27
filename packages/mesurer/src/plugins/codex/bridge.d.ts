@@ -1,4 +1,5 @@
 export type CodexBridgeAction =
+  | "runtime"
   | "health"
   | "threads"
   | "target"
@@ -22,6 +23,13 @@ export type CodexBridgeOptions = {
   codexHome?: string;
 };
 
+export type CodexBridgeRuntime = {
+  source: "shared" | "standalone" | "desktop" | "none";
+  transport: "shared-app-server" | "private-stdio" | "none";
+  available: boolean;
+  reason: "desktop-private-transport" | "runtime-not-found" | null;
+};
+
 export type CodexBridgeThread = {
   id: string;
   title: string;
@@ -31,6 +39,7 @@ export type CodexBridgeThread = {
 
 export type CodexBridgeResponse = {
   ok: true;
+  runtime?: CodexBridgeRuntime;
   thread?: string | null;
   threads?: string[];
   threadDetails?: CodexBridgeThread[];
