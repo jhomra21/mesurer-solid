@@ -48,8 +48,6 @@ const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
 
 const DELIVERY_TTL_MS = 2 * 60 * 60_000;
 
-const DESKTOP_LIFECYCLE_POLL_MS = 1_000;
-
 const DESKTOP_TURN_HISTORY_LIMIT = 10;
 
 const DELIVERY_TURN_START_SKEW_MS = 60_000;
@@ -426,12 +424,6 @@ const runCodexDaemonRequestOnce = (
   params = {},
   { timeoutMs = APP_SERVER_TIMEOUT_MS, experimentalApi = false } = {},
 ) => new Promise((resolve, reject) => {
-  if (process.platform === "win32") {
-    reject(new Error("Mesurer Codex daemon discovery is not available on this platform."));
-
-    return;
-  }
-
   const child = spawnOwned(codexBin, ["stdio-to-uds", codexControlSocketPath()], {
     env: process.env,
     shell: false,
