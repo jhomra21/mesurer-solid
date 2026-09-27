@@ -3,7 +3,7 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -53,6 +53,16 @@ const DESKTOP_LIFECYCLE_POLL_MS = 1_000;
 const DESKTOP_TURN_HISTORY_LIMIT = 10;
 
 const DELIVERY_TURN_START_SKEW_MS = 60_000;
+
+const LAST_OWNER_SHUTDOWN_DELAY_MS = 250;
+
+const configuredOwnerHealthPollMs = Number(process.env.MESURER_CODEX_OWNER_POLL_MS);
+
+const OWNER_HEALTH_POLL_MS = Number.isFinite(configuredOwnerHealthPollMs) && configuredOwnerHealthPollMs > 0
+  ? Math.max(50, configuredOwnerHealthPollMs)
+  : 5_000;
+
+const OWNED_CHILD_SHUTDOWN_GRACE_MS = 250;
 
 const usage = `Usage:
   mesurer-codex [--thread <session-id-or-name>] [options]
@@ -197,11 +207,117 @@ const desktopLifecycleChecks = new Map();
 
 const desktopLifecycleLastCheckedAt = new Map();
 
+const ownedChildren = new Set();
+
 let activeThread = null;
 
 let activeCwd = null;
 
+let idleShutdownTimer = null;
+
+let ownerHealthTimer = null;
+
+let server = null;
+
+let shutdownStarted = false;
+
+const spawnOwned = (...args) => {
+  const child = spawn(...args);
+  ownedChildren.add(child);
+
+  const release = () => ownedChildren.delete(child);
+  child.once("close", release);
+  child.once("error", release);
+
+  return child;
+};
+
+const cancelIdleShutdown = () => {
+  if (!idleShutdownTimer) return;
+  clearTimeout(idleShutdownTimer);
+  idleShutdownTimer = null;
+};
+
+const ownerAnchorExists = async (path) => {
+  try {
+    await stat(path);
+
+    return true;
+  } catch (cause) {
+    return cause?.code !== "ENOENT" && cause?.code !== "ENOTDIR";
+  }
+};
+
+const refreshOwnerHealthMonitor = () => {
+  const needsMonitor = process.platform !== "win32"
+    && [...registeredThreads.values()].some((record) => record.appToolsPipe);
+
+  if (!needsMonitor) {
+    if (ownerHealthTimer) clearInterval(ownerHealthTimer);
+    ownerHealthTimer = null;
+
+    return;
+  }
+
+  if (ownerHealthTimer) return;
+
+  ownerHealthTimer = setInterval(() => {
+    void pruneMissingDesktopOwners();
+  }, OWNER_HEALTH_POLL_MS);
+  ownerHealthTimer.unref?.();
+};
+
+const scheduleIdleShutdown = () => {
+  if (shutdownStarted || registeredThreads.size > 0 || idleShutdownTimer) return;
+
+  idleShutdownTimer = setTimeout(() => {
+    idleShutdownTimer = null;
+
+    if (registeredThreads.size === 0) void shutdownBridge();
+  }, LAST_OWNER_SHUTDOWN_DELAY_MS);
+  idleShutdownTimer.unref?.();
+};
+
+const unregisterThread = (thread) => {
+  const record = registeredThreads.get(thread);
+
+  if (!record) return false;
+
+  registeredThreads.delete(thread);
+
+  const dispatchTimer = desktopDispatchTimers.get(thread);
+
+  if (dispatchTimer) {
+    clearTimeout(dispatchTimer);
+    desktopDispatchTimers.delete(thread);
+  }
+
+  if (activeThread === thread) {
+    const next = [...registeredThreads.values()]
+      .sort((left, right) => right.seenAt - left.seenAt)[0] ?? null;
+    activeThread = next?.id ?? null;
+    activeCwd = next?.cwd ?? null;
+  }
+
+  refreshOwnerHealthMonitor();
+  scheduleIdleShutdown();
+
+  return true;
+};
+
+async function pruneMissingDesktopOwners() {
+  for (const record of [...registeredThreads.values()]) {
+    if (!record.appToolsPipe) continue;
+
+    if (!(await ownerAnchorExists(record.appToolsPipe))) {
+      unregisterThread(record.id);
+    }
+  }
+}
+
 const registerThread = (thread, cwd, registration = {}) => {
+  cancelIdleShutdown();
+
   const previous = registeredThreads.get(thread);
   const nextCwd = normalizeCwd(cwd) ?? previous?.cwd ?? null;
   const appToolsPipe = normalizeThread(registration.appToolsPipe) ?? previous?.appToolsPipe ?? null;
@@ -216,6 +332,8 @@ const registerThread = (thread, cwd, registration = {}) => {
   activeThread = thread;
 
   if (nextCwd) activeCwd = nextCwd;
+
+  refreshOwnerHealthMonitor();
 };
 
 if (initialThread) {
@@ -398,7 +516,7 @@ const codexControlSocketPath = () => {
 };
 
 const runCodexDaemonStart = () => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "daemon", "start"], {
+  const child = spawnOwned(codexBin, ["app-server", "daemon", "start"], {
     env: process.env,
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
@@ -455,7 +573,7 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
     return;
   }
 
-  const child = spawn(codexBin, ["stdio-to-uds", codexControlSocketPath()], {
+  const child = spawnOwned(codexBin, ["stdio-to-uds", codexControlSocketPath()], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
@@ -601,7 +719,7 @@ const resumeColdCodexThread = async (thread) => {
 };
 
 const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["queue", "--thread", thread, "--message", message], {
+  const child = spawnOwned(codexBin, ["queue", "--thread", thread, "--message", message], {
     env: process.env,
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
@@ -644,7 +762,7 @@ const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
 });
 
 const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
@@ -757,7 +875,7 @@ const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
 });
 
 const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
@@ -922,7 +1040,7 @@ const queuedSubmissionMessage = (submission) => {
 };
 
 const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
@@ -1081,7 +1199,7 @@ const openDesktopThread = (thread) => new Promise((resolveOpen, rejectOpen) => {
     return;
   }
 
-  const child = spawn(command, args, {
+  const child = spawnOwned(command, args, {
     env: process.env,
     shell: false,
     stdio: ["ignore", "ignore", "pipe"],
