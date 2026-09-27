@@ -508,7 +508,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       let routeNeedsSelection = false;
       let lastBridgeThread: string | null = null;
-      let registeredThreadIds: string[] = [];
+      let loadedThreadIds: string[] = [];
       let recentThreads: MesurerCodexThread[] = [];
       let recentHasMore = false;
       let visibleThreadCount = DEFAULT_VISIBLE_THREADS;
@@ -566,9 +566,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         if (bridgeHeartbeatTimer) return;
         bridgeHeartbeatTimer = globalThis.setInterval(() => {
-          void clientRequest("clients/heartbeat").catch(() => {
-            bridgeLeaseActive = false;
-          });
+          void clientRequest("clients/heartbeat").catch(() => undefined);
         }, BRIDGE_HEARTBEAT_MS);
       };
 
@@ -752,7 +750,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         for (const thread of recentThreads) push(thread);
 
-        for (const id of registeredThreadIds) push(recentThreads.find((thread) => thread.id === id) ?? fallback(id));
+        for (const id of loadedThreadIds) push(recentThreads.find((thread) => thread.id === id) ?? fallback(id));
 
         return ordered;
       };
@@ -778,7 +776,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           const prefix = thread.id === originThread
             ? "Current · "
             : thread.connected
-              ? "Connected · "
+              ? "Loaded · "
               : "";
 
           const deliverySuffix = activeDelivery?.thread === thread.id
@@ -869,7 +867,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         recentThreads = list.threads;
         recentHasMore = list.hasMore;
-        registeredThreadIds = list.threads
+        loadedThreadIds = list.threads
           .filter((thread) => thread.connected)
           .map((thread) => thread.id);
         lastBridgeThread = list.thread;
@@ -892,10 +890,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
             const restoredTarget = selectedThread ?? originThread;
 
-            if (restoredTarget && registeredThreadIds.includes(restoredTarget)) {
+            if (restoredTarget && loadedThreadIds.includes(restoredTarget)) {
               routeNeedsSelection = false;
-            } else if (registeredThreadIds.length === 1) {
-              bindPageThread(registeredThreadIds[0]!, true);
+            } else if (loadedThreadIds.length === 1) {
+              bindPageThread(loadedThreadIds[0]!, true);
             } else {
               routeNeedsSelection = true;
             }
@@ -1039,7 +1037,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
           bindPageThread(target, !originThread);
           lastBridgeThread = health.thread;
-          registeredThreadIds = health.threads;
+          loadedThreadIds = health.threads;
           bridgeAvailability = "available";
           everConnected = true;
           syncTool();
