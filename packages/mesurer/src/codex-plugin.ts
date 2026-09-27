@@ -1182,7 +1182,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       if (withUi) {
         syncTool();
-        void refreshRuntime(true).catch(() => undefined);
+
+        if (window.__MESURER_HOST__?.startCodexBridge) {
+          void refreshRuntime(true).catch(() => undefined);
+        }
 
         if (activeDelivery?.id) {
           everConnected = true;
