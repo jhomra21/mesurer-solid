@@ -294,6 +294,7 @@ for (const contractName of [
   "MesurerCodexService",
   "MesurerCodexQueueRequest",
   "MesurerCodexQueueResult",
+  "MesurerCodexRuntime",
   "MesurerCodexSendRequest",
   "MesurerCodexSendResult",
   "MesurerContextService",
@@ -369,6 +370,10 @@ for (const contract of [
   "createConnection",
   "packagedCodexBins",
   "desktopBundledCodex",
+  "installedDesktopCodexBins",
+  "bootstrapRuntime",
+  "inspectRuntime",
+  "\"desktop-private-transport\"",
   "\"packages\", \"app-server-daemon\"",
   "\"packages\", \"standalone\"",
 ]) {
