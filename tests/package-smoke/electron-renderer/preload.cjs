@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("__MESURER_HOST__", {
   captureScreenshot: () => ipcRenderer.invoke("mesurer:capture-window"),
-  startCodexBridge: () => ipcRenderer.invoke("mesurer:start-codex-bridge"),
+  codexBridge: (request) => ipcRenderer.invoke("mesurer:codex-bridge", request),
 });
 
 contextBridge.exposeInMainWorld("electronMesurer", {
