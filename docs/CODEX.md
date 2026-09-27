@@ -137,7 +137,7 @@ Codex turn completion is transport state, not proof that the requested visual re
 
 Mesurer no longer owns a long-running Codex bridge process.
 
-Each Codex Bridge request uses Codex's `stdio-to-uds` relay to reach the existing shared app-server. The relay is scoped to that request and exits afterward. If the shared daemon socket does not exist, Codex Bridge asks Codex to start its own app-server daemon and retries.
+Each Codex Bridge request uses the Codex shared app-server socket to reach the existing shared app-server. The relay is scoped to that request and exits afterward. If the shared daemon socket does not exist, Codex Bridge asks Codex to start its own app-server daemon and retries.
 
 Mesurer does not stop Codex's shared app-server daemon when a page closes or when the plugin is disabled.
 
@@ -178,7 +178,7 @@ There is no manual `mesurer-codex` command or standalone browser bridge.
 
 ## Requirements
 
-Use a current Codex build with the shared local app-server, `stdio-to-uds`, and queued-thread API available.
+Use a current Codex build with the shared local app-server, direct socket transport, and queued-thread API available.
 
 The current integration relies on:
 
