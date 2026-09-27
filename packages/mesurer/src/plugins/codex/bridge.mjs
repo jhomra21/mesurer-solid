@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -59,8 +60,11 @@ const deliveryStatePath = (options) =>
 const missingDaemonSocket = (cause) => {
   if (!(cause instanceof Error)) return false;
 
-  return cause.message.includes("No such file or directory")
+  return cause.code === "ENOENT"
+    || cause.code === "ECONNREFUSED"
+    || cause.message.includes("No such file or directory")
     || cause.message.includes("ENOENT")
+    || cause.message.includes("ECONNREFUSED")
     || cause.message.includes("os error 2");
 };
 
@@ -132,23 +136,15 @@ const daemonRequestOnce = (
   options,
   experimentalApi = true,
 ) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin(options), ["stdio-to-uds", controlSocketPath(options)], {
-    env: codexEnv(options),
-    shell: false,
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  });
-
+  const socket = createConnection(controlSocketPath(options));
   const requestId = `mesurer-codex-${randomUUID()}`;
-  let stdoutBuffer = "";
-  let stderr = "";
+  let buffer = "";
   let settled = false;
 
   const timeout = setTimeout(() => {
-    if (child.exitCode === null) child.kill("SIGTERM");
-
     if (settled) return;
     settled = true;
+    socket.destroy();
     reject(new Error(`Codex app-server ${method} timed out after ${APP_SERVER_TIMEOUT_MS}ms.`));
   }, APP_SERVER_TIMEOUT_MS);
 
@@ -156,15 +152,14 @@ const daemonRequestOnce = (
     if (settled) return;
     settled = true;
     clearTimeout(timeout);
-
-    if (child.exitCode === null) child.kill("SIGTERM");
+    socket.destroy();
 
     if (error) reject(error);
     else resolve(result);
   };
 
   const send = (message) => {
-    child.stdin.write(`${JSON.stringify(message)}\n`);
+    socket.write(`${JSON.stringify(message)}\n`);
   };
 
   const handleMessage = (message) => {
@@ -192,53 +187,47 @@ const daemonRequestOnce = (
     finish(null, message.result ?? {});
   };
 
-  child.stdout.on("data", (chunk) => {
-    stdoutBuffer += chunk.toString();
+  socket.setEncoding("utf8");
+  socket.on("connect", () => {
+    send({
+      id: `${requestId}-initialize`,
+      method: "initialize",
+      params: {
+        clientInfo: {
+          name: "mesurer-solid",
+          title: "Mesurer Solid",
+          version: "1",
+        },
+        capabilities: {
+          experimentalApi,
+        },
+      },
+    });
+  });
+
+  socket.on("data", (chunk) => {
+    buffer += chunk;
 
     while (true) {
-      const newline = stdoutBuffer.indexOf("\n");
+      const newline = buffer.indexOf("\n");
 
       if (newline < 0) break;
-      const line = stdoutBuffer.slice(0, newline).trim();
-      stdoutBuffer = stdoutBuffer.slice(newline + 1);
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
 
       if (!line) continue;
 
       try {
         handleMessage(JSON.parse(line));
       } catch {
-        // stdio-to-uds carries app-server JSONL. Ignore unrelated stdout defensively.
+        // Codex app-server uses JSONL. Ignore unrelated malformed frames defensively.
       }
     }
   });
 
-  child.stderr.on("data", (chunk) => {
-    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
-  });
-
-  child.on("error", (error) => finish(error));
-  child.on("close", (code, signal) => {
-    if (settled) return;
-
-    const detail = stderr.trim()
-      || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
-
-    finish(new Error(`Codex app-server relay exited during ${method}: ${detail}`));
-  });
-
-  send({
-    id: `${requestId}-initialize`,
-    method: "initialize",
-    params: {
-      clientInfo: {
-        name: "mesurer-solid",
-        title: "Mesurer Solid",
-        version: "1",
-      },
-      capabilities: {
-        experimentalApi,
-      },
-    },
+  socket.on("error", (error) => finish(error));
+  socket.on("close", () => {
+    if (!settled) finish(new Error(`Codex app-server socket closed during ${method}.`));
   });
 });
 
