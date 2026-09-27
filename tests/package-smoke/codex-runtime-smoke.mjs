@@ -119,7 +119,7 @@ const server = createServer((socket) => {
   socket.setEncoding("utf8");
   let buffer = "";
 
-  const send = (value) => socket.write(\`${JSON.stringify(value)}\\n\`);
+  const send = (value) => socket.write(JSON.stringify(value) + "\\n");
 
   socket.on("data", (chunk) => {
     buffer += chunk;
@@ -148,7 +148,7 @@ const server = createServer((socket) => {
       } else {
         send({
           id: message.id,
-          error: { code: -32601, message: \`unsupported method ${message.method}\` },
+          error: { code: -32601, message: "unsupported method " + message.method },
         });
       }
 
