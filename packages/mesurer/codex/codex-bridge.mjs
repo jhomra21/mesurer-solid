@@ -437,9 +437,13 @@ const missingDaemonSocket = (cause) => {
     || cause.message.includes("os error 2");
 };
 
-const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject) => {
+const runCodexDaemonRequestOnce = (
+  method,
+  params = {},
+  { timeoutMs = APP_SERVER_TIMEOUT_MS, experimentalApi = false } = {},
+) => new Promise((resolve, reject) => {
   if (process.platform === "win32") {
-    resolve({ action: "unsupported", threadStatus: null });
+    reject(new Error("Mesurer Codex daemon discovery is not available on this platform."));
 
     return;
   }
@@ -451,6 +455,7 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
     windowsHide: true,
   });
 
+  const requestId = `mesurer-daemon-${randomUUID()}`;
   let stdoutBuffer = "";
   let stderr = "";
   let settled = false;
@@ -473,7 +478,7 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
   };
 
   const handleMessage = (message) => {
-    if (message?.id === "mesurer-daemon-init") {
+    if (message?.id === `${requestId}-init`) {
       if (message.error) {
         finish(new Error(message.error.message || "Codex daemon initialize failed."));
 
@@ -481,51 +486,20 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
       }
 
       send({ method: "initialized" });
-      send({
-        id: "mesurer-thread-read",
-        method: "thread/read",
-        params: {
-          threadId: thread,
-          includeTurns: false,
-        },
-      });
+      send({ id: requestId, method, params });
 
       return;
     }
 
-    if (message?.id === "mesurer-thread-read") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex daemon thread/read failed."));
+    if (message?.id !== requestId) return;
 
-        return;
-      }
-
-      const threadStatus = message.result?.thread?.status?.type ?? null;
-
-      if (threadStatus !== "notLoaded") {
-        finish(null, { action: "already-loaded", threadStatus });
-
-        return;
-      }
-
-      send({
-        id: "mesurer-thread-resume",
-        method: "thread/resume",
-        params: { threadId: thread },
-      });
+    if (message.error) {
+      finish(new Error(message.error.message || `Codex daemon ${method} failed.`));
 
       return;
     }
 
-    if (message?.id === "mesurer-thread-resume") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex daemon thread/resume failed."));
-
-        return;
-      }
-
-      finish(null, { action: "resumed", threadStatus: "notLoaded" });
-    }
+    finish(null, message.result ?? {});
   };
 
   child.stdout.on("data", (chunk) => {
@@ -554,16 +528,16 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
   child.on("close", (code, signal) => {
     if (settled) return;
     const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
-    finish(new Error(`Codex daemon relay exited before thread resume check completed: ${detail}`));
+    finish(new Error(`Codex daemon relay exited before ${method} completed: ${detail}`));
   });
 
   timeout = setTimeout(() => {
     child.kill("SIGTERM");
-    finish(new Error(`Codex daemon resume check timed out after ${DAEMON_RESUME_TIMEOUT_MS}ms.`));
-  }, DAEMON_RESUME_TIMEOUT_MS);
+    finish(new Error(`Codex daemon ${method} timed out after ${timeoutMs}ms.`));
+  }, timeoutMs);
 
   send({
-    id: "mesurer-daemon-init",
+    id: `${requestId}-init`,
     method: "initialize",
     params: {
       clientInfo: {
@@ -572,21 +546,40 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
         version: "1",
       },
       capabilities: {
-        experimentalApi: false,
+        experimentalApi,
       },
     },
   });
 });
 
-const resumeColdCodexThread = async (thread) => {
+const runCodexDaemonRequest = async (method, params = {}, options = {}) => {
   try {
-    return await resumeColdCodexThreadViaDaemon(thread);
+    return await runCodexDaemonRequestOnce(method, params, options);
   } catch (cause) {
     if (!missingDaemonSocket(cause)) throw cause;
     await runCodexDaemonStart();
 
-    return resumeColdCodexThreadViaDaemon(thread);
+    return runCodexDaemonRequestOnce(method, params, options);
   }
+};
+
+const resumeColdCodexThread = async (thread) => {
+  const read = await runCodexDaemonRequest("thread/read", {
+    threadId: thread,
+    includeTurns: false,
+  }, { timeoutMs: DAEMON_RESUME_TIMEOUT_MS });
+
+  const threadStatus = read?.thread?.status?.type ?? null;
+
+  if (threadStatus !== "notLoaded") {
+    return { action: "already-loaded", threadStatus };
+  }
+
+  await runCodexDaemonRequest("thread/resume", {
+    threadId: thread,
+  }, { timeoutMs: DAEMON_RESUME_TIMEOUT_MS });
+
+  return { action: "resumed", threadStatus };
 };
 
 const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
@@ -632,118 +625,20 @@ const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
   }, CODEX_TIMEOUT_MS);
 });
 
-const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
-  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
-    env: process.env,
-    shell: false,
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  });
-
-  let stdoutBuffer = "";
-  let stderr = "";
-  let settled = false;
-  let timeout;
-
-  const finish = (error, result) => {
-    if (settled) return;
-    settled = true;
-
-    if (timeout) clearTimeout(timeout);
-
-    if (child.exitCode === null) child.kill("SIGTERM");
-
-    if (error) reject(error);
-    else resolve(result);
+const runCodexThreadList = (cwd, limit) => {
+  const params = {
+    limit,
+    sortKey: "recency_at",
+    sortDirection: "desc",
   };
 
-  const send = (message) => {
-    child.stdin.write(`${JSON.stringify(message)}\n`);
-  };
+  if (cwd) params.cwd = cwd;
 
-  const handleMessage = (message) => {
-    if (message?.id === "mesurer-init") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex app-server initialize failed."));
+  return runCodexDaemonRequest("thread/list", params);
+};
 
-        return;
-      }
-
-      send({ method: "initialized" });
-      send({
-        id: "mesurer-thread-list",
-        method: "thread/list",
-        params: {
-          limit,
-          sortKey: "recency_at",
-          sortDirection: "desc",
-          cwd,
-        },
-      });
-
-      return;
-    }
-
-    if (message?.id === "mesurer-thread-list") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex app-server thread/list failed."));
-
-        return;
-      }
-
-      finish(null, message.result ?? {});
-    }
-  };
-
-  child.stdout.on("data", (chunk) => {
-    stdoutBuffer += chunk.toString();
-
-    while (true) {
-      const newline = stdoutBuffer.indexOf("\n");
-
-      if (newline < 0) break;
-      const line = stdoutBuffer.slice(0, newline).trim();
-      stdoutBuffer = stdoutBuffer.slice(newline + 1);
-
-      if (!line) continue;
-
-      try {
-        handleMessage(JSON.parse(line));
-      } catch {
-        // App-server protocol is JSONL; ignore unrelated stdout defensively.
-      }
-    }
-  });
-  child.stderr.on("data", (chunk) => {
-    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
-  });
-  child.on("error", (error) => finish(error));
-  child.on("close", (code, signal) => {
-    if (settled) return;
-    const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
-    finish(new Error(`Codex app-server exited before thread/list completed: ${detail}`));
-  });
-
-  timeout = setTimeout(() => {
-    child.kill("SIGTERM");
-    finish(new Error(`Codex app-server thread/list timed out after ${APP_SERVER_TIMEOUT_MS}ms.`));
-  }, APP_SERVER_TIMEOUT_MS);
-
-  send({
-    id: "mesurer-init",
-    method: "initialize",
-    params: {
-      clientInfo: {
-        name: "mesurer-solid",
-        title: "Mesurer Solid",
-        version: "1",
-      },
-      capabilities: {
-        experimentalApi: false,
-      },
-    },
-  });
-});
+const runCodexLoadedThreadList = (limit) =>
+  runCodexDaemonRequest("thread/loaded/list", { limit });
 
 const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((resolve, reject) => {
   const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
