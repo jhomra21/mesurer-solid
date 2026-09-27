@@ -82,7 +82,10 @@ export async function ensureMesurerCodexBridge(options = {}) {
 
   const child = spawn(process.execPath, args, {
     cwd: options.cwd,
-    env: process.env,
+    env: {
+      ...process.env,
+      ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
+    },
     detached: true,
     stdio: "ignore",
     windowsHide: true,
