@@ -200,7 +200,7 @@ type BridgeResponse = {
 
 type BridgeSendRequest = {
   message: string;
-  thread: string;
+  thread?: string;
 };
 
 type BridgeRestoreRequest = {
@@ -962,14 +962,11 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
             throw new Error("Choose a Codex thread before queueing feedback.");
           }
 
-          if (!thread) {
-            throw new Error("Choose a Codex thread before queueing feedback.");
-          }
-
           const payload: BridgeSendRequest = {
             message: feedback.message,
-            thread,
           };
+
+          if (thread) payload.thread = thread;
 
           try {
             const response = await bridgeRequest({
