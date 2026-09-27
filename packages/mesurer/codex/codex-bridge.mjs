@@ -3,7 +3,7 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -34,8 +34,6 @@ const CODEX_TIMEOUT_MS = 30_000;
 
 const APP_SERVER_TIMEOUT_MS = 5_000;
 
-const DAEMON_RESUME_TIMEOUT_MS = 10_000;
-
 const DAEMON_START_TIMEOUT_MS = 15_000;
 
 const DELIVERY_STATE_VERSION = 1;
@@ -48,48 +46,36 @@ const TERMINAL_DELIVERY_TTL_MS = 10 * 60_000;
 
 const DELIVERY_TTL_MS = 2 * 60 * 60_000;
 
-const DESKTOP_LIFECYCLE_POLL_MS = 1_000;
-
-const DESKTOP_TURN_HISTORY_LIMIT = 10;
+const TURN_HISTORY_LIMIT = 10;
 
 const DELIVERY_TURN_START_SKEW_MS = 60_000;
 
-const LAST_OWNER_SHUTDOWN_DELAY_MS = 250;
+const CLIENT_LEASE_TTL_MS = 15_000;
 
-const configuredOwnerHealthPollMs = Number(process.env.MESURER_CODEX_OWNER_POLL_MS);
+const CLIENT_LEASE_POLL_MS = 5_000;
 
-const OWNER_HEALTH_POLL_MS = Number.isFinite(configuredOwnerHealthPollMs) && configuredOwnerHealthPollMs > 0
-  ? Math.max(50, configuredOwnerHealthPollMs)
-  : 5_000;
+const STARTUP_CLIENT_GRACE_MS = 15_000;
+
+const LAST_CLIENT_SHUTDOWN_DELAY_MS = 1_000;
 
 const OWNED_CHILD_SHUTDOWN_GRACE_MS = 250;
 
 const usage = `Usage:
-  mesurer-codex [--thread <session-id-or-name>] [options]
-  mesurer-codex --register-current [--bridge <url>]
-  mesurer-codex --register <session-id-or-name> [--bridge <url>]
+  mesurer-codex [options]
 
-Server options:
-  --thread <value>    Initial Codex session UUID or exact session name.
-                      Defaults to CODEX_THREAD_ID when launched by Codex.
-  --cwd <path>        Project directory used to scope recent-thread discovery.
-                      Defaults to the current working directory.
+Options:
+  --thread <value>    Preferred Codex session UUID or exact session name.
+                      The bridge normally discovers loaded threads from Codex directly.
+  --cwd <path>        Optional project directory used to scope recent-thread discovery.
   --port <number>     Loopback port (default: ${DEFAULT_PORT}; use 0 for any free port)
   --origin <origin>   Additional allowed browser Origin. Repeatable.
   --codex <path>      Codex executable (default: CODEX_BIN or codex)
   --once              Exit after one successful queued message
-
-Thread registration:
-  --register-current  Register CODEX_THREAD_ID with a running bridge and make it active.
-  --register <value>  Register a specific existing/newly-created Codex thread and make it active.
-  --bridge <url>      Running bridge URL for registration (default: ${DEFAULT_BRIDGE})
-
-Other:
   --help              Show this help
 
 Loopback browser origins such as http://localhost:* and http://127.0.0.1:* are allowed by default.
 For file:// or Electron pages, pass --origin null explicitly.
-Browser pages may send to locally registered threads and same-project recent threads returned by Codex app-server discovery.
+The bridge discovers live Codex threads through Codex's shared local app-server daemon.
 `;
 
 const { values } = parseArgs({
@@ -100,9 +86,6 @@ const { values } = parseArgs({
     origin: { type: "string", multiple: true },
     codex: { type: "string" },
     once: { type: "boolean", default: false },
-    register: { type: "string" },
-    "register-current": { type: "boolean", default: false },
-    bridge: { type: "string", default: DEFAULT_BRIDGE },
     help: { type: "boolean", default: false },
   },
   allowPositionals: false,
@@ -118,62 +101,6 @@ const normalizeThread = (value) => value?.trim() || null;
 
 const normalizeCwd = (value) => value?.trim() || null;
 
-const envThread = normalizeThread(process.env.CODEX_THREAD_ID);
-
-const requestedRegistration = normalizeThread(values.register);
-
-const registerCurrent = values["register-current"];
-
-if (requestedRegistration && registerCurrent) {
-  process.stderr.write("Use either --register or --register-current, not both.\n");
-  process.exit(2);
-}
-
-const registrationThread = registerCurrent ? envThread : requestedRegistration;
-
-if (registerCurrent && !registrationThread) {
-  process.stderr.write("--register-current requires CODEX_THREAD_ID. Run it from a Codex shell/tool command or use --register <thread>.\n");
-  process.exit(2);
-}
-
-if (registrationThread) {
-  const bridge = values.bridge?.trim() || DEFAULT_BRIDGE;
-  const cwd = normalizeCwd(values.cwd) ?? process.cwd();
-  let response;
-
-  try {
-    response = await fetch(new URL("threads/register", bridge.endsWith("/") ? bridge : `${bridge}/`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ thread: registrationThread, cwd }),
-    });
-  } catch (cause) {
-    const error = cause instanceof Error ? cause.message : String(cause);
-    process.stderr.write(`Could not reach Mesurer Codex bridge at ${bridge}: ${error}\n`);
-    process.exit(1);
-  }
-
-  const text = await response.text();
-  let payload = {};
-
-  if (text) {
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = { error: text };
-    }
-  }
-
-  if (!response.ok || payload.ok === false) {
-    process.stderr.write(`${payload.error || `Mesurer Codex bridge returned HTTP ${response.status}.`}\n`);
-    process.exit(1);
-  }
-
-  console.log(`Registered Codex thread: ${registrationThread}`);
-  console.log(`BRIDGE_THREAD=${registrationThread}`);
-  process.exit(0);
-}
-
 const parsedPort = Number(values.port);
 
 if (!Number.isInteger(parsedPort) || parsedPort < 0 || parsedPort > 65_535) {
@@ -181,41 +108,31 @@ if (!Number.isInteger(parsedPort) || parsedPort < 0 || parsedPort > 65_535) {
   process.exit(2);
 }
 
-const initialThread = normalizeThread(values.thread) ?? envThread;
-
-const initialCwd = initialThread ? (normalizeCwd(values.cwd) ?? process.cwd()) : null;
-
-const initialAppToolsPipe = normalizeThread(process.env.CODEX_APP_TOOLS_PIPE_PATH);
-
-const initialCodexHome = normalizeCwd(process.env.CODEX_HOME);
+const initialThread = normalizeThread(values.thread) ?? normalizeThread(process.env.CODEX_THREAD_ID);
 
 const codexBin = values.codex?.trim() || process.env.CODEX_BIN?.trim() || "codex";
 
 const additionalOrigins = new Set(values.origin ?? []);
 
-const registeredThreads = new Map();
-
 const discoveredThreads = new Map();
+
+const loadedThreadIds = new Set();
+
+const browserClients = new Map();
 
 const deliveries = new Map();
 
-const terminalTurnEvents = new Map();
-
-const desktopDispatchTimers = new Map();
-
-const desktopLifecycleChecks = new Map();
-
-const desktopLifecycleLastCheckedAt = new Map();
-
 const ownedChildren = new Set();
 
-let activeThread = null;
-
-let activeCwd = null;
+let activeThread = initialThread;
 
 let idleShutdownTimer = null;
 
-let ownerHealthTimer = null;
+let clientLeaseTimer = null;
+
+let startupShutdownTimer = null;
+
+let hasEverClient = false;
 
 let server = null;
 
@@ -238,111 +155,46 @@ const cancelIdleShutdown = () => {
   idleShutdownTimer = null;
 };
 
-const ownerAnchorExists = async (path) => {
-  try {
-    await stat(path);
-
-    return true;
-  } catch (cause) {
-    return cause?.code !== "ENOENT" && cause?.code !== "ENOTDIR";
-  }
-};
-
-const refreshOwnerHealthMonitor = () => {
-  const needsMonitor = process.platform !== "win32"
-    && [...registeredThreads.values()].some((record) => record.appToolsPipe);
-
-  if (!needsMonitor) {
-    if (ownerHealthTimer) clearInterval(ownerHealthTimer);
-    ownerHealthTimer = null;
-
-    return;
-  }
-
-  if (ownerHealthTimer) return;
-
-  ownerHealthTimer = setInterval(() => {
-    void pruneMissingDesktopOwners();
-  }, OWNER_HEALTH_POLL_MS);
-  ownerHealthTimer.unref?.();
-};
-
 const scheduleIdleShutdown = () => {
-  if (shutdownStarted || registeredThreads.size > 0 || idleShutdownTimer) return;
+  if (shutdownStarted || !hasEverClient || browserClients.size > 0 || idleShutdownTimer) return;
 
   idleShutdownTimer = setTimeout(() => {
     idleShutdownTimer = null;
 
-    if (registeredThreads.size === 0) void shutdownBridge();
-  }, LAST_OWNER_SHUTDOWN_DELAY_MS);
+    if (browserClients.size === 0) void shutdownBridge();
+  }, LAST_CLIENT_SHUTDOWN_DELAY_MS);
   idleShutdownTimer.unref?.();
 };
 
-const unregisterThread = (thread) => {
-  const record = registeredThreads.get(thread);
-
-  if (!record) return false;
-
-  registeredThreads.delete(thread);
-
-  const dispatchTimer = desktopDispatchTimers.get(thread);
-
-  if (dispatchTimer) {
-    clearTimeout(dispatchTimer);
-    desktopDispatchTimers.delete(thread);
-  }
-
-  if (activeThread === thread) {
-    const next = [...registeredThreads.values()]
-      .sort((left, right) => right.seenAt - left.seenAt)[0] ?? null;
-
-    activeThread = next?.id ?? null;
-    activeCwd = next?.cwd ?? null;
-  }
-
-  refreshOwnerHealthMonitor();
-  scheduleIdleShutdown();
-
-  return true;
-};
-
-async function pruneMissingDesktopOwners() {
-  for (const record of registeredThreads.values()) {
-    if (!record.appToolsPipe) continue;
-
-    if (!(await ownerAnchorExists(record.appToolsPipe))) {
-      unregisterThread(record.id);
-    }
-  }
-}
-
-const registerThread = (thread, cwd, registration = {}) => {
+const touchClient = (clientId) => {
+  hasEverClient = true;
   cancelIdleShutdown();
 
-  const previous = registeredThreads.get(thread);
-  const nextCwd = normalizeCwd(cwd) ?? previous?.cwd ?? null;
-  const appToolsPipe = normalizeThread(registration.appToolsPipe) ?? previous?.appToolsPipe ?? null;
-  const codexHome = normalizeCwd(registration.codexHome) ?? previous?.codexHome ?? null;
-  registeredThreads.set(thread, {
-    id: thread,
-    cwd: nextCwd,
-    appToolsPipe,
-    codexHome,
-    seenAt: Date.now(),
-  });
-  activeThread = thread;
+  if (startupShutdownTimer) {
+    clearTimeout(startupShutdownTimer);
+    startupShutdownTimer = null;
+  }
 
-  if (nextCwd) activeCwd = nextCwd;
-
-  refreshOwnerHealthMonitor();
+  browserClients.set(clientId, Date.now());
 };
 
-if (initialThread) {
-  registerThread(initialThread, initialCwd, {
-    appToolsPipe: initialAppToolsPipe,
-    codexHome: initialCodexHome,
-  });
-}
+const releaseClient = (clientId) => {
+  const removed = browserClients.delete(clientId);
+
+  if (browserClients.size === 0) scheduleIdleShutdown();
+
+  return removed;
+};
+
+const pruneExpiredClients = () => {
+  const cutoff = Date.now() - CLIENT_LEASE_TTL_MS;
+
+  for (const [clientId, seenAt] of browserClients) {
+    if (seenAt < cutoff) browserClients.delete(clientId);
+  }
+
+  if (browserClients.size === 0) scheduleIdleShutdown();
+};
 
 const isLoopbackOrigin = (origin) => {
   try {
@@ -421,13 +273,7 @@ const persistedDelivery = (delivery) => ({
 });
 
 const persistDeliveryState = () => {
-  const persistedDeliveries = [];
-
-  for (const delivery of deliveries.values()) {
-    if (delivery.transport === "desktop-app") {
-      persistedDeliveries.push(persistedDelivery(delivery));
-    }
-  }
+  const persistedDeliveries = [...deliveries.values()].map(persistedDelivery);
 
   const state = {
     version: DELIVERY_STATE_VERSION,
@@ -471,7 +317,7 @@ const loadDeliveryState = async () => {
     const id = normalizeThread(value?.id);
     const thread = normalizeThread(value?.thread);
     const message = value?.message == null ? "" : String(value.message);
-    const transport = value?.transport === "desktop-app" ? "desktop-app" : "codex-queue";
+    const transport = "codex-queue";
     const status = value?.status;
     const createdAt = Number(value?.createdAt);
     const updatedAt = Number(value?.updatedAt);
@@ -567,13 +413,11 @@ const missingDaemonSocket = (cause) => {
     || cause.message.includes("os error 2");
 };
 
-const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject) => {
-  if (process.platform === "win32") {
-    resolve({ action: "unsupported", threadStatus: null });
-
-    return;
-  }
-
+const runCodexDaemonRequestOnce = (
+  method,
+  params = {},
+  { timeoutMs = APP_SERVER_TIMEOUT_MS, experimentalApi = false } = {},
+) => new Promise((resolve, reject) => {
   const child = spawnOwned(codexBin, ["stdio-to-uds", codexControlSocketPath()], {
     env: process.env,
     shell: false,
@@ -581,6 +425,7 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
     windowsHide: true,
   });
 
+  const requestId = `mesurer-daemon-${randomUUID()}`;
   let stdoutBuffer = "";
   let stderr = "";
   let settled = false;
@@ -603,7 +448,7 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
   };
 
   const handleMessage = (message) => {
-    if (message?.id === "mesurer-daemon-init") {
+    if (message?.id === `${requestId}-init`) {
       if (message.error) {
         finish(new Error(message.error.message || "Codex daemon initialize failed."));
 
@@ -611,51 +456,20 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
       }
 
       send({ method: "initialized" });
-      send({
-        id: "mesurer-thread-read",
-        method: "thread/read",
-        params: {
-          threadId: thread,
-          includeTurns: false,
-        },
-      });
+      send({ id: requestId, method, params });
 
       return;
     }
 
-    if (message?.id === "mesurer-thread-read") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex daemon thread/read failed."));
+    if (message?.id !== requestId) return;
 
-        return;
-      }
-
-      const threadStatus = message.result?.thread?.status?.type ?? null;
-
-      if (threadStatus !== "notLoaded") {
-        finish(null, { action: "already-loaded", threadStatus });
-
-        return;
-      }
-
-      send({
-        id: "mesurer-thread-resume",
-        method: "thread/resume",
-        params: { threadId: thread },
-      });
+    if (message.error) {
+      finish(new Error(message.error.message || `Codex daemon ${method} failed.`));
 
       return;
     }
 
-    if (message?.id === "mesurer-thread-resume") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex daemon thread/resume failed."));
-
-        return;
-      }
-
-      finish(null, { action: "resumed", threadStatus: "notLoaded" });
-    }
+    finish(null, message.result ?? {});
   };
 
   child.stdout.on("data", (chunk) => {
@@ -684,16 +498,16 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
   child.on("close", (code, signal) => {
     if (settled) return;
     const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
-    finish(new Error(`Codex daemon relay exited before thread resume check completed: ${detail}`));
+    finish(new Error(`Codex daemon relay exited before ${method} completed: ${detail}`));
   });
 
   timeout = setTimeout(() => {
     child.kill("SIGTERM");
-    finish(new Error(`Codex daemon resume check timed out after ${DAEMON_RESUME_TIMEOUT_MS}ms.`));
-  }, DAEMON_RESUME_TIMEOUT_MS);
+    finish(new Error(`Codex daemon ${method} timed out after ${timeoutMs}ms.`));
+  }, timeoutMs);
 
   send({
-    id: "mesurer-daemon-init",
+    id: `${requestId}-init`,
     method: "initialize",
     params: {
       clientInfo: {
@@ -702,20 +516,20 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
         version: "1",
       },
       capabilities: {
-        experimentalApi: false,
+        experimentalApi,
       },
     },
   });
 });
 
-const resumeColdCodexThread = async (thread) => {
+const runCodexDaemonRequest = async (method, params = {}, options = {}) => {
   try {
-    return await resumeColdCodexThreadViaDaemon(thread);
+    return await runCodexDaemonRequestOnce(method, params, options);
   } catch (cause) {
     if (!missingDaemonSocket(cause)) throw cause;
     await runCodexDaemonStart();
 
-    return resumeColdCodexThreadViaDaemon(thread);
+    return runCodexDaemonRequestOnce(method, params, options);
   }
 };
 
@@ -762,275 +576,65 @@ const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
   }, CODEX_TIMEOUT_MS);
 });
 
-const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
-  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
-    env: process.env,
-    shell: false,
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  });
-
-  let stdoutBuffer = "";
-  let stderr = "";
-  let settled = false;
-  let timeout;
-
-  const finish = (error, result) => {
-    if (settled) return;
-    settled = true;
-
-    if (timeout) clearTimeout(timeout);
-
-    if (child.exitCode === null) child.kill("SIGTERM");
-
-    if (error) reject(error);
-    else resolve(result);
+const runCodexThreadList = (cwd, limit) => {
+  const params = {
+    limit,
+    sortKey: "recency_at",
+    sortDirection: "desc",
   };
 
-  const send = (message) => {
-    child.stdin.write(`${JSON.stringify(message)}\n`);
-  };
+  if (cwd) params.cwd = cwd;
 
-  const handleMessage = (message) => {
-    if (message?.id === "mesurer-init") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex app-server initialize failed."));
+  return runCodexDaemonRequest("thread/list", params);
+};
 
-        return;
-      }
+const runCodexLoadedThreadList = (limit) =>
+  runCodexDaemonRequest("thread/loaded/list", { limit });
 
-      send({ method: "initialized" });
-      send({
-        id: "mesurer-thread-list",
-        method: "thread/list",
-        params: {
-          limit,
-          sortKey: "recency_at",
-          sortDirection: "desc",
-          cwd,
-        },
-      });
-
-      return;
-    }
-
-    if (message?.id === "mesurer-thread-list") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex app-server thread/list failed."));
-
-        return;
-      }
-
-      finish(null, message.result ?? {});
-    }
-  };
-
-  child.stdout.on("data", (chunk) => {
-    stdoutBuffer += chunk.toString();
-
-    while (true) {
-      const newline = stdoutBuffer.indexOf("\n");
-
-      if (newline < 0) break;
-      const line = stdoutBuffer.slice(0, newline).trim();
-      stdoutBuffer = stdoutBuffer.slice(newline + 1);
-
-      if (!line) continue;
-
-      try {
-        handleMessage(JSON.parse(line));
-      } catch {
-        // App-server protocol is JSONL; ignore unrelated stdout defensively.
-      }
-    }
-  });
-  child.stderr.on("data", (chunk) => {
-    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
-  });
-  child.on("error", (error) => finish(error));
-  child.on("close", (code, signal) => {
-    if (settled) return;
-    const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
-    finish(new Error(`Codex app-server exited before thread/list completed: ${detail}`));
-  });
-
-  timeout = setTimeout(() => {
-    child.kill("SIGTERM");
-    finish(new Error(`Codex app-server thread/list timed out after ${APP_SERVER_TIMEOUT_MS}ms.`));
-  }, APP_SERVER_TIMEOUT_MS);
-
-  send({
-    id: "mesurer-init",
-    method: "initialize",
-    params: {
-      clientInfo: {
-        name: "mesurer-solid",
-        title: "Mesurer Solid",
-        version: "1",
-      },
-      capabilities: {
-        experimentalApi: false,
-      },
-    },
-  });
-});
-
-const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((resolve, reject) => {
-  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
-    env: process.env,
-    shell: false,
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  });
-
-  let stdoutBuffer = "";
-  let stderr = "";
-  let settled = false;
-  let timeout;
+const runCodexQueueLookup = async (thread, queuedSubmissionId = null) => {
   let cursor = null;
-  let page = 0;
 
-  const finish = (error, result) => {
-    if (settled) return;
-    settled = true;
-
-    if (timeout) clearTimeout(timeout);
-
-    if (child.exitCode === null) child.kill("SIGTERM");
-
-    if (error) reject(error);
-    else resolve(result);
-  };
-
-  const send = (message) => {
-    child.stdin.write(`${JSON.stringify(message)}\n`);
-  };
-
-  const requestPage = () => {
-    page += 1;
-
+  while (true) {
     const params = {
       threadId: thread,
       limit: queuedSubmissionId ? 100 : 2,
     };
 
     if (cursor) params.cursor = cursor;
-    send({
-      id: `mesurer-queue-list-${page}`,
-      method: "thread/queue/list",
+
+    const result = await runCodexDaemonRequest(
+      "thread/queue/list",
       params,
-    });
-  };
+      { experimentalApi: true },
+    );
 
-  const handleMessage = (message) => {
-    if (message?.id === "mesurer-queue-init") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex app-server initialize failed."));
-
-        return;
-      }
-
-      send({ method: "initialized" });
-      requestPage();
-
-      return;
-    }
-
-    const messageId = message?.id == null ? "" : String(message.id);
-
-    if (!messageId.startsWith("mesurer-queue-list-")) return;
-
-    if (message.error) {
-      finish(new Error(message.error.message || "Codex app-server thread/queue/list failed."));
-
-      return;
-    }
-
-    const data = Array.isArray(message.result?.data) ? message.result.data : [];
-    const nextCursor = normalizeThread(message.result?.nextCursor);
+    const data = Array.isArray(result?.data) ? result.data : [];
+    const nextCursor = normalizeThread(result?.nextCursor);
 
     if (queuedSubmissionId) {
       const submission = data.find((candidate) => candidate?.id === queuedSubmissionId);
 
-      if (submission) {
-        finish(null, { submission, ambiguous: false });
-
-        return;
-      }
+      if (submission) return { submission, ambiguous: false };
 
       if (nextCursor) {
         cursor = nextCursor;
-        requestPage();
 
-        return;
+        continue;
       }
 
-      finish(null, { submission: null, ambiguous: false });
-
-      return;
+      return { submission: null, ambiguous: false };
     }
 
     if (data.length === 1 && !nextCursor) {
-      finish(null, { submission: data[0], ambiguous: false });
-
-      return;
+      return { submission: data[0], ambiguous: false };
     }
 
-    finish(null, {
+    return {
       submission: null,
       ambiguous: data.length > 1 || Boolean(nextCursor),
-    });
-  };
-
-  child.stdout.on("data", (chunk) => {
-    stdoutBuffer += chunk.toString();
-
-    while (true) {
-      const newline = stdoutBuffer.indexOf("\n");
-
-      if (newline < 0) break;
-      const line = stdoutBuffer.slice(0, newline).trim();
-      stdoutBuffer = stdoutBuffer.slice(newline + 1);
-
-      if (!line) continue;
-
-      try {
-        handleMessage(JSON.parse(line));
-      } catch {
-        // App-server protocol is JSONL; ignore unrelated stdout defensively.
-      }
-    }
-  });
-  child.stderr.on("data", (chunk) => {
-    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
-  });
-  child.on("error", (error) => finish(error));
-  child.on("close", (code, signal) => {
-    if (settled) return;
-    const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
-    finish(new Error(`Codex app-server exited before thread/queue/list completed: ${detail}`));
-  });
-
-  timeout = setTimeout(() => {
-    child.kill("SIGTERM");
-    finish(new Error(`Codex app-server thread/queue/list timed out after ${APP_SERVER_TIMEOUT_MS}ms.`));
-  }, APP_SERVER_TIMEOUT_MS);
-
-  send({
-    id: "mesurer-queue-init",
-    method: "initialize",
-    params: {
-      clientInfo: {
-        name: "mesurer-solid",
-        title: "Mesurer Solid",
-        version: "1",
-      },
-      capabilities: {
-        experimentalApi: true,
-      },
-    },
-  });
-});
+    };
+  }
+};
 
 const queuedSubmissionMessage = (submission) => {
   if (!Array.isArray(submission?.input) || submission.input.length !== 1) return null;
@@ -1040,264 +644,31 @@ const queuedSubmissionMessage = (submission) => {
   return input?.type === "text" && text.trim() ? text : null;
 };
 
-const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
-  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
-    env: process.env,
-    shell: false,
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  });
-
-  let stdoutBuffer = "";
-  let stderr = "";
-  let settled = false;
-  let timeout;
-
-  const finish = (error, turns) => {
-    if (settled) return;
-    settled = true;
-
-    if (timeout) clearTimeout(timeout);
-
-    if (child.exitCode === null) child.kill("SIGTERM");
-
-    if (error) reject(error);
-    else resolve(turns);
-  };
-
-  const send = (message) => {
-    child.stdin.write(`${JSON.stringify(message)}\n`);
-  };
-
-  const handleMessage = (message) => {
-    if (message?.id === "mesurer-history-init") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex app-server initialize failed."));
-
-        return;
-      }
-
-      send({ method: "initialized" });
-      send({
-        id: "mesurer-history-turns",
-        method: "thread/turns/list",
-        params: {
-          threadId: thread,
-          limit: DESKTOP_TURN_HISTORY_LIMIT,
-          sortDirection: "desc",
-          itemsView: "summary",
-        },
-      });
-
-      return;
-    }
-
-    if (message?.id === "mesurer-history-turns") {
-      if (message.error) {
-        send({
-          id: "mesurer-history-read",
-          method: "thread/read",
-          params: {
-            threadId: thread,
-            includeTurns: true,
-          },
-        });
-
-        return;
-      }
-
-      finish(null, Array.isArray(message.result?.data) ? message.result.data : []);
-
-      return;
-    }
-
-    if (message?.id === "mesurer-history-read") {
-      if (message.error) {
-        finish(new Error(message.error.message || "Codex app-server thread history read failed."));
-
-        return;
-      }
-
-      finish(null, Array.isArray(message.result?.thread?.turns) ? message.result.thread.turns : []);
-    }
-  };
-
-  child.stdout.on("data", (chunk) => {
-    stdoutBuffer += chunk.toString();
-
-    while (true) {
-      const newline = stdoutBuffer.indexOf("\n");
-
-      if (newline < 0) break;
-      const line = stdoutBuffer.slice(0, newline).trim();
-      stdoutBuffer = stdoutBuffer.slice(newline + 1);
-
-      if (!line) continue;
-
-      try {
-        handleMessage(JSON.parse(line));
-      } catch {
-        // App-server protocol is JSONL; ignore unrelated stdout defensively.
-      }
-    }
-  });
-  child.stderr.on("data", (chunk) => {
-    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
-  });
-  child.on("error", (error) => finish(error));
-  child.on("close", (code, signal) => {
-    if (settled) return;
-    const detail = stderr.trim() || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
-    finish(new Error(`Codex app-server exited before lifecycle history completed: ${detail}`));
-  });
-
-  timeout = setTimeout(() => {
-    child.kill("SIGTERM");
-    finish(new Error(`Codex app-server lifecycle history timed out after ${APP_SERVER_TIMEOUT_MS}ms.`));
-  }, APP_SERVER_TIMEOUT_MS);
-
-  send({
-    id: "mesurer-history-init",
-    method: "initialize",
-    params: {
-      clientInfo: {
-        name: "mesurer-solid",
-        title: "Mesurer Solid",
-        version: "1",
-      },
-      capabilities: {
-        experimentalApi: true,
-      },
-    },
-  });
-});
-
-const openDesktopThread = (thread) => new Promise((resolveOpen, rejectOpen) => {
-  const url = `codex://threads/${thread}`;
-  const override = process.env.MESURER_CODEX_DESKTOP_OPEN_BIN?.trim();
-  let command;
-  let args;
-
-  if (override) {
-    command = override;
-    args = [url];
-  } else if (process.platform === "darwin") {
-    command = "/usr/bin/open";
-    args = [url];
-  } else if (process.platform === "win32") {
-    command = "powershell.exe";
-    const quotedUrl = url.replaceAll("'", "''");
-    args = [
-      "-NoProfile",
-      "-Command",
-      `Start-Process -FilePath '${quotedUrl}'`,
-    ];
-  } else {
-    rejectOpen(new Error(
-      `Codex Desktop thread wake is unsupported on platform ${process.platform}.`,
-    ));
-
-    return;
-  }
-
-  const child = spawnOwned(command, args, {
-    env: process.env,
-    shell: false,
-    stdio: ["ignore", "ignore", "pipe"],
-    windowsHide: true,
-  });
-
-  let stderr = "";
-  let settled = false;
-
-  const timeout = setTimeout(() => {
-    child.kill("SIGTERM");
-
-    if (settled) return;
-    settled = true;
-    rejectOpen(new Error("Codex Desktop thread open timed out."));
-  }, APP_SERVER_TIMEOUT_MS);
-
-  child.stderr.on("data", (chunk) => {
-    stderr = `${stderr}${chunk.toString()}`.slice(-8_192);
-  });
-  child.on("error", (error) => {
-    if (settled) return;
-    settled = true;
-    clearTimeout(timeout);
-    rejectOpen(error);
-  });
-  child.on("close", (code, signal) => {
-    if (settled) return;
-    settled = true;
-    clearTimeout(timeout);
-
-    if (code === 0) {
-      resolveOpen({ url });
-
-      return;
-    }
-
-    const detail = stderr.trim()
-      || `exit code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}`;
-
-    rejectOpen(new Error(`Codex Desktop thread open failed: ${detail}`));
-  });
-});
-
-let maybeDispatchDesktopThread = async (_thread) => {};
-
-const scheduleDesktopDispatch = (thread, delay = 0) => {
-  if (desktopDispatchTimers.has(thread)) return;
-
-  const timer = setTimeout(() => {
-    desktopDispatchTimers.delete(thread);
-    void maybeDispatchDesktopThread(thread);
-  }, delay);
-
-  desktopDispatchTimers.set(thread, timer);
-};
-
-maybeDispatchDesktopThread = async (thread) => {
-  const record = registeredThreads.get(thread);
-
-  if (!record?.appToolsPipe) return;
-
-  const delivery = [...deliveries.values()]
-    .filter((candidate) =>
-      candidate.thread === thread
-      && candidate.transport === "desktop-app"
-      && candidate.status === "queued"
-      && candidate.dispatch !== "desktop-opened")
-    .sort((left, right) => left.createdAt - right.createdAt)[0];
-
-  if (!delivery) return;
-
+const runCodexTurnHistory = async (thread) => {
   try {
-    if (!delivery.queuedSubmissionId) {
-      const output = await runCodexQueue(thread, delivery.message);
-      delivery.queuedSubmissionId = queuedSubmissionFromOutput(output, thread);
+    const result = await runCodexDaemonRequest(
+      "thread/turns/list",
+      {
+        threadId: thread,
+        limit: TURN_HISTORY_LIMIT,
+        sortDirection: "desc",
+        itemsView: "summary",
+      },
+      { experimentalApi: true },
+    );
 
-      if (!delivery.queuedSubmissionId) {
-        throw new Error("Codex queue succeeded but did not return a queued submission id.");
-      }
+    return Array.isArray(result?.data) ? result.data : [];
+  } catch {
+    const result = await runCodexDaemonRequest(
+      "thread/read",
+      {
+        threadId: thread,
+        includeTurns: true,
+      },
+      { experimentalApi: true },
+    );
 
-      delivery.dispatch = "persisted";
-      delivery.dispatchError = null;
-      delivery.updatedAt = Date.now();
-      await persistDeliveryState();
-    }
-
-    await openDesktopThread(thread);
-    delivery.dispatch = "desktop-opened";
-    delivery.dispatchError = null;
-    delivery.updatedAt = Date.now();
-    persistDeliveryStateSoon();
-  } catch (cause) {
-    delivery.dispatch = "desktop-wait-failed";
-    delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
-    delivery.updatedAt = Date.now();
-    persistDeliveryStateSoon();
+    return Array.isArray(result?.thread?.turns) ? result.thread.turns : [];
   }
 };
 
@@ -1314,7 +685,7 @@ const normalizeTimestamp = (value) => Number.isFinite(value) ? Number(value) : n
 
 const shortThread = (thread) => thread.length > 16 ? `${thread.slice(0, 8)}…${thread.slice(-4)}` : thread;
 
-const appServerSummary = (thread, cwd) => {
+const appServerSummary = (thread) => {
   const id = normalizeThread(thread?.id);
 
   if (!id) return null;
@@ -1327,51 +698,87 @@ const appServerSummary = (thread, cwd) => {
     id,
     title,
     updatedAt: normalizeTimestamp(thread?.recencyAt ?? thread?.updatedAt),
-    connected: registeredThreads.has(id),
-    cwd,
+    connected: loadedThreadIds.has(id),
+    cwd: normalizeCwd(thread?.cwd),
   };
 };
 
-const registeredSummary = (record) => ({
-  id: record.id,
-  title: `Codex ${shortThread(record.id)}`,
-  updatedAt: Math.floor(record.seenAt / 1_000),
-  connected: true,
-  cwd: record.cwd,
-});
+const refreshDiscoveredThreads = async () => {
+  const loaded = await runCodexLoadedThreadList(MAX_DISCOVERED_THREADS);
 
-const listThreadSummaries = async (scopeThread, limit) => {
-  const scopeRecord = scopeThread
-    ? registeredThreads.get(scopeThread) ?? discoveredThreads.get(scopeThread)
-    : activeThread
-      ? registeredThreads.get(activeThread) ?? discoveredThreads.get(activeThread)
-      : null;
+  const ids = Array.isArray(loaded?.data)
+    ? loaded.data.map(normalizeThread).filter(Boolean)
+    : [];
 
-  const scopeCwd = scopeRecord?.cwd ?? activeCwd;
-  const preferredThread = scopeThread ?? activeThread;
+  loadedThreadIds.clear();
+
+  for (const id of ids) loadedThreadIds.add(id);
+
   const summaries = [];
-  let appHasMore = false;
+  const byId = new Map();
 
-  if (scopeCwd) {
-    try {
-      const listed = await runCodexThreadList(scopeCwd, MAX_DISCOVERED_THREADS);
-      const data = Array.isArray(listed?.data) ? listed.data : [];
-      appHasMore = Boolean(listed?.nextCursor);
+  try {
+    const listed = await runCodexThreadList(null, Math.max(MAX_DISCOVERED_THREADS * 4, 40));
 
-      for (const item of data) {
-        const summary = appServerSummary(item, scopeCwd);
+    for (const item of Array.isArray(listed?.data) ? listed.data : []) {
+      const summary = appServerSummary(item);
 
-        if (!summary) continue;
-        discoveredThreads.set(summary.id, summary);
-        summaries.push(summary);
-      }
-    } catch {
-      // Discovery is optional. Registered SessionStart destinations still work without app-server listing.
+      if (!summary || !loadedThreadIds.has(summary.id)) continue;
+      byId.set(summary.id, summary);
     }
+  } catch {
+    // Loaded-thread discovery remains authoritative even if metadata listing is unavailable.
   }
 
-  const byId = new Map(summaries.map((summary) => [summary.id, summary]));
+  for (const id of loadedThreadIds) {
+    let summary = byId.get(id);
+
+    if (!summary) {
+      try {
+        const read = await runCodexDaemonRequest("thread/read", {
+          threadId: id,
+          includeTurns: false,
+        });
+
+        summary = appServerSummary(read?.thread);
+      } catch {
+        summary = {
+          id,
+          title: `Codex ${shortThread(id)}`,
+          updatedAt: null,
+          connected: true,
+          cwd: null,
+        };
+      }
+    }
+
+    if (!summary) continue;
+    discoveredThreads.set(id, summary);
+    summaries.push(summary);
+  }
+
+  for (const id of discoveredThreads.keys()) {
+    if (!loadedThreadIds.has(id)) discoveredThreads.delete(id);
+  }
+
+  summaries.sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0));
+
+  if (!activeThread || !loadedThreadIds.has(activeThread)) {
+    activeThread = summaries[0]?.id ?? null;
+  }
+
+  return summaries;
+};
+
+const listThreadSummaries = async (scopeThread, limit) => {
+  const summaries = await refreshDiscoveredThreads();
+
+  const preferredThread = scopeThread && loadedThreadIds.has(scopeThread)
+    ? scopeThread
+    : activeThread;
+
   const ordered = [];
+
   const seen = new Set();
 
   const push = (summary) => {
@@ -1381,38 +788,27 @@ const listThreadSummaries = async (scopeThread, limit) => {
       id: summary.id,
       title: summary.title,
       updatedAt: summary.updatedAt,
-      connected: registeredThreads.has(summary.id),
+      connected: true,
     });
   };
 
-  if (preferredThread) {
-    push(byId.get(preferredThread)
-      ?? (registeredThreads.get(preferredThread) ? registeredSummary(registeredThreads.get(preferredThread)) : null)
-      ?? discoveredThreads.get(preferredThread));
-  }
+  if (preferredThread) push(discoveredThreads.get(preferredThread));
 
   for (const summary of summaries) push(summary);
-
-  for (const record of registeredThreads.values()) {
-    if (scopeCwd && record.cwd && record.cwd !== scopeCwd) continue;
-    push(byId.get(record.id) ?? registeredSummary(record));
-  }
 
   return {
     thread: preferredThread,
     threadDetails: ordered.slice(0, limit),
-    hasMore: appHasMore || ordered.length > limit,
+    hasMore: ordered.length > limit,
   };
 };
 
 const threadPayload = () => ({
   thread: activeThread,
-  threads: [...registeredThreads.keys()],
+  threads: [...loadedThreadIds],
 });
 
 const hashMessage = (message) => createHash("sha256").update(message).digest("hex");
-
-const turnKey = (thread, turnId) => `${thread}:${turnId}`;
 
 const publicDelivery = (delivery) => ({
   deliveryId: delivery.id,
@@ -1435,13 +831,7 @@ const pruneDeliveries = () => {
 
     if (now - delivery.updatedAt > (terminal ? TERMINAL_DELIVERY_TTL_MS : DELIVERY_TTL_MS)) {
       deliveries.delete(id);
-      desktopLifecycleChecks.delete(id);
-      desktopLifecycleLastCheckedAt.delete(id);
     }
-  }
-
-  for (const [key, event] of terminalTurnEvents) {
-    if (now - event.at > TERMINAL_DELIVERY_TTL_MS) terminalTurnEvents.delete(key);
   }
 
   if (deliveries.size <= MAX_DELIVERIES) return;
@@ -1452,8 +842,9 @@ const pruneDeliveries = () => {
   }
 };
 
-const createDelivery = (thread, message, transport = "codex-queue") => {
+const createDelivery = (thread, message) => {
   pruneDeliveries();
+
   const now = Date.now();
 
   const delivery = {
@@ -1461,7 +852,7 @@ const createDelivery = (thread, message, transport = "codex-queue") => {
     thread,
     message,
     messageHash: hashMessage(message),
-    transport,
+    transport: "codex-queue",
     status: "queued",
     turnId: null,
     queuedSubmissionId: null,
@@ -1472,26 +863,9 @@ const createDelivery = (thread, message, transport = "codex-queue") => {
   };
 
   deliveries.set(delivery.id, delivery);
-
-  if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
+  persistDeliveryStateSoon();
 
   return delivery;
-};
-
-const xmlEscape = (value) => value
-  .replaceAll("&", "&amp;")
-  .replaceAll("<", "&lt;")
-  .replaceAll(">", "&gt;")
-  .replaceAll('"', "&quot;")
-  .replaceAll("'", "&apos;");
-
-const promptMatchesDelivery = (delivery, prompt) => {
-  if (delivery.messageHash === hashMessage(prompt)) return true;
-
-  if (delivery.transport !== "desktop-app" || !delivery.message) return false;
-
-  return prompt.includes(delivery.message)
-    || prompt.includes(`<input>${xmlEscape(delivery.message)}</input>`);
 };
 
 const turnUserMessages = (turn) => {
@@ -1525,16 +899,16 @@ const deliveryTurn = (delivery, turns) => {
       return false;
     }
 
-    return turnUserMessages(turn).some((prompt) => promptMatchesDelivery(delivery, prompt));
+    return turnUserMessages(turn).some((prompt) =>
+      hashMessage(prompt) === delivery.messageHash
+      || prompt.includes(delivery.message));
   });
 
   return matches.length === 1 ? matches[0] : null;
 };
 
-const reconcileDesktopDelivery = async (delivery) => {
-  if (delivery.transport !== "desktop-app" || delivery.dispatch !== "desktop-opened") {
-    return;
-  }
+const reconcileDelivery = async (delivery) => {
+  if (delivery.status === "completed" || delivery.status === "interrupted") return;
 
   const turns = await runCodexTurnHistory(delivery.thread);
 
@@ -1542,7 +916,6 @@ const reconcileDesktopDelivery = async (delivery) => {
   const turn = deliveryTurn(delivery, turns);
 
   if (!turn) return;
-
   const turnId = normalizeThread(turn.id);
   const ended = turn.completedAt != null && Number.isFinite(Number(turn.completedAt));
   let nextStatus = null;
@@ -1560,6 +933,7 @@ const reconcileDesktopDelivery = async (delivery) => {
   if (!turnId || !nextStatus) return;
 
   const failed = turn.status === "failed";
+
   const failureMessage = normalizeThread(turn?.error?.message) ?? "Codex turn failed.";
 
   const changed = delivery.turnId !== turnId
@@ -1567,7 +941,6 @@ const reconcileDesktopDelivery = async (delivery) => {
     || (failed && delivery.dispatchError !== failureMessage);
 
   if (!changed) return;
-
   delivery.turnId = turnId;
   delivery.status = nextStatus;
 
@@ -1576,85 +949,7 @@ const reconcileDesktopDelivery = async (delivery) => {
   await persistDeliveryState();
 };
 
-const scheduleDesktopLifecycleCheck = (delivery) => {
-  if (delivery.transport !== "desktop-app"
-    || delivery.dispatch !== "desktop-opened"
-    || desktopLifecycleChecks.has(delivery.id)) {
-    return;
-  }
-
-  const now = Date.now();
-  const lastCheckedAt = desktopLifecycleLastCheckedAt.get(delivery.id) ?? 0;
-
-  if (now - lastCheckedAt < DESKTOP_LIFECYCLE_POLL_MS) return;
-  desktopLifecycleLastCheckedAt.set(delivery.id, now);
-
-  const check = reconcileDesktopDelivery(delivery)
-    .catch(() => undefined)
-    .finally(() => {
-      if (desktopLifecycleChecks.get(delivery.id) === check) {
-        desktopLifecycleChecks.delete(delivery.id);
-      }
-    });
-
-  desktopLifecycleChecks.set(delivery.id, check);
-};
-
-const markPromptStarted = (thread, turnId, prompt) => {
-  const delivery = [...deliveries.values()]
-    .filter((candidate) =>
-      candidate.thread === thread
-      && promptMatchesDelivery(candidate, prompt)
-      && candidate.status === "queued")
-    .sort((a, b) => a.createdAt - b.createdAt)[0];
-
-  if (!delivery) return null;
-  delivery.status = "working";
-  delivery.turnId = turnId;
-  delivery.updatedAt = Date.now();
-
-  if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
-  const terminal = terminalTurnEvents.get(turnKey(thread, turnId));
-
-  if (terminal) {
-    delivery.status = terminal.status;
-    delivery.updatedAt = Math.max(delivery.updatedAt, terminal.at);
-    terminalTurnEvents.delete(turnKey(thread, turnId));
-
-    if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
-  }
-
-  return delivery;
-};
-
-const markTurnTerminal = (thread, turnId, status) => {
-  const delivery = [...deliveries.values()].find((candidate) =>
-    candidate.thread === thread
-    && candidate.turnId === turnId
-    && candidate.status === "working");
-
-  if (delivery) {
-    delivery.status = status;
-    delivery.updatedAt = Date.now();
-
-    if (delivery.transport === "desktop-app") persistDeliveryStateSoon();
-
-    return delivery;
-  }
-
-  terminalTurnEvents.set(turnKey(thread, turnId), { status, at: Date.now() });
-
-  return null;
-};
-
-const desktopOwnsLifecycle = (thread) =>
-  Boolean(registeredThreads.get(thread)?.appToolsPipe)
-  || [...deliveries.values()].some((delivery) =>
-    delivery.thread === thread && delivery.transport === "desktop-app");
-
 await loadDeliveryState();
-
-for (const delivery of deliveries.values()) scheduleDesktopLifecycleCheck(delivery);
 
 let successfulSends = 0;
 
@@ -1671,6 +966,73 @@ server = createServer(async (request, response) => {
   if (request.method === "OPTIONS") {
     response.writeHead(204, corsHeaders(origin));
     response.end();
+
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/clients/acquire") {
+    try {
+      const body = await readJsonBody(request);
+      const clientId = normalizeThread(body?.clientId);
+
+      if (!clientId) {
+        writeJson(response, 400, { ok: false, error: "clientId must be a non-empty string." }, origin);
+
+        return;
+      }
+
+      touchClient(clientId);
+      writeJson(response, 200, {
+        ok: true,
+        clientId,
+        leaseTtlMs: CLIENT_LEASE_TTL_MS,
+      }, origin);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      writeJson(response, 400, { ok: false, error }, origin);
+    }
+
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/clients/heartbeat") {
+    try {
+      const body = await readJsonBody(request);
+      const clientId = normalizeThread(body?.clientId);
+
+      if (!clientId) {
+        writeJson(response, 400, { ok: false, error: "clientId must be a non-empty string." }, origin);
+
+        return;
+      }
+
+      touchClient(clientId);
+      writeJson(response, 200, { ok: true, clientId }, origin);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      writeJson(response, 400, { ok: false, error }, origin);
+    }
+
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/clients/release") {
+    try {
+      const body = await readJsonBody(request);
+      const clientId = normalizeThread(body?.clientId);
+
+      if (!clientId) {
+        writeJson(response, 400, { ok: false, error: "clientId must be a non-empty string." }, origin);
+
+        return;
+      }
+
+      const removed = releaseClient(clientId);
+      writeJson(response, 200, { ok: true, clientId, removed }, origin);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      writeJson(response, 400, { ok: false, error }, origin);
+    }
 
     return;
   }
@@ -1692,7 +1054,12 @@ server = createServer(async (request, response) => {
   }
 
   if (request.method === "GET" && request.url === "/health") {
-    writeJson(response, 200, { ok: true, bridge: BRIDGE_IDENTITY, ...threadPayload() }, origin);
+    writeJson(response, 200, {
+      ok: true,
+      bridge: BRIDGE_IDENTITY,
+      clients: browserClients.size,
+      ...threadPayload(),
+    }, origin);
 
     return;
   }
@@ -1710,7 +1077,7 @@ server = createServer(async (request, response) => {
       return;
     }
 
-    scheduleDesktopLifecycleCheck(delivery);
+    await reconcileDelivery(delivery).catch(() => undefined);
     writeJson(response, 200, { ok: true, ...publicDelivery(delivery) }, origin);
 
     return;
@@ -1729,10 +1096,12 @@ server = createServer(async (request, response) => {
         return;
       }
 
-      if (!registeredThreads.has(thread) && !discoveredThreads.has(thread)) {
+      await refreshDiscoveredThreads();
+
+      if (!loadedThreadIds.has(thread)) {
         writeJson(response, 409, {
           ok: false,
-          error: `Codex thread is not available to this bridge: ${thread}`,
+          error: `Codex thread is not loaded: ${thread}`,
         }, origin);
 
         return;
@@ -1741,7 +1110,7 @@ server = createServer(async (request, response) => {
       const existing = deliveries.get(deliveryId);
 
       if (existing) {
-        if (existing.transport === "desktop-app") scheduleDesktopDispatch(existing.thread);
+        await reconcileDelivery(existing).catch(() => undefined);
         writeJson(response, 200, { ok: true, restored: false, ...publicDelivery(existing) }, origin);
 
         return;
@@ -1773,16 +1142,15 @@ server = createServer(async (request, response) => {
       }
 
       pruneDeliveries();
+
       const now = Date.now();
-      const record = registeredThreads.get(thread);
-      const transport = record?.appToolsPipe ? "desktop-app" : "codex-queue";
 
       const delivery = {
         id: deliveryId,
         thread,
         message,
         messageHash: hashMessage(message),
-        transport,
+        transport: "codex-queue",
         status: "queued",
         turnId: null,
         queuedSubmissionId: lookup.submission.id,
@@ -1793,26 +1161,9 @@ server = createServer(async (request, response) => {
       };
 
       deliveries.set(delivery.id, delivery);
+      delivery.dispatch = "persisted";
+      delivery.updatedAt = Date.now();
       await persistDeliveryState();
-
-      if (transport === "desktop-app") {
-        delivery.dispatch = "persisted";
-        delivery.updatedAt = Date.now();
-        await persistDeliveryState();
-        scheduleDesktopDispatch(thread);
-      } else {
-        try {
-          const wake = await resumeColdCodexThread(thread);
-          delivery.dispatch = wake.action;
-          delivery.updatedAt = Date.now();
-        } catch (cause) {
-          delivery.dispatch = "wake-failed";
-          delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
-          delivery.updatedAt = Date.now();
-        }
-
-        persistDeliveryStateSoon();
-      }
 
       writeJson(response, 200, {
         ok: true,
@@ -1843,159 +1194,8 @@ server = createServer(async (request, response) => {
       : 5;
 
     const scopeThread = normalizeThread(url.searchParams.get("thread")) ?? activeThread;
-
-    if (scopeThread && !registeredThreads.has(scopeThread) && !discoveredThreads.has(scopeThread)) {
-      writeJson(response, 409, { ok: false, error: `Codex thread is not known to this bridge: ${scopeThread}` }, origin);
-
-      return;
-    }
-
     const payload = await listThreadSummaries(scopeThread, limit);
     writeJson(response, 200, { ok: true, ...payload }, origin);
-
-    return;
-  }
-
-  if (request.method === "POST" && request.url === "/threads/unregister") {
-    if (originHeaderPresent) {
-      writeJson(response, 403, {
-        ok: false,
-        error: "Thread unregistration is available only to a local process, not a browser Origin.",
-      }, origin);
-
-      return;
-    }
-
-    try {
-      const body = await readJsonBody(request);
-      const thread = normalizeThread(body?.thread);
-
-      if (!thread) {
-        writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
-
-        return;
-      }
-
-      const removed = unregisterThread(thread);
-      writeJson(response, 200, {
-        ok: true,
-        removed,
-        ...threadPayload(),
-      }, origin);
-    } catch (cause) {
-      const error = cause instanceof Error ? cause.message : String(cause);
-      writeJson(response, 400, { ok: false, error }, origin);
-    }
-
-    return;
-  }
-
-  if (request.method === "POST" && request.url === "/threads/register") {
-    if (originHeaderPresent) {
-      writeJson(response, 403, {
-        ok: false,
-        error: "Thread registration is available only to a local process, not a browser Origin.",
-      }, origin);
-
-      return;
-    }
-
-    try {
-      const body = await readJsonBody(request);
-      const thread = normalizeThread(body?.thread);
-      const cwd = normalizeCwd(body?.cwd);
-      const appToolsPipe = normalizeThread(body?.appToolsPipe);
-      const codexHome = normalizeCwd(body?.codexHome);
-
-      if (!thread) {
-        writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
-
-        return;
-      }
-
-      registerThread(thread, cwd, { appToolsPipe, codexHome });
-
-      if (appToolsPipe) scheduleDesktopDispatch(thread);
-      writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
-    } catch (cause) {
-      const error = cause instanceof Error ? cause.message : String(cause);
-      writeJson(response, 400, { ok: false, error }, origin);
-    }
-
-    return;
-  }
-
-  if (request.method === "POST" && request.url === "/lifecycle") {
-    if (originHeaderPresent) {
-      writeJson(response, 403, {
-        ok: false,
-        error: "Codex lifecycle updates are available only to a local process, not a browser Origin.",
-      }, origin);
-
-      return;
-    }
-
-    try {
-      const body = await readJsonBody(request);
-      const event = body?.event;
-      const thread = normalizeThread(body?.sessionId);
-      const turnId = normalizeThread(body?.turnId);
-
-      if (!thread || !turnId) {
-        writeJson(response, 400, { ok: false, error: "sessionId and turnId are required." }, origin);
-
-        return;
-      }
-
-      if (desktopOwnsLifecycle(thread)) {
-        writeJson(response, 200, {
-          ok: true,
-          matched: false,
-          ignored: "desktop-history-authoritative",
-        }, origin);
-
-        return;
-      }
-
-      let delivery = null;
-
-      if (event === "UserPromptSubmit") {
-        const prompt = body?.prompt?.trim?.() ?? "";
-
-        if (!prompt) {
-          writeJson(response, 400, { ok: false, error: "UserPromptSubmit requires prompt." }, origin);
-
-          return;
-        }
-
-        delivery = markPromptStarted(thread, turnId, prompt);
-      } else if (event === "Stop") {
-        delivery = markTurnTerminal(thread, turnId, "completed");
-        scheduleDesktopDispatch(thread);
-      } else if (event === "Interrupt") {
-        delivery = markTurnTerminal(thread, turnId, "interrupted");
-        scheduleDesktopDispatch(thread);
-      } else {
-        writeJson(response, 400, { ok: false, error: `Unsupported Codex lifecycle event: ${event ?? "<missing>"}` }, origin);
-
-        return;
-      }
-
-      pruneDeliveries();
-
-      if (delivery) {
-        writeJson(response, 200, {
-          ok: true,
-          matched: true,
-          ...publicDelivery(delivery),
-        }, origin);
-      } else {
-        writeJson(response, 200, { ok: true, matched: false }, origin);
-      }
-    } catch (cause) {
-      const error = cause instanceof Error ? cause.message : String(cause);
-      writeJson(response, 400, { ok: false, error }, origin);
-    }
 
     return;
   }
@@ -2011,24 +1211,22 @@ server = createServer(async (request, response) => {
         return;
       }
 
-      const record = registeredThreads.get(thread);
+      await refreshDiscoveredThreads();
 
-      if (!record) {
+      if (!loadedThreadIds.has(thread)) {
         writeJson(response, 409, {
           ok: false,
-          error: `Codex thread is not registered with this bridge: ${thread}`,
+          error: `Codex thread is not loaded: ${thread}`,
         }, origin);
 
         return;
       }
 
       activeThread = thread;
-
-      if (record.cwd) activeCwd = record.cwd;
       writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);
-      writeJson(response, 400, { ok: false, error }, origin);
+      writeJson(response, 502, { ok: false, error }, origin);
     }
 
     return;
@@ -2044,7 +1242,6 @@ server = createServer(async (request, response) => {
     const body = await readJsonBody(request);
     const message = body?.message?.trim?.() ?? "";
     const requestedThread = normalizeThread(body?.thread);
-    const thread = requestedThread ?? activeThread;
 
     if (!message) {
       writeJson(response, 400, { ok: false, error: "message must be a non-empty string." }, origin);
@@ -2052,65 +1249,28 @@ server = createServer(async (request, response) => {
       return;
     }
 
+    await refreshDiscoveredThreads();
+    const thread = requestedThread ?? activeThread;
+
     if (!thread) {
       writeJson(response, 409, {
         ok: false,
-        error: "No Codex thread is registered. Start the bridge from Codex, pass --thread, or run mesurer-codex --register-current.",
+        error: "No loaded Codex thread is available. Open a Codex thread and retry.",
       }, origin);
 
       return;
     }
 
-    if (!registeredThreads.has(thread) && !discoveredThreads.has(thread)) {
+    if (!loadedThreadIds.has(thread)) {
       writeJson(response, 409, {
         ok: false,
-        error: `Codex thread is not available to this bridge: ${thread}`,
+        error: `Codex thread is not loaded: ${thread}`,
       }, origin);
 
       return;
     }
 
-    const record = registeredThreads.get(thread);
-
-    if (record?.appToolsPipe) {
-      const delivery = createDelivery(thread, message, "desktop-app");
-      let output;
-
-      try {
-        output = await runCodexQueue(thread, message);
-      } catch (cause) {
-        deliveries.delete(delivery.id);
-        persistDeliveryStateSoon();
-        throw cause;
-      }
-
-      delivery.queuedSubmissionId = queuedSubmissionFromOutput(output, thread);
-
-      if (!delivery.queuedSubmissionId) {
-        deliveries.delete(delivery.id);
-        persistDeliveryStateSoon();
-        throw new Error("Codex queue succeeded but did not return a queued submission id.");
-      }
-
-      delivery.dispatch = "persisted";
-      delivery.updatedAt = Date.now();
-      await persistDeliveryState();
-      scheduleDesktopDispatch(thread);
-      successfulSends += 1;
-      writeJson(response, 200, {
-        ok: true,
-        thread,
-        output,
-        delivery: "queued",
-        ...publicDelivery(delivery),
-      }, origin);
-
-      if (values.once && successfulSends >= 1) setImmediate(() => void shutdownBridge());
-
-      return;
-    }
-
-    const delivery = createDelivery(thread, message, "codex-queue");
+    const delivery = createDelivery(thread, message);
     let output;
 
     try {
@@ -2122,26 +1282,16 @@ server = createServer(async (request, response) => {
     }
 
     delivery.queuedSubmissionId = queuedSubmissionFromOutput(output, thread);
-    delivery.dispatch = "persisted";
-    delivery.updatedAt = Date.now();
 
-    if (delivery.queuedSubmissionId) {
-      try {
-        const wake = await resumeColdCodexThread(thread);
-        delivery.dispatch = wake.action;
-        delivery.updatedAt = Date.now();
-      } catch (cause) {
-        delivery.dispatch = "wake-failed";
-        delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
-        delivery.updatedAt = Date.now();
-      }
-    } else {
-      delivery.dispatch = "untracked";
-      delivery.dispatchError = "Codex queue succeeded but did not return a queued submission id.";
-      delivery.updatedAt = Date.now();
+    if (!delivery.queuedSubmissionId) {
+      deliveries.delete(delivery.id);
+      persistDeliveryStateSoon();
+      throw new Error("Codex queue succeeded but did not return a queued submission id.");
     }
 
-    persistDeliveryStateSoon();
+    delivery.dispatch = "persisted";
+    delivery.updatedAt = Date.now();
+    await persistDeliveryState();
 
     successfulSends += 1;
     writeJson(response, 200, {
@@ -2165,20 +1315,24 @@ server.on("error", (error) => {
 });
 
 server.listen(parsedPort, "127.0.0.1", () => {
-  for (const [thread, record] of registeredThreads) {
-    if (record.appToolsPipe) scheduleDesktopDispatch(thread);
-  }
-
   const address = server.address();
   const port = address?.port ?? parsedPort;
   const url = `http://127.0.0.1:${port}`;
   console.log(`Mesurer Codex bridge listening on ${url}`);
-
-  if (activeThread) console.log(`Active Codex thread: ${activeThread}`);
-  else console.log("No Codex thread is registered yet.");
+  console.log("Codex threads are discovered from the shared local app-server daemon.");
   console.log(`BRIDGE_URL=${url}`);
 
-  if (activeThread) console.log(`BRIDGE_THREAD=${activeThread}`);
+  clientLeaseTimer = setInterval(pruneExpiredClients, CLIENT_LEASE_POLL_MS);
+  clientLeaseTimer.unref?.();
+
+  startupShutdownTimer = setTimeout(() => {
+    startupShutdownTimer = null;
+
+    if (!hasEverClient && browserClients.size === 0) void shutdownBridge();
+  }, STARTUP_CLIENT_GRACE_MS);
+  startupShutdownTimer.unref?.();
+
+  void refreshDiscoveredThreads().catch(() => undefined);
 });
 
 async function shutdownBridge() {
@@ -2187,13 +1341,15 @@ async function shutdownBridge() {
   shutdownStarted = true;
   cancelIdleShutdown();
 
-  if (ownerHealthTimer) {
-    clearInterval(ownerHealthTimer);
-    ownerHealthTimer = null;
+  if (clientLeaseTimer) {
+    clearInterval(clientLeaseTimer);
+    clientLeaseTimer = null;
   }
 
-  for (const timer of desktopDispatchTimers.values()) clearTimeout(timer);
-  desktopDispatchTimers.clear();
+  if (startupShutdownTimer) {
+    clearTimeout(startupShutdownTimer);
+    startupShutdownTimer = null;
+  }
 
   const children = [...ownedChildren];
 

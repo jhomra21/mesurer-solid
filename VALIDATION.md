@@ -62,7 +62,7 @@ Layout Guides currently applies this rule to its initial, list, editor, aligned-
 
 The root `bun run test` command reads built package artifacts. On a fresh checkout or in a disposable worktree, run `bun run build:packages` first. Focused package tests can run directly when their required artifacts already exist.
 
-Codex bridge and connector tests must behave the same inside and outside a live Codex session. The test setup clears ambient thread, app-tools-pipe, Desktop-opener, and Codex-home state unless a case supplies that state itself. Tests that write Codex state use a disposable `CODEX_HOME`.
+Codex process tests must not depend on the developer's live Codex session. They use a disposable `CODEX_HOME` and a fake shared-daemon transport to prove loaded-thread discovery, native queue submission, exact delivery reconciliation, client leases, last-client shutdown, and packaged-host stale-bridge replacement.
 
 ## Development server contract
 
@@ -97,7 +97,8 @@ Do not hand off a candidate SHA for manual acceptance merely because CI is green
 5. Keep console/page errors at zero for the exercised path.
 6. Keep the root dev-server smoke green when changed renderer source is loaded directly by the basic example.
 7. For Screenshot host changes, keep both the Chromium host-result contract and the packed Electron contract green.
-8. Keep performance invariants paired with the visible behavior they protect.
-9. Treat manual acceptance as a separate final check; automation reduces regressions but does not replace the user's real-browser validation.
+8. For Codex host changes, keep shared-daemon process coverage, package staging, and the packed Electron host-capability contract green.
+9. Keep performance invariants paired with the visible behavior they protect.
+10. Treat manual acceptance as a separate final check; automation reduces regressions but does not replace the user's real-browser validation.
 
 A shallow green check is never permission to say a user-reported behavior is fixed.

@@ -61,18 +61,17 @@ The public `mesurer-solid` package. It owns public mounting/injection, first-par
 
 Package scripts that ship with `mesurer-solid` stay here even when a repository-level test exercises them.
 
-## Codex and generated distributions
+## Codex companion
 
-`packages/mesurer/codex/` is the canonical Codex companion implementation. It owns bridge, connector, and lifecycle behavior.
+`packages/mesurer/codex/` is the canonical Codex companion implementation. It owns the loopback bridge and the native-host bootstrap exported as `mesurer-solid/codex-host`.
 
-The npm binaries in `packages/mesurer/scripts/codex-*.mjs` are thin stable-path launchers into that canonical implementation. `plugins/mesurer-codex/scripts/` is a generated standalone distribution because a Codex plugin installation cannot depend on paths outside its own plugin root.
-
-Run `bun run sync:codex-plugin` after changing the canonical companion. `bun run check:codex-plugin` verifies that the generated plugin distribution is current. Do not edit generated plugin scripts directly.
+The stable `mesurer-codex` npm bin under `packages/mesurer/scripts/` launches the canonical bridge for explicit browser-only or diagnostic use. There is no generated Codex marketplace distribution and no second hook-owned copy of the companion.
 
 The repository and packaged Mesurer agent skill must remain byte-identical:
 
 - `.agents/skills/mesurer-ui/SKILL.md`
 - `packages/mesurer/skills/mesurer-ui/SKILL.md`
+
 
 ## Tests
 

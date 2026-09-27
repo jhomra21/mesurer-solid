@@ -63,12 +63,44 @@ const createContextService = () => {
 
 const DELIVERY_POLL_MS_FOR_TEST = 750;
 
+type BridgeMockResponse = {
+  ok: boolean;
+  status: number;
+  text(): Promise<string>;
+};
+
+type BridgeMockHandler = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<BridgeMockResponse>;
+
+const withBridgeLease = (handler: BridgeMockHandler) => vi.fn(async (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => {
+  const url = String(input);
+
+  if (
+    url.endsWith("/clients/acquire")
+    || url.endsWith("/clients/heartbeat")
+    || url.endsWith("/clients/release")
+  ) {
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true }),
+    };
+  }
+
+  return handler(input, init);
+});
+
 describe("codex", () => {
   it("sends saved Context evidence through the explicit loopback transport", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService, contextText } = createContextService();
 
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
+    const fetchMock = withBridgeLease(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued", deliveryId: "delivery-1", status: "queued", queuedSubmissionId: "queue-1", dispatch: "resumed", dispatchError: null }),
@@ -113,7 +145,7 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
-    vi.stubGlobal("fetch", vi.fn(async () => ({
+    vi.stubGlobal("fetch", withBridgeLease(async () => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({
@@ -142,7 +174,7 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.stubGlobal("fetch", vi.fn(async () => {
+    vi.stubGlobal("fetch", withBridgeLease(async () => {
       throw new TypeError("fetch failed");
     }));
 
@@ -156,19 +188,19 @@ describe("codex", () => {
     await host.load(codex({ endpoint: "http://127.0.0.1:47365" }));
 
     await expect(host.command.execute("codex.queue")).rejects.toThrow(
-      "Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before queueing feedback.",
+      "Codex integration needs a native host that can start Mesurer's packaged local companion.",
     );
     expect(errorSpy).toHaveBeenCalledWith(
-      "[Mesurer] Failed to queue feedback for Codex: Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before queueing feedback.",
+      "[Mesurer] Failed to queue feedback for Codex: Codex integration needs a native host that can start Mesurer's packaged local companion.",
     );
     host.dispose();
   });
 
-  it("can inspect and switch among threads registered by Codex", async () => {
+  it("can inspect and switch among threads loaded by Codex", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = withBridgeLease(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -226,7 +258,7 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = withBridgeLease(async (input: RequestInfo | URL) => {
       expect(String(input)).toBe("http://127.0.0.1:47365/threads?limit=5&thread=thread-a");
 
       return {
@@ -271,7 +303,7 @@ describe("codex", () => {
     const { service: contextService } = createContextService();
     const sendBodies: Array<{ message: string; thread?: string }> = [];
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = withBridgeLease(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -374,7 +406,7 @@ describe("codex", () => {
     let sendCount = 0;
     let deliveryReads = 0;
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = withBridgeLease(async (input: RequestInfo | URL) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -486,7 +518,7 @@ describe("codex", () => {
     let sendCount = 0;
     let deliveryReads = 0;
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = withBridgeLease(async (input: RequestInfo | URL) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -599,7 +631,7 @@ describe("codex", () => {
     let phase: "first" | "second" = "first";
     const sendBodies: Array<{ message: string; thread?: string }> = [];
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = withBridgeLease(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -621,10 +653,12 @@ describe("codex", () => {
           text: async () => JSON.stringify({
             ok: true,
             thread: scoped,
-            threadDetails: [
-              { id: "thread-a", title: "Original task", updatedAt: 10, connected: true },
-              { id: "thread-b", title: "Other task", updatedAt: 9, connected: true },
-            ],
+            threadDetails: phase === "first"
+              ? [{ id: "thread-a", title: "Original task", updatedAt: 10, connected: true }]
+              : [
+                  { id: "thread-a", title: "Original task", updatedAt: 10, connected: true },
+                  { id: "thread-b", title: "Other task", updatedAt: 9, connected: true },
+                ],
             hasMore: false,
           }),
         };
@@ -686,12 +720,12 @@ describe("codex", () => {
     secondHost.dispose();
   });
 
-  it("requires an explicit destination instead of inheriting a stale bridge default when multiple threads are registered", async () => {
+  it("requires an explicit destination instead of inheriting a stale bridge default when multiple threads are loaded", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
     let sendCount = 0;
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = withBridgeLease(async (input: RequestInfo | URL) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -748,8 +782,8 @@ describe("codex", () => {
     const tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Choose Codex thread");
     expect(tool?.disabled?.()).toBe(true);
-    expect(tool?.menu?.items.map((item) => item.label)).toContain("Connected · Correct task");
-    expect(tool?.menu?.items.map((item) => item.label)).toContain("Connected · Unrelated idle task");
+    expect(tool?.menu?.items.map((item) => item.label)).toContain("Loaded · Correct task");
+    expect(tool?.menu?.items.map((item) => item.label)).toContain("Loaded · Unrelated idle task");
     expect(sendCount).toBe(0);
 
     await tool?.menu?.items.find((item) => item.id === "codex.thread.thread-correct")?.run();
@@ -759,13 +793,13 @@ describe("codex", () => {
     host.dispose();
   });
 
-  it("surfaces an uncertain Codex Desktop send as blocked while continuing lifecycle polling", async () => {
+  it("surfaces an uncertain legacy delivery as blocked while continuing lifecycle polling", async () => {
     vi.useFakeTimers();
     const host = createMesurerPluginHost();
     const { service: contextService, removeAnnotation } = createContextService();
     let deliveryReads = 0;
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = withBridgeLease(async (input: RequestInfo | URL) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -887,7 +921,7 @@ describe("codex", () => {
       queuedSubmissionId?: string;
     }> = [];
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = withBridgeLease(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -1049,7 +1083,7 @@ describe("codex", () => {
     const { service: firstContext } = createContextService();
     let deliveryReads = 0;
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = withBridgeLease(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -1147,7 +1181,7 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = withBridgeLease(async () => {
       throw new TypeError("fetch failed");
     });
 
@@ -1169,7 +1203,7 @@ describe("codex", () => {
     expect(initial?.menu?.items.map((item) => item.label)).toEqual(["Choose Codex thread…"]);
 
     await expect(host.command.execute("codex.send")).rejects.toThrow(
-      "Mesurer Codex bridge is unavailable at http://127.0.0.1:47365. Start the local bridge before queueing feedback.",
+      "Codex integration needs a native host that can start Mesurer's packaged local companion.",
     );
 
     const unavailable = host.tools().find((candidate) => candidate.id === "codex.send");
@@ -1180,11 +1214,11 @@ describe("codex", () => {
     host.dispose();
   });
 
-  it("can send one message to another registered thread without changing the default", async () => {
+  it("can send one message to another loaded thread without changing the default", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
+    const fetchMock = withBridgeLease(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ ok: true, thread: "thread-b", output: "queued", deliveryId: "delivery-b", status: "queued" }),
@@ -1220,7 +1254,7 @@ describe("codex", () => {
     const { service: contextService, contextText } = createContextService();
     contextService.annotations = async () => [];
 
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
+    const fetchMock = withBridgeLease(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ ok: true, thread: "thread-2", deliveryId: "delivery-2", status: "queued" }),

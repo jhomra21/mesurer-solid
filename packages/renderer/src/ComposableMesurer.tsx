@@ -54,8 +54,11 @@ export type MesurerSolidRuntimeService = {
 export type MesurerPluginRegistration = {
   id: string;
   label?: string;
+  description?: string;
   order?: number;
   enabled?: boolean;
+  /** Ignore pre-opt-in availability once, then persist an explicit user choice normally. */
+  optIn?: boolean;
   create(): MesurerPlugin | Promise<MesurerPlugin>;
   /** Settings section ids owned by this plugin when known before first load. */
   settingsIds?: string[];
@@ -96,7 +99,7 @@ const BUILTIN_TOOL_IDS = [
 
 const DEFAULT_PLUGIN_STORAGE_KEY = "mesurer-plugin-settings";
 
-const PLUGIN_REGISTRY_STORAGE_VERSION = 1;
+const PLUGIN_REGISTRY_STORAGE_VERSION = 2;
 
 type StoredPluginRegistryState = {
   version: number;
@@ -275,6 +278,7 @@ export default function ComposableMesurer(props: MesurerProps) {
         return {
           id: entry.id,
           label: entry.label ?? pluginLabelFromId(entry.id),
+          description: entry.description,
           enabled: host.has(entry.id),
           busy: busyPluginIds.has(entry.id),
           sections: ownedSections,
@@ -472,8 +476,13 @@ export default function ComposableMesurer(props: MesurerProps) {
         // SAFETY: This versioned, namespaced payload is written only by writePluginRegistryState below; incompatible JSON is ignored by the version gate or caught by this boundary.
         const parsed = JSON.parse(stored) as StoredPluginRegistryState;
 
-        if (parsed?.version === PLUGIN_REGISTRY_STORAGE_VERSION) {
-          for (const [id, enabled] of Object.entries(parsed.enabled ?? {})) storedEnabled.set(id, enabled);
+        if (parsed?.version === 1 || parsed?.version === PLUGIN_REGISTRY_STORAGE_VERSION) {
+          const legacyAvailability = parsed.version === 1;
+
+          for (const [id, enabled] of Object.entries(parsed.enabled ?? {})) {
+            if (legacyAvailability && pluginRegistry.get(id)?.optIn) continue;
+            storedEnabled.set(id, enabled);
+          }
 
           for (const [id, snapshot] of Object.entries(parsed.state ?? {})) retainedPluginState.set(id, snapshot);
         }

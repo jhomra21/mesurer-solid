@@ -32,6 +32,12 @@ function fail(error) {
   app.exit(1);
 }
 
+ipcMain.handle("mesurer:start-codex-bridge", async () => {
+  const { ensureMesurerCodexBridge } = await import("mesurer-solid/codex-host");
+
+  return ensureMesurerCodexBridge();
+});
+
 ipcMain.handle("mesurer:capture-window", async (event) => {
   captureCount += 1;
   const window = BrowserWindow.fromWebContents(event.sender);

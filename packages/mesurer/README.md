@@ -80,8 +80,8 @@ Advanced integrations may supply their own `pluginHost`. That host remains calle
 | `mesurer-solid/inject` | Programmatic browser injection |
 | `mesurer-solid/inject-script` | Built classic injection artifact |
 | `mesurer-skill` | Install the portable coding-agent skill |
-| `mesurer-codex` | Run the optional loopback Codex queue companion |
-| `mesurer-codex-connect` | Start or reuse the matching Codex companion and register the current Codex session |
+| `mesurer-solid/codex-host` | Native-host helper that starts or reuses the packaged Codex companion |
+| `mesurer-codex` | Run the optional loopback Codex companion manually for browser-only development |
 
 Programmatic injection reuses an existing connected instance by default. Lifecycle-owning integrations can set `recoverDisconnected: true` in `MesurerInjectConfig` to remount Mesurer when page DOM replacement disconnects its host. The option defaults to `false`, so ordinary one-shot injection does not silently reappear after disposal.
 
@@ -170,28 +170,16 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 
 ### Optional Queue to Codex
 
-Mount `codex()` next to Context when a person should be able to queue the current review to Codex:
+Codex is off by default. A user can enable it once from **Settings -> Plugins**. The row explains that Mesurer starts a local companion and connects to open Codex threads on the current computer; the choice then persists normally.
 
-```ts
-import { mountMesurer } from "mesurer-solid"
-import { codex, context } from "mesurer-solid/plugins"
+The companion and native-host bootstrap helper ship in this package. Native applications expose `window.__MESURER_HOST__.startCodexBridge` once from preload/main, using `ensureMesurerCodexBridge()` from `mesurer-solid/codex-host`. No Codex marketplace plugin, SessionStart hook, or repeated trust step is required.
 
-mountMesurer({
-  plugins: [context(), codex()],
-})
-```
+The bridge discovers currently loaded Codex threads from Codex's shared local app-server. **Queue to Codex** writes one item to Codex's native durable queue and tracks the exact delivery through Queued, Working, Finished, or Interrupted. It does not create threads or invoke Steer.
 
-The trusted Codex `SessionStart` integration normally starts or reuses the local companion and registers the current thread. It can also be run directly:
+Saved annotations included in a delivery are removed only after the exact matched turn completes. Interrupted, failed, ambiguous, or unreadable deliveries keep them. Set `codex({ clearCompletedAnnotations: false })` to retain completed notes.
 
-```bash
-bunx mesurer-codex-connect
-```
+See [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md) for host wiring, loaded-thread discovery, cleanup, recovery, privacy, and the typed `codex:v1` service.
 
-**Queue to Codex** writes one item to Codex's native durable queue and tracks that delivery through Queued, Working, Finished, or Interrupted. It does not create threads or invoke Steer. A Mesurer page keeps its selected destination across a same-tab reload.
-
-Saved annotations included in a delivery are removed only after the exact matched turn completes. Interrupted, failed, or uncertain deliveries keep them. Set `codex({ clearCompletedAnnotations: false })` to retain completed notes.
-
-See [Queue Context feedback to Codex](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CODEX.md) for thread discovery, Desktop and CLI/TUI behavior, lifecycle recovery, permissions, and the typed `codex:v1` service.
 ## Documentation
 
 - [Capabilities](https://github.com/jhomra21/mesurer-solid/blob/main/docs/CAPABILITIES.md)

@@ -13,6 +13,8 @@ const DEFAULT_ENDPOINT = "http://127.0.0.1:47365";
 
 const HEALTH_POLL_MS = 2_000;
 
+const BRIDGE_HEARTBEAT_MS = 5_000;
+
 const DELIVERY_POLL_MS = 750;
 
 const COMPLETED_VISIBLE_MS = 1_800;
@@ -129,9 +131,9 @@ export type MesurerCodexQueueResult = {
 export type MesurerCodexSendResult = MesurerCodexQueueResult;
 
 export type MesurerCodexHealth = {
-  /** Current bridge default target. Null when the bridge has not been bound yet. */
+  /** Current bridge default target. Null when no loaded Codex thread is selected. */
   thread: string | null;
-  /** Threads explicitly registered by local Codex processes/users. */
+  /** Codex threads currently loaded in the shared local app-server. */
   threads: string[];
 };
 
@@ -139,14 +141,14 @@ export type MesurerCodexThread = {
   id: string;
   title: string;
   updatedAt: number | null;
-  /** True when a local Codex SessionStart/register path has connected this thread. */
+  /** True when this thread is currently loaded and accepts queue delivery through Codex's shared app-server. */
   connected: boolean;
 };
 
 export type MesurerCodexThreadList = {
-  /** Thread used to scope same-project discovery. */
+  /** Current loaded Codex target when one is selected. */
   thread: string | null;
-  /** Recent same-project Codex threads, current scoped thread first when available. */
+  /** Loaded Codex threads, current target first when available. */
   threads: MesurerCodexThread[];
   /** Whether Codex reported more threads beyond this bounded list. */
   hasMore: boolean;
@@ -155,7 +157,7 @@ export type MesurerCodexThreadList = {
 export type MesurerCodexThreadListOptions = {
   /** Maximum number of threads to return. The bridge clamps this to 10. */
   limit?: number;
-  /** Registered thread whose project should scope discovery. */
+  /** Loaded thread to place first when it remains available. */
   thread?: string;
 };
 
@@ -163,7 +165,7 @@ export type MesurerCodexService = {
   health(): Promise<MesurerCodexHealth>;
   /** List recent Codex threads for the current Mesurer project through Codex app-server. */
   listThreads(options?: MesurerCodexThreadListOptions): Promise<MesurerCodexThreadList>;
-  /** Switch the bridge default target to an already-registered thread. */
+  /** Switch the bridge default target to a currently loaded Codex thread. */
   useThread(thread: string): Promise<MesurerCodexHealth>;
   /** Read lifecycle state for one bridge-tracked delivery. */
   delivery(deliveryId: string): Promise<MesurerCodexDelivery>;
@@ -355,7 +357,7 @@ const bridgeRequest = async (
     }
 
     if (cause instanceof TypeError) {
-      throw new Error(`Mesurer Codex bridge is unavailable at ${endpoint}. Start the local bridge before queueing feedback.`);
+      throw new Error(`Mesurer Codex local companion is unavailable at ${endpoint}.`);
     }
 
     throw cause;
@@ -477,7 +479,7 @@ const truncateLabel = (value: string, max = 42) => value.length > max
 
 const bridgeTransportUnavailable = (cause: unknown, endpoint: string) =>
   cause instanceof Error
-  && cause.message === `Mesurer Codex bridge is unavailable at ${endpoint}. Start the local bridge before queueing feedback.`;
+  && cause.message === `Mesurer Codex local companion is unavailable at ${endpoint}.`;
 
 export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
   const endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
@@ -506,7 +508,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       let routeNeedsSelection = false;
       let lastBridgeThread: string | null = null;
-      let registeredThreadIds: string[] = [];
+      let loadedThreadIds: string[] = [];
       let recentThreads: MesurerCodexThread[] = [];
       let recentHasMore = false;
       let visibleThreadCount = DEFAULT_VISIBLE_THREADS;
@@ -529,9 +531,76 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       let deliveryPollTimer = 0;
       let completedVisibleTimer = 0;
       let uiSendPromise: Promise<void> | null = null;
+      let bridgeHeartbeatTimer = 0;
+      let bridgeLeaseActive = false;
       let disposed = false;
 
+      const bridgeClientId = globalThis.crypto?.randomUUID?.()
+        ?? `mesurer-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
       const fetchHealth = async () => bridgeHealth(await bridgeRequest(endpoint, "health"));
+
+      const clientRequest = (path: string) => bridgeRequest(endpoint, path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: bridgeClientId }),
+      });
+
+      const startBridgeFromHost = async () => {
+        const start = window.__MESURER_HOST__?.startCodexBridge;
+
+        if (!start) {
+          throw new Error(
+            "Codex integration needs a native host that can start Mesurer's packaged local companion.",
+          );
+        }
+
+        await start();
+      };
+
+      const acquireBridgeLease = async () => {
+        await clientRequest("clients/acquire");
+        bridgeLeaseActive = true;
+
+        if (bridgeHeartbeatTimer) return;
+        bridgeHeartbeatTimer = globalThis.setInterval(() => {
+          void clientRequest("clients/heartbeat").catch(() => undefined);
+        }, BRIDGE_HEARTBEAT_MS);
+      };
+
+      const ensureBridgeAvailable = async () => {
+        try {
+          const health = await fetchHealth();
+
+          if (!bridgeLeaseActive) await acquireBridgeLease();
+
+          return health;
+        } catch (cause) {
+          if (!bridgeTransportUnavailable(cause, endpoint)) throw cause;
+          await startBridgeFromHost();
+          const health = await fetchHealth();
+          await acquireBridgeLease();
+
+          return health;
+        }
+      };
+
+      const releaseBridgeLease = () => {
+        if (bridgeHeartbeatTimer) {
+          globalThis.clearInterval(bridgeHeartbeatTimer);
+          bridgeHeartbeatTimer = 0;
+        }
+
+        if (!bridgeLeaseActive) return;
+        bridgeLeaseActive = false;
+
+        void fetch(endpointUrl(endpoint, "clients/release"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: bridgeClientId }),
+          keepalive: true,
+        }).catch(() => undefined);
+      };
 
       const fetchDelivery = async (deliveryId: string) =>
         bridgeDelivery(await bridgeRequest(endpoint, `deliveries/${encodeURIComponent(deliveryId)}`));
@@ -679,7 +748,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         for (const thread of recentThreads) push(thread);
 
-        for (const id of registeredThreadIds) push(recentThreads.find((thread) => thread.id === id) ?? fallback(id));
+        for (const id of loadedThreadIds) push(recentThreads.find((thread) => thread.id === id) ?? fallback(id));
 
         return ordered;
       };
@@ -705,7 +774,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           const prefix = thread.id === originThread
             ? "Current · "
             : thread.connected
-              ? "Connected · "
+              ? "Loaded · "
               : "";
 
           const deliverySuffix = activeDelivery?.thread === thread.id
@@ -786,32 +855,20 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         });
       };
 
-      const refreshRecent = async () => {
+      const refreshRecent = async (scope?: string | null) => {
         if (bridgeAvailability !== "available") return;
 
-        const originStillRegistered = originThread
-          ? registeredThreadIds.includes(originThread)
-          : false;
+        const list = await fetchThreads({
+          limit: RECENT_THREAD_LIMIT,
+          thread: scope ?? undefined,
+        });
 
-        const scope = originStillRegistered ? originThread : lastBridgeThread;
-
-        try {
-          const list = await fetchThreads({
-            limit: RECENT_THREAD_LIMIT,
-            thread: scope ?? undefined,
-          });
-
-          recentThreads = list.threads;
-          recentHasMore = list.hasMore;
-        } catch {
-          recentThreads = registeredThreadIds.map((id) => ({
-            id,
-            title: `Codex ${shortThread(id)}`,
-            updatedAt: null,
-            connected: true,
-          }));
-          recentHasMore = false;
-        }
+        recentThreads = list.threads;
+        recentHasMore = list.hasMore;
+        loadedThreadIds = list.threads
+          .filter((thread) => thread.connected)
+          .map((thread) => thread.id);
+        lastBridgeThread = list.thread;
       };
 
       refreshRuntime = (allowUnknown = false) => {
@@ -823,34 +880,23 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         refreshPromise = (async () => {
           try {
-            const health = await fetchHealth();
-            const bridgeThreadChanged = health.thread !== lastBridgeThread;
+            const health = await ensureBridgeAvailable();
             bridgeAvailability = "available";
             everConnected = true;
             lastBridgeThread = health.thread;
-            registeredThreadIds = health.threads;
+            await refreshRecent(selectedThread ?? originThread ?? health.thread);
 
             const restoredTarget = selectedThread ?? originThread;
 
-            if (restoredTarget) {
-              routeNeedsSelection = !health.threads.includes(restoredTarget);
-            } else if (health.threads.length === 1) {
-              bindPageThread(health.threads[0]!, true);
-            } else if (health.threads.length > 1) {
-              routeNeedsSelection = true;
+            if (restoredTarget && loadedThreadIds.includes(restoredTarget)) {
+              routeNeedsSelection = false;
+            } else if (loadedThreadIds.length === 1) {
+              bindPageThread(loadedThreadIds[0]!, true);
             } else {
               routeNeedsSelection = true;
             }
 
-            if (bridgeThreadChanged || recentThreads.length === 0 || routeNeedsSelection) {
-              await refreshRecent();
-            }
-
-            if (routeNeedsSelection && restoredTarget
-              && recentThreads.some((thread) => thread.id === restoredTarget)) {
-              routeNeedsSelection = false;
-              persistUiState();
-            }
+            if (!routeNeedsSelection && restoredTarget) persistUiState();
           } catch (cause) {
             bridgeAvailability = "unavailable";
             throw cause;
@@ -989,7 +1035,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
           bindPageThread(target, !originThread);
           lastBridgeThread = health.thread;
-          registeredThreadIds = health.threads;
+          loadedThreadIds = health.threads;
           bridgeAvailability = "available";
           everConnected = true;
           syncTool();
@@ -1137,6 +1183,10 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       if (withUi) {
         syncTool();
 
+        if (window.__MESURER_HOST__?.startCodexBridge) {
+          void refreshRuntime(true).catch(() => undefined);
+        }
+
         if (activeDelivery?.id) {
           everConnected = true;
           deliveryPollTimer = globalThis.setTimeout(() => {
@@ -1156,6 +1206,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           disposed = true;
           clearDeliveryTimers();
           globalThis.clearInterval(interval);
+          releaseBridgeLease();
           toolRegistration?.dispose();
           toolRegistration = undefined;
         });

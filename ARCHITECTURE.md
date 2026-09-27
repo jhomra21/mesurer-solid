@@ -44,7 +44,7 @@ Users install `mesurer-solid`.
 | `mesurer-solid/inject` | Programmatic injection helper |
 | `mesurer-solid/inject-script` | Self-contained classic browser payload |
 
-The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, the optional `mesurer-codex` loopback companion, and `mesurer-codex-connect` for trusted session bootstrap. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
+The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, the optional `mesurer-codex` loopback companion, and `mesurer-solid/codex-host` for native-host bootstrap. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
 
 Public first-party plugin factories use their feature name directly. Applications import `context`, `arrange`, `layoutGuides`, `screenshot`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
 
@@ -166,62 +166,39 @@ See [Context](./docs/CONTEXT_WORKFLOW.md) and [Agent integration](./packages/mes
 
 ## Codex delivery
 
-`mesurer.codex` is an optional first-party transport plugin exposed as `codex()` from `mesurer-solid/plugins`. It depends on the Context service rather than duplicating annotation or inspection state.
+`mesurer.codex` is an optional first-party transport plugin exposed as `codex()` from `mesurer-solid/plugins`. It depends on Context rather than duplicating annotation or inspection state.
 
 ```text
 context:v1
    │
    ▼
-codex()
-   ├─ Queue to Codex tool / command
-   ├─ service: codex:v1
-   └─ browser HTTP only after queue / chooser / explicit service call
-                  │
-                  ▼
-          loopback companion
-             │          │
-             │          └─ codex app-server thread/list
-             │                 │
-             │                 └─ recent threads scoped to trusted cwd
-             │
-             ├─ trusted local registration
-             │      ▲
-             │      └─ SessionStart / mesurer-codex-connect
-             │          session id + project cwd
-             │
-             ├─ delivery lifecycle
-             │      └─ codex app-server thread/turns/list
-             │          exact prompt + status + terminal timestamp
-             │          unfinished synthetic Interrupt => Working
-             │
-             └─ codex queue --thread … --message …
+codex() ── loopback HTTP ──► packaged Mesurer companion
+                                 │
+                                 ├─ thread/loaded/list
+                                 ├─ thread/list
+                                 ├─ thread/turns/list
+                                 └─ codex queue --thread … --message …
+                                        │
+                                        ▼
+                               Codex shared local app-server
 ```
 
-The companion is outside the browser because a framework-agnostic web package cannot spawn the local Codex executable. It binds to `127.0.0.1`, limits request size and browser origins, and invokes Codex without a shell. `mesurer-codex-connect` is the normal Codex-controlled lifecycle: it reuses or starts the companion and registers the trusted session id plus project directory. The low-level `mesurer-codex` foreground command remains available for diagnostics and explicit ownership.
+There is no Codex-side Mesurer plugin, marketplace, or lifecycle hook. The companion asks Codex's shared local app-server which threads are loaded and treats that set as authoritative. Recent but unloaded threads do not become send targets merely because they exist in history.
 
-The browser plugin performs no loopback request merely because it is mounted. The first **Queue to Codex**, **Choose Codex thread…**, or explicit service call establishes availability. A failed first contact becomes **Codex unavailable** with explicit retry rather than generating periodic CSP/network errors. After one successful contact, the page may health-check that known companion so a later outage disables the action and a restart restores it automatically.
+A normal browser realm cannot spawn a process. Native hosts may expose `window.__MESURER_HOST__.startCodexBridge`; Electron main/preload can back it with `ensureMesurerCodexBridge()` from `mesurer-solid/codex-host`. The helper reuses only the exact packaged bridge identity, replaces stale self-identifying Mesurer bridges after updates, and fails closed on unrelated port occupants. Browser-only development may run the packaged `mesurer-codex` command manually.
 
-The first unambiguous healthy thread observed by a page becomes that page's origin. The browser persists that origin and any explicit page-local override in per-tab `sessionStorage`, keyed by bridge endpoint plus page origin/pathname, so reloads preserve routing without creating a global browser preference. Later local registrations update the shared companion without silently retargeting the page. If no persisted affinity exists and multiple threads are registered, the browser requires an explicit choice rather than inheriting the bridge-wide active thread. The bridge uses Codex app-server `thread/list` with the trusted project directory to expose at most ten recent same-project threads, while the page picker starts with five and can expand once to ten.
+Codex is opt-in in Settings because enabling it starts local process work. Once enabled, the normal plugin-availability persistence retains the user's choice across reloads and updates. Legacy default-on state from older releases is not treated as the new opt-in.
 
-Thread registration remains a local-process capability. Browser code cannot register an arbitrary thread id, choose an arbitrary discovery directory, or widen the bridge to account-wide history. It may queue to a locally registered thread or to a same-project recent thread that the bridge already discovered. The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias. The generic plugin command is `codex.queue`; `codex.send` remains its compatibility alias.
+The browser plugin acquires a short client lease after the companion is reachable and heartbeats it while Codex stays enabled. Multiple Mesurer pages can share one bridge. Disabling or disposing one page releases only that lease. The bridge exits after the last client releases, and expired leases reap an otherwise unused bridge after renderer crashes. Shutdown terminates only Mesurer-owned helper processes; it does not stop Codex's shared daemon.
 
-Mesurer does not create a Codex thread. New threads are created or opened in Codex, whose trusted `SessionStart` path registers the destination and its execution owner.
+One page keeps its selected destination in per-tab `sessionStorage`. A saved target remains valid only while Codex reports it as loaded. If no valid target exists and several loaded threads are available, Mesurer requires an explicit human choice instead of inheriting an arbitrary destination.
 
-Codex's native queued-user-message store is the durable source of truth for every Mesurer delivery. The bridge retains Codex's queued-submission id and keeps only bounded tracking state in `$CODEX_HOME/mesurer/codex-deliveries.json` so a bridge restart can resume lifecycle correlation without creating another message.
+The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias. Mesurer does not create threads and never invokes `turn/steer`.
 
-When `SessionStart` marks a destination as Codex Desktop-owned, Mesurer does not use the app-tools pipe as the delivery channel. It opens the existing thread through `codex://threads/<threadId>`, the same Desktop deep link used by Codex itself. Desktop loads or resumes that thread; Codex's queue extension watches durable external queue changes for loaded threads, and a cold resume starts the persisted queued message. Active threads leave queued input pending until Codex can accept it. The existing queued-submission id is preserved rather than deleted and resent.
+Codex's native queued-user-message store is the durable source of truth. The bridge retains only bounded correlation metadata in `$CODEX_HOME/mesurer/codex-deliveries.json`. It reads bounded turn history from the same shared daemon and accepts lifecycle changes only when the exact queued Mesurer payload can be correlated unambiguously. Completion may retire only the annotation ids included in that delivery.
 
-For CLI/TUI shared-daemon sessions, the same native Codex queue remains authoritative. A `notLoaded` destination may be resumed through the shared daemon so Codex drains its own queue. Mesurer does not bootstrap or require that standalone daemon for Desktop.
+This transport is deliberately separate from `window.__MESURER__`. Coding agents continue to consume Context through their existing browser controller; Codex delivery is the inverse human action of sending live-page review intent into an already open Codex thread.
 
-Queue and Steer remain separate Codex operations. Mesurer never invokes `turn/steer`; Desktop wake only opens the existing thread and leaves scheduling to Codex's queue lifecycle.
-
-This path is deliberately **not** part of `window.__MESURER__` and is not required for coding agents to use Mesurer. Agents continue to consume Context through their existing browser controller. Codex delivery exists for the inverse human action: a person reviews the live page in Mesurer and asks a known Codex thread to act on that feedback.
-
-Each queue request has a bounded bridge delivery record. The browser enters a busy state before the request starts, so repeat clicks cannot create duplicate submissions. For Desktop, bridge polling reads bounded recent Codex turn history and accepts a turn only when its user message matches the exact queued Mesurer payload. `inProgress`, `completed`, and `interrupted` statuses drive the visible lifecycle; a failed turn uses retry-preserving terminal behavior. Desktop rejects legacy hook posts as lifecycle authority, because an `Interrupt` hook can run before Codex records the turn as aborted. The local `/lifecycle` endpoint remains only for non-Desktop compatibility. Browser polling reads only the Mesurer delivery record. While a delivery is queued or working, the browser also persists the delivery id, destination, state, and exact annotation ids in per-tab `sessionStorage`; a reload resumes polling that same record instead of forgetting completion cleanup.
-
-Context exposes an internal first-party `removeAnnotation(id)` service operation for completion cleanup. It is not added to the generic `window.__MESURER__` agent API. On a completed tracked delivery, Codex removes only the annotation ids that were serialized into that request; interruption/failure preserves them. Applications may disable this cleanup with `clearCompletedAnnotations: false`. A matched completed turn is treated as workflow completion, not as independent proof that the requested visual change is semantically correct.
-
-See [Queue Context feedback to Codex](./docs/CODEX.md).
 ## Screenshot
 
 `mesurer.screenshot` is an optional first-party plugin exposed as `screenshot()` from `mesurer-solid/plugins`.

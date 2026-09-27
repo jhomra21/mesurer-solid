@@ -104,6 +104,12 @@ const waitFor = async <T>(read: () => T | null, timeoutMs = 5000): Promise<T> =>
   throw new Error("Timed out waiting for the Electron Mesurer contract.");
 };
 
+const startCodexBridge = window.__MESURER_HOST__?.startCodexBridge;
+
+if (!startCodexBridge) {
+  throw new Error("Electron preload did not expose Mesurer's packaged Codex bridge bootstrap.");
+}
+
 const mesurer = mountMesurer({
   agent: true,
   plugins: [

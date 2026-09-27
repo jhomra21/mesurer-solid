@@ -45,7 +45,7 @@ Keep the two Agent Skill copies byte-identical:
 - `.agents/skills/mesurer-ui/SKILL.md`
 - `packages/mesurer/skills/mesurer-ui/SKILL.md`
 
-Codex companion implementation lives in `packages/mesurer/codex/`. The files in `plugins/mesurer-codex/scripts/` are generated standalone distribution files. After changing the canonical companion, run `bun run sync:codex-plugin`. `bun run check:codex-plugin` fails when the generated copy is stale. The npm binaries under `packages/mesurer/scripts/` are small launchers that preserve stable bin paths.
+Codex companion implementation lives in `packages/mesurer/codex/`. Keep one canonical bridge plus the native-host bootstrap exported as `mesurer-solid/codex-host`; do not add a generated marketplace/plugin copy. The `mesurer-codex` npm bin remains a small launcher for explicit browser-only or diagnostic use.
 
 ## Validation
 
@@ -54,7 +54,7 @@ Follow [VALIDATION.md](./VALIDATION.md). In particular:
 - unit/jsdom tests support a change but do not replace browser acceptance for interaction regressions;
 - reproduce the actual failed topology for manual regressions;
 - keep browser warnings/errors at zero on accepted flows;
-- use packed-consumer checks for published-package changes, including the real Electron renderer contract when Screenshot host capture changes;
+- use packed-consumer checks for published-package changes, including the real Electron renderer contract when Screenshot or Codex native-host behavior changes;
 - run the root dev-server smoke when renderer source or Vite entry behavior changes;
 - keep visual parity and interaction parity green when renderer behavior changes.
 

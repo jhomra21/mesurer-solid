@@ -74,14 +74,7 @@ The canonical Codex companion source is:
 packages/mesurer/codex/
 ```
 
-The npm bin files under `packages/mesurer/scripts/codex-*.mjs` are tiny stable launchers. The standalone plugin files under `plugins/mesurer-codex/scripts/` are generated distribution artifacts. Change the canonical source, then run:
-
-```bash
-bun run sync:codex-plugin
-bun run check:codex-plugin
-```
-
-Do not edit the generated plugin scripts independently.
+The `mesurer-codex` npm bin is a tiny stable launcher. Native hosts start or reuse the same canonical bridge through `mesurer-solid/codex-host`. Do not add a second generated Codex distribution or marketplace-owned copy.
 
 ### Repository-level areas
 
@@ -103,6 +96,7 @@ mesurer-solid/plugins
 mesurer-solid/core
 mesurer-solid/inject
 mesurer-solid/inject-script
+mesurer-solid/codex-host
 ```
 
 The root export owns mounting, public domain types, and the agent API. `/plugins` owns first-party plugin factories and contracts. `/core` stays framework-neutral. Injection entries are for development, testing, and agent-controlled browser evaluation.
@@ -131,27 +125,25 @@ Renderer-aware plugin UI must cross the existing opaque renderer service boundar
 
 ## Codex lifecycle invariants
 
-The accepted Codex Desktop integration has specific correctness properties. Preserve them unless deliberately redesigning the feature and its acceptance suite.
+The accepted Codex integration has specific correctness properties. Preserve them unless deliberately redesigning the feature and its acceptance suite.
 
-- Queue exactly once through Codex's native durable queue.
-- Preserve the exact queued-submission id.
-- Do not delete/requeue an existing native item during recovery.
-- Open/resume the existing Desktop thread rather than creating another thread.
-- Correlate lifecycle using the exact queued prompt/turn history.
-- Treat synthetic history `interrupted` without terminal timing as nonterminal.
+- Codex is opt-in because enabling it starts Mesurer's local companion.
+- Do not treat legacy default-on persistence as the new user opt-in.
+- Do not introduce a Codex marketplace, Mesurer Codex plugin, or SessionStart/SessionEnd hook dependency.
+- Discover sendable destinations from Codex's shared local app-server; `thread/loaded/list` is authoritative.
+- Queue exactly once through Codex's native durable queue and preserve the queued-submission id.
+- Do not create threads, use `turn/steer`, delete/requeue a native item during recovery, or start a parallel app-server for delivery.
+- Correlate lifecycle from the same shared daemon using the exact queued prompt/turn history.
 - Treat genuine ended interruption/failure as terminal and preserve annotations for retry.
 - Remove only the exact annotations included in a matched completed delivery.
-- Persist browser delivery/routing state across same-tab reloads.
-- Fail closed on ambiguous thread/delivery recovery.
-- Desktop delivery lifecycle does not trust legacy per-turn lifecycle hooks.
-- `SessionStart` acquires one registered bridge owner for the Codex thread. `SessionEnd` releases that same thread.
-- A shared bridge must stay alive while any registered thread still owns it, then exit after the last owner releases it.
-- Bridge shutdown must terminate Mesurer-owned helper processes. Do not stop a Codex-owned shared daemon just because the Mesurer bridge exits.
-- Desktop owner loss must reap an otherwise unused detached bridge when the app-owned tools pipe disappears before `SessionEnd` can run.
+- Persist browser delivery/routing state across same-tab reloads and fail closed on ambiguous routing.
+- Native hosts start or reuse the packaged bridge through `mesurer-solid/codex-host`; stale Mesurer-owned bridges are replaced by source identity.
+- A browser client owns a short bridge lease. Multiple clients may share one bridge; the last release or expired last lease shuts it down.
+- Bridge shutdown must terminate Mesurer-owned helper processes without stopping Codex's shared app-server daemon.
 
-Bridge and connector tests clear ambient Codex thread, app-tools-pipe, Desktop-opener, and home state. A test adds only the state it needs.
+Codex process tests use a disposable `CODEX_HOME` and fake daemon transport. Package smoke must prove the native-host bootstrap export remains available from a secure Electron renderer topology.
 
-Any change to these rules requires the Codex bridge/plugin regressions plus real lifecycle acceptance when behavior changes.
+Any change to these rules requires the Codex process/package regressions plus real lifecycle acceptance when behavior changes.
 
 ## Host isolation invariants
 

@@ -181,28 +181,16 @@ See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the package
 
 ### Queue human feedback to Codex
 
-Mount `codex()` next to Context when a person should be able to queue the current Mesurer review to Codex:
+Codex is an opt-in Mesurer plugin. In native hosts, enabling it starts or reuses the local companion bundled with `mesurer-solid`, then discovers open Codex threads through Codex's shared local app-server.
 
-```ts
-import { mountMesurer } from "mesurer-solid"
-import { codex, context } from "mesurer-solid/plugins"
+There is no Codex marketplace plugin or hook installation.
 
-mountMesurer({
-  plugins: [context(), codex()],
-})
-```
+Electron and other native applications expose the packaged bootstrap once through `window.__MESURER_HOST__.startCodexBridge`; after that, the user's workflow is only the Codex switch in **Settings -> Plugins**. The choice persists across reloads and updates.
 
-For Codex-controlled local projects, the trusted `SessionStart` integration runs `mesurer-codex-connect`. It starts or reuses the matching local companion and registers the current Codex thread and project. You can also run it directly:
+**Queue to Codex** uses Codex's native durable queue. Mesurer queues one message to a currently loaded thread, tracks that exact delivery through the shared daemon, and never creates a new thread or uses Steer. Saved annotations included in a successful delivery are removed only after the exact matched Codex turn completes.
 
-```bash
-bunx mesurer-codex-connect
-```
+See [Queue Context feedback to Codex](./docs/CODEX.md) for native-host wiring, browser-only fallback, loaded-thread routing, cleanup, recovery, and the typed `codex:v1` service.
 
-**Queue to Codex** uses Codex's native durable queue. Mesurer queues one message, tracks that exact delivery, and opens the existing Desktop thread when Desktop needs to wake it. It does not create a new Codex thread or use Steer. The page keeps its chosen thread across a same-tab reload.
-
-If a queued review contains saved annotations, Mesurer removes only those annotation ids after the matching Codex turn completes. Interrupted, failed, or uncertain deliveries keep the notes for retry. Turn completion is delivery state, not proof that the UI change is correct.
-
-See [Queue Context feedback to Codex](./docs/CODEX.md) for thread selection, Desktop and CLI/TUI wake behavior, lifecycle correlation, permissions, recovery, and the typed `codex:v1` service.
 ## Documentation
 
 Start with the [documentation index](./docs/README.md).

@@ -4,7 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Release the local Codex bridge when its last registered Codex session ends. The Codex plugin now pairs `SessionStart` registration with `SessionEnd` cleanup, keeps shared bridges alive while another session still owns them, and reaps a detached Desktop bridge when its app-owned pipe disappears after an unclean exit.
+- Make Codex integration package-native and opt-in. Mesurer now ships a native-host bootstrap helper, discovers sendable threads from Codex's shared local app-server, queues and reconciles against that same daemon, and removes the separate Codex marketplace/plugin/hook setup.
+- Own the local Codex companion with Mesurer client leases. Multiple pages can share one bridge; the last client release or expired crash lease shuts it down, package updates replace stale Mesurer-owned bridges by source identity, and Codex's shared daemon remains untouched.
 
 <!-- Add user-facing changes here before preparing a release. -->
 
