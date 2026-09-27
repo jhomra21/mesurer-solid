@@ -166,10 +166,10 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService, contextText } = createContextService();
 
-    const fetchMock = withBridgeLease(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
+    const fetchMock = bridgeFetchMock(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued", deliveryId: "delivery-1", status: "queued", queuedSubmissionId: "queue-1", dispatch: "resumed", dispatchError: null }),
+      text: async () => JSON.stringify({ ok: true, thread: "thread-1", output: "queued", deliveryId: "delivery-1", status: "queued", queuedSubmissionId: "queue-1", dispatch: "persisted", dispatchError: null }),
     }));
 
     vi.stubGlobal("fetch", fetchMock);
@@ -192,7 +192,7 @@ describe("codex", () => {
       deliveryId: "delivery-1",
       status: "queued",
       queuedSubmissionId: "queue-1",
-      dispatch: "resumed",
+      dispatch: "persisted",
       dispatchError: null,
       annotationIds: ["note-1"],
     });
@@ -211,7 +211,7 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
-    vi.stubGlobal("fetch", withBridgeLease(async () => ({
+    vi.stubGlobal("fetch", bridgeFetchMock(async () => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({
@@ -240,7 +240,7 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.stubGlobal("fetch", withBridgeLease(async () => {
+    vi.stubGlobal("fetch", bridgeFetchMock(async () => {
       throw new TypeError("fetch failed");
     }));
 
@@ -266,7 +266,7 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
-    const fetchMock = withBridgeLease(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -324,7 +324,7 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
-    const fetchMock = withBridgeLease(async (input: RequestInfo | URL) => {
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
       expect(String(input)).toBe("http://127.0.0.1:47365/threads?limit=5&thread=thread-a");
 
       return {
@@ -369,7 +369,7 @@ describe("codex", () => {
     const { service: contextService } = createContextService();
     const sendBodies: Array<{ message: string; thread?: string }> = [];
 
-    const fetchMock = withBridgeLease(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -472,7 +472,7 @@ describe("codex", () => {
     let sendCount = 0;
     let deliveryReads = 0;
 
-    const fetchMock = withBridgeLease(async (input: RequestInfo | URL) => {
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -584,7 +584,7 @@ describe("codex", () => {
     let sendCount = 0;
     let deliveryReads = 0;
 
-    const fetchMock = withBridgeLease(async (input: RequestInfo | URL) => {
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -622,7 +622,7 @@ describe("codex", () => {
             deliveryId: "delivery-corrected-terminal",
             status: "queued",
             queuedSubmissionId: "queue-corrected-terminal",
-            dispatch: "desktop-opened",
+            dispatch: "persisted",
           }),
         };
       }
@@ -646,7 +646,7 @@ describe("codex", () => {
             status,
             turnId: "turn-corrected-terminal",
             queuedSubmissionId: "queue-corrected-terminal",
-            dispatch: "desktop-opened",
+            dispatch: "persisted",
             dispatchError: null,
             createdAt: Date.now() - 5_000,
             updatedAt: Date.now(),
@@ -697,7 +697,7 @@ describe("codex", () => {
     let phase: "first" | "second" = "first";
     const sendBodies: Array<{ message: string; thread?: string }> = [];
 
-    const fetchMock = withBridgeLease(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -791,7 +791,7 @@ describe("codex", () => {
     const { service: contextService } = createContextService();
     let sendCount = 0;
 
-    const fetchMock = withBridgeLease(async (input: RequestInfo | URL) => {
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -859,13 +859,13 @@ describe("codex", () => {
     host.dispose();
   });
 
-  it("surfaces an uncertain legacy delivery as blocked while continuing lifecycle polling", async () => {
+  it("keeps queued work pending until Codex reports a matching working turn", async () => {
     vi.useFakeTimers();
     const host = createMesurerPluginHost();
     const { service: contextService, removeAnnotation } = createContextService();
     let deliveryReads = 0;
 
-    const fetchMock = withBridgeLease(async (input: RequestInfo | URL) => {
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -874,8 +874,8 @@ describe("codex", () => {
           status: 200,
           text: async () => JSON.stringify({
             ok: true,
-            thread: "thread-desktop",
-            threads: ["thread-desktop"],
+            thread: "thread-a",
+            threads: ["thread-a"],
           }),
         };
       }
@@ -886,10 +886,10 @@ describe("codex", () => {
           status: 200,
           text: async () => JSON.stringify({
             ok: true,
-            thread: "thread-desktop",
+            thread: "thread-a",
             threadDetails: [{
-              id: "thread-desktop",
-              title: "Desktop task",
+              id: "thread-a",
+              title: "Current task",
               updatedAt: 10,
               connected: true,
             }],
@@ -904,34 +904,33 @@ describe("codex", () => {
           status: 200,
           text: async () => JSON.stringify({
             ok: true,
-            thread: "thread-desktop",
-            output: "Queued in Mesurer for Codex Desktop.",
+            thread: "thread-a",
+            output: "Queued message queue-a for thread thread-a.",
             delivery: "queued",
-            deliveryId: "delivery-desktop-blocked",
+            deliveryId: "delivery-a",
             status: "queued",
-            queuedSubmissionId: null,
-            dispatch: "desktop-local",
+            queuedSubmissionId: "queue-a",
+            dispatch: "persisted",
             dispatchError: null,
           }),
         };
       }
 
-      if (url.endsWith("/deliveries/delivery-desktop-blocked")) {
+      if (url.endsWith("/deliveries/delivery-a")) {
         deliveryReads += 1;
-        const blocked = deliveryReads === 1;
 
         return {
           ok: true,
           status: 200,
           text: async () => JSON.stringify({
             ok: true,
-            deliveryId: "delivery-desktop-blocked",
-            thread: "thread-desktop",
-            status: blocked ? "queued" : "working",
-            turnId: blocked ? null : "turn-desktop-blocked",
-            queuedSubmissionId: null,
-            dispatch: blocked ? "desktop-send-uncertain" : "desktop-sent",
-            dispatchError: blocked ? "Desktop acknowledgement could not be verified." : null,
+            deliveryId: "delivery-a",
+            thread: "thread-a",
+            status: deliveryReads === 1 ? "queued" : "working",
+            turnId: deliveryReads === 1 ? null : "turn-a",
+            queuedSubmissionId: "queue-a",
+            dispatch: "persisted",
+            dispatchError: null,
             createdAt: 1,
             updatedAt: 1 + deliveryReads,
           }),
@@ -944,7 +943,7 @@ describe("codex", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await host.load(defineMesurerPlugin({
-      id: "test.context-desktop-blocked",
+      id: "test.context-queued-to-working",
       provides: ["context:v1"],
       setup(ctx) {
         ctx.service.provide("context:v1", contextService);
@@ -957,16 +956,13 @@ describe("codex", () => {
       .toBe("Queued for Codex");
 
     await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
-    let tool = host.tools().find((candidate) => candidate.id === "codex.send");
-    expect(tool?.label).toBe("Codex delivery blocked");
-    expect(tool?.disabled?.()).toBe(true);
-    expect(tool?.menu?.items[0]?.label).toContain("Blocked");
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Queued for Codex");
     expect(removeAnnotation).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST);
-    tool = host.tools().find((candidate) => candidate.id === "codex.send");
-    expect(tool?.label).toBe("Codex working…");
-    expect(tool?.disabled?.()).toBe(true);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")?.label)
+      .toBe("Codex working…");
     expect(removeAnnotation).not.toHaveBeenCalled();
 
     host.dispose();
@@ -987,7 +983,7 @@ describe("codex", () => {
       queuedSubmissionId?: string;
     }> = [];
 
-    const fetchMock = withBridgeLease(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -1025,8 +1021,8 @@ describe("codex", () => {
             deliveryId: "delivery-restart-1",
             status: "queued",
             queuedSubmissionId: "queue-restart-1",
-            dispatch: "wake-failed",
-            dispatchError: "failed to connect to socket: No such file or directory",
+            dispatch: "persisted",
+            dispatchError: null,
           }),
         };
       }
@@ -1046,7 +1042,7 @@ describe("codex", () => {
             status: "queued",
             turnId: null,
             queuedSubmissionId: "queue-restart-1",
-            dispatch: "resumed",
+            dispatch: "persisted",
             dispatchError: null,
             createdAt: 3,
             updatedAt: 3,
@@ -1079,7 +1075,7 @@ describe("codex", () => {
             status: deliveryReads === 2 ? "working" : "completed",
             turnId: "turn-restart-1",
             queuedSubmissionId: "queue-restart-1",
-            dispatch: "resumed",
+            dispatch: "persisted",
             dispatchError: null,
             createdAt: 3,
             updatedAt: 3 + deliveryReads,
@@ -1149,7 +1145,7 @@ describe("codex", () => {
     const { service: firstContext } = createContextService();
     let deliveryReads = 0;
 
-    const fetchMock = withBridgeLease(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = bridgeFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
       if (url.endsWith("/health")) {
@@ -1247,7 +1243,7 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
-    const fetchMock = withBridgeLease(async () => {
+    const fetchMock = bridgeFetchMock(async () => {
       throw new TypeError("fetch failed");
     });
 
@@ -1284,7 +1280,7 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
-    const fetchMock = withBridgeLease(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
+    const fetchMock = bridgeFetchMock(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ ok: true, thread: "thread-b", output: "queued", deliveryId: "delivery-b", status: "queued" }),
@@ -1320,7 +1316,7 @@ describe("codex", () => {
     const { service: contextService, contextText } = createContextService();
     contextService.annotations = async () => [];
 
-    const fetchMock = withBridgeLease(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
+    const fetchMock = bridgeFetchMock(async (_input: RequestInfo | URL, _init?: RequestInit) => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ ok: true, thread: "thread-2", deliveryId: "delivery-2", status: "queued" }),
