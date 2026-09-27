@@ -187,7 +187,7 @@ Codex shared local app-server
    └─ thread/turns/list
 ```
 
-Codex Bridge belongs to the Codex plugin at `packages/mesurer/plugins/codex/bridge.mjs` and is published as `mesurer-solid/plugins/codex/bridge`. There is no separate Mesurer Codex process, HTTP listener, port, marketplace package, lifecycle hook, or generated copy.
+Codex Bridge belongs to the Codex plugin at `packages/mesurer/src/plugins/codex/bridge.mjs` and is published as `mesurer-solid/plugins/codex/bridge`. There is no separate Mesurer Codex process, HTTP listener, port, marketplace package, lifecycle hook, or generated copy.
 
 The renderer receives only a narrow host capability. Electron main/preload can back it with the in-process `codexBridge()` helper. That helper uses Codex's `stdio-to-uds` relay to reach the shared app-server control socket and calls `thread/queue/add` directly. It does not shell through `codex queue`, start a parallel app-server, or locate a sibling runtime file.
 
