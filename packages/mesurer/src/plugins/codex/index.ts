@@ -1,9 +1,9 @@
 import {
   MESURER_CONTEXT_SERVICE_ID,
   type MesurerContextService,
-} from "./context-plugin";
-import type { MesurerPlugin, Registration, ToolMenuItemContribution } from "./core";
-import { MESURER_VERSION } from "./version";
+} from "../../context-plugin";
+import type { MesurerPlugin, Registration, ToolMenuItemContribution } from "../../core";
+import { MESURER_VERSION } from "../../version";
 
 export const MESURER_CODEX_PLUGIN_ID = "mesurer.codex";
 
