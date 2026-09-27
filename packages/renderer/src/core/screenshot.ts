@@ -38,13 +38,16 @@ export type HostScreenshotResult =
   | null
   | undefined;
 
-export type HostCodexBridgeResult = {
-  endpoint?: string | null;
-} | void;
+export type HostCodexBridgeRequest = {
+  action: string;
+  [key: string]: string | number | boolean | null | undefined;
+};
+
+export type HostCodexBridgeResult = Record<string, unknown>;
 
 export type MesurerHostCapabilities = {
   captureScreenshot?: () => Promise<HostScreenshotResult>;
-  startCodexBridge?: () => Promise<HostCodexBridgeResult>;
+  codexBridge?: (request: HostCodexBridgeRequest) => Promise<HostCodexBridgeResult>;
 };
 
 declare global {
