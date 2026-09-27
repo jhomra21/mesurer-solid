@@ -11,6 +11,7 @@ type MesurerPluginRegistryEntry = {
   description?: string;
   order?: number;
   enabled?: boolean;
+  optIn?: boolean;
   create(): MesurerPlugin | Promise<MesurerPlugin>;
   settingsIds?: string[];
   hiddenSettingsControlIds?: string[];
@@ -70,6 +71,7 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
     description: "Starts Mesurer's local companion and connects it to your open Codex threads on this computer.",
     order: 45,
     enabled: false,
+    optIn: true,
     create: codex,
   },
 ];
