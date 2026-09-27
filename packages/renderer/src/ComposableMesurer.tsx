@@ -54,6 +54,7 @@ export type MesurerSolidRuntimeService = {
 export type MesurerPluginRegistration = {
   id: string;
   label?: string;
+  description?: string;
   order?: number;
   enabled?: boolean;
   create(): MesurerPlugin | Promise<MesurerPlugin>;
@@ -275,6 +276,7 @@ export default function ComposableMesurer(props: MesurerProps) {
         return {
           id: entry.id,
           label: entry.label ?? pluginLabelFromId(entry.id),
+          description: entry.description,
           enabled: host.has(entry.id),
           busy: busyPluginIds.has(entry.id),
           sections: ownedSections,
