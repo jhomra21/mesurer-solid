@@ -1079,7 +1079,7 @@ const normalizeTimestamp = (value) => Number.isFinite(value) ? Number(value) : n
 
 const shortThread = (thread) => thread.length > 16 ? `${thread.slice(0, 8)}…${thread.slice(-4)}` : thread;
 
-const appServerSummary = (thread, cwd) => {
+const appServerSummary = (thread) => {
   const id = normalizeThread(thread?.id);
 
   if (!id) return null;
@@ -1092,50 +1092,84 @@ const appServerSummary = (thread, cwd) => {
     id,
     title,
     updatedAt: normalizeTimestamp(thread?.recencyAt ?? thread?.updatedAt),
-    connected: registeredThreads.has(id),
-    cwd,
+    connected: loadedThreadIds.has(id),
+    cwd: normalizeCwd(thread?.cwd),
   };
 };
 
-const registeredSummary = (record) => ({
-  id: record.id,
-  title: `Codex ${shortThread(record.id)}`,
-  updatedAt: Math.floor(record.seenAt / 1_000),
-  connected: true,
-  cwd: record.cwd,
-});
+const refreshDiscoveredThreads = async () => {
+  const loaded = await runCodexLoadedThreadList(MAX_DISCOVERED_THREADS);
+  const ids = Array.isArray(loaded?.data)
+    ? loaded.data.map(normalizeThread).filter(Boolean)
+    : [];
 
-const listThreadSummaries = async (scopeThread, limit) => {
-  const scopeRecord = scopeThread
-    ? registeredThreads.get(scopeThread) ?? discoveredThreads.get(scopeThread)
-    : activeThread
-      ? registeredThreads.get(activeThread) ?? discoveredThreads.get(activeThread)
-      : null;
+  loadedThreadIds.clear();
 
-  const scopeCwd = scopeRecord?.cwd ?? activeCwd;
-  const preferredThread = scopeThread ?? activeThread;
+  for (const id of ids) loadedThreadIds.add(id);
+
   const summaries = [];
-  let appHasMore = false;
+  const byId = new Map();
 
-  if (scopeCwd) {
-    try {
-      const listed = await runCodexThreadList(scopeCwd, MAX_DISCOVERED_THREADS);
-      const data = Array.isArray(listed?.data) ? listed.data : [];
-      appHasMore = Boolean(listed?.nextCursor);
+  try {
+    const listed = await runCodexThreadList(null, Math.max(MAX_DISCOVERED_THREADS * 4, 40));
 
-      for (const item of data) {
-        const summary = appServerSummary(item, scopeCwd);
+    for (const item of Array.isArray(listed?.data) ? listed.data : []) {
+      const summary = appServerSummary(item);
 
-        if (!summary) continue;
-        discoveredThreads.set(summary.id, summary);
-        summaries.push(summary);
-      }
-    } catch {
-      // Discovery is optional. Registered SessionStart destinations still work without app-server listing.
+      if (!summary || !loadedThreadIds.has(summary.id)) continue;
+      byId.set(summary.id, summary);
     }
+  } catch {
+    // Loaded-thread discovery remains authoritative even if metadata listing is unavailable.
   }
 
-  const byId = new Map(summaries.map((summary) => [summary.id, summary]));
+  for (const id of loadedThreadIds) {
+    let summary = byId.get(id);
+
+    if (!summary) {
+      try {
+        const read = await runCodexDaemonRequest("thread/read", {
+          threadId: id,
+          includeTurns: false,
+        });
+
+        summary = appServerSummary(read?.thread);
+      } catch {
+        summary = {
+          id,
+          title: `Codex ${shortThread(id)}`,
+          updatedAt: null,
+          connected: true,
+          cwd: null,
+        };
+      }
+    }
+
+    if (!summary) continue;
+    discoveredThreads.set(id, summary);
+    summaries.push(summary);
+  }
+
+  for (const id of [...discoveredThreads.keys()]) {
+    if (!loadedThreadIds.has(id)) discoveredThreads.delete(id);
+  }
+
+  summaries.sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0));
+
+  if (!activeThread || !loadedThreadIds.has(activeThread)) {
+    activeThread = summaries[0]?.id ?? null;
+  }
+
+  activeCwd = activeThread ? discoveredThreads.get(activeThread)?.cwd ?? null : null;
+
+  return summaries;
+};
+
+const listThreadSummaries = async (scopeThread, limit) => {
+  const summaries = await refreshDiscoveredThreads();
+  const preferredThread = scopeThread && loadedThreadIds.has(scopeThread)
+    ? scopeThread
+    : activeThread;
   const ordered = [];
   const seen = new Set();
 
@@ -1146,33 +1180,24 @@ const listThreadSummaries = async (scopeThread, limit) => {
       id: summary.id,
       title: summary.title,
       updatedAt: summary.updatedAt,
-      connected: registeredThreads.has(summary.id),
+      connected: true,
     });
   };
 
-  if (preferredThread) {
-    push(byId.get(preferredThread)
-      ?? (registeredThreads.get(preferredThread) ? registeredSummary(registeredThreads.get(preferredThread)) : null)
-      ?? discoveredThreads.get(preferredThread));
-  }
+  if (preferredThread) push(discoveredThreads.get(preferredThread));
 
   for (const summary of summaries) push(summary);
-
-  for (const record of registeredThreads.values()) {
-    if (scopeCwd && record.cwd && record.cwd !== scopeCwd) continue;
-    push(byId.get(record.id) ?? registeredSummary(record));
-  }
 
   return {
     thread: preferredThread,
     threadDetails: ordered.slice(0, limit),
-    hasMore: appHasMore || ordered.length > limit,
+    hasMore: ordered.length > limit,
   };
 };
 
 const threadPayload = () => ({
   thread: activeThread,
-  threads: [...registeredThreads.keys()],
+  threads: [...loadedThreadIds],
 });
 
 const hashMessage = (message) => createHash("sha256").update(message).digest("hex");
