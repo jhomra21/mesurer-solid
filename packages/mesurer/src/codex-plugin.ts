@@ -534,6 +534,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       let bridgeHeartbeatTimer = 0;
       let bridgeLeaseActive = false;
       let disposed = false;
+
       const bridgeClientId = globalThis.crypto?.randomUUID?.()
         ?? `mesurer-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
@@ -546,10 +547,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       });
 
       const startBridgeFromHost = async () => {
-        const host = (globalThis as typeof globalThis & {
-          __MESURER_HOST__?: { startCodexBridge?: () => Promise<unknown> };
-        }).__MESURER_HOST__;
-        const start = host?.startCodexBridge;
+        const start = window.__MESURER_HOST__?.startCodexBridge;
 
         if (!start) {
           throw new Error(
