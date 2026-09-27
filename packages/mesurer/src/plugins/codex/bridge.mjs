@@ -119,6 +119,7 @@ const desktopBundledCodex = (path) => {
   const value = path.replaceAll("\\", "/").toLowerCase();
 
   if (value.includes(".app/contents/resources/")) return true;
+
   if (value.includes("/microsoft/windowsapps/codex.exe")) return true;
 
   return value.includes("/windowsapps/")
@@ -355,6 +356,7 @@ const spawnCommand = (
 
 const startDaemon = async (options) => {
   const runtime = await bootstrapRuntime(options);
+
   const command = runtime.available && runtime.source === "standalone"
     ? runtime.command
     : null;
