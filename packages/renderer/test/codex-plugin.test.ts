@@ -653,10 +653,12 @@ describe("codex", () => {
           text: async () => JSON.stringify({
             ok: true,
             thread: scoped,
-            threadDetails: [
-              { id: "thread-a", title: "Original task", updatedAt: 10, connected: true },
-              { id: "thread-b", title: "Other task", updatedAt: 9, connected: true },
-            ],
+            threadDetails: phase === "first"
+              ? [{ id: "thread-a", title: "Original task", updatedAt: 10, connected: true }]
+              : [
+                  { id: "thread-a", title: "Original task", updatedAt: 10, connected: true },
+                  { id: "thread-b", title: "Other task", updatedAt: 9, connected: true },
+                ],
             hasMore: false,
           }),
         };
