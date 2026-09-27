@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const bridgePath = process.env.MESURER_CODEX_BRIDGE_PATH?.trim();
+
 const artifactDir = process.env.MESURER_CODEX_RUNTIME_ARTIFACT_DIR?.trim()
   || join(process.cwd(), "codex-runtime-artifacts");
 
@@ -13,10 +14,15 @@ if (!bridgePath) {
 }
 
 const { codexBridge } = await import(pathToFileURL(bridgePath).href);
+
 const root = await mkdtemp(join(tmpdir(), "mesurer-codex-runtime-"));
+
 const originalPath = process.env.PATH;
+
 const originalCodexBin = process.env.CODEX_BIN;
+
 const originalCodexHome = process.env.CODEX_HOME;
+
 const originalHelper = process.env.MESURER_CODEX_SMOKE_HELPER;
 
 const result = {
@@ -90,6 +96,7 @@ exit 0
   else process.env.PATH = originalPath;
 
   const standaloneHome = join(root, "standalone-home");
+
   const standaloneBin = join(
     standaloneHome,
     "packages",
@@ -97,7 +104,9 @@ exit 0
     "current",
     "codex",
   );
+
   const standaloneMarker = join(standaloneHome, "standalone-started.json");
+
   const helperPath = join(root, "fake-app-server.mjs");
 
   await mkdir(dirname(standaloneBin), { recursive: true });
