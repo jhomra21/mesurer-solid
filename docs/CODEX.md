@@ -76,7 +76,7 @@ Mesurer queues through Codex's shared app-server control socket.
 
 A complete standalone Codex installation can start that shared daemon. When the socket is absent, Codex Bridge checks managed Codex packages under `CODEX_HOME`, then a non-Desktop `codex` executable on `PATH`. It does not launch the bare Codex executable bundled inside ChatGPT.app or Codex.app.
 
-When Codex Desktop owns a private stdio app-server, that process does not expose the shared socket used by Mesurer. Mesurer does not attach to Desktop's private app-tools pipe or start a second Codex server beside it. The Codex plugin remains enabled, but queue delivery is unavailable until the Codex session is reachable through the shared app-server.
+Codex Desktop sessions work through the same path when Desktop is attached to the shared app-server. When Desktop owns its normal private stdio app-server instead, that process does not expose the shared socket used by Mesurer. Mesurer does not attach to Desktop's private app-tools pipe. The Codex plugin remains enabled, but those private Desktop sessions are not queue targets until Codex exposes them through the shared app-server.
 
 ## Thread discovery
 
