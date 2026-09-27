@@ -143,18 +143,30 @@ try {
   if ((await pluginsDisclosure.getAttribute("aria-expanded")) !== "true") await pluginsDisclosure.click();
 
   const expectedPlugins = [
-    ["mesurer.context", "Context"],
-    ["mesurer.arrange", "Arrange"],
-    ["mesurer.screenshot", "Screenshot"],
-    ["mesurer.codex", "Codex"],
+    ["mesurer.context", "Context", true],
+    ["mesurer.arrange", "Arrange", true],
+    ["mesurer.screenshot", "Screenshot", true],
+    ["mesurer.codex", "Codex", false],
   ];
 
-  for (const [id, label] of expectedPlugins) {
+  for (const [id, label, enabled] of expectedPlugins) {
     const row = dialog.locator(`[data-mesurer-plugin-settings-section='${id}']`);
     await row.waitFor({ state: "visible" });
     assert.equal((await row.locator(`[data-mesurer-plugin-label='${id}']`).textContent())?.trim(), label, `${label} plugin row label`);
-    assert.equal(await row.getByRole("switch", { name: label, exact: true }).getAttribute("aria-checked"), "true", `${label} should be enabled by default`);
+    assert.equal(
+      await row.getByRole("switch", { name: label, exact: true }).getAttribute("aria-checked"),
+      enabled ? "true" : "false",
+      `${label} default availability`,
+    );
   }
+
+  const codexNotice = dialog.locator("[data-mesurer-plugin-description='mesurer.codex']");
+  await codexNotice.waitFor({ state: "visible" });
+  assert.match(
+    (await codexNotice.textContent()) ?? "",
+    /local companion.*open Codex threads/i,
+    "Codex opt-in should explain the local companion before it is enabled",
+  );
 
   const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
   await contextToggle.click();
@@ -180,7 +192,7 @@ try {
   await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "visible" });
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; all first-party plugins including Codex are present and default-enabled; Context can be toggled off and back on: PASS");
+  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; first-party plugins are present, Codex is an explained opt-in, and Context can be toggled off and back on: PASS");
 } finally {
   await settingsPage?.close();
   await page?.close();
