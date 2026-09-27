@@ -772,6 +772,7 @@ const refreshDiscoveredThreads = async () => {
 
 const listThreadSummaries = async (scopeThread, limit) => {
   const summaries = await refreshDiscoveredThreads();
+
   const preferredThread = scopeThread && loadedThreadIds.has(scopeThread)
     ? scopeThread
     : activeThread;
