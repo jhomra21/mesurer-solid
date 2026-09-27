@@ -1,104 +1,9 @@
 import assert from "node:assert/strict";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { createServer as createHttpServer } from "node:http";
-import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawn } from "node:child_process";
 import test from "node:test";
-import { ensureMesurerCodexBridge } from "../packages/mesurer/codex/host.mjs";
-
-const bridgeScript = new URL("../packages/mesurer/codex/codex-bridge.mjs", import.meta.url);
-
-const origin = "http://localhost:5173";
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const freePort = async () => new Promise((resolve, reject) => {
-  const server = createNetServer();
-  server.once("error", reject);
-  server.listen(0, "127.0.0.1", () => {
-    const address = server.address();
-    const port = address?.port ?? 0;
-
-    server.close((error) => error ? reject(error) : resolve(port));
-  });
-});
-
-const waitForLine = (stream, prefix, timeoutMs = 10_000) => new Promise((resolve, reject) => {
-  let buffer = "";
-  let timeout;
-
-  const cleanup = () => {
-    clearTimeout(timeout);
-    stream.off("data", onData);
-  };
-
-  const onData = (chunk) => {
-    buffer += chunk.toString();
-
-    for (const line of buffer.split(/\r?\n/)) {
-      if (!line.startsWith(prefix)) continue;
-      cleanup();
-      resolve(line.slice(prefix.length));
-
-      return;
-    }
-  };
-
-  timeout = setTimeout(() => {
-    cleanup();
-    reject(new Error(`Timed out waiting for ${prefix}`));
-  }, timeoutMs);
-
-  stream.on("data", onData);
-});
-
-const waitForExit = (child, timeoutMs = 10_000) => new Promise((resolve, reject) => {
-  if (child.exitCode !== null) {
-    resolve(child.exitCode);
-
-    return;
-  }
-
-  const timeout = setTimeout(() => {
-    child.kill("SIGKILL");
-    reject(new Error("Bridge did not exit in time."));
-  }, timeoutMs);
-
-  child.once("exit", (code) => {
-    clearTimeout(timeout);
-    resolve(code);
-  });
-});
-
-const waitForUnavailable = async (bridgeUrl, timeoutMs = 8_000) => {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    try {
-      await fetch(`${bridgeUrl}/health`, { signal: AbortSignal.timeout(250) });
-    } catch {
-      return;
-    }
-
-    await sleep(50);
-  }
-
-  throw new Error(`Bridge stayed available at ${bridgeUrl}.`);
-};
-
-const post = (bridgeUrl, path, body, requestOrigin = origin) => {
-  const headers = { "Content-Type": "application/json" };
-
-  if (requestOrigin) headers.Origin = requestOrigin;
-
-  return fetch(`${bridgeUrl}/${path}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-};
+import { codexBridge } from "../packages/mesurer/plugins/codex/bridge.mjs";
 
 const readJsonLines = async (path) => {
   const text = await readFile(path, "utf8");
@@ -109,30 +14,23 @@ const readJsonLines = async (path) => {
 const writeFakeCodex = async (root) => {
   const fakeCodex = join(root, "fake-codex.mjs");
   const turnsPath = join(root, "turns.json");
+  const queuePath = join(root, "queue.json");
   const argsPath = join(root, "args.jsonl");
+
   await writeFile(turnsPath, "[]");
+  await writeFile(queuePath, "[]");
   await writeFile(argsPath, "");
 
   await writeFile(fakeCodex, `#!/usr/bin/env node
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
 const args = process.argv.slice(2);
 const write = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
-const appendArgs = () => appendFileSync(
-  process.env.MESURER_FAKE_CODEX_ARGS,
-  JSON.stringify(args) + "\\n",
-);
+appendFileSync(process.env.MESURER_FAKE_CODEX_ARGS, JSON.stringify(args) + "\\n");
 
-if (args[0] === "queue") {
-  appendArgs();
-  const threadIndex = args.indexOf("--thread");
-  const thread = threadIndex >= 0 ? args[threadIndex + 1] : "unknown";
-  console.log(\`Queued message queue-\${thread} for thread \${thread}.\`);
-} else if (args[0] === "app-server" && args[1] === "daemon" && args[2] === "start") {
-  appendArgs();
+if (args[0] === "app-server" && args[1] === "daemon" && args[2] === "start") {
   console.log("started");
 } else if (args[0] === "stdio-to-uds") {
-  appendArgs();
   process.stdin.setEncoding("utf8");
   let buffer = "";
 
@@ -182,28 +80,22 @@ if (args[0] === "queue") {
                 id: "thread-a",
                 name: "Diffusion editor",
                 preview: "",
-                cwd: "/tmp/diffusion",
                 recencyAt: 200,
                 updatedAt: 200,
-                status: { type: "idle" },
               },
               {
                 id: "thread-b",
                 name: null,
                 preview: "Fix selected UI",
-                cwd: "/tmp/diffusion",
                 recencyAt: 190,
                 updatedAt: 190,
-                status: { type: "idle" },
               },
               {
                 id: "thread-cold",
                 name: "Old unloaded thread",
                 preview: "",
-                cwd: "/tmp/diffusion",
                 recencyAt: 180,
                 updatedAt: 180,
-                status: { type: "notLoaded" },
               },
             ],
             nextCursor: null,
@@ -220,10 +112,8 @@ if (args[0] === "queue") {
               id: message.params.threadId,
               name: message.params.threadId === "thread-a" ? "Diffusion editor" : "Fix selected UI",
               preview: "",
-              cwd: "/tmp/diffusion",
               recencyAt: 200,
               updatedAt: 200,
-              status: { type: "idle" },
               turns: JSON.parse(readFileSync(process.env.MESURER_FAKE_TURNS, "utf8")),
             },
           },
@@ -243,11 +133,27 @@ if (args[0] === "queue") {
         continue;
       }
 
+      if (message.method === "thread/queue/add") {
+        const queued = {
+          id: "queue-" + message.params.threadId,
+          input: message.params.input,
+          clientUserMessageId: message.params.clientUserMessageId,
+        };
+
+        const existing = JSON.parse(readFileSync(process.env.MESURER_FAKE_QUEUE, "utf8"));
+        writeFileSync(process.env.MESURER_FAKE_QUEUE, JSON.stringify([...existing, queued]));
+        write({
+          id: message.id,
+          result: { queuedSubmission: queued },
+        });
+        continue;
+      }
+
       if (message.method === "thread/queue/list") {
         write({
           id: message.id,
           result: {
-            data: [],
+            data: JSON.parse(readFileSync(process.env.MESURER_FAKE_QUEUE, "utf8")),
             nextCursor: null,
           },
         });
@@ -261,62 +167,38 @@ if (args[0] === "queue") {
     }
   });
 } else {
-  appendArgs();
   process.stderr.write("unexpected fake Codex invocation: " + args.join(" ") + "\\n");
   process.exit(97);
 }
 `);
   await chmod(fakeCodex, 0o755);
 
-  return { fakeCodex, turnsPath, argsPath };
+  return { fakeCodex, turnsPath, queuePath, argsPath };
 };
 
-const bridgeEnv = (root, fixture) => ({
-  ...process.env,
-  CODEX_HOME: root,
-  MESURER_FAKE_CODEX_ARGS: fixture.argsPath,
-  MESURER_FAKE_TURNS: fixture.turnsPath,
-});
-
-const acquire = async (bridgeUrl, clientId) => {
-  const response = await post(bridgeUrl, "clients/acquire", { clientId });
-
-  if (response.status !== 200) {
-    throw new Error(`Bridge lease acquisition returned HTTP ${response.status}: ${await response.text()}`);
-  }
-
-  return response.json();
-};
-
-test("Codex bridge discovers loaded daemon threads, queues to them, reconciles delivery, and exits after the last Mesurer client", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-daemon-"));
+test("Codex Bridge uses the shared app-server for loaded threads, durable queueing, and delivery lifecycle", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-bridge-"));
   const fixture = await writeFakeCodex(root);
+  const previous = {
+    CODEX_HOME: process.env.CODEX_HOME,
+    MESURER_FAKE_CODEX_ARGS: process.env.MESURER_FAKE_CODEX_ARGS,
+    MESURER_FAKE_TURNS: process.env.MESURER_FAKE_TURNS,
+    MESURER_FAKE_QUEUE: process.env.MESURER_FAKE_QUEUE,
+  };
 
-  const child = spawn(process.execPath, [
-    bridgeScript.pathname,
-    "--port",
-    "0",
-    "--codex",
-    fixture.fakeCodex,
-  ], {
-    env: bridgeEnv(root, fixture),
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  process.env.CODEX_HOME = root;
+  process.env.MESURER_FAKE_CODEX_ARGS = fixture.argsPath;
+  process.env.MESURER_FAKE_TURNS = fixture.turnsPath;
+  process.env.MESURER_FAKE_QUEUE = fixture.queuePath;
 
-  let stderr = "";
-  child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+  const options = {
+    codex: fixture.fakeCodex,
+    codexHome: root,
+  };
 
   try {
-    const bridgeUrl = await waitForLine(child.stdout, "BRIDGE_URL=");
-    await acquire(bridgeUrl, "client-a");
-    await acquire(bridgeUrl, "client-b");
+    const threads = await codexBridge({ action: "threads", limit: 10 }, options);
 
-    const threadsResponse = await fetch(`${bridgeUrl}/threads?limit=10`, {
-      headers: { Origin: origin },
-    });
-
-    assert.equal(threadsResponse.status, 200, stderr);
-    const threads = await threadsResponse.json();
     assert.deepEqual(
       threads.threadDetails.map((thread) => ({
         id: thread.id,
@@ -328,29 +210,29 @@ test("Codex bridge discovers loaded daemon threads, queues to them, reconciles d
         { id: "thread-b", title: "Fix selected UI", connected: true },
       ],
     );
-    assert.equal(threads.threadDetails.some((thread) => thread.id === "thread-cold"), false);
 
-    const unknown = await post(bridgeUrl, "send", {
-      message: "do not route this",
-      thread: "thread-cold",
-    });
+    await assert.rejects(
+      codexBridge({
+        action: "queue",
+        thread: "thread-cold",
+        message: "do not route this",
+      }, options),
+      /Codex thread is not loaded/,
+    );
 
-    assert.equal(unknown.status, 409);
-
-    const send = await post(bridgeUrl, "send", {
-      message: "apply this exact Mesurer feedback",
+    const queued = await codexBridge({
+      action: "queue",
       thread: "thread-b",
-    });
+      message: "apply this exact Mesurer feedback",
+    }, options);
 
-    assert.equal(send.status, 200, stderr);
-    const queued = await send.json();
     assert.equal(queued.thread, "thread-b");
-    assert.equal(queued.transport, "codex-queue");
     assert.equal(queued.status, "queued");
     assert.equal(queued.queuedSubmissionId, "queue-thread-b");
     assert.equal(queued.dispatch, "persisted");
 
     const nowSeconds = Math.floor(Date.now() / 1_000);
+
     await writeFile(fixture.turnsPath, JSON.stringify([{
       id: "turn-b",
       items: [{
@@ -359,7 +241,7 @@ test("Codex bridge discovers loaded daemon threads, queues to them, reconciles d
         content: [{
           type: "text",
           text: "apply this exact Mesurer feedback",
-          text_elements: [],
+          textElements: [],
         }],
       }],
       itemsView: "summary",
@@ -370,12 +252,11 @@ test("Codex bridge discovers loaded daemon threads, queues to them, reconciles d
       durationMs: null,
     }]));
 
-    const workingResponse = await fetch(`${bridgeUrl}/deliveries/${queued.deliveryId}`, {
-      headers: { Origin: origin },
-    });
+    const working = await codexBridge({
+      action: "delivery",
+      deliveryId: queued.deliveryId,
+    }, options);
 
-    assert.equal(workingResponse.status, 200, stderr);
-    const working = await workingResponse.json();
     assert.equal(working.status, "working");
     assert.equal(working.turnId, "turn-b");
 
@@ -387,7 +268,7 @@ test("Codex bridge discovers loaded daemon threads, queues to them, reconciles d
         content: [{
           type: "text",
           text: "apply this exact Mesurer feedback",
-          text_elements: [],
+          textElements: [],
         }],
       }],
       itemsView: "summary",
@@ -398,133 +279,32 @@ test("Codex bridge discovers loaded daemon threads, queues to them, reconciles d
       durationMs: 1_000,
     }]));
 
-    const completedResponse = await fetch(`${bridgeUrl}/deliveries/${queued.deliveryId}`, {
-      headers: { Origin: origin },
-    });
+    const completed = await codexBridge({
+      action: "delivery",
+      deliveryId: queued.deliveryId,
+    }, options);
 
-    assert.equal(completedResponse.status, 200, stderr);
-    assert.equal((await completedResponse.json()).status, "completed");
-
-    const releaseA = await post(bridgeUrl, "clients/release", { clientId: "client-a" });
-    assert.equal(releaseA.status, 200);
-
-    const health = await fetch(`${bridgeUrl}/health`);
-    assert.equal(health.status, 200);
-    assert.equal((await health.json()).clients, 1);
-
-    const releaseB = await post(bridgeUrl, "clients/release", { clientId: "client-b" });
-    assert.equal(releaseB.status, 200);
-    assert.equal(await waitForExit(child, 5_000), 0);
+    assert.equal(completed.status, "completed");
 
     const invocations = await readJsonLines(fixture.argsPath);
-    assert.equal(invocations.some((args) =>
-      args[0] === "queue"
-      && args.includes("thread-b")
-      && args.includes("apply this exact Mesurer feedback")), true);
-    assert.equal(invocations.some((args) => args[0] === "app-server" && args[1] === "--listen"), false);
-  } finally {
-    if (child.exitCode === null) child.kill("SIGKILL");
-    await waitForExit(child).catch(() => {});
-    await rm(root, { recursive: true, force: true });
-  }
-});
 
-test("packaged Codex host replaces a stale Mesurer bridge and reuses the current one without a marketplace install", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-host-"));
-  const fixture = await writeFakeCodex(root);
-  const port = await freePort();
-  const bridgeUrl = `http://127.0.0.1:${port}`;
-
-  const stale = createHttpServer((request, response) => {
-    if (request.url === "/health") {
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({
-        ok: true,
-        bridge: {
-          name: "mesurer-codex",
-          protocol: 1,
-          sourceHash: "0".repeat(64),
-          pid: process.pid,
-          canShutdown: true,
-        },
-      }));
-
-      return;
-    }
-
-    if (request.url === "/shutdown" && request.method === "POST") {
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({ ok: true }));
-      response.once("finish", () => stale.close());
-
-      return;
-    }
-
-    response.writeHead(404);
-    response.end();
-  });
-
-  await new Promise((resolve, reject) => {
-    stale.once("error", reject);
-    stale.listen(port, "127.0.0.1", resolve);
-  });
-
-  const previous = {
-    CODEX_HOME: process.env.CODEX_HOME,
-    MESURER_FAKE_CODEX_ARGS: process.env.MESURER_FAKE_CODEX_ARGS,
-    MESURER_FAKE_TURNS: process.env.MESURER_FAKE_TURNS,
-  };
-
-  process.env.CODEX_HOME = root;
-  process.env.MESURER_FAKE_CODEX_ARGS = fixture.argsPath;
-  process.env.MESURER_FAKE_TURNS = fixture.turnsPath;
-
-  try {
-    const started = await ensureMesurerCodexBridge({
-      bridgeUrl,
-      codex: fixture.fakeCodex,
-      origin,
-    });
-
-    assert.equal(started.endpoint, bridgeUrl);
-    assert.equal(started.reused, false);
-    assert.notEqual(started.pid, process.pid);
-
-    await acquire(bridgeUrl, "host-client");
-
-    const reused = await ensureMesurerCodexBridge({
-      bridgeUrl,
-      codex: fixture.fakeCodex,
-      origin,
-    });
-
-    assert.equal(reused.reused, true);
-    assert.equal(reused.pid, started.pid);
-
-    const threads = await fetch(`${bridgeUrl}/threads?limit=10`, {
-      headers: { Origin: origin },
-    });
-
-    assert.equal(threads.status, 200);
-    assert.deepEqual(
-      (await threads.json()).threadDetails.map((thread) => thread.id),
-      ["thread-a", "thread-b"],
+    assert.equal(
+      invocations.some((args) => args[0] === "queue"),
+      false,
+      "Mesurer must not shell through codex queue when the shared app-server can accept thread/queue/add directly",
     );
 
-    const release = await post(bridgeUrl, "clients/release", { clientId: "host-client" });
-    assert.equal(release.status, 200);
-    await waitForUnavailable(bridgeUrl);
+    assert.equal(
+      invocations.every((args) =>
+        args[0] === "stdio-to-uds"
+        || (args[0] === "app-server" && args[1] === "daemon" && args[2] === "start")),
+      true,
+    );
   } finally {
-    stale.close();
-
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
-
-    try {
-      await fetch(`${bridgeUrl}/shutdown`, { method: "POST" });
-    } catch {}
 
     await rm(root, { recursive: true, force: true });
   }
