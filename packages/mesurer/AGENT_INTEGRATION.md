@@ -250,7 +250,7 @@ The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separ
 
 The first-party `codex()` plugin is enabled by default and remains toggleable in Mesurer Settings. It is a human-triggered delivery path and does not add a generic send method to `window.__MESURER__`.
 
-Native hosts expose `window.__MESURER_HOST__.codexBridge(request)`. The matching `codexBridge()` implementation is published from `mesurer-solid/plugins/codex/bridge` and runs in the host process. It relays bounded requests to Codex's existing shared local app-server. There is no Mesurer Codex daemon, localhost listener, marketplace plugin, or lifecycle hook.
+Native hosts expose `window.__MESURER_HOST__.codexBridge(request)`. The matching `codexBridge()` implementation is published from `mesurer-solid/plugins/codex/bridge` and runs in the host process. It relays bounded requests to Codex's existing shared local app-server. If that socket is absent, it can start the shared daemon only from a complete standalone Codex installation. It does not launch a Desktop-bundled bare executable or attach to Desktop's private stdio app-server. There is no Mesurer Codex daemon, localhost listener, marketplace plugin, or lifecycle hook.
 
 Only threads reported by Codex as loaded are sendable. Page affinity and explicit destination overrides persist per tab; if several loaded threads are available and no valid saved destination exists, the user must choose one.
 
