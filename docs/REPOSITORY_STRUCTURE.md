@@ -66,9 +66,9 @@ Package scripts that ship with `mesurer-solid` stay here even when a repository-
 Codex stays under the Mesurer plugin boundary:
 
 ```text
-packages/mesurer/src/plugins/codex.ts
-packages/mesurer/plugins/codex/bridge.mjs
-packages/mesurer/plugins/codex/bridge.d.ts
+packages/mesurer/src/plugins/codex/index.ts
+packages/mesurer/src/plugins/codex/bridge.mjs
+packages/mesurer/src/plugins/codex/bridge.d.ts
 ```
 
 The TypeScript plugin owns renderer-facing UI, routing, Context composition, and the `codex:v1` service. The native bridge is published as `mesurer-solid/plugins/codex/bridge` and owns only the host-side Codex app-server transport.
