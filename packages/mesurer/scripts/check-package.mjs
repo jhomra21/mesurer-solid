@@ -71,7 +71,7 @@ for (const file of [
   "inject.js",
   "inject.d.ts",
   "inject-script.js",
-  "plugins/codex.d.ts",
+  "plugins/codex/index.d.ts",
   "screenshot.d.ts",
 ]) {
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
@@ -154,7 +154,7 @@ const rootDeclarations = readFileSync(new URL("index.d.ts", dist), "utf8");
 
 const pluginDeclarations = readFileSync(new URL("plugins.d.ts", dist), "utf8");
 
-const codexDeclarations = readFileSync(new URL("plugins/codex.d.ts", dist), "utf8");
+const codexDeclarations = readFileSync(new URL("plugins/codex/index.d.ts", dist), "utf8");
 
 const screenshotDeclarations = readFileSync(new URL("screenshot.d.ts", dist), "utf8");
 
