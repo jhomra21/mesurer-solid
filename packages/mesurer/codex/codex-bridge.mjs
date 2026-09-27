@@ -34,8 +34,6 @@ const CODEX_TIMEOUT_MS = 30_000;
 
 const APP_SERVER_TIMEOUT_MS = 5_000;
 
-const DAEMON_RESUME_TIMEOUT_MS = 10_000;
-
 const DAEMON_START_TIMEOUT_MS = 15_000;
 
 const DELIVERY_STATE_VERSION = 1;
@@ -112,8 +110,6 @@ if (!Number.isInteger(parsedPort) || parsedPort < 0 || parsedPort > 65_535) {
 
 const initialThread = normalizeThread(values.thread) ?? normalizeThread(process.env.CODEX_THREAD_ID);
 
-const initialCwd = normalizeCwd(values.cwd);
-
 const codexBin = values.codex?.trim() || process.env.CODEX_BIN?.trim() || "codex";
 
 const additionalOrigins = new Set(values.origin ?? []);
@@ -129,8 +125,6 @@ const deliveries = new Map();
 const ownedChildren = new Set();
 
 let activeThread = initialThread;
-
-let activeCwd = initialCwd;
 
 let idleShutdownTimer = null;
 
@@ -539,25 +533,6 @@ const runCodexDaemonRequest = async (method, params = {}, options = {}) => {
   }
 };
 
-const resumeColdCodexThread = async (thread) => {
-  const read = await runCodexDaemonRequest("thread/read", {
-    threadId: thread,
-    includeTurns: false,
-  }, { timeoutMs: DAEMON_RESUME_TIMEOUT_MS });
-
-  const threadStatus = read?.thread?.status?.type ?? null;
-
-  if (threadStatus !== "notLoaded") {
-    return { action: "already-loaded", threadStatus };
-  }
-
-  await runCodexDaemonRequest("thread/resume", {
-    threadId: thread,
-  }, { timeoutMs: DAEMON_RESUME_TIMEOUT_MS });
-
-  return { action: "resumed", threadStatus };
-};
-
 const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
   const child = spawnOwned(codexBin, ["queue", "--thread", thread, "--message", message], {
     env: process.env,
@@ -788,8 +763,6 @@ const refreshDiscoveredThreads = async () => {
   if (!activeThread || !loadedThreadIds.has(activeThread)) {
     activeThread = summaries[0]?.id ?? null;
   }
-
-  activeCwd = activeThread ? discoveredThreads.get(activeThread)?.cwd ?? null : null;
 
   return summaries;
 };
@@ -1174,19 +1147,9 @@ server = createServer(async (request, response) => {
       };
 
       deliveries.set(delivery.id, delivery);
+      delivery.dispatch = "persisted";
+      delivery.updatedAt = Date.now();
       await persistDeliveryState();
-
-      try {
-        const wake = await resumeColdCodexThread(thread);
-        delivery.dispatch = wake.action;
-        delivery.updatedAt = Date.now();
-      } catch (cause) {
-        delivery.dispatch = "wake-failed";
-        delivery.dispatchError = cause instanceof Error ? cause.message : String(cause);
-        delivery.updatedAt = Date.now();
-      }
-
-      persistDeliveryStateSoon();
 
       writeJson(response, 200, {
         ok: true,
@@ -1246,7 +1209,6 @@ server = createServer(async (request, response) => {
       }
 
       activeThread = thread;
-      activeCwd = discoveredThreads.get(thread)?.cwd ?? null;
       writeJson(response, 200, { ok: true, ...threadPayload() }, origin);
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);
