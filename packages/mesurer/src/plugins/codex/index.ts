@@ -190,12 +190,6 @@ type BridgeSendRequest = {
   thread?: string;
 };
 
-type BridgeRestoreRequest = {
-  deliveryId: string;
-  thread: string;
-  queuedSubmissionId?: string;
-};
-
 type BridgeAvailability = "unknown" | "available" | "unavailable";
 
 type UiDeliveryStatus = "queueing" | MesurerCodexDeliveryStatus | "failed";
@@ -315,14 +309,10 @@ const bridgeRequest = async (
   const response = await bridge(request);
 
   if (response.ok === false) {
-    const message = typeof response.error === "string"
-      ? response.error
-      : "Codex Bridge request failed.";
-
-    throw new Error(message);
+    throw new Error(response.error ?? "Codex Bridge request failed.");
   }
 
-  return response as BridgeResponse;
+  return response;
 };
 
 const bridgeHealth = (response: BridgeResponse): MesurerCodexHealth => ({
