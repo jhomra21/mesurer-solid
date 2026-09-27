@@ -7,6 +7,7 @@ import type {
 export type MesurerPluginSettingsEntry = {
   id: string;
   label: string;
+  description?: string;
   enabled: boolean;
   busy: boolean;
   sections: SettingsContribution[];
