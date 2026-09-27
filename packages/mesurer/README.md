@@ -171,7 +171,7 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 
 Codex is enabled by default and remains toggleable under **Settings -> Plugins**.
 
-Native applications expose `window.__MESURER_HOST__.codexBridge` from preload/main and back it with `codexBridge()` from `mesurer-solid/plugins/codex/bridge`. The bridge runs in the native host process and talks directly to Codex's shared local app-server. There is no Mesurer localhost server, helper Electron process, marketplace plugin, SessionStart hook, or repeated trust step.
+Native applications expose `window.__MESURER_HOST__.codexBridge` from preload/main and back it with `codexBridge()` from `mesurer-solid/plugins/codex/bridge`. The bridge runs in the native host process and talks directly to Codex's shared local app-server. If that socket is absent, Mesurer starts it only from a complete standalone Codex installation. It does not execute a Desktop-bundled bare Codex binary or attach to Desktop's private stdio app-server. There is no Mesurer localhost server, helper Electron process, marketplace plugin, SessionStart hook, or repeated trust step.
 
 **Queue to Codex** calls Codex's native `thread/queue/add` API for one currently loaded thread and tracks the exact delivery through Queued, Working, Finished, or Interrupted. It does not create threads or invoke Steer.
 

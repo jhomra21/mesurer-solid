@@ -9,7 +9,7 @@ Mesurer is shared visual state between the person reviewing a page and the codin
 
 The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the browser controller already provides and read `window.__MESURER__` directly. The first-party `codex()` plugin is a separate human-initiated convenience for routing Context feedback to loaded Codex threads through the application's native host.
 
-Do not add a second Mesurer process for Codex delivery. Native applications expose the narrow `window.__MESURER_HOST__.codexBridge(request)` capability; the host-side implementation talks to Codex's shared local app-server.
+Do not add a second Mesurer process for Codex delivery. Native applications expose the narrow `window.__MESURER_HOST__.codexBridge(request)` capability; the host-side implementation talks to Codex's shared local app-server. If the shared socket is absent, Mesurer may start it only from a complete standalone Codex installation. Do not use a Desktop-bundled bare executable or Desktop's private stdio app-server as a replacement transport.
 
 A meaningful Mesurer step must return evidence the agent actually uses.
 

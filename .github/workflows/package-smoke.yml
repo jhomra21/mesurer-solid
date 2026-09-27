@@ -60,6 +60,33 @@ jobs:
             npm publish "$(realpath "$filename")" --dry-run --access public
           fi
 
+      - name: Create clean Codex runtime consumer
+        run: |
+          rm -rf /tmp/mesurer-codex-runtime
+          mkdir -p /tmp/mesurer-codex-runtime
+          cd /tmp/mesurer-codex-runtime
+          bun init -y >/dev/null
+          bun add "$PACKAGE_TGZ" >/dev/null
+          echo "MESURER_CODEX_BRIDGE_PATH=$(realpath node_modules/mesurer-solid/plugins/codex/bridge.mjs)" >> "$GITHUB_ENV"
+
+      - name: Verify packed Codex runtime selection
+        env:
+          MESURER_CODEX_BRIDGE_PATH: ${{ env.MESURER_CODEX_BRIDGE_PATH }}
+          MESURER_CODEX_RUNTIME_ARTIFACT_DIR: ${{ github.workspace }}/codex-runtime-artifacts
+        run: |
+          rm -rf codex-runtime-artifacts
+          bun tests/package-smoke/codex-runtime-smoke.mjs
+          cat codex-runtime-artifacts/result.json
+
+      - name: Upload Codex runtime evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: codex-runtime-e2e
+          path: codex-runtime-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Typecheck canonical and legacy names from a clean consumer
         run: |
           rm -rf /tmp/mesurer-types

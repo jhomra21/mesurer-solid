@@ -70,6 +70,14 @@ The Settings switch still controls availability. Turning it off removes the Code
 
 A short-lived beta made Codex opt-in. Mesurer's current plugin-persistence migration ignores that one beta availability value once so existing installations return to the normal default-on behavior. Choices made after that migration persist normally.
 
+## Desktop and standalone runtimes
+
+Mesurer queues through Codex's shared app-server control socket.
+
+A complete standalone Codex installation can start that shared daemon. When the socket is absent, Codex Bridge checks managed Codex packages under `CODEX_HOME`, then a non-Desktop `codex` executable on `PATH`. It does not launch the bare Codex executable bundled inside ChatGPT.app or Codex.app.
+
+Codex Desktop sessions work through the same path when Desktop is attached to the shared app-server. When Desktop owns its normal private stdio app-server instead, that process does not expose the shared socket used by Mesurer. Mesurer does not attach to Desktop's private app-tools pipe. The Codex plugin remains enabled, but those private Desktop sessions are not queue targets until Codex exposes them through the shared app-server.
+
 ## Thread discovery
 
 Codex's shared local app-server is the source of truth for sendable threads.
@@ -137,7 +145,7 @@ Codex turn completion is transport state, not proof that the requested visual re
 
 Mesurer no longer owns a long-running Codex bridge process.
 
-Each Codex Bridge request opens a short-lived connection to Codex's shared app-server control socket and closes it after the response. If that socket is unavailable, Codex Bridge asks Codex to start its own app-server daemon, waits for the socket, and retries.
+Each Codex Bridge request opens a short-lived connection to Codex's shared app-server control socket and closes it after the response. If that socket is unavailable, Codex Bridge asks a complete standalone Codex installation to start the shared daemon, waits for the socket, and retries. It checks Codex's managed package directories before `PATH` and rejects Desktop-bundled bare executables.
 
 Mesurer does not stop Codex's shared app-server daemon when a page closes or when the plugin is disabled.
 
@@ -178,7 +186,7 @@ There is no manual `mesurer-codex` command or standalone browser bridge.
 
 ## Requirements
 
-Use a current Codex build with the shared local app-server, direct socket transport, and queued-thread API available.
+Use a Codex build with the shared local app-server, direct socket transport, and queued-thread API available. Automatic daemon startup also requires a complete standalone Codex installation. A private Desktop stdio app-server by itself is not an external queue target.
 
 The current integration relies on:
 

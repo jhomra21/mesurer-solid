@@ -62,7 +62,7 @@ Layout Guides currently applies this rule to its initial, list, editor, aligned-
 
 The root `bun run test` command reads built package artifacts. On a fresh checkout or in a disposable worktree, run `bun run build:packages` first. Focused package tests can run directly when their required artifacts already exist.
 
-Codex process tests must not depend on the developer's live Codex session. They use a disposable `CODEX_HOME` and a fake shared-daemon transport to prove loaded-thread discovery, direct `thread/queue/add` submission, and exact delivery reconciliation. Package smoke bundles the Electron main process to CommonJS with esbuild before launch so package-relative ESM assumptions such as `import.meta.url` cannot pass unnoticed.
+Codex process tests must not depend on the developer's live Codex session. They use a disposable `CODEX_HOME` and a fake shared-daemon transport to prove loaded-thread discovery, direct `thread/queue/add` submission, and exact delivery reconciliation. Packed runtime smoke also creates a fake Desktop app bundle and a fake standalone Codex package. It must prove that Mesurer never executes the Desktop-bundled bare binary and that the standalone package can start the shared socket. The smoke writes `codex-runtime-artifacts/result.json` and CI retains that file. Package smoke bundles the Electron main process to CommonJS with esbuild before launch so package-relative ESM assumptions such as `import.meta.url` cannot pass unnoticed.
 
 ## Development server contract
 
@@ -97,7 +97,7 @@ Do not hand off a candidate SHA for manual acceptance merely because CI is green
 5. Keep console/page errors at zero for the exercised path.
 6. Keep the root dev-server smoke green when changed renderer source is loaded directly by the basic example.
 7. For Screenshot host changes, keep both the Chromium host-result contract and the packed Electron contract green.
-8. For Codex host changes, keep shared-daemon process coverage, package staging, and the packed Electron host-capability contract green.
+8. For Codex host changes, keep shared-daemon process coverage, packed runtime-selection evidence, package staging, and the packed Electron host-capability contract green.
 9. Keep performance invariants paired with the visible behavior they protect.
 10. Treat manual acceptance as a separate final check; automation reduces regressions but does not replace the user's real-browser validation.
 
