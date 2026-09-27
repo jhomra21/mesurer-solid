@@ -3,7 +3,7 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -53,6 +53,16 @@ const DESKTOP_LIFECYCLE_POLL_MS = 1_000;
 const DESKTOP_TURN_HISTORY_LIMIT = 10;
 
 const DELIVERY_TURN_START_SKEW_MS = 60_000;
+
+const LAST_OWNER_SHUTDOWN_DELAY_MS = 250;
+
+const configuredOwnerHealthPollMs = Number(process.env.MESURER_CODEX_OWNER_POLL_MS);
+
+const OWNER_HEALTH_POLL_MS = Number.isFinite(configuredOwnerHealthPollMs) && configuredOwnerHealthPollMs > 0
+  ? Math.max(50, configuredOwnerHealthPollMs)
+  : 5_000;
+
+const OWNED_CHILD_SHUTDOWN_GRACE_MS = 250;
 
 const usage = `Usage:
   mesurer-codex [--thread <session-id-or-name>] [options]
@@ -197,11 +207,117 @@ const desktopLifecycleChecks = new Map();
 
 const desktopLifecycleLastCheckedAt = new Map();
 
+const ownedChildren = new Set();
+
 let activeThread = null;
 
 let activeCwd = null;
 
+let idleShutdownTimer = null;
+
+let ownerHealthTimer = null;
+
+let server = null;
+
+let shutdownStarted = false;
+
+const spawnOwned = (...args) => {
+  const child = spawn(...args);
+  ownedChildren.add(child);
+
+  const release = () => ownedChildren.delete(child);
+  child.once("close", release);
+  child.once("error", release);
+
+  return child;
+};
+
+const cancelIdleShutdown = () => {
+  if (!idleShutdownTimer) return;
+  clearTimeout(idleShutdownTimer);
+  idleShutdownTimer = null;
+};
+
+const ownerAnchorExists = async (path) => {
+  try {
+    await stat(path);
+
+    return true;
+  } catch (cause) {
+    return cause?.code !== "ENOENT" && cause?.code !== "ENOTDIR";
+  }
+};
+
+const refreshOwnerHealthMonitor = () => {
+  const needsMonitor = process.platform !== "win32"
+    && [...registeredThreads.values()].some((record) => record.appToolsPipe);
+
+  if (!needsMonitor) {
+    if (ownerHealthTimer) clearInterval(ownerHealthTimer);
+    ownerHealthTimer = null;
+
+    return;
+  }
+
+  if (ownerHealthTimer) return;
+
+  ownerHealthTimer = setInterval(() => {
+    void pruneMissingDesktopOwners();
+  }, OWNER_HEALTH_POLL_MS);
+  ownerHealthTimer.unref?.();
+};
+
+const scheduleIdleShutdown = () => {
+  if (shutdownStarted || registeredThreads.size > 0 || idleShutdownTimer) return;
+
+  idleShutdownTimer = setTimeout(() => {
+    idleShutdownTimer = null;
+
+    if (registeredThreads.size === 0) void shutdownBridge();
+  }, LAST_OWNER_SHUTDOWN_DELAY_MS);
+  idleShutdownTimer.unref?.();
+};
+
+const unregisterThread = (thread) => {
+  const record = registeredThreads.get(thread);
+
+  if (!record) return false;
+
+  registeredThreads.delete(thread);
+
+  const dispatchTimer = desktopDispatchTimers.get(thread);
+
+  if (dispatchTimer) {
+    clearTimeout(dispatchTimer);
+    desktopDispatchTimers.delete(thread);
+  }
+
+  if (activeThread === thread) {
+    const next = [...registeredThreads.values()]
+      .sort((left, right) => right.seenAt - left.seenAt)[0] ?? null;
+    activeThread = next?.id ?? null;
+    activeCwd = next?.cwd ?? null;
+  }
+
+  refreshOwnerHealthMonitor();
+  scheduleIdleShutdown();
+
+  return true;
+};
+
+async function pruneMissingDesktopOwners() {
+  for (const record of [...registeredThreads.values()]) {
+    if (!record.appToolsPipe) continue;
+
+    if (!(await ownerAnchorExists(record.appToolsPipe))) {
+      unregisterThread(record.id);
+    }
+  }
+}
+
 const registerThread = (thread, cwd, registration = {}) => {
+  cancelIdleShutdown();
+
   const previous = registeredThreads.get(thread);
   const nextCwd = normalizeCwd(cwd) ?? previous?.cwd ?? null;
   const appToolsPipe = normalizeThread(registration.appToolsPipe) ?? previous?.appToolsPipe ?? null;
@@ -216,6 +332,8 @@ const registerThread = (thread, cwd, registration = {}) => {
   activeThread = thread;
 
   if (nextCwd) activeCwd = nextCwd;
+
+  refreshOwnerHealthMonitor();
 };
 
 if (initialThread) {
@@ -398,7 +516,7 @@ const codexControlSocketPath = () => {
 };
 
 const runCodexDaemonStart = () => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "daemon", "start"], {
+  const child = spawnOwned(codexBin, ["app-server", "daemon", "start"], {
     env: process.env,
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
@@ -455,7 +573,7 @@ const resumeColdCodexThreadViaDaemon = (thread) => new Promise((resolve, reject)
     return;
   }
 
-  const child = spawn(codexBin, ["stdio-to-uds", codexControlSocketPath()], {
+  const child = spawnOwned(codexBin, ["stdio-to-uds", codexControlSocketPath()], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
@@ -601,7 +719,7 @@ const resumeColdCodexThread = async (thread) => {
 };
 
 const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["queue", "--thread", thread, "--message", message], {
+  const child = spawnOwned(codexBin, ["queue", "--thread", thread, "--message", message], {
     env: process.env,
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
@@ -644,7 +762,7 @@ const runCodexQueue = (thread, message) => new Promise((resolve, reject) => {
 });
 
 const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
@@ -757,7 +875,7 @@ const runCodexThreadList = (cwd, limit) => new Promise((resolve, reject) => {
 });
 
 const runCodexQueueLookup = (thread, queuedSubmissionId = null) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
@@ -922,7 +1040,7 @@ const queuedSubmissionMessage = (submission) => {
 };
 
 const runCodexTurnHistory = (thread) => new Promise((resolve, reject) => {
-  const child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
+  const child = spawnOwned(codexBin, ["app-server", "--listen", "stdio://"], {
     env: process.env,
     shell: false,
     stdio: ["pipe", "pipe", "pipe"],
@@ -1081,7 +1199,7 @@ const openDesktopThread = (thread) => new Promise((resolveOpen, rejectOpen) => {
     return;
   }
 
-  const child = spawn(command, args, {
+  const child = spawnOwned(command, args, {
     env: process.env,
     shell: false,
     stdio: ["ignore", "ignore", "pipe"],
@@ -1539,7 +1657,7 @@ for (const delivery of deliveries.values()) scheduleDesktopLifecycleCheck(delive
 
 let successfulSends = 0;
 
-const server = createServer(async (request, response) => {
+server = createServer(async (request, response) => {
   const originHeaderPresent = Object.hasOwn(request.headers, "origin");
   const origin = [request.headers.origin].flat().find((value) => value !== undefined);
 
@@ -1565,9 +1683,7 @@ const server = createServer(async (request, response) => {
 
     response.setHeader("Connection", "close");
     response.once("finish", () => {
-      server.close();
-      server.closeAllConnections?.();
-      setImmediate(() => process.exit(0));
+      void shutdownBridge();
     });
     writeJson(response, 200, { ok: true }, origin);
 
@@ -1735,6 +1851,40 @@ const server = createServer(async (request, response) => {
 
     const payload = await listThreadSummaries(scopeThread, limit);
     writeJson(response, 200, { ok: true, ...payload }, origin);
+
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/threads/unregister") {
+    if (originHeaderPresent) {
+      writeJson(response, 403, {
+        ok: false,
+        error: "Thread unregistration is available only to a local process, not a browser Origin.",
+      }, origin);
+
+      return;
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      const thread = normalizeThread(body?.thread);
+
+      if (!thread) {
+        writeJson(response, 400, { ok: false, error: "thread must be a non-empty string." }, origin);
+
+        return;
+      }
+
+      const removed = unregisterThread(thread);
+      writeJson(response, 200, {
+        ok: true,
+        removed,
+        ...threadPayload(),
+      }, origin);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      writeJson(response, 400, { ok: false, error }, origin);
+    }
 
     return;
   }
@@ -1954,7 +2104,7 @@ const server = createServer(async (request, response) => {
         ...publicDelivery(delivery),
       }, origin);
 
-      if (values.once && successfulSends >= 1) setImmediate(() => server.close());
+      if (values.once && successfulSends >= 1) setImmediate(() => void shutdownBridge());
 
       return;
     }
@@ -2001,7 +2151,7 @@ const server = createServer(async (request, response) => {
       ...publicDelivery(delivery),
     }, origin);
 
-    if (values.once && successfulSends >= 1) setImmediate(() => server.close());
+    if (values.once && successfulSends >= 1) setImmediate(() => void shutdownBridge());
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : String(cause);
     writeJson(response, 502, { ok: false, error }, origin);
@@ -2030,8 +2180,72 @@ server.listen(parsedPort, "127.0.0.1", () => {
   if (activeThread) console.log(`BRIDGE_THREAD=${activeThread}`);
 });
 
-const shutdown = () => server.close(() => process.exit(0));
+async function shutdownBridge() {
+  if (shutdownStarted) return;
 
-process.on("SIGINT", shutdown);
+  shutdownStarted = true;
+  cancelIdleShutdown();
 
-process.on("SIGTERM", shutdown);
+  if (ownerHealthTimer) {
+    clearInterval(ownerHealthTimer);
+    ownerHealthTimer = null;
+  }
+
+  for (const timer of desktopDispatchTimers.values()) clearTimeout(timer);
+  desktopDispatchTimers.clear();
+
+  const children = [...ownedChildren];
+
+  for (const child of children) {
+    if (child.exitCode === null && child.signalCode === null) {
+      try {
+        child.kill("SIGTERM");
+      } catch {}
+    }
+  }
+
+  const closeServer = new Promise((resolve) => {
+    if (!server?.listening) {
+      resolve();
+
+      return;
+    }
+
+    server.close(() => resolve());
+    server.closeAllConnections?.();
+  });
+
+  const childExit = Promise.allSettled(children.map((child) => new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      resolve();
+
+      return;
+    }
+
+    child.once("close", resolve);
+    child.once("error", resolve);
+  })));
+
+  await Promise.race([
+    Promise.all([closeServer, childExit]),
+    new Promise((resolve) => setTimeout(resolve, OWNED_CHILD_SHUTDOWN_GRACE_MS)),
+  ]);
+
+  for (const child of ownedChildren) {
+    if (child.exitCode === null && child.signalCode === null) {
+      try {
+        child.kill("SIGKILL");
+      } catch {}
+    }
+  }
+
+  process.exit(0);
+}
+
+process.on("SIGINT", () => {
+  void shutdownBridge();
+});
+
+process.on("SIGTERM", () => {
+  void shutdownBridge();
+});
