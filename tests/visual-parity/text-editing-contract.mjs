@@ -158,7 +158,9 @@ try {
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
   await arrangeBox.waitFor({ state: "visible" });
   const arrangeStart = await arrangeBox.boundingBox();
+
   assert(arrangeStart, "Arrange-compatible text editing should expose a movable Arrange box");
+
   const arrangeDelta = { x: 36, y: 24 };
   const arrangeCenter = {
     x: arrangeStart.x + arrangeStart.width / 2,
