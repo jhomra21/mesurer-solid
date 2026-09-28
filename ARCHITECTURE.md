@@ -80,7 +80,7 @@ The toolbar keeps one stable tool order. Compact presentation collapses inactive
 
 Plugin tools render through the same toolbar path as built-ins instead of maintaining a second renderer.
 
-Page identity is a runtime seam, not a feature-specific URL check. The default route key uses pathname plus sorted query parameters and includes hash routes only for `#/` navigation. Page-owned workspace state uses that key; viewport/session chrome does not. In particular, toolbar placement lives in tab `sessionStorage` so route changes can swap page evidence without moving the user's global control surface.
+The runtime owns page identity; feature code does not check specific URLs. The default route key uses pathname plus sorted query parameters and includes hash routes only for `#/` navigation. Page-owned workspace state uses that key, while viewport and session state do not. Toolbar placement lives in tab `sessionStorage`, so route changes can swap page evidence without moving the toolbar.
 
 Default local persistence stores settings once per persistence key and workspace snapshots by page key. Custom persistence can implement `setPageKey(pageKey)` to receive the same route transition. The renderer saves the old page before switching, clears transient page ownership, then restores the target page while retaining session-centric tool visibility/mode state.
 
@@ -128,7 +128,7 @@ Arrange previews movement with an inline transform but records the previous valu
 
 See [Arrange](./docs/ARRANGE.md).
 
-## Layout Guides
+## Layout guides
 
 `mesurer.layout-guides` is a first-party plugin exposed as `layoutGuides()` from `mesurer-solid/plugins`.
 

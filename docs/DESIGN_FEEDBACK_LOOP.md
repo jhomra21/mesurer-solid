@@ -1,6 +1,6 @@
 # Design feedback loop
 
-Mesurer turns rendered UI state and human visual intent into evidence that can be consumed before and after source edits.
+Mesurer records rendered UI state and human visual intent as evidence that agents can read before and after source edits.
 
 For the exact agent procedure and APIs, use [Agent Integration](../packages/mesurer/AGENT_INTEGRATION.md). This guide describes the review model rather than duplicating the operational steps.
 
@@ -13,7 +13,7 @@ A complete visual change has four phases:
 3. **Observe Live.** Wait for the rendered page to settle and inspect the affected targets again.
 4. **Compare.** Evaluate Live against the original problem and any saved Desired or baseline evidence.
 
-The loop ends on rendered evidence, not on a successful build.
+Finish the loop only after checking the rendered result. A successful build alone is not enough.
 
 ## Evidence types
 

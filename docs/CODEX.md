@@ -29,7 +29,7 @@ Mesurer Context / saved notes
 
 There is no Mesurer Codex server, loopback port, helper Electron process, Codex marketplace plugin, SessionStart hook, or SessionEnd hook.
 
-The native **Codex Bridge** is part of the Codex plugin package surface at `mesurer-solid/plugins/codex/bridge`. It runs inside the application's native host process and owns Codex transport selection there. Shared sessions use Codex's local app-server; an exact inherited Desktop current thread can use the plugin-owned Desktop queue adapter described below. The bridge does not start another Mesurer service.
+The native **Codex Bridge** is exported by the Codex plugin at `mesurer-solid/plugins/codex/bridge`. It runs inside the application's native host process and owns Codex transport selection there. Shared sessions use Codex's local app-server; an exact inherited Desktop current thread can use the plugin-owned Desktop queue adapter described below. The bridge does not start another Mesurer service.
 
 ## Native host wiring
 
@@ -87,7 +87,7 @@ Runtime choice stays inside the Codex plugin. Host applications expose only `cod
 
 ## Thread discovery
 
-For the shared transport, Codex's shared local app-server is the source of truth for sendable threads. The bridge asks for `thread/loaded/list`, reads bounded metadata through `thread/list`, and falls back to `thread/read` when needed.
+For the shared transport, Codex's shared local app-server defines which threads are sendable. The bridge asks for `thread/loaded/list`, reads bounded metadata through `thread/list`, and falls back to `thread/read` when needed.
 
 For the inherited Desktop-current-thread transport, the only sendable destination is the exact inherited `CODEX_THREAD_ID`. Mesurer does not scan writer-lock files, infer focus from recency, or accept an arbitrary Desktop thread id.
 
@@ -112,7 +112,7 @@ On the shared-app-server path, the bridge verifies the destination with `thread/
 
 On the inherited Desktop-current-thread path, the bridge accepts only the inherited thread, invokes `codex queue --thread <id> --message <text>`, keeps the queued-submission id, and opens `codex://threads/<id>`. The deep link is a wake step, not a second message submission. If the wake fails after persistence, Mesurer reports the wake diagnostic and does not requeue.
 
-Desktop fallback delivery remains **Queued** unless Mesurer can prove later lifecycle state without crossing the private Desktop transport. It does not manufacture **Working** or **Finished** from UI assumptions.
+Desktop fallback delivery remains **Queued** unless Mesurer can prove a later lifecycle state without crossing the private Desktop transport. It does not report **Working** or **Finished** from UI assumptions.
 
 ## Delivery persistence
 
@@ -122,7 +122,7 @@ Mesurer keeps bounded correlation metadata under:
 $CODEX_HOME/mesurer/codex-deliveries.json
 ```
 
-This file stores the Mesurer delivery id, destination thread, queued-submission id, prompt hash, and last known lifecycle state. It is not a second message queue. Codex's own queue remains the durable source of truth.
+This file stores the Mesurer delivery id, destination thread, queued-submission id, prompt hash, and last known lifecycle state. It is not a second message queue. Codex's queue remains the durable queue.
 
 The renderer keeps the active delivery id, destination thread, lifecycle state, and exact annotation ids in per-tab `sessionStorage` while a delivery is active or reconcilable.
 
@@ -181,7 +181,7 @@ The renderer does not receive filesystem, process, or socket access. It can only
 
 Codex Bridge exposes bounded actions for health, loaded-thread listing and selection, queueing, delivery reads, and safe delivery restoration. Native process and socket access stay in the host process.
 
-There is no localhost HTTP listener and no CORS surface.
+There is no localhost HTTP listener, so Mesurer does not need CORS configuration for Codex delivery.
 
 ## Browser-only hosts
 
@@ -191,7 +191,7 @@ There is no manual `mesurer-codex` command or standalone browser bridge.
 
 ## Requirements
 
-Shared delivery requires Codex's local app-server and queued-thread API. Automatic daemon startup requires a complete standalone Codex installation. The Desktop-current-thread fallback additionally requires the host process to inherit the thread environment from Codex Desktop; a private Desktop stdio app-server by itself is still not enough to identify a current thread safely.
+Shared delivery requires Codex's local app-server and queued-thread API. Automatic daemon startup requires a complete standalone Codex installation. The Desktop-current-thread fallback also requires the host process to inherit the thread environment from Codex Desktop; a private Desktop stdio app-server by itself is still not enough to identify a current thread safely.
 
 The current integration relies on:
 

@@ -45,18 +45,18 @@ Keep the two Agent Skill copies byte-identical:
 - `.agents/skills/mesurer-ui/SKILL.md`
 - `packages/mesurer/skills/mesurer-ui/SKILL.md`
 
-Codex implementation stays under the Codex plugin: renderer behavior in `packages/mesurer/src/plugins/codex/index.ts` and native host transport in `packages/mesurer/src/plugins/codex/`. Keep `mesurer-solid/plugins/codex/bridge` in-process; do not add a standalone Mesurer bridge process, localhost listener, marketplace copy, or hook-owned copy. Shared-daemon startup may use a complete standalone Codex installation, but it must never use a Desktop-bundled executable for daemon bootstrap. The Desktop current-thread adapter may invoke that resolved executable only for one exact durable queue operation after inherited Desktop ownership is established; it must never attach to the private app-tools pipe.
+Keep Codex implementation under the Codex plugin. Renderer behavior belongs in `packages/mesurer/src/plugins/codex/index.ts`, and native host transport belongs in `packages/mesurer/src/plugins/codex/`. Keep `mesurer-solid/plugins/codex/bridge` in-process. Do not add a standalone Mesurer bridge process, localhost listener, marketplace copy, or hook-owned copy. Shared-daemon startup may use a complete standalone Codex installation, but it must never use a Desktop-bundled executable for daemon bootstrap. The Desktop current-thread adapter may invoke that resolved executable only for one exact durable queue operation after inherited Desktop ownership is established. It must never attach to the private app-tools pipe.
 
 ## Validation
 
 Follow [VALIDATION.md](./VALIDATION.md). In particular:
 
-- unit/jsdom tests support a change but do not replace browser acceptance for interaction regressions;
-- reproduce the actual failed topology for manual regressions;
-- keep browser warnings/errors at zero on accepted flows;
-- use packed-consumer checks for published-package changes, including the real Electron renderer contract when Screenshot or Codex native-host behavior changes;
-- run the root dev-server smoke when renderer source or Vite entry behavior changes;
-- keep visual parity and interaction parity green when renderer behavior changes.
+- Use unit and jsdom tests to support a change, but do not use them instead of browser acceptance for interaction regressions.
+- Reproduce the actual failed topology for manual regressions.
+- Keep browser warnings and errors at zero on accepted flows.
+- Use packed-consumer checks for published-package changes, including the real Electron renderer contract when Screenshot or Codex native-host behavior changes.
+- Run the root dev-server smoke when renderer source or Vite entry behavior changes.
+- Keep visual parity and interaction parity green when renderer behavior changes.
 
 ## Pull requests
 
