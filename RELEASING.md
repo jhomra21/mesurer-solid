@@ -41,6 +41,8 @@ There are two supported entry points into the same **prepare-release** workflow:
 
 1. From GitHub Actions, run **prepare-release** from `main` and choose a stable version strategy.
 2. Post an owner-only release command on the repository's **Release Control** issue (#32):
+   - `/release beta-next`
+   - `/release promote-stable`
    - `/release patch`
    - `/release minor`
    - `/release major`
@@ -48,7 +50,7 @@ There are two supported entry points into the same **prepare-release** workflow:
 
 The Release Control path accepts only new comments on issue #32 from the repository owner. It prepares a release but cannot publish one.
 
-For normal releases, use `patch`, `minor`, or `major`. Use `explicit` only when an exact stable SemVer version is required.
+Use `beta-next` to advance an existing `x.y.z-beta.N` train, or to start `x.y.(z+1)-beta.0` from a stable version. Use `promote-stable` to remove the prerelease suffix and aggregate the matching prerelease notes. For stable version increments, use `patch`, `minor`, or `major`. Use `explicit` only when an exact SemVer version is required.
 
 The workflow moves `Unreleased` changelog entries into the new version section, updates `packages/mesurer/package.json`, creates `release/v<version>`, and opens a `release: v<version>` PR.
 
