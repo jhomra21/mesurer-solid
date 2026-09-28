@@ -2,7 +2,7 @@
 
 Mesurer UI should look like one compact inspection tool even when a feature is implemented by a separate plugin or document-backed runtime.
 
-This document is the review contract for new Mesurer-owned UI. It describes shared visual decisions, not feature behavior or browser ownership rules.
+Use these rules when reviewing new Mesurer-owned UI. They cover shared visual decisions, not feature behavior or browser ownership rules.
 
 ## Surfaces
 
@@ -15,7 +15,7 @@ The current audited upstream release reference is `33ffecfa7682b25dff5ada2a507fe
 - New small controls should use the current upstream 5px control radius unless the source component uses different geometry.
 - The toolbar keeps its accepted Solid-specific motion and clipping structure unless a toolbar-focused parity change deliberately updates it.
 - Source evidence such as selection outlines, measurement geometry, guide lines, and annotation ownership edges is not a floating surface. Do not give evidence cards, borders, or shadows just to make it look like UI.
-- Dark transient previews may keep feature-specific presentation when the background itself carries the hierarchy.
+- Dark transient previews may keep a feature-specific dark background when that background is part of the preview.
 
 Use `--msr-shadow-floating` and `--msr-shadow-toolbar` for Mesurer-owned floating surfaces. The values change with the active theme. Do not copy the light shadow into a new component or add another shadow without a product reason.
 
@@ -41,7 +41,7 @@ Mesurer is an inspector, not an application dashboard.
 
 ## Motion
 
-Motion explains ownership or state; it should not decorate the tool.
+Use motion only when it shows an ownership or state change.
 
 - Reuse existing toolbar/menu timing and reduced-motion behavior.
 - Do not animate source evidence in a way that makes measurements lag behind the page.
@@ -56,7 +56,6 @@ Visual consistency does not override browser ownership. Pointer and accessibilit
 - Pointer activity inside menus, dialogs, form controls, editable regions, and sliders belongs to that control and must not move the toolbar.
 - A trigger that owns an expandable menu or panel exposes its current open state through `aria-expanded`. Keep the accessibility state synchronized with the rendered surface.
 - Opening one transient surface should not leave another unrelated toolbar surface claiming pointer or focus ownership.
-
 
 - Viewport-owned chrome stays in the protected host/top-layer path.
 - Source-linked UI stays attached to its source using the established document inspector/native-anchor paths.
