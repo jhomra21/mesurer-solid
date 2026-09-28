@@ -2,7 +2,7 @@
 
 Mesurer's agent integration is the rendered page itself. The coding agent reads `window.__MESURER__` through the browser control it already has, consumes human visual intent, edits normal application source, and verifies the real Live result.
 
-The normal agent workflow requires no Mesurer MCP server, localhost daemon, Send-to-agent callback, or browser-tool-specific transport. The optional `codex()` plugin is a separate human convenience path for sending Context feedback to threads reported as loaded by Codex's shared app-server; it does not replace the browser-state contract described here.
+The normal agent workflow requires no Mesurer MCP server, localhost daemon, Send-to-agent callback, or browser-tool-specific transport. The optional `codex()` plugin is a separate human convenience path for sending Context feedback through the native host's Codex transport; it does not replace the browser-state contract described here.
 
 ## Install the agent skill
 
@@ -17,10 +17,7 @@ The installer writes a self-contained skill and injection artifact:
 .agents/skills/mesurer-ui/
 ├── SKILL.md
 └── assets/
-    ├── inject-script.js
-    ├── codex-connect.mjs
-    ├── codex-lifecycle.mjs
-    └── codex-bridge.mjs
+    └── inject-script.js
 ```
 
 ## Know the available capabilities
@@ -250,11 +247,11 @@ The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separ
 
 The first-party `codex()` plugin is enabled by default and remains toggleable in Mesurer Settings. It is a human-triggered delivery path and does not add a generic send method to `window.__MESURER__`.
 
-Native hosts expose `window.__MESURER_HOST__.codexBridge(request)`. The matching `codexBridge()` implementation is published from `mesurer-solid/plugins/codex/bridge` and runs in the host process. It relays bounded requests to Codex's existing shared local app-server. If that socket is absent, it can start the shared daemon only from a complete standalone Codex installation. It does not launch a Desktop-bundled bare executable or attach to Desktop's private stdio app-server. There is no Mesurer Codex daemon, localhost listener, marketplace plugin, or lifecycle hook.
+Native hosts expose `window.__MESURER_HOST__.codexBridge(request)`. The matching `codexBridge()` implementation is published from `mesurer-solid/plugins/codex/bridge` and runs in the host process. Shared sessions use Codex's existing local app-server. When the host inherits both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH` from Codex Desktop, Mesurer exposes only that exact Desktop thread, queues once through Codex's native queue command, and wakes the same thread with `codex://threads/<id>`. The app-tools pipe is an ownership signal only and is never opened. There is no Mesurer Codex daemon, localhost listener, marketplace plugin, or lifecycle hook.
 
-Only threads reported by Codex as loaded are sendable. Page affinity and explicit destination overrides persist per tab; if several loaded threads are available and no valid saved destination exists, the user must choose one.
+Shared delivery exposes currently loaded Codex threads. Desktop fallback exposes only the exact inherited current thread and refuses any other destination. Page affinity and explicit destination overrides remain fail-closed.
 
-Delivery calls the shared app-server's `thread/queue/add` directly. Mesurer never calls `turn/steer`, never creates a thread, and never reconstructs a second user-message queue. The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias.
+Shared delivery calls `thread/queue/add` directly. Desktop current-thread delivery uses the native queue command only for that exact inherited thread. Mesurer never calls `turn/steer`, never creates a thread, and never reconstructs a second user-message queue. The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias.
 
 Queue submission is single-flight. A matched completed turn may remove only the annotation ids sent with that delivery; interrupted, failed, ambiguous, or unreadable work keeps them. Turn completion is transport state, not proof that the requested UI result is correct.
 
