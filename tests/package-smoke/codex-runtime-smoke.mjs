@@ -25,6 +25,12 @@ const originalCodexHome = process.env.CODEX_HOME;
 
 const originalHelper = process.env.MESURER_CODEX_SMOKE_HELPER;
 
+const originalThreadId = process.env.CODEX_THREAD_ID;
+
+const originalAppToolsPipe = process.env.CODEX_APP_TOOLS_PIPE_PATH;
+
+const originalDesktopOpenBin = process.env.MESURER_CODEX_DESKTOP_OPEN_BIN;
+
 const result = {
   bridgePath,
   desktop: {
@@ -32,6 +38,14 @@ const result = {
     rejectedPrivateRuntime: false,
     runtime: null,
     error: null,
+    inheritedSession: {
+      runtime: null,
+      health: null,
+      threads: null,
+      queue: null,
+      queuedExecutableArgs: null,
+      openedUrl: null,
+    },
   },
   standalone: {
     packagedExecutableRan: false,
@@ -54,6 +68,15 @@ const restoreEnvironment = () => {
 
   if (originalHelper === undefined) delete process.env.MESURER_CODEX_SMOKE_HELPER;
   else process.env.MESURER_CODEX_SMOKE_HELPER = originalHelper;
+
+  if (originalThreadId === undefined) delete process.env.CODEX_THREAD_ID;
+  else process.env.CODEX_THREAD_ID = originalThreadId;
+
+  if (originalAppToolsPipe === undefined) delete process.env.CODEX_APP_TOOLS_PIPE_PATH;
+  else process.env.CODEX_APP_TOOLS_PIPE_PATH = originalAppToolsPipe;
+
+  if (originalDesktopOpenBin === undefined) delete process.env.MESURER_CODEX_DESKTOP_OPEN_BIN;
+  else process.env.MESURER_CODEX_DESKTOP_OPEN_BIN = originalDesktopOpenBin;
 };
 
 try {
@@ -61,17 +84,31 @@ try {
   const desktopBinDir = join(root, "ChatGPT.app", "Contents", "Resources");
   const desktopBin = join(desktopBinDir, "codex");
   const desktopMarker = join(root, "desktop-executed.txt");
+  const desktopOpenBin = join(root, "desktop-open");
+  const desktopOpenMarker = join(root, "desktop-opened.txt");
 
   await mkdir(desktopBinDir, { recursive: true });
   await writeFile(
     desktopBin,
     `#!/bin/sh
-printf '%s\\n' executed > "${desktopMarker}"
-exit 0
+printf '%s\\n' "$@" > "${desktopMarker}"
+if [ "$1" = "queue" ] && [ "$2" = "--thread" ] && [ "$3" = "desktop-thread-1" ] && [ "$4" = "--message" ]; then
+  printf '%s\\n' "Queued message desktop-submission-1 for thread desktop-thread-1."
+  exit 0
+fi
+exit 2
+`,
+    "utf8",
+  );
+  await writeFile(
+    desktopOpenBin,
+    `#!/bin/sh
+printf '%s\\n' "$1" > "${desktopOpenMarker}"
 `,
     "utf8",
   );
   await chmod(desktopBin, 0o755);
+  await chmod(desktopOpenBin, 0o755);
 
   process.env.PATH = desktopBinDir;
   process.env.CODEX_HOME = desktopHome;
@@ -107,6 +144,87 @@ exit 0
     .catch(() => false);
 
   assert.equal(result.desktop.bundledExecutableRan, false);
+
+  process.env.CODEX_THREAD_ID = "desktop-thread-1";
+  process.env.CODEX_APP_TOOLS_PIPE_PATH = join(root, "desktop-app-tools.sock");
+  process.env.MESURER_CODEX_DESKTOP_OPEN_BIN = desktopOpenBin;
+
+  const inheritedRuntime = await codexBridge(
+    { action: "runtime" },
+    { codexHome: desktopHome },
+  );
+
+  assert.deepEqual(inheritedRuntime.runtime, {
+    source: "desktop",
+    transport: "desktop-queue",
+    available: true,
+    reason: null,
+  });
+  result.desktop.inheritedSession.runtime = inheritedRuntime.runtime;
+
+  const inheritedHealth = await codexBridge(
+    { action: "health" },
+    { codexHome: desktopHome },
+  );
+
+  assert.equal(inheritedHealth.ok, true);
+  assert.equal(inheritedHealth.thread, "desktop-thread-1");
+  assert.deepEqual(inheritedHealth.threads, ["desktop-thread-1"]);
+  result.desktop.inheritedSession.health = inheritedHealth;
+
+  const inheritedThreads = await codexBridge(
+    { action: "threads", limit: 5 },
+    { codexHome: desktopHome },
+  );
+
+  assert.equal(inheritedThreads.thread, "desktop-thread-1");
+  assert.equal(inheritedThreads.threadDetails?.length, 1);
+  assert.equal(inheritedThreads.threadDetails?.[0]?.id, "desktop-thread-1");
+  result.desktop.inheritedSession.threads = inheritedThreads;
+
+  const inheritedQueue = await codexBridge(
+    {
+      action: "queue",
+      thread: "desktop-thread-1",
+      message: "Desktop feedback",
+    },
+    { codexHome: desktopHome },
+  );
+
+  assert.equal(inheritedQueue.ok, true);
+  assert.equal(inheritedQueue.thread, "desktop-thread-1");
+  assert.equal(inheritedQueue.queuedSubmissionId, "desktop-submission-1");
+  assert.equal(inheritedQueue.dispatch, "desktop-opened");
+  assert.equal(inheritedQueue.status, "queued");
+  result.desktop.inheritedSession.queue = inheritedQueue;
+
+  const delivery = await codexBridge(
+    { action: "delivery", deliveryId: inheritedQueue.deliveryId },
+    { codexHome: desktopHome },
+  );
+
+  assert.equal(delivery.status, "queued");
+  assert.equal(delivery.dispatch, "desktop-opened");
+
+  const queuedExecutableArgs = (await readFile(desktopMarker, "utf8"))
+    .trim()
+    .split("\n");
+  assert.deepEqual(queuedExecutableArgs, [
+    "queue",
+    "--thread",
+    "desktop-thread-1",
+    "--message",
+    "Desktop feedback",
+  ]);
+  result.desktop.inheritedSession.queuedExecutableArgs = queuedExecutableArgs;
+
+  const openedUrl = (await readFile(desktopOpenMarker, "utf8")).trim();
+  assert.equal(openedUrl, "codex://threads/desktop-thread-1");
+  result.desktop.inheritedSession.openedUrl = openedUrl;
+
+  delete process.env.CODEX_THREAD_ID;
+  delete process.env.CODEX_APP_TOOLS_PIPE_PATH;
+  delete process.env.MESURER_CODEX_DESKTOP_OPEN_BIN;
 
   if (originalPath === undefined) delete process.env.PATH;
   else process.env.PATH = originalPath;
