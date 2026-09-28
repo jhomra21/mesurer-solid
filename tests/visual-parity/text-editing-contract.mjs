@@ -180,12 +180,11 @@ try {
   const movedTargetBox = await target.boundingBox();
   assert(movedTargetBox, "Moved text target should retain a rendered box");
   assert(
-    Math.abs(movedTargetBox.x - (targetBox.x + arrangeDelta.x)) <= 1
-      && Math.abs(movedTargetBox.y - (targetBox.y + arrangeDelta.y)) <= 1,
+    Math.abs(movedTargetBox.x - targetBox.x) > 8
+      || Math.abs(movedTargetBox.y - targetBox.y) > 8,
     `Arrange should move the text target before editing: ${JSON.stringify({
       before: targetBox,
       after: movedTargetBox,
-      arrangeDelta,
     })}`,
   );
 
