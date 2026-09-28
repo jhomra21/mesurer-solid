@@ -1,4 +1,4 @@
-# Layout Guides
+# Layout guides
 
 Layout Guides are optional page-layout evidence: columns, rows, or a pixel grid that a person can place over the rendered page without changing application source.
 
