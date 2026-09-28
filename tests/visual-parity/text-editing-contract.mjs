@@ -255,6 +255,7 @@ try {
       { cause: error },
     );
   }
+
   await inspector.waitFor({ state: "visible" });
   await page.waitForFunction(() => document.querySelector("[data-mesurer-text-inspector-info='true']")?.getAttribute("data-mesurer-text-inspector-unified") === "true");
 
