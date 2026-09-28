@@ -16,14 +16,15 @@ Mesurer Context / saved notes
            v
   Codex Bridge in the native host process
            |
-           | app-server control socket
-           v
-  Codex shared local app-server
+           +--> shared app-server adapter
+           |      +--> thread/loaded/list
+           |      +--> thread/list / thread/read
+           |      +--> thread/queue/add
+           |      +--> thread/turns/list
            |
-           +--> thread/loaded/list
-           +--> thread/list / thread/read
-           +--> thread/queue/add
-           +--> thread/turns/list
+           +--> inherited Desktop-current-thread adapter
+                  +--> codex queue --thread <exact inherited thread>
+                  +--> codex://threads/<same thread>
 ```
 
 There is no Mesurer Codex server, loopback port, helper Electron process, Codex marketplace plugin, SessionStart hook, or SessionEnd hook.
@@ -76,15 +77,19 @@ The Codex plugin has one API for Codex. Callers do not select a CLI or Desktop i
 
 The native bridge resolves the runtime behind that API. A reachable shared app-server is used as-is. If no shared server is running, the bridge can start one from an existing complete standalone Codex installation. It checks managed packages under `CODEX_HOME` before `PATH`. Mesurer never installs Codex.
 
-Codex Desktop uses the same Mesurer API when Desktop is attached to the shared app-server. Current Desktop builds may instead own a private stdio app-server. The bridge detects that case but does not execute the Desktop-bundled CLI or connect to Desktop's private app-tools pipe. Those private sessions are not externally queueable through a supported Codex transport today.
+Codex Desktop uses the same Mesurer API. If Desktop is attached to the shared app-server, Mesurer uses that transport normally. If the application host was launched from a Codex Desktop thread, Codex injects the exact `CODEX_THREAD_ID` into that execution environment. Desktop also supplies `CODEX_APP_TOOLS_PIPE_PATH`. Mesurer requires both signals before enabling its current-thread Desktop fallback.
+
+That fallback does not connect to the private pipe. It uses the resolved Codex executable only to durably queue to the exact inherited thread, then opens `codex://threads/<id>` so Desktop wakes or resumes that same thread. The Desktop-bundled executable is never used to bootstrap the shared daemon.
+
+If neither inherited ownership nor a shared app-server is available, Mesurer reports the private Desktop runtime as unavailable instead of guessing which Desktop thread is current.
 
 Runtime choice stays inside the Codex plugin. Host applications expose only `codexBridge(request)`, and renderer code keeps using `codex:v1` for health, thread discovery, target selection, queueing, and delivery state.
 
 ## Thread discovery
 
-Codex's shared local app-server is the source of truth for sendable threads.
+For the shared transport, Codex's shared local app-server is the source of truth for sendable threads. The bridge asks for `thread/loaded/list`, reads bounded metadata through `thread/list`, and falls back to `thread/read` when needed.
 
-The Codex Bridge asks for `thread/loaded/list`. It reads bounded metadata through `thread/list` and falls back to `thread/read` when needed. Recent but unloaded threads are not presented as connected merely because they exist in history.
+For the inherited Desktop-current-thread transport, the only sendable destination is the exact inherited `CODEX_THREAD_ID`. Mesurer does not scan writer-lock files, infer focus from recency, or accept an arbitrary Desktop thread id.
 
 The destination picker is bounded to ten loaded threads. It uses the thread name when available, then the preview, then a shortened id.
 
@@ -101,19 +106,13 @@ Mesurer never creates a Codex thread. Open or create the thread in Codex first.
 
 Mesurer implements **Queue**, not **Steer**.
 
-When the user presses **Queue to Codex**:
+When the user presses **Queue to Codex**, Mesurer queues exactly once through the active internal adapter.
 
-1. Mesurer enters **Queueing to Codex…** and suppresses duplicate submission.
-2. Codex Bridge verifies the destination against `thread/loaded/list`.
-3. Codex Bridge calls the shared app-server's `thread/queue/add` method directly.
-4. Codex returns the durable queued-submission id.
-5. Mesurer shows **Queued for Codex** while Codex owns scheduling.
-6. Mesurer reads bounded turn history from the same shared app-server and correlates the exact queued message.
-7. A matching in-progress turn becomes **Codex working…**.
-8. A matching completed turn becomes **Codex finished**.
-9. A matching failed or ended interrupted turn becomes **Codex interrupted** and keeps the review state available for retry.
+On the shared-app-server path, the bridge verifies the destination with `thread/loaded/list`, calls `thread/queue/add` directly, keeps Codex's queued-submission id, and correlates lifecycle through bounded turn history on the same server.
 
-Mesurer does not shell through `codex queue` for delivery. The Codex CLI's queue command is itself an app-server client; Mesurer uses the same shared app-server queue API directly instead of introducing another server or queue.
+On the inherited Desktop-current-thread path, the bridge accepts only the inherited thread, invokes `codex queue --thread <id> --message <text>`, keeps the queued-submission id, and opens `codex://threads/<id>`. The deep link is a wake step, not a second message submission. If the wake fails after persistence, Mesurer reports the wake diagnostic and does not requeue.
+
+Desktop fallback delivery remains **Queued** unless Mesurer can prove later lifecycle state without crossing the private Desktop transport. It does not manufacture **Working** or **Finished** from UI assumptions.
 
 ## Delivery persistence
 
@@ -147,7 +146,9 @@ Codex turn completion is transport state, not proof that the requested visual re
 
 Mesurer no longer owns a long-running Codex bridge process.
 
-Each Codex Bridge request opens a short-lived connection to Codex's shared app-server control socket and closes it after the response. If that socket is unavailable, Codex Bridge checks whether an existing standalone installation can start the shared daemon. It also reports when the only detected runtime is Codex Desktop with a private stdio transport. The bridge never launches a Desktop-bundled bare executable.
+Shared-transport requests open short-lived connections to Codex's app-server control socket and close them after each response. If that socket is unavailable, the bridge may use an existing complete standalone installation to start the shared daemon.
+
+For an inherited Desktop-current-thread request, there is no Mesurer server and no socket attachment. The bridge may execute Codex's bundled command for the one durable queue operation and use the operating system's native `codex://` URL handler to wake that thread. It never starts a daemon from the Desktop-bundled executable.
 
 Mesurer does not stop Codex's shared app-server daemon when a page closes or when the plugin is disabled.
 
@@ -190,7 +191,7 @@ There is no manual `mesurer-codex` command or standalone browser bridge.
 
 ## Requirements
 
-Use a Codex build with the shared local app-server, direct socket transport, and queued-thread API available. Automatic daemon startup also requires a complete standalone Codex installation. A private Desktop stdio app-server by itself is not an external queue target.
+Shared delivery requires Codex's local app-server and queued-thread API. Automatic daemon startup requires a complete standalone Codex installation. The Desktop-current-thread fallback additionally requires the host process to inherit the thread environment from Codex Desktop; a private Desktop stdio app-server by itself is still not enough to identify a current thread safely.
 
 The current integration relies on:
 
