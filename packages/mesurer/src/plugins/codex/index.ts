@@ -73,7 +73,7 @@ export type MesurerCodexSendRequest = MesurerCodexQueueRequest;
 
 export type MesurerCodexDeliveryStatus = "queued" | "working" | "completed" | "interrupted";
 
-export type MesurerCodexDispatchStatus = "persisted";
+export type MesurerCodexDispatchStatus = "persisted" | "desktop-opened";
 
 export type MesurerCodexDelivery = {
   id: string;
@@ -115,7 +115,7 @@ type MesurerCodexRuntime = {
   /** Runtime source selected by the native Codex bridge. Callers do not choose this value. */
   source: "shared" | "standalone" | "desktop" | "none";
   /** Transport available for Codex delivery. */
-  transport: "shared-app-server" | "private-stdio" | "none";
+  transport: "shared-app-server" | "desktop-queue" | "private-stdio" | "none";
   /** Whether this runtime can serve Mesurer requests without user setup. */
   available: boolean;
   /** Machine-readable reason when the detected runtime is not usable by Mesurer. */
@@ -125,7 +125,7 @@ type MesurerCodexRuntime = {
 export type MesurerCodexHealth = {
   /** Current loaded Codex target. Null when no loaded Codex thread is selected. */
   thread: string | null;
-  /** Codex threads currently loaded in the shared local app-server. */
+  /** Codex threads currently available through the selected plugin-owned transport. */
   threads: string[];
 };
 
@@ -133,7 +133,7 @@ export type MesurerCodexThread = {
   id: string;
   title: string;
   updatedAt: number | null;
-  /** True when this thread is currently loaded and accepts queue delivery through Codex's shared app-server. */
+  /** True when this thread currently accepts queue delivery through the active Codex transport. */
   connected: boolean;
 };
 
@@ -334,7 +334,7 @@ const bridgeRuntime = (response: BridgeResponse): MesurerCodexRuntime | null => 
 
   if (!["shared", "standalone", "desktop", "none"].includes(runtime.source)) return null;
 
-  if (!["shared-app-server", "private-stdio", "none"].includes(runtime.transport)) return null;
+  if (!["shared-app-server", "desktop-queue", "private-stdio", "none"].includes(runtime.transport)) return null;
 
   if (runtime.reason !== null
     && runtime.reason !== "desktop-private-transport"
