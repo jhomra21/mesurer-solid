@@ -240,7 +240,8 @@ describe("arrangePlugin", () => {
     const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
 
     await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
-    expect(target.style.transform).toContain("translate3d(36px, 24px, 0)");
+    await vi.waitFor(() =>
+      expect(target.style.transform).toContain("translate3d(36px, 24px, 0)"));
 
     target.textContent = "Edited copy";
     service?.showCurrent();
