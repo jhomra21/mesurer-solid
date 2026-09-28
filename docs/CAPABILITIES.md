@@ -28,7 +28,7 @@ The default keyboard shortcuts are listed in the root [README](../README.md).
 | Presentation ownership | Arrange and text previews restore only values Mesurer still owns. Host-authored changes remain untouched. |
 | Appearance | Use persisted System, Light, or Dark themes across isolated and document-backed Mesurer UI. System follows `prefers-color-scheme`. |
 
-Direct text editing respects native form controls and `contenteditable` ownership. Mixed-inline targeting is kept in Mesurer-owned runtime state; it does not replace or redefine the host element's native `childNodes` surface. See [Direct text editing and Typography](./TEXT_EDITING.md).
+Direct text editing respects native form controls and `contenteditable` ownership. Mesurer keeps mixed-inline targeting in its own runtime state; it does not replace or redefine the host element's native `childNodes` API. See [Direct text editing and Typography](./TEXT_EDITING.md).
 
 Distance and measurement geometry are documented in [Measurements and distance geometry](./MEASUREMENTS.md).
 
