@@ -171,9 +171,9 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 
 Codex is enabled by default and remains toggleable under **Settings -> Plugins**.
 
-Native applications expose `window.__MESURER_HOST__.codexBridge` from preload/main and back it with `codexBridge()` from `mesurer-solid/plugins/codex/bridge`. The bridge runs in the native host process and talks directly to Codex's shared local app-server. If that socket is absent, Mesurer starts it only from a complete standalone Codex installation. It does not execute a Desktop-bundled bare Codex binary or attach to Desktop's private stdio app-server. There is no Mesurer localhost server, helper Electron process, marketplace plugin, SessionStart hook, or repeated trust step.
+Native applications expose `window.__MESURER_HOST__.codexBridge` from preload/main and back it with `codexBridge()` from `mesurer-solid/plugins/codex/bridge`. The bridge runs in the native host process. Shared sessions use Codex's local app-server directly. If the host inherited an exact Codex Desktop thread, the bridge queues once to that thread through Codex's native queue command and wakes it with `codex://threads/<id>`. The Desktop app-tools pipe is never opened. There is no Mesurer localhost server, helper Electron process, marketplace plugin, SessionStart hook, or repeated trust step.
 
-**Queue to Codex** calls Codex's native `thread/queue/add` API for one currently loaded thread and tracks the exact delivery through Queued, Working, Finished, or Interrupted. It does not create threads or invoke Steer.
+**Queue to Codex** remains one runtime-neutral API. Shared delivery tracks Queued, Working, Finished, or Interrupted through the shared app-server. Desktop current-thread delivery reports the durable queued submission and wake result without fabricating private Desktop lifecycle state. It does not create threads or invoke Steer.
 
 Saved annotations included in a delivery are removed only after the exact matched turn completes. Interrupted, failed, ambiguous, or unreadable deliveries keep them. Set `codex({ clearCompletedAnnotations: false })` to retain completed notes.
 
