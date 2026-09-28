@@ -45,7 +45,7 @@ Keep the two Agent Skill copies byte-identical:
 - `.agents/skills/mesurer-ui/SKILL.md`
 - `packages/mesurer/skills/mesurer-ui/SKILL.md`
 
-Codex implementation stays under the Codex plugin: renderer behavior in `packages/mesurer/src/plugins/codex/index.ts` and native host transport in `packages/mesurer/src/plugins/codex/`. Keep `mesurer-solid/plugins/codex/bridge` in-process; do not add a standalone Mesurer bridge process, localhost listener, marketplace copy, or hook-owned copy. Shared-daemon startup may use a complete standalone Codex installation, but it must not execute Desktop-bundled bare binaries or attach to Desktop's private stdio app-server.
+Codex implementation stays under the Codex plugin: renderer behavior in `packages/mesurer/src/plugins/codex/index.ts` and native host transport in `packages/mesurer/src/plugins/codex/`. Keep `mesurer-solid/plugins/codex/bridge` in-process; do not add a standalone Mesurer bridge process, localhost listener, marketplace copy, or hook-owned copy. Shared-daemon startup may use a complete standalone Codex installation, but it must never use a Desktop-bundled executable for daemon bootstrap. The Desktop current-thread adapter may invoke that resolved executable only for one exact durable queue operation after inherited Desktop ownership is established; it must never attach to the private app-tools pipe.
 
 ## Validation
 

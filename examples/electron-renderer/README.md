@@ -62,9 +62,9 @@ contextBridge.exposeInMainWorld("__MESURER_HOST__", {
 
 If the application also exposes `captureScreenshot`, put both functions on the same host object.
 
-Codex Bridge runs inside Electron main. It does not create an HTTP server or launch another Electron/Node helper. It talks to Codex's shared local app-server through the shared control socket and queues through `thread/queue/add`. If the socket is missing, it starts the shared daemon only from a complete standalone Codex installation. It does not execute the bare Codex binary inside ChatGPT.app or Codex.app, and it does not attach to Desktop's private stdio app-server.
+Codex Bridge runs inside Electron main. It does not create an HTTP server or launch another Electron/Node helper. Shared sessions use Codex's local app-server and `thread/queue/add`. If the host inherited an exact Codex Desktop thread, the same bridge may instead run Codex's native queue command for that thread and wake it with `codex://threads/<id>`; it never connects to the private app-tools pipe. A Desktop-bundled Codex executable is never used to bootstrap the shared daemon.
 
-The package smoke bundles this main-process topology to CommonJS with esbuild before launching Electron. A separate packed runtime smoke verifies Desktop-binary rejection and standalone-daemon startup and retains a JSON artifact. The native bridge must therefore remain independent of `import.meta.url`, `process.execPath`, and sibling runtime-file lookup.
+The package smoke bundles this main-process topology to CommonJS with esbuild before launching Electron. A separate packed runtime smoke verifies private Desktop detection without execution, exact inherited Desktop queue/deep-link routing, and standalone-daemon startup. The native bridge must therefore remain independent of `import.meta.url`, `process.execPath`, and sibling runtime-file lookup.
 
 Users do not install a Codex marketplace plugin, trust lifecycle hooks, or manage a bridge process.
 
