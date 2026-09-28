@@ -136,17 +136,19 @@ The accepted Codex integration has specific correctness properties. Preserve the
 - Do not introduce a Mesurer localhost bridge server, standalone bridge process, Electron helper process, marketplace package, or SessionStart/SessionEnd hook dependency.
 - Renderer code crosses only `window.__MESURER_HOST__.codexBridge(request)`; native filesystem, process, and socket access stay in the host process.
 - Discover sendable destinations from Codex's shared local app-server; `thread/loaded/list` is authoritative.
-- Queue exactly once through the shared app-server's `thread/queue/add` and preserve the queued-submission id.
-- Do not shell through `codex queue`, create threads, use `turn/steer`, delete/requeue native items during recovery, or start a parallel app-server for delivery.
+- Shared-app-server delivery queues exactly once through `thread/queue/add` and preserves the queued-submission id.
+- When the native host inherited both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH` from a Codex Desktop thread, the plugin may use the resolved Codex executable only for `codex queue --thread <that exact thread>` and then wake that same thread with `codex://threads/<id>`. This Desktop fallback must not accept another destination.
+- `CODEX_APP_TOOLS_PIPE_PATH` is an ownership signal only. Never connect to, proxy, relay, or invoke Desktop's private app-tools pipe.
+- Outside that exact Desktop fallback, do not shell through `codex queue`. Never create threads, use `turn/steer`, delete/requeue native items during recovery, or start a parallel app-server for delivery.
 - Correlate lifecycle from the same shared daemon using the exact queued prompt and bounded turn history.
 - Preserve interrupted or failed review evidence; remove only the exact annotations included in a matched completed delivery.
 - Persist browser delivery/routing state across same-tab reloads and fail closed on ambiguous routing.
 - Mesurer may start Codex's shared daemon when its control socket is absent only through a complete standalone Codex installation. Check managed packages under `CODEX_HOME` before `PATH`. Do not use a bare executable from ChatGPT.app, Codex.app, or another Desktop bundle as a daemon bootstrap.
-- A private Codex Desktop stdio app-server is not the shared transport. Do not attach to Desktop's private app-tools pipe or start a parallel Codex server to work around that boundary.
+- A private Codex Desktop stdio app-server is not the shared transport. The current-thread Desktop fallback works from inherited thread ownership without attaching to the private app-tools pipe or starting a parallel Codex server.
 - Mesurer must not stop Codex's shared daemon when Mesurer closes.
 - The native Codex Bridge must remain safe to bundle into an Electron main process as CommonJS. Do not rely on `import.meta.url`, `process.execPath`, or sibling runtime-file discovery.
 
-Codex integration tests use a disposable `CODEX_HOME` and fake shared-daemon transport. Packed runtime smoke must prove that Desktop-bundled bare executables are not launched and that a complete standalone package can start the shared daemon. Packed Electron smoke must bundle the main process with esbuild before launch so the host topology matches real bundled applications.
+Codex integration tests use a disposable `CODEX_HOME` and fake transports. Packed runtime smoke must prove that Desktop-bundled executables are not launched during detection, that an inherited Desktop thread invokes the executable only for one exact `queue` operation and one native thread deep link, and that a complete standalone package can start the shared daemon. Packed Electron smoke must bundle the main process with esbuild before launch so the host topology matches real bundled applications.
 
 Any change to these rules requires the Codex process/package regressions plus real lifecycle acceptance when behavior changes.
 

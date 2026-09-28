@@ -62,7 +62,11 @@ Layout Guides currently applies this rule to its initial, list, editor, aligned-
 
 The root `bun run test` command reads built package artifacts. On a fresh checkout or in a disposable worktree, run `bun run build:packages` first. Focused package tests can run directly when their required artifacts already exist.
 
-Codex process tests must not depend on the developer's live Codex session. They use a disposable `CODEX_HOME` and a fake shared-daemon transport to prove loaded-thread discovery, direct `thread/queue/add` submission, and exact delivery reconciliation. Packed runtime smoke also creates a fake Desktop app bundle and a fake standalone Codex package. It must prove that runtime inspection classifies the Desktop bundle as private stdio without executing it, classifies the standalone package as a shared-app-server bootstrap, starts that package when needed, and reports the resulting shared runtime after connection. The smoke writes `codex-runtime-artifacts/result.json` and CI retains that file. Package smoke bundles the Electron main process to CommonJS with esbuild before launch so package-relative ESM assumptions such as `import.meta.url` cannot pass unnoticed.
+Codex process tests must not depend on the developer's live Codex session. They use disposable `CODEX_HOME` directories and fake transports. Shared coverage proves loaded-thread discovery, direct `thread/queue/add` submission, and exact lifecycle reconciliation.
+
+Packed runtime smoke also creates a fake Desktop app bundle. With no inherited Desktop thread, runtime inspection must classify that bundle as private stdio without executing it. With both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH`, the same packed bridge must expose only that current thread, execute the Codex binary exactly once for `queue --thread <id> --message <text>`, retain the returned queue identity, open exactly `codex://threads/<id>`, and never connect to the app-tools pipe. A fake standalone package separately proves shared-daemon bootstrap and transition to the shared runtime.
+
+The smoke writes `codex-runtime-artifacts/result.json` and CI retains that file. Package smoke bundles the Electron main process to CommonJS with esbuild before launch so package-relative ESM assumptions such as `import.meta.url` cannot pass unnoticed.
 
 ## Development server contract
 

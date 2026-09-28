@@ -360,11 +360,15 @@ const codexBridgeScript = new URL("../src/plugins/codex/bridge.mjs", import.meta
 
 const codexBridgeTypes = new URL("../src/plugins/codex/bridge.d.ts", import.meta.url);
 
-if (!existsSync(codexBridgeScript) || !existsSync(codexBridgeTypes)) {
+const codexDesktopScript = new URL("../src/plugins/codex/desktop.mjs", import.meta.url);
+
+if (!existsSync(codexBridgeScript) || !existsSync(codexBridgeTypes) || !existsSync(codexDesktopScript)) {
   throw new Error("Missing packaged Codex Bridge plugin helper.");
 }
 
 const codexBridgeSource = readFileSync(codexBridgeScript, "utf8");
+
+const codexDesktopSource = readFileSync(codexDesktopScript, "utf8");
 
 for (const contract of [
   "export async function codexBridge",
@@ -379,6 +383,9 @@ for (const contract of [
   "\"desktop-private-transport\"",
   "\"packages\", \"app-server-daemon\"",
   "\"packages\", \"standalone\"",
+  "desktopSessionFromEnvironment",
+  "queueDesktopThread",
+  "openDesktopThread",
 ]) {
   if (!codexBridgeSource.includes(contract)) {
     throw new Error(`Packaged Codex Bridge is missing contract: ${contract}.`);
@@ -395,6 +402,30 @@ for (const removedPattern of [
 ]) {
   if (codexBridgeSource.includes(removedPattern)) {
     throw new Error(`Packaged Codex Bridge retained removed companion-process behavior: ${removedPattern}.`);
+  }
+}
+
+for (const contract of [
+  "CODEX_THREAD_ID",
+  "CODEX_APP_TOOLS_PIPE_PATH",
+  "queue",
+  "codex://threads/",
+  "MESURER_CODEX_DESKTOP_OPEN_BIN",
+]) {
+  if (!codexDesktopSource.includes(contract)) {
+    throw new Error(`Packaged Codex Desktop adapter is missing contract: ${contract}.`);
+  }
+}
+
+for (const forbiddenDesktopPattern of [
+  "createConnection(",
+  "createServer(",
+  "127.0.0.1:47365",
+  "app-server daemon",
+  "stdio-to-uds",
+]) {
+  if (codexDesktopSource.includes(forbiddenDesktopPattern)) {
+    throw new Error(`Codex Desktop adapter crosses a forbidden transport boundary: ${forbiddenDesktopPattern}.`);
   }
 }
 
@@ -429,6 +460,7 @@ for (const removedExport of ["./arrange", "./codex", "./screenshot"]) {
 for (const path of [
   "../.publish/plugins/codex/bridge.mjs",
   "../.publish/plugins/codex/bridge.d.ts",
+  "../.publish/plugins/codex/desktop.mjs",
 ]) {
   if (!existsSync(new URL(path, import.meta.url))) {
     throw new Error(`Staged npm package is missing Codex Bridge plugin helper: ${path.replace("../.publish/", "")}.`);

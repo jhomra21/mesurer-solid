@@ -73,7 +73,7 @@ export type MesurerCodexSendRequest = MesurerCodexQueueRequest;
 
 export type MesurerCodexDeliveryStatus = "queued" | "working" | "completed" | "interrupted";
 
-export type MesurerCodexDispatchStatus = "persisted";
+export type MesurerCodexDispatchStatus = "persisted" | "desktop-opened" | "desktop-wake-failed";
 
 export type MesurerCodexDelivery = {
   id: string;
@@ -115,7 +115,7 @@ type MesurerCodexRuntime = {
   /** Runtime source selected by the native Codex bridge. Callers do not choose this value. */
   source: "shared" | "standalone" | "desktop" | "none";
   /** Transport available for Codex delivery. */
-  transport: "shared-app-server" | "private-stdio" | "none";
+  transport: "shared-app-server" | "desktop-queue" | "private-stdio" | "none";
   /** Whether this runtime can serve Mesurer requests without user setup. */
   available: boolean;
   /** Machine-readable reason when the detected runtime is not usable by Mesurer. */
@@ -125,7 +125,7 @@ type MesurerCodexRuntime = {
 export type MesurerCodexHealth = {
   /** Current loaded Codex target. Null when no loaded Codex thread is selected. */
   thread: string | null;
-  /** Codex threads currently loaded in the shared local app-server. */
+  /** Codex threads currently available through the selected plugin-owned transport. */
   threads: string[];
 };
 
@@ -133,7 +133,7 @@ export type MesurerCodexThread = {
   id: string;
   title: string;
   updatedAt: number | null;
-  /** True when this thread is currently loaded and accepts queue delivery through Codex's shared app-server. */
+  /** True when this thread currently accepts queue delivery through the active Codex transport. */
   connected: boolean;
 };
 
@@ -334,7 +334,7 @@ const bridgeRuntime = (response: BridgeResponse): MesurerCodexRuntime | null => 
 
   if (!["shared", "standalone", "desktop", "none"].includes(runtime.source)) return null;
 
-  if (!["shared-app-server", "private-stdio", "none"].includes(runtime.transport)) return null;
+  if (!["shared-app-server", "desktop-queue", "private-stdio", "none"].includes(runtime.transport)) return null;
 
   if (runtime.reason !== null
     && runtime.reason !== "desktop-private-transport"
@@ -635,7 +635,11 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         if (activeDelivery.status === "queueing") return "Queueing to Codex…";
 
-        if (activeDelivery.status === "queued") return "Queued for Codex";
+        if (activeDelivery.status === "queued") {
+          return activeDelivery.dispatch === "desktop-wake-failed"
+            ? "Queued — open Codex"
+            : "Queued for Codex";
+        }
 
         if (activeDelivery.status === "working") return "Codex working…";
 
@@ -877,6 +881,21 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         }, COMPLETED_VISIBLE_MS);
       };
 
+      const resetDesktopQueuedDeliveryLater = () => {
+        if (completedVisibleTimer) globalThis.clearTimeout(completedVisibleTimer);
+        completedVisibleTimer = globalThis.setTimeout(() => {
+          completedVisibleTimer = 0;
+
+          if (activeDelivery?.status !== "queued"
+            || (activeDelivery.dispatch !== "desktop-opened"
+              && activeDelivery.dispatch !== "desktop-wake-failed")) return;
+
+          activeDelivery = null;
+          persistUiState();
+          syncTool();
+        }, COMPLETED_VISIBLE_MS);
+      };
+
       const finishDelivery = async (delivery: MesurerCodexDelivery) => {
         if (!activeDelivery || activeDelivery.id !== delivery.id) return;
         activeDelivery = {
@@ -888,6 +907,15 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           dispatchError: delivery.dispatchError ?? activeDelivery.dispatchError,
         };
         persistUiState();
+
+        if (delivery.status === "queued"
+          && (delivery.dispatch === "desktop-opened"
+            || delivery.dispatch === "desktop-wake-failed")) {
+          syncTool();
+          resetDesktopQueuedDeliveryLater();
+
+          return;
+        }
 
         if (delivery.status === "completed") {
           if (clearCompletedAnnotations) {

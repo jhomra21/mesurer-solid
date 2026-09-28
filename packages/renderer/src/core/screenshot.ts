@@ -49,7 +49,7 @@ export type HostCodexBridgeRequest = {
 
 export type HostCodexBridgeRuntime = {
   source: "shared" | "standalone" | "desktop" | "none";
-  transport: "shared-app-server" | "private-stdio" | "none";
+  transport: "shared-app-server" | "desktop-queue" | "private-stdio" | "none";
   available: boolean;
   reason: "desktop-private-transport" | "runtime-not-found" | null;
 };
@@ -74,7 +74,7 @@ export type HostCodexBridgeResult = {
   status?: "queued" | "working" | "completed" | "interrupted";
   turnId?: string | null;
   queuedSubmissionId?: string | null;
-  dispatch?: "persisted";
+  dispatch?: "persisted" | "desktop-opened" | "desktop-wake-failed";
   dispatchError?: string | null;
   createdAt?: number;
   updatedAt?: number;

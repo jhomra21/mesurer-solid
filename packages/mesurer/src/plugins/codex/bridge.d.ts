@@ -17,7 +17,7 @@ export type CodexBridgeRequest = {
 };
 
 export type CodexBridgeOptions = {
-  /** Explicit Codex executable used only to start the shared app-server when no control socket exists. */
+  /** Explicit Codex executable. Shared mode may use it to start the daemon; inherited Desktop mode may use it only for durable queue submission. */
   codex?: string;
   /** Codex state directory. Defaults to CODEX_HOME, then ~/.codex. */
   codexHome?: string;
@@ -25,7 +25,7 @@ export type CodexBridgeOptions = {
 
 export type CodexBridgeRuntime = {
   source: "shared" | "standalone" | "desktop" | "none";
-  transport: "shared-app-server" | "private-stdio" | "none";
+  transport: "shared-app-server" | "desktop-queue" | "private-stdio" | "none";
   available: boolean;
   reason: "desktop-private-transport" | "runtime-not-found" | null;
 };
@@ -50,7 +50,7 @@ export type CodexBridgeResponse = {
   status?: "queued" | "working" | "completed" | "interrupted";
   turnId?: string | null;
   queuedSubmissionId?: string | null;
-  dispatch?: string | null;
+  dispatch?: "persisted" | "desktop-opened" | "desktop-wake-failed" | null;
   dispatchError?: string | null;
   createdAt?: number;
   updatedAt?: number;
