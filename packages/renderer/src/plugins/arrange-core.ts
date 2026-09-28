@@ -570,10 +570,14 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       target: ArrangeTargetValue,
     ) => {
       if (element.localName !== target.fingerprintTag) return false;
+
       if (target.fingerprintId && element.id !== target.fingerprintId) return false;
+
       if (target.fingerprintTestId
         && element.getAttribute("data-testid") !== target.fingerprintTestId) return false;
+
       if (target.fingerprintRole && element.getAttribute("role") !== target.fingerprintRole) return false;
+
       if (target.fingerprintAriaLabel
         && element.getAttribute("aria-label") !== target.fingerprintAriaLabel) return false;
 
