@@ -73,7 +73,7 @@ export type MesurerCodexSendRequest = MesurerCodexQueueRequest;
 
 export type MesurerCodexDeliveryStatus = "queued" | "working" | "completed" | "interrupted";
 
-export type MesurerCodexDispatchStatus = "persisted" | "desktop-opened";
+export type MesurerCodexDispatchStatus = "persisted" | "desktop-opened" | "desktop-wake-failed";
 
 export type MesurerCodexDelivery = {
   id: string;
@@ -635,7 +635,11 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         if (activeDelivery.status === "queueing") return "Queueing to Codex…";
 
-        if (activeDelivery.status === "queued") return "Queued for Codex";
+        if (activeDelivery.status === "queued") {
+          return activeDelivery.dispatch === "desktop-wake-failed"
+            ? "Queued — open Codex"
+            : "Queued for Codex";
+        }
 
         if (activeDelivery.status === "working") return "Codex working…";
 
@@ -877,6 +881,21 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         }, COMPLETED_VISIBLE_MS);
       };
 
+      const resetDesktopQueuedDeliveryLater = () => {
+        if (completedVisibleTimer) globalThis.clearTimeout(completedVisibleTimer);
+        completedVisibleTimer = globalThis.setTimeout(() => {
+          completedVisibleTimer = 0;
+
+          if (activeDelivery?.status !== "queued"
+            || (activeDelivery.dispatch !== "desktop-opened"
+              && activeDelivery.dispatch !== "desktop-wake-failed")) return;
+
+          activeDelivery = null;
+          persistUiState();
+          syncTool();
+        }, COMPLETED_VISIBLE_MS);
+      };
+
       const finishDelivery = async (delivery: MesurerCodexDelivery) => {
         if (!activeDelivery || activeDelivery.id !== delivery.id) return;
         activeDelivery = {
@@ -888,6 +907,15 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           dispatchError: delivery.dispatchError ?? activeDelivery.dispatchError,
         };
         persistUiState();
+
+        if (delivery.status === "queued"
+          && (delivery.dispatch === "desktop-opened"
+            || delivery.dispatch === "desktop-wake-failed")) {
+          syncTool();
+          resetDesktopQueuedDeliveryLater();
+
+          return;
+        }
 
         if (delivery.status === "completed") {
           if (clearCompletedAnnotations) {
