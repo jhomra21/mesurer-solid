@@ -74,7 +74,9 @@ const run = (
 });
 
 const queuedSubmissionId = (output, thread) => {
-  const escapedThread = thread.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedThread = thread.replace(/[.*+?^${}()|[\]\\]/g, "\\  const escapedThread = thread.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const exact = output.match");
+
   const exact = output.match(new RegExp(
     `Queued message\\s+(\\S+)\\s+for thread\\s+${escapedThread}\\.?`,
   ));
