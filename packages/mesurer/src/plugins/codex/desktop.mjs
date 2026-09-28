@@ -74,7 +74,8 @@ const run = (
 });
 
 const queuedSubmissionId = (output, thread) => {
-  const escapedThread = thread.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&");
+  const escapedThread = thread.replace(/[.*+?^${}()|[\]\\]/g, "\\  const escapedThread = thread.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&");
+");
   const exact = output.match(new RegExp(
     `Queued message\\s+(\\S+)\\s+for thread\\s+${escapedThread}\\.?`,
   ));
@@ -131,12 +132,12 @@ export const openDesktopThread = async ({
     args = [url];
   } else if (platform === "win32") {
     command = "powershell.exe";
+    const quotedUrl = url.replaceAll("'", "''");
+
     args = [
       "-NoProfile",
       "-Command",
-      "Start-Process",
-      "-FilePath",
-      url,
+      `Start-Process -FilePath '${quotedUrl}'`,
     ];
   } else {
     throw new Error(`Codex Desktop thread wake is unsupported on platform ${platform}.`);
