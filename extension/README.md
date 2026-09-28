@@ -70,4 +70,4 @@ See [Screenshots](../docs/SCREENSHOTS.md).
 
 The extension shell owns active-tab execution, its private capture adapter, and injection/disposal. The shared Mesurer runtime owns inspection, Context, direct text editing, plugins, and agent APIs. Screenshot owns region selection, cropping, output preferences, preview/viewer behavior, and capture lifecycle.
 
-For the wider integration model, see [Browser harness](../docs/BROWSER_HARNESS.md), [Host isolation](../docs/HOST_ISOLATION.md), and [Agent integration](../packages/mesurer/AGENT_INTEGRATION.md).
+For browser, host, and agent integration details, see [Browser and agent integration](../docs/BROWSER_HARNESS.md), [Host isolation](../docs/HOST_ISOLATION.md), and [Agent integration](../packages/mesurer/AGENT_INTEGRATION.md).
