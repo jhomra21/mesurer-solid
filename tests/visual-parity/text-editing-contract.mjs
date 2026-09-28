@@ -343,6 +343,20 @@ try {
   // Saved intent survives the edit, but Select/Arrange defaults to the untouched
   // page presentation. This is the public default requested by the user.
   await waitForTypography(before);
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+  const committedTargetBox = await target.boundingBox();
+
+  assert(committedTargetBox, "Committed text target should retain a rendered box");
+  assert(
+    Math.abs(committedTargetBox.x - movedTargetBox.x) <= 1
+      && Math.abs(committedTargetBox.y - movedTargetBox.y) <= 1,
+    `Committing text must not restore the pre-Arrange position: ${JSON.stringify({
+      moved: movedTargetBox,
+      committed: committedTargetBox,
+    })}`,
+  );
 
   // Leave Arrange, then explicitly enter Typography. The owning tool should
   // reveal the saved Desired state without creating a new edit or losing intent.
