@@ -565,21 +565,33 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       return matches;
     };
 
+    const isLiveTargetCompatible = (
+      element: HTMLElement,
+      target: ArrangeTargetValue,
+    ) => {
+      if (element.localName !== target.fingerprintTag) return false;
+      if (target.fingerprintId && element.id !== target.fingerprintId) return false;
+      if (target.fingerprintTestId
+        && element.getAttribute("data-testid") !== target.fingerprintTestId) return false;
+      if (target.fingerprintRole && element.getAttribute("role") !== target.fingerprintRole) return false;
+      if (target.fingerprintAriaLabel
+        && element.getAttribute("aria-label") !== target.fingerprintAriaLabel) return false;
+
+      return target.fingerprintClasses.every((className) => element.classList.contains(className));
+    };
+
     const resolveTarget = (target: ArrangeTargetValue) => {
       const fingerprint = fingerprintFromValue(target);
       const live = liveTargets.get(target.selector);
 
-      if (live) {
-        const stableFingerprint = { ...fingerprint, text: null };
+      if (
+        live
+        && live.isConnected
+        && isPageElement(live)
+        && isLiveTargetCompatible(live, target)
+      ) return live;
 
-        if (
-          live.isConnected
-          && isPageElement(live)
-          && isElementFingerprintCompatible(live, stableFingerprint)
-        ) return live;
-
-        liveTargets.delete(target.selector);
-      }
+      if (live) liveTargets.delete(target.selector);
 
       if (!isElementFingerprintRebindable(fingerprint)) return null;
       let selectorMatches: HTMLElement[] = [];
