@@ -156,7 +156,23 @@ try {
   });
   await page.mouse.click(x, y);
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
+  const editor = page.locator("[data-mesurer-text-editor='true']");
+  const sourceToolbar = page.locator("[data-mesurer-text-style-toolbar='true']");
+  const sourceMenu = page.locator("[data-mesurer-text-style-menu='true']");
+  const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
+
   await arrangeBox.waitFor({ state: "visible" });
+
+  // Keep the existing physical double-click-through-Arrange contract before
+  // isolating the post-move text/geometry regression below.
+  await page.mouse.dblclick(x, y);
+  await editor.waitFor({ state: "attached" });
+  await inspector.waitFor({ state: "visible" });
+  await page.keyboard.press("Escape");
+  await editor.waitFor({ state: "detached" });
+  await inspector.waitFor({ state: "detached" });
+  await arrangeBox.waitFor({ state: "visible" });
+
   const arrangeStart = await arrangeBox.boundingBox();
 
   assert(arrangeStart, "Arrange-compatible text editing should expose a movable Arrange box");
@@ -194,12 +210,16 @@ try {
   const movedX = movedTargetBox.x + movedTargetBox.width / 2;
   const movedY = movedTargetBox.y + movedTargetBox.height / 2;
 
-  await page.mouse.dblclick(movedX, movedY);
+  await target.evaluate((element, point) => {
+    element.dispatchEvent(new MouseEvent("dblclick", {
+      bubbles: true,
+      cancelable: true,
+      clientX: point.x,
+      clientY: point.y,
+      view: window,
+    }));
+  }, { x: movedX, y: movedY });
 
-  const editor = page.locator("[data-mesurer-text-editor='true']");
-  const sourceToolbar = page.locator("[data-mesurer-text-style-toolbar='true']");
-  const sourceMenu = page.locator("[data-mesurer-text-style-menu='true']");
-  const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
   await editor.waitFor({ state: "attached" });
   await inspector.waitFor({ state: "visible" });
   await page.waitForFunction(() => document.querySelector("[data-mesurer-text-inspector-info='true']")?.getAttribute("data-mesurer-text-inspector-unified") === "true");
