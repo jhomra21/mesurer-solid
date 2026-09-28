@@ -157,7 +157,41 @@ try {
   await page.mouse.click(x, y);
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
   await arrangeBox.waitFor({ state: "visible" });
-  await page.mouse.dblclick(x, y);
+  const arrangeStart = await arrangeBox.boundingBox();
+  assert(arrangeStart, "Arrange-compatible text editing should expose a movable Arrange box");
+  const arrangeDelta = { x: 36, y: 24 };
+  const arrangeCenter = {
+    x: arrangeStart.x + arrangeStart.width / 2,
+    y: arrangeStart.y + arrangeStart.height / 2,
+  };
+
+  await page.mouse.move(arrangeCenter.x, arrangeCenter.y);
+  await page.mouse.down();
+  await page.mouse.move(
+    arrangeCenter.x + arrangeDelta.x,
+    arrangeCenter.y + arrangeDelta.y,
+    { steps: 3 },
+  );
+  await page.mouse.up();
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+
+  const movedTargetBox = await target.boundingBox();
+  assert(movedTargetBox, "Moved text target should retain a rendered box");
+  assert(
+    Math.abs(movedTargetBox.x - (targetBox.x + arrangeDelta.x)) <= 1
+      && Math.abs(movedTargetBox.y - (targetBox.y + arrangeDelta.y)) <= 1,
+    `Arrange should move the text target before editing: ${JSON.stringify({
+      before: targetBox,
+      after: movedTargetBox,
+      arrangeDelta,
+    })}`,
+  );
+
+  const movedX = movedTargetBox.x + movedTargetBox.width / 2;
+  const movedY = movedTargetBox.y + movedTargetBox.height / 2;
+  await page.mouse.dblclick(movedX, movedY);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
   const sourceToolbar = page.locator("[data-mesurer-text-style-toolbar='true']");
@@ -322,6 +356,21 @@ try {
   const desiredText = "Desired copy from Mesurer";
   await editor.fill(desiredText);
   await page.waitForFunction((expected) => document.querySelector(".primary-action")?.textContent === expected, desiredText);
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+  const editedTargetBox = await target.boundingBox();
+
+  assert(editedTargetBox, "Edited moved target should retain a rendered box");
+  assert(
+    Math.abs(editedTargetBox.x - movedTargetBox.x) <= 1
+      && Math.abs(editedTargetBox.y - movedTargetBox.y) <= 1,
+    `Typing must not remove the active Arrange position: ${JSON.stringify({
+      moved: movedTargetBox,
+      edited: editedTargetBox,
+    })}`,
+  );
+
   await editor.focus();
   await page.keyboard.press("Enter");
   await editor.waitFor({ state: "detached" });
