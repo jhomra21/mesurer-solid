@@ -183,9 +183,9 @@ See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the package
 
 Codex is enabled by default as a first-party Mesurer plugin. Native hosts expose one narrow `window.__MESURER_HOST__.codexBridge(request)` capability backed by `codexBridge()` from `mesurer-solid/plugins/codex/bridge`.
 
-Codex Bridge runs inside the native host process. It talks directly to Codex's existing shared local app-server, discovers loaded threads, and queues through `thread/queue/add`. If the shared socket is absent, Mesurer can start it only from a complete standalone Codex installation. It does not execute Desktop-bundled bare Codex binaries, attach to Desktop's private stdio app-server, run a localhost bridge server, start another Electron process, install a Codex marketplace plugin, or depend on lifecycle hooks.
+Codex Bridge runs inside the native host process and keeps runtime selection inside the plugin. Shared Codex sessions use the existing local app-server and `thread/queue/add`. When the host was launched from a Codex Desktop thread, Mesurer can instead use the exact inherited Desktop thread: it queues once through Codex's native queue command and wakes that same thread with `codex://threads/<id>`. The Desktop app-tools pipe is never opened. There is no Mesurer localhost bridge server, helper Electron process, marketplace plugin, or lifecycle-hook setup.
 
-**Queue to Codex** keeps each page pinned to a loaded Codex thread, tracks the exact queued delivery, and never creates a new thread or uses Steer. Saved annotations included in a successful delivery are removed only after the exact matched Codex turn completes.
+**Queue to Codex** targets only a destination Mesurer can identify safely. Shared delivery tracks exact Queued, Working, Finished, or Interrupted lifecycle state. Desktop current-thread delivery proves durable queue acceptance and wake without inventing lifecycle state that remains private to Desktop. Mesurer never creates a new thread or invokes Steer.
 
 See [Queue Context feedback to Codex](./docs/CODEX.md) for native-host wiring, loaded-thread routing, recovery, and the typed `codex:v1` service.
 
