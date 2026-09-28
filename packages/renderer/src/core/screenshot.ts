@@ -74,7 +74,7 @@ export type HostCodexBridgeResult = {
   status?: "queued" | "working" | "completed" | "interrupted";
   turnId?: string | null;
   queuedSubmissionId?: string | null;
-  dispatch?: "persisted" | "desktop-opened";
+  dispatch?: "persisted" | "desktop-opened" | "desktop-wake-failed";
   dispatchError?: string | null;
   createdAt?: number;
   updatedAt?: number;
