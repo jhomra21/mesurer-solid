@@ -113,6 +113,9 @@ printf '%s\\n' "$1" > "${desktopOpenMarker}"
   process.env.PATH = desktopBinDir;
   process.env.CODEX_HOME = desktopHome;
   delete process.env.CODEX_BIN;
+  delete process.env.CODEX_THREAD_ID;
+  delete process.env.CODEX_APP_TOOLS_PIPE_PATH;
+  delete process.env.MESURER_CODEX_DESKTOP_OPEN_BIN;
 
   const desktopRuntime = await codexBridge(
     { action: "runtime" },
