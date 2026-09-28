@@ -29,7 +29,7 @@ Mesurer Context / saved notes
 
 There is no Mesurer Codex server, loopback port, helper Electron process, Codex marketplace plugin, SessionStart hook, or SessionEnd hook.
 
-The native **Codex Bridge** is part of the Codex plugin package surface at `mesurer-solid/plugins/codex/bridge`. It runs inside the application's native host process and talks to Codex's existing shared local app-server. It does not start another Mesurer service.
+The native **Codex Bridge** is part of the Codex plugin package surface at `mesurer-solid/plugins/codex/bridge`. It runs inside the application's native host process and owns Codex transport selection there. Shared sessions use Codex's local app-server; an exact inherited Desktop current thread can use the plugin-owned Desktop queue adapter described below. The bridge does not start another Mesurer service.
 
 ## Native host wiring
 
