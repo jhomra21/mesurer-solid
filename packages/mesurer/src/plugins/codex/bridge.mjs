@@ -31,6 +31,8 @@ const deliveries = new Map();
 
 let deliveryStateLoadPromise = null;
 
+let loadedDeliveryStatePath = null;
+
 const normalizeString = (value) => {
   if (value?.constructor !== String) return null;
 
@@ -742,6 +744,14 @@ const loadDeliveries = async (options) => {
 };
 
 const ensureDeliveriesLoaded = (options) => {
+  const path = deliveryStatePath(options);
+
+  if (loadedDeliveryStatePath !== path) {
+    deliveries.clear();
+    deliveryStateLoadPromise = null;
+    loadedDeliveryStatePath = path;
+  }
+
   if (!deliveryStateLoadPromise) {
     deliveryStateLoadPromise = loadDeliveries(options).catch((cause) => {
       deliveryStateLoadPromise = null;
@@ -1205,6 +1215,7 @@ const restoreDelivery = async (request, options, desktop = null) => {
     status: "queued",
     turnId: null,
     queuedSubmissionId: normalizeString(lookup.submission.id),
+    transport: "shared-app-server",
     dispatch: "persisted",
     dispatchError: null,
     createdAt: now,
