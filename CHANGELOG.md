@@ -4,12 +4,14 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.0-beta.13 - 2026-09-28
+
 - Keep Codex enabled by default and move all Codex implementation under the Codex plugin. The native Codex Bridge now runs in the application host process, talks directly to Codex's shared app-server, and queues through `thread/queue/add`.
 - Remove the separate Mesurer Codex server, bridge port, helper Electron process, marketplace/hooks setup, client leases, and package-relative bridge bootstrap. Electron package smoke now bundles main to CommonJS with esbuild before launch to cover real bundled-host integration.
 - Keep Codex delivery runtime-neutral for callers. The Codex plugin classifies shared, standalone, and Desktop transports behind the same service. It never installs Codex and never uses a Desktop-bundled executable to bootstrap the shared daemon. Packed runtime smoke retains JSON evidence for runtime selection and standalone daemon startup.
 - Restore zero-setup delivery to the exact Codex Desktop thread that launched the host application. When Desktop ownership is inherited, the Codex plugin queues once through Codex's native queue command and wakes the same thread with its `codex://` deep link. Mesurer never connects to Desktop's private app-tools pipe, never starts a second Mesurer bridge, and never uses the Desktop executable to bootstrap a daemon.
-
-<!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.0-beta.12 - 2026-09-26
 
