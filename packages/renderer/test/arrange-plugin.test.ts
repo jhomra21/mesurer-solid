@@ -229,7 +229,6 @@ describe("arrangePlugin", () => {
   it("keeps a live weak-identity target arranged when its text changes", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");
-    target.className = "editable-copy";
     target.textContent = "Before copy";
     pageTarget.append(target);
     setRect(target, { left: 100, top: 80, width: 120, height: 32 });
