@@ -506,6 +506,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     root.append(verticalSnapLine, horizontalSnapLine, box);
 
     const previews = new Map<HTMLElement, AppliedPreview>();
+    const liveTargets = new Map<string, HTMLElement>();
     const transitionBaselines = new Map<HTMLElement, InlineStyleValue>();
     const hiddenMeasurements = new Map<HTMLElement, InlineVisibility>();
     const resetButtons = new Map<HTMLElement, HTMLButtonElement>();
@@ -566,6 +567,19 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     const resolveTarget = (target: ArrangeTargetValue) => {
       const fingerprint = fingerprintFromValue(target);
+      const live = liveTargets.get(target.selector);
+
+      if (live) {
+        const stableFingerprint = { ...fingerprint, text: null };
+
+        if (
+          live.isConnected
+          && isPageElement(live)
+          && isElementFingerprintCompatible(live, stableFingerprint)
+        ) return live;
+
+        liveTargets.delete(target.selector);
+      }
 
       if (!isElementFingerprintRebindable(fingerprint)) return null;
       let selectorMatches: HTMLElement[] = [];
@@ -592,7 +606,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         if (fingerprintMatches.length !== 1 || fingerprintMatches[0] !== selectorMatches[0]) return null;
       }
 
-      return selectorMatches[0] ?? null;
+      const resolved = selectorMatches[0] ?? null;
+
+      if (resolved) liveTargets.set(target.selector, resolved);
+
+      return resolved;
     };
 
     const transitionOverride: InlineStyleValue = { value: "none", priority: "important" };
