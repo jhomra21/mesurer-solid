@@ -1026,7 +1026,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           if (intent.pageUrl !== currentPage()) return [intent];
 
           const remaining = intent.targets.filter((target) => {
-            const element = resolveTarget(target);
+            const element = resolveTarget(intent.id, target);
             const remove = element !== null && targets.has(element);
 
             if (remove) changed = true;
@@ -1601,7 +1601,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (!intent) throw new Error(`Arrange intent not found: ${id}`);
 
       const targets = withPreviewsSuspended(() => intent.targets.map((target): ArrangeReviewTarget => {
-        const element = resolveTarget(target);
+        const element = resolveTarget(intent.id, target);
 
         const desired = {
           left: target.desiredLeft,
