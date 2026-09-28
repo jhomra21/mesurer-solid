@@ -7,9 +7,9 @@ description: Use Mesurer for frontend UI implementation, review, debugging, layo
 
 Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. The rendered page is the integration boundary.
 
-The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the browser controller already provides and read `window.__MESURER__` directly. The first-party `codex()` plugin is a separate human-initiated convenience for routing Context feedback to loaded Codex threads through the application's native host.
+The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the browser controller already provides and read `window.__MESURER__` directly. The first-party `codex()` plugin is a separate human-initiated convenience for routing Context feedback through the application's native Codex host capability.
 
-Do not add a second Mesurer process for Codex delivery. Native applications expose the narrow `window.__MESURER_HOST__.codexBridge(request)` capability; the host-side implementation talks to Codex's shared local app-server. If the shared socket is absent, Mesurer may start it only from a complete standalone Codex installation. Do not use a Desktop-bundled bare executable or Desktop's private stdio app-server as a replacement transport.
+Do not add a second Mesurer process for Codex delivery. Native applications expose the narrow `window.__MESURER_HOST__.codexBridge(request)` capability. Shared sessions use Codex's local app-server. When the native host inherited both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH` from Codex Desktop, Mesurer may queue only to that exact thread and wake it through `codex://threads/<id>`. Treat the app-tools pipe as an ownership signal only; never connect to, proxy, or invoke it. A Desktop-bundled Codex executable must never be used to bootstrap the shared daemon.
 
 A meaningful Mesurer step must return evidence the agent actually uses.
 
