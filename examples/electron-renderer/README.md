@@ -36,7 +36,7 @@ const window = new BrowserWindow({
 
 Do not mount Mesurer from the main process.
 
-## Codex Bridge
+## Codex bridge
 
 Codex is enabled by default in Mesurer Settings. To let the sandboxed renderer reach local Codex safely, expose one native-host capability through the same `__MESURER_HOST__` object used by Screenshot.
 
