@@ -177,7 +177,10 @@ try {
 
   assert(arrangeStart, "Arrange-compatible text editing should expose a movable Arrange box");
 
-  const arrangeDelta = { x: 36, y: 24 };
+  const arrangeDelta = {
+    x: x > 640 ? -36 : 36,
+    y: y > 450 ? -24 : 24,
+  };
 
   const arrangeCenter = {
     x: arrangeStart.x + arrangeStart.width / 2,
