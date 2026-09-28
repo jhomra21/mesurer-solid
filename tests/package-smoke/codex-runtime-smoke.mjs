@@ -212,6 +212,7 @@ printf '%s\\n' "$1" > "${desktopOpenMarker}"
   const queuedExecutableArgs = (await readFile(desktopMarker, "utf8"))
     .trim()
     .split("\n");
+
   assert.deepEqual(queuedExecutableArgs, [
     "queue",
     "--thread",
