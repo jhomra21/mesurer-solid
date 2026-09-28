@@ -17,7 +17,7 @@ export type CodexBridgeRequest = {
 };
 
 export type CodexBridgeOptions = {
-  /** Explicit Codex executable used only to start the shared app-server when no control socket exists. */
+  /** Explicit Codex executable. Shared mode may use it to start the daemon; inherited Desktop mode may use it only for durable queue submission. */
   codex?: string;
   /** Codex state directory. Defaults to CODEX_HOME, then ~/.codex. */
   codexHome?: string;
