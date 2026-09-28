@@ -622,11 +622,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         if (fingerprintMatches.length !== 1 || fingerprintMatches[0] !== selectorMatches[0]) return null;
       }
 
-      const resolved = selectorMatches[0] ?? null;
-
-      if (resolved) liveTargets.set(target.selector, resolved);
-
-      return resolved;
+      return selectorMatches[0] ?? null;
     };
 
     const transitionOverride: InlineStyleValue = { value: "none", priority: "important" };
@@ -1504,6 +1500,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           };
         }),
       };
+
+      for (const { element, target } of completed.targets) {
+        liveTargets.set(target.selector, element);
+      }
+
       void ctx.command.execute(COMMIT_COMMAND).catch(() => {
         pendingIntent = null;
         showCurrentDesired();
