@@ -5,6 +5,11 @@ import { access, mkdir, readFile, realpath, rename, writeFile } from "node:fs/pr
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
+import {
+  desktopSessionFromEnvironment,
+  openDesktopThread,
+  queueDesktopThread,
+} from "./desktop.mjs";
 
 const APP_SERVER_TIMEOUT_MS = 10_000;
 
@@ -260,7 +265,26 @@ const sharedSocketAvailable = (options) => new Promise((resolve) => {
   });
 });
 
+const desktopTransport = async (options) => {
+  const session = desktopSessionFromEnvironment();
+
+  if (!session) return null;
+
+  const runtime = await bootstrapRuntime(options);
+
+  if (!runtime.command) return null;
+
+  return {
+    session,
+    command: runtime.command,
+  };
+};
+
 const inspectRuntime = async (options) => {
+  if (await desktopTransport(options)) {
+    return publicRuntime("desktop", "desktop-queue", true);
+  }
+
   if (await sharedSocketAvailable(options)) {
     return publicRuntime("shared", "shared-app-server", true);
   }
@@ -619,6 +643,7 @@ const publicDelivery = (delivery) => ({
   status: delivery.status,
   turnId: delivery.turnId,
   queuedSubmissionId: delivery.queuedSubmissionId,
+  transport: delivery.transport,
   dispatch: delivery.dispatch,
   dispatchError: delivery.dispatchError,
   createdAt: delivery.createdAt,
@@ -700,7 +725,10 @@ const loadDeliveries = async (options) => {
         status,
         turnId: normalizeString(value?.turnId),
         queuedSubmissionId: normalizeString(value?.queuedSubmissionId),
-        dispatch: "persisted",
+        transport: value?.transport === "desktop-queue" ? "desktop-queue" : "shared-app-server",
+        dispatch: value?.transport === "desktop-queue"
+          ? normalizeString(value?.dispatch) ?? "persisted"
+          : "persisted",
         dispatchError: normalizeString(value?.dispatchError),
         createdAt: Number.isFinite(value?.createdAt) ? Number(value.createdAt) : Date.now(),
         updatedAt: Number.isFinite(value?.updatedAt) ? Number(value.updatedAt) : Date.now(),
@@ -791,7 +819,7 @@ const matchingTurn = (delivery, turns) => {
 };
 
 const reconcileDelivery = async (delivery, options) => {
-  if (delivery.status === "completed") return;
+  if (delivery.status === "completed" || delivery.transport === "desktop-queue") return;
 
   const turns = await readTurnHistory(delivery.thread, options);
   const turn = matchingTurn(delivery, turns);
@@ -891,6 +919,33 @@ const validateLoadedThread = async (thread, options) => {
   return ids;
 };
 
+const desktopHealth = (desktop) => ({
+  ok: true,
+  thread: desktop.session.thread,
+  threads: [desktop.session.thread],
+  runtime: publicRuntime("desktop", "desktop-queue", true),
+});
+
+const desktopThreadList = (desktop) => ({
+  ok: true,
+  thread: desktop.session.thread,
+  threadDetails: [{
+    id: desktop.session.thread,
+    title: "Current Codex Desktop thread",
+    updatedAt: null,
+    connected: true,
+  }],
+  hasMore: false,
+});
+
+const validateDesktopThread = (thread, desktop) => {
+  if (thread !== desktop.session.thread) {
+    throw new Error(`Codex Desktop thread is not available to this Mesurer host: ${thread}`);
+  }
+
+  return [desktop.session.thread];
+};
+
 const health = async (preferredThread, options) => {
   const threads = await listLoadedThreads(options);
 
@@ -987,6 +1042,7 @@ const queueMessage = async (request, options) => {
     status: "queued",
     turnId: null,
     queuedSubmissionId,
+    transport: "shared-app-server",
     dispatch: "persisted",
     dispatchError: null,
     createdAt: now,
@@ -1001,6 +1057,65 @@ const queueMessage = async (request, options) => {
     ok: true,
     thread,
     output: `Queued message ${queuedSubmissionId} for thread ${thread}.`,
+    delivery: "queued",
+    ...publicDelivery(delivery),
+  };
+};
+
+const queueDesktopMessage = async (request, desktop, options) => {
+  const message = normalizeString(request.message);
+  const requestedThread = normalizeString(request.thread);
+  const thread = requestedThread ?? desktop.session.thread;
+
+  if (!message) throw new Error("message must be a non-empty string.");
+
+  validateDesktopThread(thread, desktop);
+
+  const queued = await queueDesktopThread({
+    command: desktop.command,
+    thread,
+    message,
+    env: codexEnv(options),
+  });
+
+  let dispatch = "persisted";
+  let dispatchError = null;
+
+  try {
+    await openDesktopThread({
+      thread,
+      env: codexEnv(options),
+    });
+    dispatch = "desktop-opened";
+  } catch (cause) {
+    dispatchError = cause instanceof Error ? cause.message : String(cause);
+  }
+
+  const now = Date.now();
+
+  const delivery = {
+    id: randomUUID(),
+    thread,
+    message,
+    messageHash: hashMessage(message),
+    status: "queued",
+    turnId: null,
+    queuedSubmissionId: queued.queuedSubmissionId,
+    transport: "desktop-queue",
+    dispatch,
+    dispatchError,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  pruneDeliveries();
+  deliveries.set(delivery.id, delivery);
+  await persistDeliveries(options);
+
+  return {
+    ok: true,
+    thread,
+    output: queued.output,
     delivery: "queued",
     ...publicDelivery(delivery),
   };
@@ -1023,7 +1138,7 @@ const readDelivery = async (request, options) => {
   };
 };
 
-const restoreDelivery = async (request, options) => {
+const restoreDelivery = async (request, options, desktop = null) => {
   const deliveryId = normalizeString(request.deliveryId);
   const thread = normalizeString(request.thread);
   const queuedSubmissionId = normalizeString(request.queuedSubmissionId);
@@ -1032,11 +1147,13 @@ const restoreDelivery = async (request, options) => {
     throw new Error("deliveryId and thread are required.");
   }
 
-  await validateLoadedThread(thread, options);
-
   const existing = deliveries.get(deliveryId);
 
   if (existing) {
+    if (existing.thread !== thread) {
+      throw new Error(`Codex delivery ${deliveryId} belongs to a different thread.`);
+    }
+
     await reconcileDelivery(existing, options).catch(() => undefined);
 
     return {
@@ -1045,6 +1162,16 @@ const restoreDelivery = async (request, options) => {
       ...publicDelivery(existing),
     };
   }
+
+  if (desktop) {
+    validateDesktopThread(thread, desktop);
+
+    throw new Error(
+      "Codex Desktop delivery state is unavailable. Mesurer will not requeue the message without its original delivery record.",
+    );
+  }
+
+  await validateLoadedThread(thread, options);
 
   const lookup = await queueLookup(thread, queuedSubmissionId, options);
 
@@ -1100,7 +1227,9 @@ const restoreDelivery = async (request, options) => {
  *
  * This helper runs inside the host process. It does not open a server or start a
  * second Electron process. Requests are relayed to Codex's shared local
- * app-server, and queue delivery uses thread/queue/add on that same daemon.
+ * app-server. When the host inherits ownership from a Codex Desktop thread,
+ * delivery uses Codex's durable queue command and wakes that exact thread with
+ * the native codex:// deep link. The Desktop private app-tools pipe is never opened.
  */
 export async function codexBridge(request, options = {}) {
   if (request?.constructor !== Object) {
@@ -1116,14 +1245,18 @@ export async function codexBridge(request, options = {}) {
     };
   }
 
+  const desktop = await desktopTransport(options);
+
   await ensureDeliveriesLoaded(options);
 
   if (action === "health") {
-    return health(normalizeString(request.thread), options);
+    return desktop
+      ? desktopHealth(desktop)
+      : health(normalizeString(request.thread), options);
   }
 
   if (action === "threads") {
-    return listThreads(request, options);
+    return desktop ? desktopThreadList(desktop) : listThreads(request, options);
   }
 
   if (action === "target") {
@@ -1131,7 +1264,9 @@ export async function codexBridge(request, options = {}) {
 
     if (!thread) throw new Error("thread must be a non-empty string.");
 
-    const threads = await validateLoadedThread(thread, options);
+    const threads = desktop
+      ? validateDesktopThread(thread, desktop)
+      : await validateLoadedThread(thread, options);
 
     return {
       ok: true,
@@ -1141,7 +1276,9 @@ export async function codexBridge(request, options = {}) {
   }
 
   if (action === "queue") {
-    return queueMessage(request, options);
+    return desktop
+      ? queueDesktopMessage(request, desktop, options)
+      : queueMessage(request, options);
   }
 
   if (action === "delivery") {
@@ -1149,7 +1286,7 @@ export async function codexBridge(request, options = {}) {
   }
 
   if (action === "restore") {
-    return restoreDelivery(request, options);
+    return restoreDelivery(request, options, desktop);
   }
 
   throw new Error(`Unsupported Codex Bridge action: ${action ?? "<missing>"}`);
