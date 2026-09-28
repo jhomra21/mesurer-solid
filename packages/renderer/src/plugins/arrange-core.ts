@@ -506,6 +506,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     root.append(verticalSnapLine, horizontalSnapLine, box);
 
     const previews = new Map<HTMLElement, AppliedPreview>();
+    const liveTargets = new Map<string, HTMLElement>();
     const transitionBaselines = new Map<HTMLElement, InlineStyleValue>();
     const hiddenMeasurements = new Map<HTMLElement, InlineVisibility>();
     const resetButtons = new Map<HTMLElement, HTMLButtonElement>();
@@ -564,7 +565,23 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       return matches;
     };
 
-    const resolveTarget = (target: ArrangeTargetValue) => {
+    const targetBindingKey = (intentId: string, targetId: string) => `${intentId}\0${targetId}`;
+
+    const resolveTarget = (intentId: string, target: ArrangeTargetValue) => {
+      const bindingKey = targetBindingKey(intentId, target.id);
+      const live = liveTargets.get(bindingKey);
+
+      if (live?.isConnected && isPageElement(live)) {
+        try {
+          const selectorMatches = queryCandidates(target.selector);
+
+          if (selectorMatches.length === 1 && selectorMatches[0] === live) return live;
+        } catch {
+          // Fall through to conservative fingerprint rebinding.
+        }
+      }
+
+      liveTargets.delete(bindingKey);
       const fingerprint = fingerprintFromValue(target);
 
       if (!isElementFingerprintRebindable(fingerprint)) return null;
@@ -592,7 +609,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         if (fingerprintMatches.length !== 1 || fingerprintMatches[0] !== selectorMatches[0]) return null;
       }
 
-      return selectorMatches[0] ?? null;
+      const element = selectorMatches[0] ?? null;
+
+      if (element) liveTargets.set(bindingKey, element);
+
+      return element;
     };
 
     const transitionOverride: InlineStyleValue = { value: "none", priority: "important" };
@@ -731,7 +752,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       for (const intent of intents) {
         for (const target of intent.targets) {
-          const element = resolveTarget(target);
+          const element = resolveTarget(intent.id, target);
 
           if (!element) continue;
           targets.set(element, target);
@@ -817,7 +838,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       const offsets = new Map<HTMLElement, ArrangeOffset>();
 
       for (const target of intent.targets) {
-        const element = resolveTarget(target);
+        const element = resolveTarget(intent.id, target);
 
         if (!element) continue;
         offsets.set(element, presentation.state === "before"
@@ -1005,7 +1026,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           if (intent.pageUrl !== currentPage()) return [intent];
 
           const remaining = intent.targets.filter((target) => {
-            const element = resolveTarget(target);
+            const element = resolveTarget(intent.id, target);
             const remove = element !== null && targets.has(element);
 
             if (remove) changed = true;
@@ -1560,7 +1581,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         })));
       } else {
         value = withPreviewsSuspended(() => unionRects(intent.targets
-          .map((target) => resolveTarget(target))
+          .map((target) => resolveTarget(intent.id, target))
           .filter((element): element is HTMLElement => element !== null)
           .map((element) => getRectFromDom(element))));
       }
@@ -1580,7 +1601,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (!intent) throw new Error(`Arrange intent not found: ${id}`);
 
       const targets = withPreviewsSuspended(() => intent.targets.map((target): ArrangeReviewTarget => {
-        const element = resolveTarget(target);
+        const element = resolveTarget(intent.id, target);
 
         const desired = {
           left: target.desiredLeft,
@@ -1862,6 +1883,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       workspaceUnsubscribe();
       stateSubscription.dispose();
       clearPresentationStyles();
+      liveTargets.clear();
       clearResetButtons();
       hideSnapLines();
       restoreMeasurementOverlays();

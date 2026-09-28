@@ -392,6 +392,31 @@ describe("arrangePlugin", () => {
     host.dispose();
   });
 
+  it("keeps a moved live target bound when its text changes", async () => {
+    const { host, model, pageTarget } = await setup();
+    const target = document.createElement("button");
+    target.className = "editable-copy";
+    target.textContent = "Original";
+    pageTarget.append(target);
+    setRect(target, { left: 40, top: 50, width: 120, height: 36 });
+    select(model, [target]);
+
+    const box = await arrangeBox(host);
+    drag(box, { x: 40, y: 50 }, { x: 78, y: 72 });
+    const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+
+    await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
+    expect(target.style.transform).toContain("translate3d(38px, 22px, 0)");
+
+    target.textContent = "Changed";
+    service?.showCurrent();
+
+    expect(target.style.transform).toContain("translate3d(38px, 22px, 0)");
+    expect(service?.review(service.intents()[0]?.id ?? "").targetStatus).toBe("connected");
+
+    host.dispose();
+  });
+
   it("rebinds conservatively and refuses ambiguous replacements", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");
