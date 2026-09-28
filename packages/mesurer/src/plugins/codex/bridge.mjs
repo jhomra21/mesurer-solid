@@ -1088,7 +1088,7 @@ const queueDesktopMessage = async (request, desktop, options) => {
     env: codexEnv(options),
   });
 
-  let dispatch = "persisted";
+  let dispatch = "desktop-wake-failed";
   let dispatchError = null;
 
   try {
