@@ -24,7 +24,7 @@ for (const path of [
 
 mkdirSync(new URL("plugins/codex/", stageDir), { recursive: true });
 
-for (const file of ["bridge.mjs", "bridge.d.ts"]) {
+for (const file of ["bridge.mjs", "bridge.d.ts", "desktop.mjs"]) {
   cpSync(
     new URL(`src/plugins/codex/${file}`, packageDir),
     new URL(`plugins/codex/${file}`, stageDir),
