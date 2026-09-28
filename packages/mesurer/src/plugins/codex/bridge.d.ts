@@ -50,7 +50,7 @@ export type CodexBridgeResponse = {
   status?: "queued" | "working" | "completed" | "interrupted";
   turnId?: string | null;
   queuedSubmissionId?: string | null;
-  dispatch?: "persisted" | "desktop-opened" | null;
+  dispatch?: "persisted" | "desktop-opened" | "desktop-wake-failed" | null;
   dispatchError?: string | null;
   createdAt?: number;
   updatedAt?: number;
