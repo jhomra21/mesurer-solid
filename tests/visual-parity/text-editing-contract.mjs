@@ -210,6 +210,33 @@ try {
   const movedX = movedTargetBox.x + movedTargetBox.width / 2;
   const movedY = movedTargetBox.y + movedTargetBox.height / 2;
 
+  const postMoveEditState = await page.evaluate(({ x, y }) => {
+    const target = document.querySelector(".primary-action");
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
+    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
+    const hits = document.elementsFromPoint(x, y);
+
+    return {
+      targetAtPoint: target instanceof Element && hits.includes(target),
+      selectPressed: select?.getAttribute("aria-pressed"),
+      arrangePressed: arrange?.getAttribute("aria-pressed"),
+      hits: hits.slice(0, 8).map((element) => ({
+        tag: element.tagName,
+        className: element.getAttribute("class"),
+        inspector: element.getAttribute("data-mesurer-inspector-ui"),
+        arrangeBox: element.getAttribute("data-mesurer-arrange-box"),
+      })),
+    };
+  }, { x: movedX, y: movedY });
+
+  assert.equal(
+    postMoveEditState.targetAtPoint,
+    true,
+    `Moved text target must remain hit-testable before editing: ${JSON.stringify(postMoveEditState)}`,
+  );
+  assert.equal(postMoveEditState.selectPressed, "true", "Select should remain active after Arrange drag");
+  assert.equal(postMoveEditState.arrangePressed, "true", "Arrange should remain active after its drag");
+
   await target.evaluate((element, point) => {
     element.dispatchEvent(new MouseEvent("dblclick", {
       bubbles: true,
@@ -220,7 +247,14 @@ try {
     }));
   }, { x: movedX, y: movedY });
 
-  await editor.waitFor({ state: "attached" });
+  try {
+    await editor.waitFor({ state: "attached", timeout: 5_000 });
+  } catch (error) {
+    throw new Error(
+      `Post-Arrange direct edit did not open: ${JSON.stringify(postMoveEditState)}`,
+      { cause: error },
+    );
+  }
   await inspector.waitFor({ state: "visible" });
   await page.waitForFunction(() => document.querySelector("[data-mesurer-text-inspector-info='true']")?.getAttribute("data-mesurer-text-inspector-unified") === "true");
 
