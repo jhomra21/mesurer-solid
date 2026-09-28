@@ -1,10 +1,10 @@
 # @jhomra21/mesurer-solid-core
 
-Framework-neutral Mesurer state and plugin contracts. This workspace has no Solid, React, Vue, Electron, DOM, or browser dependency.
+This package contains framework-neutral Mesurer state and plugin contracts. It has no Solid, React, Vue, Electron, DOM, or browser dependency.
 
 It owns observable state, events, plugin registration, commands, hooks, services, history-enabled state slices, scoped disposal, and shared domain contracts used by renderer and host adapters.
 
-Plugins can register tools, settings, overlays, commands, hooks, state, services, and lifecycle cleanup. Registrations are disposable, and asynchronous plugin setup can be cancelled so late registrations are cleaned up instead of leaking after their owner is gone. Cancellation is scoped to the load that owns those registrations; unrelated plugins on a shared host are not disposed.
+Plugins can register tools, settings, overlays, commands, hooks, state, services, and lifecycle cleanup. Every registration is disposable. If asynchronous plugin setup is cancelled, the runtime removes late registrations instead of leaving them behind after their owner is gone. Cancellation applies only to the load that owns those registrations; unrelated plugins on a shared host stay mounted.
 
 Use `createMesurerRuntime({ plugins })` when one owner should create a host and load an initial plugin set in one operation. The input accepts readonly plugin lists. If initial loading fails, the partial host is disposed before the error is rethrown. Use `createMesurerPluginHost()` directly when the caller needs to own incremental loading itself.
 
