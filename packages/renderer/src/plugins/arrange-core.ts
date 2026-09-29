@@ -1710,14 +1710,16 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     ctx.tool.register({
       id: "arrange",
-      label: "Arrange",
+      label: "Edit",
       shortcut: "Shift+A",
       order: 65,
       command: TOGGLE_COMMAND,
+      toolbarMode: "edit",
+      modeSwitch: true,
       icon: moveIcon,
       active,
       menu: {
-        label: "Arrange options",
+        label: "Edit options",
         items: [
           {
             id: "snapping",
@@ -1773,7 +1775,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     });
     ctx.settings.register({
       id: "arrange",
-      label: "Arrange",
+      label: "Edit",
       order: 35,
       controls: [
         {
