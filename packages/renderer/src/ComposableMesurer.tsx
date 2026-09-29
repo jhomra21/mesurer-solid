@@ -890,6 +890,14 @@ export default function ComposableMesurer(props: MesurerProps) {
 
       const slot = builtinShortcut(event);
 
+      if (slot && slot !== "settings" && arrangeActive()) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        void runBuiltinSlot(slot).catch(() => undefined);
+
+        return;
+      }
+
       if (slot && builtinActionDisabled(slot)) {
         event.preventDefault();
         event.stopImmediatePropagation();
