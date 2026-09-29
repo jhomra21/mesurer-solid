@@ -17,7 +17,7 @@ Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron
              │                                 │
              ├───────────────┬─────────────────┤
              ▼               ▼                 ▼
-        Context plugin   Arrange plugin   Screenshot plugin
+        Context plugin     Edit plugin     Screenshot plugin
              │               │
              │         Layout Guides plugin
              │
@@ -46,7 +46,7 @@ Users install `mesurer-solid`.
 
 The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, and `mesurer-solid/plugins/codex/bridge` for native-host Codex access. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
 
-Public first-party plugin factories use their feature name directly. Applications import `context`, `arrange`, `layoutGuides`, `screenshot`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
+Public first-party plugin factories use their feature name directly. Applications import `context`, `edit`, `layoutGuides`, `screenshot`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; `arrange()` remains a compatibility alias; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
 
 `mountMesurer()` is the single application-facing construction seam. It owns host creation, renderer startup, built-in defaults, first-party plugin registration, persistence wiring, optional global agent exposure, and disposal. The returned handle is the lifecycle interface. `ready` resolves the live plugin host after startup and initial rendered stability, `service()` and `describe()` wait at that seam, and an optional `AbortSignal` can transfer cleanup ownership to an existing application lifecycle. Do not add a second create/configure factory that asks callers to assemble the same implementation in another form.
 
@@ -66,7 +66,7 @@ Cancellation is scoped to the load that started it. Code using a shared plugin h
 
 `packages/mesurer-dom` owns browser/document helpers, storage adapters, Electron-renderer detection, box-model inspection, selectors, fingerprints, DOM identity, and rich element inspection.
 
-Select, Context rebinding, point inspection, and programmatic `select()` accept general DOM `Element` targets, including SVG. Arrange and direct text editing narrow back to `HTMLElement` before they mutate presentation or text. Rebinding is conservative: weak structural position alone is not enough to transfer human intent to another element.
+Select, Context rebinding, point inspection, and programmatic `select()` accept general DOM `Element` targets, including SVG. Edit movement and direct text editing narrow back to `HTMLElement` before they mutate presentation or text. Rebinding is conservative: weak structural position alone is not enough to transfer human intent to another element.
 
 ### Renderer
 
@@ -76,7 +76,7 @@ Within the renderer runtime, direct editing is grouped under `runtime/text-editi
 
 Human-facing built-ins are Select, X-ray, Color Picker when supported, Rulers, Typography, Guides, Distance, and Settings. Typography retains the internal compatibility id `text-inspector`. Distance geometry is specified in [Measurements and distance geometry](./docs/MEASUREMENTS.md).
 
-The toolbar keeps one stable tool order. Compact presentation collapses inactive controls while preserving active tools and state. Dragging begins only after the pointer crosses the drag threshold. Menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. Arrange remains a plugin contribution rather than a toolbar mode.
+The toolbar has two top-level modes. Select owns inspection tools such as X-ray, Color Picker, Rulers, Typography, Guides, Layout Guides, and Screenshot. Edit owns element movement and direct text/style editing. Context and Codex stay visible in both modes. The mode switch follows the audited upstream grouped-toolbar design while Mesurer Solid keeps 150 ms motion. Compact presentation preserves the active mode and pinned tools. Dragging begins only after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership.
 
 Plugin tools render through the same toolbar path as built-ins instead of maintaining a second renderer.
 
@@ -102,7 +102,7 @@ renderer bridge
      └─ service: text-edit
 ```
 
-It activates from Select or Typography by double-click/double-tap. Arrange keeps Select active, so text editing can occur without leaving the Arrange workflow.
+It activates only while Edit is active. Typography remains a read-only inspection tool in Select. The renderer exposes the current top-level toolbar mode to text-editing runtimes so direct editing cannot leak back into Select.
 
 The target boundary follows browser editability semantics: form controls stay native; descendants that inherit `contenteditable` stay native; a nested `contenteditable="false"` boundary ends that inherited region; ambiguous mixed/nested rich text is not converted into a generic editor.
 
