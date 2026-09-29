@@ -579,6 +579,15 @@ export function Toolbar(props: ToolbarProps) {
     props.onPluginTool?.(edit);
   };
 
+  const buttonProps = (id: string) => ({
+    shortcutsEnabled: props.model.state.settings.shortcutsEnabled,
+    tooltipVisible: tooltipsEnabled() && tooltip.visibleTooltipId() === id,
+    tooltipInstant: tooltip.tooltipInstant(),
+    tooltipSide: tooltipSide(),
+    onTooltipEnter: tooltip.onTooltipEnter,
+    onTooltipLeave: tooltip.onTooltipLeave,
+  });
+
   const renderPluginMenu = (tool: ToolContribution) => (
     <Show when={pluginMenuOpenId() === tool.id}>
       <div
@@ -801,9 +810,10 @@ export function Toolbar(props: ToolbarProps) {
     };
 
     syncWidths();
-    const observer = new ResizeObserver(syncWidths);
-    observer.observe(selectPanel);
-    observer.observe(editPanel);
+    const Resize = (props.ownerWindow as Window & typeof globalThis).ResizeObserver;
+    const observer = Resize ? new Resize(syncWidths) : null;
+    observer?.observe(selectPanel);
+    observer?.observe(editPanel);
     const frame = props.ownerWindow.requestAnimationFrame(() => {
       stage.dataset.ready = "true";
       syncWidths();
@@ -811,17 +821,8 @@ export function Toolbar(props: ToolbarProps) {
 
     return () => {
       props.ownerWindow.cancelAnimationFrame(frame);
-      observer.disconnect();
+      observer?.disconnect();
     };
-  });
-
-  const buttonProps = (id: string) => ({
-    shortcutsEnabled: props.model.state.settings.shortcutsEnabled,
-    tooltipVisible: tooltipsEnabled() && tooltip.visibleTooltipId() === id,
-    tooltipInstant: tooltip.tooltipInstant(),
-    tooltipSide: tooltipSide(),
-    onTooltipEnter: tooltip.onTooltipEnter,
-    onTooltipLeave: tooltip.onTooltipLeave,
   });
 
   return (
