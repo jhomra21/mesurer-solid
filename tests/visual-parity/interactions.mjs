@@ -95,6 +95,37 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
   if (implementation !== "solid") return;
   let changed = false;
 
+  // The historical React baseline predates toolbar modes. Exercise the real
+  // Select/Edit switch in current contracts, then remove only that new chrome
+  // before comparing shared upstream interactions.
+  const modeSwitch = page.locator("[data-mesurer-toolbar-mode-switch='true']");
+
+  if ((await modeSwitch.count()) > 0) {
+    const contract = await modeSwitch.evaluate((element) =>
+      [...element.querySelectorAll("button")].map((button) => ({
+        label: button.getAttribute("aria-label"),
+        pressed: button.getAttribute("aria-pressed"),
+      })),
+    );
+
+    const expected = [
+      { label: "Select mode (1)", pressed: "true" },
+      { label: "Edit mode (2)", pressed: "false" },
+    ];
+
+    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+      throw new Error(`Unexpected Select/Edit switch contract in ${caseName}: ${JSON.stringify(contract)}`);
+    }
+
+    await modeSwitch.evaluate((element) => {
+      const divider = element.nextElementSibling;
+
+      element.remove();
+      if (divider?.getAttribute("data-mesurer-toolbar-divider") === "mode") divider.remove();
+    });
+    changed = true;
+  }
+
   // v0.0.11 predates Appearance. Verify the current-only control before
   // removing it from the historical interaction snapshot. The dedicated theme
   // browser contract owns current system/light/dark behavior and token values.
