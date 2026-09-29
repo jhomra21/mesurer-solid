@@ -4,10 +4,34 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.0 - 2026-09-29
+
 - Resolve pointer-transparent sibling overlays by the browser's actual paint order. Select and agent point inspection now agree on transparent text and SVG overlays, preserve native targets painted above them, and respect clipping and stacking.
 - Keep an explicitly closed Chromium-extension session closed when navigation races the background worker's session-state restore. Pending tab state now wins over stale storage reads, and writes are serialized.
-
-<!-- Add user-facing changes here before preparing a release. -->
+- Keep arranged text in its moved position while editing or committing copy. Arrange now keeps ownership of the exact live element it moved even when that element's text changes, while reload and replacement rebinding remain conservative.
+- Keep Codex enabled by default and move all Codex implementation under the Codex plugin. The native Codex Bridge now runs in the application host process, talks directly to Codex's shared app-server, and queues through `thread/queue/add`.
+- Remove the separate Mesurer Codex server, bridge port, helper Electron process, marketplace/hooks setup, client leases, and package-relative bridge bootstrap. Electron package smoke now bundles main to CommonJS with esbuild before launch to cover real bundled-host integration.
+- Keep Codex delivery runtime-neutral for callers. The Codex plugin classifies shared, standalone, and Desktop transports behind the same service. It never installs Codex and never uses a Desktop-bundled executable to bootstrap the shared daemon. Packed runtime smoke retains JSON evidence for runtime selection and standalone daemon startup.
+- Restore zero-setup delivery to the exact Codex Desktop thread that launched the host application. When Desktop ownership is inherited, the Codex plugin queues once through Codex's native queue command and wakes the same thread with its `codex://` deep link. Mesurer never connects to Desktop's private app-tools pipe, never starts a second Mesurer bridge, and never uses the Desktop executable to bootstrap a daemon.
+- Keep nested Arrange selections together across repeated moves. A descendant now keeps its own adjustment relative to an arranged ancestor, so selecting a child after moving its parent no longer makes that child jump, counter-move, or detach on later parent drags.
+- Keep Arrange multi-drag frame-locked on pages that use CSS transitions such as `transition-all`. Arrange now suppresses host transitions only while it owns a temporary transform, so selected elements stop at pointer release instead of easing to different positions afterward.
+- Fix Arrange multi-selection when selected elements are nested. Parent and child targets now move by the same rendered delta instead of applying the drag twice to the child.
+- Let Shift-click extend or reduce a Select/Arrange multi-selection through the Arrange group box. Shift-drag on an already selected target still locks movement to the dominant axis.
+- Make Escape progressive for Select and Arrange. The first press clears the current selection and keeps the selection tool active. A second press with nothing selected exits Select, or exits both Arrange and its dependent Select.
+- Add a compact Reset position control for each moved Arrange target and a Reset all positions action to the Arrange menu. Resets remove the saved position intent for the current page and participate in Arrange history.
+- Keep Arrange active when Escape clears the current target. While Arrange has a selection, Select hover chrome stays hidden so nested page elements do not look simultaneously selected. Pressing Escape again with no selection still exits Arrange.
+- Keep the Mesurer toolbar below the native macOS Electron titlebar area across the full window width. Dragging and saved positions can no longer place toolbar controls where macOS treats pointer input as window movement.
+- Keep standalone Typography inspection from looking or clicking through its own visible card into host text underneath it. Hovering the card now preserves the current inspection instead of spawning or pinning overlapping inspections behind the card.
+- Keep standalone Typography hover inspection from looking through pinned Mesurer Typography cards into page text underneath them. Pointer movement and clicks on Typography UI now stay owned by Mesurer until the pointer leaves the card.
+- Prevent the Mesurer toolbar from being dragged under the native macOS close, minimize, and full-screen controls in Electron. Unsafe saved positions are moved out of that control area on the next mount, while positions elsewhere remain unchanged.
+- Keep the default Mesurer toolbar clear of the native macOS window controls in Electron renderers. Browser defaults and user-saved toolbar positions stay unchanged.
+- Keep persisted Context annotations connected after reload when their saved selector still uniquely identifies the same compatible target, even if the host contains other matching elements of the same tag such as multiple editor canvases.
+- Keep saved Context annotations connected across renderer reloads when a framework changes non-identity classes but the unique structural target and rendered geometry remain stable. Review also stops treating the transient Select measurement box as missing durable evidence when the annotated target itself reconnects.
+- Keep Color Picker inside native application hosts that expose `window.__MESURER_HOST__.captureScreenshot`: Mesurer now samples the current renderer window with one host capture after the user clicks, maps CSS coordinates to the returned PNG dimensions for HiDPI displays, and keeps browser `EyeDropper` as the fallback when no host capture capability exists.
+- Remove the Color Picker's permanent animation-frame positioning loop and 500 ms capability poll. Positioning and capability checks now run from relevant state, resize, focus, visibility, and toolbar events instead of waking an idle Electron renderer continuously.
+- Expand the packed Electron package smoke to verify application-local Color Picker sampling, zero native `EyeDropper` calls on the host-capture path, exact host capture count, native Screenshot capture, and isolated renderer security settings.
 
 ## 0.2.0-beta.14 - 2026-09-29
 
