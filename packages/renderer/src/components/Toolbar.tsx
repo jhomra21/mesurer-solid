@@ -162,6 +162,7 @@ function ToolbarModeSwitch(props: {
   return (
     <div
       class="mesurer-toolbar-mode-switch msr:flex msr:flex-none msr:self-center msr:items-center msr:gap-[2px] msr:p-[2px]"
+      data-mesurer-toolbar-mode-switch="true"
       data-value={props.value}
       role="group"
       aria-label="Toolbar mode"
@@ -304,7 +305,6 @@ export function Toolbar(props: ToolbarProps) {
     (tool) => tool.modeSwitch === true && tool.toolbarMode === "edit",
   );
   const toolbarMode = (): "select" | "edit" =>
-
     editModeTool()?.active?.() ? "edit" : "select";
   const selectPluginTools = () => (props.pluginTools ?? []).filter(
     (tool) => tool.toolbarMode === "select" && !tool.modeSwitch,
@@ -824,8 +824,8 @@ export function Toolbar(props: ToolbarProps) {
     const observer = Resize ? new Resize(syncWidths) : null;
 
     observer?.observe(selectPanel);
-
     observer?.observe(editPanel);
+
     const frame = props.ownerWindow.requestAnimationFrame(() => {
       stage.dataset.ready = "true";
       syncWidths();
