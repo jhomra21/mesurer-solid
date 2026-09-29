@@ -4,6 +4,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Resolve pointer-transparent sibling overlays by the browser's actual paint order. Select and agent point inspection now agree on transparent text and SVG overlays, preserve native targets painted above them, and respect clipping and stacking.
+- Keep an explicitly closed Chromium-extension session closed when navigation races the background worker's session-state restore. Pending tab state now wins over stale storage reads, and writes are serialized.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.0-beta.14 - 2026-09-29

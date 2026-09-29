@@ -1,3 +1,5 @@
+import { createActiveTabRegistry } from "./active-tabs.js";
+
 const CAPTURE_VISIBLE_MESSAGE = "mesurer:capture-visible";
 
 const ACTIVE_TABS_KEY = "mesurer:active-tabs";
@@ -36,15 +38,7 @@ const writeActiveTabs = async (ids) => {
   }
 };
 
-const setTabActive = async (tabId, active) => {
-  const ids = await readActiveTabs();
-
-  const next = active
-    ? Array.from(new Set([...ids, tabId]))
-    : ids.filter((id) => id !== tabId);
-
-  await writeActiveTabs(next);
-};
+const activeTabRegistry = createActiveTabRegistry(readActiveTabs, writeActiveTabs);
 
 async function run(tabId, options) {
   const result = await chrome.scripting.executeScript({
@@ -105,13 +99,13 @@ async function toggleMesurer(tab) {
     const disposed = await disposeMesurer(tab.id);
 
     if (disposed) {
-      await setTabActive(tab.id, false);
+      await activeTabRegistry.setActive(tab.id, false);
 
       return;
     }
 
     await injectMesurer(tab.id);
-    await setTabActive(tab.id, true);
+    await activeTabRegistry.setActive(tab.id, true);
   } catch (error) {
     console.warn("Mesurer cannot run on this page.", error);
   }
@@ -126,8 +120,14 @@ const restoreTab = (tabId, url) => {
   restoreTimers.set(tabId, setTimeout(() => {
     restoreTimers.delete(tabId);
 
-    void mounted(tabId)
-      .then(async (alive) => {
+    void activeTabRegistry.ready
+      .then(async () => {
+        if (!activeTabRegistry.isActive(tabId)) return;
+
+        const alive = await mounted(tabId);
+
+        if (!activeTabRegistry.isActive(tabId)) return;
+
         if (alive) return;
 
         await injectMesurer(tabId);
@@ -136,7 +136,7 @@ const restoreTab = (tabId, url) => {
         // activeTab is intentionally retained instead of broad host permissions.
         // A navigation that revokes that temporary grant should stop recovery
         // until the user explicitly clicks the extension action again.
-        await setTabActive(tabId, false);
+        await activeTabRegistry.setActive(tabId, false);
         console.warn("Mesurer could not restore on this page.", error);
       });
   }, 75));
@@ -168,11 +168,7 @@ chrome.action.onClicked.addListener((tab) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== "complete" && !changeInfo.url) return;
 
-  void readActiveTabs().then((ids) => {
-    if (!ids.includes(tabId)) return;
-
-    restoreTab(tabId, changeInfo.url ?? tab.url);
-  });
+  restoreTab(tabId, changeInfo.url ?? tab.url);
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -180,5 +176,5 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
   if (timer) clearTimeout(timer);
   restoreTimers.delete(tabId);
-  void setTabActive(tabId, false);
+  void activeTabRegistry.setActive(tabId, false);
 });

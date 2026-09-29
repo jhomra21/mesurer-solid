@@ -2,7 +2,7 @@
 
 This package is Mesurer's browser and DOM boundary. It contains host detection, mounting, storage, element identity, point hit testing, and DOM inspection helpers while keeping `@jhomra21/mesurer-solid-core` free of browser globals.
 
-Point inspection works with general DOM `Element` targets, including SVG. The visual hit resolver also handles pointer-transparent descendants without scanning the full document.
+Point inspection works with general DOM `Element` targets, including SVG. The visual hit resolver handles pointer-transparent descendants and sibling overlays without scanning the full document. It checks candidate paint order against the browser hit stack, so clipped or lower painted overlays do not steal the target.
 
 Electron renderer processes use this same DOM boundary. Mesurer does not import Electron or require Electron APIs for inspection; privileged application behavior belongs behind an application-owned preload bridge or plugin adapter.
 

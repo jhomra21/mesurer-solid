@@ -15,7 +15,7 @@ rmSync(distDir, { recursive: true, force: true });
 
 mkdirSync(distDir, { recursive: true });
 
-for (const file of ["manifest.json", "background.js", "capture-bridge.js"]) {
+for (const file of ["manifest.json", "background.js", "active-tabs.js", "capture-bridge.js"]) {
   cpSync(new URL(file, extensionDir), new URL(file, distDir));
 }
 

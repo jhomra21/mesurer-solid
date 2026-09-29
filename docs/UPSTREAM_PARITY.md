@@ -7,10 +7,10 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `d47fd6056a01da9c442ae04840ec4d0dd46a1257` (`main`, verified 2026-09-24) |
-| Current upstream audit | `33ffecfa7682b25dff5ada2a507feedfa18c745b` (`main`, verified 2026-09-25) |
+| Previous upstream audit | `33ffecfa7682b25dff5ada2a507feedfa18c745b` (`main`, verified 2026-09-25) |
+| Current upstream audit | `547634086b1317b48e5cd23cafb477a9cdb807c3` (`main`, verified 2026-09-28) |
 
-The current audit advances from `d47fd6056a01da9c442ae04840ec4d0dd46a1257` to upstream's 0.2.0 release commit. That release commit changes documentation and release metadata only, so the latest runtime delta remains the previously audited `feat/add-grid` series with its Layout Guides, route-scoped page state, toolbar/session persistence, extension recovery, and Inspect/measurement refinements.
+The current audit advances from upstream's 0.2.0 release commit at `33ffecfa7682b25dff5ada2a507feedfa18c745b` through two follow-up fixes. One hardens extension session ownership during navigation and persists an upstream-only minimized toolbar flag. The other improves selection of pointer-transparent visual overlays by checking browser paint order. Mesurer Solid adopts the extension race fix and the hit-testing refinement. The upstream minimized flag does not map to Mesurer Solid's toolbar model.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
@@ -26,6 +26,17 @@ Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
+
+### 2026-09-28 stable-readiness follow-up
+
+Upstream `547634086b1317b48e5cd23cafb477a9cdb807c3` is two commits ahead of the previously audited 0.2.0 release commit. The changes affect extension recovery, one upstream toolbar persistence field, Inspect hit testing, and focused regression fixtures.
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Keep a tab closed when navigation races the extension's initial active-tab storage read, and serialize later active-tab writes | **Adopted** | Mesurer Solid keeps the temporary `activeTab` permission model. Its extension now tracks pending tab state before the session read settles, checks that state again before recovery injects, and serializes storage writes. A Chromium contract covers close-during-read and concurrent state changes and writes a retained JSON result. |
+| Persist upstream's `minimized` toolbar flag across navigation when `persistSession` is enabled | **Not applicable** | Mesurer Solid does not use upstream's minimized-toolbar state. It keeps one toolbar with its own compact presentation and stores toolbar position as tab-session UI while page evidence remains route-scoped. Adopting a separate minimized flag would add a second chrome state that the public Mesurer Solid contract does not expose. |
+| Resolve pointer-transparent sibling overlays above video, canvas, and other native hits by checking browser paint order | **Adopted** | The shared DOM resolver now considers transparent descendants and sibling branches, rejects hidden and non-painted candidates, and confirms candidates against the browser hit stack. Select and agent point inspection share that path. Chromium covers transparent text and SVG overlays, clipping, lower painted overlays, and competing transparent stacking layers. |
+| Add upstream benchmark fixtures for the overlay cases | **Not applicable** | Mesurer Solid keeps focused browser fixtures instead of copying upstream's site benchmark. The adopted cases run through its existing Select and agent APIs. |
 
 ### 2026-09-25 upstream 0.2.0 release audit
 

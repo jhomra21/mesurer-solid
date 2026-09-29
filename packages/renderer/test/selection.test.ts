@@ -64,6 +64,7 @@ describe("root-aware point selection", () => {
     document.body.append(host);
     setHitStack(host);
     Object.defineProperty(shadow, "elementFromPoint", { configurable: true, value: () => inner });
+    Object.defineProperty(shadow, "elementsFromPoint", { configurable: true, value: () => [inner] });
 
     expect(getDeepestElementAtPoint(point, document.body, document)).toBe(inner);
     expect(isElementWithinDomTarget(inner, document.body)).toBe(true);

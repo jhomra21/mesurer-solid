@@ -27,6 +27,9 @@ on:
       - "packages/renderer/src/core/selection.ts"
       - "packages/mesurer-dom/src/index.ts"
       - "packages/mesurer/src/agent.ts"
+      - "extension/active-tabs.js"
+      - "extension/background.js"
+      - "extension/build.mjs"
       - "packages/renderer/src/model/create-mesurer-model.ts"
       - "packages/renderer/src/plugins/arrange-core.ts"
       - "packages/renderer/src/plugins/arrange.ts"
@@ -64,6 +67,8 @@ on:
       - "examples/basic/src/plugin-settings.ts"
       - "examples/basic/selection-hit-testing.html"
       - "examples/basic/src/selection-hit-testing.ts"
+      - "examples/basic/extension-active-tabs.html"
+      - "examples/basic/src/extension-active-tabs.js"
       - "tests/visual-parity/annotation-surface-ownership-contract.mjs"
       - "tests/visual-parity/arrange-contract.mjs"
       - "tests/visual-parity/arrange-presentation-policy-contract.mjs"
@@ -71,6 +76,7 @@ on:
       - "tests/visual-parity/presentation-settings-contract.mjs"
       - "tests/visual-parity/selection-scroll-contract.mjs"
       - "tests/visual-parity/selection-hit-testing-contract.mjs"
+      - "tests/visual-parity/extension-active-tabs-contract.mjs"
       - "tests/visual-parity/shortcuts-setting-contract.mjs"
       - "tests/visual-parity/text-editing-contract.mjs"
       - "tests/visual-parity/theme-contract.mjs"
@@ -124,7 +130,7 @@ jobs:
             echo $! > ../../browser-contracts-vite.pid
           )
 
-          for path in index.html self-hosting.html multi-spacing.html plugin-settings.html selection-hit-testing.html layout-guides.html; do
+          for path in index.html self-hosting.html multi-spacing.html plugin-settings.html selection-hit-testing.html extension-active-tabs.html layout-guides.html; do
             ready=0
             for attempt in $(seq 1 45); do
               if curl --fail --silent --show-error "http://127.0.0.1:4174/${path}" >/dev/null; then
@@ -204,7 +210,14 @@ jobs:
       - name: Exercise inspect hit testing
         env:
           SELECTION_HIT_TESTING_URL: http://127.0.0.1:4174/selection-hit-testing.html
+          SELECTION_HIT_TESTING_OUT: selection-hit-testing-artifacts
         run: bun tests/visual-parity/selection-hit-testing-contract.mjs
+
+      - name: Exercise extension active-tab state
+        env:
+          EXTENSION_ACTIVE_TABS_URL: http://127.0.0.1:4174/extension-active-tabs.html
+          EXTENSION_ACTIVE_TABS_OUT: extension-active-tabs-artifacts
+        run: bun tests/visual-parity/extension-active-tabs-contract.mjs
 
       - name: Exercise Color Picker capability
         env:
@@ -292,7 +305,8 @@ jobs:
 
           print("")
           print("### Inspect hit testing")
-          print("- Pointer-transparent visual descendants resolve to their exact visible target")
+          print("- Pointer-transparent descendants and sibling overlays resolve to the visible painted target")
+          print("- Transparent overlay candidates are checked against browser paint order, clipping, and stacking")
           print("- Browser Select and the public agent point API share the same visual hit target")
           print("- Native top targets stay selected when snapping candidates overlap underneath them")
           print("- Transformed elements, canvas surfaces, closed-shadow hosts, and a 1,000-node fixture are exercised in Chromium")
@@ -344,12 +358,28 @@ jobs:
           print("- Toolbar position survives route changes/reload as tab-session UI state")
 
           print("")
+          print("### Extension recovery")
+          print("- A close request remains authoritative when navigation races initial active-tab restoration")
+          print("- Concurrent active-tab updates persist only the newest requested state")
+
+          print("")
           print("### Plugin settings")
           print("- Available-but-unloaded first-party plugins are discoverable and loadable from Settings")
           print("- Context, Arrange, and Screenshot lifecycle toggles remove and restore real tools/services")
           print("- Plugin-local persistence is exercised independently of the General presentation switches")
           print("- Deterministic defaults reset remains exercised")
           PY
+
+      - name: Upload stable upstream regression evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mesurer-stable-upstream-regressions
+          path: |
+            selection-hit-testing-artifacts
+            extension-active-tabs-artifacts
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload Arrange evidence
         if: always()

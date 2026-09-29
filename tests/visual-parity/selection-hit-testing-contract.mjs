@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 const url = process.env.SELECTION_HIT_TESTING_URL ?? "http://127.0.0.1:4174/selection-hit-testing.html";
+
+const out = process.env.SELECTION_HIT_TESTING_OUT ?? "selection-hit-testing-artifacts";
 
 const browser = await chromium.launch({ headless: true });
 
@@ -80,6 +83,15 @@ const pointFor = async (locator, label) => {
   };
 };
 
+const assertAgentSelector = async (point, selector, label) => {
+  const result = await page.evaluate(
+    ({ x, y }) => window.__MESURER__.at(x, y),
+    point,
+  );
+
+  assert.equal(result?.selector, selector, `${label}: agent point inspection selector`);
+};
+
 const selectPoint = async (point, expected, label) => {
   await page.mouse.move(8, 8);
   await page.mouse.move(point.x, point.y, { steps: 3 });
@@ -135,6 +147,68 @@ try {
 
   await selectPoint(transparent.point, transparent.rect, "pointer-transparent leaf");
 
+  const visualOverlay = await pointFor(page.locator("#visual-overlay-title"), "transparent video title");
+  await assertAgentSelector(
+    visualOverlay.point,
+    "#visual-overlay-title",
+    "transparent video title",
+  );
+  await selectPoint(visualOverlay.point, visualOverlay.rect, "transparent video title");
+
+  const transparentSvg = await pointFor(page.locator("#transparent-svg-mark"), "transparent SVG mark");
+  await assertAgentSelector(
+    transparentSvg.point,
+    "#transparent-svg-mark",
+    "transparent SVG mark",
+  );
+  await selectPoint(transparentSvg.point, transparentSvg.rect, "transparent SVG mark");
+
+  const paintOrderCanvas = await pointFor(page.locator("#paint-order-source"), "paint-order canvas");
+  await assertAgentSelector(
+    paintOrderCanvas.point,
+    "#paint-order-source",
+    "transparent text painted behind canvas",
+  );
+  await selectPoint(
+    paintOrderCanvas.point,
+    paintOrderCanvas.rect,
+    "transparent text painted behind canvas",
+  );
+
+  const clippedCanvas = page.locator("#clipped-overlay-source");
+  await clippedCanvas.scrollIntoViewIfNeeded();
+  await settle();
+
+  const clippedCanvasRect = await box(clippedCanvas, "clipped overlay canvas");
+
+  const clippedOutsidePoint = {
+    x: clippedCanvasRect.x + clippedCanvasRect.width - 40,
+    y: clippedCanvasRect.y + clippedCanvasRect.height / 2,
+  };
+
+  await assertAgentSelector(
+    clippedOutsidePoint,
+    "#clipped-overlay-source",
+    "point outside clipped transparent overlay",
+  );
+  await selectPoint(
+    clippedOutsidePoint,
+    clippedCanvasRect,
+    "point outside clipped transparent overlay",
+  );
+
+  const stackedTop = await pointFor(page.locator("#top-transparent-title"), "top transparent layer");
+  await assertAgentSelector(
+    stackedTop.point,
+    "#top-transparent-title",
+    "highest transparent stacking layer",
+  );
+  await selectPoint(
+    stackedTop.point,
+    stackedTop.rect,
+    "highest transparent stacking layer",
+  );
+
   await selectButton.click();
   assert.equal(await selectButton.getAttribute("aria-pressed"), "false", "Select button should toggle off");
 
@@ -153,7 +227,16 @@ try {
   );
   await assertNoPublicSelection("Select re-enabled without reload");
 
-  await selectPoint(transparent.point, transparent.rect, "pointer-transparent leaf before reload persistence");
+  const transparentBeforeReload = await pointFor(
+    page.locator("#transparent-leaf"),
+    "transparent leaf before reload persistence",
+  );
+
+  await selectPoint(
+    transparentBeforeReload.point,
+    transparentBeforeReload.rect,
+    "pointer-transparent leaf before reload persistence",
+  );
   await selectButton.click();
   assert.equal(
     await selectButton.getAttribute("aria-pressed"),
@@ -335,8 +418,39 @@ try {
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
 
+  const report = {
+    status: "PASS",
+    url,
+    transparentDescendant: true,
+    transparentSiblingTextOverlay: true,
+    transparentSiblingSvgOverlay: true,
+    paintOrderPreserved: true,
+    clippedOverlayRespected: true,
+    highestTransparentLayerWins: true,
+    selectOffClearsSelection: true,
+    selectOffPersistsWithoutLatentSelection: true,
+    physicalShiftClickMultiSelection: true,
+    visibleMultiSelectionTargetOutlines: true,
+    agentParity: true,
+    nativeTargetPreserved: true,
+    transformedGeometry: true,
+    svgElement: true,
+    svgContext: true,
+    canvasSurface: true,
+    closedShadowBoundary: true,
+    largeDom: true,
+  };
+
+  await mkdir(out, { recursive: true });
+  await writeFile(`${out}/result.json`, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+
   console.log("Inspect hit-testing contract: PASS", {
     transparentDescendant: true,
+    transparentSiblingTextOverlay: true,
+    transparentSiblingSvgOverlay: true,
+    paintOrderPreserved: true,
+    clippedOverlayRespected: true,
+    highestTransparentLayerWins: true,
     selectOffClearsSelection: true,
     selectOffPersistsWithoutLatentSelection: true,
     physicalShiftClickMultiSelection: true,
