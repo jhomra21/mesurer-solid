@@ -411,6 +411,7 @@ const getPaintOrderedCandidates = (
       })
       .sort((left, right) => {
         if (left.contains(right)) return 1;
+
         if (right.contains(left)) return -1;
 
         return (stackOrder.get(left) ?? Number.MAX_SAFE_INTEGER)
@@ -474,6 +475,7 @@ const getPointerTransparentVisualTargets = (
     const visualTargets = getPointerTransparentVisualDescendants(currentRoot, point, ownerDocument)
       .filter((candidate) => {
         if (!isElementWithinDomTarget(candidate, target)) return false;
+
         if (candidate.closest("[aria-hidden='true'], [inert]")) return false;
 
         const branch = getDirectChild(candidate, currentRoot);
