@@ -12,7 +12,7 @@ Mesurer Solid is a browser inspection and visual-intent tool. Start with setup, 
 ## Workflows
 
 - [Direct text editing and Typography](./TEXT_EDITING.md) explains how to inspect type and record reversible copy and style intent.
-- [Arrange](./ARRANGE.md) explains how to move rendered UI into a Desired layout and compare it with Live source.
+- [Edit](./EDIT.md) covers element movement, direct text/style editing, and Before/Desired/Live review. [Arrange compatibility](./ARRANGE.md) lists the preserved API names.
 - [Layout guides](./LAYOUT_GUIDES.md) explains how to overlay page-scoped columns, rows, or a pixel grid and expose them through Context.
 - [Measurements and distance geometry](./MEASUREMENTS.md) defines box, guide, container, and multi-selection spacing evidence.
 - [Screenshots](./SCREENSHOTS.md) explains page-region capture, output settings, and host capture selection.
