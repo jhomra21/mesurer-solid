@@ -212,6 +212,9 @@ const expandPlugin = async (dialog, id) => {
 
   if ((await disclosure.getAttribute("aria-expanded")) !== "true") await disclosure.click();
   await dialog.locator(`[data-mesurer-plugin-settings-controls='${id}']`).waitFor({ state: "visible" });
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
 
   return disclosure;
 };
