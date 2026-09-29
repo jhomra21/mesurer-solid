@@ -46,7 +46,7 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
   },
   {
     id: MESURER_ARRANGE_PLUGIN_ID,
-    label: "Arrange",
+    label: "Edit",
     order: 35,
     create: arrange,
     settingsIds: ["arrange"],
