@@ -209,7 +209,7 @@ async function assertPackedDirectEditing(page, testCase, errors) {
     document.body.querySelector("[data-mesurer-selected-measurement='true']"),
   ));
 
-  const editMode = page.locator("[data-mesurer-toolbar-mode='edit']");
+  const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
   await editMode.waitFor({ state: "visible", timeout: 5000 });
   await editMode.click();
   await page.waitForFunction(() =>
@@ -253,13 +253,13 @@ async function assertPackedDirectEditing(page, testCase, errors) {
   // inspection surfaces, so leaving Edit restores the page's original text
   // without discarding the saved edit intent.
   await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Edited packed text");
-  await page.locator("[data-mesurer-toolbar-mode='select']").click();
+  await page.locator("button[data-mesurer-toolbar-mode='select']").click();
   await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Measured sibling");
   await page.evaluate(() => window.__MESURER__.command("builtin.text-inspector"));
   await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Measured sibling");
   await editMode.click();
   await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Edited packed text");
-  await page.locator("[data-mesurer-toolbar-mode='select']").click();
+  await page.locator("button[data-mesurer-toolbar-mode='select']").click();
   await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Measured sibling");
 
   const retained = await page.evaluate(() => window.__MESURER__.textEdits());
