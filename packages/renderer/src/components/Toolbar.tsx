@@ -561,6 +561,24 @@ export function Toolbar(props: ToolbarProps) {
     props.ownerWindow.setTimeout(() => setViewportRevision((value) => value + 1), 170);
   };
 
+
+  const selectToolbarMode = () => {
+    const edit = editModeTool();
+
+    if (!edit?.active?.()) return;
+    setPluginMenuOpenId(null);
+    props.onPluginTool?.(edit);
+  };
+
+  const editToolbarMode = () => {
+    const edit = editModeTool();
+
+    if (!edit || edit.disabled?.() || edit.active?.()) return;
+    setGuideMenuOpen(false);
+    setPluginMenuOpenId(null);
+    props.onPluginTool?.(edit);
+  };
+
   const renderPluginMenu = (tool: ToolContribution) => (
     <Show when={pluginMenuOpenId() === tool.id}>
       <div
@@ -603,6 +621,104 @@ export function Toolbar(props: ToolbarProps) {
           </button>
         )}</For>
       </div>
+    </Show>
+  );
+
+
+  const renderPluginTool = (tool: ToolContribution, pinned = false) => (
+    <CompactItem visible={visibleInToolbar(tool.active?.() ?? false, pinned)}>
+      <Show
+        when={(tool.menu?.items.length ?? 0) > 0}
+        fallback={
+          <ToolbarButton
+            id={`plugin:${tool.id}`}
+            toolId={tool.id}
+            active={tool.active?.() ?? false}
+            disabled={tool.disabled?.() ?? false}
+            label={tool.label}
+            shortcut={tool.shortcut}
+            onClick={() => props.onPluginTool?.(tool)}
+            {...buttonProps(`plugin:${tool.id}`)}
+          >
+            <PluginIcon tool={tool} />
+          </ToolbarButton>
+        }
+      >
+        <div
+          data-mesurer-plugin-menu-root="true"
+          data-mesurer-tool-menu-root={tool.id}
+          class="msr:relative msr:flex msr:items-stretch"
+        >
+          <ToolbarButton
+            id={`plugin:${tool.id}`}
+            toolId={tool.id}
+            active={tool.active?.() ?? false}
+            disabled={tool.disabled?.() ?? false}
+            label={tool.label}
+            shortcut={tool.shortcut}
+            onClick={() => props.onPluginTool?.(tool)}
+            {...buttonProps(`plugin:${tool.id}`)}
+          >
+            <PluginIcon tool={tool} />
+          </ToolbarButton>
+          <button
+            type="button"
+            data-mesurer-tool-menu-trigger={tool.id}
+            aria-label={`${tool.label} options`}
+            aria-expanded={pluginMenuOpenId() === tool.id ? "true" : "false"}
+            class={`msr:relative msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${pluginMenuOpenId() === tool.id ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
+            onMouseEnter={() => tooltip.onTooltipEnter(`plugin-menu:${tool.id}`)}
+            onMouseLeave={tooltip.onTooltipLeave}
+            onClick={(event) => togglePluginMenu(
+              tool.id,
+              event.currentTarget.parentElement ?? event.currentTarget,
+            )}
+          >
+            <CaretDownIcon size={8} />
+            <Tooltip
+              label={`${tool.label} options`}
+              visible={tooltipsEnabled() && tooltip.visibleTooltipId() === `plugin-menu:${tool.id}`}
+              instant={tooltip.tooltipInstant()}
+              side={tooltipSide()}
+            />
+          </button>
+          {renderPluginMenu(tool)}
+        </div>
+      </Show>
+    </CompactItem>
+  );
+
+  const renderEditOptions = () => (
+    <Show when={editModeTool()}>
+      {(tool) => (
+        <Show when={(tool().menu?.items.length ?? 0) > 0}>
+          <div
+            data-mesurer-plugin-menu-root="true"
+            data-mesurer-edit-options="true"
+            class="msr:relative msr:flex msr:items-stretch"
+          >
+            <ToolbarButton
+              id="edit-options"
+              toolId="edit-options"
+              active={pluginMenuOpenId() === tool().id}
+              disabled={tool().disabled?.() ?? false}
+              label="Edit options"
+              onClick={() => {
+                if (!toolbarElement) return;
+                const anchor = toolbarElement.querySelector<HTMLElement>(
+                  "[data-mesurer-edit-options='true']",
+                );
+
+                if (anchor) togglePluginMenu(tool().id, anchor);
+              }}
+              {...buttonProps("edit-options")}
+            >
+              <PluginIcon tool={tool()} />
+            </ToolbarButton>
+            {renderPluginMenu(tool())}
+          </div>
+        </Show>
+      )}
     </Show>
   );
 
@@ -669,6 +785,33 @@ export function Toolbar(props: ToolbarProps) {
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
 
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
+    };
+  });
+
+  onSettled(() => {
+    const stage = modeStageElement;
+    const selectPanel = selectModePanelElement;
+    const editPanel = editModePanelElement;
+
+    if (!stage || !selectPanel || !editPanel) return;
+
+    const syncWidths = () => {
+      stage.style.setProperty("--msr-select-mode-w", `${selectPanel.offsetWidth}px`);
+      stage.style.setProperty("--msr-edit-mode-w", `${editPanel.offsetWidth}px`);
+    };
+
+    syncWidths();
+    const observer = new ResizeObserver(syncWidths);
+    observer.observe(selectPanel);
+    observer.observe(editPanel);
+    const frame = props.ownerWindow.requestAnimationFrame(() => {
+      stage.dataset.ready = "true";
+      syncWidths();
+    });
+
+    return () => {
+      props.ownerWindow.cancelAnimationFrame(frame);
+      observer.disconnect();
     };
   });
 
