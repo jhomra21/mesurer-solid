@@ -36,23 +36,36 @@ const computedTypography = (element) => {
   };
 };
 
-const waitForTypography = async (expected) => page.waitForFunction((value) => {
-  const element = document.querySelector(".primary-action");
+const waitForTypography = async (expected, stage) => {
+  try {
+    await page.waitForFunction((value) => {
+      const element = document.querySelector(".primary-action");
 
-  if (!(element instanceof HTMLElement)) return false;
-  const style = getComputedStyle(element);
+      if (!(element instanceof HTMLElement)) return false;
+      const style = getComputedStyle(element);
 
-  return element.textContent === value.text
-    && style.fontFamily === value.fontFamily
-    && style.fontSize === value.fontSize
-    && style.fontWeight === value.fontWeight
-    && style.fontStyle === value.fontStyle
-    && style.lineHeight === value.lineHeight
-    && style.letterSpacing === value.letterSpacing
-    && style.textTransform === value.textTransform
-    && style.color === value.color
-    && style.textDecorationLine === value.decoration;
-}, expected);
+      return element.textContent === value.text
+        && style.fontFamily === value.fontFamily
+        && style.fontSize === value.fontSize
+        && style.fontWeight === value.fontWeight
+        && style.fontStyle === value.fontStyle
+        && style.lineHeight === value.lineHeight
+        && style.letterSpacing === value.letterSpacing
+        && style.textTransform === value.textTransform
+        && style.color === value.color
+        && style.textDecorationLine === value.decoration;
+    }, expected, { timeout: 8_000 });
+  } catch (error) {
+    const actual = await page.locator(".primary-action").evaluate(computedTypography);
+    const mode = await page.locator("[data-mesurer-toolbar='true']").getAttribute("data-mesurer-toolbar-mode");
+    const intents = await page.evaluate(async () => await window.__MESURER__?.textEdits?.());
+
+    throw new Error(
+      `${stage}: typography did not settle: ${JSON.stringify({ expected, actual, mode, intents })}`,
+      { cause: error },
+    );
+  }
+};
 
 try {
   await page.goto(url, { waitUntil: "networkidle" });
@@ -453,7 +466,7 @@ try {
   };
 
   // Edit owns Desired text/style presentation after the editor commits.
-  await waitForTypography(desired);
+  await waitForTypography(desired, "Edit presentation after commit");
   await page.evaluate(() => new Promise((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   ));
@@ -485,14 +498,14 @@ try {
     return toolbar instanceof HTMLElement
       && toolbar.getAttribute("data-mesurer-toolbar-mode") === "select";
   });
-  await waitForTypography(before);
+  await waitForTypography(before, "Select presentation after leaving Edit");
   await textInspectorButton.click();
   await page.waitForFunction(() => {
     const button = document.querySelector("[data-mesurer-builtin='text-inspector'] button");
 
     return button instanceof HTMLButtonElement && button.getAttribute("aria-pressed") === "true";
   });
-  await waitForTypography(before);
+  await waitForTypography(before, "Typography inspection remains original");
 
   // The explicit General toggle opts saved Text presentation into other tools.
   await settingsButton.click();
@@ -506,12 +519,12 @@ try {
   assert.equal(await keepTextChanges.getAttribute("aria-checked"), "false", "Keep text changes should default off");
   await keepTextChanges.click();
   await page.waitForFunction(() => document.querySelector("[data-mesurer-presentation-setting='keep-text-changes']")?.getAttribute("aria-checked") === "true");
-  await waitForTypography(desired);
+  await waitForTypography(desired, "Keep text changes enabled");
 
   await settingsButton.click();
   await settingsDialog.waitFor({ state: "hidden" });
   await selectButton.click();
-  await waitForTypography(desired);
+  await waitForTypography(desired, "Keep text changes survives Select toggle");
 
   // Turning the preference back off restores the original page immediately.
   // Re-entering Edit reveals the saved Desired text again; returning to Select
@@ -522,16 +535,16 @@ try {
   if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
   await keepTextChanges.click();
   await page.waitForFunction(() => document.querySelector("[data-mesurer-presentation-setting='keep-text-changes']")?.getAttribute("aria-checked") === "false");
-  await waitForTypography(before);
+  await waitForTypography(before, "Keep text changes disabled");
   await settingsButton.click();
 
   await arrangeButton.click();
   await page.waitForFunction(() =>
     document.querySelector("[data-mesurer-toolbar='true']")?.getAttribute("data-mesurer-toolbar-mode") === "edit"
   );
-  await waitForTypography(desired);
+  await waitForTypography(desired, "Edit restores saved Desired text");
   await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
-  await waitForTypography(before);
+  await waitForTypography(before, "Select restores original after Edit");
 
   assert.equal(pageErrors.length, 0, `Text editing browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Text editing browser contract console errors: ${consoleErrors.join("\n")}`);
