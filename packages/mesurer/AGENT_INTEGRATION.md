@@ -150,9 +150,9 @@ Each selector must resolve to exactly one target. Missing or ambiguous selectors
 
 For multi-selection, inspect every selected target and the relevant pair relationships. Prefer `selection.visualContext.distances`; use `distance(a, b)` when a needed pair has no existing evidence. Box, guide, container, and diagonal semantics are defined in [Measurements and distance geometry](../../docs/MEASUREMENTS.md).
 
-## Arrange intent
+## Edit movement intent
 
-Arrange expresses requested geometry, not source implementation.
+Edit movement expresses requested geometry, not source implementation. The agent method names keep `Arrange` for compatibility.
 
 ```js
 const intents = await window.__MESURER__.arrangements()
@@ -169,17 +169,17 @@ await window.__MESURER__.showArrange(arrangeId, "live")
 const review = await window.__MESURER__.reviewArrange(arrangeId)
 ```
 
-Live removes the temporary Arrange preview before measuring source output.
+Live removes the temporary Edit movement preview before measuring source output.
 
-Arrange preview ownership is conservative. Mesurer restores an older transform only while the element still carries the exact preview value and priority Mesurer applied. Host-authored transform changes survive review, refresh, and disposal.
+Edit movement preview ownership is conservative. Mesurer restores an older transform only while the element still carries the exact preview value and priority Mesurer applied. Host-authored transform changes survive review, refresh, and disposal.
 
-See [Arrange](../../docs/ARRANGE.md).
+See [Edit](../../docs/EDIT.md).
 
 ## Text and Typography intent
 
 Direct text editing records copy and typography intent without pretending to edit source. The human-facing tool is **Typography**; the internal compatibility id remains `text-inspector`.
 
-Editing starts by double-click/double-tap while Select or Typography is active. Arrange keeps Select active, so editing works while Arrange remains selected.
+Editing starts by double-click or double-tap while Edit is active. Typography in Select stays inspection-only. Movement and direct text/style editing can therefore share one Edit session.
 
 Native editing stays native. Mesurer does not intercept form controls or descendants that inherit `contenteditable`. A nested `contenteditable="false"` boundary ends inherited editability and can become a Mesurer target when the direct-text rules otherwise pass. Mixed inline copy can target the exact direct text run under the pointer while preserving inline children and the host element's native DOM surface.
 
