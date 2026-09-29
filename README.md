@@ -94,7 +94,7 @@ Mesurer Solid has two toolbar modes. **Select** contains inspection tools such a
 
 Toolbar dragging starts only after the pointer crosses the drag threshold. A drag from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders stays with those controls.
 
-Select, point inspection, Context, and annotations accept rendered HTML and SVG elements. Arrange and direct text editing only mutate HTML elements.
+Select, point inspection, Context, and annotations accept rendered HTML and SVG elements. Edit movement and direct text editing only mutate HTML elements.
 
 Page-owned workspace evidence is scoped by the current route, including sorted query parameters. Navigating within one tab swaps the relevant page workspace instead of carrying guides and selections to another route. The toolbar keeps its tab-session position across those route changes and reloads.
 
