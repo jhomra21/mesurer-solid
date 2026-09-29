@@ -84,6 +84,15 @@ try {
   await appearance.selectOption("dark");
   await expectTheme("dark");
   await expectToolbarColor("rgb(50, 50, 50)", "dark toolbar surface");
+
+  const pluginsDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
+
+  if ((await pluginsDisclosure.getAttribute("aria-expanded")) !== "true") await pluginsDisclosure.click();
+  const editPlugin = dialog.getByRole("switch", { name: "Edit", exact: true });
+  await editPlugin.waitFor({ state: "visible" });
+
+  if ((await editPlugin.getAttribute("aria-checked")) !== "true") await editPlugin.click();
+  await page.locator("button[data-mesurer-toolbar-mode='edit']:not(:disabled)").waitFor({ state: "visible" });
   assert.equal(await textColor(dialog), "rgb(245, 245, 245)", "dark Settings text");
   assert.deepEqual(await themeTokens(), {
     accent: "#0c8ce9",
