@@ -136,6 +136,10 @@ try {
   assert.equal(await typographyRoot.getAttribute("data-theme"), "dark", "document Typography theme");
   assert.equal(await surfaceColor(typographyCard), "rgb(58, 58, 58)", "dark Typography surface");
 
+  const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
+  await editMode.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
