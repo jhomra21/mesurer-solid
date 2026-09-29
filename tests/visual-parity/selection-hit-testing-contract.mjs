@@ -227,7 +227,16 @@ try {
   );
   await assertNoPublicSelection("Select re-enabled without reload");
 
-  await selectPoint(transparent.point, transparent.rect, "pointer-transparent leaf before reload persistence");
+  const transparentBeforeReload = await pointFor(
+    page.locator("#transparent-leaf"),
+    "transparent leaf before reload persistence",
+  );
+
+  await selectPoint(
+    transparentBeforeReload.point,
+    transparentBeforeReload.rect,
+    "pointer-transparent leaf before reload persistence",
+  );
   await selectButton.click();
   assert.equal(
     await selectButton.getAttribute("aria-pressed"),
