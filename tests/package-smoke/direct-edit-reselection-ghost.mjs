@@ -15,6 +15,15 @@ const waitFrames = (count = 2) => page.evaluate(async (frames) => {
 const sameBox = (a, b, tolerance = 3) => a && b && ["x", "y", "width", "height"]
   .every((key) => Math.abs(a[key] - b[key]) <= tolerance);
 
+const selectedChromeBox = () => page.evaluate(() => {
+  const chrome = document.querySelector("[data-mesurer-selected-measurement='true'] > div");
+
+  if (!(chrome instanceof HTMLElement)) return null;
+  const rect = chrome.getBoundingClientRect();
+
+  return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+});
+
 try {
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => Boolean(window.__HOST_READY__ && window.__MESURER__));
@@ -68,9 +77,10 @@ try {
   await page.waitForFunction(() => !document.querySelector("[data-mesurer-text-editor='true']"));
   await waitFrames(1);
 
-  const selectedChrome = page.locator("[data-mesurer-selected-measurement='true'] > div").first();
-  await selectedChrome.waitFor({ state: "visible", timeout: 5000 });
-  const parentSelected = await selectedChrome.boundingBox();
+  await page.locator("[data-mesurer-selected-measurement='true'] > div").first().waitFor({ state: "attached", timeout: 5000 });
+  const parentSelected = await selectedChromeBox();
+
+  if (!parentSelected) throw new Error("Parent selection chrome lost geometry in Edit mode");
 
   if (sameBox(parentSelected, targetBox)) {
     throw new Error(`Parent overwrite did not replace child selection: ${JSON.stringify({ parentSelected, targetBox })}`);
@@ -84,9 +94,9 @@ try {
   await page.mouse.move(childX, childY);
   await page.mouse.click(childX, childY);
   await waitFrames(1);
-  const childSelected = await selectedChrome.boundingBox();
+  const childSelected = await selectedChromeBox();
 
-  if (!sameBox(childSelected, liveTargetBox)) {
+  if (!childSelected || !sameBox(childSelected, liveTargetBox)) {
     throw new Error(`Child selection did not return before edit: ${JSON.stringify({ childSelected, liveTargetBox })}`);
   }
 
