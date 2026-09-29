@@ -373,7 +373,7 @@ const states = [
   {
     name: "tooltip",
     run: async (page) => {
-      const select = page.getByRole("button", { name: /^Select/ });
+      const select = page.getByRole("button", { name: /^Select(?: \(S\))?$/ });
       const box = await select.boundingBox();
 
       if (!box) throw new Error("Select button has no bounding box");
