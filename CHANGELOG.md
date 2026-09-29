@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Add Select and Edit toolbar modes using the current upstream grouped-mode styling and icons with Mesurer Solid's 150 ms motion. Select keeps inspection tools such as Typography, while Edit owns element movement and direct text/style changes. Context and Codex stay visible in both modes. The public `edit()` plugin name is canonical, while existing Arrange ids, services, persistence, shortcuts, and agent methods remain compatible.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.0 - 2026-09-29
