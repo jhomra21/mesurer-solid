@@ -562,7 +562,9 @@ export function installUnifiedTextInspector(
     if (!target || !runtimeMount.contains(target)) return;
 
     if (target.matches("[data-mesurer-text-style-input]")) {
-      focusEditor();
+      // The source input owns Enter. Let its target-phase handler commit before
+      // returning focus to the page editor; focusing during capture can blur and
+      // rebuild the control before its own keydown handler runs.
       focusEditorSoon();
     }
   };
