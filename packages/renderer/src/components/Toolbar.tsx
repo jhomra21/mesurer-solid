@@ -12,10 +12,12 @@ import {
   CheckIcon,
   ColorPickerIcon,
   CursorIcon,
+  EditModeIcon,
   GearIcon,
   MinusIcon,
   RulerIcon,
   RulersIcon,
+  SelectModeIcon,
   TextInspectorIcon,
   XrayIcon,
 } from "./Icons";
@@ -141,6 +143,82 @@ function ToolbarDivider(props: { visible?: boolean; marker?: string }) {
   );
 }
 
+
+function ToolbarModeSwitch(props: {
+  value: "select" | "edit";
+  editDisabled: boolean;
+  shortcutsEnabled: boolean;
+  tooltipVisibleId: string | null;
+  tooltipInstant: boolean;
+  tooltipSide: "top" | "bottom";
+  onTooltipEnter: (id: string) => void;
+  onTooltipLeave: () => void;
+  onSelect: () => void;
+  onEdit: () => void;
+}) {
+  const shortcut = (value: string) => props.shortcutsEnabled ? value : undefined;
+
+  return (
+    <div
+      class="mesurer-toolbar-mode-switch msr:flex msr:flex-none msr:self-center msr:items-center msr:gap-[2px] msr:p-[2px]"
+      data-value={props.value}
+      role="group"
+      aria-label="Toolbar mode"
+    >
+      <span class="mesurer-toolbar-mode-switch-pill" aria-hidden="true" />
+      <div
+        class="msr:relative"
+        onMouseEnter={() => props.onTooltipEnter("toolbar-mode-select")}
+        onMouseLeave={() => props.onTooltipLeave()}
+      >
+        <button
+          type="button"
+          data-mesurer-toolbar-mode="select"
+          aria-label={`Select mode${shortcut("1") ? " (1)" : ""}`}
+          aria-keyshortcuts={shortcut("1")}
+          aria-pressed={props.value === "select" ? "true" : "false"}
+          class="mesurer-toolbar-mode-button"
+          onClick={props.onSelect}
+        >
+          <SelectModeIcon size={20} />
+        </button>
+        <Tooltip
+          label="Select"
+          shortcut={shortcut("1")}
+          visible={props.tooltipVisibleId === "toolbar-mode-select"}
+          instant={props.tooltipInstant}
+          side={props.tooltipSide}
+        />
+      </div>
+      <div
+        class="msr:relative"
+        onMouseEnter={() => props.onTooltipEnter("toolbar-mode-edit")}
+        onMouseLeave={() => props.onTooltipLeave()}
+      >
+        <button
+          type="button"
+          data-mesurer-toolbar-mode="edit"
+          aria-label={`Edit mode${shortcut("2") ? " (2)" : ""}`}
+          aria-keyshortcuts={shortcut("2")}
+          aria-pressed={props.value === "edit" ? "true" : "false"}
+          disabled={props.editDisabled}
+          class="mesurer-toolbar-mode-button"
+          onClick={props.onEdit}
+        >
+          <EditModeIcon size={20} />
+        </button>
+        <Tooltip
+          label="Edit"
+          shortcut={shortcut("2")}
+          visible={!props.editDisabled && props.tooltipVisibleId === "toolbar-mode-edit"}
+          instant={props.tooltipInstant}
+          side={props.tooltipSide}
+        />
+      </div>
+    </div>
+  );
+}
+
 function PluginIcon(props: { tool: ToolContribution }) {
   return (
     <Show
@@ -168,6 +246,9 @@ export function Toolbar(props: ToolbarProps) {
   let toolbarElement: HTMLDivElement | undefined;
   let settingsElement: HTMLDivElement | undefined;
   let guideMenuElement: HTMLDivElement | undefined;
+  let modeStageElement: HTMLDivElement | undefined;
+  let selectModePanelElement: HTMLDivElement | undefined;
+  let editModePanelElement: HTMLDivElement | undefined;
   let pluginMenuAnchorElement: HTMLElement | undefined;
   let suppressClick = false;
   let previousUserSelect: string | null = null;
@@ -217,13 +298,27 @@ export function Toolbar(props: ToolbarProps) {
   const typographyActive = () => props.model.state.toolMode === "text-inspector" || (props.typographyContextActive ?? false);
   const guidesActive = () => props.model.state.toolMode === "guides";
   const settingsActive = () => props.model.state.settingsOpen;
-  const pluginActive = () => (props.pluginTools ?? []).some((tool) => tool.active?.() ?? false);
+  const editModeTool = () => (props.pluginTools ?? []).find(
+    (tool) => tool.modeSwitch === true && tool.toolbarMode === "edit",
+  );
+  const toolbarMode = (): "select" | "edit" =>
+    editModeTool()?.active?.() ? "edit" : "select";
+  const selectPluginTools = () => (props.pluginTools ?? []).filter(
+    (tool) => tool.toolbarMode === "select" && !tool.modeSwitch,
+  );
+  const editPluginTools = () => (props.pluginTools ?? []).filter(
+    (tool) => tool.toolbarMode === "edit" && !tool.modeSwitch,
+  );
+  const alwaysPluginTools = () => (props.pluginTools ?? []).filter(
+    (tool) => tool.toolbarMode === "always" || tool.toolbarMode === undefined,
+  );
+  const pluginActive = () => alwaysPluginTools().some((tool) => tool.active?.() ?? false);
   const builtinActive = () => selectActive() || xrayActive() || colorPickerActive() || rulersActive() || typographyActive() || guidesActive();
-  const visibleInToolbar = (active: boolean) => !compact() || active;
+  const visibleInToolbar = (active: boolean, pinned = false) => pinned || !compact() || active;
 
-  const pluginDividerVisible = () =>
-    (props.pluginTools?.length ?? 0) > 0
-    && (!compact() || (builtinActive() && pluginActive()));
+  const alwaysPluginDividerVisible = () =>
+    alwaysPluginTools().length > 0
+    && (!compact() || builtinActive() || pluginActive());
 
   const compactDividerVisible = () =>
     !compact() || builtinActive() || pluginActive() || settingsActive();
