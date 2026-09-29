@@ -350,60 +350,7 @@ try {
   const screenshotPersistX = await persistTrackX(dialog);
 
   if (Math.abs(screenshotPersistX - autoCopyX) > 0.5) {
-    const geometry = await autoCopy.evaluate((control) => {
-      const track = control.querySelector(".mesurer-switch-track");
-      const controls = control.closest("[data-mesurer-plugin-settings-controls]");
-      const section = control.closest("[data-mesurer-plugin-settings-section]");
-      const pluginCard = control.closest("[data-mesurer-plugin-settings]");
-      const pluginList = control.closest("[data-mesurer-plugin-settings-list]");
-      const general = control.closest("section[aria-label='General settings']");
-      const persist = general?.querySelector("[role='switch']");
-      const pluginToggle = section?.querySelector("[data-mesurer-plugin-toggle]");
-
-      const rect = (element) => {
-        if (!(element instanceof Element)) return null;
-
-        const value = element.getBoundingClientRect();
-
-        return {
-          x: value.x,
-          width: value.width,
-          clientWidth: element instanceof HTMLElement ? element.clientWidth : null,
-          scrollWidth: element instanceof HTMLElement ? element.scrollWidth : null,
-        };
-      };
-
-      return {
-        control: rect(control),
-        track: rect(track),
-        controls: rect(controls),
-        section: rect(section),
-        pluginCard: rect(pluginCard),
-        pluginList: rect(pluginList),
-        pluginListStyle: pluginList instanceof HTMLElement ? {
-          className: pluginList.className,
-          marginLeft: getComputedStyle(pluginList).marginLeft,
-          marginRight: getComputedStyle(pluginList).marginRight,
-          width: getComputedStyle(pluginList).width,
-          position: getComputedStyle(pluginList).position,
-          transform: getComputedStyle(pluginList).transform,
-          left: getComputedStyle(pluginList).left,
-        } : null,
-        general: rect(general),
-        persist: rect(persist),
-        pluginToggle: rect(pluginToggle),
-        controlWidth: getComputedStyle(control).width,
-        cardStyle: pluginCard instanceof HTMLElement ? {
-          marginLeft: getComputedStyle(pluginCard).marginLeft,
-          marginRight: getComputedStyle(pluginCard).marginRight,
-          paddingLeft: getComputedStyle(pluginCard).paddingLeft,
-          paddingRight: getComputedStyle(pluginCard).paddingRight,
-          overflow: getComputedStyle(pluginCard).overflow,
-        } : null,
-      };
-    });
-
-    throw new Error(`Expanded Screenshot setting is not aligned with Persist: ${JSON.stringify({ persistX: screenshotPersistX, autoCopyX, geometry })}`);
+    throw new Error(`Expanded Screenshot setting is not aligned with Persist: ${JSON.stringify({ persistX: screenshotPersistX, autoCopyX })}`);
   }
 
   await expectChecked(autoCopy, false, "Auto-copy default");
