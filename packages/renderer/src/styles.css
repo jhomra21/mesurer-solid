@@ -634,7 +634,7 @@ body.mesurer-solid-xray .mesurer-ti-close {
   z-index: 1;
   isolation: isolate;
   border-radius: 5px;
-  background: var(--msr-surface, #f8fafc);
+  background: var(--msr-color-ink-50, #f8fafc);
 }
 
 .mesurer-toolbar-mode-switch-pill {
@@ -665,17 +665,26 @@ body.mesurer-solid-xray .mesurer-ti-close {
   align-items: center;
   justify-content: center;
   border-radius: 3px;
-  color: var(--msr-content, #0f172a);
+  color: var(--msr-color-ink-700, #334155);
   outline: none;
+}
+
+.mesurer-toolbar-mode-button[aria-pressed="true"] {
+  color: var(--msr-color-ink-900, #18181b);
+}
+
+.mesurer-toolbar-mode-button[aria-pressed="false"]:not(:disabled):hover {
+  background: color-mix(in srgb, var(--msr-color-ink-200, #e2e8f0) 50%, transparent);
+}
+
+.mesurer-toolbar-mode-button:focus-visible {
+  outline: 1px solid var(--msr-color-ink-500, #64748b);
+  outline-offset: 1px;
 }
 
 .mesurer-toolbar-mode-button:disabled {
   cursor: default;
   opacity: 0.35;
-}
-
-.mesurer-toolbar-mode-button:not(:disabled):hover {
-  color: var(--msr-content, #0f172a);
 }
 
 .mesurer-toolbar-mode-stage {
@@ -729,8 +738,7 @@ body.mesurer-solid-xray .mesurer-ti-close {
 }
 
 .mesurer-toolbar-mode-stage[data-ready="true"],
-.mesurer-toolbar-mode-stage[data-ready="true"] .mesurer-toolbar-mode-track,
-.mesurer-toolbar-mode-stage[data-ready="true"] .mesurer-toolbar-mode-switch-pill {
+.mesurer-toolbar-mode-stage[data-ready="true"] .mesurer-toolbar-mode-track {
   transition-duration: 150ms;
   transition-timing-function: ease;
 }
