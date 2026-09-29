@@ -439,9 +439,14 @@ describe("page interaction coordination", () => {
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guides (G)"]')?.disabled).toBe(false);
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
-    await settle();
-    expect(editModeButton.getAttribute("aria-pressed")).toBe("true");
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.getAttribute("aria-pressed")).toBe("false");
+    await vi.waitFor(() => {
+      expect(editModeButton.getAttribute("aria-pressed")).toBe("false");
+      expect(document.querySelector<HTMLElement>('[data-mesurer-toolbar="true"]')?.dataset.mesurerToolbarMode).toBe("select");
+      expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.getAttribute("aria-pressed")).toBe("true");
+    });
+
+    editModeButton.click();
+    await vi.waitFor(() => expect(editModeButton.getAttribute("aria-pressed")).toBe("true"));
 
     const editOptions = document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="edit-options"]')!;
     editOptions.click();
