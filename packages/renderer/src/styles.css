@@ -75,137 +75,6 @@
     0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-
-.mesurer-toolbar-mode-switch {
-  position: relative;
-  z-index: 1;
-  isolation: isolate;
-  border-radius: 5px;
-  background: var(--msr-surface, #f8fafc);
-}
-
-.mesurer-toolbar-mode-switch-pill {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  z-index: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 3px;
-  background: var(--msr-color-ink-200, #e2e8f0);
-  transform: translateX(0);
-}
-
-.mesurer-toolbar-mode-switch[data-value="edit"] .mesurer-toolbar-mode-switch-pill {
-  transform: translateX(30px);
-}
-
-.mesurer-toolbar-mode-switch > :not(.mesurer-toolbar-mode-switch-pill) {
-  position: relative;
-  z-index: 1;
-}
-
-.mesurer-toolbar-mode-button {
-  display: flex;
-  width: 28px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  color: var(--msr-content, #0f172a);
-  outline: none;
-}
-
-.mesurer-toolbar-mode-button:disabled {
-  cursor: default;
-  opacity: 0.35;
-}
-
-.mesurer-toolbar-mode-button:not(:disabled):hover {
-  color: var(--msr-content, #0f172a);
-}
-
-.mesurer-toolbar-mode-stage {
-  --msr-select-mode-w: 0px;
-  --msr-edit-mode-w: 0px;
-  position: relative;
-  flex: none;
-  width: var(--msr-select-mode-w);
-  overflow: hidden;
-}
-
-.mesurer-toolbar-mode-stage[data-mode="edit"] {
-  width: var(--msr-edit-mode-w);
-}
-
-.mesurer-toolbar-mode-track {
-  display: flex;
-  width: max-content;
-  align-items: stretch;
-  transform: translateX(0);
-}
-
-.mesurer-toolbar-mode-stage[data-mode="edit"] .mesurer-toolbar-mode-track {
-  transform: translateX(calc(-1 * var(--msr-select-mode-w)));
-}
-
-.mesurer-toolbar-mode-slot {
-  flex: none;
-  width: var(--msr-select-mode-w);
-}
-
-.mesurer-toolbar-mode-slot[data-mode="edit"] {
-  width: var(--msr-edit-mode-w);
-}
-
-.mesurer-toolbar-mode-panel {
-  display: flex;
-  width: max-content;
-  align-items: stretch;
-}
-
-.mesurer-toolbar-mode-slot[data-open="false"] {
-  pointer-events: none;
-}
-
-.mesurer-toolbar-mode-stage:has(
-  .mesurer-toolbar-mode-slot[data-open="true"] [role="menu"],
-  .mesurer-toolbar-mode-slot[data-open="true"] [role="dialog"]
-) {
-  overflow: visible;
-}
-
-.mesurer-toolbar-mode-stage[data-ready="true"],
-.mesurer-toolbar-mode-stage[data-ready="true"] .mesurer-toolbar-mode-track,
-.mesurer-toolbar-mode-stage[data-ready="true"] .mesurer-toolbar-mode-switch-pill {
-  transition-duration: 150ms;
-  transition-timing-function: ease;
-}
-
-.mesurer-toolbar-mode-stage[data-ready="true"] {
-  transition-property: width;
-}
-
-.mesurer-toolbar-mode-stage[data-ready="true"] .mesurer-toolbar-mode-track {
-  transition-property: transform;
-}
-
-.mesurer-toolbar-mode-switch {
-  --msr-toolbar-mode-motion: 150ms ease;
-}
-
-.mesurer-toolbar-mode-switch-pill {
-  transition: transform var(--msr-toolbar-mode-motion);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .mesurer-toolbar-mode-stage,
-  .mesurer-toolbar-mode-track,
-  .mesurer-toolbar-mode-switch-pill {
-    transition: none !important;
-  }
-}
-
 .mesurer-menu-surface {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
 }
@@ -757,4 +626,135 @@ body.mesurer-solid-xray .mesurer-ti-close {
 
 .mesurer-thin-scrollbar::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Select/Edit mode switch and 150ms toolbar transition. */
+.mesurer-toolbar-mode-switch {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  border-radius: 5px;
+  background: var(--msr-surface, #f8fafc);
+}
+
+.mesurer-toolbar-mode-switch-pill {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  background: var(--msr-color-ink-200, #e2e8f0);
+  transform: translateX(0);
+}
+
+.mesurer-toolbar-mode-switch[data-value="edit"] .mesurer-toolbar-mode-switch-pill {
+  transform: translateX(30px);
+}
+
+.mesurer-toolbar-mode-switch > :not(.mesurer-toolbar-mode-switch-pill) {
+  position: relative;
+  z-index: 1;
+}
+
+.mesurer-toolbar-mode-button {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  color: var(--msr-content, #0f172a);
+  outline: none;
+}
+
+.mesurer-toolbar-mode-button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.mesurer-toolbar-mode-button:not(:disabled):hover {
+  color: var(--msr-content, #0f172a);
+}
+
+.mesurer-toolbar-mode-stage {
+  --msr-select-mode-w: 0px;
+  --msr-edit-mode-w: 0px;
+  position: relative;
+  flex: none;
+  width: var(--msr-select-mode-w);
+  overflow: hidden;
+}
+
+.mesurer-toolbar-mode-stage[data-mode="edit"] {
+  width: var(--msr-edit-mode-w);
+}
+
+.mesurer-toolbar-mode-track {
+  display: flex;
+  width: max-content;
+  align-items: stretch;
+  transform: translateX(0);
+}
+
+.mesurer-toolbar-mode-stage[data-mode="edit"] .mesurer-toolbar-mode-track {
+  transform: translateX(calc(-1 * var(--msr-select-mode-w)));
+}
+
+.mesurer-toolbar-mode-slot {
+  flex: none;
+  width: var(--msr-select-mode-w);
+}
+
+.mesurer-toolbar-mode-slot[data-mode="edit"] {
+  width: var(--msr-edit-mode-w);
+}
+
+.mesurer-toolbar-mode-panel {
+  display: flex;
+  width: max-content;
+  align-items: stretch;
+}
+
+.mesurer-toolbar-mode-slot[data-open="false"] {
+  pointer-events: none;
+}
+
+.mesurer-toolbar-mode-stage:has(
+  .mesurer-toolbar-mode-slot[data-open="true"] [role="menu"],
+  .mesurer-toolbar-mode-slot[data-open="true"] [role="dialog"]
+) {
+  overflow: visible;
+}
+
+.mesurer-toolbar-mode-stage[data-ready="true"],
+.mesurer-toolbar-mode-stage[data-ready="true"] .mesurer-toolbar-mode-track,
+.mesurer-toolbar-mode-stage[data-ready="true"] .mesurer-toolbar-mode-switch-pill {
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+.mesurer-toolbar-mode-stage[data-ready="true"] {
+  transition-property: width;
+}
+
+.mesurer-toolbar-mode-stage[data-ready="true"] .mesurer-toolbar-mode-track {
+  transition-property: transform;
+}
+
+.mesurer-toolbar-mode-switch {
+  --msr-toolbar-mode-motion: 150ms ease;
+}
+
+.mesurer-toolbar-mode-switch-pill {
+  transition: transform var(--msr-toolbar-mode-motion);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mesurer-toolbar-mode-stage,
+  .mesurer-toolbar-mode-track,
+  .mesurer-toolbar-mode-switch-pill {
+    transition: none !important;
+  }
 }
