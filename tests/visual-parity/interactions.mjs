@@ -172,7 +172,31 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     themeRemoved = true;
   }
 
-  const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-presentation-settings="true"]');
+  const presentationSettings = page.locator("[data-mesurer-presentation-settings='true']");
+
+  if ((await presentationSettings.count()) > 0) {
+    const contract = await presentationSettings.getByRole("switch").evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        label: node.getAttribute("aria-label"),
+        checked: node.getAttribute("aria-checked"),
+      })),
+    );
+    const expected = [
+      { label: "Keep Edit changes", checked: "false" },
+      { label: "Keep text changes", checked: "false" },
+    ];
+
+    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+      throw new Error(`Unexpected current presentation settings contract: ${JSON.stringify(contract)}`);
+    }
+
+    await presentationSettings.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
+    changed = true;
+  }
+
+  const extensions = page.locator(
+    "[data-mesurer-distance='true'], [data-mesurer-plugin-settings='true']",
+  );
 
   if ((await extensions.count()) > 0) {
     await extensions.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
