@@ -78,6 +78,11 @@ try {
 
   if (!hostBox) throw new Error("Missing direct-edit host geometry");
   await page.mouse.click(hostBox.x + hostBox.width / 2, hostBox.y + hostBox.height / 2);
+
+  const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
+  await editMode.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+
   await page.mouse.dblclick(hostBox.x + hostBox.width / 2, hostBox.y + hostBox.height / 2);
   const ring = page.locator("[data-mesurer-text-edit-ring='true']");
   await ring.waitFor({ state: "visible" });
