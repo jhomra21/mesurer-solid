@@ -45,39 +45,39 @@ try {
   await page.goto(url, { waitUntil: "networkidle" });
   let general = await openGeneral();
   let keepText = presentationSwitch(general, "Keep text changes");
-  let keepArrange = presentationSwitch(general, "Keep Arrange changes");
+  let keepEdit = presentationSwitch(general, "Keep Edit changes");
 
   await keepText.waitFor({ state: "visible" });
-  await keepArrange.waitFor({ state: "visible" });
+  await keepEdit.waitFor({ state: "visible" });
   assert.equal(await keepText.count(), 1, "General must expose exactly one Keep text changes switch");
-  assert.equal(await keepArrange.count(), 1, "General must expose exactly one Keep Arrange changes switch");
+  assert.equal(await keepEdit.count(), 1, "General must expose exactly one Keep Edit changes switch");
   assert.equal(await keepText.getAttribute("data-mesurer-presentation-setting"), "keep-text-changes");
-  assert.equal(await keepArrange.getAttribute("data-mesurer-presentation-setting"), "keep-arrange-changes");
+  assert.equal(await keepEdit.getAttribute("data-mesurer-presentation-setting"), "keep-arrange-changes");
   await expectChecked(keepText, false, "Keep text changes default");
-  await expectChecked(keepArrange, false, "Keep Arrange changes default");
+  await expectChecked(keepEdit, false, "Keep Edit changes default");
 
   await keepText.click();
-  await keepArrange.click();
+  await keepEdit.click();
   await expectChecked(keepText, true, "Keep text changes after enable");
-  await expectChecked(keepArrange, true, "Keep Arrange changes after enable");
+  await expectChecked(keepEdit, true, "Keep Edit changes after enable");
 
   // These are persisted presentation-policy bits, not one-panel transient state.
   // Reload and prove the user can rely on the switches as the durable control for
-  // Original vs Desired presentation outside Typography/Arrange.
+  // Original vs Desired presentation outside Edit.
   await page.reload({ waitUntil: "networkidle" });
   general = await openGeneral();
   keepText = presentationSwitch(general, "Keep text changes");
-  keepArrange = presentationSwitch(general, "Keep Arrange changes");
+  keepEdit = presentationSwitch(general, "Keep Edit changes");
   await keepText.waitFor({ state: "visible" });
-  await keepArrange.waitFor({ state: "visible" });
+  await keepEdit.waitFor({ state: "visible" });
   await expectChecked(keepText, true, "Persisted Keep text changes");
-  await expectChecked(keepArrange, true, "Persisted Keep Arrange changes");
+  await expectChecked(keepEdit, true, "Persisted Keep Edit changes");
 
   // Restore defaults so this contract leaves its browser profile deterministic.
   await keepText.click();
-  await keepArrange.click();
+  await keepEdit.click();
   await expectChecked(keepText, false, "Restored Keep text changes default");
-  await expectChecked(keepArrange, false, "Restored Keep Arrange changes default");
+  await expectChecked(keepEdit, false, "Restored Keep Edit changes default");
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
   console.log("General presentation settings are visible, default-off, and persist across reload: PASS");
