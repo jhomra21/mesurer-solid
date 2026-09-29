@@ -430,8 +430,10 @@ describe("page interaction coordination", () => {
     await vi.waitFor(() => expect(document.querySelector('button[data-mesurer-tool-id="arrange"]')).toBeTruthy());
     await vi.waitFor(() => expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeTruthy());
     expect(pluginHost).toBeTruthy();
-    const editModeButton = document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="arrange"]')!;
+    const editModeButton = document.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="edit"]')!;
+    const arrangeButton = document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="arrange"]')!;
     await vi.waitFor(() => expect(editModeButton.getAttribute("aria-pressed")).toBe("true"));
+    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));
     expect(document.querySelector<HTMLElement>('[data-mesurer-toolbar="true"]')?.dataset.mesurerToolbarMode).toBe("edit");
 
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(false);
