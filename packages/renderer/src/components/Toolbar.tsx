@@ -258,6 +258,7 @@ export function Toolbar(props: ToolbarProps) {
   const [colorPickerSupported, setColorPickerSupported] = createSignal(false);
   let colorPickerConfirmTimer = 0;
   let compactMotionTimer = 0;
+  let modeMotionTimer = 0;
   let colorPickerCapabilityRevision = 0;
   const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;
 
@@ -581,11 +582,23 @@ export function Toolbar(props: ToolbarProps) {
   };
 
 
+  const markModeMotion = () => {
+    if (modeMotionTimer) props.ownerWindow.clearTimeout(modeMotionTimer);
+
+    if (modeStageElement) modeStageElement.dataset.modeMotion = "true";
+    modeMotionTimer = props.ownerWindow.setTimeout(() => {
+      modeMotionTimer = 0;
+
+      if (modeStageElement) delete modeStageElement.dataset.modeMotion;
+    }, 170);
+  };
+
   const selectToolbarMode = () => {
     const edit = editModeTool();
 
     if (!edit?.active?.()) return;
     setPluginMenuOpenId(null);
+    markModeMotion();
     props.onPluginTool?.(edit);
   };
 
@@ -595,6 +608,7 @@ export function Toolbar(props: ToolbarProps) {
     if (!edit || edit.disabled?.() || edit.active?.()) return;
     setGuideMenuOpen(false);
     setPluginMenuOpenId(null);
+    markModeMotion();
     props.onPluginTool?.(edit);
   };
 
@@ -808,6 +822,11 @@ export function Toolbar(props: ToolbarProps) {
       if (compactMotionTimer) {
         props.ownerWindow.clearTimeout(compactMotionTimer);
         compactMotionTimer = 0;
+      }
+
+      if (modeMotionTimer) {
+        props.ownerWindow.clearTimeout(modeMotionTimer);
+        modeMotionTimer = 0;
       }
 
       props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);
