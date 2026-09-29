@@ -138,11 +138,14 @@ try {
       .map((element) => element.tagName))]);
 
   const targetBox = await target.boundingBox();
+
   assert(targetBox, "Text editing contract target must have a bounding box");
+
   const beforeArrangeTransform = await target.evaluate((element) => ({
     value: element.style.getPropertyValue("transform"),
     priority: element.style.getPropertyPriority("transform"),
   }));
+
   const x = targetBox.x + targetBox.width / 2;
   const y = targetBox.y + targetBox.height / 2;
 
@@ -203,6 +206,7 @@ try {
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   ));
   const movedTargetBox = await target.boundingBox();
+
   const movedArrangeTransform = await target.evaluate((element) => ({
     value: element.style.getPropertyValue("transform"),
     priority: element.style.getPropertyPriority("transform"),
@@ -454,6 +458,7 @@ try {
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   ));
   const committedTargetBox = await target.boundingBox();
+
   const committedArrangeTransform = await target.evaluate((element) => ({
     value: element.style.getPropertyValue("transform"),
     priority: element.style.getPropertyPriority("transform"),
