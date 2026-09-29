@@ -350,8 +350,9 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
           </div>
           <Show when={pluginEntries().length > 0}>
             <div
-              class="msr:col-span-2 msr:mt-1 msr:overflow-hidden msr:rounded-[6px] msr:bg-ink-50/40"
+              class="msr:col-span-2 msr:mt-1 msr:rounded-[6px] msr:bg-ink-50/40"
               data-mesurer-plugin-settings="true"
+              style={{ overflow: "clip" }}
             >
               <button
                 type="button"
