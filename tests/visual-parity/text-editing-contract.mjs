@@ -156,14 +156,109 @@ try {
   });
   await page.mouse.click(x, y);
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
-  await arrangeBox.waitFor({ state: "visible" });
-  await page.mouse.dblclick(x, y);
-
   const editor = page.locator("[data-mesurer-text-editor='true']");
   const sourceToolbar = page.locator("[data-mesurer-text-style-toolbar='true']");
   const sourceMenu = page.locator("[data-mesurer-text-style-menu='true']");
   const inspector = page.locator("[data-mesurer-text-inspector-info='true']");
+
+  await arrangeBox.waitFor({ state: "visible" });
+
+  // Keep the existing physical double-click-through-Arrange contract before
+  // isolating the post-move text/geometry regression below.
+  await page.mouse.dblclick(x, y);
   await editor.waitFor({ state: "attached" });
+  await inspector.waitFor({ state: "visible" });
+  await page.keyboard.press("Escape");
+  await editor.waitFor({ state: "detached" });
+  await inspector.waitFor({ state: "detached" });
+  await arrangeBox.waitFor({ state: "visible" });
+
+  const arrangeStart = await arrangeBox.boundingBox();
+
+  assert(arrangeStart, "Arrange-compatible text editing should expose a movable Arrange box");
+
+  const arrangeDelta = {
+    x: x > 640 ? -36 : 36,
+    y: y > 450 ? -24 : 24,
+  };
+
+  const arrangeCenter = {
+    x: arrangeStart.x + arrangeStart.width / 2,
+    y: arrangeStart.y + arrangeStart.height / 2,
+  };
+
+  await page.mouse.move(arrangeCenter.x, arrangeCenter.y);
+  await page.mouse.down();
+  await page.mouse.move(
+    arrangeCenter.x + arrangeDelta.x,
+    arrangeCenter.y + arrangeDelta.y,
+    { steps: 3 },
+  );
+  await page.mouse.up();
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+  const movedTargetBox = await target.boundingBox();
+
+  assert(movedTargetBox, "Moved text target should retain a rendered box");
+  assert(
+    Math.abs(movedTargetBox.x - targetBox.x) > 8
+      || Math.abs(movedTargetBox.y - targetBox.y) > 8,
+    `Arrange should move the text target before editing: ${JSON.stringify({
+      before: targetBox,
+      after: movedTargetBox,
+    })}`,
+  );
+
+  const movedX = movedTargetBox.x + movedTargetBox.width / 2;
+  const movedY = movedTargetBox.y + movedTargetBox.height / 2;
+
+  const postMoveEditState = await page.evaluate(({ x, y }) => {
+    const target = document.querySelector(".primary-action");
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
+    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
+    const hits = document.elementsFromPoint(x, y);
+
+    return {
+      targetAtPoint: target instanceof Element && hits.includes(target),
+      selectPressed: select?.getAttribute("aria-pressed"),
+      arrangePressed: arrange?.getAttribute("aria-pressed"),
+      hits: hits.slice(0, 8).map((element) => ({
+        tag: element.tagName,
+        className: element.getAttribute("class"),
+        inspector: element.getAttribute("data-mesurer-inspector-ui"),
+        arrangeBox: element.getAttribute("data-mesurer-arrange-box"),
+      })),
+    };
+  }, { x: movedX, y: movedY });
+
+  assert.equal(
+    postMoveEditState.targetAtPoint,
+    true,
+    `Moved text target must remain hit-testable before editing: ${JSON.stringify(postMoveEditState)}`,
+  );
+  assert.equal(postMoveEditState.selectPressed, "true", "Select should remain active after Arrange drag");
+  assert.equal(postMoveEditState.arrangePressed, "true", "Arrange should remain active after its drag");
+
+  await target.evaluate((element, point) => {
+    element.dispatchEvent(new MouseEvent("dblclick", {
+      bubbles: true,
+      cancelable: true,
+      clientX: point.x,
+      clientY: point.y,
+      view: window,
+    }));
+  }, { x: movedX, y: movedY });
+
+  try {
+    await editor.waitFor({ state: "attached", timeout: 5_000 });
+  } catch (error) {
+    throw new Error(
+      `Post-Arrange direct edit did not open: ${JSON.stringify(postMoveEditState)}`,
+      { cause: error },
+    );
+  }
+
   await inspector.waitFor({ state: "visible" });
   await page.waitForFunction(() => document.querySelector("[data-mesurer-text-inspector-info='true']")?.getAttribute("data-mesurer-text-inspector-unified") === "true");
 
@@ -343,6 +438,20 @@ try {
   // Saved intent survives the edit, but Select/Arrange defaults to the untouched
   // page presentation. This is the public default requested by the user.
   await waitForTypography(before);
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+  const committedTargetBox = await target.boundingBox();
+
+  assert(committedTargetBox, "Committed text target should retain a rendered box");
+  assert(
+    Math.abs(committedTargetBox.x - movedTargetBox.x) <= 1
+      && Math.abs(committedTargetBox.y - movedTargetBox.y) <= 1,
+    `Committing text must not restore the pre-Arrange position: ${JSON.stringify({
+      moved: movedTargetBox,
+      committed: committedTargetBox,
+    })}`,
+  );
 
   // Leave Arrange, then explicitly enter Typography. The owning tool should
   // reveal the saved Desired state without creating a new edit or losing intent.

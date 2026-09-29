@@ -493,6 +493,7 @@ try {
     nestedFollowUp.parent.x + nestedFollowUp.parent.width - 20,
     nestedFollowUp.parent.y + nestedFollowUp.parent.height - 20,
   );
+  await arrangeBox.waitFor({ state: "visible" });
 
   const parentOnlyGroup = await arrangeBox.boundingBox();
 

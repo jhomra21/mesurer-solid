@@ -506,6 +506,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     root.append(verticalSnapLine, horizontalSnapLine, box);
 
     const previews = new Map<HTMLElement, AppliedPreview>();
+    const liveTargets = new Map<string, HTMLElement>();
     const transitionBaselines = new Map<HTMLElement, InlineStyleValue>();
     const hiddenMeasurements = new Map<HTMLElement, InlineVisibility>();
     const resetButtons = new Map<HTMLElement, HTMLButtonElement>();
@@ -564,8 +565,37 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       return matches;
     };
 
+    const isLiveTargetCompatible = (
+      element: HTMLElement,
+      target: ArrangeTargetValue,
+    ) => {
+      if (element.localName !== target.fingerprintTag) return false;
+
+      if (target.fingerprintId && element.id !== target.fingerprintId) return false;
+
+      if (target.fingerprintTestId
+        && element.getAttribute("data-testid") !== target.fingerprintTestId) return false;
+
+      if (target.fingerprintRole && element.getAttribute("role") !== target.fingerprintRole) return false;
+
+      if (target.fingerprintAriaLabel
+        && element.getAttribute("aria-label") !== target.fingerprintAriaLabel) return false;
+
+      return target.fingerprintClasses.every((className) => element.classList.contains(className));
+    };
+
     const resolveTarget = (target: ArrangeTargetValue) => {
       const fingerprint = fingerprintFromValue(target);
+      const live = liveTargets.get(target.selector);
+
+      if (
+        live
+        && live.isConnected
+        && isPageElement(live)
+        && isLiveTargetCompatible(live, target)
+      ) return live;
+
+      if (live) liveTargets.delete(target.selector);
 
       if (!isElementFingerprintRebindable(fingerprint)) return null;
       let selectorMatches: HTMLElement[] = [];
@@ -1470,6 +1500,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           };
         }),
       };
+
+      for (const { element, target } of completed.targets) {
+        liveTargets.set(target.selector, element);
+      }
+
       void ctx.command.execute(COMMIT_COMMAND).catch(() => {
         pendingIntent = null;
         showCurrentDesired();

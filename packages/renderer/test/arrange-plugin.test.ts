@@ -226,6 +226,31 @@ describe("arrangePlugin", () => {
     host.dispose();
   });
 
+  it("keeps a live weak-identity target arranged when its text changes", async () => {
+    const { host, model, pageTarget } = await setup();
+    const target = document.createElement("button");
+    target.textContent = "Before copy";
+    pageTarget.append(target);
+    setRect(target, { left: 100, top: 80, width: 120, height: 32 });
+    select(model, [target]);
+
+    const box = await arrangeBox(host);
+    drag(box, { x: 100, y: 80 }, { x: 136, y: 104 });
+
+    const service = host.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+
+    await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
+    await vi.waitFor(() =>
+      expect(target.style.transform).toContain("translate3d(36px, 24px, 0)"));
+
+    target.textContent = "Edited copy";
+    service?.showCurrent();
+
+    expect(target.style.transform).toContain("translate3d(36px, 24px, 0)");
+
+    host.dispose();
+  });
+
   it("records one persisted drag, keeps Desired visible, and reconstructs Before and Live on demand", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");
