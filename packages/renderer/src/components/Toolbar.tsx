@@ -301,11 +301,14 @@ export function Toolbar(props: ToolbarProps) {
   const typographyActive = () => props.model.state.toolMode === "text-inspector" || (props.typographyContextActive ?? false);
   const guidesActive = () => props.model.state.toolMode === "guides";
   const settingsActive = () => props.model.state.settingsOpen;
+
   const editModeTool = () => (props.pluginTools ?? []).find(
     (tool) => tool.modeSwitch === true && tool.toolbarMode === "edit",
   );
+
   const toolbarMode = (): "select" | "edit" =>
     editModeTool()?.active?.() ? "edit" : "select";
+
   const selectPluginTools = () => (props.pluginTools ?? []).filter(
     (tool) => tool.toolbarMode === "select" && !tool.modeSwitch,
   );
@@ -819,6 +822,7 @@ export function Toolbar(props: ToolbarProps) {
 
     syncWidths();
 
+    // SAFETY: ownerWindow is the Window instance that owns this toolbar's document and browser APIs.
     const Resize = (props.ownerWindow as Window & typeof globalThis).ResizeObserver;
 
     const observer = Resize ? new Resize(syncWidths) : null;
