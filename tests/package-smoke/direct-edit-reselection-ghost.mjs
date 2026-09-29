@@ -91,6 +91,11 @@ try {
   if (!liveTargetBox) throw new Error("Reselection target disappeared");
   const childX = liveTargetBox.x + liveTargetBox.width / 2;
   const childY = liveTargetBox.y + liveTargetBox.height / 2;
+
+  // Edit's movement box owns pointer input for the selected parent. Return to
+  // Select to replace that selection, then re-enter Edit for the child editor.
+  await page.locator("button[data-mesurer-toolbar-mode='select']").click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='select']").waitFor({ state: "visible" });
   await page.mouse.move(childX, childY);
   await page.mouse.click(childX, childY);
   await waitFrames(1);
@@ -100,6 +105,8 @@ try {
     throw new Error(`Child selection did not return before edit: ${JSON.stringify({ childSelected, liveTargetBox })}`);
   }
 
+  await page.locator("button[data-mesurer-toolbar-mode='edit']").click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
   await page.mouse.dblclick(childX, childY);
   await editor.waitFor({ state: "visible", timeout: 5000 });
   await page.locator("[data-mesurer-text-inspector-info='true']").waitFor({ state: "visible", timeout: 5000 });
