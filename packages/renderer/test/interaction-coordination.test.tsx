@@ -430,10 +430,9 @@ describe("page interaction coordination", () => {
     await vi.waitFor(() => expect(document.querySelector('button[data-mesurer-tool-id="arrange"]')).toBeTruthy());
     await vi.waitFor(() => expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeTruthy());
     expect(pluginHost).toBeTruthy();
-    const editModeButton = document.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="edit"]')!;
-    const arrangeButton = document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="arrange"]')!;
-    await vi.waitFor(() => expect(editModeButton.getAttribute("aria-pressed")).toBe("true"));
-    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));
+    const editModeButton = () => document.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="edit"]')!;
+    await vi.waitFor(() => expect(editModeButton().getAttribute("aria-pressed")).toBe("true"));
+    expect(pluginHost!.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(true);
     expect(document.querySelector<HTMLElement>('[data-mesurer-toolbar="true"]')?.dataset.mesurerToolbarMode).toBe("edit");
 
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(false);
@@ -442,20 +441,21 @@ describe("page interaction coordination", () => {
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
     await vi.waitFor(() => {
-      expect(editModeButton.getAttribute("aria-pressed")).toBe("false");
+      expect(editModeButton().getAttribute("aria-pressed")).toBe("false");
       expect(document.querySelector<HTMLElement>('[data-mesurer-toolbar="true"]')?.dataset.mesurerToolbarMode).toBe("select");
       expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.getAttribute("aria-pressed")).toBe("true");
     });
 
-    editModeButton.click();
-    await vi.waitFor(() => expect(editModeButton.getAttribute("aria-pressed")).toBe("true"));
+    editModeButton().click();
+    await vi.waitFor(() => expect(pluginHost!.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(true));
+    await vi.waitFor(() => expect(editModeButton().getAttribute("aria-pressed")).toBe("true"));
 
     const editOptions = document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="edit-options"]')!;
     editOptions.click();
     await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-menu="arrange"]')).toBeTruthy());
     document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-item="snapping"]')!.click();
     await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-menu="arrange"]')).toBeNull());
-    expect(editModeButton.getAttribute("aria-pressed")).toBe("true");
+    expect(editModeButton().getAttribute("aria-pressed")).toBe("true");
 
     pluginHost!.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => false);
     await vi.waitFor(() => expect(pluginHost!.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(false));
