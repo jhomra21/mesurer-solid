@@ -21,11 +21,12 @@ The default keyboard shortcuts are listed in the root [README](../README.md).
 
 | Capability | What it does |
 | --- | --- |
-| Direct text editing | Double-click or double-tap a valid direct text run in an HTML element while Select or Typography is active. Mixed inline copy can target the exact run under the pointer while preserving inline children. SVG selection does not enable direct text editing. Mesurer records reversible Desired copy and style intent without editing application source. |
-| Compact toolbar | Hide inactive controls without changing the active tool set or toolbar order. Expanding restores the same controls and state. Toolbar dragging starts after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. |
+| Direct text editing | In Edit mode, double-click or double-tap a valid direct text run in an HTML element. Mixed inline copy can target the exact run under the pointer while preserving inline children. Typography in Select remains inspection-only. SVG selection does not enable direct text editing. |
+| Select/Edit modes | Select contains inspection tools. Edit contains movement and direct text/style editing. Context and Codex remain visible in both. The grouped toolbar changes mode in 150 ms and respects reduced-motion preferences. |
+| Compact toolbar | Hide inactive controls without changing mode or active state. Expanding restores the same controls. Toolbar dragging starts after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. |
 | Multi-selection | Extend Select across multiple targets and inspect group geometry plus pairwise relationships. |
 | Visual hit testing | Select and agent point inspection share the rendered-point resolver. It follows the native front-to-back hit stack, traverses open shadow roots, and can recover visible `pointer-events:none` descendants that native hit testing would otherwise skip. |
-| Presentation ownership | Arrange and text previews restore only values Mesurer still owns. Host-authored changes remain untouched. |
+| Presentation ownership | Edit movement and text previews restore only values Mesurer still owns. Host-authored changes remain untouched. |
 | Appearance | Use persisted System, Light, or Dark themes across isolated and document-backed Mesurer UI. System follows `prefers-color-scheme`. |
 
 Direct text editing respects native form controls and `contenteditable` ownership. Mesurer keeps mixed-inline targeting in its own runtime state; it does not replace or redefine the host element's native `childNodes` API. See [Direct text editing and Typography](./TEXT_EDITING.md).
@@ -39,13 +40,13 @@ All public plugin factories come from `mesurer-solid/plugins`.
 | Feature | Factory | Typed service | Guide |
 | --- | --- | --- | --- |
 | Context | `context()` | `MesurerContextService` | [Context](./CONTEXT_WORKFLOW.md) |
-| Arrange | `arrange()` | `MesurerArrangeService` | [Arrange](./ARRANGE.md) |
+| Edit | `edit()` | `MesurerEditService` | [Edit](./EDIT.md) |
 | Layout Guides | `layoutGuides()` | `MesurerLayoutGuidesService` | [Layout Guides](./LAYOUT_GUIDES.md) |
 | Screenshot | `screenshot()` | `MesurerScreenshotService` | [Screenshots](./SCREENSHOTS.md) |
 | Codex | `codex()` | `MesurerCodexService` | [Queue Context feedback to Codex](./CODEX.md) |
 
 - Context adds structured Context, exact selection, saved annotations, review, capture planning, Copy Context, Copy Selection, and Add Note.
-- Arrange adds reversible Before/Desired layout intent, snapping, multi-selection moves, presentation switching, capture plans, and Live review.
+- Edit adds reversible movement plus direct text/style editing. The existing Arrange service ids and agent methods remain compatible.
 - Layout Guides adds page-scoped columns, rows, and pixel grids. Mutations run through JSON-safe plugin commands, participate in plugin history, and are available through the typed `layout-guides:v1` service.
 - Screenshot adds region capture with preview, clipboard copy, download, and programmatic capture. It selects an application-native host capability, the Chromium extension adapter, or browser display capture internally.
 - Codex is enabled by default. Its renderer plugin calls an in-process native Codex Bridge supplied through the host boundary, discovers loaded threads from Codex's shared app-server, queues through `thread/queue/add`, tracks delivery, and cleans up only the annotations included in a completed delivery.
@@ -54,11 +55,11 @@ Each feature guide documents the methods and behavior that belong to that plugin
 
 ## Agent API
 
-Pass `agent: true` to `mountMesurer()` or use the injection build. `window.__MESURER__` exposes the full browser-facing agent API. The mounted instance exposes that same object as `mounted.agent`, mirrors the high-level Context, Arrange, and text-intent methods on the mounted instance, and also owns mount lifecycle methods such as `bringToFront()` and `dispose()`.
+Pass `agent: true` to `mountMesurer()` or use the injection build. `window.__MESURER__` exposes the full browser-facing agent API. The mounted instance exposes that same object as `mounted.agent`, mirrors the high-level Context, Edit movement, and text-intent methods on the mounted instance, and also owns mount lifecycle methods such as `bringToFront()` and `dispose()`.
 
 ### Mounted instance
 
-`mountMesurer()` returns a `MountedMesurer` object. It exposes the full low-level agent object as `mounted.agent` and mirrors the high-level Context, Arrange, and text-intent methods for normal application code.
+`mountMesurer()` returns a `MountedMesurer` object. It exposes the full low-level agent object as `mounted.agent` and mirrors the high-level Context, Edit movement, and text-intent methods for normal application code.
 
 Mounted-instance-only helpers include:
 
@@ -98,7 +99,7 @@ These methods require the Context capability.
 
 | Method | Result |
 | --- | --- |
-| `capabilities()` | Report which Context, selection, annotation, Arrange, and text-edit capabilities are available. |
+| `capabilities()` | Report which Context, selection, annotation, Edit movement, and text-edit capabilities are available. |
 | `context(request?)` | Return structured `mesurer.context/v1` evidence. |
 | `contextText(request?)` | Format the same Context evidence as text. |
 | `select(selectorOrSelectors)` | Select exact rendered targets and return selection Context. Every selector must resolve to one element. |
@@ -110,9 +111,9 @@ These methods require the Context capability.
 
 Context reports the page and viewport, selected or annotated targets, rulers/X-ray visibility, ordinary guides, saved Layout Guides for the current page, measurements, and relevant distances. Each Layout Guide entry carries its own `visible` flag. Context reads the plugin service at capture time, so the two plugins do not require a particular load order.
 
-### Arrange
+### Edit movement
 
-These methods require Arrange.
+These methods require Edit. The agent method names keep `Arrange` for compatibility.
 
 | Method | Result |
 | --- | --- |
@@ -180,7 +181,7 @@ See [Getting started](./GETTING_STARTED.md) for placement examples and the TypeS
 
 | Entry | Purpose |
 | --- | --- |
-| `mesurer-solid` | Mount API, public types, persistence contracts, agent API, and high-level Context/Arrange/text methods. |
+| `mesurer-solid` | Mount API, public types, persistence contracts, agent API, and high-level Context/Edit/text methods. |
 | `mesurer-solid/plugins` | First-party plugin factories and plugin service contracts. Deprecated Screenshot helpers remain for compatibility. |
 | `mesurer-solid/core` | Framework-neutral plugin host and runtime contracts. |
 | `mesurer-solid/inject` | Programmatic browser injection. |
