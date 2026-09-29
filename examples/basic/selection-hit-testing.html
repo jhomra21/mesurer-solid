@@ -14,6 +14,23 @@
       #overlap-stage { position: relative; width: 180px; height: 120px; }
       #under-target { position: absolute; z-index: 1; left: 78px; top: 48px; width: 24px; height: 24px; border: 0; padding: 0; background: #f97316; }
       #top-target { position: absolute; z-index: 2; left: 30px; top: 18px; width: 120px; height: 84px; border: 1px solid #2563eb; border-radius: 10px; background: rgb(219 234 254 / 0.82); }
+      .overlay-stage { position: relative; width: 320px; height: 180px; overflow: hidden; }
+      .overlay-stage canvas, .overlay-stage video { position: absolute; inset: 0; width: 320px; height: 180px; }
+      #visual-overlay-video { background: #334155; }
+      #visual-overlay-layer { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; pointer-events: none; }
+      #visual-overlay-title { margin: 0; color: white; font-size: 24px; pointer-events: none; }
+      #transparent-svg-source { background: #dbeafe; }
+      #transparent-svg-overlay { position: absolute; inset: 0; z-index: 2; width: 320px; height: 180px; pointer-events: none; }
+      #transparent-svg-mark { pointer-events: none; }
+      #paint-order-behind { position: absolute; z-index: 0; inset: 70px 0 auto; margin: 0; text-align: center; pointer-events: none; }
+      #paint-order-source { z-index: 1; background: #cbd5e1; }
+      #clipped-overlay-source { z-index: 1; background: #bfdbfe; }
+      #clipped-overlay { position: absolute; z-index: 2; inset: 0; clip-path: inset(0 240px 0 0); pointer-events: none; background: #f97316; }
+      #stacked-overlay-source { z-index: 0; background: #334155; }
+      .stacked-overlay { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+      #lower-transparent-layer { z-index: 1; }
+      #top-transparent-layer { z-index: 2; }
+      .stacked-overlay h3 { margin: 0; color: white; font-size: 24px; pointer-events: none; }
       #transform-target { width: 120px; height: 52px; border: 1px solid #7c3aed; border-radius: 10px; transform: rotate(-7deg) scale(1.08); background: #ede9fe; }
       #svg-targets { display: block; width: 240px; height: 120px; }
       #canvas-target { display: block; width: 240px; height: 90px; border: 1px solid #64748b; }
@@ -34,6 +51,50 @@
         <div id="overlap-stage">
           <button id="under-target" type="button" aria-label="under target"></button>
           <button id="top-target" type="button">Top native target</button>
+        </div>
+      </section>
+
+      <section class="fixture">
+        <div class="overlay-stage">
+          <video id="visual-overlay-video" muted playsinline aria-label="Video under transparent title"></video>
+          <div id="visual-overlay-layer">
+            <h3 id="visual-overlay-title">Gemini Audio</h3>
+          </div>
+        </div>
+      </section>
+
+      <section class="fixture">
+        <div class="overlay-stage">
+          <canvas id="transparent-svg-source" width="320" height="180" aria-label="Canvas under transparent SVG"></canvas>
+          <svg id="transparent-svg-overlay" viewBox="0 0 320 180" aria-label="Transparent SVG overlay">
+            <circle id="transparent-svg-mark" cx="160" cy="90" r="28" fill="#f97316"></circle>
+          </svg>
+        </div>
+      </section>
+
+      <section class="fixture">
+        <div class="overlay-stage">
+          <h3 id="paint-order-behind">Painted behind media</h3>
+          <canvas id="paint-order-source" width="320" height="180" aria-label="Canvas above transparent title"></canvas>
+        </div>
+      </section>
+
+      <section class="fixture">
+        <div class="overlay-stage">
+          <canvas id="clipped-overlay-source" width="320" height="180" aria-label="Canvas under clipped overlay"></canvas>
+          <div id="clipped-overlay" aria-label="Clipped transparent overlay"></div>
+        </div>
+      </section>
+
+      <section class="fixture">
+        <div class="overlay-stage">
+          <canvas id="stacked-overlay-source" width="320" height="180" aria-label="Canvas under stacked transparent titles"></canvas>
+          <div id="lower-transparent-layer" class="stacked-overlay">
+            <h3 id="lower-transparent-title">Lower transparent title</h3>
+          </div>
+          <div id="top-transparent-layer" class="stacked-overlay">
+            <h3 id="top-transparent-title">Top transparent title</h3>
+          </div>
         </div>
       </section>
 
