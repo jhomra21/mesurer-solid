@@ -53,9 +53,10 @@ export const createTextPresentationPolicyWindow = (
 /**
  * Give the text-edit core two distinct notions that used to be conflated:
  *
- * - interaction mode: Select and Typography may open the direct editor;
- * - saved presentation: Desired text is visible only in Typography, while an
- *   editor is open, or when the user explicitly enables Keep text changes.
+ * - interaction mode: direct text/style editing is owned by Edit;
+ * - saved presentation: Desired text is visible in Edit, while an editor is
+ *   open, or when the user explicitly enables Keep text changes. Typography in
+ *   Select remains an inspection surface for the page's current text styles.
  *
  * The core schedules its presentation reconciliation with requestAnimationFrame
  * while synchronous input handlers read the same runtime mode. This adapter
@@ -102,8 +103,15 @@ export const createTextPresentationPolicyRuntime = (
     // public ComposableMesurer always registers this state before Text editing.
     if (ctx.state.get(MESURER_PRESENTATION_PREFERENCES_STATE_ID) === undefined) return mode;
 
-    if (editorActive) {
-      return mode === "text-inspector" ? "text-inspector" : "select";
+    if (editorActive) return "text-inspector";
+
+    if (runtime.currentToolbarMode) {
+      if (
+        runtime.currentToolbarMode() === "edit"
+        || presentationPreferences(ctx).keepTextChanges
+      ) return "text-inspector";
+
+      return "none";
     }
 
     if (mode === "text-inspector" || presentationPreferences(ctx).keepTextChanges) {
