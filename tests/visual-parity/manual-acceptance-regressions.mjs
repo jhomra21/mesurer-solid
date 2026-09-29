@@ -144,7 +144,7 @@ try {
 
   const expectedPlugins = [
     ["mesurer.context", "Context", true],
-    ["mesurer.arrange", "Arrange", true],
+    ["mesurer.arrange", "Edit", true],
     ["mesurer.screenshot", "Screenshot", true],
     ["mesurer.codex", "Codex", true],
   ];
