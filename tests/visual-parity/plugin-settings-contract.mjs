@@ -53,7 +53,8 @@ const waitForTool = async (id, visible) => {
     await page.waitForFunction(({ id, visible }) => {
       const islandElement = document.querySelector("[data-mesurer-island='true']");
       const root = islandElement?.shadowRoot ?? islandElement;
-      const button = root?.querySelector(`[data-mesurer-tool-id='${id}'] button`);
+      const tool = root?.querySelector(`[data-mesurer-tool-id='${id}']`);
+      const button = tool instanceof HTMLButtonElement ? tool : tool?.querySelector("button");
       const isVisible = button instanceof HTMLElement && button.getClientRects().length > 0;
 
       return isVisible === visible;
