@@ -44,17 +44,23 @@ try {
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
   const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
   const typographyButton = page.locator("button[data-mesurer-builtin='text-inspector']");
+  const contextButton = page.locator("button[data-mesurer-tool-id='context.copy']");
+  const codexButton = page.locator("button[data-mesurer-tool-id='codex.send']");
   const editOptions = page.locator("button[data-mesurer-tool-id='edit-options']");
 
   await toolbar.waitFor({ state: "visible" });
   await compactToggle.waitFor({ state: "visible" });
   await modeSwitch.waitFor({ state: "visible" });
   await editMode.waitFor({ state: "visible" });
+  await contextButton.waitFor({ state: "visible" });
+  await codexButton.waitFor({ state: "visible" });
   await page.locator("button[data-mesurer-builtin='color-picker']").waitFor({ state: "visible" });
   assert.equal(await modeSwitch.count(), 1, "Toolbar must expose exactly one Select/Edit mode switch");
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-mode"), "select");
   assert.equal(await selectMode.getAttribute("aria-pressed"), "true");
   assert.equal(await editMode.getAttribute("aria-pressed"), "false");
+  assert(await contextButton.isVisible(), "Context must remain visible in Select mode");
+  assert(await codexButton.isVisible(), "Codex must remain visible in Select mode");
 
   const expandedBox = await toolbar.boundingBox();
   assert(expandedBox, "Expanded toolbar must have a bounding box");
@@ -99,6 +105,8 @@ try {
 
   assert(initialCompactBox && modeSwitchBox, "Compact toolbar must keep the mode switch visible");
   assert(initialCompactBox.width < expandedBox.width, `Compact toolbar should shrink: ${expandedBox.width}px -> ${initialCompactBox.width}px`);
+  assert.equal(await compactItemVisible(contextButton), true, "Context must remain visible while compact");
+  assert.equal(await compactItemVisible(codexButton), true, "Codex must remain visible while compact");
 
   await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
   await waitForSettledMotion();
@@ -116,6 +124,8 @@ try {
   await editOptions.waitFor({ state: "visible" });
   assert.equal(await selectMode.getAttribute("aria-pressed"), "false");
   assert.equal(await editMode.getAttribute("aria-pressed"), "true");
+  assert(await contextButton.isVisible(), "Context must remain visible in Edit mode");
+  assert(await codexButton.isVisible(), "Codex must remain visible in Edit mode");
 
   const editExpandedBox = await toolbar.boundingBox();
   assert(editExpandedBox, "Edit toolbar must have a bounding box");
@@ -125,6 +135,8 @@ try {
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true");
   assert(await editMode.isVisible(), "Edit mode switch must remain visible while compact");
   assert(await editOptions.isVisible(), "Edit options must remain visible while Edit is active and compact");
+  assert.equal(await compactItemVisible(contextButton), true, "Context must stay pinned in compact Edit");
+  assert.equal(await compactItemVisible(codexButton), true, "Codex must stay pinned in compact Edit");
 
   const editCompactBox = await toolbar.boundingBox();
   assert(editCompactBox && editCompactBox.width < editExpandedBox.width, "Compact Edit toolbar should shrink");
