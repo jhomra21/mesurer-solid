@@ -293,6 +293,8 @@ try {
   const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
   await editMode.click();
   await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+  await page.waitForTimeout(180);
+  await settle();
 
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
