@@ -333,6 +333,14 @@ export function installTextEditing(
     return mode === "text-inspector" || mode === "select";
   };
 
+  const desiredPresentationMode = () => {
+    const mode = currentToolMode();
+
+    if (runtime.currentToolbarMode) return mode === "text-inspector";
+
+    return mode === "text-inspector" || mode === "select";
+  };
+
   const isPageElement = (element: HTMLElement) =>
     isElementWithinDomTarget(element, pageTarget)
     && !element.closest("[data-mesurer-root='true'], [data-mesurer-inspector-ui='true']");
@@ -1735,7 +1743,7 @@ export function installTextEditing(
 
     if (disposed) return;
 
-    if (!directEditingMode()) {
+    if (!desiredPresentationMode()) {
       if (editorSession) cancelEditor();
       restoreApplied();
 
