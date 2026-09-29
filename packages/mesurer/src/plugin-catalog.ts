@@ -1,5 +1,5 @@
 import type { MesurerPlugin } from "./core";
-import { arrange, MESURER_ARRANGE_PLUGIN_ID } from "./arrange";
+import { edit, MESURER_ARRANGE_PLUGIN_ID } from "./arrange";
 import { codex, MESURER_CODEX_PLUGIN_ID } from "./plugins/codex";
 import { context, MESURER_CONTEXT_PLUGIN_ID } from "./context-plugin";
 import { layoutGuides, MESURER_LAYOUT_GUIDES_PLUGIN_ID } from "./layout-guides";
@@ -48,7 +48,7 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
     id: MESURER_ARRANGE_PLUGIN_ID,
     label: "Edit",
     order: 35,
-    create: arrange,
+    create: edit,
     settingsIds: ["arrange"],
   },
   {
