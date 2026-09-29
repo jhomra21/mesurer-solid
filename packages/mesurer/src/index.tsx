@@ -674,6 +674,7 @@ export type {
   SettingsContribution,
   StateSliceDefinition,
   ToolContribution,
+  ToolbarMode,
 } from "./core";
 
 export type { MesurerHostLayerMode } from "./host-layer";
