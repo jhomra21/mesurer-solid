@@ -43,6 +43,11 @@ try {
 
   await page.mouse.move(x, y);
   await page.mouse.click(x, y);
+
+  const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
+  await editMode.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+
   await page.mouse.dblclick(x, y);
   const editor = page.locator("[data-mesurer-text-editor='true']");
   await editor.waitFor({ state: "visible", timeout: 5000 });
