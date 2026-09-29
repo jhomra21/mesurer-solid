@@ -181,6 +181,7 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
         checked: node.getAttribute("aria-checked"),
       })),
     );
+
     const expected = [
       { label: "Keep Edit changes", checked: "false" },
       { label: "Keep text changes", checked: "false" },
