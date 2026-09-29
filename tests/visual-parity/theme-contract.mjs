@@ -154,7 +154,8 @@ try {
 
   await editor.press("Escape");
   await editor.waitFor({ state: "detached" });
-  await typographyButton.click();
+  await page.locator("button[data-mesurer-toolbar-mode='select']").click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='select']").waitFor({ state: "visible" });
   dialog = await openGeneralSettings();
   const appearanceAgain = dialog.getByRole("combobox", { name: "Appearance" });
   await appearanceAgain.selectOption("light");
