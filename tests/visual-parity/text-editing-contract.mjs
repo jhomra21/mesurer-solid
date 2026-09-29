@@ -435,9 +435,8 @@ try {
     decoration: desiredUnderline ? "underline" : before.decoration,
   };
 
-  // Saved intent survives the edit, but Select/Arrange defaults to the untouched
-  // page presentation. This is the public default requested by the user.
-  await waitForTypography(before);
+  // Edit owns Desired text/style presentation after the editor commits.
+  await waitForTypography(desired);
   await page.evaluate(() => new Promise((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   ));
@@ -447,30 +446,28 @@ try {
   assert(
     Math.abs(committedTargetBox.x - movedTargetBox.x) <= 1
       && Math.abs(committedTargetBox.y - movedTargetBox.y) <= 1,
-    `Committing text must not restore the pre-Arrange position: ${JSON.stringify({
+    `Committing text must not restore the pre-Edit position: ${JSON.stringify({
       moved: movedTargetBox,
       committed: committedTargetBox,
     })}`,
   );
 
-  // Leave Arrange, then explicitly enter Typography. The owning tool should
-  // reveal the saved Desired state without creating a new edit or losing intent.
-  await arrangeButton.click();
+  // Select restores the original page presentation. Typography remains a
+  // read-only inspection tool inside Select and must not reveal Desired edits.
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await page.waitForFunction(() => {
-    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
+    const toolbar = document.querySelector("[data-mesurer-toolbar='true']");
 
-    return arrange instanceof HTMLButtonElement && arrange.getAttribute("aria-pressed") === "false";
+    return toolbar instanceof HTMLElement
+      && toolbar.getAttribute("data-mesurer-toolbar-mode") === "select";
   });
+  await waitForTypography(before);
   await textInspectorButton.click();
   await page.waitForFunction(() => {
     const button = document.querySelector("[data-mesurer-builtin='text-inspector'] button");
 
     return button instanceof HTMLButtonElement && button.getAttribute("aria-pressed") === "true";
   });
-  await waitForTypography(desired);
-
-  // Returning to Select hides the saved Text presentation again by default.
-  await selectButton.click();
   await waitForTypography(before);
 
   // The explicit General toggle opts saved Text presentation into other tools.
@@ -492,8 +489,9 @@ try {
   await selectButton.click();
   await waitForTypography(desired);
 
-  // Turning the preference back off restores the original page immediately;
-  // the saved intent remains available to Typography for the next visit.
+  // Turning the preference back off restores the original page immediately.
+  // Re-entering Edit reveals the saved Desired text again; returning to Select
+  // restores the original presentation without deleting intent.
   await settingsButton.click();
   await settingsDialog.waitFor({ state: "visible" });
 
@@ -503,14 +501,17 @@ try {
   await waitForTypography(before);
   await settingsButton.click();
 
-  await textInspectorButton.click();
+  await arrangeButton.click();
+  await page.waitForFunction(() =>
+    document.querySelector("[data-mesurer-toolbar='true']")?.getAttribute("data-mesurer-toolbar-mode") === "edit"
+  );
   await waitForTypography(desired);
-  await selectButton.click();
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await waitForTypography(before);
 
   assert.equal(pageErrors.length, 0, `Text editing browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Text editing browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log(`Arrange-compatible direct text editing + one interactive Typography inspector + user-controlled saved presentation + full-hit Mesurer dropdowns + editable Line/Tracking + B/I/U + color: PASS (${firstFamily(before.fontFamily)})`);
+  console.log(`Edit-mode direct text/style editing + read-only Select Typography + user-controlled saved presentation + full-hit Mesurer dropdowns + editable Line/Tracking + B/I/U + color: PASS (${firstFamily(before.fontFamily)})`);
 } finally {
   await browser.close();
 }
