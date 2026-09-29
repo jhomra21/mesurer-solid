@@ -126,6 +126,12 @@ try {
     "the actual page target should be selected before Typography opens",
   );
 
+  const editMode = page.locator("[data-mesurer-toolbar-mode='edit']");
+  await editMode.click();
+  await page.waitForFunction(() =>
+    document.querySelector("[data-mesurer-toolbar='true']")?.getAttribute("data-mesurer-toolbar-mode") === "edit"
+  );
+
   await page.mouse.dblclick(targetRect.x + targetRect.width / 2, targetRect.y + targetRect.height / 2);
   const editor = page.locator("[data-mesurer-text-editor='true']");
   const inspectorCard = page.locator("[data-mesurer-text-inspector-info='true']");
