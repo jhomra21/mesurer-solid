@@ -127,6 +127,7 @@ const restoreTab = (tabId, url) => {
         const alive = await mounted(tabId);
 
         if (!activeTabRegistry.isActive(tabId)) return;
+
         if (alive) return;
 
         await injectMesurer(tabId);
