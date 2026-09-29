@@ -4,9 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Keep arranged text in its moved position while editing or committing copy. Arrange now keeps ownership of the exact live element it moved even when that element's text changes, while reload and replacement rebinding remain conservative.
-
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.0-beta.14 - 2026-09-29
+
+- Keep arranged text in its moved position while editing or committing copy. Arrange now keeps ownership of the exact live element it moved even when that element's text changes, while reload and replacement rebinding remain conservative.
 
 ## 0.2.0-beta.13 - 2026-09-28
 
