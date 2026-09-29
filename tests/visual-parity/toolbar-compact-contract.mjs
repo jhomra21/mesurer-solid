@@ -50,6 +50,7 @@ try {
   await compactToggle.waitFor({ state: "visible" });
   await modeSwitch.waitFor({ state: "visible" });
   await editMode.waitFor({ state: "visible" });
+  await page.locator("button[data-mesurer-builtin='color-picker']").waitFor({ state: "visible" });
   assert.equal(await modeSwitch.count(), 1, "Toolbar must expose exactly one Select/Edit mode switch");
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-mode"), "select");
   assert.equal(await selectMode.getAttribute("aria-pressed"), "true");
