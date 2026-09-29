@@ -1743,8 +1743,9 @@ export function installTextEditing(
 
     if (disposed) return;
 
+    if (editorSession && !directEditingMode()) cancelEditor();
+
     if (!desiredPresentationMode()) {
-      if (editorSession) cancelEditor();
       restoreApplied();
 
       return;
