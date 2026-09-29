@@ -13,9 +13,9 @@ function App() {
           Mesurer mode has something to inspect. Use the floating toolbar or the shortcuts below.
         </p>
         <div class="shortcut-row">
-          <kbd>M</kbd><span>toggle</span><kbd>S</kbd><span>select</span><kbd>A</kbd><span>text</span>
-          <kbd>G</kbd><span>guides</span><kbd>R</kbd><span>rulers</span><kbd>X</kbd><span>x-ray</span>
-          <kbd>P</kbd><span>color</span><kbd>Shift+A</kbd><span>arrange</span><kbd>Alt</kbd><span>distance</span>
+          <kbd>M</kbd><span>toggle</span><kbd>1</kbd><span>Select</span><kbd>2</kbd><span>Edit</span>
+          <kbd>S</kbd><span>select</span><kbd>A</kbd><span>typography</span><kbd>G</kbd><span>guides</span>
+          <kbd>R</kbd><span>rulers</span><kbd>X</kbd><span>x-ray</span><kbd>P</kbd><span>color</span><kbd>Alt</kbd><span>distance</span>
         </div>
       </header>
 
@@ -40,7 +40,7 @@ function App() {
         <article class="card type-card">
           <span class="index">03</span>
           <p class="kicker">Typography</p>
-          <h2>Text Inspector sees computed type.</h2>
+          <h2>Typography shows computed type.</h2>
           <p class="tracked-text">This line uses custom tracking and a different line height.</p>
         </article>
 
@@ -61,7 +61,7 @@ function App() {
 
       <footer class="page-footer">
         <strong>Keyboard checks</strong>
-        <p>Escape clears the current Select or Arrange selection first, then exits the selection tool on the next press. Delete removes selected guides. Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z undo/redo. Cmd/Ctrl+, opens settings.</p>
+        <p>Use <kbd>1</kbd> and <kbd>2</kbd> to switch between Select and Edit. Escape clears the current selection first. Delete removes selected guides. Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z undo/redo. Cmd/Ctrl+, opens settings.</p>
       </footer>
     </main>
   );
