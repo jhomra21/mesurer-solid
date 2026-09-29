@@ -24,7 +24,7 @@ The installer writes a self-contained skill and injection artifact:
 
 The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, and Settings. Color Picker uses application-local host capture when available and otherwise uses a working browser `EyeDropper`.
 
-First-party plugins add Context, Arrange, Screenshot, and optional Codex delivery. The complete public map, including the low-level inspection methods and plugin host, is in [Capabilities](../../docs/CAPABILITIES.md).
+First-party plugins add Context, Edit, Screenshot, and optional Codex delivery. Edit movement preserves the existing Arrange agent method names for compatibility. The complete public map, including the low-level inspection methods and plugin host, is in [Capabilities](../../docs/CAPABILITIES.md).
 
 For normal coding-agent work, use `window.__MESURER__`. Use `window.__MESURER_INSTANCE__` only when the task requires mounted-instance or plugin-host operations.
 
@@ -43,7 +43,7 @@ if (hasMesurer) {
 }
 ```
 
-If it exists, use that instance. A person may already have selected targets, guides, measurements, annotations, Arrange intent, text/style intent, or screenshot review state. That state is part of the request.
+If it exists, use that instance. A person may already have selected targets, guides, measurements, annotations, Edit movement intent, text/style intent, or screenshot review state. That state is part of the request.
 
 The injector reuses a connected instance by default. Deliberate replacement requires:
 
@@ -104,7 +104,7 @@ const textEditIntents = await Promise.all(
 )
 ```
 
-Treat annotation notes, Arrange Desired geometry, and text/style Desired state as intent. Treat selection, measurements, distances, geometry, and computed styles as rendered evidence.
+Treat annotation notes, Edit movement Desired geometry, and text/style Desired state as intent. Treat selection, measurements, distances, geometry, and computed styles as rendered evidence.
 
 ## Agent API reference
 
@@ -131,9 +131,9 @@ These inspection methods accept general DOM elements, including SVG. `select()` 
 
 Human Select lifecycle follows the same public contract. Invoking Select clears the current element and Guide selection before toggling the tool, and holding Shift while clicking rendered targets adds or removes them from the human multi-selection. Browser and agent code should not assume a hidden selection survives Select-off or an off-state reload.
 
-Arrange adds `arrangements()`, `arrange()`, `showArrange()`, `arrangeCapturePlan()`, and `reviewArrange()`.
+Edit movement exposes `arrangements()`, `arrange()`, `showArrange()`, `arrangeCapturePlan()`, and `reviewArrange()` under their existing compatibility names.
 
-Use `capabilities().capabilities` before calling optional Context, Arrange, or text-edit paths. The complete public list is in [Capabilities](../../docs/CAPABILITIES.md).
+Use `capabilities().capabilities` before calling optional Context, Edit movement, or text-edit paths. The complete public list is in [Capabilities](../../docs/CAPABILITIES.md).
 
 ## Select exact targets
 
@@ -198,7 +198,7 @@ const intent = await window.__MESURER__.textEdit(textEditId)
 
 Treat `intent.desired` and style deltas as visual/source requirements, not inline CSS instructions. Look for the application's semantic props, classes, design tokens, CSS variables, theme values, or stylesheet rules that produce the requested render.
 
-Verification must use Live source with the Desired preview inactive. Text/style preview ownership follows the same conservative rule as Arrange: while the DOM still equals Mesurer's owned value, undo/redo can move it to the restored Desired value; once the application changes it, Mesurer preserves the host value instead of overwriting it during history or cleanup.
+Verification must use Live source with the Desired preview inactive. Text/style preview ownership follows the same conservative ownership rule as Edit movement: while the DOM still equals Mesurer's owned value, undo/redo can move it to the restored Desired value; once the application changes it, Mesurer preserves the host value instead of overwriting it during history or cleanup.
 
 Do not infer Context availability from transient chrome. While a direct editor is active the Add Note button is absent by design, but `annotations()`, annotation-scoped `context()`, and `review()` remain the durable interface.
 
@@ -267,7 +267,7 @@ await window.__MESURER__.stable()
 
 Then compare the same evidence retained before editing:
 
-- Arrange Desired against Live through `reviewArrange()`;
+- Edit movement Desired against Live through `reviewArrange()`;
 - text/style Desired against Live with the text preview inactive;
 - saved annotations through `review()`;
 - current selections and measurements through fresh `context()`;
@@ -277,6 +277,6 @@ Do not clear human history merely to expose Live state, and do not reinject just
 
 ## Completion rule
 
-A meaningful Mesurer call should affect the work. If exact geometry is available, use it instead of estimating pixels from a screenshot. If the user already encoded intent in Arrange, text editing, annotations, or selection, consume it before asking them to repeat it.
+A meaningful Mesurer call should affect the work. If exact geometry is available, use it instead of estimating pixels from a screenshot. If the user already encoded intent in Edit movement, text editing, annotations, or selection, consume it before asking them to repeat it.
 
 The repository's packaged [`mesurer-ui` skill](./skills/mesurer-ui/SKILL.md) carries the operational version of this contract for coding agents. [Browser and agent integration](../../docs/BROWSER_HARNESS.md) documents the browser-control boundary.
