@@ -52,4 +52,4 @@ A visual task is complete when the relevant Live evidence matches the requested 
 
 A passing build or a CSS declaration is implementation evidence. It does not prove the rendered result.
 
-See [Context](./CONTEXT_WORKFLOW.md), [Arrange](./ARRANGE.md), [Text Editing](./TEXT_EDITING.md), and [Screenshots](./SCREENSHOTS.md) for feature-specific behavior.
+See [Context](./CONTEXT_WORKFLOW.md), [Edit](./EDIT.md), [Text Editing](./TEXT_EDITING.md), and [Screenshots](./SCREENSHOTS.md) for feature-specific behavior.
