@@ -189,7 +189,9 @@ try {
     };
   });
 
-  document.querySelector("[data-testid='mesurer-hover-contract-target']")?.remove();
+  await page.evaluate(() => {
+    document.querySelector("[data-testid='mesurer-hover-contract-target']")?.remove();
+  });
 
   if (!result.editorActive) {
     throw new Error(`Moving across the page closed direct text editing: ${JSON.stringify(result)}`);
