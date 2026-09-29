@@ -285,27 +285,27 @@ try {
   await expectToggleAlignment(
     dialog,
     ["mesurer.context", "mesurer.arrange", "mesurer.layout-guides", "mesurer.screenshot"],
-    "Arrange enabled",
+    "Edit enabled",
   );
-  await expandPlugin(dialog, "mesurer.arrange", "Arrange");
+  await expandPlugin(dialog, "mesurer.arrange");
   const arrangeSnapping = settingSwitch(dialog, "Snapping");
   await arrangeSnapping.waitFor({ state: "visible" });
   await expectNestedLabelHierarchy(
     dialog,
     "mesurer.arrange",
     ["Snapping", "Element edges", "Element centers", "Guides", "Prefer X-ray edges", "Alignment rulers"],
-    "Arrange",
+    "Edit",
   );
   const persistX = await persistTrackX(dialog);
-  const snappingX = await switchTrackX(arrangeSnapping, "Arrange snapping");
+  const snappingX = await switchTrackX(arrangeSnapping, "Edit snapping");
 
   if (Math.abs(persistX - snappingX) > 0.5) {
-    throw new Error(`Expanded Arrange setting is not aligned with Persist: ${JSON.stringify({ persistX, snappingX })}`);
+    throw new Error(`Expanded Edit setting is not aligned with Persist: ${JSON.stringify({ persistX, snappingX })}`);
   }
 
-  await expectChecked(arrangeSnapping, true, "Arrange snapping default");
+  await expectChecked(arrangeSnapping, true, "Edit snapping default");
   await arrangeSnapping.click();
-  await expectChecked(arrangeSnapping, false, "Arrange snapping before unload");
+  await expectChecked(arrangeSnapping, false, "Edit snapping before unload");
 
   // Disabling unloads the actual plugin and removes its settings chevron, while the row remains available.
   await arrangeToggle.click();
@@ -391,14 +391,14 @@ try {
   await waitForPlugin("mesurer.context", true);
   await waitForTool("context.copy", true);
 
-  // Keep Arrange enabled and Screenshot disabled, then prove availability itself survives reload.
+  // Keep Edit enabled and Screenshot disabled, then prove availability itself survives reload.
   await arrangeToggle.click();
   await waitForPlugin("mesurer.arrange", true);
   const restoredArrangeDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='mesurer.arrange']");
   await restoredArrangeDisclosure.waitFor({ state: "visible" });
 
   if ((await restoredArrangeDisclosure.getAttribute("aria-expanded")) !== "true") {
-    throw new Error("Arrange disclosure state did not survive plugin disable/re-enable");
+    throw new Error("Edit disclosure state did not survive plugin disable/re-enable");
   }
 
   await dialog.locator("[data-mesurer-plugin-settings-controls='mesurer.arrange']").waitFor({ state: "visible" });
@@ -472,7 +472,7 @@ try {
   await reloadedArrangeToggle.click();
   await waitForPlugin("mesurer.arrange", true);
   await expandPlugin(dialog, "mesurer.arrange");
-  await expectChecked(settingSwitch(dialog, "Snapping"), true, "Arrange snapping after defaults reset");
+  await expectChecked(settingSwitch(dialog, "Snapping"), true, "Edit snapping after defaults reset");
   await reloadedArrangeToggle.click();
   await waitForPlugin("mesurer.arrange", false);
 
