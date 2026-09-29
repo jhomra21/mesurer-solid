@@ -59,36 +59,6 @@ const tallPluginMenuFixture = defineMesurerPlugin({
   },
 });
 
-const arrangeInteractionFixture = defineMesurerPlugin({
-  id: "test.arrange-interaction",
-  setup(ctx) {
-    ctx.state.register<boolean>({
-      id: MESURER_ARRANGE_ACTIVE_STATE_ID,
-      initial: true,
-    });
-    ctx.command.register("test.arrange.toggle", () => {
-      ctx.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, (active) => !active);
-    });
-    ctx.tool.register({
-      id: "arrange",
-      label: "Edit",
-      command: "test.arrange.toggle",
-      toolbarMode: "edit",
-      modeSwitch: true,
-      active: () => ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false,
-      menu: {
-        label: "Edit options",
-        items: [{
-          id: "snapping",
-          label: "Snapping",
-          checked: () => true,
-          run: () => undefined,
-        }],
-      },
-    });
-  },
-});
-
 describe("page interaction coordination", () => {
   it("matches upstream Color Picker button toggling while P starts a fresh native pick", async () => {
     let opens = 0;
@@ -419,7 +389,7 @@ describe("page interaction coordination", () => {
     const dispose = render(
       () => <ComposableMesurer
         persistKey="interaction-arrange"
-        plugins={[arrangeInteractionFixture]}
+        plugins={[arrangePlugin()]}
         onPluginHost={(value) => { pluginHost = value; }}
       />,
       host,
@@ -431,8 +401,9 @@ describe("page interaction coordination", () => {
     await vi.waitFor(() => expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeTruthy());
     expect(pluginHost).toBeTruthy();
     const editModeButton = () => document.querySelector<HTMLButtonElement>('button[data-mesurer-toolbar-mode="edit"]')!;
+    editModeButton().click();
+    await vi.waitFor(() => expect(pluginHost!.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(true));
     await vi.waitFor(() => expect(editModeButton().getAttribute("aria-pressed")).toBe("true"));
-    expect(pluginHost!.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(true);
     expect(document.querySelector<HTMLElement>('[data-mesurer-toolbar="true"]')?.dataset.mesurerToolbarMode).toBe("edit");
 
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(false);
@@ -455,6 +426,7 @@ describe("page interaction coordination", () => {
     await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-menu="arrange"]')).toBeTruthy());
     document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-item="snapping"]')!.click();
     await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-menu="arrange"]')).toBeNull());
+    await vi.waitFor(() => expect(pluginHost!.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(true));
     expect(editModeButton().getAttribute("aria-pressed")).toBe("true");
 
     pluginHost!.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => false);
