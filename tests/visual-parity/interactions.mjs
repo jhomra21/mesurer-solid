@@ -41,6 +41,11 @@ const sw = (page, name) => page.getByRole("switch", { name });
 
 const radio = (page, name) => page.getByRole("radio", { name });
 
+const selectToolButton = (page, implementation) => button(
+  page,
+  implementation === "solid" ? /^Select \(S\)$/ : /^Select/,
+);
+
 const typographyButton = (page, implementation) => button(
   page,
   implementation === "solid" ? /^Typography/ : /^Text inspector/,
@@ -262,8 +267,8 @@ async function stateSnapshot(page, implementation) {
 }
 
 const cases = [
-  { name: "toolbar-select-on", run: async (p) => realClick(button(p, /^Select/)) },
-  { name: "toolbar-select-off", run: async (p) => { await realClick(button(p, /^Select/)); await sleep(p, 40); await realClick(button(p, /^Select/)); } },
+  { name: "toolbar-select-on", run: async (p, implementation) => realClick(selectToolButton(p, implementation)) },
+  { name: "toolbar-select-off", run: async (p, implementation) => { await realClick(selectToolButton(p, implementation)); await sleep(p, 40); await realClick(selectToolButton(p, implementation)); } },
   { name: "toolbar-xray-on", run: async (p) => realClick(button(p, /^X-ray/)) },
   { name: "toolbar-xray-off", run: async (p) => { await realClick(button(p, /^X-ray/)); await sleep(p, 40); await realClick(button(p, /^X-ray/)); } },
   { name: "toolbar-color-picker-open", run: openColorPicker },
@@ -281,7 +286,7 @@ const cases = [
   { name: "toolbar-settings-close", run: async (p) => { await openSettings(p); await realClick(button(p, /^Settings/)); } },
 
   { name: "action-select-target", run: async (p, implementation) => {
-    await realClick(button(p, /^Select/));
+    await realClick(selectToolButton(p, implementation));
     await sleep(p, 80);
     await p.mouse.click(340, 290);
     await sleep(p, 180);
@@ -334,7 +339,7 @@ const cases = [
       await p.reload({ waitUntil: "networkidle" });
       await p.locator(".mesurer-toolbar-surface").waitFor();
       await sleep(p, 100);
-      await realClick(button(p, /^Select/));
+      await realClick(selectToolButton(p, implementation));
       await sleep(p, 80);
       await p.mouse.click(340, 290);
       await sleep(p, 180);
