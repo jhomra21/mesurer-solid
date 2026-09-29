@@ -121,6 +121,7 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
       const divider = element.nextElementSibling;
 
       element.remove();
+
       if (divider?.getAttribute("data-mesurer-toolbar-divider") === "mode") divider.remove();
     });
     changed = true;
