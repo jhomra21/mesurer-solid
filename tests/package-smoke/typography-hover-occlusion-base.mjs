@@ -174,90 +174,29 @@ try {
     throw new Error(`Document selected chrome can still paint during direct edit: ${JSON.stringify(ownershipProbe)}`);
   }
 
-  // The first movement can be the event that clears document-UI passthrough
-  // after leaving the Typography card. A second real pointer movement exercises
-  // the same path a user naturally produces while moving onto a nearby element.
+  // Edit is now a distinct interaction mode. Moving over another page target
+  // must not resurrect Select hover chrome while a direct edit is active.
   await page.mouse.move(hoverX, hoverY);
-  await waitFrames(1);
-  await page.mouse.move(hoverX + 1, hoverY);
-
-  await page.waitForFunction(() => {
-    const island = document.querySelector("[data-mesurer-island='true']");
-
-    return Boolean(
-      document.body.querySelector("[data-mesurer-hover-measurement='true']")
-      || island?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']"),
-    );
-  }, undefined, { timeout: 5000 });
   await waitFrames(2);
 
   const result = await page.evaluate(() => {
     const island = document.querySelector("[data-mesurer-island='true']");
-    const card = document.querySelector("[data-mesurer-text-inspector-info='true']");
-    const bodyHover = document.body.querySelector("[data-mesurer-hover-measurement='true']");
-    const shadowHover = island?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']") ?? null;
-    const hover = bodyHover ?? shadowHover;
-    const activeEditor = document.querySelector("[data-mesurer-text-editor='true']");
 
-    if (!(island instanceof HTMLElement) || !(card instanceof HTMLElement) || !(hover instanceof HTMLElement)) return null;
-
-    const beforeHoverStyle = hover.getAttribute("style");
-    const beforeIslandStyle = island.getAttribute("style");
-    const cardRect = card.getBoundingClientRect();
-    hover.style.setProperty("position", "fixed", "important");
-    hover.style.setProperty("left", `${cardRect.left}px`, "important");
-    hover.style.setProperty("top", `${cardRect.top}px`, "important");
-    hover.style.setProperty("width", `${cardRect.width}px`, "important");
-    hover.style.setProperty("height", `${cardRect.height}px`, "important");
-    hover.style.setProperty("pointer-events", "auto", "important");
-
-    // The protected island intentionally owns hit testing while Select is active.
-    // Hide only that hit plane synchronously so elementFromPoint can answer the
-    // separate question this regression cares about: which document-backed
-    // surface paints on top once hover and Typography geometrically overlap?
-    island.style.setProperty("display", "none", "important");
-
-    const x = cardRect.left + cardRect.width / 2;
-    const y = cardRect.top + Math.min(cardRect.height / 2, 24);
-    const hit = document.elementFromPoint(x, y);
-    const placementShell = card.closest("[data-mesurer-text-inspector-placement-shell='true']");
-
-    const value = {
-      islandTopLayer: island.matches(":popover-open"),
-      hoverDocumentBacked: hover.getRootNode() === document,
-      documentHoverLayer: hover.getAttribute("data-mesurer-document-hover-layer"),
-      hitInsideTypography: hit instanceof Element && card.contains(hit),
-      editorActive: activeEditor instanceof HTMLElement,
-      hoverZIndex: getComputedStyle(hover).zIndex,
-      inspectorZIndex: placementShell instanceof HTMLElement ? getComputedStyle(placementShell).zIndex : null,
+    return {
+      editorActive: document.querySelector("[data-mesurer-text-editor='true']") instanceof HTMLElement,
+      bodyHover: document.body.querySelector("[data-mesurer-hover-measurement='true']") instanceof HTMLElement,
+      shadowHover: island?.shadowRoot?.querySelector("[data-mesurer-hover-measurement='true']") instanceof HTMLElement,
     };
-
-    if (beforeIslandStyle === null) island.removeAttribute("style");
-    else island.setAttribute("style", beforeIslandStyle);
-
-    if (beforeHoverStyle === null) hover.removeAttribute("style");
-    else hover.setAttribute("style", beforeHoverStyle);
-    document.querySelector("[data-testid='mesurer-hover-contract-target']")?.remove();
-
-    return value;
   });
 
-  if (!result) throw new Error("Could not resolve Typography/hover paint surfaces");
-
-  if (!result.islandTopLayer) {
-    throw new Error(`Regression did not exercise the protected top-layer mount: ${JSON.stringify(result)}`);
-  }
-
-  if (!result.hoverDocumentBacked || result.documentHoverLayer !== "true") {
-    throw new Error(`Select hover chrome did not enter the scoped Typography document layer: ${JSON.stringify(result)}`);
-  }
-
-  if (!result.hitInsideTypography) {
-    throw new Error(`Select hover chrome painted above the active Typography inspector: ${JSON.stringify(result)}`);
-  }
+  document.querySelector("[data-testid='mesurer-hover-contract-target']")?.remove();
 
   if (!result.editorActive) {
-    throw new Error(`Hovering a nearby page element closed direct text editing: ${JSON.stringify(result)}`);
+    throw new Error(`Moving across the page closed direct text editing: ${JSON.stringify(result)}`);
+  }
+
+  if (result.bodyHover || result.shadowHover) {
+    throw new Error(`Edit mode leaked Select hover chrome: ${JSON.stringify(result)}`);
   }
 
   console.log("Packed Solid 2 Typography/selection ownership: PASS", {
