@@ -95,7 +95,7 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Measure distance and pairwise multi-selection spacing.
 - Use X-ray, guides, rulers, and persisted settings.
 - Add page-scoped columns, rows, or pixel grids with the optional `layoutGuides()` plugin. Guide edits participate in plugin undo/redo, and Context includes the current page's saved guides with their visibility state.
-- Inspect Typography and preview reversible direct copy/style changes.
+- Inspect rendered typography in Select. Edit previews reversible direct copy and style changes.
 - Use Edit to move selected UI and change direct text, typography, and text color without changing source.
 - Capture page regions through the optional Screenshot plugin. It selects native host capture, the Chromium extension adapter, or browser display capture internally.
 - Read selection, measurements, guides, annotations, layout, styles, and saved human intent through Context and agent APIs.
