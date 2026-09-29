@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 const url = process.env.SELECTION_HIT_TESTING_URL ?? "http://127.0.0.1:4174/selection-hit-testing.html";
+
 const out = process.env.SELECTION_HIT_TESTING_OUT ?? "selection-hit-testing-artifacts";
 
 const browser = await chromium.launch({ headless: true });
@@ -177,7 +178,9 @@ try {
   const clippedCanvas = page.locator("#clipped-overlay-source");
   await clippedCanvas.scrollIntoViewIfNeeded();
   await settle();
+
   const clippedCanvasRect = await box(clippedCanvas, "clipped overlay canvas");
+
   const clippedOutsidePoint = {
     x: clippedCanvasRect.x + clippedCanvasRect.width - 40,
     y: clippedCanvasRect.y + clippedCanvasRect.height / 2,
