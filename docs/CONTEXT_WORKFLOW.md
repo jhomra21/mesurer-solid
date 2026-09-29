@@ -50,7 +50,7 @@ Context also controls the paint order between page evidence and Mesurer annotati
 
 ## Read existing intent first
 
-A broad request such as "check Mesurer" can refer to several kinds of saved or live evidence: current selection, annotations, Arrange intent, text/style intent, guides, measurements, rulers/X-ray state, and screenshot review state.
+A broad request such as "check Mesurer" can refer to several kinds of saved or live evidence: current selection, annotations, Edit movement intent, text/style intent, guides, measurements, rulers/X-ray state, and screenshot review state.
 
 Start with a non-destructive inventory:
 
@@ -73,7 +73,7 @@ try {
 } catch {}
 ```
 
-Resolve relevant saved objects before HMR can replace their targets. Annotation notes, Arrange Desired geometry, and text/style Desired state are intent. Measurements and computed inspection are rendered evidence.
+Resolve relevant saved objects before HMR can replace their targets. Annotation notes, Edit Desired geometry, and text/style Desired state are intent. Measurements and computed inspection are rendered evidence.
 
 ## Choose the target safely
 
@@ -92,7 +92,7 @@ const context = await window.__MESURER__.select([
 
 `select()` visibly updates normal Select state and returns selection-scoped context. Every selector must resolve to exactly one target; missing or ambiguous selectors throw rather than guessing.
 
-Context and `select()` accept general DOM elements, including SVG. SVG targets keep their own selector, tag, geometry, and annotation identity. Arrange and direct text editing remain HTML-only mutation paths.
+Context and `select()` accept general DOM elements, including SVG. SVG targets keep their own selector, tag, geometry, and annotation identity. Edit movement and direct text editing remain HTML-only mutation paths.
 
 ## Context scopes
 
@@ -116,7 +116,7 @@ await window.__MESURER__.context({ annotation: annotationId })
 
 `MesurerContextV1` is JSON-safe and uses viewport CSS-pixel coordinates. It can include page/viewport state, targets, rectangles, box model, typography, appearance, flex/grid/layout, scroll/overflow, guides, measurements, and distances.
 
-Arrange and text-edit intent remain separate structured channels so they keep their own Before/Desired/Live semantics.
+Edit movement and text-edit intent remain separate structured channels so they keep their own Before/Desired/Live semantics.
 
 ## Typed Context service
 
@@ -204,4 +204,4 @@ try {
 
 The optional Screenshot plugin is a separate human camera workflow and does not add an image-delivery capability to Context.
 
-See [Browser and agent integration](./BROWSER_HARNESS.md), [Arrange](./ARRANGE.md), [Direct text editing and Typography](./TEXT_EDITING.md), and [Screenshots](./SCREENSHOTS.md).
+See [Browser and agent integration](./BROWSER_HARNESS.md), [Edit](./EDIT.md), [Direct text editing and Typography](./TEXT_EDITING.md), and [Screenshots](./SCREENSHOTS.md).
