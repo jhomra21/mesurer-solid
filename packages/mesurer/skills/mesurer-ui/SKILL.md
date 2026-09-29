@@ -133,7 +133,7 @@ If review is still numerically wrong, continue editing. If target status is stal
 
 The human-facing inspection tool is **Typography**. The internal compatibility id remains `text-inspector`; do not automate normal application work by guessing toolbar labels.
 
-Direct editing starts by double-click/double-tap while Select or Typography is active. Arrange keeps Select active, so editing works while Arrange remains selected.
+Direct editing starts by double-click or double-tap while Edit is active. Typography in Select is inspection-only. Edit also owns the existing Arrange movement intent.
 
 The editor exposes direct B/I/U, Font, Size, Weight, rendered-page colors, custom color, and a separate Text/H1/H2/H3 semantic preset popup. Missing heading levels are not invented.
 
@@ -169,7 +169,7 @@ Final verification must use Live source with the Desired preview inactive. Keep 
 Saved intent and visible presentation are separate. By default, both human presentation switches are OFF:
 
 - **Settings > General > Keep text changes.** When OFF, Typography shows saved Desired text/style while it owns presentation, but Select and other tools restore the original page. ON keeps saved text/style visible outside Typography.
-- **Settings > General > Keep Arrange changes.** When OFF, Arrange shows saved Desired transforms while it owns presentation, but Select and other tools restore the original page. ON keeps saved Arrange presentation visible outside Arrange.
+- **Settings > General > Keep Edit changes.** When OFF, Edit shows saved Desired movement while it owns presentation, but Select restores the original page. ON keeps saved movement visible outside Edit.
 
 The user can open Settings with the gear button or `Cmd/Ctrl+,`. Changing either switch changes presentation policy only; it must not delete or rewrite saved intent/history. Do not treat an Original-looking page in Select as missing intent. Read the saved Text/Arrange records first.
 
