@@ -354,8 +354,14 @@ try {
       const track = control.querySelector(".mesurer-switch-track");
       const controls = control.closest("[data-mesurer-plugin-settings-controls]");
       const section = control.closest("[data-mesurer-plugin-settings-section]");
+      const pluginCard = control.closest("[data-mesurer-plugin-settings]");
+      const pluginList = control.closest("[data-mesurer-plugin-settings-list]");
+      const general = control.closest("section[aria-label='General settings']");
+      const persist = general?.querySelector("[role='switch']");
+      const pluginToggle = section?.querySelector("[data-mesurer-plugin-toggle]");
       const rect = (element) => {
         if (!(element instanceof Element)) return null;
+
         const value = element.getBoundingClientRect();
 
         return {
@@ -371,7 +377,19 @@ try {
         track: rect(track),
         controls: rect(controls),
         section: rect(section),
+        pluginCard: rect(pluginCard),
+        pluginList: rect(pluginList),
+        general: rect(general),
+        persist: rect(persist),
+        pluginToggle: rect(pluginToggle),
         controlWidth: getComputedStyle(control).width,
+        cardStyle: pluginCard instanceof HTMLElement ? {
+          marginLeft: getComputedStyle(pluginCard).marginLeft,
+          marginRight: getComputedStyle(pluginCard).marginRight,
+          paddingLeft: getComputedStyle(pluginCard).paddingLeft,
+          paddingRight: getComputedStyle(pluginCard).paddingRight,
+          overflow: getComputedStyle(pluginCard).overflow,
+        } : null,
       };
     });
 
