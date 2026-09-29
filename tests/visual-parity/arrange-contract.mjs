@@ -1064,6 +1064,8 @@ try {
   await arrangeMenu.waitFor({ state: "hidden" });
   assert.equal(await arrangeButton.getAttribute("aria-pressed"), "true", "Closing Arrange options with Escape should not deactivate Arrange");
 
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
+  await page.locator('[data-mesurer-toolbar="true"][data-mesurer-toolbar-mode="select"]').waitFor({ state: "visible" });
   await xrayButton.click();
   await page.waitForFunction(() => {
     const button = document.querySelector("[data-mesurer-builtin='xray'] button");
