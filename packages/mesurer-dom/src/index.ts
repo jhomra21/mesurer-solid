@@ -206,11 +206,27 @@ const MAX_VISUAL_HIT_DESCENDANTS = 600;
 
 const REPLACED_ELEMENT_SELECTOR = "audio, canvas, embed, iframe, img, input, object, picture, select, textarea, video";
 
+const pointerEventsSuppressionDepth = new WeakMap<Element, number>();
+
 type VisualHitCandidate = {
   element: Element;
   area: number;
   depth: number;
   order: number;
+};
+
+const isInsideActivePointerEventsSuppression = (element: Element) => {
+  let current: Element | null = element;
+
+  while (current) {
+    if ((pointerEventsSuppressionDepth.get(current) ?? 0) > 0) return true;
+
+    const root = current.getRootNode();
+
+    current = isShadowRoot(root) ? root.host : current.parentElement;
+  }
+
+  return false;
 };
 
 const rectContainsPoint = (
@@ -313,7 +329,7 @@ const getPointerTransparentVisualDescendants = (
   const visited = new Set<Element>();
 
   const addCandidate = (element: Element, depth: number, order: number) => {
-    if (visited.has(element)) return;
+    if (visited.has(element) || isInsideActivePointerEventsSuppression(element)) return;
     const style = ownerWindow.getComputedStyle(element);
 
     if (
@@ -560,6 +576,11 @@ export function isElementWithinDomTarget(element: Element, target: DomHitTestTar
 
 export function withPointerEventsDisabled<T>(element: HTMLElement | null, operation: () => T): T {
   if (!element) return operation();
+
+  const suppressionDepth = pointerEventsSuppressionDepth.get(element) ?? 0;
+
+  pointerEventsSuppressionDepth.set(element, suppressionDepth + 1);
+
   const elements = [element, ...element.querySelectorAll<HTMLElement>("*")];
 
   const previous = elements.map((current) => [
@@ -573,6 +594,9 @@ export function withPointerEventsDisabled<T>(element: HTMLElement | null, operat
   try {
     return operation();
   } finally {
+    if (suppressionDepth === 0) pointerEventsSuppressionDepth.delete(element);
+    else pointerEventsSuppressionDepth.set(element, suppressionDepth);
+
     for (const [current, value, priority] of previous) {
       if (value) current.style.setProperty("pointer-events", value, priority);
       else current.style.removeProperty("pointer-events");
