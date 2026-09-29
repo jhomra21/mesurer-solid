@@ -316,6 +316,7 @@ const normalizeHistoricalToolbarMode = async (page, implementation) => {
     const divider = element.nextElementSibling;
 
     element.remove();
+
     if (divider?.getAttribute("data-mesurer-toolbar-divider") === "mode") divider.remove();
   });
   await page.waitForTimeout(180);
