@@ -359,6 +359,7 @@ try {
       const general = control.closest("section[aria-label='General settings']");
       const persist = general?.querySelector("[role='switch']");
       const pluginToggle = section?.querySelector("[data-mesurer-plugin-toggle]");
+
       const rect = (element) => {
         if (!(element instanceof Element)) return null;
 
