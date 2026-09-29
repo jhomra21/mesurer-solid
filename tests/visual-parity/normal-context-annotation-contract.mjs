@@ -356,6 +356,12 @@ try {
   await clickDocumentUi(panel.getByRole("button", { name: "Close annotation" }), "Close annotation button");
   await panel.waitFor({ state: "hidden" });
 
+  // Closing the page-owned card can schedule one final marker placement update.
+  // Settle that update before the next physical marker click.
+  await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await settle();
+  await marker.waitFor({ state: "visible" });
+
   // Add notes 2 and 3 after scrolling. A newly mounted third marker must stay
   // close enough to its target that ownership is visually obvious.
   await clickDocumentUi(marker, "saved annotation marker 1");
