@@ -12,11 +12,11 @@ cases = json.loads((out / "cases.json").read_text())
 current_general_switches = {
     "Shortcuts": "true",
     "Keep text changes": "false",
-    "Keep Arrange changes": "false",
+    "Keep Edit changes": "false",
 }
 presentation_switch_buttons = {
     "Keep text changes",
-    "Keep Arrange changes",
+    "Keep Edit changes",
 }
 current_selection_chrome_z_index = "2147482800"
 
