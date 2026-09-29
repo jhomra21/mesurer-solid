@@ -89,43 +89,43 @@ async function openColorPicker(page) {
   await sleep(page, 80);
 }
 
+const normalizeHistoricalToolbarMode = async (page, implementation, caseName) => {
+  if (implementation !== "solid") return;
+
+  const modeSwitch = page.locator("[data-mesurer-toolbar-mode-switch='true']");
+
+  if ((await modeSwitch.count()) === 0) return;
+
+  const contract = await modeSwitch.evaluate((element) =>
+    [...element.querySelectorAll("button")].map((button) => ({
+      label: button.getAttribute("aria-label"),
+      pressed: button.getAttribute("aria-pressed"),
+    })),
+  );
+
+  const expected = [
+    { label: "Select mode (1)", pressed: "true" },
+    { label: "Edit mode (2)", pressed: "false" },
+  ];
+
+  if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+    throw new Error(`Unexpected Select/Edit switch contract in ${caseName}: ${JSON.stringify(contract)}`);
+  }
+
+  await modeSwitch.evaluate((element) => {
+    const divider = element.nextElementSibling;
+
+    element.remove();
+
+    if (divider?.getAttribute("data-mesurer-toolbar-divider") === "mode") divider.remove();
+  });
+};
+
 // Interaction parity compares the upstream-shared controls. Solid-only,
 // explicitly plugin-owned settings are exercised by browser-contracts instead.
 async function normalizeSharedParitySurface(page, implementation, caseName) {
   if (implementation !== "solid") return;
   let changed = false;
-
-  // The historical React baseline predates toolbar modes. Exercise the real
-  // Select/Edit switch in current contracts, then remove only that new chrome
-  // before comparing shared upstream interactions.
-  const modeSwitch = page.locator("[data-mesurer-toolbar-mode-switch='true']");
-
-  if ((await modeSwitch.count()) > 0) {
-    const contract = await modeSwitch.evaluate((element) =>
-      [...element.querySelectorAll("button")].map((button) => ({
-        label: button.getAttribute("aria-label"),
-        pressed: button.getAttribute("aria-pressed"),
-      })),
-    );
-
-    const expected = [
-      { label: "Select mode (1)", pressed: "true" },
-      { label: "Edit mode (2)", pressed: "false" },
-    ];
-
-    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
-      throw new Error(`Unexpected Select/Edit switch contract in ${caseName}: ${JSON.stringify(contract)}`);
-    }
-
-    await modeSwitch.evaluate((element) => {
-      const divider = element.nextElementSibling;
-
-      element.remove();
-
-      if (divider?.getAttribute("data-mesurer-toolbar-divider") === "mode") divider.remove();
-    });
-    changed = true;
-  }
 
   // v0.0.11 predates Appearance. Verify the current-only control before
   // removing it from the historical interaction snapshot. The dedicated theme
@@ -172,7 +172,7 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     themeRemoved = true;
   }
 
-  const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"]');
+  const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-presentation-settings="true"]');
 
   if ((await extensions.count()) > 0) {
     await extensions.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
@@ -462,6 +462,7 @@ try {
       await page.goto(url, { waitUntil: "networkidle" });
       await page.locator(".mesurer-toolbar-surface").waitFor();
       await sleep(page, 100);
+      await normalizeHistoricalToolbarMode(page, implementation, item.name);
       await item.run(page, implementation);
       // Let the upstream 150ms switch/control transitions settle before the
       // screenshot so the comparison measures the final pressed state rather
