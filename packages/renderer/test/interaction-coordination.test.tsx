@@ -71,11 +71,13 @@ const arrangeInteractionFixture = defineMesurerPlugin({
     });
     ctx.tool.register({
       id: "arrange",
-      label: "Arrange",
+      label: "Edit",
       command: "test.arrange.toggle",
+      toolbarMode: "edit",
+      modeSwitch: true,
       active: () => ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false,
       menu: {
-        label: "Arrange options",
+        label: "Edit options",
         items: [{
           id: "snapping",
           label: "Snapping",
@@ -324,7 +326,7 @@ describe("page interaction coordination", () => {
     expect(setInterval.mock.calls.some(([, delay]) => delay === 500)).toBe(false);
   });
 
-  it("shows and executes shortcuts for first-party Arrange and Screenshot tools", async () => {
+  it("shows and executes shortcuts for first-party Edit and Screenshot tools", async () => {
     const host = document.createElement("div");
     document.body.append(host);
 
@@ -342,7 +344,7 @@ describe("page interaction coordination", () => {
     mounted.push(dispose);
 
     await vi.waitFor(() => {
-      expect(document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]')).toBeTruthy();
+      expect(document.querySelector<HTMLButtonElement>('button[aria-label="Edit mode (2)"]')).toBeTruthy();
       expect(document.querySelector<HTMLButtonElement>('button[aria-label="Screenshot (Shift+S)"]')).toBeTruthy();
     });
 
@@ -361,7 +363,8 @@ describe("page interaction coordination", () => {
     await vi.waitFor(() => expect(screenshotOverlay.style.display).toBe("none"));
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "A", shiftKey: true, bubbles: true, cancelable: true }));
-    await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('button[aria-label="Arrange (Shift+A)"]')?.getAttribute("aria-pressed")).toBe("true"));
+    await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('button[aria-label="Edit mode (2)"]')?.getAttribute("aria-pressed")).toBe("true"));
+    expect(document.querySelector<HTMLElement>('[data-mesurer-toolbar="true"]')?.dataset.mesurerToolbarMode).toBe("edit");
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.getAttribute("aria-pressed")).toBe("false");
   });
 
@@ -407,7 +410,7 @@ describe("page interaction coordination", () => {
     expect(menu.className).toContain("msr:overflow-y-auto");
   });
 
-  it("reserves page-interaction tools for Arrange and closes its quick menu after a choice", async () => {
+  it("switches page-interaction tools into Edit and closes its quick menu after a choice", async () => {
     installStaticEyeDropper();
     const host = document.createElement("div");
     document.body.append(host);
@@ -424,33 +427,31 @@ describe("page interaction coordination", () => {
 
     mounted.push(dispose);
 
-    await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-id="arrange"] button')).toBeTruthy());
+    await vi.waitFor(() => expect(document.querySelector('button[data-mesurer-tool-id="arrange"]')).toBeTruthy());
     await vi.waitFor(() => expect(document.querySelector('button[aria-label="Color picker (P)"]')).toBeTruthy());
     expect(pluginHost).toBeTruthy();
-    const arrangeButton = document.querySelector<HTMLButtonElement>('[data-mesurer-tool-id="arrange"] button')!;
-    await vi.waitFor(() => expect(arrangeButton.getAttribute("aria-pressed")).toBe("true"));
+    const editModeButton = document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="arrange"]')!;
+    await vi.waitFor(() => expect(editModeButton.getAttribute("aria-pressed")).toBe("true"));
+    expect(document.querySelector<HTMLElement>('[data-mesurer-toolbar="true"]')?.dataset.mesurerToolbarMode).toBe("edit");
 
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(true);
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.disabled).toBe(true);
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guides (G)"]')?.disabled).toBe(true);
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guide orientation menu"]')?.disabled).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(false);
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.disabled).toBe(false);
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guides (G)"]')?.disabled).toBe(false);
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
     await settle();
-    expect(arrangeButton.getAttribute("aria-pressed")).toBe("true");
+    expect(editModeButton.getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.getAttribute("aria-pressed")).toBe("false");
 
-    const menuTrigger = document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-trigger="arrange"]')!;
-    menuTrigger.click();
+    const editOptions = document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="edit-options"]')!;
+    editOptions.click();
     await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-menu="arrange"]')).toBeTruthy());
     document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-item="snapping"]')!.click();
     await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-menu="arrange"]')).toBeNull());
-    expect(arrangeButton.getAttribute("aria-pressed")).toBe("true");
+    expect(editModeButton.getAttribute("aria-pressed")).toBe("true");
 
     pluginHost!.state.update<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID, () => false);
     await vi.waitFor(() => expect(pluginHost!.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(false));
-    await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]')?.disabled).toBe(false));
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Typography (A)"]')?.disabled).toBe(false);
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Guides (G)"]')?.disabled).toBe(false);
+    await vi.waitFor(() => expect(document.querySelector<HTMLElement>('[data-mesurer-toolbar="true"]')?.dataset.mesurerToolbarMode).toBe("select"));
   });
 });
