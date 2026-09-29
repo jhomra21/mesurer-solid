@@ -5,6 +5,7 @@ import {
 } from "../../../packages/mesurer/src/index";
 import {
   context,
+  edit,
   MESURER_SCREENSHOT_SERVICE_ID,
   screenshot,
   type MesurerScreenshotService,
@@ -89,6 +90,7 @@ const subject = mountMesurer({
   topLayer: false,
   plugins: [
     context(),
+    edit(),
     screenshot({
       copy: false,
       download: false,
