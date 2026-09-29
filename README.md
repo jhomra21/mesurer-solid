@@ -58,13 +58,13 @@ All first-party plugin factories live at `mesurer-solid/plugins` and use the plu
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { arrange, context, layoutGuides, screenshot } from "mesurer-solid/plugins"
+import { context, edit, layoutGuides, screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
   plugins: [
     context(),
-    arrange(),
+    edit(),
     layoutGuides(),
     screenshot(),
   ],
@@ -81,8 +81,8 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 - **Distance.** Measure spacing and geometry, including pairwise multi-selection spacing.
 - **X-ray, Guides, and Rulers.** Inspect page structure and alignment.
 - **Layout Guides.** Add page-scoped columns, rows, or a pixel grid through the optional `layoutGuides()` plugin. Layout Guide mutations participate in plugin history, and Context includes the current page's saved guides with their visibility state.
-- **Typography.** Inspect rendered type and preview reversible copy and typography changes.
-- **Arrange.** Drag selected UI into a Desired layout without writing application source.
+- **Typography.** Inspect rendered text and computed type styles in Select mode.
+- **Edit.** Move selected HTML elements and edit direct text, typography, and text color as reversible Desired intent.
 - **Screenshots.** Capture a dragged page region with the optional Screenshot plugin. It selects application-native capture, the Chromium extension adapter, or browser display capture internally.
 - **Context and annotations.** Expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotations persist across same-tab reloads, conservatively rebind to their original DOM targets, stay attached through scrolling, keep repeated-note markers local, leave Add Note available while a saved note is open, and keep cards/composers above Select hover and selection chrome.
 - **Plugins.** Add tools, commands, overlays, settings, state, hooks, and services at runtime.
@@ -90,7 +90,7 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 - **Appearance.** Use System, Light, or Dark without changing the inspected page. The same theme applies to the isolated toolbar and document-backed Context and Typography UI.
 - **Color Picker.** Native hosts with `window.__MESURER_HOST__.captureScreenshot` use a current-window picker that captures once when the user chooses a pixel. Other supported browser hosts use the native `EyeDropper`. A successful sample is copied to the clipboard in the configured format.
 
-Mesurer Solid uses one stable toolbar. Arrange is a normal optional tool, not a toolbar mode. Clicking Arrange automatically enables Select; turning Arrange off leaves Select active, while turning Select off also exits Arrange. Escape clears the current Select or Arrange selection first. A second Escape with nothing selected exits Select, or exits both Arrange and Select. Moved Arrange targets have a per-element Reset position control, and the Arrange menu can reset all positions on the current page.
+Mesurer Solid has two toolbar modes. **Select** contains inspection tools such as X-ray, Color Picker, Rulers, Typography, Guides, Layout Guides, and Screenshot. **Edit** owns element movement and direct text/style editing. Use `1` for Select and `2` for Edit. Context and Codex remain visible in both modes. Mode changes use the upstream grouped-toolbar styling and icons with Mesurer Solid's 150 ms motion.
 
 Toolbar dragging starts only after the pointer crosses the drag threshold. A drag from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders stays with those controls.
 
@@ -115,6 +115,8 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | Shortcut | Action |
 | --- | --- |
 | `M` | Toggle Mesurer |
+| `1` | Select mode |
+| `2` | Edit mode |
 | `S` | Select |
 | `X` | X-ray |
 | `P` | Color Picker when supported |
@@ -125,7 +127,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `H` / `V` | Horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
 | `Cmd/Ctrl + ,` | Settings |
-| `Shift + A` | Arrange |
+| `Shift + A` | Edit mode compatibility shortcut |
 | `Shift + S` | Screenshot |
 | `C` | Copy Context |
 | `Shift + C` | Copy Selection |
@@ -135,7 +137,7 @@ Plugin shortcuts appear only when the corresponding plugin is mounted and enable
 
 ## Direct text editing
 
-With Select or Typography active, double-click ordinary direct text to edit it on the rendered page. Mesurer previews the text and typography as reversible Desired intent; it does not write source code.
+With Edit active, double-click ordinary direct text to edit it on the rendered page. Mesurer previews the text and typography as reversible Desired intent; it does not write source code. Typography in Select remains inspection-only.
 
 Direct edit owns the visible selection UI for the field. One edit ring remains visible. When the Typography card is below the target, the dimensions pill keeps a 2px gap on each side. Pointer movement does not reposition the card. The selection-adjacent Add Note button is hidden only while editing and returns when the editor closes. Saved annotations remain available.
 
@@ -147,13 +149,13 @@ Undo and redo update the Desired preview while the DOM still contains the value 
 
 See [Direct text editing and Typography](./docs/TEXT_EDITING.md).
 
-## Arrange
+## Edit
 
-Arrange records Before and Desired geometry while previewing the requested layout through temporary browser presentation. It activates Select automatically, supports snapping and multi-selection, persists intent, and exposes Before/Desired/Live review APIs for agents.
+Edit combines reversible layout movement with direct text and typography editing. Enter Edit with the mode switch or `2`, select HTML elements, then drag them or double-click direct text to edit copy and typography. Text controls include family, size, weight, line height, tracking, formatting, and color.
 
-Arrange restores a previous inline transform only while the element still carries the exact preview value and priority Mesurer applied. Host-authored transform changes take ownership and survive Live review, refresh, and disposal.
+Movement keeps the existing Arrange intent and agent contracts so persisted state and integrations remain compatible. The public plugin factory is `edit()`; `arrange()` remains an alias.
 
-See [Arrange](./docs/ARRANGE.md).
+See [Edit](./docs/EDIT.md) and [Direct text editing and Typography](./docs/TEXT_EDITING.md).
 
 ## Agent integration
 
@@ -161,11 +163,11 @@ Enable the agent bridge when a coding agent should read the same rendered state 
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { arrange, context } from "mesurer-solid/plugins"
+import { context, edit } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
-  plugins: [context(), arrange()],
+  plugins: [context(), edit()],
 })
 ```
 
@@ -176,7 +178,7 @@ const workspace = await mesurer.context()
 const selected = await mesurer.select(["#pricing-card", "#pricing-cta"])
 ```
 
-The portable Mesurer skill teaches compatible agents to preserve existing human state, consume Arrange/text/annotation intent before editing source, and verify the real Live result afterward:
+The portable Mesurer skill teaches compatible agents to preserve existing human state, consume Edit movement, text, and annotation intent before editing source, and verify the real Live result afterward:
 
 ```bash
 npx --yes --package=mesurer-solid mesurer-skill install
@@ -201,7 +203,8 @@ Start with the [documentation index](./docs/README.md).
 - [Capabilities](./docs/CAPABILITIES.md)
 - [Getting started](./docs/GETTING_STARTED.md)
 - [Direct text editing and Typography](./docs/TEXT_EDITING.md)
-- [Arrange](./docs/ARRANGE.md)
+- [Edit](./docs/EDIT.md)
+- [Arrange compatibility](./docs/ARRANGE.md)
 - [Layout Guides](./docs/LAYOUT_GUIDES.md)
 - [Measurements and distance geometry](./docs/MEASUREMENTS.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
@@ -222,7 +225,7 @@ Contributor setup, validation expectations, and repository ownership are documen
 
 ## Upstream
 
-Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@33ffecfa7682b25dff5ada2a507feedfa18c745b`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@547634086b1317b48e5cd23cafb477a9cdb807c3`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 
