@@ -49,7 +49,7 @@ Mesurer owns:
 - visual measurement/inspection;
 - selection and structured Context;
 - annotations/review;
-- Arrange and direct text Desired intent;
+- Edit movement and direct text Desired intent;
 - Mesurer commands/plugin state;
 - Mesurer-owned UI;
 - optional human screenshot UI.
