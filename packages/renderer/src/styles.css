@@ -747,6 +747,10 @@ body.mesurer-solid-xray .mesurer-ti-close {
   transition-property: width;
 }
 
+.mesurer-toolbar-mode-stage[data-compact-motion="true"] {
+  transition-property: none;
+}
+
 .mesurer-toolbar-mode-stage[data-ready="true"] .mesurer-toolbar-mode-track {
   transition-property: transform;
 }
