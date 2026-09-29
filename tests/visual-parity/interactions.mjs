@@ -183,8 +183,8 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     );
 
     const expected = [
-      { label: "Keep Edit changes", checked: "false" },
       { label: "Keep text changes", checked: "false" },
+      { label: "Keep Edit changes", checked: "false" },
     ];
 
     if (JSON.stringify(contract) !== JSON.stringify(expected)) {
