@@ -3,9 +3,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 const url = process.env.EXTENSION_ACTIVE_TABS_URL ?? "http://127.0.0.1:4174/extension-active-tabs.html";
+
 const out = process.env.EXTENSION_ACTIVE_TABS_OUT ?? "extension-active-tabs-artifacts";
 
 const browser = await chromium.launch({ headless: true });
+
 const page = await browser.newPage();
 
 try {
@@ -15,7 +17,9 @@ try {
   const closeRace = await page.evaluate(async () => {
     const { createActiveTabRegistry } = window.__MESURER_ACTIVE_TAB_TEST__;
     const writes = [];
+
     let releaseRead;
+
     const readGate = new Promise((resolve) => {
       releaseRead = resolve;
     });
@@ -51,7 +55,9 @@ try {
   const lastWriteWins = await page.evaluate(async () => {
     const { createActiveTabRegistry } = window.__MESURER_ACTIVE_TAB_TEST__;
     const writes = [];
+
     let releaseRead;
+
     const readGate = new Promise((resolve) => {
       releaseRead = resolve;
     });
