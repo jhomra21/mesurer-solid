@@ -296,8 +296,8 @@ try {
   await page.keyboard.press("Escape");
   await editor.waitFor({ state: "detached" });
   await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']")?.hasAttribute("data-mesurer-direct-edit-selection-suppressed") === false);
-  await arrange.click();
-  await page.waitForFunction(() => document.querySelector("button[data-mesurer-tool-id='arrange']")?.getAttribute("aria-pressed") === "false");
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='select']").waitFor({ state: "visible" });
   await selected.waitFor({ state: "visible" });
   await settle();
   assertSameBox(
