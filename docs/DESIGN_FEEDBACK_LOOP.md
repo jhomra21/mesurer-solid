@@ -36,7 +36,7 @@ For multi-selection work, inspect pairwise/relational evidence and verify the sa
 
 ## Desired is not Live
 
-Arrange and direct text editing can preview Desired state without changing application source. That preview is intent, not completion evidence.
+Edit movement and direct text editing can preview Desired state without changing application source. That preview is intent, not completion evidence.
 
 After editing source, compare against the real Live rendering with the preview inactive or through the relevant review API.
 
