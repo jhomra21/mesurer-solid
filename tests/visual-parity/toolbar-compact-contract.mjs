@@ -39,8 +39,8 @@ try {
   const toolbar = page.locator('[data-mesurer-toolbar="true"]');
   const compactToggle = page.locator('[data-mesurer-toolbar-compact-toggle="true"]');
   const modeSwitch = page.locator('[data-mesurer-toolbar-mode-switch="true"]');
-  const selectMode = page.locator('[data-mesurer-toolbar-mode="select"]');
-  const editMode = page.locator('[data-mesurer-toolbar-mode="edit"]');
+  const selectMode = page.locator('button[data-mesurer-toolbar-mode="select"]');
+  const editMode = page.locator('button[data-mesurer-toolbar-mode="edit"]');
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
   const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
   const typographyButton = page.locator("button[data-mesurer-builtin='text-inspector']");
