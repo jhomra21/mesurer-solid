@@ -105,11 +105,13 @@ The root export owns mounting, public domain types, and the agent API. `/plugins
 
 Do not expose private workspace package names or renderer-specific types through the staged public artifact.
 
-Public plugin factories use direct feature names such as `context()`, `arrange()`, `screenshot()`, `codex()`, `select()`, and `typography()`. Do not reintroduce redundant `*Plugin` factory aliases or one-plugin-per-subpath exports.
+Public plugin factories use direct feature names such as `context()`, `edit()`, `screenshot()`, `codex()`, `select()`, and `typography()`. `arrange()` remains a compatibility alias for existing integrations. Do not reintroduce redundant `*Plugin` factory aliases or one-plugin-per-subpath exports.
+
+Select and Edit are the top-level toolbar modes. Select owns inspection tools. Edit owns movement and direct text/style editing. Context and Codex remain visible in both modes. Keep mode-switch motion at 150 ms and preserve the existing Arrange ids, state, services, persistence, and agent methods behind the public Edit terminology.
 
 Screenshot capture-source selection is internal. Application-owned native hosts may expose `window.__MESURER_HOST__.captureScreenshot`; the Chromium extension uses its private adapter; ordinary browser pages fall back to `getDisplayMedia()`. The built-in Color Picker also uses the native host capability when present and must not invoke the screen-wide browser `EyeDropper` on that path. Do not add host-specific Screenshot or Color Picker factories or a new public provider option. The older provider hook and low-level Screenshot helpers remain compatibility-only. Once Screenshot selects a host path, capture errors stay on that path instead of silently opening a different permission flow.
 
-The visible tool is **Typography**; the internal compatibility id/command remains `text-inspector` / `builtin.text-inspector`.
+The visible tool is **Typography**; the internal compatibility id/command remains `text-inspector` / `builtin.text-inspector`. Typography stays in Select and is inspection-only. Direct text and typography changes belong to Edit.
 
 ## Plugin/runtime invariants
 
