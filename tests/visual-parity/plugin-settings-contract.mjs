@@ -350,7 +350,32 @@ try {
   const screenshotPersistX = await persistTrackX(dialog);
 
   if (Math.abs(screenshotPersistX - autoCopyX) > 0.5) {
-    throw new Error(`Expanded Screenshot setting is not aligned with Persist: ${JSON.stringify({ persistX: screenshotPersistX, autoCopyX })}`);
+    const geometry = await autoCopy.evaluate((control) => {
+      const track = control.querySelector(".mesurer-switch-track");
+      const controls = control.closest("[data-mesurer-plugin-settings-controls]");
+      const section = control.closest("[data-mesurer-plugin-settings-section]");
+      const rect = (element) => {
+        if (!(element instanceof Element)) return null;
+        const value = element.getBoundingClientRect();
+
+        return {
+          x: value.x,
+          width: value.width,
+          clientWidth: element instanceof HTMLElement ? element.clientWidth : null,
+          scrollWidth: element instanceof HTMLElement ? element.scrollWidth : null,
+        };
+      };
+
+      return {
+        control: rect(control),
+        track: rect(track),
+        controls: rect(controls),
+        section: rect(section),
+        controlWidth: getComputedStyle(control).width,
+      };
+    });
+
+    throw new Error(`Expanded Screenshot setting is not aligned with Persist: ${JSON.stringify({ persistX: screenshotPersistX, autoCopyX, geometry })}`);
   }
 
   await expectChecked(autoCopy, false, "Auto-copy default");
