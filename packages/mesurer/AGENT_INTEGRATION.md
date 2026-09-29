@@ -127,7 +127,7 @@ Use the high-level Context and saved-intent methods for normal UI work. The lowe
 
 Context adds `capabilities()`, `context()`, `contextText()`, `select()`, `annotations()`, `review()`, `capturePlan()`, `prepareCapture()`, and `finishCapture()`.
 
-These inspection methods accept general DOM elements, including SVG. `select()` and point inspection can return SVG targets, and Context preserves their selector, tag, and geometry. Arrange and direct text editing remain HTML-only mutation paths.
+These inspection methods accept general DOM elements, including SVG. `select()` and point inspection can return SVG targets, and Context preserves their selector, tag, and geometry. Edit movement and direct text editing remain HTML-only mutation paths.
 
 Human Select lifecycle follows the same public contract. Invoking Select clears the current element and Guide selection before toggling the tool, and holding Shift while clicking rendered targets adds or removes them from the human multi-selection. Browser and agent code should not assume a hidden selection survives Select-off or an off-state reload.
 
