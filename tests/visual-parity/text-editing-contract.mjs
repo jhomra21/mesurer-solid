@@ -139,6 +139,10 @@ try {
 
   const targetBox = await target.boundingBox();
   assert(targetBox, "Text editing contract target must have a bounding box");
+  const beforeArrangeTransform = await target.evaluate((element) => ({
+    value: element.style.getPropertyValue("transform"),
+    priority: element.style.getPropertyPriority("transform"),
+  }));
   const x = targetBox.x + targetBox.width / 2;
   const y = targetBox.y + targetBox.height / 2;
 
@@ -199,8 +203,17 @@ try {
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   ));
   const movedTargetBox = await target.boundingBox();
+  const movedArrangeTransform = await target.evaluate((element) => ({
+    value: element.style.getPropertyValue("transform"),
+    priority: element.style.getPropertyPriority("transform"),
+  }));
 
   assert(movedTargetBox, "Moved text target should retain a rendered box");
+  assert.notDeepEqual(
+    movedArrangeTransform,
+    beforeArrangeTransform,
+    "Edit movement should own a rendered transform before text editing",
+  );
   assert(
     Math.abs(movedTargetBox.x - targetBox.x) > 8
       || Math.abs(movedTargetBox.y - targetBox.y) > 8,
@@ -441,14 +454,20 @@ try {
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   ));
   const committedTargetBox = await target.boundingBox();
+  const committedArrangeTransform = await target.evaluate((element) => ({
+    value: element.style.getPropertyValue("transform"),
+    priority: element.style.getPropertyPriority("transform"),
+  }));
 
   assert(committedTargetBox, "Committed text target should retain a rendered box");
-  assert(
-    Math.abs(committedTargetBox.x - movedTargetBox.x) <= 1
-      && Math.abs(committedTargetBox.y - movedTargetBox.y) <= 1,
-    `Committing text must not restore the pre-Edit position: ${JSON.stringify({
+  assert.deepEqual(
+    committedArrangeTransform,
+    movedArrangeTransform,
+    `Committing text must retain Edit's movement transform even when the new copy or typography changes the element's natural size: ${JSON.stringify({
       moved: movedTargetBox,
       committed: committedTargetBox,
+      movedArrangeTransform,
+      committedArrangeTransform,
     })}`,
   );
 
