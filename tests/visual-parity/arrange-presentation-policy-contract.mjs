@@ -64,9 +64,9 @@ try {
   assert(desired, "Arrange presentation target must keep geometry after drag");
   assert(!samePosition(desired, before), `Arrange drag must create a distinct Desired position: ${JSON.stringify({ before, desired })}`);
 
-  // Default policy: saved Arrange intent remains stored but is not presented
-  // when Arrange is inactive.
-  await arrangeButton.click();
+  // Default policy: saved movement intent remains stored but is not presented
+  // when Edit is inactive.
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await page.waitForFunction(() => {
     const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
 
@@ -107,7 +107,7 @@ try {
   });
   await waitForPosition(".primary-action", desired);
 
-  await arrangeButton.click();
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await waitForPosition(".primary-action", before);
 
   assert.equal(errors.length, 0, `Arrange presentation browser errors: ${errors.join("\n")}`);
