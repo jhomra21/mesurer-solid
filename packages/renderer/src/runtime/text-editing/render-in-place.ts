@@ -104,6 +104,7 @@ export function installMixedInlineTextTargeting(
   const realm = ownerWindow as Window & typeof globalThis;
 
   const directEditingMode = () => {
+    if (runtime.currentToolbarMode) return runtime.currentToolbarMode() === "edit";
     const mode = runtime.currentToolMode?.() ?? "none";
 
     return mode === "text-inspector" || mode === "select";
