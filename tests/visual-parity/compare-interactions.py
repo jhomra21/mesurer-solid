@@ -11,12 +11,6 @@ threshold = 8
 cases = json.loads((out / "cases.json").read_text())
 current_general_switches = {
     "Shortcuts": "true",
-    "Keep text changes": "false",
-    "Keep Edit changes": "false",
-}
-presentation_switch_buttons = {
-    "Keep text changes",
-    "Keep Edit changes",
 }
 current_selection_chrome_z_index = "2147482800"
 
@@ -63,7 +57,12 @@ def normalize_historical_toolbar_state(state):
 
 
 def normalize_current_general_state(react_state, solid_state):
-    """Normalize only the three verified current-only General switches."""
+    """Normalize the verified current-only Shortcuts switch.
+
+    The interaction capture already verifies and removes the Solid-only
+    presentation settings before stateSnapshot() runs. At this layer the only
+    remaining General-panel addition is Shortcuts.
+    """
     react_switches = react_state.get("switches")
     solid_switches = solid_state.get("switches")
     if not isinstance(react_switches, list) or not isinstance(solid_switches, list):
@@ -81,35 +80,7 @@ def normalize_current_general_state(react_state, solid_state):
     if without_additions != react_switches:
         return False
 
-    # Presentation switches are buttons, so the generic interaction capture also
-    # records them in toolbarButtons. Verify those duplicate records exactly before
-    # removing them; otherwise an unexpected button can never disappear into the
-    # historical normalization.
-    react_buttons = react_state.get("toolbarButtons")
-    solid_buttons = solid_state.get("toolbarButtons")
-    if not isinstance(react_buttons, list) or not isinstance(solid_buttons, list):
-        return False
-    if any(item.get("label") in presentation_switch_buttons for item in react_buttons):
-        return False
-    button_additions = [
-        item for item in solid_buttons
-        if item.get("label") in presentation_switch_buttons
-    ]
-    if (
-        len(button_additions) != len(presentation_switch_buttons)
-        or {item.get("label") for item in button_additions} != presentation_switch_buttons
-        or any(item.get("pressed") is not None for item in button_additions)
-    ):
-        return False
-    without_button_additions = [
-        item for item in solid_buttons
-        if item.get("label") not in presentation_switch_buttons
-    ]
-    if without_button_additions != react_buttons:
-        return False
-
     solid_state["switches"] = without_additions
-    solid_state["toolbarButtons"] = without_button_additions
     return True
 
 
@@ -124,12 +95,11 @@ def is_historical_toolbar_pixel(name: str, x: int, y: int) -> bool:
 def current_general_pixel(name: str, x: int, y: int, enabled: bool, height: int):
     if not enabled:
         return y, False
-    # The shared parity fixture's General panel is x=16..288. Solid composes two
-    # 24px presentation-policy rows (plus their 4px gaps) before Persist, then
-    # current upstream adds the 24px Shortcuts row plus gap after Persist. Translate
-    # only the panel interior: the 16px side-shadow strips overlay stationary page
-    # content and therefore must stay at their original viewport Y. The extra
-    # panel/shadow tail is still ignored only for the verified current additions.
+    # normalizeSharedParitySurface() has already verified and removed the two
+    # Solid-only presentation rows. The only remaining General-panel addition is
+    # current upstream's 24px Shortcuts row plus its 4px gap after Persist.
+    # Translate only panel content below Persist; the side-shadow strips overlay
+    # stationary page content and remain at their original viewport Y.
     if not (
         name in {
             "toolbar-settings-open",
@@ -142,17 +112,16 @@ def current_general_pixel(name: str, x: int, y: int, enabled: bool, height: int)
         and y >= 105
     ):
         return y, False
-    presentation_shift = 56
-    total_shift = 84
+    shift = 28
     panel_left = 16
     panel_right = 288
     persist_bottom = 129
     historical_shadow_bottom = 244
-    current_shadow_bottom = 328
-    if panel_left <= x < panel_right and y < persist_bottom and y + presentation_shift < height:
-        return y + presentation_shift, False
-    if panel_left <= x < panel_right and y < historical_shadow_bottom and y + total_shift < height:
-        return y + total_shift, False
+    current_shadow_bottom = historical_shadow_bottom + shift
+    if panel_left <= x < panel_right and y < persist_bottom:
+        return y, False
+    if panel_left <= x < panel_right and y < historical_shadow_bottom and y + shift < height:
+        return y + shift, False
     if y >= historical_shadow_bottom and y < current_shadow_bottom:
         return y, True
     return y, False
