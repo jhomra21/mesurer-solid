@@ -242,8 +242,7 @@ export default function ComposableMesurer(props: MesurerProps) {
     return host.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
   };
 
-  const builtinActionDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) =>
-    arrangeActive() && (id === "color-picker" || id === "text-inspector" || id === "guides");
+  const builtinActionDisabled = (_id: Exclude<MesurerBuiltinPluginId, "distance">) => false;
 
   const customTools = createMemo(() => {
     revision();
@@ -317,10 +316,25 @@ export default function ComposableMesurer(props: MesurerProps) {
     return rules.join("\n");
   };
 
+  const editModeTool = () => host.tools().find(
+    (tool) => tool.modeSwitch === true && tool.toolbarMode === "edit",
+  );
+
+  const leaveEditMode = async (source: string) => {
+    const edit = editModeTool();
+
+    if (!edit?.active?.()) return;
+    await host.command.execute(edit.command, undefined, { source, toolId: edit.id });
+  };
+
   const executeTool = async (tool: ToolContribution, source: ToolInvocationSource = "toolbar") => {
     if (tool.disabled?.()) return;
 
     try {
+      if (tool.toolbarMode === "select" && arrangeActive()) {
+        await leaveEditMode("select-mode-tool");
+      }
+
       await host.command.execute(tool.command, undefined, { source, toolId: tool.id });
     } catch (error) {
       props.onPluginError?.(error, tool.id);
@@ -722,6 +736,13 @@ export default function ComposableMesurer(props: MesurerProps) {
 
     const runBuiltinSlot = async (id: Exclude<MesurerBuiltinPluginId, "distance">) => {
       if (builtinActionDisabled(id)) return;
+
+      if (id !== "settings" && arrangeActive()) {
+        await leaveEditMode("select-mode-builtin");
+
+        if (id === "select") return;
+      }
+
       const replacement = replacementBuiltinTool(id);
 
       if (replacement) {
@@ -844,6 +865,29 @@ export default function ComposableMesurer(props: MesurerProps) {
 
       if (rendererModel?.current.settings.shortcutsEnabled === false) return;
 
+      const key = event.key.toLowerCase();
+      const mod = event.metaKey || event.ctrlKey;
+
+      if (!mod && !event.shiftKey && !event.altKey && (key === "1" || key === "2")) {
+        const edit = editModeTool();
+
+        if (key === "1" && edit?.active?.()) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          runTool(edit, "toolbar-mode-shortcut");
+
+          return;
+        }
+
+        if (key === "2" && edit && !edit.disabled?.() && !edit.active?.()) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          runTool(edit, "toolbar-mode-shortcut");
+
+          return;
+        }
+      }
+
       const slot = builtinShortcut(event);
 
       if (slot && builtinActionDisabled(slot)) {
@@ -862,8 +906,6 @@ export default function ComposableMesurer(props: MesurerProps) {
 
         return;
       }
-
-      const key = event.key.toLowerCase();
 
       if ((key === "h" || key === "v") && builtinActionDisabled("guides")) {
         event.preventDefault();
@@ -889,8 +931,6 @@ export default function ComposableMesurer(props: MesurerProps) {
 
         return;
       }
-
-      const mod = event.metaKey || event.ctrlKey;
 
       if (mod && key === "z") {
         const handled = event.shiftKey ? runtimeHost.redo() : runtimeHost.undo();
