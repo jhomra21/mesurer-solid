@@ -60,6 +60,7 @@ try {
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "false");
 
   const expandedDividers = page.locator('[data-mesurer-toolbar-divider]:visible');
+
   const expandedDividerMetrics = await expandedDividers.evaluateAll((nodes) => nodes.map((node) => {
     const rect = node.getBoundingClientRect();
     const toolbarRect = node.closest('[data-mesurer-toolbar="true"]')?.getBoundingClientRect();
