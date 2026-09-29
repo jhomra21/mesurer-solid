@@ -212,9 +212,7 @@ async function assertPackedDirectEditing(page, testCase, errors) {
   const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
   await editMode.waitFor({ state: "visible", timeout: 5000 });
   await editMode.click();
-  await page.waitForFunction(() =>
-    document.querySelector("[data-mesurer-toolbar='true']")?.getAttribute("data-mesurer-toolbar-mode") === "edit"
-  );
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
 
   await page.mouse.dblclick(point.x, point.y);
   const editor = page.locator("[data-mesurer-text-editor='true']");
