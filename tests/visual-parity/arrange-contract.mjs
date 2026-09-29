@@ -1323,7 +1323,7 @@ try {
   await quickSnapping().click();
   await arrangeMenu.waitFor({ state: "hidden" });
 
-  await arrangeButton.click();
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await page.waitForFunction(({ left, top }) => {
     const element = document.querySelector(".primary-action");
 
