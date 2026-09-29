@@ -91,6 +91,8 @@ Arrange previews movement with an inline transform while retaining the element's
 
 Mesurer restores the transform baseline only while the current transform still matches the exact preview value and priority it applied. If the application changes the transform, Mesurer relinquishes ownership and preserves the host-authored value through Live review, refresh, plugin removal, and disposal. Transition suppression is temporary: when the preview is removed, Mesurer restores the host transition property it observed, including a newer host-authored value seen while the preview was active.
 
+Changing text on a live arranged element does not drop its Arrange position. Arrange keeps the exact live element it moved while that element remains in the document. Reload and replacement rebinding still use strict target identity.
+
 This prevents stale Arrange state from overwriting a real source update.
 
 ## Agent API

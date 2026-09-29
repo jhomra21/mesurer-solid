@@ -14,6 +14,11 @@ The renderer carries its own isolated Solid 2 runtime. Your application can use 
   <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
 </p>
 
+<p align="center">
+  <img src="./docs/assets/readme/electron-typography.png" alt="Mesurer Solid inspecting typography inside an Electron application" width="49%">
+  <img src="./docs/assets/readme/electron-rulers.png" alt="Mesurer Solid using rulers and guides inside an Electron application" width="49%">
+</p>
+
 ## Installation
 
 ```bash

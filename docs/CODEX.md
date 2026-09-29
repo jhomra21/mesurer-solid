@@ -69,7 +69,7 @@ Codex is enabled by default with the other first-party Mesurer plugins.
 
 The Settings switch still controls availability. Turning it off removes the Codex service, command, and toolbar action. Turning it back on restores them.
 
-A short-lived beta made Codex opt-in. Mesurer's current plugin-persistence migration ignores that one beta availability value once so existing installations return to the normal default-on behavior. Choices made after that migration persist normally.
+Older installations may contain one legacy opt-in value for Codex availability. The current plugin-persistence migration ignores that value once so Codex returns to the normal default-on behavior. Choices made after that migration persist normally.
 
 ## Desktop and standalone runtimes
 
