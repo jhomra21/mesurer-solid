@@ -10,7 +10,7 @@ import {
   textInspectorPlugin as rendererTextInspectorPlugin,
   xrayPlugin as rendererXrayPlugin,
 } from "@jhomra21/mesurer-solid-renderer";
-import { arrange } from "./arrange";
+import { arrange, edit } from "./arrange";
 import { codex } from "./plugins/codex";
 import { context } from "./context-plugin";
 import { layoutGuides } from "./layout-guides";
@@ -48,7 +48,7 @@ export const compose = (
   plugin.id.startsWith("mesurer.") ? withPackageVersion(plugin) : plugin,
 );
 
-export { arrange, codex, context, layoutGuides, screenshot };
+export { arrange, edit, codex, context, layoutGuides, screenshot };
 
 export {
   MESURER_ARRANGE_ACTIVE_STATE_ID,
@@ -56,6 +56,11 @@ export {
   MESURER_ARRANGE_SERVICE_ID,
   MESURER_ARRANGE_SETTINGS_STATE_ID,
   MESURER_ARRANGE_STATE_ID,
+  MESURER_EDIT_ACTIVE_STATE_ID,
+  MESURER_EDIT_PLUGIN_ID,
+  MESURER_EDIT_SERVICE_ID,
+  MESURER_EDIT_SETTINGS_STATE_ID,
+  MESURER_EDIT_STATE_ID,
 } from "./arrange";
 
 export type {
@@ -70,6 +75,17 @@ export type {
   ArrangeTarget,
   MesurerArrangeService,
   MesurerArrangeSettings,
+  EditCapturePlan,
+  EditElementFingerprint,
+  EditIntent,
+  EditOffset,
+  EditPresentation,
+  EditRect,
+  EditReview,
+  EditReviewTarget,
+  EditTarget,
+  MesurerEditService,
+  MesurerEditSettings,
 } from "./arrange";
 
 export {
