@@ -99,6 +99,11 @@ try {
   await page.waitForFunction(() => Boolean(
     document.body.querySelector("[data-mesurer-selected-measurement='true']"),
   ));
+
+  const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
+  await editMode.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+
   await page.mouse.dblclick(editX, editY);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
