@@ -203,6 +203,7 @@ export function getDeepestElementAtPoint(
 }
 
 const MAX_VISUAL_HIT_DESCENDANTS = 600;
+
 const REPLACED_ELEMENT_SELECTOR = "audio, canvas, embed, iframe, img, input, object, picture, select, textarea, video";
 
 type VisualHitCandidate = {
@@ -251,8 +252,10 @@ const hasVisualPaint = (element: Element, ownerWindow: Window) => {
   )) return true;
 
   const style = ownerWindow.getComputedStyle(element);
+
   const backgroundIsVisible = style.backgroundImage !== "none"
     || (style.backgroundColor !== "transparent" && style.backgroundColor !== "rgba(0, 0, 0, 0)");
+
   const borderIsVisible = ["top", "right", "bottom", "left"].some((side) =>
     Number.parseFloat(style.getPropertyValue(`border-${side}-width`)) > 0
     && style.getPropertyValue(`border-${side}-style`) !== "none"
@@ -374,15 +377,22 @@ const getPaintOrderedCandidates = (
   candidates: Element[],
   source: Element,
   point: { x: number; y: number },
-  ownerDocument: Document,
 ) => {
+  const ownerWindow = source.ownerDocument.defaultView;
+
+  if (!ownerWindow) return [];
+
   const uniqueCandidates = [...new Set(candidates)];
   const originalStyles = new Map<Element, string | null>();
 
   for (const candidate of uniqueCandidates) {
-    const styled = candidate as Element & { style?: CSSStyleDeclaration };
+    const styled = candidate instanceof ownerWindow.HTMLElement
+      || candidate instanceof ownerWindow.SVGElement
+      ? candidate
+      : null;
 
-    if (!styled.style) continue;
+    if (!styled) continue;
+
     originalStyles.set(candidate, candidate.getAttribute("style"));
     styled.style.setProperty("pointer-events", "auto", "important");
   }
@@ -437,7 +447,6 @@ const getPointerTransparentVisualTargets = (
       .filter((candidate) => isMeaningfulVisualTarget(candidate, ownerWindow)),
     element,
     point,
-    ownerDocument,
   );
 
   if (directTargets.length > 0) return directTargets;
@@ -459,7 +468,9 @@ const getPointerTransparentVisualTargets = (
     if (elementBoundary && scanRoot !== elementBoundary && !elementBoundary.contains(scanRoot)) break;
 
     const currentRoot = scanRoot;
+
     const sourceBranch = getDirectChild(element, currentRoot);
+
     const visualTargets = getPointerTransparentVisualDescendants(currentRoot, point, ownerDocument)
       .filter((candidate) => {
         if (!isElementWithinDomTarget(candidate, target)) return false;
@@ -472,15 +483,17 @@ const getPointerTransparentVisualTargets = (
 
     for (const candidate of visualTargets) {
       if (seen.has(candidate) || !isMeaningfulVisualTarget(candidate, ownerWindow)) continue;
+
       seen.add(candidate);
       candidates.push(candidate);
     }
 
     if (currentRoot === elementBoundary) break;
+
     scanRoot = currentRoot.parentElement;
   }
 
-  return getPaintOrderedCandidates(candidates, element, point, ownerDocument);
+  return getPaintOrderedCandidates(candidates, element, point);
 };
 
 /**
