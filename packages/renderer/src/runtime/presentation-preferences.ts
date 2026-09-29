@@ -69,8 +69,8 @@ export const installPresentationPreferences = (ctx: MesurerPluginContext) => {
       {
         type: "toggle",
         id: "keep-arrange-changes",
-        label: "Keep Arrange changes",
-        description: "Keep saved Arrange positions visible while another tool is active.",
+        label: "Keep Edit changes",
+        description: "Keep saved Edit positions visible while another mode is active.",
         value: () => presentationPreferences(ctx).keepArrangeChanges,
         set: (keepArrangeChanges) => updatePresentationPreferences(ctx, { keepArrangeChanges }),
       },
