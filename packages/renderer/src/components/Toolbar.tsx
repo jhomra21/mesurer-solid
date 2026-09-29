@@ -257,6 +257,7 @@ export function Toolbar(props: ToolbarProps) {
   let previousUserSelect: string | null = null;
   const [colorPickerSupported, setColorPickerSupported] = createSignal(false);
   let colorPickerConfirmTimer = 0;
+  let compactMotionTimer = 0;
   let colorPickerCapabilityRevision = 0;
   const colorPickerOwnerWindow = () => toolbarElement?.ownerDocument.defaultView ?? props.ownerWindow;
 
@@ -567,8 +568,14 @@ export function Toolbar(props: ToolbarProps) {
       setPluginMenuOpenId(null);
     }
 
+    if (compactMotionTimer) props.ownerWindow.clearTimeout(compactMotionTimer);
+    if (modeStageElement) modeStageElement.dataset.compactMotion = "true";
     setCompact(next);
-    props.ownerWindow.setTimeout(() => setViewportRevision((value) => value + 1), 170);
+    compactMotionTimer = props.ownerWindow.setTimeout(() => {
+      compactMotionTimer = 0;
+      if (modeStageElement) delete modeStageElement.dataset.compactMotion;
+      setViewportRevision((value) => value + 1);
+    }, 170);
   };
 
 
@@ -794,6 +801,11 @@ export function Toolbar(props: ToolbarProps) {
       if (colorPickerConfirmTimer) {
         colorPickerOwnerWindow().clearTimeout(colorPickerConfirmTimer);
         colorPickerConfirmTimer = 0;
+      }
+
+      if (compactMotionTimer) {
+        props.ownerWindow.clearTimeout(compactMotionTimer);
+        compactMotionTimer = 0;
       }
 
       props.ownerWindow.removeEventListener("pointerdown", handlePointerDown);
