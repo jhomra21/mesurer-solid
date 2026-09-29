@@ -147,6 +147,7 @@ function ToolbarDivider(props: { visible?: boolean; marker?: string }) {
 function ToolbarModeSwitch(props: {
   value: "select" | "edit";
   editDisabled: boolean;
+  editToolId?: string;
   shortcutsEnabled: boolean;
   tooltipVisibleId: string | null;
   tooltipInstant: boolean;
@@ -198,6 +199,7 @@ function ToolbarModeSwitch(props: {
         <button
           type="button"
           data-mesurer-toolbar-mode="edit"
+          data-mesurer-tool-id={props.editToolId}
           aria-label={`Edit mode${shortcut("2") ? " (2)" : ""}`}
           aria-keyshortcuts={shortcut("2")}
           aria-pressed={props.value === "edit" ? "true" : "false"}
@@ -302,17 +304,22 @@ export function Toolbar(props: ToolbarProps) {
     (tool) => tool.modeSwitch === true && tool.toolbarMode === "edit",
   );
   const toolbarMode = (): "select" | "edit" =>
+
     editModeTool()?.active?.() ? "edit" : "select";
   const selectPluginTools = () => (props.pluginTools ?? []).filter(
     (tool) => tool.toolbarMode === "select" && !tool.modeSwitch,
   );
+
   const editPluginTools = () => (props.pluginTools ?? []).filter(
     (tool) => tool.toolbarMode === "edit" && !tool.modeSwitch,
   );
+
   const alwaysPluginTools = () => (props.pluginTools ?? []).filter(
     (tool) => tool.toolbarMode === "always" || tool.toolbarMode === undefined,
   );
+
   const pluginActive = () => alwaysPluginTools().some((tool) => tool.active?.() ?? false);
+
   const builtinActive = () => selectActive() || xrayActive() || colorPickerActive() || rulersActive() || typographyActive() || guidesActive();
   const visibleInToolbar = (active: boolean, pinned = false) => pinned || !compact() || active;
 
@@ -714,6 +721,7 @@ export function Toolbar(props: ToolbarProps) {
               label="Edit options"
               onClick={() => {
                 if (!toolbarElement) return;
+
                 const anchor = toolbarElement.querySelector<HTMLElement>(
                   "[data-mesurer-edit-options='true']",
                 );
@@ -810,9 +818,13 @@ export function Toolbar(props: ToolbarProps) {
     };
 
     syncWidths();
+
     const Resize = (props.ownerWindow as Window & typeof globalThis).ResizeObserver;
+
     const observer = Resize ? new Resize(syncWidths) : null;
+
     observer?.observe(selectPanel);
+
     observer?.observe(editPanel);
     const frame = props.ownerWindow.requestAnimationFrame(() => {
       stage.dataset.ready = "true";
@@ -842,6 +854,7 @@ export function Toolbar(props: ToolbarProps) {
       <ToolbarModeSwitch
         value={toolbarMode()}
         editDisabled={!editModeTool() || (editModeTool()?.disabled?.() ?? false)}
+        editToolId={editModeTool()?.id}
         shortcutsEnabled={props.model.state.settings.shortcutsEnabled}
         tooltipVisibleId={tooltipsEnabled() ? tooltip.visibleTooltipId() : null}
         tooltipInstant={tooltip.tooltipInstant()}
