@@ -40,8 +40,7 @@ function PluginSettingsSwitch(props: { label: string; checked: boolean; disabled
       role="switch"
       aria-checked={props.checked ? "true" : "false"}
       disabled={props.disabled}
-      class="msr:flex msr:h-6 msr:items-center msr:justify-between msr:gap-2 msr:pr-0 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45"
-      style={{ width: "246px" }}
+      class="msr:flex msr:h-6 msr:w-full msr:items-center msr:justify-between msr:gap-2 msr:pr-0 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45"
       onClick={() => props.onChange(!props.checked)}
     >
       <span class="mesurer-plugin-setting-label msr:ml-6 msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap">{props.label}</span>
