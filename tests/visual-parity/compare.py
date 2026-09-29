@@ -30,7 +30,7 @@ selection_owner_metric_paths = {
 }
 presentation_preference_defaults = {
     "Keep text changes": "false",
-    "Keep Arrange changes": "false",
+    "Keep Edit changes": "false",
 }
 
 # This visual suite is intentionally pinned to the pre-compact v0.0.11 toolbar.
