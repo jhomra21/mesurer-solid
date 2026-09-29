@@ -39,6 +39,8 @@ export type MesurerSolidRuntimeService = {
   rendererRoot?: HTMLElement;
   /** Current canonical page-targeting tool when exposed by the renderer bridge. */
   currentToolMode?(): MesurerModel["state"]["toolMode"];
+  /** Current top-level toolbar mode. Public Mesurer mounts expose Select or Edit. */
+  currentToolbarMode?(): "select" | "edit";
   theme?(): MesurerTheme;
   subscribeTheme?(listener: (theme: MesurerTheme) => void): () => void;
   createWorkspaceRuntime(persistenceNamespace?: string): MesurerWorkspaceRuntime;
@@ -749,6 +751,7 @@ export default function ComposableMesurer(props: MesurerProps) {
             pageTarget,
             rendererRoot: requireRendererRoot(),
             currentToolMode: () => requireModel().current.toolMode,
+            currentToolbarMode: () => arrangeActive() ? "edit" : "select",
             theme,
             subscribeTheme,
             createWorkspaceRuntime,
