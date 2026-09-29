@@ -7,10 +7,10 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `33ffecfa7682b25dff5ada2a507feedfa18c745b` (`main`, verified 2026-09-25) |
-| Current upstream audit | `547634086b1317b48e5cd23cafb477a9cdb807c3` (`main`, verified 2026-09-28) |
+| Previous upstream audit | `547634086b1317b48e5cd23cafb477a9cdb807c3` (`main`, verified 2026-09-28) |
+| Current upstream audit | `03c0581837c01325ce4a8fa18bc893955335eb21` (`main`, verified 2026-09-29) |
 
-The current audit advances from upstream's 0.2.0 release commit at `33ffecfa7682b25dff5ada2a507feedfa18c745b` through two follow-up fixes. One hardens extension session ownership during navigation and persists an upstream-only minimized toolbar flag. The other improves selection of pointer-transparent visual overlays by checking browser paint order. Mesurer Solid adopts the extension race fix and the hit-testing refinement. The upstream minimized flag does not map to Mesurer Solid's toolbar model.
+The current audit advances from `547634086b1317b48e5cd23cafb477a9cdb807c3` to upstream `03c0581837c01325ce4a8fa18bc893955335eb21`. The upstream grouped-toolbar switch, its motion helper, and the Select/Inspect and Annotate icons are unchanged across that range. Mesurer Solid now adopts that grouped-toolbar presentation for its own Select/Edit modes while keeping its 150 ms motion, plugin architecture, Context/Codex always-visible lane, and Arrange compatibility contracts. Later upstream changes in the range are marketing/site work plus small ColorField, brand-mark, and toolbar-restore adjustments; they do not change the mode switch.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
@@ -26,6 +26,19 @@ Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
+
+### 2026-09-29 Select/Edit mode adoption
+
+Upstream `03c0581837c01325ce4a8fa18bc893955335eb21` still uses the grouped toolbar introduced before the previous audit. The switch component, group-motion helper, toolbar-motion core, and both group icons have identical blobs to `547634086b1317b48e5cd23cafb477a9cdb807c3`.
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Two-button grouped toolbar switch with moving selection pill | **Adopted with product mapping** | Mesurer Solid maps upstream's Inspect/Annotate switch to Select/Edit. It keeps the upstream 28px buttons, 2px gap/padding, 3px active pill radius, neutral ink states, focus treatment, and source icons. |
+| Group content slides while the active lane changes width | **Adopted with 150 ms motion** | Mesurer Solid keeps the same grouped-toolbar structure and interruptible width/translate transition, but uses the project's existing 150 ms motion instead of upstream timing. Reduced motion disables the transition. |
+| Inspect-owned versus Annotate-owned tool lanes | **Adopted as Select/Edit ownership** | Select owns inspection tools. Edit owns movement and direct text/style editing. Typography stays in Select as inspection-only. |
+| Persistent controls outside the changing group | **Adopted with Mesurer Solid plugin ownership** | Context and Codex remain visible in both modes. Third-party tools without mode metadata retain the historical always-visible behavior so existing plugin surfaces do not disappear after upgrade. |
+| Existing Arrange ids and agent APIs | **Preserved compatibility layer** | The public UI and new plugin factory use Edit, but `mesurer.arrange.*` state, service ids, persisted movement intent, `arrange()`, and agent methods remain valid. |
+| Upstream post-audit ColorField event cleanup, Mesurer mark refresh, toolbar-restore offset, and marketing/site work | **Not part of this mode port** | None of these changes alter the grouped mode switch or its icons/motion. They remain separate audit items rather than being bundled into the Select/Edit feature. |
 
 ### 2026-09-28 stable-readiness follow-up
 
@@ -77,7 +90,7 @@ Upstream `33ffecfa7682b25dff5ada2a507feedfa18c745b` is the 0.2.0 release commit.
 | Dragging the toolbar from controls or chrome | **Adopted with the existing Solid drag engine** | Drag starts remain thresholded. Crossing the threshold closes an open Settings, Guide, or plugin surface, while real menus, dialogs, form controls, contenteditable regions, and slider surfaces retain pointer ownership. |
 | Settings and toolbar-menu trigger re-click | **Already equivalent; now browser-covered** | Settings, Guide orientation, and plugin split-menu triggers already toggle their own surface. The toolbar drag contract protects that behavior while also checking post-drag click suppression. |
 | Theme-aware ruler fade color | **Already adopted** | Ruler gradients already use `--msr-surface`, including Dark and System-dark themes. |
-| Inspect/Annotate group switching used by upstream toolbar tests | **Intentional divergence** | Mesurer Solid keeps one stable toolbar and does not adopt upstream's grouped toolbar model. |
+| Inspect/Annotate group switching used by upstream toolbar tests | **Adopted with Select/Edit mapping** | Mesurer Solid now uses the upstream grouped-toolbar presentation and icons for Select/Edit. Its tool ownership differs intentionally: Typography stays in Select, editing belongs to Edit, and Context/Codex remain visible across both modes. |
 
 ### 2026-09-22 theme delta classification
 
