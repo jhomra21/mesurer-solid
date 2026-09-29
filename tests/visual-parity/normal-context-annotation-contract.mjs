@@ -128,6 +128,18 @@ const saveNote = async (composer, text) => {
 };
 
 const assertDocumentSurface = async (locator, label) => {
+  await locator.waitFor({ state: "visible" });
+  await locator.evaluate(async (element) => {
+    for (let frame = 0; frame < 12; frame += 1) {
+      if (
+        element.getAttribute("data-mesurer-annotation-scroll-mode") === "document"
+        && getComputedStyle(element).position === "absolute"
+      ) return;
+
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+  });
+
   assert.equal(
     await locator.getAttribute("data-mesurer-annotation-scroll-mode"),
     "document",
