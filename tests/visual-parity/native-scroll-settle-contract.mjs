@@ -97,6 +97,11 @@ const verifyDirectEditSettle = async () => {
     await settle(page);
     let targetBox = await box(target, "direct-edit target before opening");
     await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+
+    const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
+    await editMode.click();
+    await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+
     await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
     const editor = page.locator("[data-mesurer-text-editor='true']");
