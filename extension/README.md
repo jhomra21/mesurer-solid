@@ -35,7 +35,7 @@ Arrange remains optional unless it is included by the injected configuration.
 
 ## Direct text editing
 
-With Select or Typography active, double-click ordinary direct text to edit it in place. Arrange-compatible Select works the same way when Arrange is mounted.
+Enter Edit before changing direct text or typography. Typography in Select remains inspection-only. The extension keeps Context and Codex controls visible across Select and Edit.
 
 Mesurer keeps native editing boundaries intact. Form controls and descendants that inherit `contenteditable` remain under the page/browser editor. A nested `contenteditable="false"` boundary ends inherited editability and can use Mesurer direct editing when the normal direct-text rules pass. Mixed inline copy can edit the exact direct text run around an inline child without replacing that child or the host element's native DOM APIs.
 
