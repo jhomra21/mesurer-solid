@@ -185,6 +185,7 @@ try {
     x: clippedCanvasRect.x + clippedCanvasRect.width - 40,
     y: clippedCanvasRect.y + clippedCanvasRect.height / 2,
   };
+
   await assertAgentSelector(
     clippedOutsidePoint,
     "#clipped-overlay-source",
