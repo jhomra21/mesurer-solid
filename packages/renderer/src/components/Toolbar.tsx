@@ -569,10 +569,12 @@ export function Toolbar(props: ToolbarProps) {
     }
 
     if (compactMotionTimer) props.ownerWindow.clearTimeout(compactMotionTimer);
+
     if (modeStageElement) modeStageElement.dataset.compactMotion = "true";
     setCompact(next);
     compactMotionTimer = props.ownerWindow.setTimeout(() => {
       compactMotionTimer = 0;
+
       if (modeStageElement) delete modeStageElement.dataset.compactMotion;
       setViewportRevision((value) => value + 1);
     }, 170);
