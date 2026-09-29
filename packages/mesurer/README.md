@@ -96,7 +96,7 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Use X-ray, guides, rulers, and persisted settings.
 - Add page-scoped columns, rows, or pixel grids with the optional `layoutGuides()` plugin. Guide edits participate in plugin undo/redo, and Context includes the current page's saved guides with their visibility state.
 - Inspect Typography and preview reversible direct copy/style changes.
-- Arrange selected UI into a Desired position without changing source.
+- Use Edit to move selected UI and change direct text, typography, and text color without changing source.
 - Capture page regions through the optional Screenshot plugin. It selects native host capture, the Chromium extension adapter, or browser display capture internally.
 - Read selection, measurements, guides, annotations, layout, styles, and saved human intent through Context and agent APIs.
 - Keep saved annotations across same-tab reloads and conservatively rebind them to their original DOM targets; markers, cards, and ownership evidence stay attached through scrolling, repeated-note markers stay local, Add Note remains available while a note is open, and cards/composers occlude Select hover and selection chrome.
@@ -104,11 +104,11 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Compact the toolbar to active controls without changing tool state or order.
 - Choose System, Light, or Dark appearance while keeping the same theme across isolated and document-backed Mesurer UI.
 
-Arrange is not a toolbar mode. It can be activated before a selection exists and enables Select automatically. Turning Arrange off leaves Select active; turning Select off exits Arrange. Escape clears the current Select or Arrange selection first. A second Escape with nothing selected exits Select, or exits both Arrange and Select. Each moved Arrange target has a Reset position control, and the Arrange menu can reset all positions on the current page.
+Use `1` for Select and `2` for Edit. Select contains inspection tools. Edit owns movement and direct text/style changes. Context and Codex remain visible in both modes. The grouped toolbar changes modes in 150 ms. `Shift+A` still enters Edit for compatibility with existing Arrange workflows.
 
 Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
 
-Select and agent point inspection use the same rendered hit-test path. They can target SVG and visible `pointer-events:none` descendants instead of collapsing those descendants to an interactive ancestor. Open shadow roots are traversed; closed shadow roots remain browser-owned boundaries. Context and annotations accept the same SVG targets. Arrange and direct text editing only mutate HTML elements.
+Select and agent point inspection use the same rendered hit-test path. They can target SVG and visible `pointer-events:none` descendants instead of collapsing those descendants to an interactive ancestor. Open shadow roots are traversed; closed shadow roots remain browser-owned boundaries. Context and annotations accept the same SVG targets. Edit movement and direct text editing only mutate HTML elements.
 
 Persisted workspace evidence is page-scoped by route, including sorted query parameters. In-tab navigation swaps the current page workspace without carrying page-owned guides or selection state to another route. Toolbar placement remains tab-session UI and survives those route changes and reloads.
 
@@ -116,7 +116,7 @@ Direct text editing respects native editing boundaries. Descendants of an editab
 
 While direct text editing is active, Mesurer keeps one visible edit ring, keeps the selected dimensions pill and Typography separated by the same `2px` rendered gap when the card is below the source, and keeps Typography stationary during ordinary pointer movement. The selection-adjacent Add Note button is suppressed only for the active edit and returns when the editor closes; saved annotation markers and panels remain available.
 
-Mesurer previews text, styles, and Arrange transforms only while it still owns the value it applied. Host-authored changes take ownership and are preserved through undo/redo, Live review, cleanup, and disposal.
+Mesurer previews text, styles, and Edit movement only while it still owns the value it applied. Host-authored changes take ownership and are preserved through undo/redo, Live review, cleanup, and disposal.
 
 ## Appearance
 
@@ -135,6 +135,8 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | Shortcut | Action |
 | --- | --- |
 | `M` | Toggle Mesurer |
+| `1` | Select mode |
+| `2` | Edit mode |
 | `S` | Select |
 | `X` | X-ray |
 | `P` | Color Picker when supported |
@@ -145,7 +147,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `H` / `V` | Horizontal / vertical guide orientation |
 | `Alt` / `Option` | Distance overlay |
 | `Cmd/Ctrl + ,` | Settings |
-| `Shift + A` | Arrange |
+| `Shift + A` | Edit compatibility shortcut |
 | `Shift + S` | Screenshot |
 | `C` | Copy Context |
 | `Shift + C` | Copy Selection |
@@ -155,7 +157,7 @@ Plugin shortcuts are active only when their plugin is mounted and enabled.
 
 ## Agent integration
 
-Enable `agent: true` to expose the full browser agent object through `mesurer.agent` and `window.__MESURER__`. The mounted instance also mirrors the high-level Context, Arrange, and text-intent methods.
+Enable `agent: true` to expose the full browser agent object through `mesurer.agent` and `window.__MESURER__`. The mounted instance also mirrors high-level Context, Edit movement, and text-intent methods. The movement method names retain `Arrange` for compatibility.
 
 ```ts
 const workspace = await mesurer.context()
@@ -168,7 +170,7 @@ Install the portable Agent Skill with:
 npx --yes --package=mesurer-solid mesurer-skill install
 ```
 
-The skill preserves existing human state, reads Arrange/text/annotation intent before source changes, and verifies the real Live result after implementation.
+The skill preserves existing human state, reads Edit movement, text, and annotation intent before source changes, and verifies the real Live result after implementation.
 
 See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/packages/mesurer/AGENT_INTEGRATION.md).
 
