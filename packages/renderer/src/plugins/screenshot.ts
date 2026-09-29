@@ -713,6 +713,7 @@ export const screenshotPlugin = (
       shortcut: "Shift+S",
       order: 70,
       command: SCREENSHOT_COMMAND,
+      toolbarMode: "select",
       icon: cameraIcon,
       active,
       hidden: () => !settings().toolEnabled,
