@@ -190,6 +190,14 @@ try {
     "A failed Codex activation must roll back atomically and keep its toolbar action absent",
   );
 
+  const codexError = dialog.locator("[data-mesurer-plugin-error='mesurer.codex']");
+  await codexError.waitFor({ state: "visible" });
+  assert.match(
+    (await codexError.textContent()) ?? "",
+    /host connection is unavailable/i,
+    "Failed Codex activation should explain the missing native host capability",
+  );
+
   const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
   await contextToggle.click();
   await settingsPage.waitForFunction(() => document.querySelector("[data-mesurer-plugin-toggle='mesurer.context']")?.getAttribute("aria-checked") === "false");
