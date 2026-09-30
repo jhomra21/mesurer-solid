@@ -327,10 +327,39 @@ export default function ComposableMesurer(props: MesurerProps) {
     await host.command.execute(edit.command, undefined, { source, toolId: edit.id });
   };
 
+  const suspendSelectModeTools = async () => {
+    const controller = builtinController;
+    const model = rendererModel;
+
+    if (controller && model) {
+      if (model.current.xrayVisible) controller.deactivate("xray");
+      if (model.current.rulersVisible) controller.deactivate("rulers");
+      if (model.current.colorPickerActive) controller.deactivate("color-picker");
+
+      if (model.current.toolMode === "text-inspector") controller.deactivate("text-inspector");
+      if (model.current.toolMode === "guides") controller.deactivate("guides");
+    }
+
+    for (const selectTool of host.tools()) {
+      if (selectTool.modeSwitch === true || selectTool.toolbarMode !== "select") continue;
+      if (!(selectTool.active?.() ?? false)) continue;
+      await host.command.execute(selectTool.command, undefined, {
+        source: "edit-mode-suspend",
+        toolId: selectTool.id,
+      });
+    }
+  };
+
   const executeTool = async (tool: ToolContribution, source: ToolInvocationSource = "toolbar") => {
     if (tool.disabled?.()) return;
 
     try {
+      const enteringEdit = tool.modeSwitch === true
+        && tool.toolbarMode === "edit"
+        && !(tool.active?.() ?? false);
+
+      if (enteringEdit) await suspendSelectModeTools();
+
       if (tool.toolbarMode === "select" && arrangeActive()) {
         await leaveEditMode("select-mode-tool");
       }
