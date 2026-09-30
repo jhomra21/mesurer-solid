@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  MESURER_PLUGIN_BEFORE_DISABLE_HOOK,
   createMesurerPluginHost,
   defineMesurerPlugin,
 } from "@jhomra21/mesurer-solid-core";
@@ -126,6 +127,49 @@ const bridgeUrlForRequest = (request: HostCodexBridgeRequest) => {
 beforeEach(() => {
   window.__MESURER_HOST__ = {
     codexBridge: async (request) => {
+      if (request.action === "activate") {
+        return {
+          ok: true,
+          leaseId: "lease-test",
+          thread: "thread-1",
+          threads: ["thread-1"],
+          runtime: {
+            source: "shared",
+            transport: "shared-app-server",
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      if (request.action === "deactivate") {
+        if (request.leaseId !== "lease-test") {
+          throw new Error("Codex Bridge lease mismatch in test host.");
+        }
+
+        return {
+          ok: true,
+          leaseId: request.leaseId,
+          released: true,
+        };
+      }
+
+      if (request.action === "runtime") {
+        return {
+          ok: true,
+          runtime: {
+            source: "shared",
+            transport: "shared-app-server",
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      if (request.leaseId !== "lease-test") {
+        throw new Error("Codex Bridge request did not carry the active lease.");
+      }
+
       const mapped = bridgeUrlForRequest(request);
 
       try {
@@ -163,6 +207,56 @@ type BridgeMockHandler = (
 const bridgeFetchMock = (handler: BridgeMockHandler) => vi.fn(handler);
 
 describe("codex", () => {
+  it("fails activation atomically when the native host capability is missing", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+
+    delete window.__MESURER_HOST__;
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-missing-host",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+
+    await expect(host.load(codex({ ui: false }))).rejects.toThrow(
+      "Codex host connection is unavailable",
+    );
+    expect(host.has("mesurer.codex")).toBe(false);
+    expect(host.service.get(MESURER_CODEX_SERVICE_ID)).toBeUndefined();
+  });
+
+  it("holds one native lease until the managed plugin pre-disable barrier releases it", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+
+    const bridge = vi.fn(window.__MESURER_HOST__!.codexBridge!);
+
+    window.__MESURER_HOST__ = { codexBridge: bridge };
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-lifecycle",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex({ ui: false }));
+
+    expect(bridge.mock.calls[0]?.[0]).toMatchObject({ action: "activate" });
+    expect(host.has("mesurer.codex")).toBe(true);
+
+    await host.hook.emit(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, "mesurer.codex");
+
+    expect(bridge.mock.calls.some(([request]) =>
+      request.action === "deactivate" && request.leaseId === "lease-test")).toBe(true);
+
+    host.remove("mesurer.codex");
+    expect(host.has("mesurer.codex")).toBe(false);
+  });
+
   it("sends saved Context evidence through the native Codex Bridge", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService, contextText } = createContextService();
@@ -241,8 +335,33 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.stubGlobal("fetch", bridgeFetchMock(async () => {
-      throw new TypeError("fetch failed");
+    vi.stubGlobal("fetch", bridgeFetchMock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ ok: true, thread: "thread-1", threads: ["thread-1"] }),
+        };
+      }
+
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-1",
+            threadDetails: [{ id: "thread-1", title: "Current task", updatedAt: 1, connected: true }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      if (url.endsWith("/send")) throw new TypeError("fetch failed");
+
+      throw new Error(`Unexpected request: ${url}`);
     }));
 
     await host.load(defineMesurerPlugin({
@@ -844,10 +963,6 @@ describe("codex", () => {
     }));
     await host.load(codex());
 
-    await host.tools()
-      .find((candidate) => candidate.id === "codex.send")
-      ?.menu?.items[0]?.run();
-
     const tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Choose Codex thread");
     expect(tool?.disabled?.()).toBe(true);
@@ -1242,9 +1357,12 @@ describe("codex", () => {
     secondHost.dispose();
   });
 
-  it("checks the native Codex Bridge when the enabled plugin loads and marks an unavailable host", async () => {
+  it("rolls back plugin activation when native Codex readiness fails", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
+    const bridge = vi.fn(window.__MESURER_HOST__!.codexBridge!);
+
+    window.__MESURER_HOST__ = { codexBridge: bridge };
 
     const fetchMock = bridgeFetchMock(async () => {
       throw new TypeError("fetch failed");
@@ -1259,18 +1377,146 @@ describe("codex", () => {
         ctx.service.provide("context:v1", contextService);
       },
     }));
-    await host.load(codex());
 
-    await vi.waitFor(() => {
-      const unavailable = host.tools().find((candidate) => candidate.id === "codex.send");
+    await expect(host.load(codex())).rejects.toThrow(
+      "Codex Bridge is unavailable in this host.",
+    );
 
-      expect(unavailable?.label).toBe("Codex unavailable");
-      expect(unavailable?.disabled?.()).toBe(true);
-      expect(unavailable?.menu?.items.map((item) => item.label)).toEqual(["Retry Codex connection"]);
+    expect(host.has("mesurer.codex")).toBe(false);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")).toBeUndefined();
+    expect(host.service.get(MESURER_CODEX_SERVICE_ID)).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(bridge.mock.calls.some(([request]) =>
+      request.action === "deactivate"
+      && request.leaseId === "lease-test")).toBe(true);
+    host.dispose();
+  });
+
+  it("keeps a durable Desktop queue receipt visible without blocking the next send", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+
+    const bridge = vi.fn(async (request: HostCodexBridgeRequest) => {
+      if (request.action === "activate") {
+        return {
+          ok: true,
+          leaseId: "desktop-lease",
+          thread: "desktop-thread",
+          threads: ["desktop-thread"],
+          runtime: {
+            source: "desktop" as const,
+            transport: "desktop-queue" as const,
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      if (request.action === "deactivate") {
+        return { ok: true, leaseId: request.leaseId, released: true };
+      }
+
+      if (request.leaseId !== "desktop-lease") {
+        throw new Error("Desktop request did not carry its activation lease.");
+      }
+
+      if (request.action === "health") {
+        return {
+          ok: true,
+          thread: "desktop-thread",
+          threads: ["desktop-thread"],
+          runtime: {
+            source: "desktop" as const,
+            transport: "desktop-queue" as const,
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      if (request.action === "threads") {
+        return {
+          ok: true,
+          thread: "desktop-thread",
+          threadDetails: [{
+            id: "desktop-thread",
+            title: "Current Codex Desktop thread",
+            updatedAt: null,
+            connected: true,
+          }],
+          hasMore: false,
+        };
+      }
+
+      if (request.action === "queue") {
+        return {
+          ok: true,
+          thread: "desktop-thread",
+          output: "queued",
+          delivery: "queued" as const,
+          deliveryId: "desktop-delivery",
+          status: "queued" as const,
+          queuedSubmissionId: "desktop-submission-12345678",
+          dispatch: "desktop-opened" as const,
+          dispatchError: null,
+        };
+      }
+
+      if (request.action === "delivery") {
+        return {
+          ok: true,
+          deliveryId: "desktop-delivery",
+          thread: "desktop-thread",
+          status: "queued" as const,
+          turnId: null,
+          queuedSubmissionId: "desktop-submission-12345678",
+          dispatch: "desktop-opened" as const,
+          dispatchError: null,
+          createdAt: 1,
+          updatedAt: 1,
+        };
+      }
+
+      if (request.action === "runtime") {
+        return {
+          ok: true,
+          runtime: {
+            source: "desktop" as const,
+            transport: "desktop-queue" as const,
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      throw new Error(`Unexpected Desktop bridge action: ${request.action}`);
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    window.__MESURER_HOST__ = { codexBridge: bridge };
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-desktop-receipt",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await host.command.execute("codex.queue");
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST + 5_000);
+
+    const tool = host.tools().find((candidate) => candidate.id === "codex.send");
+
+    expect(tool?.label).toBe("Queued for Codex");
+    expect(tool?.disabled?.()).toBe(false);
+    expect(tool?.menu?.items.some((item) =>
+      item.id === "codex.delivery.receipt"
+      && item.label.includes("desktop-"))).toBe(true);
+
     host.dispose();
+    vi.useRealTimers();
   });
 
   it("can send one message to another loaded thread without changing the default", async () => {

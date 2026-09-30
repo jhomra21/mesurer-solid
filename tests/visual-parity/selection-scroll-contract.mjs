@@ -212,7 +212,58 @@ try {
   await editor.waitFor({ state: "visible" });
   await ring.waitFor({ state: "visible" });
   await inspector.waitFor({ state: "visible" });
-  await selected.waitFor({ state: "visible" });
+
+  try {
+    await selected.waitFor({ state: "visible", timeout: 3_000 });
+  } catch (cause) {
+    const ownership = await page.evaluate((selector) => {
+      const roots = Array.from(document.querySelectorAll(selector));
+      const textRuntimes = Array.from(document.querySelectorAll("[data-mesurer-text-edit-runtime='true']"));
+
+      return {
+        roots: roots.map((root) => {
+          const surface = root.firstElementChild;
+          const rootStyle = root instanceof HTMLElement ? getComputedStyle(root) : null;
+          const surfaceStyle = surface instanceof HTMLElement ? getComputedStyle(surface) : null;
+
+          return {
+            connected: root.isConnected,
+            parent: root.parentElement?.tagName ?? null,
+            parentAttrs: root.parentElement instanceof HTMLElement
+              ? {
+                  inspector: root.parentElement.getAttribute("data-mesurer-inspector-ui"),
+                  root: root.parentElement.getAttribute("data-mesurer-root"),
+                  textRuntime: root.parentElement.getAttribute("data-mesurer-text-edit-runtime"),
+                }
+              : null,
+            inlineVisibility: root instanceof HTMLElement ? root.style.getPropertyValue("visibility") : null,
+            inlineVisibilityPriority: root instanceof HTMLElement ? root.style.getPropertyPriority("visibility") : null,
+            computedVisibility: rootStyle?.visibility ?? null,
+            computedOpacity: rootStyle?.opacity ?? null,
+            suppressed: root instanceof HTMLElement
+              ? root.getAttribute("data-mesurer-direct-edit-selection-suppressed")
+              : null,
+            surfaceVisibility: surfaceStyle?.visibility ?? null,
+            surfaceOpacity: surfaceStyle?.opacity ?? null,
+            nativeAnchor: surface instanceof HTMLElement
+              ? surface.getAttribute("data-mesurer-native-scroll-anchor")
+              : null,
+          };
+        }),
+        textRuntimes: textRuntimes.map((mount) => ({
+          connected: mount.isConnected,
+          parent: mount.parentElement?.tagName ?? null,
+          editorCount: mount.querySelectorAll("[data-mesurer-text-editor='true']").length,
+        })),
+        documentEditorCount: document.querySelectorAll("[data-mesurer-text-editor='true']").length,
+      };
+    }, DOCUMENT_SELECTED_ROOT);
+
+    throw new Error(`Direct-edit selection ownership did not release Edit visibility: ${JSON.stringify(ownership)}`, {
+      cause,
+    });
+  }
+
   assert.equal(
     await selectedRoot.getAttribute("data-mesurer-direct-edit-selection-suppressed"),
     "true",
@@ -298,6 +349,25 @@ try {
   await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']")?.hasAttribute("data-mesurer-direct-edit-selection-suppressed") === false);
   await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='select']").waitFor({ state: "visible" });
+
+  const selectTool = page.locator("[data-mesurer-builtin='select'] button");
+
+  assert.equal(
+    await selectTool.getAttribute("aria-pressed"),
+    "false",
+    "Leaving Edit must restore Select off when Edit activated it only for internal targeting",
+  );
+
+  await selectTool.click();
+  await page.waitForFunction(() =>
+    document.querySelector("[data-mesurer-builtin='select'] button")?.getAttribute("aria-pressed") === "true"
+  );
+
+  const selectTargetBox = await box(target, "target before explicit Select reselection");
+  await page.mouse.click(
+    selectTargetBox.x + selectTargetBox.width / 2,
+    selectTargetBox.y + selectTargetBox.height / 2,
+  );
   await selected.waitFor({ state: "visible" });
   await settle();
   assertSameBox(

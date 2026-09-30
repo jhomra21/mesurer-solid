@@ -1,5 +1,6 @@
 import { createMemo, createSignal, onSettled, untrack } from "solid-js";
 import {
+  MESURER_PLUGIN_BEFORE_DISABLE_HOOK,
   createMesurerPluginHost,
   type MesurerPlugin,
   type MesurerPluginHost,
@@ -36,7 +37,7 @@ export type MesurerSolidRuntimeService = {
   portalTarget: HTMLElement | ShadowRoot;
   pageTarget: HTMLElement | ShadowRoot;
   /** Exact canonical renderer root owned by this runtime/model. */
-  rendererRoot?: HTMLElement;
+  rendererRoot?: HTMLDivElement;
   /** Current canonical page-targeting tool when exposed by the renderer bridge. */
   currentToolMode?(): MesurerModel["state"]["toolMode"];
   /** Current top-level toolbar mode. Public Mesurer mounts expose Select or Edit. */
@@ -174,6 +175,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   const initialExclusions = new Set(untrack(() => props.excludePlugins ?? []));
   const initialBuiltinPlugins = untrack(() => composeMesurerPlugins([], props.excludePlugins ?? []).map(versionPlugin));
   const pluginRegistry = new Map<string, MesurerPluginRegistration>();
+  const managedPluginErrors = new Map<string, string>();
 
   for (const [index, input] of untrack(() => [...(props.plugins ?? [])]).entries()) {
     if (isPluginRegistration(input)) {
@@ -278,6 +280,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           id: entry.id,
           label: entry.label ?? pluginLabelFromId(entry.id),
           description: entry.description,
+          error: managedPluginErrors.get(entry.id),
           enabled: host.has(entry.id),
           busy: busyPluginIds.has(entry.id),
           sections: ownedSections,
@@ -321,7 +324,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   );
 
   type SuspendedSelectModeState = {
-    toolMode: "text-inspector" | "guides" | null;
+    toolMode: "none" | "select" | "text-inspector" | "guides" | null;
     xrayVisible: boolean;
     rulersVisible: boolean;
     pluginToolIds: string[];
@@ -340,7 +343,9 @@ export default function ComposableMesurer(props: MesurerProps) {
     const model = rendererModel;
 
     if (controller && model) {
-      if (snapshot.toolMode && model.current.toolMode !== snapshot.toolMode) {
+      if (snapshot.toolMode === "none" && model.current.toolMode === "select") {
+        controller.deactivate("select");
+      } else if (snapshot.toolMode && snapshot.toolMode !== "none" && model.current.toolMode !== snapshot.toolMode) {
         await controller.run(snapshot.toolMode);
       }
 
@@ -381,10 +386,17 @@ export default function ComposableMesurer(props: MesurerProps) {
         && (tool.active?.() ?? false))
       .map((tool) => tool.id);
 
+    const toolMode = model?.current.toolMode;
+
+    const savedToolMode = toolMode === "none"
+      || toolMode === "select"
+      || toolMode === "text-inspector"
+      || toolMode === "guides"
+      ? toolMode
+      : null;
+
     suspendedSelectModeState = {
-      toolMode: model?.current.toolMode === "text-inspector" || model?.current.toolMode === "guides"
-        ? model.current.toolMode
-        : null,
+      toolMode: savedToolMode,
       xrayVisible: model?.current.xrayVisible ?? false,
       rulersVisible: model?.current.rulersVisible ?? false,
       pluginToolIds,
@@ -597,6 +609,17 @@ export default function ComposableMesurer(props: MesurerProps) {
             // 0.2.0-beta.12 temporarily made Codex opt-in. Ignore that one
             // availability value once so the restored default remains enabled.
             if (parsed.version === 2 && id === "mesurer.codex") continue;
+
+            // Beta.1 could persist Codex as enabled even in browser-only hosts,
+            // because Codex previously defaulted on before native capability
+            // discovery became part of activation. Keep that preference stored,
+            // but do not replay it while this renderer has no native bridge.
+            if (
+              id === "mesurer.codex"
+              && enabled
+              && ownerWindow.__MESURER_HOST__?.codexBridge === undefined
+            ) continue;
+
             storedEnabled.set(id, enabled);
           }
 
@@ -676,8 +699,13 @@ export default function ComposableMesurer(props: MesurerProps) {
 
       try {
         await runtimeHost.load(plugin);
+        managedPluginErrors.delete(errorId);
       } catch (error) {
-        if (active) input.onPluginError?.(error, errorId);
+        if (active) {
+          managedPluginErrors.set(errorId, error instanceof Error ? error.message : String(error));
+          setRevision((value) => value + 1);
+          input.onPluginError?.(error, errorId);
+        }
 
         return false;
       } finally {
@@ -763,6 +791,20 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (Object.keys(snapshot).length) retainedPluginState.set(pluginId, snapshot);
     };
 
+    const disableManagedPlugin = async (
+      pluginId: string,
+      retainState = true,
+    ) => {
+      if (!runtimeHost.has(pluginId)) return false;
+
+      await runtimeHost.hook.emit(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, pluginId);
+
+      if (retainState) captureManagedPluginState(pluginId);
+      else retainedPluginState.delete(pluginId);
+
+      return runtimeHost.remove(pluginId);
+    };
+
     const changeManagedPlugin = async (
       pluginId: string,
       enabled: boolean,
@@ -772,15 +814,14 @@ export default function ComposableMesurer(props: MesurerProps) {
 
       if (!entry || busyPluginIds.has(pluginId) || runtimeHost.has(pluginId) === enabled) return;
       busyPluginIds.add(pluginId);
+      managedPluginErrors.delete(pluginId);
       setRevision((value) => value + 1);
 
       try {
         if (enabled) {
           await loadManagedPlugin(entry);
         } else {
-          if (retainState) captureManagedPluginState(pluginId);
-          else retainedPluginState.delete(pluginId);
-          runtimeHost.remove(pluginId);
+          await disableManagedPlugin(pluginId, retainState);
         }
 
         if (!registryWriteSuspended) writePluginRegistryState();
@@ -800,6 +841,10 @@ export default function ComposableMesurer(props: MesurerProps) {
     setManagedPluginEnabled = (pluginId, enabled) => {
       void enqueueLifecycle(async () => {
         await changeManagedPlugin(pluginId, enabled);
+      }).catch((error) => {
+        managedPluginErrors.set(pluginId, error instanceof Error ? error.message : String(error));
+        setRevision((value) => value + 1);
+        input.onPluginError?.(error, pluginId);
       });
     };
 
@@ -819,8 +864,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           if (initialEnabledPluginIds.has(entry.id)) {
             retainedPluginState.delete(entry.id);
           } else {
-            captureManagedPluginState(entry.id);
-            runtimeHost.remove(entry.id);
+            await disableManagedPlugin(entry.id);
           }
         }
       } finally {
@@ -918,7 +962,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           : entry.enabled !== false;
 
         if (runtimeHost.has(entry.id)) {
-          if (!enabled) runtimeHost.remove(entry.id);
+          if (!enabled) await disableManagedPlugin(entry.id);
           continue;
         }
 
@@ -1118,7 +1162,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           onPluginToolMenuItem={runToolMenuItem}
           isBuiltinActionDisabled={builtinActionDisabled}
           onBuiltinController={(controller) => { builtinController = controller; }}
-          suppressSelectHoverWhenSelected={arrangeActive()}
+          editSelectionHover={arrangeActive}
         />
       </MesurerModelRegistrationContext>
     </MesurerPluginSettingsProvider>

@@ -140,10 +140,34 @@ try {
     1,
     "Edit should keep one logical selection for the nested child",
   );
+
+  const editHover = page.locator("[data-mesurer-hover-measurement='true']");
+  await editHover.waitFor({ state: "visible" });
+  const editHoverBox = await editHover.boundingBox();
+
+  assert(editHoverBox, "Edit should show a hover preview for another selectable element");
+  assert(
+    Math.abs(editHoverBox.x - nested.parent.x) <= 1
+      && Math.abs(editHoverBox.y - nested.parent.y) <= 1
+      && Math.abs(editHoverBox.width - nested.parent.width) <= 1
+      && Math.abs(editHoverBox.height - nested.parent.height) <= 1,
+    `Edit hover should preview the unselected parent without changing selection: ${JSON.stringify({
+      expected: nested.parent,
+      actual: editHoverBox,
+    })}`,
+  );
+
+  await page.mouse.move(
+    nested.child.x + nested.child.width / 2,
+    nested.child.y + nested.child.height / 2,
+  );
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
   assert.equal(
     await page.locator("[data-mesurer-hover-measurement='true']").count(),
     0,
-    "Edit should not paint a second Select hover box while a target is selected",
+    "Edit should suppress redundant hover inside the already-selected subtree",
   );
 
   await page.keyboard.press("Escape");
@@ -267,6 +291,35 @@ try {
     multiSelect.middle.x > twoTargetArrangeBox.x
       && multiSelect.middle.x + multiSelect.middle.width < twoTargetArrangeBox.x + twoTargetArrangeBox.width,
     "The third fixture target should sit underneath the two-target Edit group box",
+  );
+
+  await page.mouse.move(
+    multiSelect.middle.x + multiSelect.middle.width / 2,
+    multiSelect.middle.y + multiSelect.middle.height / 2,
+  );
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+
+  const coveredHover = page.locator("[data-mesurer-hover-measurement='true']");
+  await coveredHover.waitFor({ state: "visible" });
+  const coveredHoverBox = await coveredHover.boundingBox();
+
+  assert(coveredHoverBox, "Edit should hover an unselected target underneath the movement group box");
+  assert(
+    Math.abs(coveredHoverBox.x - multiSelect.middle.x) <= 1
+      && Math.abs(coveredHoverBox.y - multiSelect.middle.y) <= 1
+      && Math.abs(coveredHoverBox.width - multiSelect.middle.width) <= 1
+      && Math.abs(coveredHoverBox.height - multiSelect.middle.height) <= 1,
+    `Edit hover should pass through movement chrome to the unselected page target: ${JSON.stringify({
+      expected: multiSelect.middle,
+      actual: coveredHoverBox,
+    })}`,
+  );
+  assert.equal(
+    await page.locator("[data-mesurer-selection-spacing-target='true']").count(),
+    2,
+    "Hovering through the Edit group box must not change selection",
   );
 
   await page.keyboard.down("Shift");
@@ -1155,7 +1208,31 @@ try {
       && arrange.getAttribute("aria-pressed") === "true";
   });
 
+  // Select was off before the first Edit entry, so returning to Select restores
+  // that off state and clears its selection. Re-entering Edit must enable Select
+  // as an internal dependency without resurrecting the old target.
+  const resumedTarget = await target.boundingBox();
+
+  assert(resumedTarget, "Edit target must remain in the document after mode restoration");
+  await page.mouse.click(
+    resumedTarget.x + resumedTarget.width / 2,
+    resumedTarget.y + resumedTarget.height / 2,
+  );
+  await arrangeBox.waitFor({ state: "visible" });
+
   const verticalSnapLine = page.locator("[data-mesurer-arrange-snap-line='vertical']");
+
+  if (!(await arrangeBox.isVisible())) {
+    const currentTargetBox = await target.boundingBox();
+
+    assert(currentTargetBox, "Edit contract target must remain measurable after the mode switch");
+    await page.mouse.click(
+      currentTargetBox.x + currentTargetBox.width / 2,
+      currentTargetBox.y + currentTargetBox.height / 2,
+    );
+    await arrangeBox.waitFor({ state: "visible" });
+  }
+
   const dragBox = await arrangeBox.boundingBox();
   assert(dragBox, "Edit drag surface must follow the current selection");
 
@@ -1344,24 +1421,27 @@ try {
   assert(Math.abs(afterDeactivate.x - before.x) <= 1, "Deactivating Edit should return the page to its Live X position");
   assert(Math.abs(afterDeactivate.y - before.y) <= 1, "Deactivating Edit should return the page to its Live Y position");
 
-  const restoredMeasurementState = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>
-    elements.map((element) => ({
-      connected: element.isConnected,
-      selected: element.getAttribute("data-mesurer-selected-measurement"),
-      inspectorUi: element.getAttribute("data-mesurer-inspector-ui"),
-      inlineVisibility: element.style.getPropertyValue("visibility"),
-      inlinePriority: element.style.getPropertyPriority("visibility"),
-      computedVisibility: getComputedStyle(element).visibility,
-      parentTag: element.parentElement?.tagName ?? null,
-      parentMesurerRoot: element.parentElement?.getAttribute("data-mesurer-root") ?? null,
-      parentInspectorUi: element.parentElement?.getAttribute("data-mesurer-inspector-ui") ?? null,
-    })),
-  );
+  await page.waitForFunction(() => {
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
 
-  assert(
-    restoredMeasurementState.some((element) => element.computedVisibility !== "hidden"),
-    `Mesurer measurement overlays should be restored after Edit deactivates: ${JSON.stringify(restoredMeasurementState)}`,
+    return select instanceof HTMLButtonElement
+      && select.getAttribute("aria-pressed") === "false"
+      && document.querySelectorAll("[data-mesurer-selected-measurement='true']").length === 0;
+  });
+
+  const selectButtonAfterEdit = page.locator("[data-mesurer-builtin='select'] button");
+
+  await selectButtonAfterEdit.click();
+  const escapeTarget = await target.boundingBox();
+
+  assert(escapeTarget, "Select Escape contract target must remain visible");
+  await page.mouse.click(
+    escapeTarget.x + escapeTarget.width / 2,
+    escapeTarget.y + escapeTarget.height / 2,
   );
+  await page.locator(
+    "[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true']",
+  ).waitFor({ state: "visible" });
 
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => {
@@ -1377,7 +1457,11 @@ try {
 
     return select instanceof HTMLButtonElement && select.getAttribute("aria-pressed") === "false";
   });
-  evidence.selectEscape = { first: "clears selection", second: "deactivates Select" };
+  evidence.selectEscape = {
+    editExit: "restores Select off",
+    first: "clears selection",
+    second: "deactivates Select",
+  };
 
   await writeFile(
     `${outDir}/arrange-contract.json`,

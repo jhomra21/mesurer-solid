@@ -2,12 +2,18 @@ import {
   MESURER_CONTEXT_SERVICE_ID,
   type MesurerContextService,
 } from "../../context-plugin";
-import type { MesurerPlugin, Registration, ToolMenuItemContribution } from "../../core";
+import {
+  type MesurerPlugin,
+  type Registration,
+  type ToolMenuItemContribution,
+} from "../../core";
 import { MESURER_VERSION } from "../../version";
 
 export const MESURER_CODEX_PLUGIN_ID = "mesurer.codex";
 
 export const MESURER_CODEX_SERVICE_ID = "codex:v1";
+
+const MANAGED_PLUGIN_BEFORE_DISABLE_HOOK = "mesurer.plugin.before-disable";
 
 const HEALTH_POLL_MS = 2_000;
 
@@ -182,6 +188,8 @@ type BridgeThread = {
 
 type BridgeResponse = {
   ok?: boolean;
+  leaseId?: string;
+  released?: boolean;
   runtime?: MesurerCodexRuntime;
   thread?: string | null;
   threads?: string[];
@@ -306,7 +314,8 @@ const writeBrowserState = (state: PersistedCodexUiState) => {
 };
 
 type CodexBridgeHostRequest = {
-  action: "runtime" | "health" | "threads" | "target" | "queue" | "delivery" | "restore";
+  action: "activate" | "deactivate" | "runtime" | "health" | "threads" | "target" | "queue" | "delivery" | "restore";
+  leaseId?: string;
   thread?: string;
   limit?: number;
   message?: string;
@@ -467,6 +476,7 @@ const bridgeUnavailable = (cause: unknown) =>
   && (
     cause.message === MISSING_HOST_BRIDGE_ERROR
     || cause.message === "Codex Bridge is unavailable in this host."
+    || cause.message.includes("Codex Bridge lease")
   );
 
 export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
@@ -479,17 +489,14 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
     version: MESURER_VERSION,
     requires: [MESURER_CONTEXT_SERVICE_ID],
     provides: [MESURER_CODEX_SERVICE_ID],
-    setup(ctx) {
+    async setup(ctx) {
       const contextService = ctx.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID);
 
       if (!contextService) throw new Error("Mesurer Codex plugin requires context() from mesurer-solid/plugins.");
 
       const persistedUiState = withUi ? readBrowserState() : null;
 
-      let bridgeAvailability: BridgeAvailability = window.__MESURER_HOST__?.codexBridge
-        ? "unknown"
-        : "unavailable";
-
+      let bridgeAvailability: BridgeAvailability = "unknown";
       let codexRuntime: MesurerCodexRuntime | null = null;
 
       let everConnected = false;
@@ -525,9 +532,72 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       let completedVisibleTimer = 0;
       let uiSendPromise: Promise<void> | null = null;
       let disposed = false;
+      let leaseId: string | null = null;
+
+      const requestBridge = async (
+        request: CodexBridgeHostRequest,
+      ): Promise<BridgeResponse> => {
+        if (request.action === "activate" || request.action === "runtime") {
+          return bridgeRequest(request);
+        }
+
+        if (!leaseId) throw new Error("Codex Bridge lease is not active for this plugin.");
+
+        return bridgeRequest({ ...request, leaseId });
+      };
+
+      const deactivateBridge = async () => {
+        const activeLease = leaseId;
+
+        if (!activeLease) return;
+
+        const response = await bridgeRequest({
+          action: "deactivate",
+          leaseId: activeLease,
+        });
+
+        if (response.released !== true) {
+          throw new Error("Codex Bridge did not confirm lease release.");
+        }
+
+        leaseId = null;
+      };
+
+      const activation = await bridgeRequest({
+        action: "activate",
+        thread: selectedThread ?? originThread ?? undefined,
+      });
+
+      const activatedLease = activation.leaseId?.trim();
+
+      if (!activatedLease) throw new Error("Codex Bridge did not return an activation lease.");
+      leaseId = activatedLease;
+      bridgeAvailability = "available";
+      codexRuntime = bridgeRuntime(activation);
+
+      const activationHealth = bridgeHealth(activation);
+
+      everConnected = true;
+      lastBridgeThread = activationHealth.thread;
+      loadedThreadIds = activationHealth.threads;
+
+      ctx.lifecycle.onDispose(() => {
+        if (!leaseId) return;
+
+        void deactivateBridge().catch((cause) => {
+          const message = cause instanceof Error ? cause.message : String(cause);
+
+          console.error(`[Mesurer] Failed to release Codex host lease: ${message}`);
+        });
+      });
+
+      ctx.hook.on(MANAGED_PLUGIN_BEFORE_DISABLE_HOOK, async (pluginId) => {
+        if (pluginId !== MESURER_CODEX_PLUGIN_ID) return;
+        await deactivateBridge();
+      });
 
       const fetchRuntime = async () => {
-        const runtime = bridgeRuntime(await bridgeRequest({ action: "runtime" }));
+        const runtime = bridgeRuntime(await requestBridge({ action: "runtime" }));
 
         if (!runtime) throw new Error("Codex Bridge returned an invalid runtime state.");
         codexRuntime = runtime;
@@ -536,7 +606,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       };
 
       const fetchHealth = async () => {
-        const response = await bridgeRequest({
+        const response = await requestBridge({
           action: "health",
           thread: selectedThread ?? originThread ?? undefined,
         });
@@ -549,7 +619,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       const ensureBridgeAvailable = fetchHealth;
 
       const fetchDelivery = async (deliveryId: string) =>
-        bridgeDelivery(await bridgeRequest({
+        bridgeDelivery(await requestBridge({
           action: "delivery",
           deliveryId,
         }));
@@ -567,7 +637,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         if (delivery.queuedSubmissionId) request.queuedSubmissionId = delivery.queuedSubmissionId;
 
-        return bridgeDelivery(await bridgeRequest(request));
+        return bridgeDelivery(await requestBridge(request));
       };
 
       const fetchThreads = async (
@@ -582,7 +652,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
         if (scope) request.thread = scope;
 
-        return bridgeThreadList(await bridgeRequest(request));
+        return bridgeThreadList(await requestBridge(request));
       };
 
       const currentTarget = () => selectedThread ?? originThread ?? (routeNeedsSelection ? null : lastBridgeThread);
@@ -624,8 +694,17 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         persistUiState();
       };
 
-      const deliveryBusy = () => activeDelivery !== null
-        && ["queueing", "queued", "working", "completed"].includes(activeDelivery.status);
+      const deliveryBusy = () => {
+        if (!activeDelivery) return false;
+
+        if (activeDelivery.status === "queued"
+          && (activeDelivery.dispatch === "desktop-opened"
+            || activeDelivery.dispatch === "desktop-wake-failed")) {
+          return false;
+        }
+
+        return ["queueing", "queued", "working", "completed"].includes(activeDelivery.status);
+      };
 
       const deliveryStatusText = (status: UiDeliveryStatus) => {
         if (status === "queueing") return "Queueing…";
@@ -774,6 +853,18 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           });
         }
 
+        if (activeDelivery?.queuedSubmissionId
+          && activeDelivery.status === "queued"
+          && (activeDelivery.dispatch === "desktop-opened"
+            || activeDelivery.dispatch === "desktop-wake-failed")) {
+          items.push({
+            id: "codex.delivery.receipt",
+            label: `Receipt · ${shortThread(activeDelivery.queuedSubmissionId)}`,
+            disabled: () => true,
+            run: () => undefined,
+          });
+        }
+
         return items;
       };
 
@@ -913,21 +1004,6 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         }, COMPLETED_VISIBLE_MS);
       };
 
-      const resetDesktopQueuedDeliveryLater = () => {
-        if (completedVisibleTimer) globalThis.clearTimeout(completedVisibleTimer);
-        completedVisibleTimer = globalThis.setTimeout(() => {
-          completedVisibleTimer = 0;
-
-          if (activeDelivery?.status !== "queued"
-            || (activeDelivery.dispatch !== "desktop-opened"
-              && activeDelivery.dispatch !== "desktop-wake-failed")) return;
-
-          activeDelivery = null;
-          persistUiState();
-          syncTool();
-        }, COMPLETED_VISIBLE_MS);
-      };
-
       const finishDelivery = async (delivery: MesurerCodexDelivery) => {
         if (!activeDelivery || activeDelivery.id !== delivery.id) return;
         activeDelivery = {
@@ -944,7 +1020,6 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           && (delivery.dispatch === "desktop-opened"
             || delivery.dispatch === "desktop-wake-failed")) {
           syncTool();
-          resetDesktopQueuedDeliveryLater();
 
           return;
         }
@@ -1031,7 +1106,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
           if (!target) throw new Error("Codex thread must be a non-empty string.");
 
-          const response = await bridgeRequest({
+          const response = await requestBridge({
             action: "target",
             thread: target,
           });
@@ -1064,7 +1139,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           if (thread) payload.thread = thread;
 
           try {
-            const response = await bridgeRequest({
+            const response = await requestBridge({
               action: "queue",
               ...payload,
             });
@@ -1189,7 +1264,26 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       if (withUi) {
         syncTool();
-        void refreshRuntime(true).catch(() => undefined);
+
+        try {
+          await refreshRuntime(true);
+        } catch (cause) {
+          try {
+            await deactivateBridge();
+          } catch (cleanupCause) {
+            const startupMessage = cause instanceof Error ? cause.message : String(cause);
+
+            const cleanupMessage = cleanupCause instanceof Error
+              ? cleanupCause.message
+              : String(cleanupCause);
+
+            throw new Error(
+              `Codex activation failed: ${startupMessage}. Native lease release also failed: ${cleanupMessage}.`,
+            );
+          }
+
+          throw cause;
+        }
 
         if (activeDelivery?.id) {
           everConnected = true;

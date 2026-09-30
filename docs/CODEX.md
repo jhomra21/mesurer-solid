@@ -2,7 +2,7 @@
 
 Mesurer can queue human visual feedback into Codex threads that are already open on the same computer.
 
-Codex is a first-party Mesurer plugin. It is enabled by default and can be turned off or back on from **Settings -> Plugins**.
+Codex is a first-party Mesurer plugin. Native hosts that expose the Codex capability start with it enabled. Browser-only hosts list Codex in **Settings -> Plugins** but leave it off until a native host capability exists.
 
 ## How it works
 
@@ -33,45 +33,58 @@ The native **Codex Bridge** is exported by the Codex plugin at `mesurer-solid/pl
 
 ## Native host wiring
 
-A browser renderer cannot safely open Codex's local Unix-domain socket or spawn the Codex relay itself. Electron and other native applications expose one narrow host capability.
+A sandboxed renderer cannot open Codex's local socket or spawn Codex. Electron applications install one narrow host capability during window setup.
 
 In Electron main:
 
 ```ts
-import { ipcMain } from "electron"
-import { codexBridge } from "mesurer-solid/plugins/codex/bridge"
+import { BrowserWindow, ipcMain } from "electron"
+import { installMesurerCodexHost } from "mesurer-solid/plugins/codex/bridge"
 
-ipcMain.handle("mesurer:codex-bridge", (_event, request) =>
-  codexBridge(request)
-)
+const codexHost = installMesurerCodexHost({
+  ipcMain,
+  validateSender(event) {
+    const window = BrowserWindow.fromWebContents(event.sender)
+
+    return Boolean(window && !window.isDestroyed())
+  },
+})
+
+// Call codexHost.dispose() when the application tears down this integration.
 ```
 
 In preload:
 
 ```ts
 import { contextBridge, ipcRenderer } from "electron"
+import {
+  createMesurerCodexPreloadBridge,
+} from "mesurer-solid/plugins/codex/preload"
 
 contextBridge.exposeInMainWorld("__MESURER_HOST__", {
-  codexBridge: (request) =>
-    ipcRenderer.invoke("mesurer:codex-bridge", request),
+  codexBridge: createMesurerCodexPreloadBridge(ipcRenderer),
 })
 ```
 
-If the application already exposes `window.__MESURER_HOST__` for Screenshot, add `codexBridge` to the same object.
+Electron sandboxes preload scripts by default. A sandboxed preload cannot load arbitrary CommonJS dependencies at runtime, so bundle the preload when it imports `mesurer-solid/plugins/codex/preload`. Keep `sandbox: true`, `contextIsolation: true`, and `nodeIntegration: false`.
 
-When an Electron renderer enables Codex without this capability, Mesurer now reports **Codex host not connected** in the toolbar and explains the preload requirement in Settings. It does not silently treat a missing host bridge as a failed Codex installation, and it does not fall back to a localhost helper process.
+If the application already exposes `window.__MESURER_HOST__` for Screenshot, add `codexBridge` to that object.
 
-This is application integration, not a user setup step. Once the host exposes it, the user does not install anything in Codex, run a bridge command, trust hooks, choose a port, or manage another process.
+`validateSender(event)` is required. The helper rejects subframes and any sender the application does not approve, binds each activation lease to the invoking `WebContents`, and releases that renderer's leases on navigation, renderer exit, or destruction.
 
-The Codex Bridge export is intentionally location-independent. It does not use `import.meta.url`, `process.execPath`, or package-relative runtime file lookup, so bundling Electron main to CommonJS does not require Mesurer to recover its own source path.
+This is application integration, not a user setup step. Once the host installs the capability, users do not run a Mesurer bridge command, choose a port, or manage another process.
 
-## Default availability
+The Codex Bridge export does not use `import.meta.url`, `process.execPath`, or package-relative runtime lookup. Electron main can bundle it to CommonJS without recovering Mesurer's source path.
 
-Codex is enabled by default with the other first-party Mesurer plugins.
+## Settings lifecycle
 
-The Settings switch still controls availability. Turning it off removes the Codex service, command, and toolbar action. Turning it back on restores them.
+When the native host capability exists, Codex starts enabled with the other first-party plugins. Browser-only hosts start with Codex off.
 
-Older installations may contain one legacy opt-in value for Codex availability. The current plugin-persistence migration ignores that value once so Codex returns to the normal default-on behavior. Choices made after that migration persist normally.
+Turning Codex on is transactional. Plugin setup requests a native activation lease and waits for Codex readiness before the plugin becomes enabled. A shared app-server connection must answer the normal health path. If a complete standalone Codex installation must start the shared daemon, activation waits for that daemon to become ready. If activation fails, Mesurer rolls the plugin load back, keeps the Settings switch off, and shows the host or runtime error in the Codex row.
+
+Turning Codex off is also transactional. Mesurer asks the native host to release the plugin's lease and waits for confirmation before removing the renderer service, command, toolbar action, and persisted enabled state.
+
+Disabling the plugin does not stop Codex's shared app-server daemon. Other Codex clients may own or use that daemon.
 
 ## Desktop and standalone runtimes
 
@@ -114,7 +127,7 @@ On the shared-app-server path, the bridge verifies the destination with `thread/
 
 On the inherited Desktop-current-thread path, the bridge accepts only the inherited thread, invokes `codex queue --thread <id> --message <text>`, keeps the queued-submission id, and opens `codex://threads/<id>`. The deep link is a wake step, not a second message submission. If the wake fails after persistence, Mesurer reports the wake diagnostic and does not requeue.
 
-Desktop fallback delivery remains **Queued** unless Mesurer can prove a later lifecycle state without crossing the private Desktop transport. It does not report **Working** or **Finished** from UI assumptions.
+Desktop fallback delivery remains **Queued** unless Mesurer can prove a later lifecycle state without crossing the private Desktop transport. The toolbar keeps that durable queue receipt visible and shows the queued-submission id in the destination menu. The receipt does not block a later queue action. Mesurer does not report **Working** or **Finished** from UI assumptions.
 
 ## Delivery persistence
 
@@ -154,7 +167,7 @@ For an inherited Desktop-current-thread request, there is no Mesurer server and 
 
 Mesurer does not stop Codex's shared app-server daemon when a page closes or when the plugin is disabled.
 
-Because there is no Mesurer bridge process, there is no bridge port, client lease, stale bridge replacement, shutdown hook, or extra Electron window to clean up.
+There is no Mesurer bridge process, bridge port, or helper Electron window. The native host keeps only per-renderer activation leases. A Settings disable releases its lease before removing the plugin, and the Electron host adapter also releases leases if the owning renderer navigates, exits, or is destroyed.
 
 ## Public service
 
@@ -181,13 +194,13 @@ Runtime diagnostics stay on the native bridge. The public `codex:v1` service doe
 
 The renderer does not receive filesystem, process, or socket access. It can only call the host's narrow `codexBridge(request)` capability.
 
-Codex Bridge exposes bounded actions for health, loaded-thread listing and selection, queueing, delivery reads, and safe delivery restoration. Native process and socket access stay in the host process.
+Codex Bridge exposes bounded actions for activation, deactivation, health, loaded-thread listing and selection, queueing, delivery reads, and safe delivery restoration. Stateful requests require the active lease for that native renderer. Native process and socket access stay in the host process.
 
 There is no localhost HTTP listener, so Mesurer does not need CORS configuration for Codex delivery.
 
 ## Browser-only hosts
 
-A normal browser page cannot use the native Codex Bridge by itself. The Codex plugin can still be mounted, but live Codex delivery is unavailable unless the host provides `window.__MESURER_HOST__.codexBridge`.
+A normal browser page cannot use the native Codex Bridge by itself. Mesurer lists Codex in Settings but leaves it off when `window.__MESURER_HOST__.codexBridge` is absent. An explicit enable attempt fails atomically and stays off.
 
 There is no manual `mesurer-codex` command or standalone browser bridge.
 

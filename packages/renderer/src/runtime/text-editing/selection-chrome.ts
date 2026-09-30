@@ -22,10 +22,8 @@ const HOVER_SUPPRESSED = "data-mesurer-direct-edit-hover-suppressed";
  *
  * Keep ordinary selected chrome logically mounted and native-anchored while the
  * editor is active, but do not let it paint in either the document layer or the
- * original isolated renderer. Select remains active during editing, so its hover
- * surface also needs one ownership rule: hovering either the edit-owned element
- * or the currently selected element must not create a second copy of that same
- * rectangle. Hovering another element remains visible.
+ * original isolated renderer. Direct text editing owns pointer context while the
+ * editor is open, so Select/Edit hover chrome stays hidden until that edit ends.
  */
 export function installDirectEditSelectionChromeOwnership(
   ctx: MesurerPluginContext,
@@ -45,7 +43,6 @@ export function installDirectEditSelectionChromeOwnership(
   const hoverSuppressed = new Map<HTMLElement, InlineOpacity>();
   const selectedRoots = new Set<HTMLElement>();
   const hoverRoots = new Set<HTMLElement>();
-  let editOwnedElements = new Set<Element>();
   let active = false;
   let queued = false;
   let disposed = false;
@@ -156,18 +153,7 @@ export function installDirectEditSelectionChromeOwnership(
     }
   };
 
-  const syncHoverOwnership = () => {
-    const hovered = workspace.hoveredElement();
-    const selected = workspace.currentSelection().elements;
-    const editOwned = hovered ? editOwnedElements.has(hovered) : false;
-    const selectionOwned = hovered ? selected.includes(hovered) : false;
-
-    if (!editOwned && !selectionOwned) {
-      restoreAll(hoverSuppressed, HOVER_SUPPRESSED);
-
-      return;
-    }
-
+  const suppressCurrentHovers = () => {
     for (const root of Array.from(hoverRoots)) {
       if (!root.isConnected) {
         hoverRoots.delete(root);
@@ -233,10 +219,9 @@ export function installDirectEditSelectionChromeOwnership(
     const editor = runtimeMount.querySelector<HTMLTextAreaElement>(EDITOR);
 
     if (editor) {
-      if (!active) editOwnedElements = new Set(workspace.currentSelection().elements);
       active = true;
       suppressCurrentSelections();
-      syncHoverOwnership();
+      suppressCurrentHovers();
       startSurfaceObserver();
 
       return;
@@ -244,7 +229,6 @@ export function installDirectEditSelectionChromeOwnership(
 
     if (!active && selectedSuppressed.size === 0 && hoverSuppressed.size === 0) return;
     active = false;
-    editOwnedElements.clear();
     stopSurfaceObserver();
     restoreAll(selectedSuppressed, SELECTED_SUPPRESSED);
     restoreAll(hoverSuppressed, HOVER_SUPPRESSED);

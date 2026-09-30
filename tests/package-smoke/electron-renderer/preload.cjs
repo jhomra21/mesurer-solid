@@ -1,8 +1,12 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+const {
+  createMesurerCodexPreloadBridge,
+} = require("mesurer-solid/plugins/codex/preload");
+
 contextBridge.exposeInMainWorld("__MESURER_HOST__", {
   captureScreenshot: () => ipcRenderer.invoke("mesurer:capture-window"),
-  codexBridge: (request) => ipcRenderer.invoke("mesurer:codex-bridge", request),
+  codexBridge: createMesurerCodexPreloadBridge(ipcRenderer),
 });
 
 contextBridge.exposeInMainWorld("electronMesurer", {

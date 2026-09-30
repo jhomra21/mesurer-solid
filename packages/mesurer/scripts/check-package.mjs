@@ -28,7 +28,7 @@ if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0
   throw new Error("The public Mesurer package must not publish runtime workspace dependencies.");
 }
 
-for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script", "./plugins/codex/bridge"]) {
+for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script", "./plugins/codex/bridge", "./plugins/codex/preload"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
 }
 
@@ -398,7 +398,20 @@ const codexBridgeTypes = new URL("../src/plugins/codex/bridge.d.ts", import.meta
 
 const codexDesktopScript = new URL("../src/plugins/codex/desktop.mjs", import.meta.url);
 
-if (!existsSync(codexBridgeScript) || !existsSync(codexBridgeTypes) || !existsSync(codexDesktopScript)) {
+const codexPreloadScript = new URL("../src/plugins/codex/preload.mjs", import.meta.url);
+
+const codexPreloadCjs = new URL("../src/plugins/codex/preload.cjs", import.meta.url);
+
+const codexPreloadTypes = new URL("../src/plugins/codex/preload.d.ts", import.meta.url);
+
+if (
+  !existsSync(codexBridgeScript)
+  || !existsSync(codexBridgeTypes)
+  || !existsSync(codexDesktopScript)
+  || !existsSync(codexPreloadScript)
+  || !existsSync(codexPreloadCjs)
+  || !existsSync(codexPreloadTypes)
+) {
   throw new Error("Missing packaged Codex Bridge plugin helper.");
 }
 
@@ -406,8 +419,15 @@ const codexBridgeSource = readFileSync(codexBridgeScript, "utf8");
 
 const codexDesktopSource = readFileSync(codexDesktopScript, "utf8");
 
+const codexPreloadSource = readFileSync(codexPreloadScript, "utf8");
+
+const codexPreloadCjsSource = readFileSync(codexPreloadCjs, "utf8");
+
 for (const contract of [
   "export async function codexBridge",
+  "export function installMesurerCodexHost",
+  "\"activate\"",
+  "\"deactivate\"",
   "thread/loaded/list",
   "thread/queue/add",
   "createConnection",
@@ -438,6 +458,24 @@ for (const removedPattern of [
 ]) {
   if (codexBridgeSource.includes(removedPattern)) {
     throw new Error(`Packaged Codex Bridge retained removed companion-process behavior: ${removedPattern}.`);
+  }
+}
+
+for (const preloadSource of [codexPreloadSource, codexPreloadCjsSource]) {
+  for (const contract of [
+    "mesurer:codex-bridge",
+    "createMesurerCodexPreloadBridge",
+    "ipcRenderer",
+  ]) {
+    if (!preloadSource.includes(contract)) {
+      throw new Error(`Packaged Codex preload helper is missing contract: ${contract}.`);
+    }
+  }
+
+  for (const forbidden of ["node:child_process", "node:fs", "node:net", "codexBridge("]) {
+    if (preloadSource.includes(forbidden)) {
+      throw new Error(`Codex preload helper crosses the native bridge boundary: ${forbidden}.`);
+    }
   }
 }
 
@@ -487,6 +525,10 @@ if (!stagedPackageJson.exports?.["./plugins/codex/bridge"]) {
   throw new Error("Staged npm package is missing the ./plugins/codex/bridge export.");
 }
 
+if (!stagedPackageJson.exports?.["./plugins/codex/preload"]) {
+  throw new Error("Staged npm package is missing the ./plugins/codex/preload export.");
+}
+
 for (const removedExport of ["./arrange", "./codex", "./screenshot"]) {
   if (stagedPackageJson.exports?.[removedExport]) {
     throw new Error(`Staged npm package retained obsolete plugin subpath ${removedExport}.`);
@@ -497,6 +539,9 @@ for (const path of [
   "../.publish/plugins/codex/bridge.mjs",
   "../.publish/plugins/codex/bridge.d.ts",
   "../.publish/plugins/codex/desktop.mjs",
+  "../.publish/plugins/codex/preload.mjs",
+  "../.publish/plugins/codex/preload.cjs",
+  "../.publish/plugins/codex/preload.d.ts",
 ]) {
   if (!existsSync(new URL(path, import.meta.url))) {
     throw new Error(`Staged npm package is missing Codex Bridge plugin helper: ${path.replace("../.publish/", "")}.`);

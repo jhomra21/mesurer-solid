@@ -42,7 +42,7 @@ if (import.meta.env.DEV) {
 }
 ```
 
-For Vite, put this in the existing browser entry such as `src/main.tsx`, `src/main.ts`, or `src/index.tsx`. In Electron, use the renderer entry and keep privileged Electron work in preload/main. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native capture and Color Picker samples the current application window through that same capability. Renderer configuration remains `screenshot()`; there is no Electron-specific Screenshot factory or Color Picker setup. In SSR applications, mount from a client-only module or lifecycle.
+For Vite, put this in the existing browser entry such as `src/main.tsx`, `src/main.ts`, or `src/index.tsx`. In Electron, use the renderer entry and keep privileged Electron work in preload/main. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native capture and Color Picker samples the current application window through that same capability. If preload exposes `window.__MESURER_HOST__.codexBridge`, Codex starts enabled and waits for a native activation lease before it becomes available. Browser-only hosts list Codex in Settings but start with it off. Renderer configuration remains runtime-neutral. In SSR applications, mount from a client-only module or lifecycle.
 
 `src/dev/mesurer.ts` is an optional organization pattern, not a required filename or directory. Do not mount Mesurer from `vite.config.ts`, server/API code, Node-only scripts, an Electron main process, or a module that also executes during SSR.
 
@@ -85,7 +85,8 @@ Advanced integrations may supply their own `pluginHost`. That host remains calle
 | `mesurer-solid/inject` | Programmatic browser injection |
 | `mesurer-solid/inject-script` | Built classic injection artifact |
 | `mesurer-skill` | Install the portable coding-agent skill |
-| `mesurer-solid/plugins/codex/bridge` | Native-host Codex Bridge for the first-party Codex plugin |
+| `mesurer-solid/plugins/codex/bridge` | Native Codex transport and Electron main-process host adapter |
+| `mesurer-solid/plugins/codex/preload` | Bundle-friendly Electron preload adapter for the Codex host capability |
 
 Programmatic injection reuses an existing connected instance by default. Lifecycle-owning integrations can set `recoverDisconnected: true` in `MesurerInjectConfig` to remount Mesurer when page DOM replacement disconnects its host. The option defaults to `false`, so ordinary one-shot injection does not silently reappear after disposal.
 
@@ -176,11 +177,11 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 
 ### Queue to Codex
 
-Codex is enabled by default and remains toggleable under **Settings -> Plugins**.
+Codex starts enabled when the native host capability exists and remains toggleable under **Settings -> Plugins**. Browser-only hosts list it but start with it off.
 
-Native applications expose `window.__MESURER_HOST__.codexBridge` from preload/main and back it with `codexBridge()` from `mesurer-solid/plugins/codex/bridge`. The bridge runs in the native host process. Shared sessions use Codex's local app-server directly. If the host inherited an exact Codex Desktop thread, the bridge queues once to that thread through Codex's native queue command and wakes it with `codex://threads/<id>`. The Desktop app-tools pipe is never opened. There is no Mesurer localhost server, helper Electron process, marketplace plugin, SessionStart hook, or repeated trust step.
+Native applications install `installMesurerCodexHost()` in Electron main and expose `createMesurerCodexPreloadBridge()` from a bundled preload. The bridge runs in the native host process. Each enabled renderer owns a native lease. Settings waits for activation readiness before committing ON and waits for lease release before committing OFF. Shared sessions use Codex's local app-server directly. An inherited Codex Desktop thread uses one native queue operation and one `codex://threads/<id>` wake. Mesurer never opens the private Desktop app-tools pipe or starts a second Mesurer process.
 
-**Queue to Codex** remains one runtime-neutral API. Shared delivery tracks Queued, Working, Finished, or Interrupted through the shared app-server. Desktop current-thread delivery reports the durable queued submission and wake result without fabricating private Desktop lifecycle state. It does not create threads or invoke Steer.
+**Queue to Codex** remains one runtime-neutral API. Shared delivery tracks Queued, Working, Finished, or Interrupted through the shared app-server. Desktop current-thread delivery keeps the durable queued submission and wake result visible without fabricating private Desktop lifecycle state. It does not create threads or invoke Steer.
 
 Saved annotations included in a delivery are removed only after the exact matched turn completes. Interrupted, failed, ambiguous, or unreadable deliveries keep them. Set `codex({ clearCompletedAnnotations: false })` to retain completed notes.
 

@@ -191,19 +191,19 @@ Codex transport adapters
       └─ codex://threads/<same id>
 ```
 
-Codex Bridge belongs to the Codex plugin at `packages/mesurer/src/plugins/codex/bridge.mjs` and is published as `mesurer-solid/plugins/codex/bridge`. There is no separate Mesurer Codex process, HTTP listener, port, marketplace package, lifecycle hook, or generated copy.
+Codex Bridge belongs to the Codex plugin at `packages/mesurer/src/plugins/codex/bridge.mjs` and is published as `mesurer-solid/plugins/codex/bridge`. There is no separate Mesurer Codex process, HTTP listener, port, marketplace package, Codex SessionStart/SessionEnd hook, or generated copy.
 
-The renderer receives only a narrow host capability. Electron main/preload can back it with the in-process `codexBridge()` helper. The public Codex service does not distinguish CLI and Desktop callers.
+The renderer receives only a narrow host capability. Electron main installs `installMesurerCodexHost()`; a bundled preload exposes `createMesurerCodexPreloadBridge()`. The main adapter validates the caller and binds each activation lease to the invoking renderer. The public Codex service does not distinguish CLI and Desktop callers.
 
 The bridge prefers exact inherited Desktop ownership when both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH` are present. In that mode it exposes only that thread, uses Codex's durable `queue` command once, and wakes the same thread through the native `codex://` handler. The pipe path is never opened; it is only a Desktop ownership signal. Without inherited Desktop ownership, the bridge uses a reachable shared app-server directly and calls `thread/queue/add`. If the shared socket is absent, it can start the daemon only from an existing complete standalone installation.
 
-Codex is enabled by default with the first-party catalog and remains toggleable in Settings. The plugin's availability persistence treats the temporary beta default-off state as a one-time migration rather than a permanent opt-out.
+Codex starts enabled only when the native host capability exists. Browser-only hosts keep the plugin registered in Settings but default it off. Enabling waits for a native lease and transport readiness before the managed plugin load commits. Disabling waits for lease release before removing the plugin. Renderer navigation, exit, or destruction also releases that renderer's leases. The shared Codex daemon is not owned by a Mesurer lease and is not stopped when a lease ends.
 
 One page keeps its selected destination in per-tab `sessionStorage`. A saved target remains valid only while Codex reports it as loaded. If no valid target exists and several loaded threads are available, Mesurer requires an explicit human choice.
 
 The `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias. Mesurer does not create threads and never invokes `turn/steer`.
 
-Codex's native queued-user-message store is the durable source of truth. Mesurer retains only bounded correlation metadata in `$CODEX_HOME/mesurer/codex-deliveries.json`. Shared delivery can reconcile lifecycle from the same daemon. Desktop-current-thread delivery remains queued when lifecycle cannot be proven without crossing Desktop's private transport; it is never requeued just to obtain status. Completion may retire only the annotation ids included in a delivery whose exact completion is known.
+Codex's native queued-user-message store is the durable source of truth. Mesurer retains only bounded correlation metadata in `$CODEX_HOME/mesurer/codex-deliveries.json`. Shared delivery can reconcile lifecycle from the same daemon. Desktop-current-thread delivery remains queued when lifecycle cannot be proven without crossing Desktop's private transport. Mesurer keeps the durable queue receipt visible and never requeues only to obtain status. Completion may retire only the annotation ids included in a delivery whose exact completion is known.
 
 This transport remains separate from `window.__MESURER__`. Coding agents consume Context through the browser controller; Codex delivery is the inverse human action of sending live-page review intent into an already open Codex thread.
 
@@ -260,6 +260,6 @@ Temporary Mesurer presentation expresses intent or evidence; it is not proof tha
 
 The public package bundles the private workspaces into self-contained artifacts. Before publication, the exact packed npm artifact is validated across clean React, Solid 1, and Solid 2 consumers.
 
-Release validation also covers browser contracts, host isolation, screenshots, the unified public plugins entry and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery validates shared-daemon routing plus the packed Desktop-current-thread adapter, including exact `codex queue` arguments, native deep-link wake, no private-pipe connection, and Electron main-process bundling.
+Release validation also covers browser contracts, host isolation, screenshots, the unified public plugins entry and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery validates shared-daemon routing, activation leases, exact Desktop queue arguments, native deep-link wake, no private-pipe connection, and bundled Electron main and preload adapters.
 
 See [Releasing](./RELEASING.md) and [Upstream parity](./docs/UPSTREAM_PARITY.md).

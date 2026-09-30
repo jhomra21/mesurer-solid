@@ -87,8 +87,8 @@ export type MesurerProps = {
   onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
   isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;
   onBuiltinController?: (controller: MesurerBuiltinController | null) => void;
-  /** Internal composable-runtime flag used when Edit movement owns the selected-target chrome. */
-  suppressSelectHoverWhenSelected?: boolean;
+  /** Internal composable-runtime accessor that keeps Edit hover visible outside selected subtrees. */
+  editSelectionHover?(): boolean;
 };
 
 type Environment = {
@@ -319,7 +319,18 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     );
   });
 
+  const directTextEditActive = () => Boolean(
+    ownerDocument.querySelector("[data-mesurer-text-editor='true']")
+    || rootElement?.querySelector("[data-mesurer-text-editor='true']"),
+  );
+
   const updateHover = (point: Point) => {
+    if (input.editSelectionHover && directTextEditActive()) {
+      model.setHoverTarget(null, null);
+
+      return;
+    }
+
     const target = getTargetElement(point, rootElement, ownerDocument, pageTarget);
 
     if (!target) {
@@ -941,7 +952,9 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         syncLive();
         const latest = hoverPoint;
 
-        if (latest && model.current.toolMode === "select" && !model.current.draggingGuideId) updateHover(latest);
+        if (latest && model.current.toolMode === "select" && !model.current.draggingGuideId) {
+          updateHover(latest);
+        }
       }, NATIVE_SCROLL_SETTLE_MS);
     };
 
@@ -1028,7 +1041,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           hoverGuide={hoverGuide()}
           selectionSpacingStyle={props.selectionSpacingStyle}
           interactive={model.state.enabled && !model.state.settingsOpen}
-          suppressHoverWhenSelected={input.suppressSelectHoverWhenSelected ?? false}
+          editSelectionHover={() => input.editSelectionHover?.() ?? false}
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
           onPointerUp={pointerUp}

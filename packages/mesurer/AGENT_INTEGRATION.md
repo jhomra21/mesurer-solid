@@ -245,15 +245,15 @@ The optional human `screenshot()` plugin from `mesurer-solid/plugins` is a separ
 
 ## Optional human-to-Codex delivery
 
-The first-party `codex()` plugin is enabled by default and remains toggleable in Mesurer Settings. It is a human-triggered delivery path and does not add a generic send method to `window.__MESURER__`.
+The first-party `codex()` plugin starts enabled when the native host capability exists. Browser-only hosts list it in Settings but start with it off. It is a human-triggered delivery path and does not add a generic send method to `window.__MESURER__`.
 
-Native hosts expose `window.__MESURER_HOST__.codexBridge(request)`. The matching `codexBridge()` implementation is published from `mesurer-solid/plugins/codex/bridge` and runs in the host process. Shared sessions use Codex's existing local app-server. When the host inherits both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH` from Codex Desktop, Mesurer exposes only that exact Desktop thread, queues once through Codex's native queue command, and wakes the same thread with `codex://threads/<id>`. The app-tools pipe is an ownership signal only and is never opened. There is no Mesurer Codex daemon, localhost listener, marketplace plugin, or lifecycle hook.
+Native hosts expose `window.__MESURER_HOST__.codexBridge(request)`. Electron main can install `installMesurerCodexHost()`, and a bundled preload can expose `createMesurerCodexPreloadBridge()`. Turning Codex on waits for a native lease and transport readiness. Turning it off waits for lease release before Mesurer removes the plugin. Shared sessions use Codex's existing local app-server. When the host inherits both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH` from Codex Desktop, Mesurer exposes only that exact Desktop thread, queues once through Codex's native queue command, and wakes the same thread with `codex://threads/<id>`. The app-tools pipe is an ownership signal only and is never opened. There is no Mesurer Codex daemon, localhost listener, marketplace plugin, or Codex SessionStart/SessionEnd hook.
 
 Shared delivery exposes currently loaded Codex threads. Desktop fallback exposes only the exact inherited current thread and refuses any other destination. Page affinity and explicit destination overrides remain fail-closed.
 
 Shared delivery calls `thread/queue/add` directly. Desktop current-thread delivery uses the native queue command only for that exact inherited thread. Mesurer never calls `turn/steer`, never creates a thread, and never reconstructs a second user-message queue. The typed `codex:v1` service exposes `health()`, `listThreads()`, `useThread(thread)`, `delivery(deliveryId)`, and canonical `queue(request?)`. `send(request?)` remains a compatibility alias.
 
-Queue submission is single-flight. A matched completed turn may remove only the annotation ids sent with that delivery; interrupted, failed, ambiguous, or unreadable work keeps them. Turn completion is transport state, not proof that the requested UI result is correct.
+Shared queue submission is single-flight while Mesurer tracks lifecycle. Desktop current-thread delivery keeps its durable queued receipt visible without blocking a later explicit queue action. A matched completed turn may remove only the annotation ids sent with that delivery; interrupted, failed, ambiguous, or unreadable work keeps them. Turn completion is transport state, not proof that the requested UI result is correct.
 
 See [Queue Context feedback to Codex](../../docs/CODEX.md) for host wiring, routing, recovery, privacy, and failure behavior.
 

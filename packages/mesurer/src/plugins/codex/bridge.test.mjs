@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { codexBridge } from "./bridge.mjs";
+import {
+  MESURER_CODEX_BRIDGE_CHANNEL,
+  codexBridge,
+  installMesurerCodexHost,
+} from "./bridge.mjs";
 
 const createFakeAppServer = async (root, turnsPath) => {
   const controlDir = join(root, "app-server-control");
@@ -192,10 +197,27 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
   const options = {
     codex: join(root, "must-not-run"),
     codexHome: root,
+    clientId: "client-a",
   };
 
   try {
-    const threads = await codexBridge({ action: "threads", limit: 10 }, options);
+    const activation = await codexBridge({ action: "activate" }, options);
+    const leaseId = activation.leaseId;
+
+    assert.ok(leaseId?.length > 0);
+    assert.equal(activation.ok, true);
+
+    const request = (payload) => codexBridge({ ...payload, leaseId }, options);
+
+    await assert.rejects(
+      codexBridge(
+        { action: "threads", leaseId, limit: 10 },
+        { ...options, clientId: "client-b" },
+      ),
+      /lease is not active for this host client/,
+    );
+
+    const threads = await request({ action: "threads", limit: 10 });
 
     assert.deepEqual(
       threads.threadDetails.map((thread) => ({
@@ -210,19 +232,19 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
     );
 
     await assert.rejects(
-      codexBridge({
+      request({
         action: "queue",
         thread: "thread-cold",
         message: "do not route this",
-      }, options),
+      }),
       /Codex thread is not loaded/,
     );
 
-    const queued = await codexBridge({
+    const queued = await request({
       action: "queue",
       thread: "thread-b",
       message: "apply this exact Mesurer feedback",
-    }, options);
+    });
 
     assert.equal(queued.thread, "thread-b");
     assert.equal(queued.status, "queued");
@@ -250,10 +272,10 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
       durationMs: null,
     }]);
 
-    const working = await codexBridge({
+    const working = await request({
       action: "delivery",
       deliveryId: queued.deliveryId,
-    }, options);
+    });
 
     assert.equal(working.status, "working");
     assert.equal(working.turnId, "turn-b");
@@ -277,10 +299,10 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
       durationMs: 1_000,
     }]);
 
-    const completed = await codexBridge({
+    const completed = await request({
       action: "delivery",
       deliveryId: queued.deliveryId,
-    }, options);
+    });
 
     assert.equal(completed.status, "completed");
 
@@ -290,8 +312,144 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
     ));
 
     assert.equal(state.deliveries[0]?.queuedSubmissionId, "queue-thread-b");
+
+    const released = await codexBridge({ action: "deactivate", leaseId }, options);
+
+    assert.equal(released.released, true);
+
+    await assert.rejects(
+      request({ action: "threads", limit: 10 }),
+      /lease is not active for this host client/,
+    );
   } finally {
     await appServer.close();
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("Electron host adapter scopes leases to one WebContents and releases them on navigation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-host-"));
+  const turnsPath = join(root, "turns.json");
+
+  await writeTurns(turnsPath, []);
+  const appServer = await createFakeAppServer(root, turnsPath);
+  const handlers = new Map();
+
+  const ipcMain = {
+    handle(channel, handler) {
+      handlers.set(channel, handler);
+    },
+    removeHandler(channel) {
+      handlers.delete(channel);
+    },
+  };
+
+  assert.throws(
+    () => installMesurerCodexHost({ ipcMain, codexHome: root }),
+    /requires validateSender/,
+  );
+
+  const host = installMesurerCodexHost({
+    ipcMain,
+    codexHome: root,
+    validateSender(event) {
+      return event.sender.id === 41 || event.sender.id === 42;
+    },
+  });
+
+  class FakeSender extends EventEmitter {
+    constructor(id) {
+      super();
+      this.id = id;
+    }
+  }
+
+  const sender = new FakeSender(41);
+  const secondSender = new FakeSender(42);
+  const invoke = handlers.get(MESURER_CODEX_BRIDGE_CHANNEL);
+
+  assert.ok(invoke);
+
+  try {
+    const activation = await invoke(
+      { sender, senderFrame: { parent: null } },
+      { action: "activate" },
+    );
+
+    assert.ok(activation.leaseId?.length > 0);
+    assert.equal(activation.ok, true);
+
+    const threads = await invoke(
+      { sender, senderFrame: { parent: null } },
+      { action: "threads", leaseId: activation.leaseId, limit: 5 },
+    );
+
+    assert.equal(threads.threadDetails.length, 2);
+
+    const secondActivation = await invoke(
+      { sender: secondSender, senderFrame: { parent: null } },
+      { action: "activate" },
+    );
+
+    assert.ok(secondActivation.leaseId?.length > 0);
+    assert.notEqual(secondActivation.leaseId, activation.leaseId);
+
+    await assert.rejects(
+      invoke(
+        { sender: secondSender, senderFrame: { parent: null } },
+        { action: "threads", leaseId: activation.leaseId, limit: 5 },
+      ),
+      /lease is not active for this host client/,
+    );
+
+    await assert.rejects(
+      invoke(
+        { sender: new FakeSender(99), senderFrame: { parent: null } },
+        { action: "runtime" },
+      ),
+      /rejected the invoking renderer/,
+    );
+
+    sender.emit("did-navigate");
+
+    await assert.rejects(
+      invoke(
+        { sender, senderFrame: { parent: null } },
+        { action: "threads", leaseId: activation.leaseId, limit: 5 },
+      ),
+      /lease is not active for this host client/,
+    );
+
+    const secondThreads = await invoke(
+      { sender: secondSender, senderFrame: { parent: null } },
+      { action: "threads", leaseId: secondActivation.leaseId, limit: 5 },
+    );
+
+    assert.equal(secondThreads.threadDetails.length, 2);
+
+    secondSender.emit("destroyed");
+
+    await assert.rejects(
+      invoke(
+        { sender: secondSender, senderFrame: { parent: null } },
+        { action: "threads", leaseId: secondActivation.leaseId, limit: 5 },
+      ),
+      /lease is not active for this host client/,
+    );
+
+    await assert.rejects(
+      invoke(
+        { sender, senderFrame: { parent: {} } },
+        { action: "runtime" },
+      ),
+      /only accepted from the main frame/,
+    );
+  } finally {
+    host.dispose();
+    await appServer.close();
+    await rm(root, { recursive: true, force: true });
+  }
+
+  assert.equal(handlers.has(MESURER_CODEX_BRIDGE_CHANNEL), false);
+});
+

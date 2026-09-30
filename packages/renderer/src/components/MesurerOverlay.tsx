@@ -25,7 +25,7 @@ export type MesurerOverlayProps = {
   hoverGuide: Guide | null;
   selectionSpacingStyle: SelectionSpacingStyle;
   interactive: boolean;
-  suppressHoverWhenSelected: boolean;
+  editSelectionHover(): boolean;
   onPointerDown: (event: OverlayPointerEvent) => void;
   onPointerMove: (event: PointerEvent) => void;
   onPointerUp: (event: OverlayPointerEvent) => void;
@@ -99,6 +99,18 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     const target = props.model.state.hoverElement;
 
     return Boolean(target && selectedMeasurements().some((measurement) => measurement.elementRef === target));
+  });
+
+  const hoverInsideSelectedSubtree = createMemo(() => {
+    const target = props.model.state.hoverElement;
+
+    if (!target) return false;
+
+    return selectedMeasurements().some((measurement) => {
+      const selected = measurement.elementRef;
+
+      return Boolean(selected && (selected === target || selected.contains(target)));
+    });
   });
 
   const heldDistances = createMemo(() => props.model.state.heldDistances);
@@ -255,6 +267,25 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     const handleOverlayPointerMove = (event: PointerEvent) => props.onPointerMove(event);
 
+    const handleEditWindowPointerMove = (event: PointerEvent) => {
+      if (!props.editSelectionHover() || props.model.current.toolMode !== "select") return;
+      const path = event.composedPath();
+
+      if (path.includes(overlay)) return;
+
+      const editBoxOwnsPointer = path.some((target) =>
+        target instanceof ownerWindow.Element
+        && target.getAttribute("data-mesurer-arrange-box") === "true");
+
+      if (editBoxOwnsPointer || event.buttons !== 0) {
+        props.model.setHoverTarget(null, null);
+
+        return;
+      }
+
+      props.onPointerMove(event);
+    };
+
     const syncHoverGeometry = () => {
       const target = props.model.current.hoverElement;
       const chrome = hoverChromeElement;
@@ -388,6 +419,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     syncHoverGeometry();
     overlay.addEventListener("pointermove", handleOverlayPointerMove);
+    ownerWindow.addEventListener("pointermove", handleEditWindowPointerMove, true);
     ownerWindow.addEventListener("scroll", handleScroll, { capture: true, passive: true });
     ownerWindow.addEventListener("resize", syncHoverGeometry, true);
     ownerWindow.addEventListener("pointerdown", handlePassiveGuideDown, true);
@@ -397,6 +429,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     return () => {
       overlay.removeEventListener("pointermove", handleOverlayPointerMove);
+      ownerWindow.removeEventListener("pointermove", handleEditWindowPointerMove, true);
       ownerWindow.removeEventListener("scroll", handleScroll, true);
       ownerWindow.removeEventListener("resize", syncHoverGeometry, true);
       ownerWindow.removeEventListener("pointerdown", handlePassiveGuideDown, true);
@@ -445,9 +478,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         <Show when={
           props.model.state.hoverRect
           && props.model.state.settings.hoverHighlightEnabled
-          && selectedMeasurements().length <= 1
-          && !(props.suppressHoverWhenSelected && selectedMeasurements().length > 0)
-          && !hoverTargetsSelected()
+          && (props.editSelectionHover() || selectedMeasurements().length <= 1)
+          && !(props.editSelectionHover() ? hoverInsideSelectedSubtree() : hoverTargetsSelected())
         }>
           <Show when={hoverPortalTarget()} fallback={hoverSurface()}>
             {(mount) => <Portal mount={mount()}>{hoverSurface()}</Portal>}

@@ -117,6 +117,13 @@ try {
 
   settingsPage = await browser.newPage({ viewport: { width: 620, height: 700 } });
   watchDiagnostics(settingsPage);
+  await settingsPage.addInitScript(() => {
+    localStorage.setItem("mesurer-plugin-settings:availability", JSON.stringify({
+      version: 3,
+      enabled: { "mesurer.codex": true },
+      state: {},
+    }));
+  });
   await settingsPage.goto(url, { waitUntil: "networkidle" });
   const compact = settingsPage.locator("button[data-mesurer-toolbar-compact-toggle='true']");
   await compact.waitFor({ state: "visible" });
@@ -146,7 +153,7 @@ try {
     ["mesurer.context", "Context", true],
     ["mesurer.arrange", "Edit", true],
     ["mesurer.screenshot", "Screenshot", true],
-    ["mesurer.codex", "Codex", true],
+    ["mesurer.codex", "Codex", false],
   ];
 
   for (const [id, label, enabled] of expectedPlugins) {
@@ -173,11 +180,35 @@ try {
     "Codex Settings should explain the Electron native-host requirement",
   );
 
-  await settingsPage.waitForFunction(() => {
-    const button = document.querySelector("[data-mesurer-tool-id='codex.send'] button");
+  const codexToggle = dialog.getByRole("switch", { name: "Codex", exact: true });
+  assert.equal(
+    await codexToggle.getAttribute("aria-checked"),
+    "false",
+    "A persisted beta.1 Codex-on value must stay dormant while the native host capability is absent",
+  );
+  assert.equal(
+    await settingsPage.locator("[data-mesurer-tool-id='codex.send']").count(),
+    0,
+    "Bridgeless browser hosts must not boot a half-connected Codex toolbar action",
+  );
 
-    return button?.getAttribute("aria-label") === "Codex host not connected";
-  });
+  await codexToggle.click();
+  await settingsPage.waitForFunction(() =>
+    document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']")?.getAttribute("aria-checked") === "false"
+  );
+  assert.equal(
+    await settingsPage.locator("[data-mesurer-tool-id='codex.send']").count(),
+    0,
+    "A failed Codex activation must roll back atomically and keep its toolbar action absent",
+  );
+
+  const codexError = dialog.locator("[data-mesurer-plugin-error='mesurer.codex']");
+  await codexError.waitFor({ state: "visible" });
+  assert.match(
+    (await codexError.textContent()) ?? "",
+    /host connection is unavailable/i,
+    "Failed Codex activation should explain the missing native host capability",
+  );
 
   const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
   await contextToggle.click();
@@ -203,7 +234,7 @@ try {
   await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "visible" });
 
   assert.deepEqual(errors, [], `Browser errors: ${errors.join("\n")}`);
-  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; first-party plugins are present, Codex is enabled by default with its host connection explained, and Context can be toggled off and back on: PASS");
+  console.log("Reported UI regressions E2E: Typography control visibly changes/restores source style without retargeting page ownership; card follows/leaves with its source; compact Settings stays on-screen; first-party plugins are present, bridgeless Codex stays off and rolls back failed activation, and Context can be toggled off and back on: PASS");
 } finally {
   await settingsPage?.close();
   await page?.close();

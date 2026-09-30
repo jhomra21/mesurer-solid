@@ -486,6 +486,13 @@ jobs:
           sudo chown root:root node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
           bun build renderer.ts --target browser --format esm --outfile=renderer.js
+          ./node_modules/.bin/esbuild preload.cjs \
+            --bundle \
+            --platform=node \
+            --format=cjs \
+            --target=node24 \
+            --external:electron \
+            --outfile=preload-bundled.cjs
           ./node_modules/.bin/esbuild main.cjs \
             --bundle \
             --platform=node \
@@ -610,6 +617,13 @@ jobs:
           bun add electron@43.1.1 esbuild@0.25.10 --trust
           bun node_modules/electron/install.js
           bun build renderer.ts --target browser --format esm --outfile=renderer.js
+          ./node_modules/.bin/esbuild preload.cjs \
+            --bundle \
+            --platform=node \
+            --format=cjs \
+            --target=node24 \
+            --external:electron \
+            --outfile=preload-bundled.cjs
           ./node_modules/.bin/esbuild main.cjs \
             --bundle \
             --platform=node \

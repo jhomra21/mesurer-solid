@@ -64,9 +64,9 @@ The root `bun run test` command reads built package artifacts. On a fresh checko
 
 Codex process tests must not depend on the developer's live Codex session. They use disposable `CODEX_HOME` directories and fake transports. Shared coverage proves loaded-thread discovery, direct `thread/queue/add` submission, and exact lifecycle reconciliation.
 
-Packed runtime smoke also creates a fake Desktop app bundle. With no inherited Desktop thread, runtime inspection must classify that bundle as private stdio without executing it. With both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH`, the same packed bridge must expose only that current thread, execute the Codex binary exactly once for `queue --thread <id> --message <text>`, retain the returned queue identity, open exactly `codex://threads/<id>`, and never connect to the app-tools pipe. A fake standalone package separately proves shared-daemon bootstrap and transition to the shared runtime.
+Packed runtime smoke also creates a fake Desktop app bundle. With no inherited Desktop thread, activation must reject the private stdio runtime without executing it. With both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH`, activation must return one renderer lease and expose only that current thread. The bridge must execute the Codex binary exactly once for `queue --thread <id> --message <text>`, retain the returned queue identity, open exactly `codex://threads/<id>`, and never connect to the app-tools pipe. Deactivation must release the lease. A fake standalone package separately proves shared-daemon startup, readiness, and lease release without stopping that daemon.
 
-The smoke writes `codex-runtime-artifacts/result.json` and CI retains that file. Package smoke bundles the Electron main process to CommonJS with esbuild before launch so package-relative ESM assumptions such as `import.meta.url` cannot pass unnoticed.
+The smoke writes `codex-runtime-artifacts/result.json` and CI retains that file. Package smoke bundles Electron main and the sandboxed preload before launch. This catches package-relative ESM assumptions in main and runtime CommonJS imports that a sandboxed preload cannot resolve.
 
 ## Development server contract
 
@@ -103,7 +103,7 @@ Do not hand off a candidate SHA for manual acceptance merely because CI is green
 5. Keep console/page errors at zero for the exercised path.
 6. Keep the root dev-server smoke green when changed renderer source is loaded directly by the basic example.
 7. For Screenshot host changes, keep both the Chromium host-result contract and the packed Electron contract green.
-8. For Codex host changes, keep shared-daemon process coverage, packed runtime-selection evidence, package staging, and the packed Electron host-capability contract green.
+8. For Codex host changes, keep shared-daemon process coverage, independent renderer-lease coverage, packed runtime-selection evidence, package staging, and the packed Electron host-capability contract green.
 9. Keep performance invariants paired with the visible behavior they protect.
 10. Treat manual acceptance as a separate final check; automation reduces regressions but does not replace the user's real-browser validation.
 

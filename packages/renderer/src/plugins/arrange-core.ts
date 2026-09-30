@@ -16,6 +16,7 @@ import {
 } from "@jhomra21/mesurer-solid-dom";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { GUIDE_SNAP_DISTANCE } from "../core/constants";
+import { getTargetElement } from "../core/selection";
 
 export const MESURER_ARRANGE_PLUGIN_ID = "mesurer.arrange";
 
@@ -62,6 +63,8 @@ const RESET_BUTTON_GAP = 6;
 const RESET_BUTTON_STACK_OFFSET = 30;
 
 const RESET_POSITION_EPSILON = 0.5;
+
+const TEXT_EDITOR_SELECTOR = "[data-mesurer-text-editor='true']";
 
 export type ArrangeRect = {
   left: number;
@@ -706,18 +709,10 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       }
     };
 
-    const hideMeasurementOverlays = () => {
-      if (hiddenMeasurements.size > 0) return;
-
-      for (const candidate of overlayTarget.querySelectorAll("[data-mesurer-measurement='true']")) {
-        if (!(candidate instanceof realm.HTMLElement)) continue;
-        hiddenMeasurements.set(candidate, {
-          value: candidate.style.getPropertyValue("visibility"),
-          priority: candidate.style.getPropertyPriority("visibility"),
-        });
-        candidate.style.setProperty("visibility", "hidden", "important");
-      }
-    };
+    const directTextEditActive = () => Boolean(
+      ownerDocument.querySelector(TEXT_EDITOR_SELECTOR)
+      || overlayTarget.querySelector(TEXT_EDITOR_SELECTOR),
+    );
 
     const restoreMeasurementOverlays = () => {
       for (const [element, visibility] of hiddenMeasurements) {
@@ -729,6 +724,34 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       }
 
       hiddenMeasurements.clear();
+    };
+
+    const hideMeasurementOverlays = () => {
+      if (directTextEditActive()) {
+        restoreMeasurementOverlays();
+
+        return;
+      }
+
+      if (hiddenMeasurements.size > 0) return;
+
+      for (const candidate of overlayTarget.querySelectorAll("[data-mesurer-measurement='true']")) {
+        if (!(candidate instanceof realm.HTMLElement)) continue;
+
+        const documentSelectedMeasurement = candidate.matches(
+          "[data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']",
+        )
+          && candidate.getRootNode() === ownerDocument
+          && candidate.parentElement === ownerDocument.body;
+
+        if (documentSelectedMeasurement) continue;
+
+        hiddenMeasurements.set(candidate, {
+          value: candidate.style.getPropertyValue("visibility"),
+          priority: candidate.style.getPropertyPriority("visibility"),
+        });
+        candidate.style.setProperty("visibility", "hidden", "important");
+      }
     };
 
     const composedParentElement = (element: HTMLElement): HTMLElement | null => {
@@ -1254,7 +1277,14 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       const button = overlayTarget.querySelector<HTMLButtonElement>("[data-mesurer-builtin='select'] button");
 
       if (button?.getAttribute("aria-pressed") === "true") return;
+      const selected = workspace.currentSelection().elements;
+
       await ctx.command.execute(BUILTIN_SELECT_COMMAND, undefined, { source: "arrange" });
+      const activeSelection = new Set(workspace.currentSelection().elements);
+
+      for (const element of selected) {
+        if (!activeSelection.has(element)) workspace.toggleSelection(element);
+      }
     };
 
     const beginDrag = (event: PointerEvent) => {
@@ -1517,6 +1547,41 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       cancelDrag();
     };
 
+    const resolveHoverTarget = (event: PointerEvent) => withPointerEventsDisabled(
+      root,
+      () => getTargetElement(
+        { x: event.clientX, y: event.clientY },
+        runtime.rendererRoot ?? null,
+        ownerDocument,
+        pageTarget,
+      ),
+    );
+
+    const onEditHoverPointerMove = (event: PointerEvent) => {
+      if (!active()) return;
+
+      if (drag || event.buttons !== 0 || directTextEditActive()) {
+        workspace.clearHover();
+
+        return;
+      }
+
+      const path = event.composedPath();
+      const movementBoxOwnsPointer = path.includes(box);
+
+      if (!movementBoxOwnsPointer && runtime.rendererRoot && path.includes(runtime.rendererRoot)) {
+        return;
+      }
+
+      const target = resolveHoverTarget(event);
+
+      workspace.setHover(
+        target instanceof realm.HTMLElement && isPageElement(target)
+          ? target
+          : null,
+      );
+    };
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || (!active() && !drag)) return;
 
@@ -1551,6 +1616,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     box.addEventListener("pointermove", updateDrag);
     box.addEventListener("pointerup", finishDrag);
     box.addEventListener("pointercancel", onPointerCancel);
+    ownerWindow.addEventListener("pointermove", onEditHoverPointerMove, true);
     ownerWindow.addEventListener("keydown", onKeyDown, true);
     ownerWindow.addEventListener("resize", scheduleRefresh);
     ownerWindow.addEventListener("scroll", scheduleRefresh, true);
@@ -1892,6 +1958,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       box.removeEventListener("pointermove", updateDrag);
       box.removeEventListener("pointerup", finishDrag);
       box.removeEventListener("pointercancel", onPointerCancel);
+      ownerWindow.removeEventListener("pointermove", onEditHoverPointerMove, true);
       ownerWindow.removeEventListener("keydown", onKeyDown, true);
       ownerWindow.removeEventListener("resize", scheduleRefresh);
       ownerWindow.removeEventListener("scroll", scheduleRefresh, true);
