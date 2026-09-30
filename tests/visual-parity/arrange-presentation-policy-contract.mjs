@@ -38,7 +38,7 @@ try {
   await target.waitFor({ state: "visible" });
 
   const before = await target.boundingBox();
-  assert(before, "Arrange presentation target must have initial geometry");
+  assert(before, "Edit presentation target must have initial geometry");
 
   await arrangeButton.click();
   await page.waitForFunction(() => {
@@ -51,7 +51,7 @@ try {
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
   await arrangeBox.waitFor({ state: "visible" });
   const dragBox = await arrangeBox.boundingBox();
-  assert(dragBox, "Arrange presentation drag surface must have geometry");
+  assert(dragBox, "Edit presentation drag surface must have geometry");
 
   const startX = dragBox.x + dragBox.width / 2;
   const startY = dragBox.y + dragBox.height / 2;
@@ -61,8 +61,8 @@ try {
   await page.mouse.up();
 
   const desired = await target.boundingBox();
-  assert(desired, "Arrange presentation target must keep geometry after drag");
-  assert(!samePosition(desired, before), `Arrange drag must create a distinct Desired position: ${JSON.stringify({ before, desired })}`);
+  assert(desired, "Edit presentation target must keep geometry after drag");
+  assert(!samePosition(desired, before), `Edit drag must create a distinct Desired position: ${JSON.stringify({ before, desired })}`);
 
   // Default policy: saved movement intent remains stored but is not presented
   // when Edit is inactive.
@@ -86,7 +86,7 @@ try {
   assert.equal(await keepEdit.getAttribute("aria-checked"), "false", "Keep Edit changes should default off");
 
   // Opting in presents the already-saved Desired transform even outside the
-  // Arrange tool; no new drag or intent is required.
+  // Edit tool; no new drag or intent is required.
   await keepEdit.click();
   await page.waitForFunction(() => document.querySelector("[data-mesurer-presentation-setting='keep-arrange-changes']")?.getAttribute("aria-checked") === "true");
   await waitForPosition(".primary-action", desired);
@@ -110,8 +110,8 @@ try {
   await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await waitForPosition(".primary-action", before);
 
-  assert.equal(errors.length, 0, `Arrange presentation browser errors: ${errors.join("\n")}`);
-  console.log("Arrange presentation preference contract passed: default Original, explicit Keep Desired, retained intent, and tool-owned replay.");
+  assert.equal(errors.length, 0, `Edit presentation browser errors: ${errors.join("\n")}`);
+  console.log("Edit presentation preference contract passed: default Original, explicit Keep Desired, retained intent, and tool-owned replay.");
 } finally {
   await browser.close();
 }
