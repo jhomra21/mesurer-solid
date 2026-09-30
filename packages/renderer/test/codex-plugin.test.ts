@@ -248,9 +248,7 @@ describe("codex", () => {
     expect(bridge.mock.calls[0]?.[0]).toMatchObject({ action: "activate" });
     expect(host.has("mesurer.codex")).toBe(true);
 
-    await host.hook.emit(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, {
-      pluginId: "mesurer.codex",
-    });
+    await host.hook.emit(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, "mesurer.codex");
 
     expect(bridge.mock.calls.some(([request]) =>
       request.action === "deactivate" && request.leaseId === "lease-test")).toBe(true);
@@ -1371,6 +1369,7 @@ describe("codex", () => {
     vi.useFakeTimers();
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
+
     const bridge = vi.fn(async (request: HostCodexBridgeRequest) => {
       if (request.action === "activate") {
         return {
