@@ -1,5 +1,6 @@
 import { createMemo, createSignal, onSettled, untrack } from "solid-js";
 import {
+  MESURER_PLUGIN_BEFORE_DISABLE_HOOK,
   createMesurerPluginHost,
   type MesurerPlugin,
   type MesurerPluginHost,
@@ -765,6 +766,20 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (Object.keys(snapshot).length) retainedPluginState.set(pluginId, snapshot);
     };
 
+    const disableManagedPlugin = async (
+      pluginId: string,
+      retainState = true,
+    ) => {
+      if (!runtimeHost.has(pluginId)) return false;
+
+      await runtimeHost.hook.emit(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, { pluginId });
+
+      if (retainState) captureManagedPluginState(pluginId);
+      else retainedPluginState.delete(pluginId);
+
+      return runtimeHost.remove(pluginId);
+    };
+
     const changeManagedPlugin = async (
       pluginId: string,
       enabled: boolean,
@@ -780,9 +795,7 @@ export default function ComposableMesurer(props: MesurerProps) {
         if (enabled) {
           await loadManagedPlugin(entry);
         } else {
-          if (retainState) captureManagedPluginState(pluginId);
-          else retainedPluginState.delete(pluginId);
-          runtimeHost.remove(pluginId);
+          await disableManagedPlugin(pluginId, retainState);
         }
 
         if (!registryWriteSuspended) writePluginRegistryState();
@@ -802,7 +815,7 @@ export default function ComposableMesurer(props: MesurerProps) {
     setManagedPluginEnabled = (pluginId, enabled) => {
       void enqueueLifecycle(async () => {
         await changeManagedPlugin(pluginId, enabled);
-      });
+      }).catch((error) => input.onPluginError?.(error, pluginId));
     };
 
     resetManagedPlugins = () => enqueueLifecycle(async () => {
@@ -821,8 +834,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           if (initialEnabledPluginIds.has(entry.id)) {
             retainedPluginState.delete(entry.id);
           } else {
-            captureManagedPluginState(entry.id);
-            runtimeHost.remove(entry.id);
+            await disableManagedPlugin(entry.id);
           }
         }
       } finally {
@@ -920,7 +932,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           : entry.enabled !== false;
 
         if (runtimeHost.has(entry.id)) {
-          if (!enabled) runtimeHost.remove(entry.id);
+          if (!enabled) await disableManagedPlugin(entry.id);
           continue;
         }
 
