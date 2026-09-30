@@ -139,7 +139,7 @@ The accepted Codex integration has specific correctness properties. Preserve the
 - Renderer code crosses only `window.__MESURER_HOST__.codexBridge(request)`; native filesystem, process, and socket access stay in the host process.
 - Enabling Codex is transactional. Plugin setup must acquire a native lease and prove transport readiness before the managed plugin becomes enabled.
 - Disabling Codex is transactional. The managed plugin must release its native lease before Mesurer removes the renderer service, command, toolbar action, or persisted enabled state.
-- Bind native leases to one host renderer. Reject subframe and unapproved senders, and release a renderer's leases on navigation, renderer exit, or destruction.
+- Bind native leases to one host renderer. `installMesurerCodexHost()` must require application sender validation, reject subframes and unapproved senders, and release a renderer's leases on navigation, renderer exit, or destruction.
 - Do not stop Codex's shared app-server when a Mesurer lease is released.
 - Discover sendable destinations from Codex's shared local app-server; `thread/loaded/list` is authoritative.
 - Shared-app-server delivery queues exactly once through `thread/queue/add` and preserves the queued-submission id.
