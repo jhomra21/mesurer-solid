@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Finish the Select/Edit terminology pass across the basic example, renderer and host documentation, runtime diagnostics, and browser-test messages while retaining the existing Arrange compatibility identifiers and APIs.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.0 - 2026-09-30
