@@ -464,7 +464,10 @@ const truncateLabel = (value: string, max = 42) => value.length > max
 
 const bridgeUnavailable = (cause: unknown) =>
   cause instanceof Error
-  && cause.message === MISSING_HOST_BRIDGE_ERROR;
+  && (
+    cause.message === MISSING_HOST_BRIDGE_ERROR
+    || cause.message === "Codex Bridge is unavailable in this host."
+  );
 
 export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
   const instruction = options.instruction?.trim() || DEFAULT_INSTRUCTION;
