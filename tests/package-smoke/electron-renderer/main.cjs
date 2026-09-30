@@ -198,7 +198,7 @@ app.whenReady().then(async () => {
     width: 900,
     height: 700,
     webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
+      preload: path.join(__dirname, "preload-bundled.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
