@@ -433,7 +433,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
   setup(ctx) {
     const runtime = ctx.service.get<MesurerSolidRuntimeService>(RUNTIME_SERVICE_ID);
 
-    if (!runtime) throw new Error("Arrange plugin requires the Solid renderer runtime.");
+    if (!runtime) throw new Error("Edit movement plugin requires the Solid renderer runtime.");
 
     const { ownerDocument, ownerWindow } = runtime;
     const workspace = runtime.createWorkspaceRuntime();
