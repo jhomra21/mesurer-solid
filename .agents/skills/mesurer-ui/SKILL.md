@@ -133,7 +133,7 @@ If review is still numerically wrong, continue editing. If target status is stal
 
 The human-facing inspection tool is **Typography**. The internal compatibility id remains `text-inspector`; do not automate normal application work by guessing toolbar labels.
 
-Direct editing starts by double-click or double-tap while Edit is active. Typography in Select is inspection-only. Edit also owns the existing Arrange movement intent.
+Direct editing starts by double-click or double-tap while Edit is active. Typography in Select is inspection-only. Edit also owns movement intent stored under the existing Arrange compatibility names.
 
 The editor exposes direct B/I/U, Font, Size, Weight, rendered-page colors, custom color, and a separate Text/H1/H2/H3 semantic preset popup. Missing heading levels are not invented.
 
