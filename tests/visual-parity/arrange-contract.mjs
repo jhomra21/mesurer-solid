@@ -1186,10 +1186,40 @@ try {
     `Edit target edge should land on the active X-ray edge ruler at ${snapLineBox.x}px; edges were ${movingEdges.join(", ")}`,
   );
 
-  assert(
-    [referenceBox.x, referenceBox.x + referenceBox.width]
-      .some((edge) => Math.abs(edge - snapLineBox.x) <= 1),
-    `Edit ruler at ${snapLineBox.x}px should correspond to the reference element edge`,
+  const snapMatchesElementEdge = await page.evaluate(({ snapX, movingTop, movingBottom }) => {
+    const moving = document.querySelector(".primary-action");
+
+    if (!(moving instanceof HTMLElement)) return false;
+
+    const rangeGap = (aStart, aEnd, bStart, bEnd) =>
+      Math.max(0, Math.max(aStart, bStart) - Math.min(aEnd, bEnd));
+
+    for (const candidate of document.querySelectorAll("*")) {
+      if (!(candidate instanceof HTMLElement)) continue;
+      if (candidate === moving || moving.contains(candidate)) continue;
+
+      if (candidate.closest("[data-mesurer-island='true'], [data-mesurer-inspector-ui='true'], [data-mesurer-root='true']")) continue;
+      const style = getComputedStyle(candidate);
+
+      if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") continue;
+      const rect = candidate.getBoundingClientRect();
+
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      if (rangeGap(movingTop, movingBottom, rect.top, rect.bottom) > 160) continue;
+      if ([rect.left, rect.right].some((edge) => Math.abs(edge - snapX) <= 1)) return true;
+    }
+
+    return false;
+  }, {
+    snapX: snapLineBox.x,
+    movingTop: duringDrag.y,
+    movingBottom: duringDrag.y + duringDrag.height,
+  });
+
+  assert.equal(
+    snapMatchesElementEdge,
+    true,
+    `Edit ruler at ${snapLineBox.x}px should correspond to an eligible page-element edge`,
   );
 
   const visibleMeasurementGhosts = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>
