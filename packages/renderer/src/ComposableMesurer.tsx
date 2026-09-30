@@ -37,7 +37,7 @@ export type MesurerSolidRuntimeService = {
   portalTarget: HTMLElement | ShadowRoot;
   pageTarget: HTMLElement | ShadowRoot;
   /** Exact canonical renderer root owned by this runtime/model. */
-  rendererRoot?: HTMLElement;
+  rendererRoot?: HTMLDivElement;
   /** Current canonical page-targeting tool when exposed by the renderer bridge. */
   currentToolMode?(): MesurerModel["state"]["toolMode"];
   /** Current top-level toolbar mode. Public Mesurer mounts expose Select or Edit. */
