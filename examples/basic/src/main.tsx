@@ -25,7 +25,7 @@ function App() {
           <div class="feature-copy">
             <p class="kicker">Selection target</p>
             <h2>Drag across several cards, or Shift-click individual elements.</h2>
-            <p>Select one or more elements, then use Arrange or <kbd>Shift+A</kbd> to drag them into the layout you want.</p>
+            <p>Select one or more elements, then switch to Edit or press <kbd>2</kbd> to drag them into the layout you want.</p>
           </div>
           <button class="primary-action" type="button">A real button target</button>
         </article>
