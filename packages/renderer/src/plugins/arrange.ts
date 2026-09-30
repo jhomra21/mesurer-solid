@@ -31,12 +31,12 @@ type PresentationSnapshot = {
 };
 
 /**
- * Keep Arrange intent separate from page presentation.
+ * Keep Edit movement intent separate from page presentation.
  *
  * The core owns drag geometry, reversible inline-transform ownership, history,
- * capture/review, and all Arrange UI. This wrapper owns only the user policy for
- * whether saved Desired transforms should remain visible after Arrange turns
- * off. The default is the untouched page; Keep Arrange changes opts into the
+ * capture/review, and all Edit movement UI. This wrapper owns only the user policy for
+ * whether saved Desired transforms should remain visible after Edit turns
+ * off. The default is the untouched page; Keep Edit changes opts into the
  * saved Desired presentation outside the tool.
  */
 const installArrangePresentationPolicy = (
@@ -279,10 +279,10 @@ export const arrangePlugin = (): MesurerPlugin => {
       await core.setup(ctx);
       const service = ctx.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
 
-      if (!service) throw new Error("Arrange presentation policy requires the Arrange service.");
+      if (!service) throw new Error("Edit movement presentation policy requires the movement service.");
       const runtime = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
 
-      if (!runtime) throw new Error("Arrange presentation policy requires the Solid renderer runtime.");
+      if (!runtime) throw new Error("Edit movement presentation policy requires the Solid renderer runtime.");
       installArrangePresentationPolicy(ctx, service, runtime.ownerWindow);
       installArrangeDocumentMeasurementGuard(ctx, runtime);
     },
