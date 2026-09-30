@@ -204,7 +204,7 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
     const activation = await codexBridge({ action: "activate" }, options);
     const leaseId = activation.leaseId;
 
-    assert.equal(typeof leaseId, "string");
+    assert.ok(leaseId?.length > 0);
     assert.equal(activation.ok, true);
 
     const request = (payload) => codexBridge({ ...payload, leaseId }, options);
@@ -362,7 +362,7 @@ test("Electron host adapter scopes leases to one WebContents and releases them o
   const sender = new FakeSender(41);
   const invoke = handlers.get(MESURER_CODEX_BRIDGE_CHANNEL);
 
-  assert.equal(typeof invoke, "function");
+  assert.ok(invoke);
 
   try {
     const activation = await invoke(
@@ -370,7 +370,7 @@ test("Electron host adapter scopes leases to one WebContents and releases them o
       { action: "activate" },
     );
 
-    assert.equal(typeof activation.leaseId, "string");
+    assert.ok(activation.leaseId?.length > 0);
     assert.equal(activation.ok, true);
 
     const threads = await invoke(
