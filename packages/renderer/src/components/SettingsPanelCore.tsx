@@ -418,13 +418,26 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                             </span>
                           </button>
                         </div>
-                        <Show when={plugin.description}>
-                          <p
-                            class="msr:m-0 msr:bg-white/60 msr:px-2 msr:pb-1.5 msr:pt-0.5 msr:text-[10px] msr:leading-4 msr:text-ink-500"
-                            data-mesurer-plugin-description={plugin.id}
-                          >
-                            {plugin.description}
-                          </p>
+                        <Show when={plugin.description || plugin.error}>
+                          <div class="msr:bg-white/60 msr:px-2 msr:pb-1.5 msr:pt-0.5">
+                            <Show when={plugin.description}>
+                              <p
+                                class="msr:m-0 msr:text-[10px] msr:leading-4 msr:text-ink-500"
+                                data-mesurer-plugin-description={plugin.id}
+                              >
+                                {plugin.description}
+                              </p>
+                            </Show>
+                            <Show when={plugin.error}>
+                              <p
+                                class="msr:m-0 msr:text-[10px] msr:leading-4 msr:text-ink-700"
+                                data-mesurer-plugin-error={plugin.id}
+                                role="status"
+                              >
+                                {plugin.error}
+                              </p>
+                            </Show>
+                          </div>
                         </Show>
                         <Show when={canExpand() && expanded()}>
                           <div class="msr:flex msr:flex-col msr:gap-0.5 msr:bg-white/60 msr:py-1" data-mesurer-plugin-settings-controls={plugin.id}>
