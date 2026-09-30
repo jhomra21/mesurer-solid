@@ -191,7 +191,7 @@ Codex transport adapters
       └─ codex://threads/<same id>
 ```
 
-Codex Bridge belongs to the Codex plugin at `packages/mesurer/src/plugins/codex/bridge.mjs` and is published as `mesurer-solid/plugins/codex/bridge`. There is no separate Mesurer Codex process, HTTP listener, port, marketplace package, lifecycle hook, or generated copy.
+Codex Bridge belongs to the Codex plugin at `packages/mesurer/src/plugins/codex/bridge.mjs` and is published as `mesurer-solid/plugins/codex/bridge`. There is no separate Mesurer Codex process, HTTP listener, port, marketplace package, Codex SessionStart/SessionEnd hook, or generated copy.
 
 The renderer receives only a narrow host capability. Electron main installs `installMesurerCodexHost()`; a bundled preload exposes `createMesurerCodexPreloadBridge()`. The main adapter validates the caller and binds each activation lease to the invoking renderer. The public Codex service does not distinguish CLI and Desktop callers.
 
