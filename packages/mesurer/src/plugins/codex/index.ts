@@ -1264,7 +1264,25 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       if (withUi) {
         syncTool();
-        await refreshRuntime(true);
+
+        try {
+          await refreshRuntime(true);
+        } catch (cause) {
+          try {
+            await deactivateBridge();
+          } catch (cleanupCause) {
+            const startupMessage = cause instanceof Error ? cause.message : String(cause);
+            const cleanupMessage = cleanupCause instanceof Error
+              ? cleanupCause.message
+              : String(cleanupCause);
+
+            throw new Error(
+              `Codex activation failed: ${startupMessage}. Native lease release also failed: ${cleanupMessage}.`,
+            );
+          }
+
+          throw cause;
+        }
 
         if (activeDelivery?.id) {
           everConnected = true;
