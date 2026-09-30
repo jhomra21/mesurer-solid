@@ -52,7 +52,7 @@ function PresentationSwitch(props: {
  * The mount lookup runs only when the panel DOM changes (tab open/switch), not
  * during pointer or scroll interaction. The preference accessors stay reactive
  * through the existing plugin-settings context, and each toggle updates only
- * its O(1) policy bit; Text/Arrange own any resulting page mutation work.
+ * its O(1) policy bit; Text/Edit own any resulting page mutation work.
  *
  * Plugin lifecycle can also change the toolbar width while Settings stays open.
  * The toolbar owns the initial menu placement, while this component observes

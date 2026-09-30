@@ -116,7 +116,7 @@ const pointer = (
 });
 
 describe("visual intent runtime extensions", () => {
-  it("deactivates Arrange and restores Live as soon as Select is turned off", async () => {
+  it("deactivates Edit and restores Live as soon as Select is turned off", async () => {
     const { host, model, pageTarget } = await setup();
     await host.load(arrangePlugin());
 

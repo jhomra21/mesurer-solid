@@ -143,7 +143,7 @@ Direct edit owns the visible selection UI for the field. One edit ring remains v
 
 Native editing stays native. Mesurer does not intercept form controls or descendants that inherit `contenteditable`. A nested `contenteditable="false"` boundary ends that inherited editable region, so an otherwise valid direct-text target inside it can use Mesurer editing.
 
-Mixed inline copy is targeted one direct text run at a time. Text before or after inline children such as `<kbd>Shift+A</kbd>` can be edited without flattening, recreating, or replacing those children, and Mesurer leaves the host element's native DOM APIs intact.
+Mixed inline copy is targeted one direct text run at a time. Text before or after inline children such as `<kbd>2</kbd>` can be edited without flattening, recreating, or replacing those children, and Mesurer leaves the host element's native DOM APIs intact.
 
 Undo and redo update the Desired preview while the DOM still contains the value Mesurer applied. If the application changes the value, Mesurer stops managing it and preserves the application change.
 

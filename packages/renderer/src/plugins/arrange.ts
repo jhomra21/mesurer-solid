@@ -31,12 +31,12 @@ type PresentationSnapshot = {
 };
 
 /**
- * Keep Arrange intent separate from page presentation.
+ * Keep Edit movement intent separate from page presentation.
  *
  * The core owns drag geometry, reversible inline-transform ownership, history,
- * capture/review, and all Arrange UI. This wrapper owns only the user policy for
- * whether saved Desired transforms should remain visible after Arrange turns
- * off. The default is the untouched page; Keep Arrange changes opts into the
+ * capture/review, and all Edit movement UI. This wrapper owns only the user policy for
+ * whether saved Desired transforms should remain visible after Edit turns
+ * off. The default is the untouched page; Keep Edit changes opts into the
  * saved Desired presentation outside the tool.
  */
 const installArrangePresentationPolicy = (
@@ -124,7 +124,7 @@ const TEXT_EDIT_RUNTIME = "[data-mesurer-text-edit-runtime='true']";
 const TEXT_EDITOR = "[data-mesurer-text-editor='true']";
 
 /**
- * Arrange core suppresses measurements inside the normal renderer portal. A
+ * Edit core suppresses measurements inside the normal renderer portal. A
  * selected page target can move its MeasurementBox root to <body>, outside that
  * portal, so this guard owns only that document-backed root. Direct text editing
  * temporarily takes visible selection-chrome ownership; while its editor exists,
@@ -150,7 +150,7 @@ const installArrangeDocumentMeasurementGuard = (
   // under <body>. Identify that ownership by its actual DOM mount instead of by
   // portalTarget containment: hosts are allowed to use <body> itself as the
   // renderer portal target, which would otherwise make the guard miss the
-  // selected root and leave Arrange plus selection chrome painted together.
+  // selected root and leave Edit plus selection chrome painted together.
   const isDocumentMeasurement = (element: HTMLElement) =>
     element.matches(DOCUMENT_SELECTED_MEASUREMENT)
     && element.getRootNode() === runtime.ownerDocument
@@ -279,10 +279,10 @@ export const arrangePlugin = (): MesurerPlugin => {
       await core.setup(ctx);
       const service = ctx.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
 
-      if (!service) throw new Error("Arrange presentation policy requires the Arrange service.");
+      if (!service) throw new Error("Edit movement presentation policy requires the movement service.");
       const runtime = ctx.service.get<MesurerSolidRuntimeService>("runtime:solid");
 
-      if (!runtime) throw new Error("Arrange presentation policy requires the Solid renderer runtime.");
+      if (!runtime) throw new Error("Edit movement presentation policy requires the Solid renderer runtime.");
       installArrangePresentationPolicy(ctx, service, runtime.ownerWindow);
       installArrangeDocumentMeasurementGuard(ctx, runtime);
     },

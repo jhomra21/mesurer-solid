@@ -135,9 +135,9 @@ describe("mixed inline direct text editing", () => {
     const { model, pageTarget } = await setup();
     const target = document.createElement("p");
     target.id = "mixed-inline-target";
-    const before = document.createTextNode("Select one or more elements, then use Arrange or ");
+    const before = document.createTextNode("Select one or more elements, then switch to Edit or press ");
     const key = document.createElement("kbd");
-    key.textContent = "Shift+A";
+    key.textContent = "2";
     const after = document.createTextNode(" to drag them into the layout you want.");
     target.append(before, key, after);
     pageTarget.append(target);
@@ -154,9 +154,9 @@ describe("mixed inline direct text editing", () => {
     const editor = document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
     expectNativeChildNodes(target, [before, key, after]);
     expect(editor).toBeTruthy();
-    expect(editor?.value).toBe("Select one or more elements, then use Arrange or");
+    expect(editor?.value).toBe("Select one or more elements, then switch to Edit or press");
     expect(target.querySelector("kbd")).toBe(key);
-    expect(key.textContent).toBe("Shift+A");
+    expect(key.textContent).toBe("2");
     expect(after.nodeValue).toBe(" to drag them into the layout you want.");
 
     await vi.waitFor(() => {
@@ -168,13 +168,13 @@ describe("mixed inline direct text editing", () => {
     editor!.dispatchEvent(new Event("input", { bubbles: true }));
     expect(before.nodeValue).toBe("Updated copy ");
     expect(target.querySelector("kbd")).toBe(key);
-    expect(key.textContent).toBe("Shift+A");
+    expect(key.textContent).toBe("2");
     expect(after.nodeValue).toBe(" to drag them into the layout you want.");
     expectNativeChildNodes(target, [before, key, after]);
 
     editor!.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
     expect(document.querySelector("[data-mesurer-text-editor='true']")).toBeNull();
-    expect(before.nodeValue).toBe("Select one or more elements, then use Arrange or ");
+    expect(before.nodeValue).toBe("Select one or more elements, then switch to Edit or press ");
     expectNativeChildNodes(target, [before, key, after]);
 
     installHitTest(target, pageTarget, after);
@@ -188,7 +188,7 @@ describe("mixed inline direct text editing", () => {
     expect(trailingEditor).toBeTruthy();
     expect(trailingEditor?.value).toBe("to drag them into the layout you want.");
     expect(target.querySelector("kbd")).toBe(key);
-    expect(before.nodeValue).toBe("Select one or more elements, then use Arrange or ");
+    expect(before.nodeValue).toBe("Select one or more elements, then switch to Edit or press ");
     expectNativeChildNodes(target, [before, key, after]);
   });
 
@@ -197,8 +197,8 @@ describe("mixed inline direct text editing", () => {
     const target = document.createElement("p");
     const before = document.createTextNode("Press ");
     const key = document.createElement("kbd");
-    key.textContent = "Shift+A";
-    const after = document.createTextNode(" to arrange.");
+    key.textContent = "2";
+    const after = document.createTextNode(" to edit.");
     target.append(before, key, after);
     pageTarget.append(target);
 
@@ -214,9 +214,9 @@ describe("mixed inline direct text editing", () => {
 
     const editor = document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
     expect(editor).toBeTruthy();
-    expect(editor?.value).toBe("to arrange.");
+    expect(editor?.value).toBe("to edit.");
     expect(target.querySelector("kbd")).toBe(key);
-    expect(key.textContent).toBe("Shift+A");
+    expect(key.textContent).toBe("2");
     expect(before.nodeValue).toBe("Press ");
     expectNativeChildNodes(target, [before, key, after]);
 

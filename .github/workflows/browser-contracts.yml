@@ -151,13 +151,13 @@ jobs:
           TOOLBAR_DRAG_URL: http://127.0.0.1:4174/
         run: bun tests/visual-parity/toolbar-drag-contract.mjs
 
-      - name: Exercise Arrange toolbar and drag
+      - name: Exercise Edit movement and drag
         env:
           ARRANGE_URL: http://127.0.0.1:4174/
           ARRANGE_OUT: arrange-artifacts
         run: bun tests/visual-parity/arrange-contract.mjs
 
-      - name: Exercise Arrange presentation preference
+      - name: Exercise Edit movement presentation preference
         env:
           ARRANGE_PRESENTATION_URL: http://127.0.0.1:4174/
         run: bun tests/visual-parity/arrange-presentation-policy-contract.mjs
@@ -263,18 +263,18 @@ jobs:
 
           print("## Mesurer rendered browser contracts")
           print("")
-          print("### Arrange")
+          print("### Edit movement")
           print("- Toolbar enablement after selection exercised in Chromium")
           print("- Nearby-element, X-ray-outline, and guide alignment snapping exercised in Chromium")
-          print("- Desired layout is tool-owned by default; General → Keep Arrange changes explicitly opts it into other tools")
-          print("- Saved Arrange intent survives Original/Desired presentation switching without another drag")
-          print("- Escape clears the current Arrange/Select selection first, then deactivates the remaining selection tools")
-          print("- Per-element Reset position and Arrange-menu Reset all positions restore original geometry")
+          print("- Desired layout is tool-owned by default; General → Keep Edit changes explicitly opts it into other tools")
+          print("- Saved Edit movement intent survives Original/Desired presentation switching without another drag")
+          print("- Escape clears the current Edit/Select selection first, then deactivates the remaining selection tools")
+          print("- Per-element Reset position and Edit-menu Reset all positions restore original geometry")
           print("- Multi-selection stays frame-locked through host transition-all styles and stops moving at pointer release")
 
           print("")
           print("### Presentation settings")
-          print("- General visibly exposes Keep text changes and Keep Arrange changes")
+          print("- General visibly exposes Keep text changes and Keep Edit changes")
           print("- Both switches default off, persist when enabled, and restore cleanly to defaults")
 
           print("")
@@ -292,7 +292,7 @@ jobs:
 
           print("")
           print("### Direct text editing / Typography")
-          print("- Double-click through an active Arrange overlay exercised in Chromium")
+          print("- Double-click through an active Edit movement overlay exercised in Chromium")
           print("- Full-text selection and target typography inheritance exercised in Chromium")
           print("- Rendered-page font, size, weight, and color suggestions exercised in Chromium")
           print("- Direct typography controls, semantic-only preset popup, and centered chevron exercised in Chromium")
@@ -365,7 +365,7 @@ jobs:
           print("")
           print("### Plugin settings")
           print("- Available-but-unloaded first-party plugins are discoverable and loadable from Settings")
-          print("- Context, Arrange, and Screenshot lifecycle toggles remove and restore real tools/services")
+          print("- Context, Edit, and Screenshot lifecycle toggles remove and restore real tools/services")
           print("- Plugin-local persistence is exercised independently of the General presentation switches")
           print("- Deterministic defaults reset remains exercised")
           PY
@@ -381,7 +381,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Upload Arrange evidence
+      - name: Upload Edit movement evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

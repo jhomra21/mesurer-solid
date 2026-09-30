@@ -1600,7 +1600,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           .map((element) => getRectFromDom(element))));
       }
 
-      if (!value) throw new Error(`Arrange intent has no resolvable capture region: ${intent.id}`);
+      if (!value) throw new Error(`Edit movement intent has no resolvable capture region: ${intent.id}`);
       const left = Math.max(0, value.left - CAPTURE_PADDING);
       const top = Math.max(0, value.top - CAPTURE_PADDING);
       const right = Math.min(ownerWindow.innerWidth, value.left + value.width + CAPTURE_PADDING);
@@ -1612,7 +1612,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     const review = (id: string, tolerance = DEFAULT_REVIEW_TOLERANCE): ArrangeReview => {
       const intent = findIntent(id);
 
-      if (!intent) throw new Error(`Arrange intent not found: ${id}`);
+      if (!intent) throw new Error(`Edit movement intent not found: ${id}`);
 
       const targets = withPreviewsSuspended(() => intent.targets.map((target): ArrangeReviewTarget => {
         const element = resolveTarget(target);
@@ -1672,7 +1672,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       show(id, stateValue) {
         const intent = findIntent(id);
 
-        if (!intent) throw new Error(`Arrange intent not found: ${id}`);
+        if (!intent) throw new Error(`Edit intent not found: ${id}`);
         presentation = { intentId: id, state: stateValue };
         refresh();
       },
@@ -1683,7 +1683,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       capturePlan(id, stateValue) {
         const intent = findIntent(id);
 
-        if (!intent) throw new Error(`Arrange intent not found: ${id}`);
+        if (!intent) throw new Error(`Edit intent not found: ${id}`);
 
         return {
           schema: "mesurer.arrange-capture/v1",

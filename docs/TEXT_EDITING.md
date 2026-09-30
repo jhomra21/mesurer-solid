@@ -28,7 +28,7 @@ Typography has separate rules for interaction and geometry. Mesurer owns interac
 
 ## What can be edited
 
-Mesurer edits one unambiguous non-empty **direct text run** at a time. A simple element with one direct text node is editable as before. For mixed inline copy such as `text <kbd>Shift+A</kbd> text`, Mesurer can target the direct text run under the pointer while preserving the inline child and the other text runs unchanged.
+Mesurer edits one unambiguous non-empty **direct text run** at a time. A simple element with one direct text node is editable as before. For mixed inline copy such as `text <kbd>2</kbd> text`, Mesurer can target the direct text run under the pointer while preserving the inline child and the other text runs unchanged.
 
 The exact mixed-inline target is handed to the editor through Mesurer-owned runtime state. Mesurer does not redefine the host element's `childNodes`; the browser's native `NodeList`, child identity, and surrounding inline structure remain intact before, during, and after the edit.
 
@@ -125,6 +125,6 @@ Before editing source, retain the relevant intent. After the application renders
 
 A correct implementation still matches after Mesurer's temporary preview is removed.
 
-If the same task also has movement intent, preserve both channels. Edit movement uses the existing Arrange agent contract, while direct text editing owns copy and typography intent.
+If the same task also has movement intent, preserve both channels. Edit movement keeps the existing `arrange*` agent method names for compatibility, while direct text editing owns copy and typography intent.
 
 See [Edit](./EDIT.md), [Context](./CONTEXT_WORKFLOW.md), and [Architecture](../ARCHITECTURE.md) for the surrounding runtime and agent contracts.

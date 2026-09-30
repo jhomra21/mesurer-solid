@@ -61,7 +61,7 @@ const hostState = (locator) => locator.evaluate((element) => {
 try {
   await page.goto(url, { waitUntil: "networkidle" });
 
-  // Use the same public interaction path a user does: activate Arrange, select
+  // Use the same public interaction path a user does: activate Edit, select
   // a real page element, then double-click the page element to enter Typography.
   const arrange = page.locator("button[data-mesurer-tool-id='arrange']");
   const host = page.locator(".primary-action");

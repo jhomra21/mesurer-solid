@@ -162,8 +162,8 @@ try {
   const x = targetBox.x + targetBox.width / 2;
   const y = targetBox.y + targetBox.height / 2;
 
-  // Keep the Arrange-first interaction path: direct editing must still reach
-  // the underlying page text while Arrange owns the selected element.
+  // Keep the Edit-first interaction path: direct editing must still reach
+  // the underlying page text while Edit movement owns the selected element.
   await arrangeButton.click();
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
@@ -183,7 +183,7 @@ try {
 
   await arrangeBox.waitFor({ state: "visible" });
 
-  // Keep the existing physical double-click-through-Arrange contract before
+  // Keep the existing physical double-click-through-Edit contract before
   // isolating the post-move text/geometry regression below.
   await page.mouse.dblclick(x, y);
   await editor.waitFor({ state: "attached" });
@@ -195,7 +195,7 @@ try {
 
   const arrangeStart = await arrangeBox.boundingBox();
 
-  assert(arrangeStart, "Arrange-compatible text editing should expose a movable Arrange box");
+  assert(arrangeStart, "Edit text editing should expose a movable movement box");
 
   const arrangeDelta = {
     x: x > 640 ? -36 : 36,
@@ -234,7 +234,7 @@ try {
   assert(
     Math.abs(movedTargetBox.x - targetBox.x) > 8
       || Math.abs(movedTargetBox.y - targetBox.y) > 8,
-    `Arrange should move the text target before editing: ${JSON.stringify({
+    `Edit should move the text target before editing: ${JSON.stringify({
       before: targetBox,
       after: movedTargetBox,
     })}`,
@@ -267,8 +267,8 @@ try {
     true,
     `Moved text target must remain hit-testable before editing: ${JSON.stringify(postMoveEditState)}`,
   );
-  assert.equal(postMoveEditState.selectPressed, "true", "Select should remain active after Arrange drag");
-  assert.equal(postMoveEditState.arrangePressed, "true", "Arrange should remain active after its drag");
+  assert.equal(postMoveEditState.selectPressed, "true", "Select should remain active after Edit drag");
+  assert.equal(postMoveEditState.arrangePressed, "true", "Edit should remain active after its drag");
 
   await target.evaluate((element, point) => {
     element.dispatchEvent(new MouseEvent("dblclick", {
@@ -284,7 +284,7 @@ try {
     await editor.waitFor({ state: "attached", timeout: 5_000 });
   } catch (error) {
     throw new Error(
-      `Post-Arrange direct edit did not open: ${JSON.stringify(postMoveEditState)}`,
+      `Post-Edit direct edit did not open: ${JSON.stringify(postMoveEditState)}`,
       { cause: error },
     );
   }

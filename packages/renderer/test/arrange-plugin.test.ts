@@ -84,7 +84,7 @@ const arrangeBox = async (host: ReturnType<typeof createMesurerPluginHost>) => {
   await host.command.execute("arrange.toggle");
   const box = document.querySelector<HTMLElement>("[data-mesurer-arrange-box='true']");
 
-  if (!box) throw new Error("Arrange box was not mounted.");
+  if (!box) throw new Error("Edit movement box was not mounted.");
 
   return box;
 };
@@ -140,7 +140,7 @@ describe("arrangePlugin", () => {
     host.dispose();
   });
 
-  it("activates Select when Arrange is activated and preserves the existing selection", async () => {
+  it("activates Select when Edit is activated and preserves the existing selection", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");
     target.id = "selected-before-arrange";
@@ -158,7 +158,7 @@ describe("arrangePlugin", () => {
     host.dispose();
   });
 
-  it("keeps Arrange quick-menu toggles synchronized with plugin settings", async () => {
+  it("keeps Edit quick-menu toggles synchronized with plugin settings", async () => {
     const { host } = await setup();
     const tool = host.tools().find((item) => item.id === "arrange");
     expect(tool?.menu?.items.filter((item) => item.checked).map((item) => item.label)).toEqual([
@@ -182,7 +182,7 @@ describe("arrangePlugin", () => {
     host.dispose();
   });
 
-  it("registers persisted Arrange preferences and can disable snapping", async () => {
+  it("registers persisted Edit preferences and can disable snapping", async () => {
     const { host, model, pageTarget } = await setup();
     const target = document.createElement("button");
     target.id = "free-move";
@@ -272,7 +272,7 @@ describe("arrangePlugin", () => {
     await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
     const intent = service?.intents()[0];
 
-    if (!intent) throw new Error("Arrange intent was not recorded.");
+    if (!intent) throw new Error("Edit movement intent was not recorded.");
 
     expect(intent.targets[0]).toMatchObject({
       selector: "[data-testid=\"checkout\"]",
@@ -432,7 +432,7 @@ describe("arrangePlugin", () => {
     await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
     const intent = service?.intents()[0];
 
-    if (!intent) throw new Error("Arrange intent was not recorded.");
+    if (!intent) throw new Error("Edit intent was not recorded.");
 
     target.remove();
     const replacement = document.createElement("button");
