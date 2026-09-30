@@ -737,6 +737,15 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       for (const candidate of overlayTarget.querySelectorAll("[data-mesurer-measurement='true']")) {
         if (!(candidate instanceof realm.HTMLElement)) continue;
+
+        const documentSelectedMeasurement = candidate.matches(
+          "[data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']",
+        )
+          && candidate.getRootNode() === ownerDocument
+          && candidate.parentElement === ownerDocument.body;
+
+        if (documentSelectedMeasurement) continue;
+
         hiddenMeasurements.set(candidate, {
           value: candidate.style.getPropertyValue("visibility"),
           priority: candidate.style.getPropertyPriority("visibility"),
