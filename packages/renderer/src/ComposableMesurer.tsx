@@ -335,6 +335,7 @@ export default function ComposableMesurer(props: MesurerProps) {
     suspendedSelectModeState = null;
 
     if (!snapshot) return;
+
     const controller = builtinController;
     const model = rendererModel;
 
@@ -344,6 +345,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       }
 
       if (snapshot.xrayVisible && !model.current.xrayVisible) await controller.run("xray");
+
       if (snapshot.rulersVisible && !model.current.rulersVisible) await controller.run("rulers");
     }
 
@@ -369,6 +371,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   const suspendSelectModeTools = async () => {
     const controller = builtinController;
     const model = rendererModel;
+
     const pluginToolIds = host.tools()
       .filter((tool) =>
         tool.modeSwitch !== true
@@ -389,7 +392,9 @@ export default function ComposableMesurer(props: MesurerProps) {
 
     if (controller && model) {
       if (model.current.xrayVisible) controller.deactivate("xray");
+
       if (model.current.rulersVisible) controller.deactivate("rulers");
+
       if (model.current.colorPickerActive) controller.deactivate("color-picker");
 
       if (model.current.toolMode === "text-inspector") controller.deactivate("text-inspector");
@@ -414,6 +419,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       const enteringEdit = tool.modeSwitch === true
         && tool.toolbarMode === "edit"
         && !(tool.active?.() ?? false);
+
       const leavingEdit = tool.modeSwitch === true
         && tool.toolbarMode === "edit"
         && (tool.active?.() ?? false);
