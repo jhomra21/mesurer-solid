@@ -35,8 +35,7 @@ export type MesurerPluginCatalogEntry = {
  * re-enablement are all derived from this one list. Adding a first-party plugin
  * requires one registration here and nowhere else.
  */
-const codexHostAvailable = () => typeof window !== "undefined"
-  && typeof window.__MESURER_HOST__?.codexBridge === "function";
+const codexHostAvailable = () => globalThis.window?.__MESURER_HOST__?.codexBridge !== undefined;
 
 export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] = [
   {
