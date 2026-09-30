@@ -4,12 +4,14 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.1-beta.1 - 2026-09-30
+
 - Keep Select and Edit tool state separate. Entering Edit now suspends active Select tools such as X-ray, Rulers, Typography, and Guides, while Edit keeps its internal Select targeting dependency; returning to Select restores the previous stable Select-mode state.
 - Make the Edit movement control a real active split button. Its main icon reflects and toggles Edit, while the separate chevron opens snapping and alignment options.
 - Report a missing Electron Codex host connection directly as `Codex host not connected`, and explain the preload requirement in Settings instead of leaving a generic disabled Codex action.
 - Finish the Select/Edit terminology pass across the basic example, renderer and host documentation, runtime diagnostics, and browser-test messages. Root declarations now expose `MesurerEditHarness` and the canonical `Edit*` aliases while retaining the existing Arrange compatibility identifiers and APIs.
-
-<!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.0 - 2026-09-30
 
