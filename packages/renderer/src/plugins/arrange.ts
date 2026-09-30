@@ -124,7 +124,7 @@ const TEXT_EDIT_RUNTIME = "[data-mesurer-text-edit-runtime='true']";
 const TEXT_EDITOR = "[data-mesurer-text-editor='true']";
 
 /**
- * Arrange core suppresses measurements inside the normal renderer portal. A
+ * Edit core suppresses measurements inside the normal renderer portal. A
  * selected page target can move its MeasurementBox root to <body>, outside that
  * portal, so this guard owns only that document-backed root. Direct text editing
  * temporarily takes visible selection-chrome ownership; while its editor exists,
@@ -150,7 +150,7 @@ const installArrangeDocumentMeasurementGuard = (
   // under <body>. Identify that ownership by its actual DOM mount instead of by
   // portalTarget containment: hosts are allowed to use <body> itself as the
   // renderer portal target, which would otherwise make the guard miss the
-  // selected root and leave Arrange plus selection chrome painted together.
+  // selected root and leave Edit plus selection chrome painted together.
   const isDocumentMeasurement = (element: HTMLElement) =>
     element.matches(DOCUMENT_SELECTED_MEASUREMENT)
     && element.getRootNode() === runtime.ownerDocument
