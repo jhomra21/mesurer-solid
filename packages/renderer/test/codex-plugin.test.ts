@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  MESURER_PLUGIN_BEFORE_DISABLE_HOOK,
   createMesurerPluginHost,
   defineMesurerPlugin,
 } from "@jhomra21/mesurer-solid-core";
@@ -126,6 +127,49 @@ const bridgeUrlForRequest = (request: HostCodexBridgeRequest) => {
 beforeEach(() => {
   window.__MESURER_HOST__ = {
     codexBridge: async (request) => {
+      if (request.action === "activate") {
+        return {
+          ok: true,
+          leaseId: "lease-test",
+          thread: "thread-1",
+          threads: ["thread-1"],
+          runtime: {
+            source: "shared",
+            transport: "shared-app-server",
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      if (request.action === "deactivate") {
+        if (request.leaseId !== "lease-test") {
+          throw new Error("Codex Bridge lease mismatch in test host.");
+        }
+
+        return {
+          ok: true,
+          leaseId: request.leaseId,
+          released: true,
+        };
+      }
+
+      if (request.action === "runtime") {
+        return {
+          ok: true,
+          runtime: {
+            source: "shared",
+            transport: "shared-app-server",
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      if (request.leaseId !== "lease-test") {
+        throw new Error("Codex Bridge request did not carry the active lease.");
+      }
+
       const mapped = bridgeUrlForRequest(request);
 
       try {
@@ -163,6 +207,57 @@ type BridgeMockHandler = (
 const bridgeFetchMock = (handler: BridgeMockHandler) => vi.fn(handler);
 
 describe("codex", () => {
+  it("fails activation atomically when the native host capability is missing", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+
+    delete window.__MESURER_HOST__;
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-missing-host",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+
+    await expect(host.load(codex({ ui: false }))).rejects.toThrow(
+      "Codex host connection is unavailable",
+    );
+    expect(host.has("mesurer.codex")).toBe(false);
+    expect(host.service.get(MESURER_CODEX_SERVICE_ID)).toBeUndefined();
+  });
+
+  it("holds one native lease until the managed plugin pre-disable barrier releases it", async () => {
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    const bridge = vi.fn(window.__MESURER_HOST__!.codexBridge!);
+
+    window.__MESURER_HOST__ = { codexBridge: bridge };
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-lifecycle",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex({ ui: false }));
+
+    expect(bridge.mock.calls[0]?.[0]).toMatchObject({ action: "activate" });
+    expect(host.has("mesurer.codex")).toBe(true);
+
+    await host.hook.emit(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, {
+      pluginId: "mesurer.codex",
+    });
+
+    expect(bridge.mock.calls.some(([request]) =>
+      request.action === "deactivate" && request.leaseId === "lease-test")).toBe(true);
+
+    host.remove("mesurer.codex");
+    expect(host.has("mesurer.codex")).toBe(false);
+  });
+
   it("sends saved Context evidence through the native Codex Bridge", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService, contextText } = createContextService();
