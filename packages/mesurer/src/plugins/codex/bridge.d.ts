@@ -72,15 +72,15 @@ export function codexBridge(
 export type MesurerCodexHostEvent = {
   sender: {
     id: number;
-    on?(event: "did-navigate" | "render-process-gone" | "destroyed", listener: () => void): unknown;
-    removeListener?(event: "did-navigate" | "render-process-gone" | "destroyed", listener: () => void): unknown;
+    on?(event: "did-navigate" | "render-process-gone" | "destroyed", listener: () => void): void;
+    removeListener?(event: "did-navigate" | "render-process-gone" | "destroyed", listener: () => void): void;
   };
-  senderFrame?: { parent?: unknown } | null;
+  senderFrame?: { parent?: object | null } | null;
 };
 
 export type MesurerCodexHostOptions = Omit<CodexBridgeOptions, "clientId"> & {
   ipcMain: {
-    handle(channel: string, listener: (event: MesurerCodexHostEvent, request: CodexBridgeRequest) => unknown): void;
+    handle(channel: string, listener: (event: MesurerCodexHostEvent, request: CodexBridgeRequest) => CodexBridgeResponse | Promise<CodexBridgeResponse>): void;
     removeHandler(channel: string): void;
   };
   channel?: string;
