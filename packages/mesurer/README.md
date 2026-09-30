@@ -85,7 +85,8 @@ Advanced integrations may supply their own `pluginHost`. That host remains calle
 | `mesurer-solid/inject` | Programmatic browser injection |
 | `mesurer-solid/inject-script` | Built classic injection artifact |
 | `mesurer-skill` | Install the portable coding-agent skill |
-| `mesurer-solid/plugins/codex/bridge` | Native-host Codex Bridge for the first-party Codex plugin |
+| `mesurer-solid/plugins/codex/bridge` | Native Codex transport and Electron main-process host adapter |
+| `mesurer-solid/plugins/codex/preload` | Bundle-friendly Electron preload adapter for the Codex host capability |
 
 Programmatic injection reuses an existing connected instance by default. Lifecycle-owning integrations can set `recoverDisconnected: true` in `MesurerInjectConfig` to remount Mesurer when page DOM replacement disconnects its host. The option defaults to `false`, so ordinary one-shot injection does not silently reappear after disposal.
 
