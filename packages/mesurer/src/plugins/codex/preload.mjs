@@ -8,9 +8,11 @@ export function createMesurerCodexPreloadBridge(
     throw new Error("createMesurerCodexPreloadBridge requires Electron ipcRenderer.");
   }
 
-  const channel = typeof options.channel === "string" && options.channel.trim()
+  const configuredChannel = options.channel?.constructor === String
     ? options.channel.trim()
-    : MESURER_CODEX_BRIDGE_CHANNEL;
+    : "";
+
+  const channel = configuredChannel || MESURER_CODEX_BRIDGE_CHANNEL;
 
   return (request) => ipcRenderer.invoke(channel, request);
 }
