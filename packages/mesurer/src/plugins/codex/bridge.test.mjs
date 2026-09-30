@@ -427,6 +427,16 @@ test("Electron host adapter scopes leases to one WebContents and releases them o
 
     assert.equal(secondThreads.threadDetails.length, 2);
 
+    secondSender.emit("destroyed");
+
+    await assert.rejects(
+      invoke(
+        { sender: secondSender, senderFrame: { parent: null } },
+        { action: "threads", leaseId: secondActivation.leaseId, limit: 5 },
+      ),
+      /lease is not active for this host client/,
+    );
+
     await assert.rejects(
       invoke(
         { sender, senderFrame: { parent: {} } },
