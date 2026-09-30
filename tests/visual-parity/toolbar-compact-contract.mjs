@@ -115,6 +115,23 @@ try {
   const expandedAgainBox = await toolbar.boundingBox();
   assert(expandedAgainBox && Math.abs(expandedAgainBox.width - expandedBox.width) <= 1, "Expanding must restore the original width");
 
+  // Edit's internal Select dependency must not leak into Select mode. If Select
+  // began off, leaving Edit restores it to off.
+  if ((await selectButton.getAttribute("aria-pressed")) === "true") await selectButton.click();
+  assert.equal(await selectButton.getAttribute("aria-pressed"), "false");
+
+  await editMode.click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "edit"
+  );
+  assert.equal(await selectButton.getAttribute("aria-pressed"), "true", "Edit should enable Select only as an internal targeting dependency");
+
+  await editTool.click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "select"
+  );
+  assert.equal(await selectButton.getAttribute("aria-pressed"), "false", "Leaving Edit must restore a previously inactive Select tool");
+
   // Edit replaces the Select-owned tool lane; it does not create a second toolbar
   // or change the always-visible Context/Codex lane.
   await selectButton.click();
