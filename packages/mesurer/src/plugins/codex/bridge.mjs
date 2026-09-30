@@ -1289,7 +1289,7 @@ const activateBridge = async (request, options) => {
 };
 
 const deactivateBridge = (request, options) => {
-  const lease = requireLease(request, options);
+  requireLease(request, options);
   const leaseId = normalizeString(request.leaseId);
 
   leases.delete(leaseId);
@@ -1376,10 +1376,10 @@ export function installMesurerCodexHost(options = {}) {
     dispose() {
       ipcMain.removeHandler(channel);
 
-      for (const clientId of [...clients.keys()]) releaseSender(clientId);
+      for (const clientId of clients.keys()) releaseSender(clientId);
     },
   };
-};
+}
 
 /**
  * Native Codex transport for Mesurer's Codex plugin.
