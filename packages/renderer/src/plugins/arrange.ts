@@ -158,6 +158,8 @@ const installArrangeDocumentMeasurementGuard = (
 
   const restoreMeasurements = () => {
     for (const [element, previous] of hiddenMeasurements) {
+      if (!element.isConnected) continue;
+
       if (previous.value || previous.priority) {
         element.style.setProperty("visibility", previous.value, previous.priority);
       } else {
