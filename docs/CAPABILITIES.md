@@ -10,7 +10,7 @@ This page lists the public Mesurer features and the APIs that expose them. Featu
 | X-ray | Show page structure without changing application source. |
 | Color Picker | Sample a rendered color from the current application window when a host capture capability exists; otherwise use the browser `EyeDropper` when operational. Copy the sample in the configured `colorPickerClickFormat`. |
 | Rulers | Show viewport rulers and ruler settings. |
-| Typography | Inspect rendered typography. Double-click a valid direct-text target to record reversible copy and style intent. |
+| Typography | Inspect rendered typography and computed type styles in Select mode. |
 | Guides | Add horizontal and vertical guides, including snapping behavior. |
 | Distance | Show spacing between rendered targets. Box-to-box lines use shared-overlap anchors, guide distances use the guide as line geometry, and container spacing uses the padding box. Multi-selection Context also reports pairwise distances. |
 | Settings | Control Mesurer preferences, plugin availability, shortcuts, appearance, and presentation options. |
