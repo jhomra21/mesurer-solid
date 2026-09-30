@@ -335,8 +335,33 @@ describe("codex", () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.stubGlobal("fetch", bridgeFetchMock(async () => {
-      throw new TypeError("fetch failed");
+    vi.stubGlobal("fetch", bridgeFetchMock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ ok: true, thread: "thread-1", threads: ["thread-1"] }),
+        };
+      }
+
+      if (url.includes("/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            thread: "thread-1",
+            threadDetails: [{ id: "thread-1", title: "Current task", updatedAt: 1, connected: true }],
+            hasMore: false,
+          }),
+        };
+      }
+
+      if (url.endsWith("/send")) throw new TypeError("fetch failed");
+
+      throw new Error(`Unexpected request: ${url}`);
     }));
 
     await host.load(defineMesurerPlugin({
@@ -937,10 +962,6 @@ describe("codex", () => {
       },
     }));
     await host.load(codex());
-
-    await host.tools()
-      .find((candidate) => candidate.id === "codex.send")
-      ?.menu?.items[0]?.run();
 
     const tool = host.tools().find((candidate) => candidate.id === "codex.send");
     expect(tool?.label).toBe("Choose Codex thread");
