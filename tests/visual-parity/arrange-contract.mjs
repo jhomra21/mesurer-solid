@@ -140,10 +140,34 @@ try {
     1,
     "Edit should keep one logical selection for the nested child",
   );
+
+  const editHover = page.locator("[data-mesurer-hover-measurement='true']");
+  await editHover.waitFor({ state: "visible" });
+  const editHoverBox = await editHover.boundingBox();
+
+  assert(editHoverBox, "Edit should show a hover preview for another selectable element");
+  assert(
+    Math.abs(editHoverBox.x - nested.parent.x) <= 1
+      && Math.abs(editHoverBox.y - nested.parent.y) <= 1
+      && Math.abs(editHoverBox.width - nested.parent.width) <= 1
+      && Math.abs(editHoverBox.height - nested.parent.height) <= 1,
+    `Edit hover should preview the unselected parent without changing selection: ${JSON.stringify({
+      expected: nested.parent,
+      actual: editHoverBox,
+    })}`,
+  );
+
+  await page.mouse.move(
+    nested.child.x + nested.child.width / 2,
+    nested.child.y + nested.child.height / 2,
+  );
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
   assert.equal(
     await page.locator("[data-mesurer-hover-measurement='true']").count(),
     0,
-    "Edit should not paint a second Select hover box while a target is selected",
+    "Edit should suppress redundant hover inside the already-selected subtree",
   );
 
   await page.keyboard.press("Escape");
