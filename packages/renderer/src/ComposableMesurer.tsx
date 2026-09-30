@@ -385,6 +385,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       .map((tool) => tool.id);
 
     const toolMode = model?.current.toolMode;
+
     const savedToolMode = toolMode === "none"
       || toolMode === "select"
       || toolMode === "text-inspector"
@@ -778,7 +779,7 @@ export default function ComposableMesurer(props: MesurerProps) {
     ) => {
       if (!runtimeHost.has(pluginId)) return false;
 
-      await runtimeHost.hook.emit(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, { pluginId });
+      await runtimeHost.hook.emit(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, pluginId);
 
       if (retainState) captureManagedPluginState(pluginId);
       else retainedPluginState.delete(pluginId);
