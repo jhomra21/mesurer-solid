@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Finish the Select/Edit terminology pass across the basic example, renderer and host documentation, runtime diagnostics, and browser-test messages while retaining the existing Arrange compatibility identifiers and APIs.
+- Finish the Select/Edit terminology pass across the basic example, renderer and host documentation, runtime diagnostics, and browser-test messages. Root declarations now expose `MesurerEditHarness` and the canonical `Edit*` aliases while retaining the existing Arrange compatibility identifiers and APIs.
 
 <!-- Add user-facing changes here before preparing a release. -->
 
