@@ -1554,6 +1554,9 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       void ctx.command.execute(BUILTIN_SELECT_COMMAND, undefined, { source: "arrange-escape" }).catch(() => undefined);
     };
 
+    const clearEditHover = () => workspace.clearHover();
+
+    box.addEventListener("pointerenter", clearEditHover);
     box.addEventListener("pointerdown", beginDrag);
     box.addEventListener("pointermove", updateDrag);
     box.addEventListener("pointerup", finishDrag);
@@ -1895,6 +1898,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (refreshFrame) ownerWindow.cancelAnimationFrame(refreshFrame);
       observer?.disconnect();
       observer = null;
+      box.removeEventListener("pointerenter", clearEditHover);
       box.removeEventListener("pointerdown", beginDrag);
       box.removeEventListener("pointermove", updateDrag);
       box.removeEventListener("pointerup", finishDrag);
