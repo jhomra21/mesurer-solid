@@ -322,7 +322,18 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     );
   });
 
+  const directTextEditActive = () => Boolean(
+    ownerDocument.querySelector("[data-mesurer-text-editor='true']")
+    || rootElement?.querySelector("[data-mesurer-text-editor='true']"),
+  );
+
   const updateHover = (point: Point) => {
+    if (input.editSelectionHover && directTextEditActive()) {
+      model.setHoverTarget(null, null);
+
+      return;
+    }
+
     if (input.editSelectionHover && model.current.selectedMeasurements.some((measurement) =>
       point.x >= measurement.rect.left
       && point.x <= measurement.rect.left + measurement.rect.width
