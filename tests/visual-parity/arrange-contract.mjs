@@ -1221,6 +1221,18 @@ try {
   await arrangeBox.waitFor({ state: "visible" });
 
   const verticalSnapLine = page.locator("[data-mesurer-arrange-snap-line='vertical']");
+
+  if (!(await arrangeBox.isVisible())) {
+    const currentTargetBox = await target.boundingBox();
+
+    assert(currentTargetBox, "Edit contract target must remain measurable after the mode switch");
+    await page.mouse.click(
+      currentTargetBox.x + currentTargetBox.width / 2,
+      currentTargetBox.y + currentTargetBox.height / 2,
+    );
+    await arrangeBox.waitFor({ state: "visible" });
+  }
+
   const dragBox = await arrangeBox.boundingBox();
   assert(dragBox, "Edit drag surface must follow the current selection");
 
