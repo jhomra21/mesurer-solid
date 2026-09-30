@@ -1298,7 +1298,6 @@ const deactivateBridge = (request, options) => {
     ok: true,
     leaseId,
     released: true,
-    runtime: lease.runtime ?? undefined,
   };
 };
 
