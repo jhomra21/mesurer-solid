@@ -709,18 +709,10 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       }
     };
 
-    const hideMeasurementOverlays = () => {
-      if (hiddenMeasurements.size > 0) return;
-
-      for (const candidate of overlayTarget.querySelectorAll("[data-mesurer-measurement='true']")) {
-        if (!(candidate instanceof realm.HTMLElement)) continue;
-        hiddenMeasurements.set(candidate, {
-          value: candidate.style.getPropertyValue("visibility"),
-          priority: candidate.style.getPropertyPriority("visibility"),
-        });
-        candidate.style.setProperty("visibility", "hidden", "important");
-      }
-    };
+    const directTextEditActive = () => Boolean(
+      ownerDocument.querySelector(TEXT_EDITOR_SELECTOR)
+      || overlayTarget.querySelector(TEXT_EDITOR_SELECTOR),
+    );
 
     const restoreMeasurementOverlays = () => {
       for (const [element, visibility] of hiddenMeasurements) {
@@ -732,6 +724,25 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       }
 
       hiddenMeasurements.clear();
+    };
+
+    const hideMeasurementOverlays = () => {
+      if (directTextEditActive()) {
+        restoreMeasurementOverlays();
+
+        return;
+      }
+
+      if (hiddenMeasurements.size > 0) return;
+
+      for (const candidate of overlayTarget.querySelectorAll("[data-mesurer-measurement='true']")) {
+        if (!(candidate instanceof realm.HTMLElement)) continue;
+        hiddenMeasurements.set(candidate, {
+          value: candidate.style.getPropertyValue("visibility"),
+          priority: candidate.style.getPropertyPriority("visibility"),
+        });
+        candidate.style.setProperty("visibility", "hidden", "important");
+      }
     };
 
     const composedParentElement = (element: HTMLElement): HTMLElement | null => {
@@ -1526,11 +1537,6 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (!drag || event.pointerId !== drag.pointerId) return;
       cancelDrag();
     };
-
-    const directTextEditActive = () => Boolean(
-      ownerDocument.querySelector(TEXT_EDITOR_SELECTOR)
-      || overlayTarget.querySelector(TEXT_EDITOR_SELECTOR),
-    );
 
     const resolveHoverTarget = (event: PointerEvent) => withPointerEventsDisabled(
       root,
