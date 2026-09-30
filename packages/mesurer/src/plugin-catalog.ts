@@ -35,6 +35,9 @@ export type MesurerPluginCatalogEntry = {
  * re-enablement are all derived from this one list. Adding a first-party plugin
  * requires one registration here and nowhere else.
  */
+const codexHostAvailable = () => typeof window !== "undefined"
+  && typeof window.__MESURER_HOST__?.codexBridge === "function";
+
 export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] = [
   {
     id: MESURER_CONTEXT_PLUGIN_ID,
@@ -99,7 +102,11 @@ export const createPluginRegistry = (
       hiddenSettingsControlIds: entry.hiddenSettingsControlIds
         ? [...entry.hiddenSettingsControlIds]
         : undefined,
-      enabled: hasExplicitSet ? Boolean(explicit) : entry.enabled !== false,
+      enabled: hasExplicitSet
+        ? Boolean(explicit)
+        : entry.id === MESURER_CODEX_PLUGIN_ID
+          ? codexHostAvailable()
+          : entry.enabled !== false,
       create: explicit ? () => explicit : entry.create,
     };
   });
