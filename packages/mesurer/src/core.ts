@@ -3,8 +3,6 @@ import {
   createMesurerRuntime as createInternalRuntime,
 } from "@jhomra21/mesurer-solid-core";
 
-export const MESURER_PLUGIN_BEFORE_DISABLE_HOOK = "mesurer.plugin.before-disable";
-
 export type Registration = { readonly dispose: () => void };
 
 export type PluginId = string;
