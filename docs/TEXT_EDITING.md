@@ -125,6 +125,6 @@ Before editing source, retain the relevant intent. After the application renders
 
 A correct implementation still matches after Mesurer's temporary preview is removed.
 
-If the same task also has movement intent, preserve both channels. Edit movement uses the existing Arrange agent contract, while direct text editing owns copy and typography intent.
+If the same task also has movement intent, preserve both channels. Edit movement keeps the existing `arrange*` agent method names for compatibility, while direct text editing owns copy and typography intent.
 
 See [Edit](./EDIT.md), [Context](./CONTEXT_WORKFLOW.md), and [Architecture](../ARCHITECTURE.md) for the surrounding runtime and agent contracts.
