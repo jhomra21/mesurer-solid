@@ -69,7 +69,7 @@ const requireLease = (request, options) => {
   return lease;
 };
 
-export const releaseCodexBridgeClient = (clientId) => {
+const releaseCodexBridgeClient = (clientId) => {
   const normalized = normalizeString(clientId);
 
   if (!normalized) return 0;
