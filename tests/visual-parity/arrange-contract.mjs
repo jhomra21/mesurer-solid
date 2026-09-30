@@ -109,6 +109,11 @@ try {
     nested.child.y + nested.child.height / 2,
   );
   await arrangeBox.waitFor({ state: "visible" });
+  assert.equal(
+    await arrangeBox.getAttribute("aria-label"),
+    "Edit selected elements",
+    "Edit movement box must use the public Edit name",
+  );
   const nestedArrangeBox = await arrangeBox.boundingBox();
   assert(nestedArrangeBox, "Arrange should render a box for the nested child");
   assert(
