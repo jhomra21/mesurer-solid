@@ -1254,7 +1254,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       const button = overlayTarget.querySelector<HTMLButtonElement>("[data-mesurer-builtin='select'] button");
 
       if (button?.getAttribute("aria-pressed") === "true") return;
+      const selected = workspace.currentSelection().elements;
+
       await ctx.command.execute(BUILTIN_SELECT_COMMAND, undefined, { source: "arrange" });
+
+      for (const element of selected) workspace.toggleSelection(element);
     };
 
     const beginDrag = (event: PointerEvent) => {
