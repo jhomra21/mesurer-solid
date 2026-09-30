@@ -157,8 +157,8 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | Option-distance pinning (`Option+S`) | Intentionally not adopted; Mesurer Solid retains its existing held-distance workflow |
 | DOM-attached threaded comments | Intentionally not adopted; Mesurer Solid uses Context annotations instead |
 | Iframe selection/comment targeting | Intentionally not adopted |
-| Inspect/Annotate group switching | **Presentation adopted with different semantics** | Mesurer Solid uses the upstream grouped switch structure, icons, and width-changing motion for Select/Edit, but does not adopt upstream threaded Annotate behavior. |
-| Select/Edit mode semantics | **Mesurer Solid extension** | Select owns inspection. Edit owns movement and direct text/style changes. Context and Codex remain visible in both modes. Existing Arrange ids and agent contracts stay as compatibility surfaces. |
+| Inspect/Annotate group switching | **Presentation adopted with different semantics.** Mesurer Solid uses the upstream grouped switch structure, icons, and width-changing motion for Select/Edit, but does not adopt upstream threaded Annotate behavior. |
+| Select/Edit mode semantics | **Mesurer Solid extension.** Select owns inspection. Edit owns movement and direct text/style changes. Context and Codex remain visible in both modes. Existing Arrange ids and agent contracts stay as compatibility surfaces. |
 | Arrow, pen, and freeform drawing annotations | Intentionally not adopted |
 | Site, analytics, footer, and repository-only changes | Not library parity |
 
