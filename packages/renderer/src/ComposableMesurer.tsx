@@ -320,16 +320,70 @@ export default function ComposableMesurer(props: MesurerProps) {
     (tool) => tool.modeSwitch === true && tool.toolbarMode === "edit",
   );
 
+  type SuspendedSelectModeState = {
+    toolMode: "text-inspector" | "guides" | null;
+    xrayVisible: boolean;
+    rulersVisible: boolean;
+    pluginToolIds: string[];
+  };
+
+  let suspendedSelectModeState: SuspendedSelectModeState | null = null;
+
+  const restoreSelectModeTools = async () => {
+    const snapshot = suspendedSelectModeState;
+
+    suspendedSelectModeState = null;
+
+    if (!snapshot) return;
+    const controller = builtinController;
+    const model = rendererModel;
+
+    if (controller && model) {
+      if (snapshot.toolMode && model.current.toolMode !== snapshot.toolMode) {
+        await controller.run(snapshot.toolMode);
+      }
+
+      if (snapshot.xrayVisible && !model.current.xrayVisible) await controller.run("xray");
+      if (snapshot.rulersVisible && !model.current.rulersVisible) await controller.run("rulers");
+    }
+
+    for (const id of snapshot.pluginToolIds) {
+      const tool = host.tools().find((candidate) => candidate.id === id);
+
+      if (!tool || tool.toolbarMode !== "select" || (tool.active?.() ?? false)) continue;
+      await host.command.execute(tool.command, undefined, {
+        source: "select-mode-restore",
+        toolId: tool.id,
+      });
+    }
+  };
+
   const leaveEditMode = async (source: string) => {
     const edit = editModeTool();
 
     if (!edit?.active?.()) return;
     await host.command.execute(edit.command, undefined, { source, toolId: edit.id });
+    await restoreSelectModeTools();
   };
 
   const suspendSelectModeTools = async () => {
     const controller = builtinController;
     const model = rendererModel;
+    const pluginToolIds = host.tools()
+      .filter((tool) =>
+        tool.modeSwitch !== true
+        && tool.toolbarMode === "select"
+        && (tool.active?.() ?? false))
+      .map((tool) => tool.id);
+
+    suspendedSelectModeState = {
+      toolMode: model?.current.toolMode === "text-inspector" || model?.current.toolMode === "guides"
+        ? model.current.toolMode
+        : null,
+      xrayVisible: model?.current.xrayVisible ?? false,
+      rulersVisible: model?.current.rulersVisible ?? false,
+      pluginToolIds,
+    };
 
     if (controller && model) {
       if (model.current.xrayVisible) controller.deactivate("xray");
@@ -340,9 +394,10 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (model.current.toolMode === "guides") controller.deactivate("guides");
     }
 
-    for (const selectTool of host.tools()) {
-      if (selectTool.modeSwitch === true || selectTool.toolbarMode !== "select") continue;
-      if (!(selectTool.active?.() ?? false)) continue;
+    for (const id of pluginToolIds) {
+      const selectTool = host.tools().find((tool) => tool.id === id);
+
+      if (!selectTool || !(selectTool.active?.() ?? false)) continue;
       await host.command.execute(selectTool.command, undefined, {
         source: "edit-mode-suspend",
         toolId: selectTool.id,
@@ -357,6 +412,9 @@ export default function ComposableMesurer(props: MesurerProps) {
       const enteringEdit = tool.modeSwitch === true
         && tool.toolbarMode === "edit"
         && !(tool.active?.() ?? false);
+      const leavingEdit = tool.modeSwitch === true
+        && tool.toolbarMode === "edit"
+        && (tool.active?.() ?? false);
 
       if (enteringEdit) await suspendSelectModeTools();
 
@@ -365,6 +423,8 @@ export default function ComposableMesurer(props: MesurerProps) {
       }
 
       await host.command.execute(tool.command, undefined, { source, toolId: tool.id });
+
+      if (leavingEdit && !arrangeActive()) await restoreSelectModeTools();
     } catch (error) {
       props.onPluginError?.(error, tool.id);
       throw error;
