@@ -175,6 +175,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   const initialExclusions = new Set(untrack(() => props.excludePlugins ?? []));
   const initialBuiltinPlugins = untrack(() => composeMesurerPlugins([], props.excludePlugins ?? []).map(versionPlugin));
   const pluginRegistry = new Map<string, MesurerPluginRegistration>();
+  const managedPluginErrors = new Map<string, string>();
 
   for (const [index, input] of untrack(() => [...(props.plugins ?? [])]).entries()) {
     if (isPluginRegistration(input)) {
@@ -279,6 +280,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           id: entry.id,
           label: entry.label ?? pluginLabelFromId(entry.id),
           description: entry.description,
+          error: managedPluginErrors.get(entry.id),
           enabled: host.has(entry.id),
           busy: busyPluginIds.has(entry.id),
           sections: ownedSections,
@@ -686,8 +688,13 @@ export default function ComposableMesurer(props: MesurerProps) {
 
       try {
         await runtimeHost.load(plugin);
+        managedPluginErrors.delete(errorId);
       } catch (error) {
-        if (active) input.onPluginError?.(error, errorId);
+        if (active) {
+          managedPluginErrors.set(errorId, error instanceof Error ? error.message : String(error));
+          setRevision((value) => value + 1);
+          input.onPluginError?.(error, errorId);
+        }
 
         return false;
       } finally {
@@ -796,6 +803,7 @@ export default function ComposableMesurer(props: MesurerProps) {
 
       if (!entry || busyPluginIds.has(pluginId) || runtimeHost.has(pluginId) === enabled) return;
       busyPluginIds.add(pluginId);
+      managedPluginErrors.delete(pluginId);
       setRevision((value) => value + 1);
 
       try {
@@ -822,7 +830,11 @@ export default function ComposableMesurer(props: MesurerProps) {
     setManagedPluginEnabled = (pluginId, enabled) => {
       void enqueueLifecycle(async () => {
         await changeManagedPlugin(pluginId, enabled);
-      }).catch((error) => input.onPluginError?.(error, pluginId));
+      }).catch((error) => {
+        managedPluginErrors.set(pluginId, error instanceof Error ? error.message : String(error));
+        setRevision((value) => value + 1);
+        input.onPluginError?.(error, pluginId);
+      });
     };
 
     resetManagedPlugins = () => enqueueLifecycle(async () => {
