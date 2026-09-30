@@ -488,7 +488,9 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       let bridgeAvailability: BridgeAvailability = window.__MESURER_HOST__?.codexBridge
         ? "unknown"
         : "unavailable";
+
       let codexRuntime: MesurerCodexRuntime | null = null;
+
       let everConnected = false;
       let originThread: string | null = persistedUiState?.originThread ?? null;
 
@@ -703,6 +705,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         if (bridgeAvailability !== "available") {
           const desktopPrivate = codexRuntime?.source === "desktop"
             && codexRuntime.reason === "desktop-private-transport";
+
           const hostBridgeMissing = !window.__MESURER_HOST__?.codexBridge;
           const items: ToolMenuItemContribution[] = [];
 
@@ -787,6 +790,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           && codexRuntime.reason === "desktop-private-transport";
 
         const hostBridgeMissing = !window.__MESURER_HOST__?.codexBridge;
+
         const label = deliveryToolLabel()
           ?? (bridgeAvailability === "unavailable"
             ? hostBridgeMissing
