@@ -57,6 +57,7 @@ export type MesurerWorkspaceRuntime = {
   toggleSelection(element: Element): void;
   selectGestureActive(): boolean;
   select(selectors: string[]): Element[];
+  clearHover(): void;
   hoveredElement(): Element | null;
   annotations(): MesurerAnnotation[];
   annotation(id: string): MesurerResolvedAnnotation | null;
@@ -638,6 +639,9 @@ export function createMesurerWorkspaceRuntime(options: {
       return model.current.toolMode === "select" && model.current.start !== null;
     },
     select,
+    clearHover() {
+      model.setHoverTarget(null, null);
+    },
     hoveredElement() {
       return model.current.hoverElement?.isConnected && isInPageTarget(model.current.hoverElement)
         ? model.current.hoverElement
