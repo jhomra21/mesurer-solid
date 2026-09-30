@@ -485,6 +485,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       if (!contextService) throw new Error("Mesurer Codex plugin requires context() from mesurer-solid/plugins.");
 
       const persistedUiState = withUi ? readBrowserState() : null;
+
       let bridgeAvailability: BridgeAvailability = window.__MESURER_HOST__?.codexBridge
         ? "unknown"
         : "unavailable";
