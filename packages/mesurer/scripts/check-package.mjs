@@ -426,7 +426,6 @@ const codexPreloadCjsSource = readFileSync(codexPreloadCjs, "utf8");
 for (const contract of [
   "export async function codexBridge",
   "export function installMesurerCodexHost",
-  "releaseCodexBridgeClient",
   "\"activate\"",
   "\"deactivate\"",
   "thread/loaded/list",
