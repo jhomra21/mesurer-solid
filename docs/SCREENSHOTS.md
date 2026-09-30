@@ -42,7 +42,7 @@ Cropping uses the captured bitmap dimensions rather than assuming `devicePixelRa
 
 Mesurer control chrome is excluded from the camera subject. That includes the selection overlay, toolbar, direct text editor and formatting controls, semantic preset popup, contextual Typography card, screenshot preview/viewer, and status UI.
 
-A committed Desired preview can still be visible because it changes page presentation rather than Mesurer controls. To prove source-rendered output, switch relevant Arrange or text intent to Live before capturing.
+A committed Desired preview can still be visible because it changes page presentation rather than Mesurer controls. To prove source-rendered output, switch relevant Edit movement or text intent to Live before capturing.
 
 ## Outputs and preview
 
@@ -78,7 +78,7 @@ window.__MESURER_CONFIG__ = { screenshot: true }
 
 Set it before first injection. The browser extension enables the plugin automatically.
 
-Do not reinject over a live human instance merely to change Screenshot availability. Existing selection, guides, measurements, annotations, Arrange/text intent, plugin state, and screenshot review state should be preserved.
+Do not reinject over a live human instance merely to change Screenshot availability. Existing selection, guides, measurements, annotations, Edit movement/text intent, plugin state, and screenshot review state should be preserved.
 
 ## Typed service
 
