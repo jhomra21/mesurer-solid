@@ -373,6 +373,8 @@ export default function ComposableMesurer(props: MesurerProps) {
       .filter((tool) =>
         tool.modeSwitch !== true
         && tool.toolbarMode === "select"
+        && !(tool.builtin && isBuiltinPluginId(tool.builtin))
+        && !isBuiltinPluginId(tool.id)
         && (tool.active?.() ?? false))
       .map((tool) => tool.id);
 
