@@ -118,15 +118,15 @@ describe("direct text-edit selection chrome ownership", () => {
       }
     });
 
-    // Hovering a different element must still work while direct editing stays
-    // active. Select remains enabled, so only edit-owned/current-selection hover
-    // is redundant.
+    // Direct text editing owns pointer context. Hovering another page element
+    // must not paint Select/Edit hover chrome until the editor closes.
     model.setHoverTarget(parent, parentMeasurement.rect);
     await vi.waitFor(() => {
-      expect(documentHover.style.opacity).toBe("0.7");
-      expect(isolatedHover.style.opacity).toBe("0.75");
-      expect(documentHover.dataset.mesurerDirectEditHoverSuppressed).toBeUndefined();
-      expect(isolatedHover.dataset.mesurerDirectEditHoverSuppressed).toBeUndefined();
+      for (const root of [documentHover, isolatedHover]) {
+        expect(root.style.opacity).toBe("0");
+        expect(root.style.getPropertyPriority("opacity")).toBe("important");
+        expect(root.dataset.mesurerDirectEditHoverSuppressed).toBe("true");
+      }
     });
 
     // Reproduce the manual sequence: overwrite selection with the parent while
