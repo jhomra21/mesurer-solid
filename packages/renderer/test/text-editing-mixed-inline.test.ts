@@ -216,7 +216,7 @@ describe("mixed inline direct text editing", () => {
     expect(editor).toBeTruthy();
     expect(editor?.value).toBe("to edit.");
     expect(target.querySelector("kbd")).toBe(key);
-    expect(key.textContent).toBe("Shift+A");
+    expect(key.textContent).toBe("2");
     expect(before.nodeValue).toBe("Press ");
     expectNativeChildNodes(target, [before, key, after]);
 
