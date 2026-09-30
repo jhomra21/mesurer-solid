@@ -11,12 +11,12 @@ import {
   type MesurerTextEditService,
 } from "./agent";
 import {
-  MESURER_ARRANGE_SERVICE_ID,
-  type ArrangeCapturePlan,
-  type ArrangeIntent,
-  type ArrangePresentation,
-  type ArrangeReview,
-  type MesurerArrangeService,
+  MESURER_EDIT_SERVICE_ID,
+  type EditCapturePlan,
+  type EditIntent,
+  type EditPresentation,
+  type EditReview,
+  type MesurerEditService,
 } from "./arrange";
 import type {
   MesurerAnnotation,
@@ -214,15 +214,18 @@ export type MesurerContextHarness = {
   finishCapture(): Promise<void>;
 };
 
-export type MesurerArrangeHarness = {
-  arrangements(): Promise<ArrangeIntent[]>;
-  arrange(id: string): Promise<ArrangeIntent>;
-  showArrange(id: string, state: ArrangePresentation): Promise<void>;
-  arrangeCapturePlan(id: string, state: ArrangePresentation): Promise<ArrangeCapturePlan>;
-  reviewArrange(id: string, tolerance?: number): Promise<ArrangeReview>;
+export type MesurerEditHarness = {
+  arrangements(): Promise<EditIntent[]>;
+  arrange(id: string): Promise<EditIntent>;
+  showArrange(id: string, state: EditPresentation): Promise<void>;
+  arrangeCapturePlan(id: string, state: EditPresentation): Promise<EditCapturePlan>;
+  reviewArrange(id: string, tolerance?: number): Promise<EditReview>;
 };
 
-export type MesurerBrowserAgent = MesurerAgentHarness & MesurerContextHarness & MesurerArrangeHarness;
+/** @deprecated Use `MesurerEditHarness`. The method names remain for compatibility. */
+export type MesurerArrangeHarness = MesurerEditHarness;
+
+export type MesurerBrowserAgent = MesurerAgentHarness & MesurerContextHarness & MesurerEditHarness;
 
 export type MountedMesurer = {
   readonly element: HTMLDivElement;
@@ -243,11 +246,11 @@ export type MountedMesurer = {
   capturePlan(request?: MesurerContextRequest): Promise<MesurerCapturePlanV1>;
   prepareCapture(): Promise<void>;
   finishCapture(): Promise<void>;
-  arrangements(): Promise<ArrangeIntent[]>;
-  arrange(id: string): Promise<ArrangeIntent>;
-  showArrange(id: string, state: ArrangePresentation): Promise<void>;
-  arrangeCapturePlan(id: string, state: ArrangePresentation): Promise<ArrangeCapturePlan>;
-  reviewArrange(id: string, tolerance?: number): Promise<ArrangeReview>;
+  arrangements(): Promise<EditIntent[]>;
+  arrange(id: string): Promise<EditIntent>;
+  showArrange(id: string, state: EditPresentation): Promise<void>;
+  arrangeCapturePlan(id: string, state: EditPresentation): Promise<EditCapturePlan>;
+  reviewArrange(id: string, tolerance?: number): Promise<EditReview>;
   textEdits(): Promise<MesurerTextEditIntent[]>;
   textEdit(id: string): Promise<MesurerTextEditIntent>;
   bringToFront(): void;
@@ -366,12 +369,12 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
     return service;
   };
 
-  const getArrangeService = async () => {
+  const getEditService = async () => {
     await baseAgent.ready();
-    const service = pluginHost?.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID);
+    const service = pluginHost?.service.get<MesurerEditService>(MESURER_EDIT_SERVICE_ID);
 
     if (!service) {
-      throw new Error("Mesurer Arrange is disabled. Enable it in Settings or include arrange() in plugins.");
+      throw new Error("Mesurer Edit is disabled. Enable it in Settings or include edit() in plugins.");
     }
 
     return service;
@@ -386,25 +389,25 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
   const capturePlan = async (request?: MesurerContextRequest) => (await getContextService()).capturePlan(request);
   const prepareCapture = async () => (await getContextService()).prepareCapture();
   const finishCapture = async () => (await getContextService()).finishCapture();
-  const arrangements = async () => (await getArrangeService()).intents();
+  const arrangements = async () => (await getEditService()).intents();
 
   const arrange = async (id: string) => {
-    const intent = (await getArrangeService()).intent(id);
+    const intent = (await getEditService()).intent(id);
 
-    if (!intent) throw new Error(`Arrange intent not found: ${id}`);
+    if (!intent) throw new Error(`Edit movement intent not found: ${id}`);
 
     return intent;
   };
 
-  const showArrange = async (id: string, state: ArrangePresentation) => {
-    (await getArrangeService()).show(id, state);
+  const showArrange = async (id: string, state: EditPresentation) => {
+    (await getEditService()).show(id, state);
   };
 
-  const arrangeCapturePlan = async (id: string, state: ArrangePresentation) =>
-    (await getArrangeService()).capturePlan(id, state);
+  const arrangeCapturePlan = async (id: string, state: EditPresentation) =>
+    (await getEditService()).capturePlan(id, state);
 
   const reviewArrange = async (id: string, tolerance?: number) =>
-    (await getArrangeService()).review(id, tolerance);
+    (await getEditService()).review(id, tolerance);
 
   // Keep the base harness implementations intact. Object.assign mutates
   // baseAgent, so replacing these methods with wrappers that call
@@ -414,7 +417,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
 
   const capabilities = (): MesurerAgentCapabilities => {
     const contextAvailable = Boolean(pluginHost?.service.get<MesurerContextService>(MESURER_CONTEXT_SERVICE_ID));
-    const arrangeAvailable = Boolean(pluginHost?.service.get<MesurerArrangeService>(MESURER_ARRANGE_SERVICE_ID));
+    const editAvailable = Boolean(pluginHost?.service.get<MesurerEditService>(MESURER_EDIT_SERVICE_ID));
     const textEditAvailable = Boolean(pluginHost?.service.get<MesurerTextEditService>(MESURER_TEXT_EDIT_SERVICE_ID));
 
     return {
@@ -426,7 +429,7 @@ export function mountMesurer(options: MountMesurerOptions = {}): MountedMesurer 
         annotations: contextAvailable,
         review: contextAvailable,
         capturePlan: contextAvailable,
-        arrange: arrangeAvailable,
+        arrange: editAvailable,
         textEdit: textEditAvailable,
       },
     };
@@ -629,6 +632,15 @@ export type {
   ArrangeReviewTarget,
   ArrangeTarget,
   MesurerArrangeService,
+  EditCapturePlan,
+  EditIntent,
+  EditOffset,
+  EditPresentation,
+  EditRect,
+  EditReview,
+  EditReviewTarget,
+  EditTarget,
+  MesurerEditService,
 } from "./arrange";
 
 export {
