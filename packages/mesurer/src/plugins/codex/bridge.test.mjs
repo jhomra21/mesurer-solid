@@ -344,11 +344,16 @@ test("Electron host adapter scopes leases to one WebContents and releases them o
     },
   };
 
+  assert.throws(
+    () => installMesurerCodexHost({ ipcMain, codexHome: root }),
+    /requires validateSender/,
+  );
+
   const host = installMesurerCodexHost({
     ipcMain,
     codexHome: root,
     validateSender(event) {
-      return event.sender.id === 41;
+      return event.sender.id === 41 || event.sender.id === 42;
     },
   });
 
@@ -360,6 +365,7 @@ test("Electron host adapter scopes leases to one WebContents and releases them o
   }
 
   const sender = new FakeSender(41);
+  const secondSender = new FakeSender(42);
   const invoke = handlers.get(MESURER_CODEX_BRIDGE_CHANNEL);
 
   assert.ok(invoke);
@@ -380,10 +386,26 @@ test("Electron host adapter scopes leases to one WebContents and releases them o
 
     assert.equal(threads.threadDetails.length, 2);
 
+    const secondActivation = await invoke(
+      { sender: secondSender, senderFrame: { parent: null } },
+      { action: "activate" },
+    );
+
+    assert.ok(secondActivation.leaseId?.length > 0);
+    assert.notEqual(secondActivation.leaseId, activation.leaseId);
+
     await assert.rejects(
       invoke(
-        { sender: new FakeSender(42), senderFrame: { parent: null } },
+        { sender: secondSender, senderFrame: { parent: null } },
         { action: "threads", leaseId: activation.leaseId, limit: 5 },
+      ),
+      /lease is not active for this host client/,
+    );
+
+    await assert.rejects(
+      invoke(
+        { sender: new FakeSender(99), senderFrame: { parent: null } },
+        { action: "runtime" },
       ),
       /rejected the invoking renderer/,
     );
@@ -397,6 +419,13 @@ test("Electron host adapter scopes leases to one WebContents and releases them o
       ),
       /lease is not active for this host client/,
     );
+
+    const secondThreads = await invoke(
+      { sender: secondSender, senderFrame: { parent: null } },
+      { action: "threads", leaseId: secondActivation.leaseId, limit: 5 },
+    );
+
+    assert.equal(secondThreads.threadDetails.length, 2);
 
     await assert.rejects(
       invoke(
