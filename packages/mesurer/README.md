@@ -104,7 +104,7 @@ Programmatic injection reuses an existing connected instance by default. Lifecyc
 - Compact the toolbar to active controls without changing tool state or order.
 - Choose System, Light, or Dark appearance while keeping the same theme across isolated and document-backed Mesurer UI.
 
-Use `1` for Select and `2` for Edit. Select contains inspection tools. Edit owns movement and direct text/style changes. Context and Codex remain visible in both modes. The grouped toolbar changes modes in 150 ms. `Shift+A` still enters Edit for compatibility with existing Arrange workflows.
+Use `1` for Select and `2` for Edit. Select contains inspection tools. Edit owns movement and direct text/style changes. Context and Codex remain visible in both modes. The grouped toolbar changes modes in 150 ms. `Shift+A` still enters Edit as a compatibility shortcut.
 
 Toolbar dragging starts after the pointer crosses the drag threshold. Dragging from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders does not drag the toolbar.
 
