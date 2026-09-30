@@ -29,6 +29,8 @@ const MAX_DELIVERIES = 100;
 
 const deliveries = new Map();
 
+const leases = new Map();
+
 let deliveryStateLoadPromise = null;
 
 let loadedDeliveryStatePath = null;
@@ -50,6 +52,37 @@ const normalizeTitle = (value) => {
 };
 
 const normalizeTimestamp = (value) => Number.isFinite(value) ? Number(value) : null;
+
+const bridgeClientId = (options) => normalizeString(options.clientId) ?? "direct";
+
+const requireLease = (request, options) => {
+  const leaseId = normalizeString(request.leaseId);
+
+  if (!leaseId) throw new Error("Codex Bridge request requires an active lease.");
+
+  const lease = leases.get(leaseId);
+
+  if (!lease || lease.clientId !== bridgeClientId(options)) {
+    throw new Error("Codex Bridge lease is not active for this host client.");
+  }
+
+  return lease;
+};
+
+export const releaseCodexBridgeClient = (clientId) => {
+  const normalized = normalizeString(clientId);
+
+  if (!normalized) return 0;
+  let released = 0;
+
+  for (const [leaseId, lease] of leases) {
+    if (lease.clientId !== normalized) continue;
+    leases.delete(leaseId);
+    released += 1;
+  }
+
+  return released;
+};
 
 const shortThread = (thread) => thread.length > 16
   ? `${thread.slice(0, 8)}…${thread.slice(-4)}`
@@ -1233,6 +1266,122 @@ const restoreDelivery = async (request, options, desktop = null) => {
   };
 };
 
+const activateBridge = async (request, options) => {
+  const desktop = await desktopTransport(options);
+
+  await ensureDeliveriesLoaded(options);
+
+  const ready = desktop
+    ? desktopHealth(desktop)
+    : await health(normalizeString(request.thread), options);
+
+  const leaseId = randomUUID();
+
+  leases.set(leaseId, {
+    clientId: bridgeClientId(options),
+    createdAt: Date.now(),
+  });
+
+  return {
+    ...ready,
+    leaseId,
+  };
+};
+
+const deactivateBridge = (request, options) => {
+  const lease = requireLease(request, options);
+  const leaseId = normalizeString(request.leaseId);
+
+  leases.delete(leaseId);
+
+  return {
+    ok: true,
+    leaseId,
+    released: true,
+    runtime: lease.runtime ?? undefined,
+  };
+};
+
+export const MESURER_CODEX_BRIDGE_CHANNEL = "mesurer:codex-bridge";
+
+/**
+ * Install Mesurer's Codex IPC handler in an Electron main process.
+ *
+ * The adapter binds native leases to the invoking WebContents, rejects subframe
+ * callers, supports an application-owned sender validator, and releases every
+ * lease when that renderer navigates, exits, or is destroyed.
+ */
+export function installMesurerCodexHost(options = {}) {
+  const ipcMain = options.ipcMain;
+
+  if (!ipcMain?.handle || !ipcMain?.removeHandler) {
+    throw new Error("installMesurerCodexHost requires Electron ipcMain.");
+  }
+
+  const channel = normalizeString(options.channel) ?? MESURER_CODEX_BRIDGE_CHANNEL;
+  const clients = new Map();
+
+  const releaseSender = (clientId) => {
+    const record = clients.get(clientId);
+
+    if (!record) return;
+    clients.delete(clientId);
+    releaseCodexBridgeClient(clientId);
+
+    record.sender.removeListener?.("did-navigate", record.release);
+    record.sender.removeListener?.("render-process-gone", record.release);
+    record.sender.removeListener?.("destroyed", record.release);
+  };
+
+  const bindSender = (sender) => {
+    const clientId = String(sender.id);
+
+    if (clients.has(clientId)) return clientId;
+
+    const release = () => releaseSender(clientId);
+
+    clients.set(clientId, { sender, release });
+    sender.on?.("did-navigate", release);
+    sender.on?.("render-process-gone", release);
+    sender.on?.("destroyed", release);
+
+    return clientId;
+  };
+
+  ipcMain.handle(channel, async (event, request) => {
+    if (event?.senderFrame?.parent) {
+      throw new Error("Mesurer Codex host requests are only accepted from the main frame.");
+    }
+
+    if (options.validateSender && !await options.validateSender(event)) {
+      throw new Error("Mesurer Codex host rejected the invoking renderer.");
+    }
+
+    const sender = event?.sender;
+
+    if (!sender || !Number.isFinite(sender.id)) {
+      throw new Error("Mesurer Codex host could not identify the invoking renderer.");
+    }
+
+    const clientId = bindSender(sender);
+
+    return codexBridge(request, {
+      codex: options.codex,
+      codexHome: options.codexHome,
+      clientId,
+    });
+  });
+
+  return {
+    channel,
+    dispose() {
+      ipcMain.removeHandler(channel);
+
+      for (const clientId of [...clients.keys()]) releaseSender(clientId);
+    },
+  };
+};
+
 /**
  * Native Codex transport for Mesurer's Codex plugin.
  *
@@ -1255,6 +1404,12 @@ export async function codexBridge(request, options = {}) {
       runtime: await inspectRuntime(options),
     };
   }
+
+  if (action === "activate") return activateBridge(request, options);
+
+  if (action === "deactivate") return deactivateBridge(request, options);
+
+  requireLease(request, options);
 
   const desktop = await desktopTransport(options);
 
