@@ -181,7 +181,7 @@ The first optional transport is `codex()` from `mesurer-solid/plugins`. It queue
 Re-read the evidence that mattered before the edit:
 
 - `review(annotationId)` for saved annotations;
-- `reviewArrange()` while Arrange is showing Live;
+- `reviewArrange()` while Edit movement is showing Live;
 - Live text/computed typography with text Desired preview inactive;
 - fresh workspace or selection context;
 - focused `inspect()`, `distance()`, or `viewport()` values when needed.
