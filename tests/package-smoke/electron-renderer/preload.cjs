@@ -1,4 +1,5 @@
 const { contextBridge, ipcRenderer } = require("electron");
+
 const {
   createMesurerCodexPreloadBridge,
 } = require("mesurer-solid/plugins/codex/preload");
