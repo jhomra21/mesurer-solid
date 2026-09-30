@@ -57,7 +57,7 @@ try {
   }
 
   if (directContract.capabilities.arrange !== true) {
-    throw new Error(`Default injection must include the first-party Edit movement capability through the `arrange` compatibility key: ${JSON.stringify(directContract)}`);
+    throw new Error(`Default injection must include the first-party Edit movement capability through the arrange compatibility key: ${JSON.stringify(directContract)}`);
   }
 
   if (directContract.capabilities.textEdit !== true) {
