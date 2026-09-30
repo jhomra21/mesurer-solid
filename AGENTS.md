@@ -131,12 +131,16 @@ Renderer-aware plugin UI must cross the existing opaque renderer service boundar
 
 The accepted Codex integration has specific correctness properties. Preserve them unless deliberately redesigning the feature and its acceptance suite.
 
-- Codex is enabled by default with the first-party plugin catalog and remains toggleable in Settings.
+- Codex starts enabled only when the native host capability exists. Browser-only hosts keep it registered in Settings but default it off.
 - All Codex implementation belongs to the Codex plugin; the native helper lives under `packages/mesurer/src/plugins/codex/`.
 - Keep the public Codex service runtime-neutral. Callers must not choose CLI versus Desktop, and host applications must not gain separate runtime-specific Codex APIs.
 - The Codex plugin owns runtime discovery, transport selection, and supported bootstrap behavior. Runtime diagnostics stay in the native bridge and private plugin state; do not expose CLI/Desktop selection through `codex:v1`.
 - Do not introduce a Mesurer localhost bridge server, standalone bridge process, Electron helper process, marketplace package, or SessionStart/SessionEnd hook dependency.
 - Renderer code crosses only `window.__MESURER_HOST__.codexBridge(request)`; native filesystem, process, and socket access stay in the host process.
+- Enabling Codex is transactional. Plugin setup must acquire a native lease and prove transport readiness before the managed plugin becomes enabled.
+- Disabling Codex is transactional. The managed plugin must release its native lease before Mesurer removes the renderer service, command, toolbar action, or persisted enabled state.
+- Bind native leases to one host renderer. Reject subframe and unapproved senders, and release a renderer's leases on navigation, renderer exit, or destruction.
+- Do not stop Codex's shared app-server when a Mesurer lease is released.
 - Discover sendable destinations from Codex's shared local app-server; `thread/loaded/list` is authoritative.
 - Shared-app-server delivery queues exactly once through `thread/queue/add` and preserves the queued-submission id.
 - When the native host inherited both `CODEX_THREAD_ID` and `CODEX_APP_TOOLS_PIPE_PATH` from a Codex Desktop thread, the plugin may use the resolved Codex executable only for `codex queue --thread <that exact thread>` and then wake that same thread with `codex://threads/<id>`. This Desktop fallback must not accept another destination.
