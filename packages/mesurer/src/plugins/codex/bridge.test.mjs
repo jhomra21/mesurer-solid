@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { codexBridge } from "./bridge.mjs";
+import {
+  MESURER_CODEX_BRIDGE_CHANNEL,
+  codexBridge,
+  installMesurerCodexHost,
+} from "./bridge.mjs";
 
 const createFakeAppServer = async (root, turnsPath) => {
   const controlDir = join(root, "app-server-control");
@@ -321,3 +326,91 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("Electron host adapter scopes leases to one WebContents and releases them on navigation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mesurer-codex-host-"));
+  const turnsPath = join(root, "turns.json");
+
+  await writeTurns(turnsPath, []);
+  const appServer = await createFakeAppServer(root, turnsPath);
+  const handlers = new Map();
+
+  const ipcMain = {
+    handle(channel, handler) {
+      handlers.set(channel, handler);
+    },
+    removeHandler(channel) {
+      handlers.delete(channel);
+    },
+  };
+
+  const host = installMesurerCodexHost({
+    ipcMain,
+    codexHome: root,
+    validateSender(event) {
+      return event.sender.id === 41;
+    },
+  });
+
+  class FakeSender extends EventEmitter {
+    constructor(id) {
+      super();
+      this.id = id;
+    }
+  }
+
+  const sender = new FakeSender(41);
+  const invoke = handlers.get(MESURER_CODEX_BRIDGE_CHANNEL);
+
+  assert.equal(typeof invoke, "function");
+
+  try {
+    const activation = await invoke(
+      { sender, senderFrame: { parent: null } },
+      { action: "activate" },
+    );
+
+    assert.equal(typeof activation.leaseId, "string");
+    assert.equal(activation.ok, true);
+
+    const threads = await invoke(
+      { sender, senderFrame: { parent: null } },
+      { action: "threads", leaseId: activation.leaseId, limit: 5 },
+    );
+
+    assert.equal(threads.threadDetails.length, 2);
+
+    await assert.rejects(
+      invoke(
+        { sender: new FakeSender(42), senderFrame: { parent: null } },
+        { action: "threads", leaseId: activation.leaseId, limit: 5 },
+      ),
+      /rejected the invoking renderer/,
+    );
+
+    sender.emit("did-navigate");
+
+    await assert.rejects(
+      invoke(
+        { sender, senderFrame: { parent: null } },
+        { action: "threads", leaseId: activation.leaseId, limit: 5 },
+      ),
+      /lease is not active for this host client/,
+    );
+
+    await assert.rejects(
+      invoke(
+        { sender, senderFrame: { parent: {} } },
+        { action: "runtime" },
+      ),
+      /only accepted from the main frame/,
+    );
+  } finally {
+    host.dispose();
+    await appServer.close();
+    await rm(root, { recursive: true, force: true });
+  }
+
+  assert.equal(handlers.has(MESURER_CODEX_BRIDGE_CHANNEL), false);
+});
+
