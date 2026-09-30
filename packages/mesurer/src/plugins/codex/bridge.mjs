@@ -1317,6 +1317,10 @@ export function installMesurerCodexHost(options = {}) {
     throw new Error("installMesurerCodexHost requires Electron ipcMain.");
   }
 
+  if (!(options.validateSender instanceof Function)) {
+    throw new Error("installMesurerCodexHost requires validateSender(event).");
+  }
+
   const channel = normalizeString(options.channel) ?? MESURER_CODEX_BRIDGE_CHANNEL;
   const clients = new Map();
 
@@ -1352,7 +1356,7 @@ export function installMesurerCodexHost(options = {}) {
       throw new Error("Mesurer Codex host requests are only accepted from the main frame.");
     }
 
-    if (options.validateSender && !await options.validateSender(event)) {
+    if (!await options.validateSender(event)) {
       throw new Error("Mesurer Codex host rejected the invoking renderer.");
     }
 
