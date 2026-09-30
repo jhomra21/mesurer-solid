@@ -16,6 +16,7 @@ import {
 } from "@jhomra21/mesurer-solid-dom";
 import type { MesurerSolidRuntimeService } from "../ComposableMesurer";
 import { GUIDE_SNAP_DISTANCE } from "../core/constants";
+import { getTargetElement } from "../core/selection";
 
 export const MESURER_ARRANGE_PLUGIN_ID = "mesurer.arrange";
 
@@ -62,6 +63,8 @@ const RESET_BUTTON_GAP = 6;
 const RESET_BUTTON_STACK_OFFSET = 30;
 
 const RESET_POSITION_EPSILON = 0.5;
+
+const TEXT_EDITOR_SELECTOR = "[data-mesurer-text-editor='true']";
 
 export type ArrangeRect = {
   left: number;
@@ -1524,6 +1527,46 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       cancelDrag();
     };
 
+    const directTextEditActive = () => Boolean(
+      ownerDocument.querySelector(TEXT_EDITOR_SELECTOR)
+      || overlayTarget.querySelector(TEXT_EDITOR_SELECTOR),
+    );
+
+    const resolveHoverTarget = (event: PointerEvent) => withPointerEventsDisabled(
+      root,
+      () => getTargetElement(
+        { x: event.clientX, y: event.clientY },
+        runtime.rendererRoot ?? null,
+        ownerDocument,
+        pageTarget,
+      ),
+    );
+
+    const onEditHoverPointerMove = (event: PointerEvent) => {
+      if (!active()) return;
+
+      if (drag || event.buttons !== 0 || directTextEditActive()) {
+        workspace.clearHover();
+
+        return;
+      }
+
+      const path = event.composedPath();
+      const movementBoxOwnsPointer = path.includes(box);
+
+      if (!movementBoxOwnsPointer && runtime.rendererRoot && path.includes(runtime.rendererRoot)) {
+        return;
+      }
+
+      const target = resolveHoverTarget(event);
+
+      workspace.setHover(
+        target instanceof realm.Element && isPageElement(target)
+          ? target
+          : null,
+      );
+    };
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || (!active() && !drag)) return;
 
@@ -1554,13 +1597,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       void ctx.command.execute(BUILTIN_SELECT_COMMAND, undefined, { source: "arrange-escape" }).catch(() => undefined);
     };
 
-    const clearEditHover = () => workspace.clearHover();
-
-    box.addEventListener("pointerenter", clearEditHover);
     box.addEventListener("pointerdown", beginDrag);
     box.addEventListener("pointermove", updateDrag);
     box.addEventListener("pointerup", finishDrag);
     box.addEventListener("pointercancel", onPointerCancel);
+    ownerWindow.addEventListener("pointermove", onEditHoverPointerMove, true);
     ownerWindow.addEventListener("keydown", onKeyDown, true);
     ownerWindow.addEventListener("resize", scheduleRefresh);
     ownerWindow.addEventListener("scroll", scheduleRefresh, true);
@@ -1903,6 +1944,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       box.removeEventListener("pointermove", updateDrag);
       box.removeEventListener("pointerup", finishDrag);
       box.removeEventListener("pointercancel", onPointerCancel);
+      ownerWindow.removeEventListener("pointermove", onEditHoverPointerMove, true);
       ownerWindow.removeEventListener("keydown", onKeyDown, true);
       ownerWindow.removeEventListener("resize", scheduleRefresh);
       ownerWindow.removeEventListener("scroll", scheduleRefresh, true);
