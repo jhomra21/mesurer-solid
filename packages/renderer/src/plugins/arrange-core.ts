@@ -1561,7 +1561,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       const target = resolveHoverTarget(event);
 
       workspace.setHover(
-        target instanceof realm.Element && isPageElement(target)
+        target instanceof realm.HTMLElement && isPageElement(target)
           ? target
           : null,
       );
@@ -1939,7 +1939,6 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       if (refreshFrame) ownerWindow.cancelAnimationFrame(refreshFrame);
       observer?.disconnect();
       observer = null;
-      box.removeEventListener("pointerenter", clearEditHover);
       box.removeEventListener("pointerdown", beginDrag);
       box.removeEventListener("pointermove", updateDrag);
       box.removeEventListener("pointerup", finishDrag);
