@@ -143,6 +143,8 @@ try {
     document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "select"
   );
   assert.equal(await editMode.getAttribute("aria-pressed"), "false", "Edit action must invoke the real Edit command");
+  assert.equal(await xrayButton.getAttribute("aria-pressed"), "true", "Select X-ray state must restore when returning from Edit");
+  assert.equal(await rulersButton.getAttribute("aria-pressed"), "true", "Select Rulers state must restore when returning from Edit");
 
   await editMode.click();
   await page.waitForFunction(() =>
