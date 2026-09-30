@@ -838,11 +838,17 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (!model) return false;
 
       if (id === "select") return model.toolMode === "select";
+
       if (id === "xray") return model.xrayVisible;
+
       if (id === "color-picker") return model.colorPickerActive;
+
       if (id === "rulers") return model.rulersVisible;
+
       if (id === "text-inspector") return model.toolMode === "text-inspector";
+
       if (id === "guides") return model.toolMode === "guides";
+
       if (id === "settings") return model.settingsOpen;
 
       return false;
