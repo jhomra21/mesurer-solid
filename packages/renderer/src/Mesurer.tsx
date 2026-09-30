@@ -87,8 +87,8 @@ export type MesurerProps = {
   onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
   isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;
   onBuiltinController?: (controller: MesurerBuiltinController | null) => void;
-  /** Internal composable-runtime flag used when Edit movement owns the selected-target chrome. */
-  suppressSelectHoverWhenSelected?: boolean;
+  /** Internal composable-runtime flag that keeps Edit hover visible outside selected subtrees. */
+  editSelectionHover?: boolean;
 };
 
 type Environment = {
@@ -1028,7 +1028,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           hoverGuide={hoverGuide()}
           selectionSpacingStyle={props.selectionSpacingStyle}
           interactive={model.state.enabled && !model.state.settingsOpen}
-          suppressHoverWhenSelected={input.suppressSelectHoverWhenSelected ?? false}
+          editSelectionHover={input.editSelectionHover ?? false}
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
           onPointerUp={pointerUp}
