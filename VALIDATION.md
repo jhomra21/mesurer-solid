@@ -103,7 +103,7 @@ Do not hand off a candidate SHA for manual acceptance merely because CI is green
 5. Keep console/page errors at zero for the exercised path.
 6. Keep the root dev-server smoke green when changed renderer source is loaded directly by the basic example.
 7. For Screenshot host changes, keep both the Chromium host-result contract and the packed Electron contract green.
-8. For Codex host changes, keep shared-daemon process coverage, packed runtime-selection evidence, package staging, and the packed Electron host-capability contract green.
+8. For Codex host changes, keep shared-daemon process coverage, independent renderer-lease coverage, packed runtime-selection evidence, package staging, and the packed Electron host-capability contract green.
 9. Keep performance invariants paired with the visible behavior they protect.
 10. Treat manual acceptance as a separate final check; automation reduces regressions but does not replace the user's real-browser validation.
 
