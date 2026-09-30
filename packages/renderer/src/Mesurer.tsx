@@ -224,7 +224,6 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   let switchingPage = false;
   let hoverFrame = 0;
   let hoverPoint: Point | null = null;
-  let hoverPassthroughElement: HTMLElement | null = null;
   let shiftToggleElement: Element | null = null;
   let shiftDrag = false;
   let guideDragHoldTimer = 0;
@@ -334,16 +333,6 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       return;
     }
 
-    if (input.editSelectionHover && model.current.selectedMeasurements.some((measurement) =>
-      point.x >= measurement.rect.left
-      && point.x <= measurement.rect.left + measurement.rect.width
-      && point.y >= measurement.rect.top
-      && point.y <= measurement.rect.top + measurement.rect.height)) {
-      model.setHoverTarget(null, null);
-
-      return;
-    }
-
     const target = getTargetElement(point, rootElement, ownerDocument, pageTarget);
 
     if (!target) {
@@ -358,31 +347,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       : null);
   };
 
-  const updateHoverWithPassthrough = (point: Point) => {
-    const passthrough = hoverPassthroughElement;
-
-    if (!passthrough?.isConnected) {
-      updateHover(point);
-
-      return;
-    }
-
-    const pointerEvents = passthrough.style.pointerEvents;
-    passthrough.style.pointerEvents = "none";
-
-    try {
-      updateHover(point);
-    } finally {
-      passthrough.style.pointerEvents = pointerEvents;
-    }
-  };
-
-  const scheduleHover = (
-    point: Point,
-    passthroughElement: HTMLElement | null = null,
-  ) => {
+  const scheduleHover = (point: Point) => {
     hoverPoint = point;
-    hoverPassthroughElement = passthroughElement;
 
     if (hoverFrame) return;
     hoverFrame = ownerWindow.requestAnimationFrame(() => {
@@ -391,10 +357,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
       if (!latest) return;
 
-      if (model.current.toolMode === "select" && !model.current.draggingGuideId) {
-        updateHoverWithPassthrough(latest);
-      }
-
+      if (model.current.toolMode === "select" && !model.current.draggingGuideId) updateHover(latest);
       model.setTransient({ hoverPointer: model.current.guides.length ? latest : null });
 
       if (model.current.toolMode === "guides" && !model.current.draggingGuideId) {
@@ -1013,28 +976,6 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     ownerWindow.addEventListener("scroll", scroll, { capture: true, passive: true });
     ownerWindow.addEventListener("resize", syncLive, true);
 
-    const globalEditHoverMove = (event: PointerEvent) => {
-      if (!input.editSelectionHover || model.current.toolMode !== "select") return;
-
-      const editBox = event.composedPath().find((candidate) =>
-        candidate instanceof realm.HTMLElement
-        && candidate.dataset.mesurerArrangeBox === "true");
-
-      if (!(editBox instanceof realm.HTMLElement)) return;
-
-      const point = { x: event.clientX, y: event.clientY };
-
-      if (event.buttons !== 0) {
-        hoverPoint = point;
-        hoverPassthroughElement = null;
-        model.setHoverTarget(null, null);
-
-        return;
-      }
-
-      scheduleHover(point, editBox);
-    };
-
     const globalGuideMove = (event: PointerEvent) => {
       const id = model.current.draggingGuideId;
 
@@ -1046,7 +987,6 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     };
 
     const globalGuideEnd = () => model.setTransient({ draggingGuideId: null });
-    ownerWindow.addEventListener("pointermove", globalEditHoverMove, true);
     ownerWindow.addEventListener("pointermove", globalGuideMove, true);
     ownerWindow.addEventListener("pointerup", globalGuideEnd, true);
     ownerWindow.addEventListener("pointercancel", globalGuideEnd, true);
@@ -1054,7 +994,6 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     return () => {
       ownerWindow.cancelAnimationFrame(syncFrame);
       ownerWindow.cancelAnimationFrame(hoverFrame);
-      hoverPassthroughElement = null;
       clearGuideDragHold();
       ownerWindow.clearTimeout(scrollSettleTimer);
       ownerWindow.clearTimeout(persistTimer);
@@ -1067,7 +1006,6 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       ownerWindow.removeEventListener("keyup", keyup);
       ownerWindow.removeEventListener("scroll", scroll, true);
       ownerWindow.removeEventListener("resize", syncLive, true);
-      ownerWindow.removeEventListener("pointermove", globalEditHoverMove, true);
       ownerWindow.removeEventListener("pointermove", globalGuideMove, true);
       ownerWindow.removeEventListener("pointerup", globalGuideEnd, true);
       ownerWindow.removeEventListener("pointercancel", globalGuideEnd, true);
