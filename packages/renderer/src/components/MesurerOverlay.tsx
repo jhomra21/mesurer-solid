@@ -25,7 +25,7 @@ export type MesurerOverlayProps = {
   hoverGuide: Guide | null;
   selectionSpacingStyle: SelectionSpacingStyle;
   interactive: boolean;
-  editSelectionHover: boolean;
+  editSelectionHover(): boolean;
   onPointerDown: (event: OverlayPointerEvent) => void;
   onPointerMove: (event: PointerEvent) => void;
   onPointerUp: (event: OverlayPointerEvent) => void;
@@ -268,7 +268,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     const handleOverlayPointerMove = (event: PointerEvent) => props.onPointerMove(event);
 
     const handleEditWindowPointerMove = (event: PointerEvent) => {
-      if (!props.editSelectionHover || props.model.current.toolMode !== "select") return;
+      if (!props.editSelectionHover() || props.model.current.toolMode !== "select") return;
       const path = event.composedPath();
 
       if (path.includes(overlay)) return;
@@ -478,8 +478,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         <Show when={
           props.model.state.hoverRect
           && props.model.state.settings.hoverHighlightEnabled
-          && (props.editSelectionHover || selectedMeasurements().length <= 1)
-          && !(props.editSelectionHover ? hoverInsideSelectedSubtree() : hoverTargetsSelected())
+          && (props.editSelectionHover() || selectedMeasurements().length <= 1)
+          && !(props.editSelectionHover() ? hoverInsideSelectedSubtree() : hoverTargetsSelected())
         }>
           <Show when={hoverPortalTarget()} fallback={hoverSurface()}>
             {(mount) => <Portal mount={mount()}>{hoverSurface()}</Portal>}
