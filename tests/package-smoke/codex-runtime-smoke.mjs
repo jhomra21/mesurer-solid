@@ -172,7 +172,7 @@ printf '%s\\n' "$1" > "${desktopOpenMarker}"
 
   const inheritedLease = inheritedActivation.leaseId;
 
-  assert.equal(typeof inheritedLease, "string");
+  assert.ok(inheritedLease?.length > 0);
   assert.equal(inheritedActivation.ok, true);
   assert.equal(inheritedActivation.thread, "desktop-thread-1");
   assert.deepEqual(inheritedActivation.threads, ["desktop-thread-1"]);
@@ -375,7 +375,7 @@ child.unref();
   const standaloneLease = health.leaseId;
   const marker = JSON.parse(await readFile(standaloneMarker, "utf8"));
 
-  assert.equal(typeof standaloneLease, "string");
+  assert.ok(standaloneLease?.length > 0);
   assert.deepEqual(marker.args, ["app-server", "daemon", "start"]);
   assert.equal(marker.codexHome, standaloneHome);
   assert.equal(health.ok, true);
