@@ -40,7 +40,7 @@ Do not mount Mesurer from the main process.
 
 Codex starts enabled when the renderer has a native Codex host capability. Without that capability, Settings lists Codex as off.
 
-Install the main-process adapter once:
+Install the main-process adapter once. `validateSender(event)` is required so the application chooses which renderer may use the privileged Codex capability:
 
 ```ts
 import { BrowserWindow, ipcMain } from "electron"
