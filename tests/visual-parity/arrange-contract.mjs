@@ -1439,7 +1439,9 @@ try {
     escapeTarget.x + escapeTarget.width / 2,
     escapeTarget.y + escapeTarget.height / 2,
   );
-  await page.locator("[data-mesurer-selected-measurement='true']").waitFor({ state: "visible" });
+  await page.locator(
+    "[data-mesurer-selected-measurement='true'] [data-mesurer-measurement-chrome='true']",
+  ).waitFor({ state: "visible" });
 
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => {
