@@ -31,13 +31,13 @@ Use the mode switch at the left of the toolbar:
 
 The switch uses the same grouped-toolbar styling and icons as upstream Mesurer. Mesurer Solid keeps its toolbar motion at 150 ms.
 
-The legacy `Shift+A` shortcut still enters Edit for compatibility with existing Arrange workflows.
+The legacy `Shift+A` shortcut still enters Edit as a compatibility shortcut.
 
 Selecting a Select-owned tool such as X-ray, Typography, Color Picker, Guides, Layout Guides, or Screenshot leaves Edit first. Context and Codex do not move between groups.
 
 ## Move elements
 
-Edit keeps the existing Arrange movement model. Select one or more HTML elements and drag the Edit selection box to the desired position.
+Edit uses the movement model retained by the Arrange compatibility layer. Select one or more HTML elements and drag the Edit selection box to the desired position.
 
 Edit can start before a selection exists. Entering Edit enables Select as its targeting prerequisite and preserves an existing selection. Hold Shift while selecting page elements to add or remove targets.
 
@@ -81,7 +81,7 @@ When X-ray is visible and **Prefer X-ray edges** is enabled, visible X-ray boxes
 
 ## Before, Desired, and Live
 
-Edit keeps the existing Arrange intent model:
+Edit movement keeps the existing compatibility schema:
 
 - **Before** is the geometry or text before a saved edit.
 - **Desired** is the human-edited result.
@@ -98,7 +98,7 @@ Both settings affect presentation only. They do not write application source or 
 
 ## Ownership
 
-Movement uses the existing Arrange transform ownership rules. Mesurer restores a previous inline transform only while the element still contains the exact preview value and priority Mesurer applied. If the application changes that transform, Mesurer preserves the application value.
+Edit movement restores a previous inline transform only while the element still contains the exact preview value and priority Mesurer applied. If the application changes that transform, Mesurer preserves the application value.
 
 Text and style editing use the same ownership rule. Mesurer updates or restores a value only while it still owns the value currently rendered by the element.
 
