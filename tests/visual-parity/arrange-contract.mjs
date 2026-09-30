@@ -1421,24 +1421,25 @@ try {
   assert(Math.abs(afterDeactivate.x - before.x) <= 1, "Deactivating Edit should return the page to its Live X position");
   assert(Math.abs(afterDeactivate.y - before.y) <= 1, "Deactivating Edit should return the page to its Live Y position");
 
-  const restoredMeasurementState = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>
-    elements.map((element) => ({
-      connected: element.isConnected,
-      selected: element.getAttribute("data-mesurer-selected-measurement"),
-      inspectorUi: element.getAttribute("data-mesurer-inspector-ui"),
-      inlineVisibility: element.style.getPropertyValue("visibility"),
-      inlinePriority: element.style.getPropertyPriority("visibility"),
-      computedVisibility: getComputedStyle(element).visibility,
-      parentTag: element.parentElement?.tagName ?? null,
-      parentMesurerRoot: element.parentElement?.getAttribute("data-mesurer-root") ?? null,
-      parentInspectorUi: element.parentElement?.getAttribute("data-mesurer-inspector-ui") ?? null,
-    })),
-  );
+  await page.waitForFunction(() => {
+    const select = document.querySelector("[data-mesurer-builtin='select'] button");
 
-  assert(
-    restoredMeasurementState.some((element) => element.computedVisibility !== "hidden"),
-    `Mesurer measurement overlays should be restored after Edit deactivates: ${JSON.stringify(restoredMeasurementState)}`,
+    return select instanceof HTMLButtonElement
+      && select.getAttribute("aria-pressed") === "false"
+      && document.querySelectorAll("[data-mesurer-selected-measurement='true']").length === 0;
+  });
+
+  const selectButtonAfterEdit = page.locator("[data-mesurer-builtin='select'] button");
+
+  await selectButtonAfterEdit.click();
+  const escapeTarget = await target.boundingBox();
+
+  assert(escapeTarget, "Select Escape contract target must remain visible");
+  await page.mouse.click(
+    escapeTarget.x + escapeTarget.width / 2,
+    escapeTarget.y + escapeTarget.height / 2,
   );
+  await page.locator("[data-mesurer-selected-measurement='true']").waitFor({ state: "visible" });
 
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => {
@@ -1454,7 +1455,11 @@ try {
 
     return select instanceof HTMLButtonElement && select.getAttribute("aria-pressed") === "false";
   });
-  evidence.selectEscape = { first: "clears selection", second: "deactivates Select" };
+  evidence.selectEscape = {
+    editExit: "restores Select off",
+    first: "clears selection",
+    second: "deactivates Select",
+  };
 
   await writeFile(
     `${outDir}/arrange-contract.json`,
