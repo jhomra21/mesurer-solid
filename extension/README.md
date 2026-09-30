@@ -31,7 +31,7 @@ Injection enables Context and Screenshot for the active tab. The page-mounted in
 
 When the tab remains authorized, the background worker remembers that Mesurer was explicitly opened and restores a missing injected instance after reload or eligible navigation. The injector also remounts Mesurer if the page replaces the DOM node that owns the injected UI. A live connected instance is reused rather than replaced. If the user closes Mesurer while navigation is racing the background worker's session-state read, the close request remains authoritative and recovery does not reopen the tab.
 
-Arrange remains optional unless it is included by the injected configuration.
+Edit movement remains optional unless `edit()` or the `arrange()` compatibility alias is included by the injected configuration.
 
 ## Direct text editing
 
