@@ -210,8 +210,6 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   const onSelectionSpacingStyleChange = untrack(() => props.onSelectionSpacingStyleChange);
   const onResetSelectionSpacingStyle = untrack(() => props.onResetSelectionSpacingStyle);
   const { ownerDocument, ownerWindow } = env;
-  // SAFETY: ownerWindow owns the renderer events and DOM nodes inspected below.
-  const realm = ownerWindow as Window & typeof globalThis;
   const pageTarget = input.pageTarget ?? ownerDocument.body;
   const instanceId = ++instanceCount;
   const storageKey = input.persistKey ?? `mesurer-state:${getTabId(ownerWindow)}${instanceId === 1 ? "" : `:${instanceId}`}`;
