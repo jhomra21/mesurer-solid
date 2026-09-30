@@ -41,7 +41,7 @@ export const updatePresentationPreferences = (
 /**
  * Register user-owned page-presentation policy once on the runtime bridge.
  *
- * These are presentation preferences, not edit/arrange intent. They persist but
+ * These are presentation preferences, not Edit movement or text intent. They persist but
  * do not participate in content history. Reading either flag is O(1); applying
  * or restoring the affected page mutations is left to the owning feature and
  * occurs only when policy/tool/intent state changes.
