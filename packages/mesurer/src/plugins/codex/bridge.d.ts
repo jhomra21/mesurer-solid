@@ -84,7 +84,7 @@ export type MesurerCodexHostOptions = Omit<CodexBridgeOptions, "clientId"> & {
     removeHandler(channel: string): void;
   };
   channel?: string;
-  validateSender?(event: MesurerCodexHostEvent): boolean | Promise<boolean>;
+  validateSender(event: MesurerCodexHostEvent): boolean | Promise<boolean>;
 };
 
 export type MesurerCodexHost = {
