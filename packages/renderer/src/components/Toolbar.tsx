@@ -730,37 +730,52 @@ export function Toolbar(props: ToolbarProps) {
     </CompactItem>
   );
 
-  const renderEditOptions = () => (
+  const renderEditTool = () => (
     <Show when={editModeTool()}>
       {(tool) => (
-        <Show when={(tool().menu?.items.length ?? 0) > 0}>
-          <div
-            data-mesurer-plugin-menu-root="true"
-            data-mesurer-edit-options="true"
-            class="msr:relative msr:flex msr:items-stretch"
+        <div
+          data-mesurer-plugin-menu-root="true"
+          data-mesurer-edit-tool="true"
+          class="msr:relative msr:flex msr:items-stretch"
+        >
+          <ToolbarButton
+            id="edit-tool"
+            toolId="edit-action"
+            active={tool().active?.() ?? false}
+            disabled={tool().disabled?.() ?? false}
+            label={tool().label}
+            shortcut={tool().shortcut}
+            onClick={() => props.onPluginTool?.(tool())}
+            {...buttonProps(`plugin:${tool().id}`)}
           >
-            <ToolbarButton
-              id="edit-options"
-              toolId="edit-options"
-              active={pluginMenuOpenId() === tool().id}
+            <PluginIcon tool={tool()} />
+          </ToolbarButton>
+          <Show when={(tool().menu?.items.length ?? 0) > 0}>
+            <button
+              type="button"
+              data-mesurer-tool-menu-trigger={tool().id}
+              aria-label={`${tool().label} options`}
+              aria-expanded={pluginMenuOpenId() === tool().id ? "true" : "false"}
               disabled={tool().disabled?.() ?? false}
-              label="Edit options"
-              onClick={() => {
-                if (!toolbarElement) return;
-
-                const anchor = toolbarElement.querySelector<HTMLElement>(
-                  "[data-mesurer-edit-options='true']",
-                );
-
-                if (anchor) togglePluginMenu(tool().id, anchor);
-              }}
-              {...buttonProps("edit-options")}
+              class={`msr:relative msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${pluginMenuOpenId() === tool().id ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
+              onMouseEnter={() => tooltip.onTooltipEnter(`plugin-menu:${tool().id}`)}
+              onMouseLeave={tooltip.onTooltipLeave}
+              onClick={(event) => togglePluginMenu(
+                tool().id,
+                event.currentTarget.parentElement ?? event.currentTarget,
+              )}
             >
-              <PluginIcon tool={tool()} />
-            </ToolbarButton>
-            {renderPluginMenu(tool())}
-          </div>
-        </Show>
+              <CaretDownIcon size={8} />
+              <Tooltip
+                label={`${tool().label} options`}
+                visible={tooltipsEnabled() && tooltip.visibleTooltipId() === `plugin-menu:${tool().id}`}
+                instant={tooltip.tooltipInstant()}
+                side={tooltipSide()}
+              />
+            </button>
+          </Show>
+          {renderPluginMenu(tool())}
+        </div>
       )}
     </Show>
   );
@@ -996,7 +1011,7 @@ export function Toolbar(props: ToolbarProps) {
           >
             <div ref={(element) => { editModePanelElement = element; }} class="mesurer-toolbar-mode-panel">
               <div role="group" aria-label="Edit tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
-                {renderEditOptions()}
+                {renderEditTool()}
                 <For each={editPluginTools()}>{(tool) => renderPluginTool(tool)}</For>
               </div>
             </div>

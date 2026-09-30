@@ -68,7 +68,7 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
   {
     id: MESURER_CODEX_PLUGIN_ID,
     label: "Codex",
-    description: "Connects Mesurer to your open Codex threads on this computer.",
+    description: "Connects Mesurer to open Codex threads on this computer. Electron hosts provide the native Codex connection through preload.",
     order: 45,
     create: codex,
   },

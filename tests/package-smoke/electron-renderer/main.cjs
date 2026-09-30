@@ -151,6 +151,9 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || !String(summary.colorPickerValue ?? "").includes("#123456")
     || summary.nativeEyeDropperOpens !== 0
     || summary.colorPickerOverlayRemoved !== true
+    || summary.codexBridgeOk !== true
+    || !["shared", "standalone", "desktop", "none"].includes(summary.codexRuntimeSource)
+    || !["shared-app-server", "desktop-queue", "private-stdio", "none"].includes(summary.codexRuntimeTransport)
     || captureCount !== 2
   ) {
     throw new Error(`Unexpected Mesurer Electron result: ${JSON.stringify(summary)}`);

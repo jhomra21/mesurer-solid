@@ -1138,16 +1138,19 @@ try {
   });
   await settingsButton.click();
 
-  // X-ray is Select-owned, so activating it exits Edit. Re-enter Edit while
-  // keeping X-ray visible before exercising Edit snapping against X-ray edges.
+  // X-ray is Select-owned. Re-entering Edit must suspend it while preserving
+  // ordinary element-edge snapping inside Edit.
   if ((await arrangeButton.getAttribute("aria-pressed")) !== "true") await arrangeButton.click();
 
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
+    const xray = document.querySelector("[data-mesurer-builtin='xray'] button");
     const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
 
     return select instanceof HTMLButtonElement
       && select.getAttribute("aria-pressed") === "true"
+      && xray instanceof HTMLButtonElement
+      && xray.getAttribute("aria-pressed") === "false"
       && arrange instanceof HTMLButtonElement
       && arrange.getAttribute("aria-pressed") === "true";
   });
@@ -1156,8 +1159,8 @@ try {
   const dragBox = await arrangeBox.boundingBox();
   assert(dragBox, "Edit drag surface must follow the current selection");
 
-  // Aim within the 10px snap radius of a visible X-ray edge. With X-ray edge preference on,
-  // invisible element centers are not valid element snap targets.
+  // Aim within the 10px snap radius of the reference element edge. Select X-ray is
+  // suspended in Edit, so snapping falls back to normal element-edge candidates.
   const rawDesiredLeft = referenceBox.x + 7;
   const dx = rawDesiredLeft - before.x;
   const startX = dragBox.x + dragBox.width / 2;
@@ -1183,7 +1186,7 @@ try {
     `Edit target edge should land on the active X-ray edge ruler at ${snapLineBox.x}px; edges were ${movingEdges.join(", ")}`,
   );
 
-  const snapMatchesXrayEdge = await page.evaluate(({ snapX, movingTop, movingBottom }) => {
+  const snapMatchesElementEdge = await page.evaluate(({ snapX, movingTop, movingBottom }) => {
     const moving = document.querySelector(".primary-action");
 
     if (!(moving instanceof HTMLElement)) return false;
@@ -1200,8 +1203,6 @@ try {
       const style = getComputedStyle(candidate);
 
       if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") continue;
-
-      if (style.outlineStyle !== "solid" || (Number.parseFloat(style.outlineWidth) || 0) <= 0) continue;
       const rect = candidate.getBoundingClientRect();
 
       if (rect.width <= 0 || rect.height <= 0) continue;
@@ -1219,9 +1220,9 @@ try {
   });
 
   assert.equal(
-    snapMatchesXrayEdge,
+    snapMatchesElementEdge,
     true,
-    `Edit ruler at ${snapLineBox.x}px should correspond to a visible X-ray box edge`,
+    `Edit ruler at ${snapLineBox.x}px should correspond to an eligible page-element edge`,
   );
 
   const visibleMeasurementGhosts = await page.locator("[data-mesurer-measurement='true']").evaluateAll((elements) =>

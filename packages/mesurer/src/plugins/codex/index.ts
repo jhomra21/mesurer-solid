@@ -23,6 +23,9 @@ const RECENT_THREAD_LIMIT = 10;
 
 const DEFAULT_VISIBLE_THREADS = 5;
 
+const MISSING_HOST_BRIDGE_ERROR =
+  "Codex host connection is unavailable. Electron apps must expose window.__MESURER_HOST__.codexBridge from preload.";
+
 const DEFAULT_INSTRUCTION = [
   "Implement the current human feedback from Mesurer in this project.",
   "Treat the rendered page as the source of truth, preserve unrelated Mesurer review state,",
@@ -316,7 +319,7 @@ const bridgeRequest = async (
 ): Promise<BridgeResponse> => {
   const bridge = window.__MESURER_HOST__?.codexBridge;
 
-  if (!bridge) throw new Error("Codex Bridge is unavailable in this host.");
+  if (!bridge) throw new Error(MISSING_HOST_BRIDGE_ERROR);
 
   const response = await bridge(request);
 
@@ -461,7 +464,10 @@ const truncateLabel = (value: string, max = 42) => value.length > max
 
 const bridgeUnavailable = (cause: unknown) =>
   cause instanceof Error
-  && cause.message === "Codex Bridge is unavailable in this host.";
+  && (
+    cause.message === MISSING_HOST_BRIDGE_ERROR
+    || cause.message === "Codex Bridge is unavailable in this host."
+  );
 
 export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
   const instruction = options.instruction?.trim() || DEFAULT_INSTRUCTION;
@@ -479,8 +485,13 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       if (!contextService) throw new Error("Mesurer Codex plugin requires context() from mesurer-solid/plugins.");
 
       const persistedUiState = withUi ? readBrowserState() : null;
-      let bridgeAvailability: BridgeAvailability = "unknown";
+
+      let bridgeAvailability: BridgeAvailability = window.__MESURER_HOST__?.codexBridge
+        ? "unknown"
+        : "unavailable";
+
       let codexRuntime: MesurerCodexRuntime | null = null;
+
       let everConnected = false;
       let originThread: string | null = persistedUiState?.originThread ?? null;
 
@@ -696,15 +707,31 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           const desktopPrivate = codexRuntime?.source === "desktop"
             && codexRuntime.reason === "desktop-private-transport";
 
-          return [{
+          const hostBridgeMissing = !window.__MESURER_HOST__?.codexBridge;
+          const items: ToolMenuItemContribution[] = [];
+
+          if (bridgeAvailability === "unavailable" && hostBridgeMissing) {
+            items.push({
+              id: "codex.connection.missing-host",
+              label: "This app has not connected Mesurer to Codex",
+              disabled: () => true,
+              run: () => undefined,
+            });
+          }
+
+          items.push({
             id: "codex.thread.connect",
             label: bridgeAvailability === "unavailable"
-              ? desktopPrivate
-                ? "Retry Codex Desktop"
-                : "Retry Codex connection"
+              ? hostBridgeMissing
+                ? "Retry host connection"
+                : desktopPrivate
+                  ? "Retry Codex Desktop"
+                  : "Retry Codex connection"
               : "Choose Codex thread…",
             run: () => refreshRuntime(true),
-          }];
+          });
+
+          return items;
         }
 
         const threads = menuThreads();
@@ -763,11 +790,15 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         const desktopPrivate = codexRuntime?.source === "desktop"
           && codexRuntime.reason === "desktop-private-transport";
 
+        const hostBridgeMissing = !window.__MESURER_HOST__?.codexBridge;
+
         const label = deliveryToolLabel()
           ?? (bridgeAvailability === "unavailable"
-            ? desktopPrivate
-              ? "Codex Desktop not connected"
-              : "Codex unavailable"
+            ? hostBridgeMissing
+              ? "Codex host not connected"
+              : desktopPrivate
+                ? "Codex Desktop not connected"
+                : "Codex unavailable"
             : routeNeedsSelection || (bridgeAvailability === "available" && !target)
               ? "Choose Codex thread"
               : "Queue to Codex");
@@ -1158,10 +1189,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
 
       if (withUi) {
         syncTool();
-
-        if (window.__MESURER_HOST__?.codexBridge) {
-          void refreshRuntime(true).catch(() => undefined);
-        }
+        void refreshRuntime(true).catch(() => undefined);
 
         if (activeDelivery?.id) {
           everConnected = true;

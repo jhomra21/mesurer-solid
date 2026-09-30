@@ -43,10 +43,12 @@ try {
   const editMode = page.locator('button[data-mesurer-toolbar-mode="edit"]');
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
   const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
+  const rulersButton = page.locator("[data-mesurer-builtin='rulers'] button");
   const typographyButton = page.locator("button[data-mesurer-builtin='text-inspector']");
   const contextButton = page.locator("button[data-mesurer-tool-id='context.copy']");
   const codexButton = page.locator("button[data-mesurer-tool-id='codex.send']");
-  const editOptions = page.locator("button[data-mesurer-tool-id='edit-options']");
+  const editTool = page.locator("button[data-mesurer-tool-id='edit-action']");
+  const editOptions = page.locator("button[data-mesurer-tool-menu-trigger='arrange']");
 
   await toolbar.waitFor({ state: "visible" });
   await compactToggle.waitFor({ state: "visible" });
@@ -117,15 +119,39 @@ try {
   // or change the always-visible Context/Codex lane.
   await selectButton.click();
   await page.waitForFunction(() => document.querySelector('button[aria-label="Select (S)"]')?.getAttribute("aria-pressed") === "true");
+  await xrayButton.click();
+  await rulersButton.click();
+  assert.equal(await xrayButton.getAttribute("aria-pressed"), "true", "X-ray should be active in Select before the mode switch");
+  assert.equal(await rulersButton.getAttribute("aria-pressed"), "true", "Rulers should be active in Select before the mode switch");
+
   await editMode.click();
   await page.waitForFunction(() =>
     document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "edit"
   );
+  await editTool.waitFor({ state: "visible" });
   await editOptions.waitFor({ state: "visible" });
   assert.equal(await selectMode.getAttribute("aria-pressed"), "false");
   assert.equal(await editMode.getAttribute("aria-pressed"), "true");
+  assert.equal(await editTool.getAttribute("aria-pressed"), "true", "Edit action must be highlighted with Edit mode");
+  assert.equal(await xrayButton.getAttribute("aria-pressed"), "false", "Select X-ray state must not leak into Edit");
+  assert.equal(await rulersButton.getAttribute("aria-pressed"), "false", "Select Rulers state must not leak into Edit");
   assert(await contextButton.isVisible(), "Context must remain visible in Edit mode");
   assert(await codexButton.isVisible(), "Codex must remain visible in Edit mode");
+
+  await editTool.click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "select"
+  );
+  assert.equal(await editMode.getAttribute("aria-pressed"), "false", "Edit action must invoke the real Edit command");
+  assert.equal(await xrayButton.getAttribute("aria-pressed"), "true", "Select X-ray state must restore when returning from Edit");
+  assert.equal(await rulersButton.getAttribute("aria-pressed"), "true", "Select Rulers state must restore when returning from Edit");
+
+  await editMode.click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "edit"
+  );
+  await editTool.waitFor({ state: "visible" });
+  assert.equal(await editTool.getAttribute("aria-pressed"), "true");
 
   const editExpandedBox = await toolbar.boundingBox();
   assert(editExpandedBox, "Edit toolbar must have a bounding box");

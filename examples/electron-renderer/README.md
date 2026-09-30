@@ -62,6 +62,8 @@ contextBridge.exposeInMainWorld("__MESURER_HOST__", {
 
 If the application also exposes `captureScreenshot`, put both functions on the same host object.
 
+Without `codexBridge`, the renderer shows **Codex host not connected** and keeps queueing disabled. This is a host-integration diagnostic, not evidence that the local Codex installation is broken. Mesurer does not open a helper server or an extra Electron window as a fallback.
+
 Codex Bridge runs inside Electron main. It does not create an HTTP server or launch another Electron/Node helper. Shared sessions use Codex's local app-server and `thread/queue/add`. If the host inherited an exact Codex Desktop thread, the same bridge may instead run Codex's native queue command for that thread and wake it with `codex://threads/<id>`; it never connects to the private app-tools pipe. A Desktop-bundled Codex executable is never used to bootstrap the shared daemon.
 
 The package smoke bundles this main-process topology to CommonJS with esbuild before launching Electron. A separate packed runtime smoke verifies private Desktop detection without execution, exact inherited Desktop queue/deep-link routing, and standalone-daemon startup. The native bridge must therefore remain independent of `import.meta.url`, `process.execPath`, and sibling runtime-file lookup.

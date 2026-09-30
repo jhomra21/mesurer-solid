@@ -265,7 +265,7 @@ jobs:
           print("")
           print("### Edit movement")
           print("- Toolbar enablement after selection exercised in Chromium")
-          print("- Nearby-element, X-ray-outline, and guide alignment snapping exercised in Chromium")
+          print("- Edit element-edge and guide alignment snapping exercised in Chromium while Select X-ray remains mode-isolated")
           print("- Desired layout is tool-owned by default; General → Keep Edit changes explicitly opts it into other tools")
           print("- Saved Edit movement intent survives Original/Desired presentation switching without another drag")
           print("- Escape clears the current Edit/Select selection first, then deactivates the remaining selection tools")
