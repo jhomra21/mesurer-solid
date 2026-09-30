@@ -349,6 +349,25 @@ try {
   await page.waitForFunction(() => document.querySelector("[data-mesurer-selected-measurement='true'][data-mesurer-inspector-ui='true']")?.hasAttribute("data-mesurer-direct-edit-selection-suppressed") === false);
   await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='select']").waitFor({ state: "visible" });
+
+  const selectTool = page.locator("[data-mesurer-builtin='select'] button");
+
+  assert.equal(
+    await selectTool.getAttribute("aria-pressed"),
+    "false",
+    "Leaving Edit must restore Select off when Edit activated it only for internal targeting",
+  );
+
+  await selectTool.click();
+  await page.waitForFunction(() =>
+    document.querySelector("[data-mesurer-builtin='select'] button")?.getAttribute("aria-pressed") === "true"
+  );
+
+  const selectTargetBox = await box(target, "target before explicit Select reselection");
+  await page.mouse.click(
+    selectTargetBox.x + selectTargetBox.width / 2,
+    selectTargetBox.y + selectTargetBox.height / 2,
+  );
   await selected.waitFor({ state: "visible" });
   await settle();
   assertSameBox(
