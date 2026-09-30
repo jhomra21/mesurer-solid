@@ -384,10 +384,16 @@ export default function ComposableMesurer(props: MesurerProps) {
         && (tool.active?.() ?? false))
       .map((tool) => tool.id);
 
+    const toolMode = model?.current.toolMode;
+    const savedToolMode = toolMode === "none"
+      || toolMode === "select"
+      || toolMode === "text-inspector"
+      || toolMode === "guides"
+      ? toolMode
+      : null;
+
     suspendedSelectModeState = {
-      toolMode: model && ["none", "select", "text-inspector", "guides"].includes(model.current.toolMode)
-        ? model.current.toolMode as SuspendedSelectModeState["toolMode"]
-        : null,
+      toolMode: savedToolMode,
       xrayVisible: model?.current.xrayVisible ?? false,
       rulersVisible: model?.current.rulersVisible ?? false,
       pluginToolIds,
