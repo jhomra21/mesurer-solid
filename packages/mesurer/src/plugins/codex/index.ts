@@ -1271,6 +1271,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           try {
             await deactivateBridge();
           } catch (cleanupCause) {
+
             const startupMessage = cause instanceof Error ? cause.message : String(cause);
 
             const cleanupMessage = cleanupCause instanceof Error
