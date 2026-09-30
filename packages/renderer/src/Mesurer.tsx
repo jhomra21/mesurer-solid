@@ -345,6 +345,25 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       : null);
   };
 
+  const updateHoverWithPassthrough = (point: Point) => {
+    const passthrough = hoverPassthroughElement;
+
+    if (!passthrough?.isConnected) {
+      updateHover(point);
+
+      return;
+    }
+
+    const pointerEvents = passthrough.style.pointerEvents;
+    passthrough.style.pointerEvents = "none";
+
+    try {
+      updateHover(point);
+    } finally {
+      passthrough.style.pointerEvents = pointerEvents;
+    }
+  };
+
   const scheduleHover = (
     point: Point,
     passthroughElement: HTMLElement | null = null,
@@ -356,24 +375,11 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     hoverFrame = ownerWindow.requestAnimationFrame(() => {
       hoverFrame = 0;
       const latest = hoverPoint;
-      const passthrough = hoverPassthroughElement;
-      hoverPassthroughElement = null;
 
       if (!latest) return;
 
       if (model.current.toolMode === "select" && !model.current.draggingGuideId) {
-        if (passthrough?.isConnected) {
-          const pointerEvents = passthrough.style.pointerEvents;
-          passthrough.style.pointerEvents = "none";
-
-          try {
-            updateHover(latest);
-          } finally {
-            passthrough.style.pointerEvents = pointerEvents;
-          }
-        } else {
-          updateHover(latest);
-        }
+        updateHoverWithPassthrough(latest);
       }
 
       model.setTransient({ hoverPointer: model.current.guides.length ? latest : null });
@@ -972,7 +978,9 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         syncLive();
         const latest = hoverPoint;
 
-        if (latest && model.current.toolMode === "select" && !model.current.draggingGuideId) updateHover(latest);
+        if (latest && model.current.toolMode === "select" && !model.current.draggingGuideId) {
+          updateHoverWithPassthrough(latest);
+        }
       }, NATIVE_SCROLL_SETTLE_MS);
     };
 
@@ -1000,6 +1008,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         && candidate.dataset.mesurerArrangeBox === "true");
 
       if (!(editBox instanceof ownerWindow.HTMLElement)) return;
+
       const point = { x: event.clientX, y: event.clientY };
 
       if (event.buttons !== 0) {
@@ -1032,6 +1041,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     return () => {
       ownerWindow.cancelAnimationFrame(syncFrame);
       ownerWindow.cancelAnimationFrame(hoverFrame);
+      hoverPassthroughElement = null;
       clearGuideDragHold();
       ownerWindow.clearTimeout(scrollSettleTimer);
       ownerWindow.clearTimeout(persistTimer);
