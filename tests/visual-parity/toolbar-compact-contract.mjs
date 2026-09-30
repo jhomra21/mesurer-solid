@@ -10,12 +10,20 @@ const context = await browser.newContext({ viewport: { width: 1280, height: 900 
 const page = await context.newPage();
 
 await page.addInitScript(() => {
+  let leaseSequence = 0;
   let leaseId = null;
+
+  window.__MESURER_CODEX_TEST_EVENTS__ = [];
 
   window.__MESURER_HOST__ = {
     codexBridge: async (request) => {
       if (request.action === "activate") {
-        leaseId = "toolbar-codex-lease";
+        leaseSequence += 1;
+        leaseId = `toolbar-codex-lease-${leaseSequence}`;
+        window.__MESURER_CODEX_TEST_EVENTS__.push({
+          action: request.action,
+          leaseId,
+        });
 
         return {
           ok: true,
@@ -33,6 +41,10 @@ await page.addInitScript(() => {
 
       if (request.action === "deactivate") {
         if (request.leaseId !== leaseId) throw new Error("Toolbar fixture received the wrong Codex lease.");
+        window.__MESURER_CODEX_TEST_EVENTS__.push({
+          action: request.action,
+          leaseId: request.leaseId,
+        });
         leaseId = null;
 
         return { ok: true, leaseId: request.leaseId, released: true };
@@ -141,6 +153,54 @@ try {
   assert.equal(await editMode.getAttribute("aria-pressed"), "false");
   assert(await contextButton.isVisible(), "Context must remain visible in Select mode");
   assert(await codexButton.isVisible(), "Codex must remain visible in Select mode");
+
+  await page.keyboard.press("Control+,");
+  const settingsDialog = page.getByRole("dialog", { name: "Settings" });
+
+  await settingsDialog.waitFor({ state: "visible" });
+  const generalTab = settingsDialog.getByRole("tab", { name: "General", exact: true });
+
+  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+
+  const pluginsDisclosure = settingsDialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
+
+  if ((await pluginsDisclosure.getAttribute("aria-expanded")) !== "true") await pluginsDisclosure.click();
+
+  const codexToggle = settingsDialog.getByRole("switch", { name: "Codex", exact: true });
+
+  assert.equal(await codexToggle.getAttribute("aria-checked"), "true");
+
+  await codexToggle.click();
+  await page.waitForFunction(() =>
+    document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']")?.getAttribute("aria-checked") === "false"
+  );
+  await codexButton.waitFor({ state: "hidden" });
+  assert.deepEqual(
+    await page.evaluate(() => window.__MESURER_CODEX_TEST_EVENTS__),
+    [
+      { action: "activate", leaseId: "toolbar-codex-lease-1" },
+      { action: "deactivate", leaseId: "toolbar-codex-lease-1" },
+    ],
+    "Settings OFF must release the active native Codex lease before removing the plugin",
+  );
+
+  await codexToggle.click();
+  await page.waitForFunction(() =>
+    document.querySelector("[data-mesurer-plugin-toggle='mesurer.codex']")?.getAttribute("aria-checked") === "true"
+  );
+  await codexButton.waitFor({ state: "visible" });
+  assert.deepEqual(
+    await page.evaluate(() => window.__MESURER_CODEX_TEST_EVENTS__),
+    [
+      { action: "activate", leaseId: "toolbar-codex-lease-1" },
+      { action: "deactivate", leaseId: "toolbar-codex-lease-1" },
+      { action: "activate", leaseId: "toolbar-codex-lease-2" },
+    ],
+    "Settings ON must acquire a fresh native Codex lease before restoring the plugin",
+  );
+
+  await page.keyboard.press("Control+,");
+  await settingsDialog.waitFor({ state: "hidden" });
 
   const expandedBox = await toolbar.boundingBox();
   assert(expandedBox, "Expanded toolbar must have a bounding box");
