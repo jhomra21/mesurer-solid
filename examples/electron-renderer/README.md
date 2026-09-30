@@ -38,37 +38,50 @@ Do not mount Mesurer from the main process.
 
 ## Codex bridge
 
-Codex is enabled by default in Mesurer Settings. To let the sandboxed renderer reach local Codex safely, expose one native-host capability through the same `__MESURER_HOST__` object used by Screenshot.
+Codex starts enabled when the renderer has a native Codex host capability. Without that capability, Settings lists Codex as off.
 
-In main:
+Install the main-process adapter once:
 
 ```ts
-import { ipcMain } from "electron"
-import { codexBridge } from "mesurer-solid/plugins/codex/bridge"
+import { BrowserWindow, ipcMain } from "electron"
+import { installMesurerCodexHost } from "mesurer-solid/plugins/codex/bridge"
 
-ipcMain.handle("mesurer:codex-bridge", (_event, request) =>
-  codexBridge(request)
-)
+const codexHost = installMesurerCodexHost({
+  ipcMain,
+  validateSender(event) {
+    const window = BrowserWindow.fromWebContents(event.sender)
+
+    return Boolean(window && !window.isDestroyed())
+  },
+})
 ```
 
-In preload:
+Expose the narrow renderer capability from preload:
 
 ```ts
+import { contextBridge, ipcRenderer } from "electron"
+import {
+  createMesurerCodexPreloadBridge,
+} from "mesurer-solid/plugins/codex/preload"
+
 contextBridge.exposeInMainWorld("__MESURER_HOST__", {
-  codexBridge: (request) =>
-    ipcRenderer.invoke("mesurer:codex-bridge", request),
+  codexBridge: createMesurerCodexPreloadBridge(ipcRenderer),
 })
 ```
 
 If the application also exposes `captureScreenshot`, put both functions on the same host object.
 
-Without `codexBridge`, the renderer shows **Codex host not connected** and keeps queueing disabled. This is a host-integration diagnostic, not evidence that the local Codex installation is broken. Mesurer does not open a helper server or an extra Electron window as a fallback.
+Keep the preload sandboxed. Electron's sandboxed preload runtime cannot load arbitrary CommonJS packages directly, so bundle a preload that imports `mesurer-solid/plugins/codex/preload`. The package smoke does this with esbuild while keeping `sandbox: true`, `contextIsolation: true`, and `nodeIntegration: false`.
 
-Codex Bridge runs inside Electron main. It does not create an HTTP server or launch another Electron/Node helper. Shared sessions use Codex's local app-server and `thread/queue/add`. If the host inherited an exact Codex Desktop thread, the same bridge may instead run Codex's native queue command for that thread and wake it with `codex://threads/<id>`; it never connects to the private app-tools pipe. A Desktop-bundled Codex executable is never used to bootstrap the shared daemon.
+Turning Codex on requests a native lease and waits for Codex readiness before Settings commits the enabled state. Turning it off waits for lease release before the plugin disappears. The main adapter also releases all leases owned by a renderer if it navigates, exits, or is destroyed.
 
-The package smoke bundles this main-process topology to CommonJS with esbuild before launching Electron. A separate packed runtime smoke verifies private Desktop detection without execution, exact inherited Desktop queue/deep-link routing, and standalone-daemon startup. The native bridge must therefore remain independent of `import.meta.url`, `process.execPath`, and sibling runtime-file lookup.
+Codex Bridge runs inside Electron main. It does not create an HTTP server or launch another Electron or Node helper. Shared sessions use Codex's local app-server and `thread/queue/add`. If the host inherited an exact Codex Desktop thread, the bridge may instead run Codex's native queue command for that thread and wake it with `codex://threads/<id>`. It never connects to the private app-tools pipe. A Desktop-bundled Codex executable is never used to start the shared daemon.
 
-Users do not install a Codex marketplace plugin, trust lifecycle hooks, or manage a bridge process.
+Disabling Mesurer Codex releases Mesurer's lease. It does not stop the shared Codex daemon.
+
+The package smoke bundles both Electron main and preload before launch. A separate packed runtime smoke verifies private Desktop detection, exact inherited Desktop queue and deep-link routing, lease release, and standalone-daemon startup.
+
+Users do not install a Codex marketplace plugin or manage a Mesurer bridge process.
 
 ## Native Screenshot capture
 
