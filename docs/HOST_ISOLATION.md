@@ -59,7 +59,7 @@ Package smoke exercises the exact packed npm artifact under adversarial host con
 - React, Solid 1, and Solid 2 host applications;
 - a packed Electron renderer with context isolation and sandboxing enabled and Node integration disabled.
 
-Rendered browser contracts separately exercise direct editing, Typography, Arrange, Screenshot, Context document ownership, toolbar pointer ownership, and Inspect hit testing. Inspect coverage includes SVG targets, pointer-transparent descendants, overlapping page targets, transformed elements, canvas, closed Shadow DOM boundaries, and a large DOM fixture. Context coverage includes source-attached window and nested scrolling, repeated-note marker placement, one clean annotation ownership edge, and create/saved annotation cards occluding real Select hover in a non-isolated browser top-layer host.
+Rendered browser contracts separately exercise direct editing, Typography, Edit movement, Screenshot, Context document ownership, toolbar pointer ownership, and Inspect hit testing. Inspect coverage includes SVG targets, pointer-transparent descendants, overlapping page targets, transformed elements, canvas, closed Shadow DOM boundaries, and a large DOM fixture. Context coverage includes source-attached window and nested scrolling, repeated-note marker placement, one clean annotation ownership edge, and create/saved annotation cards occluding real Select hover in a non-isolated browser top-layer host.
 
 The goal is to defend browser behavior that many sites compose, not to special-case individual websites.
 
