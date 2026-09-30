@@ -267,6 +267,25 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     const handleOverlayPointerMove = (event: PointerEvent) => props.onPointerMove(event);
 
+    const handleEditWindowPointerMove = (event: PointerEvent) => {
+      if (!props.editSelectionHover || props.model.current.toolMode !== "select") return;
+      const path = event.composedPath();
+
+      if (path.includes(overlay)) return;
+
+      const editBoxOwnsPointer = path.some((target) =>
+        target instanceof ownerWindow.Element
+        && target.getAttribute("data-mesurer-arrange-box") === "true");
+
+      if (editBoxOwnsPointer || event.buttons !== 0) {
+        props.model.setHoverTarget(null, null);
+
+        return;
+      }
+
+      props.onPointerMove(event);
+    };
+
     const syncHoverGeometry = () => {
       const target = props.model.current.hoverElement;
       const chrome = hoverChromeElement;
@@ -400,6 +419,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     syncHoverGeometry();
     overlay.addEventListener("pointermove", handleOverlayPointerMove);
+    ownerWindow.addEventListener("pointermove", handleEditWindowPointerMove, true);
     ownerWindow.addEventListener("scroll", handleScroll, { capture: true, passive: true });
     ownerWindow.addEventListener("resize", syncHoverGeometry, true);
     ownerWindow.addEventListener("pointerdown", handlePassiveGuideDown, true);
@@ -409,6 +429,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
 
     return () => {
       overlay.removeEventListener("pointermove", handleOverlayPointerMove);
+      ownerWindow.removeEventListener("pointermove", handleEditWindowPointerMove, true);
       ownerWindow.removeEventListener("scroll", handleScroll, true);
       ownerWindow.removeEventListener("resize", syncHoverGeometry, true);
       ownerWindow.removeEventListener("pointerdown", handlePassiveGuideDown, true);
