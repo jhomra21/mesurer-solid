@@ -117,6 +117,13 @@ try {
 
   settingsPage = await browser.newPage({ viewport: { width: 620, height: 700 } });
   watchDiagnostics(settingsPage);
+  await settingsPage.addInitScript(() => {
+    localStorage.setItem("mesurer-plugin-settings:availability", JSON.stringify({
+      version: 3,
+      enabled: { "mesurer.codex": true },
+      state: {},
+    }));
+  });
   await settingsPage.goto(url, { waitUntil: "networkidle" });
   const compact = settingsPage.locator("button[data-mesurer-toolbar-compact-toggle='true']");
   await compact.waitFor({ state: "visible" });
@@ -174,6 +181,11 @@ try {
   );
 
   const codexToggle = dialog.getByRole("switch", { name: "Codex", exact: true });
+  assert.equal(
+    await codexToggle.getAttribute("aria-checked"),
+    "false",
+    "A persisted beta.1 Codex-on value must stay dormant while the native host capability is absent",
+  );
   assert.equal(
     await settingsPage.locator("[data-mesurer-tool-id='codex.send']").count(),
     0,
