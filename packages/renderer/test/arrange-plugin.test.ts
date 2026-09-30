@@ -432,7 +432,7 @@ describe("arrangePlugin", () => {
     await vi.waitFor(() => expect(service?.intents()).toHaveLength(1));
     const intent = service?.intents()[0];
 
-    if (!intent) throw new Error("Arrange intent was not recorded.");
+    if (!intent) throw new Error("Edit intent was not recorded.");
 
     target.remove();
     const replacement = document.createElement("button");
