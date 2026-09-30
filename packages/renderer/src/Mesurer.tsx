@@ -87,7 +87,7 @@ export type MesurerProps = {
   onPluginToolMenuItem?: (tool: ToolContribution, item: ToolMenuItemContribution) => void;
   isBuiltinActionDisabled?: (id: Exclude<MesurerBuiltinPluginId, "distance">) => boolean;
   onBuiltinController?: (controller: MesurerBuiltinController | null) => void;
-  /** Internal composable-runtime flag used when Arrange owns the selected-target chrome. */
+  /** Internal composable-runtime flag used when Edit movement owns the selected-target chrome. */
   suppressSelectHoverWhenSelected?: boolean;
 };
 
