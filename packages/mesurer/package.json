@@ -32,6 +32,11 @@
     "./plugins/codex/bridge": {
       "types": "./plugins/codex/bridge.d.ts",
       "default": "./plugins/codex/bridge.mjs"
+    },
+    "./plugins/codex/preload": {
+      "types": "./plugins/codex/preload.d.ts",
+      "import": "./plugins/codex/preload.mjs",
+      "require": "./plugins/codex/preload.cjs"
     }
   },
   "files": [
