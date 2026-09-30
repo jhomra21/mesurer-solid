@@ -590,10 +590,8 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         });
       });
 
-      ctx.hook.on(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, async (event) => {
-        if (event?.constructor !== Object) return;
-
-        if (event.pluginId !== MESURER_CODEX_PLUGIN_ID) return;
+      ctx.hook.on(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, async (pluginId) => {
+        if (pluginId !== MESURER_CODEX_PLUGIN_ID) return;
         await deactivateBridge();
       });
 
