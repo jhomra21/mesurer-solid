@@ -1208,6 +1208,18 @@ try {
       && arrange.getAttribute("aria-pressed") === "true";
   });
 
+  // Select was off before the first Edit entry, so returning to Select restores
+  // that off state and clears its selection. Re-entering Edit must enable Select
+  // as an internal dependency without resurrecting the old target.
+  const resumedTarget = await target.boundingBox();
+
+  assert(resumedTarget, "Edit target must remain in the document after mode restoration");
+  await page.mouse.click(
+    resumedTarget.x + resumedTarget.width / 2,
+    resumedTarget.y + resumedTarget.height / 2,
+  );
+  await arrangeBox.waitFor({ state: "visible" });
+
   const verticalSnapLine = page.locator("[data-mesurer-arrange-snap-line='vertical']");
   const dragBox = await arrangeBox.boundingBox();
   assert(dragBox, "Edit drag surface must follow the current selection");
