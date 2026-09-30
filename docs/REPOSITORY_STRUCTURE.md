@@ -57,7 +57,7 @@ Create another feature/domain directory only when a group has the same kind of s
 
 ### `packages/mesurer`
 
-The public `mesurer-solid` package. It owns public mounting/injection, first-party plugin factories, Context/Arrange/Codex integration, package staging, and package-facing documentation.
+The public `mesurer-solid` package. It owns public mounting/injection, first-party plugin factories, Context/Edit/Codex integration, package staging, and package-facing documentation.
 
 Package scripts that ship with `mesurer-solid` stay here even when a repository-level test exercises them.
 
