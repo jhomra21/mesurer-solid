@@ -192,10 +192,27 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
   const options = {
     codex: join(root, "must-not-run"),
     codexHome: root,
+    clientId: "client-a",
   };
 
   try {
-    const threads = await codexBridge({ action: "threads", limit: 10 }, options);
+    const activation = await codexBridge({ action: "activate" }, options);
+    const leaseId = activation.leaseId;
+
+    assert.equal(typeof leaseId, "string");
+    assert.equal(activation.ok, true);
+
+    const request = (payload) => codexBridge({ ...payload, leaseId }, options);
+
+    await assert.rejects(
+      codexBridge(
+        { action: "threads", leaseId, limit: 10 },
+        { ...options, clientId: "client-b" },
+      ),
+      /lease is not active for this host client/,
+    );
+
+    const threads = await request({ action: "threads", limit: 10 });
 
     assert.deepEqual(
       threads.threadDetails.map((thread) => ({
@@ -210,19 +227,19 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
     );
 
     await assert.rejects(
-      codexBridge({
+      request({
         action: "queue",
         thread: "thread-cold",
         message: "do not route this",
-      }, options),
+      }),
       /Codex thread is not loaded/,
     );
 
-    const queued = await codexBridge({
+    const queued = await request({
       action: "queue",
       thread: "thread-b",
       message: "apply this exact Mesurer feedback",
-    }, options);
+    });
 
     assert.equal(queued.thread, "thread-b");
     assert.equal(queued.status, "queued");
@@ -250,10 +267,10 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
       durationMs: null,
     }]);
 
-    const working = await codexBridge({
+    const working = await request({
       action: "delivery",
       deliveryId: queued.deliveryId,
-    }, options);
+    });
 
     assert.equal(working.status, "working");
     assert.equal(working.turnId, "turn-b");
@@ -277,10 +294,10 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
       durationMs: 1_000,
     }]);
 
-    const completed = await codexBridge({
+    const completed = await request({
       action: "delivery",
       deliveryId: queued.deliveryId,
-    }, options);
+    });
 
     assert.equal(completed.status, "completed");
 
@@ -290,6 +307,15 @@ test("Codex Bridge uses the existing shared app-server directly", async () => {
     ));
 
     assert.equal(state.deliveries[0]?.queuedSubmissionId, "queue-thread-b");
+
+    const released = await codexBridge({ action: "deactivate", leaseId }, options);
+
+    assert.equal(released.released, true);
+
+    await assert.rejects(
+      request({ action: "threads", limit: 10 }),
+      /lease is not active for this host client/,
+    );
   } finally {
     await appServer.close();
     await rm(root, { recursive: true, force: true });
