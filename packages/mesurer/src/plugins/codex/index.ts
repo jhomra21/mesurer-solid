@@ -3,7 +3,6 @@ import {
   type MesurerContextService,
 } from "../../context-plugin";
 import {
-  MESURER_PLUGIN_BEFORE_DISABLE_HOOK,
   type MesurerPlugin,
   type Registration,
   type ToolMenuItemContribution,
@@ -13,6 +12,8 @@ import { MESURER_VERSION } from "../../version";
 export const MESURER_CODEX_PLUGIN_ID = "mesurer.codex";
 
 export const MESURER_CODEX_SERVICE_ID = "codex:v1";
+
+const MANAGED_PLUGIN_BEFORE_DISABLE_HOOK = "mesurer.plugin.before-disable";
 
 const HEALTH_POLL_MS = 2_000;
 
@@ -590,7 +591,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         });
       });
 
-      ctx.hook.on(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, async (pluginId) => {
+      ctx.hook.on(MANAGED_PLUGIN_BEFORE_DISABLE_HOOK, async (pluginId) => {
         if (pluginId !== MESURER_CODEX_PLUGIN_ID) return;
         await deactivateBridge();
       });
