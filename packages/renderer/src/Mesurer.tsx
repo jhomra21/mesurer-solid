@@ -320,6 +320,16 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   });
 
   const updateHover = (point: Point) => {
+    if (input.editSelectionHover && model.current.selectedMeasurements.some((measurement) =>
+      point.x >= measurement.rect.left
+      && point.x <= measurement.rect.left + measurement.rect.width
+      && point.y >= measurement.rect.top
+      && point.y <= measurement.rect.top + measurement.rect.height)) {
+      model.setHoverTarget(null, null);
+
+      return;
+    }
+
     const target = getTargetElement(point, rootElement, ownerDocument, pageTarget);
 
     if (!target) {
