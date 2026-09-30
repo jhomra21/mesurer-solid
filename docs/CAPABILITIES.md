@@ -113,7 +113,7 @@ Context reports the page and viewport, selected or annotated targets, rulers/X-r
 
 ### Edit movement
 
-These methods require Edit. The agent method names keep `Arrange` for compatibility.
+These methods require Edit. The agent method names keep `Arrange` for compatibility. TypeScript exposes them through `MesurerEditHarness`; `MesurerArrangeHarness` remains a compatibility alias.
 
 | Method | Result |
 | --- | --- |
