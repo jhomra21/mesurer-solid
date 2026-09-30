@@ -16,6 +16,9 @@ type ElectronTestSummary = {
   colorPickerValue: string;
   nativeEyeDropperOpens: number;
   colorPickerOverlayRemoved: boolean;
+  codexBridgeOk: boolean;
+  codexRuntimeSource: string;
+  codexRuntimeTransport: string;
   toolbarInitialRect: {
     left: number;
     top: number;
@@ -108,6 +111,12 @@ const codexBridge = window.__MESURER_HOST__?.codexBridge;
 
 if (!codexBridge) {
   throw new Error("Electron preload did not expose Mesurer's Codex Bridge host capability.");
+}
+
+const codexRuntime = await codexBridge({ action: "runtime" });
+
+if (codexRuntime.ok !== true || !codexRuntime.runtime) {
+  throw new Error(`Electron Codex Bridge runtime request failed: ${JSON.stringify(codexRuntime)}`);
 }
 
 const mesurer = mountMesurer({
@@ -222,6 +231,9 @@ await window.electronMesurer.complete({
     colorPickerValue,
     nativeEyeDropperOpens,
     colorPickerOverlayRemoved: shadow.querySelector("[data-mesurer-color-picker-target='true']") === null,
+    codexBridgeOk: true,
+    codexRuntimeSource: codexRuntime.runtime.source,
+    codexRuntimeTransport: codexRuntime.runtime.transport,
     toolbarInitialRect: {
       left: toolbarInitialBounds.left,
       top: toolbarInitialBounds.top,
