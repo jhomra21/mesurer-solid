@@ -1196,6 +1196,7 @@ try {
 
     for (const candidate of document.querySelectorAll("*")) {
       if (!(candidate instanceof HTMLElement)) continue;
+
       if (candidate === moving || moving.contains(candidate)) continue;
 
       if (candidate.closest("[data-mesurer-island='true'], [data-mesurer-inspector-ui='true'], [data-mesurer-root='true']")) continue;
@@ -1205,7 +1206,9 @@ try {
       const rect = candidate.getBoundingClientRect();
 
       if (rect.width <= 0 || rect.height <= 0) continue;
+
       if (rangeGap(movingTop, movingBottom, rect.top, rect.bottom) > 160) continue;
+
       if ([rect.left, rect.right].some((edge) => Math.abs(edge - snapX) <= 1)) return true;
     }
 
