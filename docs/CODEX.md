@@ -70,7 +70,7 @@ Electron sandboxes preload scripts by default. A sandboxed preload cannot load a
 
 If the application already exposes `window.__MESURER_HOST__` for Screenshot, add `codexBridge` to that object.
 
-The main-process helper validates the calling frame, lets the application validate the sender, binds each activation lease to the invoking `WebContents`, and releases that renderer's leases on navigation, renderer exit, or destruction.
+`validateSender(event)` is required. The helper rejects subframes and any sender the application does not approve, binds each activation lease to the invoking `WebContents`, and releases that renderer's leases on navigation, renderer exit, or destruction.
 
 This is application integration, not a user setup step. Once the host installs the capability, users do not run a Mesurer bridge command, choose a port, or manage another process.
 
