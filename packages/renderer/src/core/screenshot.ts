@@ -39,7 +39,8 @@ export type HostScreenshotResult =
   | undefined;
 
 export type HostCodexBridgeRequest = {
-  action: "runtime" | "health" | "threads" | "target" | "queue" | "delivery" | "restore";
+  action: "activate" | "deactivate" | "runtime" | "health" | "threads" | "target" | "queue" | "delivery" | "restore";
+  leaseId?: string;
   thread?: string;
   limit?: number;
   message?: string;
@@ -63,6 +64,8 @@ export type HostCodexBridgeThread = {
 
 export type HostCodexBridgeResult = {
   ok?: boolean;
+  leaseId?: string;
+  released?: boolean;
   runtime?: HostCodexBridgeRuntime;
   thread?: string | null;
   threads?: string[];
