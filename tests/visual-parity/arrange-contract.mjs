@@ -293,6 +293,35 @@ try {
     "The third fixture target should sit underneath the two-target Edit group box",
   );
 
+  await page.mouse.move(
+    multiSelect.middle.x + multiSelect.middle.width / 2,
+    multiSelect.middle.y + multiSelect.middle.height / 2,
+  );
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+
+  const coveredHover = page.locator("[data-mesurer-hover-measurement='true']");
+  await coveredHover.waitFor({ state: "visible" });
+  const coveredHoverBox = await coveredHover.boundingBox();
+
+  assert(coveredHoverBox, "Edit should hover an unselected target underneath the movement group box");
+  assert(
+    Math.abs(coveredHoverBox.x - multiSelect.middle.x) <= 1
+      && Math.abs(coveredHoverBox.y - multiSelect.middle.y) <= 1
+      && Math.abs(coveredHoverBox.width - multiSelect.middle.width) <= 1
+      && Math.abs(coveredHoverBox.height - multiSelect.middle.height) <= 1,
+    `Edit hover should pass through movement chrome to the unselected page target: ${JSON.stringify({
+      expected: multiSelect.middle,
+      actual: coveredHoverBox,
+    })}`,
+  );
+  assert.equal(
+    await page.locator("[data-mesurer-selection-spacing-target='true']").count(),
+    2,
+    "Hovering through the Edit group box must not change selection",
+  );
+
   await page.keyboard.down("Shift");
   await page.mouse.click(
     multiSelect.middle.x + multiSelect.middle.width / 2,
