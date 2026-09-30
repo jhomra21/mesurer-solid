@@ -6,7 +6,7 @@ For the canonical human/agent UI-review workflow, read:
 
 - [Agent Integration](./packages/mesurer/AGENT_INTEGRATION.md) for the detailed integration and verification contract.
 - [Mesurer UI skill](./.agents/skills/mesurer-ui/SKILL.md) for the portable instructions shipped to coding agents.
-- [Context](./docs/CONTEXT_WORKFLOW.md), [Arrange](./docs/ARRANGE.md), [Layout Guides](./docs/LAYOUT_GUIDES.md), [Measurements](./docs/MEASUREMENTS.md), [Text Editing](./docs/TEXT_EDITING.md), and [Screenshots](./docs/SCREENSHOTS.md) for feature-specific behavior.
+- [Context](./docs/CONTEXT_WORKFLOW.md), [Edit](./docs/EDIT.md), [Arrange compatibility](./docs/ARRANGE.md), [Layout Guides](./docs/LAYOUT_GUIDES.md), [Measurements](./docs/MEASUREMENTS.md), [Text Editing](./docs/TEXT_EDITING.md), and [Screenshots](./docs/SCREENSHOTS.md) for feature-specific behavior.
 - [Design language](./docs/DESIGN_LANGUAGE.md) for the shared visual and interaction review contract for new Mesurer UI.
 
 Do not maintain a third copy of those procedures in this file. Keep this document focused on repository ownership, architectural invariants, validation, and contribution rules.
@@ -120,7 +120,7 @@ Built-in and external features use the same plugin host. Registrations belong to
 Keep these distinctions:
 
 - Context is the structured human/agent review API.
-- Arrange stores reversible Before/Desired geometry intent.
+- Edit stores reversible Before/Desired movement intent through the existing Arrange state and agent contracts.
 - Direct text editing stores reversible copy/typography intent and extends Select/Typography rather than becoming a competing toolbar plugin.
 - Screenshot remains an optional first-party plugin, not permanent measurement-core state.
 - Codex is an optional delivery integration; it does not redefine Context or agent inspection.
@@ -175,7 +175,7 @@ Preserve:
 - pinned source audits in [Upstream parity](./docs/UPSTREAM_PARITY.md);
 - distinction between adopted upstream behavior and Mesurer Solid extensions.
 
-Mesurer Solid extensions include the Solid 2/private renderer architecture, framework-independent public package, agent/context workflow, plugin runtime, Arrange, direct text editing, host isolation work, Trusted Types support, and optional Codex integration.
+Mesurer Solid extensions include the Solid 2/private renderer architecture, framework-independent public package, agent/context workflow, plugin runtime, Edit movement and direct text editing, host isolation work, Trusted Types support, and optional Codex integration.
 
 Do not describe an extension as upstream parity unless a source audit establishes it.
 
