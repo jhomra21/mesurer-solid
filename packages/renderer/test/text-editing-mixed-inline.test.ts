@@ -214,7 +214,7 @@ describe("mixed inline direct text editing", () => {
 
     const editor = document.querySelector<HTMLTextAreaElement>("[data-mesurer-text-editor='true']");
     expect(editor).toBeTruthy();
-    expect(editor?.value).toBe("to arrange.");
+    expect(editor?.value).toBe("to edit.");
     expect(target.querySelector("kbd")).toBe(key);
     expect(key.textContent).toBe("Shift+A");
     expect(before.nodeValue).toBe("Press ");
