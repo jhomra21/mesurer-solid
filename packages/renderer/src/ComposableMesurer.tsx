@@ -321,7 +321,7 @@ export default function ComposableMesurer(props: MesurerProps) {
   );
 
   type SuspendedSelectModeState = {
-    toolMode: "text-inspector" | "guides" | null;
+    toolMode: "none" | "select" | "text-inspector" | "guides" | null;
     xrayVisible: boolean;
     rulersVisible: boolean;
     pluginToolIds: string[];
@@ -340,7 +340,9 @@ export default function ComposableMesurer(props: MesurerProps) {
     const model = rendererModel;
 
     if (controller && model) {
-      if (snapshot.toolMode && model.current.toolMode !== snapshot.toolMode) {
+      if (snapshot.toolMode === "none" && model.current.toolMode === "select") {
+        controller.deactivate("select");
+      } else if (snapshot.toolMode && snapshot.toolMode !== "none" && model.current.toolMode !== snapshot.toolMode) {
         await controller.run(snapshot.toolMode);
       }
 
@@ -382,8 +384,8 @@ export default function ComposableMesurer(props: MesurerProps) {
       .map((tool) => tool.id);
 
     suspendedSelectModeState = {
-      toolMode: model?.current.toolMode === "text-inspector" || model?.current.toolMode === "guides"
-        ? model.current.toolMode
+      toolMode: model && ["none", "select", "text-inspector", "guides"].includes(model.current.toolMode)
+        ? model.current.toolMode as SuspendedSelectModeState["toolMode"]
         : null,
       xrayVisible: model?.current.xrayVisible ?? false,
       rulersVisible: model?.current.rulersVisible ?? false,
@@ -1118,7 +1120,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           onPluginToolMenuItem={runToolMenuItem}
           isBuiltinActionDisabled={builtinActionDisabled}
           onBuiltinController={(controller) => { builtinController = controller; }}
-          suppressSelectHoverWhenSelected={arrangeActive()}
+          editSelectionHover={arrangeActive()}
         />
       </MesurerModelRegistrationContext>
     </MesurerPluginSettingsProvider>
