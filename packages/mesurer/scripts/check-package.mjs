@@ -94,6 +94,18 @@ const publishedPlugins = await import(new URL("../dist/plugins.js", import.meta.
 
 const publishedCore = await import(new URL("../dist/core.js", import.meta.url));
 
+for (const exportName of [
+  "MESURER_EDIT_ACTIVE_STATE_ID",
+  "MESURER_EDIT_PLUGIN_ID",
+  "MESURER_EDIT_SERVICE_ID",
+  "MESURER_EDIT_SETTINGS_STATE_ID",
+  "MESURER_EDIT_STATE_ID",
+]) {
+  if (!Object.hasOwn(publishedPlugins, exportName)) {
+    throw new Error(`Published plugins entry is missing canonical Edit export ${exportName}.`);
+  }
+}
+
 let runtimeCleanupCount = 0;
 
 let runtimeFailure;
@@ -130,6 +142,7 @@ if (runtimeCleanupCount !== 1) {
 for (const factory of [
   "context",
   "codex",
+  "edit",
   "arrange",
   "layoutGuides",
   "screenshot",
@@ -204,7 +217,7 @@ if (!/\bselect:\s*boolean\b/.test(rootDeclarations)) {
 }
 
 if (!/\barrange:\s*boolean\b/.test(rootDeclarations)) {
-  throw new Error("Published MesurerAgentCapabilities must advertise Arrange availability.");
+  throw new Error("Published MesurerAgentCapabilities must advertise Edit movement availability through the arrange compatibility key.");
 }
 
 if (!/\btextEdit:\s*boolean\b/.test(rootDeclarations)) {
@@ -214,6 +227,23 @@ if (!/\btextEdit:\s*boolean\b/.test(rootDeclarations)) {
 for (const methodName of ["arrangements", "arrange", "showArrange", "arrangeCapturePlan", "reviewArrange"]) {
   if (!new RegExp(`\\b${methodName}\\s*\\(`).test(rootDeclarations)) {
     throw new Error(`Published Mesurer agent declarations are missing ${methodName}().`);
+  }
+}
+
+for (const contractName of [
+  "MesurerEditHarness",
+  "EditCapturePlan",
+  "EditIntent",
+  "EditOffset",
+  "EditPresentation",
+  "EditRect",
+  "EditReview",
+  "EditReviewTarget",
+  "EditTarget",
+  "MesurerEditService",
+]) {
+  if (!new RegExp(`\\b${contractName}\\b`).test(rootDeclarations)) {
+    throw new Error(`Published root declarations are missing canonical Edit contract ${contractName}.`);
   }
 }
 
@@ -280,6 +310,12 @@ for (const obsoleteFactory of [
 }
 
 for (const contractName of [
+  "EditElementFingerprint",
+  "EditIntent",
+  "EditReview",
+  "EditCapturePlan",
+  "MesurerEditService",
+  "MesurerEditSettings",
   "ArrangeElementFingerprint",
   "ArrangeIntent",
   "ArrangeReview",
@@ -505,4 +541,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, in-process Codex Bridge, agent context, Arrange, text edit intents, screenshot tooling, and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, in-process Codex Bridge, agent context, Edit movement, text edit intents, screenshot tooling, and Agent Skill installer are self-contained.`);
