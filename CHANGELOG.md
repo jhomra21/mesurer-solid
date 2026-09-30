@@ -4,6 +4,13 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Show hover bounds for other selectable elements while Edit already has a selection. Hover remains suppressed inside an already-selected subtree so nested content does not look independently selected.
+- Restore Select to its pre-Edit state. If Select was off before Edit enabled it for internal targeting, leaving Edit turns Select back off.
+- Make Codex Settings activation transactional. Codex starts enabled only when a native host capability exists, and an ON request must acquire a native lease and prove transport readiness before the plugin becomes enabled.
+- Make Codex disable wait for native lease release. The Electron host adapter binds leases to one renderer, validates callers, and releases renderer-owned leases on navigation, renderer exit, or destruction without stopping Codex's shared daemon.
+- Publish package-owned Electron host and preload adapters for Codex. Secure sandboxed preloads can bundle `mesurer-solid/plugins/codex/preload` instead of duplicating IPC channel code.
+- Keep inherited Codex Desktop queue receipts visible after durable acceptance. The receipt includes the queued-submission id and does not claim a private Working or Finished state.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.1 - 2026-09-30
