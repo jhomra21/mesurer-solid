@@ -143,7 +143,7 @@ const installArrangeDocumentMeasurementGuard = (
   const realm = runtime.ownerWindow as Window & typeof globalThis;
   const hiddenMeasurements = new Map<HTMLElement, HiddenMeasurement>();
   let active = ctx.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID) ?? false;
-  let textRuntimeMount: HTMLElement | null = null;
+  let textRuntimeMounts: HTMLElement[] = [];
   let textObserver: MutationObserver | null = null;
 
   // MeasurementBox deliberately portals a document-backed selection directly
@@ -170,7 +170,9 @@ const installArrangeDocumentMeasurementGuard = (
     hiddenMeasurements.clear();
   };
 
-  const directEditActive = () => Boolean(textRuntimeMount?.querySelector(TEXT_EDITOR));
+  const directEditActive = () =>
+    textRuntimeMounts.some((mount) =>
+      mount.isConnected && Boolean(mount.querySelector(TEXT_EDITOR)));
 
   const hideMeasurement = (element: HTMLElement) => {
     if (!active || directEditActive() || !isDocumentMeasurement(element)) return;
@@ -203,33 +205,33 @@ const installArrangeDocumentMeasurementGuard = (
     else hideCurrentMeasurements();
   };
 
-  const observeTextRuntime = (mount: HTMLElement | null) => {
-    if (mount === textRuntimeMount) return;
+  const observeTextRuntimes = () => {
+    const mounts = Array.from(body.querySelectorAll<HTMLElement>(TEXT_EDIT_RUNTIME));
+
+    if (
+      mounts.length === textRuntimeMounts.length
+      && mounts.every((mount, index) => mount === textRuntimeMounts[index])
+    ) return;
+
     textObserver?.disconnect();
     textObserver = null;
-    textRuntimeMount = mount;
+    textRuntimeMounts = mounts;
 
-    if (!mount) {
-      syncMeasurements();
+    if (mounts.length > 0) {
+      textObserver = new realm.MutationObserver(syncMeasurements);
 
-      return;
+      for (const mount of mounts) {
+        textObserver.observe(mount, { childList: true, subtree: true });
+      }
     }
 
-    textObserver = new realm.MutationObserver(syncMeasurements);
-    textObserver.observe(mount, { childList: true, subtree: true });
     syncMeasurements();
   };
 
-  const latestTextRuntimeMount = () => {
-    const mounts = body.querySelectorAll<HTMLElement>(TEXT_EDIT_RUNTIME);
+  observeTextRuntimes();
 
-    return mounts.item(mounts.length - 1);
-  };
-
-  observeTextRuntime(latestTextRuntimeMount());
-
-  // Both the Solid-selected MeasurementBox portal and the isolated text runtime
-  // are direct body children. Keep this observer out of the host page subtree.
+  // Both Solid-selected MeasurementBox portals and Mesurer text runtimes are
+  // direct body children. Observe only those ownership roots, not host subtrees.
   const bodyObserver = new realm.MutationObserver((records) => {
     let runtimeMayHaveChanged = false;
 
@@ -242,11 +244,14 @@ const installArrangeDocumentMeasurementGuard = (
       }
 
       for (const node of record.removedNodes) {
-        if (node === textRuntimeMount) runtimeMayHaveChanged = true;
+        if (
+          node instanceof realm.HTMLElement
+          && node.matches(TEXT_EDIT_RUNTIME)
+        ) runtimeMayHaveChanged = true;
       }
     }
 
-    if (runtimeMayHaveChanged) observeTextRuntime(latestTextRuntimeMount());
+    if (runtimeMayHaveChanged) observeTextRuntimes();
   });
 
   bodyObserver.observe(body, { childList: true });
@@ -265,6 +270,7 @@ const installArrangeDocumentMeasurementGuard = (
     bodyObserver.disconnect();
     textObserver?.disconnect();
     textObserver = null;
+    textRuntimeMounts = [];
     subscription.dispose();
     restoreMeasurements();
   });
