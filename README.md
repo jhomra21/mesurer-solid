@@ -188,11 +188,13 @@ See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the package
 
 ### Queue human feedback to Codex
 
-Codex is enabled by default as a first-party Mesurer plugin. Native hosts expose one narrow `window.__MESURER_HOST__.codexBridge(request)` capability backed by `codexBridge()` from `mesurer-solid/plugins/codex/bridge`.
+Codex starts enabled when a native host exposes `window.__MESURER_HOST__.codexBridge(request)`. Browser-only hosts list Codex in Settings but leave it off.
 
-Codex Bridge runs inside the native host process and keeps runtime selection inside the plugin. Shared Codex sessions use the existing local app-server and `thread/queue/add`. When the host was launched from a Codex Desktop thread, Mesurer can instead use the exact inherited Desktop thread: it queues once through Codex's native queue command and wakes that same thread with `codex://threads/<id>`. The Desktop app-tools pipe is never opened. There is no Mesurer localhost bridge server, helper Electron process, marketplace plugin, or lifecycle-hook setup.
+Electron applications can install `installMesurerCodexHost()` from `mesurer-solid/plugins/codex/bridge` in main and expose `createMesurerCodexPreloadBridge()` from `mesurer-solid/plugins/codex/preload` through preload. Turning Codex on waits for a native activation lease and Codex readiness. Turning it off waits for lease release. The host adapter also releases a renderer's leases on navigation, renderer exit, or destruction.
 
-**Queue to Codex** targets only a destination Mesurer can identify safely. Shared delivery tracks exact Queued, Working, Finished, or Interrupted lifecycle state. Desktop current-thread delivery proves durable queue acceptance and wake without inventing lifecycle state that remains private to Desktop. Mesurer never creates a new thread or invokes Steer.
+Codex Bridge runs inside the native host process. Shared Codex sessions use the existing local app-server and `thread/queue/add`. An inherited Codex Desktop thread uses one durable native queue operation and wakes that same thread with `codex://threads/<id>`. Mesurer never opens the private Desktop app-tools pipe and never creates a localhost bridge server or helper Electron process.
+
+**Queue to Codex** targets only a destination Mesurer can identify safely. Shared delivery tracks exact Queued, Working, Finished, or Interrupted lifecycle state. Desktop current-thread delivery keeps its durable queue receipt visible without inventing lifecycle state that remains private to Desktop. Mesurer never creates a new thread or invokes Steer.
 
 See [Queue Context feedback to Codex](./docs/CODEX.md) for native-host wiring, loaded-thread routing, recovery, and the typed `codex:v1` service.
 
