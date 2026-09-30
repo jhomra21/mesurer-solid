@@ -117,10 +117,10 @@ These methods require Edit. The agent method names keep `Arrange` for compatibil
 
 | Method | Result |
 | --- | --- |
-| `arrangements()` | List saved Arrange intents. |
-| `arrange(id)` | Read one Arrange intent. |
-| `showArrange(id, "before" | "desired" | "live")` | Switch the visible Arrange presentation. |
-| `arrangeCapturePlan(id, presentation)` | Return regions for an Arrange screenshot. |
+| `arrangements()` | List saved Edit movement intents. |
+| `arrange(id)` | Read one Edit movement intent. |
+| `showArrange(id, "before" | "desired" | "live")` | Switch the visible Edit movement presentation. |
+| `arrangeCapturePlan(id, presentation)` | Return regions for an Edit movement screenshot. |
 | `reviewArrange(id, tolerance?)` | Compare Live geometry with the saved Desired geometry. |
 
 ## Standalone helpers
