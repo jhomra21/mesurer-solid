@@ -433,7 +433,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
   setup(ctx) {
     const runtime = ctx.service.get<MesurerSolidRuntimeService>(RUNTIME_SERVICE_ID);
 
-    if (!runtime) throw new Error("Arrange plugin requires the Solid renderer runtime.");
+    if (!runtime) throw new Error("Edit movement plugin requires the Solid renderer runtime.");
 
     const { ownerDocument, ownerWindow } = runtime;
     const workspace = runtime.createWorkspaceRuntime();
@@ -494,7 +494,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     const box = ownerDocument.createElement("div");
     box.dataset.mesurerArrangeBox = "true";
     box.setAttribute("role", "application");
-    box.setAttribute("aria-label", "Arrange selected elements");
+    box.setAttribute("aria-label", "Edit selected elements");
     box.style.position = "fixed";
     box.style.display = "none";
     box.style.boxSizing = "border-box";
@@ -1710,14 +1710,16 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
     ctx.tool.register({
       id: "arrange",
-      label: "Arrange",
+      label: "Edit",
       shortcut: "Shift+A",
       order: 65,
       command: TOGGLE_COMMAND,
+      toolbarMode: "edit",
+      modeSwitch: true,
       icon: moveIcon,
       active,
       menu: {
-        label: "Arrange options",
+        label: "Edit options",
         items: [
           {
             id: "snapping",
@@ -1773,7 +1775,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     });
     ctx.settings.register({
       id: "arrange",
-      label: "Arrange",
+      label: "Edit",
       order: 35,
       controls: [
         {

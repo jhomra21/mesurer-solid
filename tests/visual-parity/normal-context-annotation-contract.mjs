@@ -128,6 +128,18 @@ const saveNote = async (composer, text) => {
 };
 
 const assertDocumentSurface = async (locator, label) => {
+  await locator.waitFor({ state: "visible" });
+  await locator.evaluate(async (element) => {
+    for (let frame = 0; frame < 12; frame += 1) {
+      if (
+        element.getAttribute("data-mesurer-annotation-scroll-mode") === "document"
+        && getComputedStyle(element).position === "absolute"
+      ) return;
+
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+  });
+
   assert.equal(
     await locator.getAttribute("data-mesurer-annotation-scroll-mode"),
     "document",
@@ -355,6 +367,12 @@ try {
   );
   await clickDocumentUi(panel.getByRole("button", { name: "Close annotation" }), "Close annotation button");
   await panel.waitFor({ state: "hidden" });
+
+  // Closing the page-owned card can schedule one final marker placement update.
+  // Settle that update before the next physical marker click.
+  await target.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
+  await settle();
+  await marker.waitFor({ state: "visible" });
 
   // Add notes 2 and 3 after scrolling. A newly mounted third marker must stay
   // close enough to its target that ownership is visually obvious.

@@ -24,6 +24,62 @@ export const CursorIcon = (props: IconProps) => (
   </IconBase>
 );
 
+
+export const SelectModeIcon = (props: IconProps & { strokePx?: number }) => {
+  const size = props.size ?? 20;
+  const stroke = ((props.strokePx ?? 1.25) * 256) / size;
+  const nested = 132;
+  const nestedStroke = stroke * (12 / nested);
+
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 256 256" fill="none" aria-hidden="true" class={props.class}>
+      <path
+        d="M56 40H200a16 16 0 0 1 16 16v36a16 16 0 0 1-16 16H108V200a16 16 0 0 1-16 16H56a16 16 0 0 1-16-16V56a16 16 0 0 1 16-16Z"
+        fill="none"
+        stroke="currentColor"
+        stroke-width={stroke}
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M88 40v32M128 40v32M168 40v32M40 88h32M40 128h32M40 168h32"
+        fill="none"
+        stroke="currentColor"
+        stroke-width={stroke}
+        stroke-linecap="butt"
+      />
+      <svg x="118" y="122" width={nested} height={nested} viewBox="9.4 12.5 12 12" overflow="visible">
+        <path
+          d="m18.76 16.64-6.25-2.07c-0.68-0.22-1.31 0.4-1.09 1.08l2.1 6.17c0.24 0.74 1.25 0.78 1.55 0.06l1.17-2.55 2.6-1.17c0.72-0.33 0.67-1.29-0.08-1.52z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width={nestedStroke}
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </svg>
+  );
+};
+
+export const EditModeIcon = (props: IconProps & { strokePx?: number }) => {
+  const size = props.size ?? 20;
+  const stroke = ((props.strokePx ?? 1.25) * 256) / size;
+
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 256 256" fill="none" aria-hidden="true" class={props.class}>
+      <path
+        d="M40 184C52.1 154.8 69.8 65 86 60C102.3 55 104.3 155 118 160C131.8 165 139.1 83.2 152 84C164.9 84.8 168.3 159 180 164C191.7 169 197.2 111.3 208 108C218.8 104.7 224.5 136.3 232 148"
+        fill="none"
+        stroke="currentColor"
+        stroke-width={stroke}
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  );
+};
+
 export const RulerIcon = (props: IconProps) => (
   <IconBase size={props.size ?? 20} class={props.class}>
     <path d="M233.91,74.79,181.22,22.1a14,14,0,0,0-19.8,0L22.09,161.41a14,14,0,0,0,0,19.8L74.78,233.9a14,14,0,0,0,19.8,0L233.91,94.59A14,14,0,0,0,233.91,74.79ZM225.42,86.1,86.1,225.41h0a2,2,0,0,1-2.83,0L30.58,172.73a2,2,0,0,1,0-2.83L64,136.48l27.76,27.76a6,6,0,1,0,8.48-8.48L72.48,128,96,104.48l27.76,27.76a6,6,0,0,0,8.48-8.48L104.48,96,128,72.49l27.76,27.75a6,6,0,0,0,8.48-8.48L136.49,64,169.9,30.59a2,2,0,0,1,2.83,0l52.69,52.68A2,2,0,0,1,225.42,86.1Z" />

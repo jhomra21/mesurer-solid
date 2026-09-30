@@ -109,6 +109,11 @@ try {
     nested.child.y + nested.child.height / 2,
   );
   await arrangeBox.waitFor({ state: "visible" });
+  assert.equal(
+    await arrangeBox.getAttribute("aria-label"),
+    "Edit selected elements",
+    "Edit movement box must use the public Edit name",
+  );
   const nestedArrangeBox = await arrangeBox.boundingBox();
   assert(nestedArrangeBox, "Arrange should render a box for the nested child");
   assert(
@@ -407,8 +412,8 @@ try {
 
   await page.keyboard.press("Escape");
   await arrangeBox.waitFor({ state: "hidden" });
-  const regressionArrangeOptions = page.getByRole("button", { name: "Arrange options", exact: true });
-  const regressionArrangeMenu = page.getByRole("menu", { name: "Arrange options", exact: true });
+  const regressionArrangeOptions = page.getByRole("button", { name: "Edit options", exact: true });
+  const regressionArrangeMenu = page.getByRole("menu", { name: "Edit options", exact: true });
 
   await regressionArrangeOptions.click();
   await regressionArrangeMenu.waitFor({ state: "visible" });
@@ -1026,8 +1031,8 @@ try {
   await arrangeBox.waitFor({ state: "visible" });
   assert.equal(await arrangeButton.isDisabled(), false, "Arrange should remain available after selecting a page element");
 
-  const arrangeOptionsButton = page.getByRole("button", { name: "Arrange options", exact: true });
-  const arrangeMenu = page.getByRole("menu", { name: "Arrange options", exact: true });
+  const arrangeOptionsButton = page.getByRole("button", { name: "Edit options", exact: true });
+  const arrangeMenu = page.getByRole("menu", { name: "Edit options", exact: true });
   const quickSnapping = () => arrangeMenu.getByRole("menuitemcheckbox", { name: "Snapping", exact: true });
   const resetAllPositions = () => arrangeMenu.getByRole("menuitem", { name: "Reset all positions", exact: true });
 
@@ -1044,26 +1049,28 @@ try {
 
   assert(
     arrangeMenuMetrics.every((metrics) => metrics.whiteSpace === "nowrap" && metrics.height <= 28.5),
-    `Arrange quick-menu entries should stay on one compact line: ${JSON.stringify(arrangeMenuMetrics)}`,
+    `Edit quick-menu entries should stay on one compact line: ${JSON.stringify(arrangeMenuMetrics)}`,
   );
-  assert.equal(await quickSnapping().getAttribute("aria-checked"), "true", "Arrange quick-menu snapping should default on");
+  assert.equal(await quickSnapping().getAttribute("aria-checked"), "true", "Edit quick-menu snapping should default on");
   await quickSnapping().click();
   await arrangeMenu.waitFor({ state: "hidden" });
 
   await arrangeOptionsButton.click();
   await arrangeMenu.waitFor({ state: "visible" });
-  assert.equal(await quickSnapping().getAttribute("aria-checked"), "false", "Arrange quick-menu should disable snapping and close after the choice");
+  assert.equal(await quickSnapping().getAttribute("aria-checked"), "false", "Edit quick-menu should disable snapping and close after the choice");
   await quickSnapping().click();
   await arrangeMenu.waitFor({ state: "hidden" });
 
   await arrangeOptionsButton.click();
   await arrangeMenu.waitFor({ state: "visible" });
-  assert.equal(await quickSnapping().getAttribute("aria-checked"), "true", "Arrange quick-menu should re-enable snapping after reopening");
+  assert.equal(await quickSnapping().getAttribute("aria-checked"), "true", "Edit quick-menu should re-enable snapping after reopening");
   await arrangeOptionsButton.focus();
   await page.keyboard.press("Escape");
   await arrangeMenu.waitFor({ state: "hidden" });
   assert.equal(await arrangeButton.getAttribute("aria-pressed"), "true", "Closing Arrange options with Escape should not deactivate Arrange");
 
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
+  await page.locator('[data-mesurer-toolbar="true"][data-mesurer-toolbar-mode="select"]').waitFor({ state: "visible" });
   await xrayButton.click();
   await page.waitForFunction(() => {
     const button = document.querySelector("[data-mesurer-builtin='xray'] button");
@@ -1130,6 +1137,10 @@ try {
     return control instanceof HTMLButtonElement && control.getAttribute("aria-checked") === "true";
   });
   await settingsButton.click();
+
+  // X-ray is Select-owned, so activating it exits Edit. Re-enter Edit while
+  // keeping X-ray visible before exercising Edit snapping against X-ray edges.
+  if ((await arrangeButton.getAttribute("aria-pressed")) !== "true") await arrangeButton.click();
 
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
@@ -1317,7 +1328,7 @@ try {
   await quickSnapping().click();
   await arrangeMenu.waitFor({ state: "hidden" });
 
-  await arrangeButton.click();
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await page.waitForFunction(({ left, top }) => {
     const element = document.querySelector(".primary-action");
 

@@ -115,3 +115,43 @@ export const arrange = (): MesurerPlugin => ({
   ...rendererArrangePlugin(),
   version: MESURER_VERSION,
 });
+
+/**
+ * Canonical public name for Mesurer's page-editing plugin.
+ *
+ * The underlying Arrange ids remain stable so persisted layouts, agent data,
+ * and existing integrations continue to work across the rename.
+ */
+export const edit = arrange;
+
+export const MESURER_EDIT_ACTIVE_STATE_ID = MESURER_ARRANGE_ACTIVE_STATE_ID;
+
+export const MESURER_EDIT_PLUGIN_ID = MESURER_ARRANGE_PLUGIN_ID;
+
+export const MESURER_EDIT_SERVICE_ID = MESURER_ARRANGE_SERVICE_ID;
+
+export const MESURER_EDIT_SETTINGS_STATE_ID = MESURER_ARRANGE_SETTINGS_STATE_ID;
+
+export const MESURER_EDIT_STATE_ID = MESURER_ARRANGE_STATE_ID;
+
+export type EditRect = ArrangeRect;
+
+export type EditOffset = ArrangeOffset;
+
+export type EditElementFingerprint = ArrangeElementFingerprint;
+
+export type EditTarget = ArrangeTarget;
+
+export type EditIntent = ArrangeIntent;
+
+export type EditPresentation = ArrangePresentation;
+
+export type EditReviewTarget = ArrangeReviewTarget;
+
+export type EditReview = ArrangeReview;
+
+export type EditCapturePlan = ArrangeCapturePlan;
+
+export type MesurerEditSettings = MesurerArrangeSettings;
+
+export type MesurerEditService = MesurerArrangeService;

@@ -110,6 +110,7 @@ jobs:
           import {
             captureVisibleTabPng,
             context,
+            edit,
             screenshot,
             type MesurerScreenshotPluginOptions,
             type MesurerScreenshotService,
@@ -180,6 +181,7 @@ jobs:
           void invalidScreenshotPreview;
           void screenshotService;
           void captureVisibleTabPng;
+          void edit;
           void canonicalMounted;
           void legacyMounted;
           void screenshot;
@@ -421,7 +423,7 @@ jobs:
           import { createSignal } from "solid-js";
           import { render } from "@solidjs/web";
           import { defineMesurerPlugin, mountMesurer } from "mesurer-solid";
-          import { context } from "mesurer-solid/plugins";
+          import { context, edit } from "mesurer-solid/plugins";
 
           function App() {
             const [count, setCount] = createSignal(0);
@@ -460,7 +462,7 @@ jobs:
               });
             },
           });
-          const mesurer = mountMesurer({ agent: true, theme: "dark", plugins: [plugin, context()] });
+          const mesurer = mountMesurer({ agent: true, theme: "dark", plugins: [plugin, context(), edit()] });
           await mesurer.ready;
           const service = await mesurer.service<{ ready: boolean }>("package-smoke");
           if (!service.ready) throw new Error("Mounted service resolution failed");

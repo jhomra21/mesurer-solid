@@ -17,19 +17,19 @@ A meaningful Mesurer step must return evidence the agent actually uses.
 
 The base inspector has Select, X-ray, Rulers, Typography, Guides, Distance, and Settings. Color Picker uses application-local host capture when available and otherwise uses a working browser `EyeDropper`; a successful sample copies the configured format to the clipboard.
 
-Optional first-party plugins add Context, Arrange, Layout Guides, Screenshot, and Codex delivery. Context carries annotations and structured evidence. Arrange carries Before/Desired/Live geometry intent. Layout Guides carries page-scoped column/row/grid intent and exposes saved guides through Context with each guide's `visible` flag. Screenshot is a human capture tool. Codex is an optional human queue transport, not the normal agent protocol.
+Optional first-party plugins add Context, Edit, Layout Guides, Screenshot, and Codex delivery. Context carries annotations and structured evidence. Edit carries Before/Desired/Live movement intent through the existing Arrange compatibility APIs. Layout Guides carries page-scoped column/row/grid intent and exposes saved guides through Context with each guide's `visible` flag. Screenshot is a human capture tool. Codex is an optional human queue transport, not the normal agent protocol.
 
 The JSON-safe `window.__MESURER__` object exposes the full agent API. Lifecycle and discovery methods are `ready()`, `capabilities()`, `describe()`, `state()`, and `stable()`. Inspection methods are `inspect()`, `inspectAll()`, `at()`, `distance()`, `viewport()`, and `feedback()`. `command()` runs registered Mesurer commands.
 
-Context adds `context()`, `contextText()`, `select()`, `annotations()`, `review()`, `capturePlan()`, `prepareCapture()`, and `finishCapture()`. Arrange adds `arrangements()`, `arrange()`, `showArrange()`, `arrangeCapturePlan()`, and `reviewArrange()`. Text intent is available through `textEdits()` and `textEdit()`. Use the narrowest method that answers the task without replacing human selection or saved intent.
+Context adds `context()`, `contextText()`, `select()`, `annotations()`, `review()`, `capturePlan()`, `prepareCapture()`, and `finishCapture()`. Edit movement keeps the agent methods `arrangements()`, `arrange()`, `showArrange()`, `arrangeCapturePlan()`, and `reviewArrange()` for compatibility. Text intent is available through `textEdits()` and `textEdit()`. Use the narrowest method that answers the task without replacing human selection or saved intent.
 
-Select, point inspection, and Context can target general DOM elements, including SVG. Direct text editing and Arrange remain HTML-only mutation surfaces; SVG selection does not imply that either operation is available for that target.
+Select, point inspection, and Context can target general DOM elements, including SVG. Direct text editing and Edit movement remain HTML-only mutation surfaces; SVG selection does not imply that either operation is available for that target.
 
 Human Select lifecycle is explicit. Invoking Select clears the current element and Guide selection before toggling the tool. Holding Shift while clicking rendered targets adds or removes them from the human multi-selection. Do not expect hidden selection state to return after Select is turned off or after an off-state reload.
 
 ## Reuse the live instance
 
-Never reinject, dispose, or replace Mesurer just because this skill loaded. A person may already have selected elements, guides, measurements, annotations, Arrange intent, text/style Desired intent, plugin state, or a screenshot preview open.
+Never reinject, dispose, or replace Mesurer just because this skill loaded. A person may already have selected elements, guides, measurements, annotations, Edit movement intent, text/style Desired intent, plugin state, or a screenshot preview open.
 
 Discover first:
 
@@ -95,15 +95,15 @@ const textEditIntents = await Promise.all(
 )
 ```
 
-Bring forward whatever matters: selection, target-bound notes, Arrange Before/Desired geometry, text Before/Desired copy/style deltas, ordinary guides, `workspace.visualContext.layoutGuides`, measurements, held distances, exact inspection, layout/style state, rulers/X-ray, and any human screenshot preview that must be preserved.
+Bring forward whatever matters: selection, target-bound notes, Edit movement Before/Desired geometry, text Before/Desired copy/style deltas, ordinary guides, `workspace.visualContext.layoutGuides`, measurements, held distances, exact inspection, layout/style state, rulers/X-ray, and any human screenshot preview that must be preserved.
 
 Page-owned workspace evidence is route-scoped. In-tab navigation can legitimately switch to a different set of guides, annotations, measurements, and Layout Guides while the global toolbar remains in the same tab-session position. Do not copy page-owned state from one route to another to make a comparison look stable.
 
 Do not clear or replace a channel until its relevant evidence has been consumed.
 
-## Treat Arrange as visual intent
+## Treat Edit movement as visual intent
 
-Arrange describes the requested rendered geometry, not how source should implement it.
+Edit movement describes the requested rendered geometry, not how source should implement it. The saved state and agent method names still use Arrange for compatibility.
 
 ```js
 const intent = await window.__MESURER__.arrange(arrangeId)
@@ -111,9 +111,9 @@ const intent = await window.__MESURER__.arrange(arrangeId)
 
 A 96px Desired offset does not mean production CSS should use `transform: translateX(96px)`. Inspect the surrounding layout and implement the appropriate flex/grid, gap, margin, sizing, ordering, component structure, or other semantic rule.
 
-Arrange can be activated before a selection exists and enables Select automatically. Turning Arrange off leaves Select active; turning Select off exits Arrange.
+Edit can be activated before a selection exists and keeps Select available as its targeting prerequisite. Use the Select/Edit mode switch to leave Edit.
 
-Before source edits, retain the Arrange id, exact target identity, Before geometry, and Desired geometry. Capture Before/Desired through the existing browser controller when screenshots materially help.
+Before source edits, retain the movement intent id, exact target identity, Before geometry, and Desired geometry. Capture Before/Desired through the existing browser controller when screenshots materially help.
 
 After source edits:
 
@@ -123,9 +123,9 @@ await window.__MESURER__.showArrange(arrangeId, "live")
 const review = await window.__MESURER__.reviewArrange(arrangeId)
 ```
 
-Live removes the temporary Arrange preview before measuring source output.
+Live removes the temporary Edit movement preview before measuring source output.
 
-Arrange preview ownership is conservative. Mesurer restores an older inline transform only while the current value and priority still match the exact preview Mesurer applied. If the host application changes the transform, preserve that host value; do not force Mesurer to restore an obsolete baseline to make a test pass.
+Edit movement preview ownership is conservative. Mesurer restores an older inline transform only while the current value and priority still match the exact preview Mesurer applied. If the host application changes the transform, preserve that host value; do not force Mesurer to restore an obsolete baseline to make a test pass.
 
 If review is still numerically wrong, continue editing. If target status is stale or partial, do not silently bind the intent to another element.
 
@@ -133,7 +133,7 @@ If review is still numerically wrong, continue editing. If target status is stal
 
 The human-facing inspection tool is **Typography**. The internal compatibility id remains `text-inspector`; do not automate normal application work by guessing toolbar labels.
 
-Direct editing starts by double-click/double-tap while Select or Typography is active. Arrange keeps Select active, so editing works while Arrange remains selected.
+Direct editing starts by double-click or double-tap while Edit is active. Typography in Select is inspection-only. Edit also owns the existing Arrange movement intent.
 
 The editor exposes direct B/I/U, Font, Size, Weight, rendered-page colors, custom color, and a separate Text/H1/H2/H3 semantic preset popup. Missing heading levels are not invented.
 
@@ -169,9 +169,9 @@ Final verification must use Live source with the Desired preview inactive. Keep 
 Saved intent and visible presentation are separate. By default, both human presentation switches are OFF:
 
 - **Settings > General > Keep text changes.** When OFF, Typography shows saved Desired text/style while it owns presentation, but Select and other tools restore the original page. ON keeps saved text/style visible outside Typography.
-- **Settings > General > Keep Arrange changes.** When OFF, Arrange shows saved Desired transforms while it owns presentation, but Select and other tools restore the original page. ON keeps saved Arrange presentation visible outside Arrange.
+- **Settings > General > Keep Edit changes.** When OFF, Edit shows saved Desired movement while it owns presentation, but Select restores the original page. ON keeps saved movement visible outside Edit.
 
-The user can open Settings with the gear button or `Cmd/Ctrl+,`. Changing either switch changes presentation policy only; it must not delete or rewrite saved intent/history. Do not treat an Original-looking page in Select as missing intent. Read the saved Text/Arrange records first.
+The user can open Settings with the gear button or `Cmd/Ctrl+,`. Changing either switch changes presentation policy only; it must not delete or rewrite saved intent/history. Do not treat an Original-looking page in Select as missing intent. Read the saved text and movement records first.
 
 Mesurer UI is never inspected-page content. Treat `[data-mesurer-root]`, `[data-mesurer-island]`, and `[data-mesurer-inspector-ui]` as hard selection and hit-test boundaries. Do not look through a Typography card, annotation UI, toolbar, or inspector shell to select page content underneath it.
 
@@ -209,11 +209,11 @@ const pluginState = await window.__MESURER__.state()
 
 `describe()` reports the loaded plugin contract. `command(id, args?)` executes a registered Mesurer command and returns its JSON-safe result when that command has one. Use these only when the task requires plugin-level control; do not replace a human selection or saved intent with commands just because commands are available.
 
-`contextText()` returns a text form of Context when structured JSON is not useful. `capturePlan()`, `prepareCapture()`, and `finishCapture()` coordinate external screenshots. Arrange also exposes `arrangeCapturePlan()`.
+`contextText()` returns a text form of Context when structured JSON is not useful. `capturePlan()`, `prepareCapture()`, and `finishCapture()` coordinate external screenshots. Edit movement also exposes the compatibility method `arrangeCapturePlan()`.
 
 ## Acquire targets in the right order
 
-After preserving relevant Arrange/text-edit intent:
+After preserving relevant Edit movement/text-edit intent:
 
 1. If the human already selected or annotated the target, read it before changing selection.
 2. If the intended target is ambiguous, ask the user to select the exact element(s) or region.
@@ -260,7 +260,7 @@ await window.__MESURER__.stable()
 
 Then compare the same evidence retained before editing:
 
-- Arrange Desired against Live through `reviewArrange()`;
+- Edit movement Desired against Live through `reviewArrange()`;
 - text/style Desired against Live with text preview inactive;
 - saved annotations through `review(annotationId)`;
 - current selection and measurements through fresh `context()`;
@@ -268,7 +268,7 @@ Then compare the same evidence retained before editing:
 
 A correct implementation survives with Mesurer previews inactive.
 
-Do not destroy guides, measurements, annotations, Arrange intent, text-edit intent, plugin state, or screenshot preview just to make validation appear clean.
+Do not destroy guides, measurements, annotations, Edit movement intent, text-edit intent, plugin state, or screenshot preview just to make validation appear clean.
 
 ## Screenshots
 
@@ -315,6 +315,6 @@ Codex delivery tracks transport and turn lifecycle. It does not prove that the U
 
 Do not call every Mesurer method after every edit. Measure what matters to the request.
 
-A completion should be evidence-based: exact target geometry or relationships where relevant, Live copy/typography when text intent exists, review deltas when Arrange/annotations exist, and a real browser screenshot when composition matters.
+A completion should be evidence-based: exact target geometry or relationships where relevant, Live copy/typography when text intent exists, review deltas when Edit movement/annotations exist, and a real browser screenshot when composition matters.
 
 If the evidence still disagrees with the requested result, continue working rather than explaining why the source "should" be correct.

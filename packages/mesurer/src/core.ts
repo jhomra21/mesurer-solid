@@ -29,6 +29,8 @@ export type ToolMenuContribution = {
   items: ToolMenuItemContribution[];
 };
 
+export type ToolbarMode = "select" | "edit" | "always";
+
 export type ToolContribution = {
   id: string;
   label: string;
@@ -36,6 +38,8 @@ export type ToolContribution = {
   command: string;
   order?: number;
   builtin?: string;
+  toolbarMode?: ToolbarMode;
+  modeSwitch?: boolean;
   icon?: { viewBox?: string; paths: string[] };
   active?: () => boolean;
   disabled?: () => boolean;
@@ -133,7 +137,16 @@ export type MesurerPlugin = {
 
 export type MesurerPluginDescription = {
   plugins: Array<{ id: string; version?: string; requires: string[]; provides: string[] }>;
-  tools: Array<{ id: string; label: string; shortcut?: string; command: string; order?: number; builtin?: string }>;
+  tools: Array<{
+    id: string;
+    label: string;
+    shortcut?: string;
+    command: string;
+    order?: number;
+    builtin?: string;
+    toolbarMode?: ToolbarMode;
+    modeSwitch?: boolean;
+  }>;
   settings: SettingsDescription[];
   overlays: OverlayContribution[];
   state: Array<{ id: string; history: boolean; persist: boolean }>;

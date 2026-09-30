@@ -335,6 +335,7 @@ export const layoutGuidesPlugin = (): MesurerPlugin => defineMesurerPlugin({
       shortcut: "L",
       command: TOGGLE_COMMAND,
       order: 38,
+      toolbarMode: "select",
       icon: layoutGuideIcon,
       active,
     });

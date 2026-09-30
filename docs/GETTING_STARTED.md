@@ -110,14 +110,14 @@ Keep plugin setup with the Mesurer mount. First-party plugin factories all come 
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { arrange, context, screenshot } from "mesurer-solid/plugins"
+import { context, edit, screenshot } from "mesurer-solid/plugins"
 
 if (import.meta.env.DEV) {
   const mesurer = mountMesurer({
     agent: true,
     plugins: [
       context(),
-      arrange(),
+      edit(),
       screenshot(),
     ],
   })
@@ -128,7 +128,7 @@ if (import.meta.env.DEV) {
 }
 ```
 
-Context, Arrange, Layout Guides, Screenshot, and optional transports such as Codex do not require separate application files. Add `layoutGuides()` when the page needs columns, rows, or a pixel grid. For explicit custom composition, the same `mesurer-solid/plugins` entry also exposes the built-in factories.
+Context, Edit, Layout Guides, Screenshot, and optional transports such as Codex do not require separate application files. Add `layoutGuides()` when the page needs columns, rows, or a pixel grid. For explicit custom composition, the same `mesurer-solid/plugins` entry also exposes the built-in factories.
 
 ## Browser-only boundary
 
@@ -143,13 +143,14 @@ If Mesurer should ship in the browser build instead of being development-only, r
 Once mounted:
 
 - press `S` and click a rendered HTML or SVG element to select it; invoking Select again turns it off and clears the current element and Guide selection;
-- with Select or Arrange active, press Escape once to clear the current selection and keep the tool active; press Escape again with nothing selected to exit Select, or to exit both Arrange and Select;
+- use `1` for Select mode and `2` for Edit mode; Select owns inspection, while Edit owns movement and direct text/style changes;
 - hold Shift while selecting to build a multi-selection;
 - hold `Alt` / `Option` for the distance overlay;
-- use the compact control to hide inactive toolbar items without changing active tool state.
+- Context and Codex remain visible when switching between Select and Edit;
+- use the compact control to hide inactive toolbar items without changing active mode.
 - drag the toolbar from its chrome or tool triggers; menus, dialogs, form controls, editable regions, and sliders keep pointer ownership.
 
-The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, direct text editing, and plugin hosting. Color Picker appears when the host has `window.__MESURER_HOST__.captureScreenshot` or a working browser `EyeDropper`.
+The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, direct text editing, and plugin hosting. Typography is read-only inspection in Select. Enter Edit before changing text or typography. Color Picker appears when the host has `window.__MESURER_HOST__.captureScreenshot` or a working browser `EyeDropper`.
 
 Global shortcuts are enabled by default. Disable them from **Settings > General > Shortcuts** or mount with `shortcutsEnabled: false`; toolbar controls and Escape/cancel behavior remain available.
 
@@ -157,13 +158,14 @@ Mesurer uses **Settings > General > Appearance** for System, Light, and Dark mod
 
 Default workspace persistence is page-scoped. The page key uses pathname plus sorted query parameters and includes `#/` hash routes. Navigating within one tab swaps page-owned selection, measurements, annotations, and Layout Guides instead of carrying them into another route. Toolbar position is tab-session UI and survives route changes and reloads separately from page workspace state.
 
-First-party plugin shortcuts are available only when global shortcuts are enabled and their plugin is mounted and enabled: `Shift+A` for Arrange, `L` for Layout Guides, `Shift+S` for Screenshot, and `C` / `Shift+C` / `N` for Context actions.
+Mode shortcuts are `1` for Select and `2` for Edit. `Shift+A` remains an Edit compatibility shortcut. Plugin shortcuts are available only when global shortcuts are enabled and their plugin is mounted and enabled.
 
 ## Next
 
 - [Capabilities](./CAPABILITIES.md)
 - [Direct text editing and Typography](./TEXT_EDITING.md)
-- [Arrange](./ARRANGE.md)
+- [Edit](./EDIT.md)
+- [Arrange compatibility](./ARRANGE.md)
 - [Layout Guides](./LAYOUT_GUIDES.md)
 - [Measurements and distance geometry](./MEASUREMENTS.md)
 - [Screenshots](./SCREENSHOTS.md)

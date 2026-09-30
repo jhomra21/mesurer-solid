@@ -209,6 +209,11 @@ async function assertPackedDirectEditing(page, testCase, errors) {
     document.body.querySelector("[data-mesurer-selected-measurement='true']"),
   ));
 
+  const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
+  await editMode.waitFor({ state: "visible", timeout: 5000 });
+  await editMode.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+
   await page.mouse.dblclick(point.x, point.y);
   const editor = page.locator("[data-mesurer-text-editor='true']");
   await editor.waitFor({ state: "visible", timeout: 5000 });
@@ -242,14 +247,17 @@ async function assertPackedDirectEditing(page, testCase, errors) {
     throw new Error(`${testCase.name} packed direct-edit commit was not recorded: ${JSON.stringify(committed)}`);
   }
 
-  // Packed consumers must obey the same presentation policy as the renderer:
-  // the edit intent remains stored, Select restores the original page by default,
-  // Typography reveals the saved edit, and returning to Select restores original
-  // presentation again without discarding the intent.
+  // Edit owns Desired text/style presentation. Select and Typography are
+  // inspection surfaces, so leaving Edit restores the page's original text
+  // without discarding the saved edit intent.
+  await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Edited packed text");
+  await page.locator("button[data-mesurer-toolbar-mode='select']").click();
   await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Measured sibling");
   await page.evaluate(() => window.__MESURER__.command("builtin.text-inspector"));
+  await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Measured sibling");
+  await editMode.click();
   await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Edited packed text");
-  await page.evaluate(() => window.__MESURER__.command("builtin.select"));
+  await page.locator("button[data-mesurer-toolbar-mode='select']").click();
   await page.waitForFunction(() => document.querySelector("[data-testid='consumer-sibling']")?.textContent === "Measured sibling");
 
   const retained = await page.evaluate(() => window.__MESURER__.textEdits());

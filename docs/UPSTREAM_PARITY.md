@@ -7,10 +7,10 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `33ffecfa7682b25dff5ada2a507feedfa18c745b` (`main`, verified 2026-09-25) |
-| Current upstream audit | `547634086b1317b48e5cd23cafb477a9cdb807c3` (`main`, verified 2026-09-28) |
+| Previous upstream audit | `547634086b1317b48e5cd23cafb477a9cdb807c3` (`main`, verified 2026-09-28) |
+| Current upstream audit | `03c0581837c01325ce4a8fa18bc893955335eb21` (`main`, verified 2026-09-29) |
 
-The current audit advances from upstream's 0.2.0 release commit at `33ffecfa7682b25dff5ada2a507feedfa18c745b` through two follow-up fixes. One hardens extension session ownership during navigation and persists an upstream-only minimized toolbar flag. The other improves selection of pointer-transparent visual overlays by checking browser paint order. Mesurer Solid adopts the extension race fix and the hit-testing refinement. The upstream minimized flag does not map to Mesurer Solid's toolbar model.
+The current audit advances from `547634086b1317b48e5cd23cafb477a9cdb807c3` to upstream `03c0581837c01325ce4a8fa18bc893955335eb21`. The upstream grouped-toolbar switch, its motion helper, and the Select/Inspect and Annotate icons are unchanged across that range. Mesurer Solid now adopts that grouped-toolbar presentation for its own Select/Edit modes while keeping its 150 ms motion, plugin architecture, Context/Codex always-visible lane, and Arrange compatibility contracts. Later upstream changes in the range are marketing/site work plus small ColorField, brand-mark, and toolbar-restore adjustments; they do not change the mode switch.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
@@ -26,6 +26,19 @@ Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
+
+### 2026-09-29 Select/Edit mode adoption
+
+Upstream `03c0581837c01325ce4a8fa18bc893955335eb21` still uses the grouped toolbar introduced before the previous audit. The switch component, group-motion helper, toolbar-motion core, and both group icons have identical blobs to `547634086b1317b48e5cd23cafb477a9cdb807c3`.
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Two-button grouped toolbar switch with moving selection pill | **Adopted with product mapping** | Mesurer Solid maps upstream's Inspect/Annotate switch to Select/Edit. It keeps the upstream 28px buttons, 2px gap/padding, 3px active pill radius, neutral ink states, focus treatment, and source icons. |
+| Group content slides while the active lane changes width | **Adopted with 150 ms motion** | Mesurer Solid keeps the same grouped-toolbar structure and interruptible width/translate transition, but uses the project's existing 150 ms motion instead of upstream timing. Reduced motion disables the transition. |
+| Inspect-owned versus Annotate-owned tool lanes | **Adopted as Select/Edit ownership** | Select owns inspection tools. Edit owns movement and direct text/style editing. Typography stays in Select as inspection-only. |
+| Persistent controls outside the changing group | **Adopted with Mesurer Solid plugin ownership** | Context and Codex remain visible in both modes. Third-party tools without mode metadata retain the historical always-visible behavior so existing plugin surfaces do not disappear after upgrade. |
+| Existing Arrange ids and agent APIs | **Preserved compatibility layer** | The public UI and new plugin factory use Edit, but `mesurer.arrange.*` state, service ids, persisted movement intent, `arrange()`, and agent methods remain valid. |
+| Upstream post-audit ColorField event cleanup, Mesurer mark refresh, toolbar-restore offset, and marketing/site work | **Not part of this mode port** | None of these changes alter the grouped mode switch or its icons/motion. They remain separate audit items rather than being bundled into the Select/Edit feature. |
 
 ### 2026-09-28 stable-readiness follow-up
 
@@ -72,12 +85,12 @@ Upstream `33ffecfa7682b25dff5ada2a507feedfa18c745b` is the 0.2.0 release commit.
 | Upstream delta | Decision | Reason |
 | --- | --- | --- |
 | Pointer-transparent visual hit testing and native top-target preservation | **Adopted with shared DOM resolver** | Select and agent point inspection now use the same visual resolver. Browser coverage includes transparent descendants, overlapping native targets, transforms, canvas, closed shadow roots, and a 1,000-node fixture. |
-| General `Element` / SVG Inspect targets | **Adopted with explicit HTML-only mutation boundaries** | Renderer selection, measurement references, Context, and annotation geometry accept DOM `Element`, including SVG. Direct text editing, Arrange transforms, and native CSS-anchor mutation still narrow to `HTMLElement`. Chromium covers physical SVG selection, point inspection, Context, and programmatic `select()`. |
+| General `Element` / SVG Inspect targets | **Adopted with explicit HTML-only mutation boundaries** | Renderer selection, measurement references, Context, and annotation geometry accept DOM `Element`, including SVG. Direct text editing, Edit movement transforms, and native CSS-anchor mutation still narrow to `HTMLElement`. Chromium covers physical SVG selection, point inspection, Context, and programmatic `select()`. |
 | Upstream stress-bench/site fixture growth | **Not library parity by itself** | Mesurer Solid keeps its own focused browser fixtures. Relevant hit-testing and geometry cases are covered there instead of copying upstream site/demo content. |
 | Dragging the toolbar from controls or chrome | **Adopted with the existing Solid drag engine** | Drag starts remain thresholded. Crossing the threshold closes an open Settings, Guide, or plugin surface, while real menus, dialogs, form controls, contenteditable regions, and slider surfaces retain pointer ownership. |
 | Settings and toolbar-menu trigger re-click | **Already equivalent; now browser-covered** | Settings, Guide orientation, and plugin split-menu triggers already toggle their own surface. The toolbar drag contract protects that behavior while also checking post-drag click suppression. |
 | Theme-aware ruler fade color | **Already adopted** | Ruler gradients already use `--msr-surface`, including Dark and System-dark themes. |
-| Inspect/Annotate group switching used by upstream toolbar tests | **Intentional divergence** | Mesurer Solid keeps one stable toolbar and does not adopt upstream's grouped toolbar model. |
+| Inspect/Annotate group switching used by upstream toolbar tests | **Adopted with Select/Edit mapping** | Mesurer Solid now uses the upstream grouped-toolbar presentation and icons for Select/Edit. Its tool ownership differs intentionally: Typography stays in Select, editing belongs to Edit, and Context/Codex remain visible across both modes. |
 
 ### 2026-09-22 theme delta classification
 
@@ -114,7 +127,7 @@ These decisions remain the current product boundary. The threaded-comment work i
 | Keyboard ownership, shortcut gating, host-menu protection, scoped styles, and page-focus isolation fixes | **Adopted outcome; independently implemented and validated** | These are release requirements in Mesurer Solid's host-isolation architecture. Current host compatibility, browser contracts, plugin persistence, toolbar, and Trusted Types coverage validate the behavior without importing upstream's React-specific implementation. |
 | Live overlay positioning, animated-layout tracking, tooltip/card collision handling, and selection geometry hardening | **Adopted outcome; independently implemented and validated** | Mesurer Solid's document/native anchoring, cached scroll compensation, renderer-root ownership, and selection contracts cover the same class of adopted behavior. Window and nested-scroll contracts, Typography anchoring, visual parity, and annotation tracking validate the current implementation. |
 | Extension screenshot capture bridge removal | **Intentional divergence** | Mesurer Solid keeps its own private Chromium extension adapter because the extension still captures with the temporary `activeTab` grant. The same Screenshot implementation can also use an application-owned native host capability or browser `getDisplayMedia()`. No upstream bridge compatibility is claimed. |
-| Upstream visual polish such as floating-card radii, cursor behavior, and hover-lightening | **Intentional divergence unless separately adopted** | Mesurer Solid keeps source-first shared behavior where it is part of the adopted contract, but its plugin-owned Context/Typography/Arrange surfaces have independent visual ownership and parity tests. Cosmetic upstream changes are not silently treated as stable requirements. |
+| Upstream visual polish such as floating-card radii, cursor behavior, and hover-lightening | **Intentional divergence unless separately adopted** | Mesurer Solid keeps source-first shared behavior where it is part of the adopted contract, but its plugin-owned Context/Typography/Edit surfaces have independent visual ownership and parity tests. Cosmetic upstream changes are not silently treated as stable requirements. |
 
 These classifications define the current product boundary. A newer upstream feature is not automatically a blocker when the product difference is explicit and the public package does not claim the capability.
 
@@ -134,7 +147,7 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | --- | --- |
 | Core measurement, X-ray, guides, rulers, settings | Source-first port with historical visual/interaction validation |
 | System, Light, and Dark appearance | Adopted from upstream `c20ad51`; theme state also follows Mesurer Solid document-backed UI |
-| SVG and general DOM `Element` selection | Adopted from the post-theme Inspect work; Select, point inspection, Context, and annotation geometry accept SVG while HTML-only editing/Arrange paths stay explicit |
+| SVG and general DOM `Element` selection | Adopted from the post-theme Inspect work; Select, point inspection, Context, and annotation geometry accept SVG while HTML-only Edit mutation paths stay explicit |
 | Color Picker | Adopt the operational browser `EyeDropper` path; native application hosts use their existing `captureScreenshot` capability for application-local sampling |
 | Text Inspector | Adopt inspection behavior; visible label is **Typography**, internal id stays `text-inspector` |
 | Layout Guides | Adopt as optional `layoutGuides()` plugin with page-scoped state, history-aware commands, typed service, Context evidence, and current-source panel presentation |
@@ -144,18 +157,18 @@ The previous audit covered `b14c2bed...`, **"feat: pin option measurements with 
 | Option-distance pinning (`Option+S`) | Intentionally not adopted; Mesurer Solid retains its existing held-distance workflow |
 | DOM-attached threaded comments | Intentionally not adopted; Mesurer Solid uses Context annotations instead |
 | Iframe selection/comment targeting | Intentionally not adopted |
-| Inspect/Annotate group switching | Intentionally not adopted |
-| Arrange as a toolbar mode | Intentionally not adopted; Arrange remains an optional plugin tool |
+| Inspect/Annotate group switching | **Presentation adopted with different semantics.** Mesurer Solid uses the upstream grouped switch structure, icons, and width-changing motion for Select/Edit, but does not adopt upstream threaded Annotate behavior. |
+| Select/Edit mode semantics | **Mesurer Solid extension.** Select owns inspection. Edit owns movement and direct text/style changes. Context and Codex remain visible in both modes. Existing Arrange ids and agent contracts stay as compatibility surfaces. |
 | Arrow, pen, and freeform drawing annotations | Intentionally not adopted |
 | Site, analytics, footer, and repository-only changes | Not library parity |
 
-Framework-neutral mounting, the plugin runtime, Context, Arrange, direct text editing, host isolation, and the private Solid 2 renderer are Mesurer Solid-specific architecture.
+Framework-neutral mounting, the plugin runtime, Context, Edit movement and direct text editing, host isolation, and the private Solid 2 renderer are Mesurer Solid-specific architecture.
 
 ## Toolbar boundary
 
-Upstream has continued evolving its grouped Inspect/Annotate toolbar, floating cards, and comment controls. Mesurer Solid adopts shared presentation improvements only when they fit its one-toolbar product model; it does not adopt upstream tool-group switching or comment-mode chrome by implication.
+Upstream has continued evolving its grouped Inspect/Annotate toolbar, floating cards, and comment controls. Mesurer Solid adopts the grouped switch presentation for its own Select/Edit product model without inheriting upstream comment-mode behavior.
 
-The shipping toolbar keeps one stable tool order. Compact presentation hides inactive controls, preserves every active control and its state, and expands back to the same toolbar. Motion uses a 150ms interruptible transition and respects reduced motion. Arrange remains a normal plugin contribution.
+The shipping toolbar has Select and Edit groups. Select contains inspection tools; Edit contains movement and direct text/style editing. Context and Codex stay pinned across both groups. Compact presentation preserves the active mode and active controls. Mode changes use a 150ms interruptible transition and respect reduced motion.
 
 The historical `605d202` parity suite still covers shared page/result and Settings behavior, but it predates the current toolbar shell. Toolbar chrome is excluded only from that historical geometry comparison and is covered by a dedicated current Chromium toolbar contract instead.
 
@@ -175,9 +188,9 @@ Mesurer Solid exposes the upstream Text Inspector concept as **Typography** and 
 
 Direct editing follows native browser editability and records Before/Desired copy and style intent. If the application changes the value, Mesurer stops managing that preview value. It also owns one visible edit/selection lane: duplicate ordinary selected chrome is paint-suppressed, the dimensions pill remains measurable, source-linked Typography stays stable under pointer motion and follows the source through scroll/offscreen movement, and the transient selection annotation trigger is hidden only for the active edit. See [Direct text editing and Typography](./TEXT_EDITING.md).
 
-### Arrange
+### Edit
 
-Arrange records layout intent without changing application source. It activates Select automatically, keeps Arrange/Select coordination explicit, and previews Desired geometry with ownership-aware temporary transforms. See [Arrange](./ARRANGE.md).
+Edit records movement, direct text, and text-style intent without changing application source. Movement activates Select as its targeting prerequisite and previews Desired geometry with ownership-aware temporary transforms. The movement state and agent APIs retain their existing Arrange names for compatibility. See [Edit](./EDIT.md) and [Arrange compatibility](./ARRANGE.md).
 
 ### Context annotations
 

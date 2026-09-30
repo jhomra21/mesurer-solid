@@ -289,6 +289,13 @@ try {
   targetBox = await box(target, "target before direct edit");
   await page.mouse.click(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
   await waitForStableSelectedChrome("isolated-scroll-target");
+
+  const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
+  await editMode.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+  await page.waitForTimeout(180);
+  await settle();
+
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");

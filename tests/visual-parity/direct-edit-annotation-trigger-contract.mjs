@@ -43,6 +43,10 @@ try {
   await annotation.waitFor({ state: "visible", timeout: 3000 });
   assert.equal(await contextRoot.getAttribute("data-mesurer-document-inspector-mount"), "true");
 
+  const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
+  await editMode.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+
   await page.mouse.dblclick(x, y);
   const editor = page.locator("[data-mesurer-text-editor='true']");
   await editor.waitFor({ state: "visible", timeout: 3000 });

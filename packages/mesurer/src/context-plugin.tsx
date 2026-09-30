@@ -343,6 +343,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
         shortcut: "C",
         command: "context.copy",
         order: 70,
+        toolbarMode: "always",
         icon: COPY_ICON,
         hidden: () => !uiEnabled(),
       });
@@ -352,6 +353,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
         shortcut: "Shift+C",
         command: "context.copy-selection",
         order: 71,
+        toolbarMode: "always",
         icon: COPY_SELECTION_ICON,
         hidden: () => !uiEnabled(),
         disabled: () => !hasSelection(),
@@ -362,6 +364,7 @@ export function context(options: MesurerContextPluginOptions = {}): MesurerPlugi
         shortcut: "N",
         command: "context.add-note",
         order: 72,
+        toolbarMode: "always",
         icon: NOTE_ICON,
         hidden: () => !uiEnabled(),
         disabled: () => !hasSelection(),

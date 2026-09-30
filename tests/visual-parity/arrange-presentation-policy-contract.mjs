@@ -64,9 +64,9 @@ try {
   assert(desired, "Arrange presentation target must keep geometry after drag");
   assert(!samePosition(desired, before), `Arrange drag must create a distinct Desired position: ${JSON.stringify({ before, desired })}`);
 
-  // Default policy: saved Arrange intent remains stored but is not presented
-  // when Arrange is inactive.
-  await arrangeButton.click();
+  // Default policy: saved movement intent remains stored but is not presented
+  // when Edit is inactive.
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await page.waitForFunction(() => {
     const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
 
@@ -81,19 +81,19 @@ try {
 
   if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
 
-  const keepArrange = dialog.getByRole("switch", { name: "Keep Arrange changes", exact: true });
-  await keepArrange.waitFor({ state: "visible" });
-  assert.equal(await keepArrange.getAttribute("aria-checked"), "false", "Keep Arrange changes should default off");
+  const keepEdit = dialog.getByRole("switch", { name: "Keep Edit changes", exact: true });
+  await keepEdit.waitFor({ state: "visible" });
+  assert.equal(await keepEdit.getAttribute("aria-checked"), "false", "Keep Edit changes should default off");
 
   // Opting in presents the already-saved Desired transform even outside the
   // Arrange tool; no new drag or intent is required.
-  await keepArrange.click();
+  await keepEdit.click();
   await page.waitForFunction(() => document.querySelector("[data-mesurer-presentation-setting='keep-arrange-changes']")?.getAttribute("aria-checked") === "true");
   await waitForPosition(".primary-action", desired);
 
   // Turning it back off returns the live/original page immediately while the
-  // intent stays available for the next Arrange session.
-  await keepArrange.click();
+  // intent stays available for the next Edit session.
+  await keepEdit.click();
   await page.waitForFunction(() => document.querySelector("[data-mesurer-presentation-setting='keep-arrange-changes']")?.getAttribute("aria-checked") === "false");
   await waitForPosition(".primary-action", before);
   await settingsButton.click();
@@ -107,7 +107,7 @@ try {
   });
   await waitForPosition(".primary-action", desired);
 
-  await arrangeButton.click();
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await waitForPosition(".primary-action", before);
 
   assert.equal(errors.length, 0, `Arrange presentation browser errors: ${errors.join("\n")}`);

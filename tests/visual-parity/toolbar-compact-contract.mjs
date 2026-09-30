@@ -38,19 +38,29 @@ try {
 
   const toolbar = page.locator('[data-mesurer-toolbar="true"]');
   const compactToggle = page.locator('[data-mesurer-toolbar-compact-toggle="true"]');
-  const compactDivider = page.locator('[data-mesurer-toolbar-divider="compact"]');
-  // Use stable DOM ids here because this contract intentionally measures tools
-  // after their compact wrapper becomes aria-hidden/inert and leaves the a11y tree.
+  const modeSwitch = page.locator('[data-mesurer-toolbar-mode-switch="true"]');
+  const selectMode = page.locator('button[data-mesurer-toolbar-mode="select"]');
+  const editMode = page.locator('button[data-mesurer-toolbar-mode="edit"]');
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
   const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
   const typographyButton = page.locator("button[data-mesurer-builtin='text-inspector']");
-  const arrangeButton = page.locator("button[data-mesurer-tool-id='arrange']");
-  const arrangeOptions = page.getByRole("button", { name: "Arrange options", exact: true });
+  const contextButton = page.locator("button[data-mesurer-tool-id='context.copy']");
+  const codexButton = page.locator("button[data-mesurer-tool-id='codex.send']");
+  const editOptions = page.locator("button[data-mesurer-tool-id='edit-options']");
 
   await toolbar.waitFor({ state: "visible" });
   await compactToggle.waitFor({ state: "visible" });
-  await arrangeButton.waitFor({ state: "visible" });
-  assert.equal(await page.locator('[data-mesurer-toolbar-mode-switch="true"]').count(), 0, "Compact toolbar must not introduce a toolbar mode switch");
+  await modeSwitch.waitFor({ state: "visible" });
+  await editMode.waitFor({ state: "visible" });
+  await contextButton.waitFor({ state: "visible" });
+  await codexButton.waitFor({ state: "visible" });
+  await page.locator("button[data-mesurer-builtin='color-picker']").waitFor({ state: "visible" });
+  assert.equal(await modeSwitch.count(), 1, "Toolbar must expose exactly one Select/Edit mode switch");
+  assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-mode"), "select");
+  assert.equal(await selectMode.getAttribute("aria-pressed"), "true");
+  assert.equal(await editMode.getAttribute("aria-pressed"), "false");
+  assert(await contextButton.isVisible(), "Context must remain visible in Select mode");
+  assert(await codexButton.isVisible(), "Codex must remain visible in Select mode");
 
   const expandedBox = await toolbar.boundingBox();
   assert(expandedBox, "Expanded toolbar must have a bounding box");
@@ -79,102 +89,101 @@ try {
   const transitionDurations = await page.locator('[data-mesurer-toolbar-compact-item="true"]').first().evaluate((item) => ({
     item: getComputedStyle(item).transitionDuration,
     divider: getComputedStyle(document.querySelector('[data-mesurer-toolbar-divider]')).transitionDuration,
+    modeStage: getComputedStyle(document.querySelector(".mesurer-toolbar-mode-stage")).transitionDuration,
+    modePill: getComputedStyle(document.querySelector(".mesurer-toolbar-mode-switch-pill")).transitionDuration,
   }));
 
   assert(transitionDurations.item.includes("0.15s"), `Compact items must use 150ms transitions, got ${transitionDurations.item}`);
   assert(transitionDurations.divider.includes("0.15s"), `Toolbar dividers must use 150ms transitions, got ${transitionDurations.divider}`);
+  assert(transitionDurations.modePill.includes("0.15s"), `Mode pill must use 150ms transitions, got ${transitionDurations.modePill}`);
 
-  // No active tools: compact presentation should collapse all empty group wrappers,
-  // leaving the chevron evenly padded instead of carrying invisible group spacing.
   await compactToggle.click();
   await waitForSettledMotion();
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true");
-  const emptyCompactBox = await toolbar.boundingBox();
-  const emptyToggleBox = await compactToggle.boundingBox();
-  assert(emptyCompactBox && emptyToggleBox, "Empty compact toolbar and chevron must have bounding boxes");
-  const emptyLeftInset = emptyToggleBox.x - emptyCompactBox.x;
-  const emptyRightInset = (emptyCompactBox.x + emptyCompactBox.width) - (emptyToggleBox.x + emptyToggleBox.width);
-  assert(emptyLeftInset <= 5 && emptyRightInset <= 5, `Empty compact toolbar must not retain phantom group padding: left=${emptyLeftInset}px right=${emptyRightInset}px`);
-  assert(Math.abs(emptyLeftInset - emptyRightInset) <= 1, `Empty compact chevron should be centered by even outer padding: left=${emptyLeftInset}px right=${emptyRightInset}px`);
-  assert(emptyCompactBox.width <= emptyToggleBox.width + 10, `Empty compact toolbar should wrap the chevron tightly: toolbar=${emptyCompactBox.width}px toggle=${emptyToggleBox.width}px`);
+  const initialCompactBox = await toolbar.boundingBox();
+  const modeSwitchBox = await modeSwitch.boundingBox();
+
+  assert(initialCompactBox && modeSwitchBox, "Compact toolbar must keep the mode switch visible");
+  assert(initialCompactBox.width < expandedBox.width, `Compact toolbar should shrink: ${expandedBox.width}px -> ${initialCompactBox.width}px`);
+  assert.equal(await compactItemVisible(contextButton), true, "Context must remain visible while compact");
+  assert.equal(await compactItemVisible(codexButton), true, "Codex must remain visible while compact");
 
   await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
   await waitForSettledMotion();
   const expandedAgainBox = await toolbar.boundingBox();
-  assert(expandedAgainBox && Math.abs(expandedAgainBox.width - expandedBox.width) <= 1, "Expanding from the empty compact state must restore the original width");
+  assert(expandedAgainBox && Math.abs(expandedAgainBox.width - expandedBox.width) <= 1, "Expanding must restore the original width");
 
-  // This contract owns compact presentation only. Select/Arrange dependency
-  // semantics are covered by the dedicated dependency/unit/browser Arrange tests.
+  // Edit replaces the Select-owned tool lane; it does not create a second toolbar
+  // or change the always-visible Context/Codex lane.
   await selectButton.click();
   await page.waitForFunction(() => document.querySelector('button[aria-label="Select (S)"]')?.getAttribute("aria-pressed") === "true");
-  await arrangeButton.click();
-  await page.waitForFunction(() => document.querySelector('button[aria-label="Arrange (Shift+A)"]')?.getAttribute("aria-pressed") === "true");
+  await editMode.click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "edit"
+  );
+  await editOptions.waitFor({ state: "visible" });
+  assert.equal(await selectMode.getAttribute("aria-pressed"), "false");
+  assert.equal(await editMode.getAttribute("aria-pressed"), "true");
+  assert(await contextButton.isVisible(), "Context must remain visible in Edit mode");
+  assert(await codexButton.isVisible(), "Codex must remain visible in Edit mode");
 
-  const beforeCompactState = {
-    select: await selectButton.getAttribute("aria-pressed"),
-    arrange: await arrangeButton.getAttribute("aria-pressed"),
-    xray: await xrayButton.getAttribute("aria-pressed"),
-    typography: await typographyButton.getAttribute("aria-pressed"),
-  };
+  const editExpandedBox = await toolbar.boundingBox();
+  assert(editExpandedBox, "Edit toolbar must have a bounding box");
 
   await compactToggle.click();
   await waitForSettledMotion();
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true");
-  const compactBox = await toolbar.boundingBox();
-  assert(compactBox, "Compact toolbar must have a bounding box");
-  assert(compactBox.width < expandedBox.width - 40, `Compact toolbar should materially shrink: ${expandedBox.width}px -> ${compactBox.width}px`);
+  assert(await editMode.isVisible(), "Edit mode switch must remain visible while compact");
+  assert(await editOptions.isVisible(), "Edit options must remain visible while Edit is active and compact");
+  assert.equal(await compactItemVisible(contextButton), true, "Context must stay pinned in compact Edit");
+  assert.equal(await compactItemVisible(codexButton), true, "Codex must stay pinned in compact Edit");
 
-  assert.equal(await compactItemVisible(selectButton), true, "Active Select must remain visible in compact mode");
-  assert.equal(await compactItemVisible(arrangeButton), true, "Active Arrange plugin must remain visible in compact mode");
-  assert.equal(await compactItemVisible(xrayButton), false, "Inactive X-ray must collapse in compact mode");
-  assert.equal(await compactItemVisible(typographyButton), false, "Inactive Typography must collapse in compact mode");
-  assert.equal(await selectButton.getAttribute("aria-pressed"), beforeCompactState.select, "Compacting must not change Select state");
-  assert.equal(await arrangeButton.getAttribute("aria-pressed"), beforeCompactState.arrange, "Compacting must not change Arrange state");
-  assert.equal(await xrayButton.getAttribute("aria-pressed"), beforeCompactState.xray, "Compacting must not change X-ray state");
-  assert.equal(await typographyButton.getAttribute("aria-pressed"), beforeCompactState.typography, "Compacting must not change Typography state");
+  const editCompactBox = await toolbar.boundingBox();
+  assert(editCompactBox && editCompactBox.width < editExpandedBox.width, "Compact Edit toolbar should shrink");
 
-  const compactDividerBox = await compactDivider.boundingBox();
-  const arrangeOptionsBox = await arrangeOptions.boundingBox();
-  assert(compactDividerBox && arrangeOptionsBox, "Active compact tools and divider must have bounding boxes");
-  const activeGap = compactDividerBox.x - (arrangeOptionsBox.x + arrangeOptionsBox.width);
-  assert(activeGap >= -0.5 && activeGap <= 5, `Collapsed inactive groups must not leave a gap before the compact chevron divider: ${activeGap}px`);
-
-  // A hidden inactive tool can still be activated through its shortcut and then becomes visible.
+  // A Select-owned shortcut exits Edit, activates its tool, and keeps compact
+  // presentation intact.
   await page.keyboard.press("x");
-  await page.waitForFunction(() => document.querySelector('button[aria-label="X-ray (X)"]')?.getAttribute("aria-pressed") === "true");
+  await page.waitForFunction(() =>
+    document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "select"
+    && document.querySelector('button[aria-label="X-ray (X)"]')?.getAttribute("aria-pressed") === "true"
+  );
   await waitForSettledMotion();
-  assert.equal(await compactItemVisible(xrayButton), true, "A tool activated while compact must become visible");
-  const compactWithXrayBox = await toolbar.boundingBox();
-  assert(compactWithXrayBox && compactWithXrayBox.width > compactBox.width, "Compact toolbar should expand enough to include a newly active tool");
+  assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true");
+  assert.equal(await compactItemVisible(xrayButton), true, "Activated Select-owned tool must be visible while compact");
+  assert.equal(await editMode.getAttribute("aria-pressed"), "false");
 
-  // Arrange's normal plugin-owned quick menu remains usable while compact.
-  await arrangeOptions.click();
-  const arrangeMenu = page.getByRole("menu", { name: "Arrange options", exact: true });
-  await arrangeMenu.waitFor({ state: "visible" });
-  const menuBox = await arrangeMenu.boundingBox();
-  assert(menuBox && menuBox.width > 100 && menuBox.height > 20, "Arrange options must not be clipped by compact presentation");
+  // Edit can be re-entered while compact and its plugin-owned options remain usable.
+  await editMode.click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "edit"
+  );
+  await editOptions.click();
+  const editMenu = page.getByRole("menu", { name: "Edit options", exact: true });
+  await editMenu.waitFor({ state: "visible" });
+  const menuBox = await editMenu.boundingBox();
+  assert(menuBox && menuBox.width > 100 && menuBox.height > 20, "Edit options must not be clipped by compact presentation");
   await page.keyboard.press("Escape");
-  await arrangeMenu.waitFor({ state: "hidden" });
+  await editMenu.waitFor({ state: "hidden" });
 
-  // Transitions are interruptible: reverse before 150ms finishes and settle in the requested state.
+  // Both compact motion and mode motion remain interruptible at 150ms.
   await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
   await page.waitForTimeout(40);
   await page.getByRole("button", { name: "Compact toolbar", exact: true }).click();
   await waitForSettledMotion();
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true", "Rapid expand -> compact must settle compact");
-  assert.equal(await compactItemVisible(selectButton), true);
-  assert.equal(await compactItemVisible(arrangeButton), true);
-  assert.equal(await compactItemVisible(xrayButton), true);
+
+  await selectMode.click();
+  await page.waitForTimeout(40);
+  await editMode.click();
+  await waitForSettledMotion();
+  assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-mode"), "edit", "Rapid Select -> Edit must settle in Edit");
+  assert.equal(await editMode.getAttribute("aria-pressed"), "true");
 
   await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
   await waitForSettledMotion();
-  const restoredBox = await toolbar.boundingBox();
-  assert(restoredBox, "Restored toolbar must have a bounding box");
-  assert(Math.abs(restoredBox.width - expandedBox.width) <= 1, `Expanding should restore the original width: ${expandedBox.width}px vs ${restoredBox.width}px`);
-  assert.equal(await compactItemVisible(typographyButton), true, "Expanding must restore inactive tools");
-  assert.equal(await selectButton.getAttribute("aria-pressed"), "true");
-  assert.equal(await arrangeButton.getAttribute("aria-pressed"), "true");
-  assert.equal(await xrayButton.getAttribute("aria-pressed"), "true");
+  assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "false");
+  assert.equal(await editMode.getAttribute("aria-pressed"), "true");
 
   // Reduced motion reaches the same final state without an effective transition.
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -204,7 +213,7 @@ try {
 
   assert.equal(pageErrors.length, 0, `Compact toolbar page errors:\n${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Compact toolbar console errors:\n${consoleErrors.join("\n")}`);
-  console.log("Single-toolbar compact presentation + zero phantom group gaps + active-tool retention + flush dividers + 150ms interruptible/reduced motion: PASS");
+  console.log("Single-toolbar Select/Edit modes + compact presentation + flush dividers + 150ms interruptible/reduced motion: PASS");
 } finally {
   await context.close();
   await browser.close();

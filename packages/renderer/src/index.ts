@@ -141,6 +141,7 @@ export type {
   SettingsContribution,
   StateSliceDefinition,
   ToolContribution,
+  ToolbarMode,
 } from "@jhomra21/mesurer-solid-core";
 
 export {

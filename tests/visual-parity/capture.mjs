@@ -286,6 +286,42 @@ const openSettings = async (page) => {
   await page.getByRole("dialog", { name: "Settings" }).waitFor();
 };
 
+// The historical parity fixture predates the Select/Edit group switch.
+// Verify the current switch before removing only that new toolbar chrome. This
+// keeps Settings anchored to the same trailing control used by the old fixture.
+const normalizeHistoricalToolbarMode = async (page, implementation) => {
+  if (implementation !== "solid") return;
+
+  const modeSwitch = page.locator("[data-mesurer-toolbar-mode-switch='true']");
+
+  if ((await modeSwitch.count()) === 0) return;
+
+  const contract = await modeSwitch.evaluate((element) =>
+    [...element.querySelectorAll("button")].map((button) => ({
+      label: button.getAttribute("aria-label"),
+      pressed: button.getAttribute("aria-pressed"),
+    })),
+  );
+
+  const expected = [
+    { label: "Select mode (1)", pressed: "true" },
+    { label: "Edit mode (2)", pressed: "false" },
+  ];
+
+  if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+    throw new Error(`Unexpected Select/Edit switch contract: ${JSON.stringify(contract)}`);
+  }
+
+  await modeSwitch.evaluate((element) => {
+    const divider = element.nextElementSibling;
+
+    element.remove();
+
+    if (divider?.getAttribute("data-mesurer-toolbar-divider") === "mode") divider.remove();
+  });
+  await page.waitForTimeout(180);
+};
+
 // The React repository is the contract for the shared Mesurer UI. Solid can
 // add plugin-owned controls beyond that surface. Remove only those explicitly
 // marked extension controls before parity capture; browser-contracts exercises
@@ -373,7 +409,7 @@ const states = [
   {
     name: "tooltip",
     run: async (page) => {
-      const select = page.getByRole("button", { name: /^Select/ });
+      const select = page.getByRole("button", { name: /^Select(?: \(S\))?$/ });
       const box = await select.boundingBox();
 
       if (!box) throw new Error("Select button has no bounding box");
@@ -508,6 +544,7 @@ try {
       await page.goto(url, { waitUntil: "networkidle" });
       await page.locator(".mesurer-toolbar-surface").waitFor();
       await page.waitForTimeout(120);
+      await normalizeHistoricalToolbarMode(page, implementation);
       await state.run(page);
       await page.waitForTimeout(120);
       await normalizeSharedParitySurface(page, implementation);

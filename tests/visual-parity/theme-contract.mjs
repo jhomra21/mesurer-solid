@@ -84,6 +84,15 @@ try {
   await appearance.selectOption("dark");
   await expectTheme("dark");
   await expectToolbarColor("rgb(50, 50, 50)", "dark toolbar surface");
+
+  const pluginsDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='plugins']");
+
+  if ((await pluginsDisclosure.getAttribute("aria-expanded")) !== "true") await pluginsDisclosure.click();
+  const editPlugin = dialog.getByRole("switch", { name: "Edit", exact: true });
+  await editPlugin.waitFor({ state: "visible" });
+
+  if ((await editPlugin.getAttribute("aria-checked")) !== "true") await editPlugin.click();
+  await page.locator("button[data-mesurer-toolbar-mode='edit']:not(:disabled)").waitFor({ state: "visible" });
   assert.equal(await textColor(dialog), "rgb(245, 245, 245)", "dark Settings text");
   assert.deepEqual(await themeTokens(), {
     accent: "#0c8ce9",
@@ -136,6 +145,10 @@ try {
   assert.equal(await typographyRoot.getAttribute("data-theme"), "dark", "document Typography theme");
   assert.equal(await surfaceColor(typographyCard), "rgb(58, 58, 58)", "dark Typography surface");
 
+  const editMode = page.locator("button[data-mesurer-toolbar-mode='edit']");
+  await editMode.click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='edit']").waitFor({ state: "visible" });
+
   await page.mouse.dblclick(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
 
   const editor = page.locator("[data-mesurer-text-editor='true']");
@@ -150,7 +163,8 @@ try {
 
   await editor.press("Escape");
   await editor.waitFor({ state: "detached" });
-  await typographyButton.click();
+  await page.locator("button[data-mesurer-toolbar-mode='select']").click();
+  await page.locator("[data-mesurer-toolbar='true'][data-mesurer-toolbar-mode='select']").waitFor({ state: "visible" });
   dialog = await openGeneralSettings();
   const appearanceAgain = dialog.getByRole("combobox", { name: "Appearance" });
   await appearanceAgain.selectOption("light");

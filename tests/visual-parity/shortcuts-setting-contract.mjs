@@ -67,7 +67,7 @@ try {
   await selectButton().waitFor({ state: "visible" });
   await arrangeButton().waitFor({ state: "visible" });
   await expectPressed(selectButton(), false, "Initial Select");
-  await expectPressed(arrangeButton(), false, "Initial Arrange");
+  await expectPressed(arrangeButton(), false, "Initial Edit");
 
   // Host-page editors keep keyboard ownership even when focus is nested in Shadow DOM.
   await page.evaluate(() => {
@@ -115,7 +115,7 @@ try {
 
   // Disabled global shortcuts are not advertised in toolbar hints or accessible labels.
   await expectLabel(selectButton(), "Select", "Select label while shortcuts disabled");
-  await expectLabel(arrangeButton(), "Arrange", "Arrange label while shortcuts disabled");
+  await expectLabel(arrangeButton(), "Edit mode", "Edit mode label while shortcuts disabled");
   await selectButton().hover();
   await page.waitForTimeout(850);
   const selectTooltip = selectButton().locator("xpath=..").getByRole("tooltip");
@@ -137,7 +137,7 @@ try {
 
   await page.keyboard.press("Shift+a");
   await page.waitForTimeout(50);
-  await expectPressed(arrangeButton(), false, "Arrange while shortcuts disabled");
+  await expectPressed(arrangeButton(), false, "Edit while shortcuts disabled");
 
   // Disabling shortcuts never disables direct toolbar controls.
   await selectButton().click();
@@ -165,7 +165,7 @@ try {
   await page.keyboard.press("Escape");
   await dialog.waitFor({ state: "hidden" });
   await expectLabel(selectButton(), "Select (S)", "Select label after shortcuts re-enabled");
-  await expectLabel(arrangeButton(), "Arrange (Shift+A)", "Arrange label after shortcuts re-enabled");
+  await expectLabel(arrangeButton(), "Edit mode (2)", "Edit mode label after shortcuts re-enabled");
 
   await page.keyboard.press("s");
   await expectPressed(selectButton(), true, "Select after shortcuts re-enabled");

@@ -36,23 +36,36 @@ const computedTypography = (element) => {
   };
 };
 
-const waitForTypography = async (expected) => page.waitForFunction((value) => {
-  const element = document.querySelector(".primary-action");
+const waitForTypography = async (expected, stage) => {
+  try {
+    await page.waitForFunction((value) => {
+      const element = document.querySelector(".primary-action");
 
-  if (!(element instanceof HTMLElement)) return false;
-  const style = getComputedStyle(element);
+      if (!(element instanceof HTMLElement)) return false;
+      const style = getComputedStyle(element);
 
-  return element.textContent === value.text
-    && style.fontFamily === value.fontFamily
-    && style.fontSize === value.fontSize
-    && style.fontWeight === value.fontWeight
-    && style.fontStyle === value.fontStyle
-    && style.lineHeight === value.lineHeight
-    && style.letterSpacing === value.letterSpacing
-    && style.textTransform === value.textTransform
-    && style.color === value.color
-    && style.textDecorationLine === value.decoration;
-}, expected);
+      return element.textContent === value.text
+        && style.fontFamily === value.fontFamily
+        && style.fontSize === value.fontSize
+        && style.fontWeight === value.fontWeight
+        && style.fontStyle === value.fontStyle
+        && style.lineHeight === value.lineHeight
+        && style.letterSpacing === value.letterSpacing
+        && style.textTransform === value.textTransform
+        && style.color === value.color
+        && style.textDecorationLine === value.decoration;
+    }, expected, { timeout: 8_000 });
+  } catch (error) {
+    const actual = await page.locator(".primary-action").evaluate(computedTypography);
+    const mode = await page.locator("[data-mesurer-toolbar='true']").getAttribute("data-mesurer-toolbar-mode");
+    const intents = await page.evaluate(async () => await window.__MESURER__?.textEdits?.());
+
+    throw new Error(
+      `${stage}: typography did not settle: ${JSON.stringify({ expected, actual, mode, intents })}`,
+      { cause: error },
+    );
+  }
+};
 
 try {
   await page.goto(url, { waitUntil: "networkidle" });
@@ -138,7 +151,14 @@ try {
       .map((element) => element.tagName))]);
 
   const targetBox = await target.boundingBox();
+
   assert(targetBox, "Text editing contract target must have a bounding box");
+
+  const beforeArrangeTransform = await target.evaluate((element) => ({
+    value: element.style.getPropertyValue("transform"),
+    priority: element.style.getPropertyPriority("transform"),
+  }));
+
   const x = targetBox.x + targetBox.width / 2;
   const y = targetBox.y + targetBox.height / 2;
 
@@ -200,7 +220,17 @@ try {
   ));
   const movedTargetBox = await target.boundingBox();
 
+  const movedArrangeTransform = await target.evaluate((element) => ({
+    value: element.style.getPropertyValue("transform"),
+    priority: element.style.getPropertyPriority("transform"),
+  }));
+
   assert(movedTargetBox, "Moved text target should retain a rendered box");
+  assert.notDeepEqual(
+    movedArrangeTransform,
+    beforeArrangeTransform,
+    "Edit movement should own a rendered transform before text editing",
+  );
   assert(
     Math.abs(movedTargetBox.x - targetBox.x) > 8
       || Math.abs(movedTargetBox.y - targetBox.y) > 8,
@@ -435,43 +465,47 @@ try {
     decoration: desiredUnderline ? "underline" : before.decoration,
   };
 
-  // Saved intent survives the edit, but Select/Arrange defaults to the untouched
-  // page presentation. This is the public default requested by the user.
-  await waitForTypography(before);
+  // Edit owns Desired text/style presentation after the editor commits.
+  await waitForTypography(desired, "Edit presentation after commit");
   await page.evaluate(() => new Promise((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   ));
   const committedTargetBox = await target.boundingBox();
 
+  const committedArrangeTransform = await target.evaluate((element) => ({
+    value: element.style.getPropertyValue("transform"),
+    priority: element.style.getPropertyPriority("transform"),
+  }));
+
   assert(committedTargetBox, "Committed text target should retain a rendered box");
-  assert(
-    Math.abs(committedTargetBox.x - movedTargetBox.x) <= 1
-      && Math.abs(committedTargetBox.y - movedTargetBox.y) <= 1,
-    `Committing text must not restore the pre-Arrange position: ${JSON.stringify({
+  assert.deepEqual(
+    committedArrangeTransform,
+    movedArrangeTransform,
+    `Committing text must retain Edit's movement transform even when the new copy or typography changes the element's natural size: ${JSON.stringify({
       moved: movedTargetBox,
       committed: committedTargetBox,
+      movedArrangeTransform,
+      committedArrangeTransform,
     })}`,
   );
 
-  // Leave Arrange, then explicitly enter Typography. The owning tool should
-  // reveal the saved Desired state without creating a new edit or losing intent.
-  await arrangeButton.click();
+  // Select restores the original page presentation. Typography remains a
+  // read-only inspection tool inside Select and must not reveal Desired edits.
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await page.waitForFunction(() => {
-    const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
+    const toolbar = document.querySelector("[data-mesurer-toolbar='true']");
 
-    return arrange instanceof HTMLButtonElement && arrange.getAttribute("aria-pressed") === "false";
+    return toolbar instanceof HTMLElement
+      && toolbar.getAttribute("data-mesurer-toolbar-mode") === "select";
   });
+  await waitForTypography(before, "Select presentation after leaving Edit");
   await textInspectorButton.click();
   await page.waitForFunction(() => {
     const button = document.querySelector("[data-mesurer-builtin='text-inspector'] button");
 
     return button instanceof HTMLButtonElement && button.getAttribute("aria-pressed") === "true";
   });
-  await waitForTypography(desired);
-
-  // Returning to Select hides the saved Text presentation again by default.
-  await selectButton.click();
-  await waitForTypography(before);
+  await waitForTypography(before, "Typography inspection remains original");
 
   // The explicit General toggle opts saved Text presentation into other tools.
   await settingsButton.click();
@@ -485,32 +519,36 @@ try {
   assert.equal(await keepTextChanges.getAttribute("aria-checked"), "false", "Keep text changes should default off");
   await keepTextChanges.click();
   await page.waitForFunction(() => document.querySelector("[data-mesurer-presentation-setting='keep-text-changes']")?.getAttribute("aria-checked") === "true");
-  await waitForTypography(desired);
+  await waitForTypography(desired, "Keep text changes enabled");
 
   await settingsButton.click();
   await settingsDialog.waitFor({ state: "hidden" });
   await selectButton.click();
-  await waitForTypography(desired);
+  await waitForTypography(desired, "Keep text changes survives Select toggle");
 
-  // Turning the preference back off restores the original page immediately;
-  // the saved intent remains available to Typography for the next visit.
+  // Turning the preference back off restores the original page immediately.
+  // Re-entering Edit reveals the saved Desired text again; returning to Select
+  // restores the original presentation without deleting intent.
   await settingsButton.click();
   await settingsDialog.waitFor({ state: "visible" });
 
   if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
   await keepTextChanges.click();
   await page.waitForFunction(() => document.querySelector("[data-mesurer-presentation-setting='keep-text-changes']")?.getAttribute("aria-checked") === "false");
-  await waitForTypography(before);
+  await waitForTypography(before, "Keep text changes disabled");
   await settingsButton.click();
 
-  await textInspectorButton.click();
-  await waitForTypography(desired);
-  await selectButton.click();
-  await waitForTypography(before);
+  await arrangeButton.click();
+  await page.waitForFunction(() =>
+    document.querySelector("[data-mesurer-toolbar='true']")?.getAttribute("data-mesurer-toolbar-mode") === "edit"
+  );
+  await waitForTypography(desired, "Edit restores saved Desired text");
+  await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
+  await waitForTypography(before, "Select restores original after Edit");
 
   assert.equal(pageErrors.length, 0, `Text editing browser contract page errors: ${pageErrors.join("\n")}`);
   assert.equal(consoleErrors.length, 0, `Text editing browser contract console errors: ${consoleErrors.join("\n")}`);
-  console.log(`Arrange-compatible direct text editing + one interactive Typography inspector + user-controlled saved presentation + full-hit Mesurer dropdowns + editable Line/Tracking + B/I/U + color: PASS (${firstFamily(before.fontFamily)})`);
+  console.log(`Edit-mode direct text/style editing + read-only Select Typography + user-controlled saved presentation + full-hit Mesurer dropdowns + editable Line/Tracking + B/I/U + color: PASS (${firstFamily(before.fontFamily)})`);
 } finally {
   await browser.close();
 }

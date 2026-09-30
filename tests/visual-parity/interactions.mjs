@@ -41,6 +41,11 @@ const sw = (page, name) => page.getByRole("switch", { name });
 
 const radio = (page, name) => page.getByRole("radio", { name });
 
+const selectToolButton = (page, implementation) => button(
+  page,
+  implementation === "solid" ? /^Select \(S\)$/ : /^Select/,
+);
+
 const typographyButton = (page, implementation) => button(
   page,
   implementation === "solid" ? /^Typography/ : /^Text inspector/,
@@ -83,6 +88,38 @@ async function openColorPicker(page) {
   await page.locator(".mesurer-color-picker").waitFor();
   await sleep(page, 80);
 }
+
+const normalizeHistoricalToolbarMode = async (page, implementation, caseName) => {
+  if (implementation !== "solid") return;
+
+  const modeSwitch = page.locator("[data-mesurer-toolbar-mode-switch='true']");
+
+  if ((await modeSwitch.count()) === 0) return;
+
+  const contract = await modeSwitch.evaluate((element) =>
+    [...element.querySelectorAll("button")].map((button) => ({
+      label: button.getAttribute("aria-label"),
+      pressed: button.getAttribute("aria-pressed"),
+    })),
+  );
+
+  const expected = [
+    { label: "Select mode (1)", pressed: "true" },
+    { label: "Edit mode (2)", pressed: "false" },
+  ];
+
+  if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+    throw new Error(`Unexpected Select/Edit switch contract in ${caseName}: ${JSON.stringify(contract)}`);
+  }
+
+  await modeSwitch.evaluate((element) => {
+    const divider = element.nextElementSibling;
+
+    element.remove();
+
+    if (divider?.getAttribute("data-mesurer-toolbar-divider") === "mode") divider.remove();
+  });
+};
 
 // Interaction parity compares the upstream-shared controls. Solid-only,
 // explicitly plugin-owned settings are exercised by browser-contracts instead.
@@ -135,7 +172,32 @@ async function normalizeSharedParitySurface(page, implementation, caseName) {
     themeRemoved = true;
   }
 
-  const extensions = page.locator('[role="dialog"][aria-label="Settings"] [data-mesurer-distance="true"], [role="dialog"][aria-label="Settings"] [data-mesurer-plugin-settings="true"]');
+  const presentationSettings = page.locator("[data-mesurer-presentation-settings='true']");
+
+  if ((await presentationSettings.count()) > 0) {
+    const contract = await presentationSettings.getByRole("switch").evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        label: node.getAttribute("aria-label"),
+        checked: node.getAttribute("aria-checked"),
+      })),
+    );
+
+    const expected = [
+      { label: "Keep text changes", checked: "false" },
+      { label: "Keep Edit changes", checked: "false" },
+    ];
+
+    if (JSON.stringify(contract) !== JSON.stringify(expected)) {
+      throw new Error(`Unexpected current presentation settings contract: ${JSON.stringify(contract)}`);
+    }
+
+    await presentationSettings.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
+    changed = true;
+  }
+
+  const extensions = page.locator(
+    "[data-mesurer-distance='true'], [data-mesurer-plugin-settings='true']",
+  );
 
   if ((await extensions.count()) > 0) {
     await extensions.evaluateAll((nodes) => nodes.forEach((node) => node.remove()));
@@ -262,8 +324,8 @@ async function stateSnapshot(page, implementation) {
 }
 
 const cases = [
-  { name: "toolbar-select-on", run: async (p) => realClick(button(p, /^Select/)) },
-  { name: "toolbar-select-off", run: async (p) => { await realClick(button(p, /^Select/)); await sleep(p, 40); await realClick(button(p, /^Select/)); } },
+  { name: "toolbar-select-on", run: async (p, implementation) => realClick(selectToolButton(p, implementation)) },
+  { name: "toolbar-select-off", run: async (p, implementation) => { await realClick(selectToolButton(p, implementation)); await sleep(p, 40); await realClick(selectToolButton(p, implementation)); } },
   { name: "toolbar-xray-on", run: async (p) => realClick(button(p, /^X-ray/)) },
   { name: "toolbar-xray-off", run: async (p) => { await realClick(button(p, /^X-ray/)); await sleep(p, 40); await realClick(button(p, /^X-ray/)); } },
   { name: "toolbar-color-picker-open", run: openColorPicker },
@@ -281,7 +343,7 @@ const cases = [
   { name: "toolbar-settings-close", run: async (p) => { await openSettings(p); await realClick(button(p, /^Settings/)); } },
 
   { name: "action-select-target", run: async (p, implementation) => {
-    await realClick(button(p, /^Select/));
+    await realClick(selectToolButton(p, implementation));
     await sleep(p, 80);
     await p.mouse.click(340, 290);
     await sleep(p, 180);
@@ -334,7 +396,7 @@ const cases = [
       await p.reload({ waitUntil: "networkidle" });
       await p.locator(".mesurer-toolbar-surface").waitFor();
       await sleep(p, 100);
-      await realClick(button(p, /^Select/));
+      await realClick(selectToolButton(p, implementation));
       await sleep(p, 80);
       await p.mouse.click(340, 290);
       await sleep(p, 180);
@@ -425,7 +487,11 @@ try {
       await page.goto(url, { waitUntil: "networkidle" });
       await page.locator(".mesurer-toolbar-surface").waitFor();
       await sleep(page, 100);
+      await normalizeHistoricalToolbarMode(page, implementation, item.name);
       await item.run(page, implementation);
+      // A case can reload the fixture (for example action-select-target). Remove
+      // the current Select/Edit chrome again before the historical snapshot.
+      await normalizeHistoricalToolbarMode(page, implementation, item.name);
       // Let the upstream 150ms switch/control transitions settle before the
       // screenshot so the comparison measures the final pressed state rather
       // than framework scheduling within the animation.

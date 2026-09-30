@@ -53,7 +53,8 @@ const waitForTool = async (id, visible) => {
     await page.waitForFunction(({ id, visible }) => {
       const islandElement = document.querySelector("[data-mesurer-island='true']");
       const root = islandElement?.shadowRoot ?? islandElement;
-      const button = root?.querySelector(`[data-mesurer-tool-id='${id}'] button`);
+      const tool = root?.querySelector(`[data-mesurer-tool-id='${id}']`);
+      const button = tool instanceof HTMLButtonElement ? tool : tool?.querySelector("button");
       const isVisible = button instanceof HTMLElement && button.getClientRects().length > 0;
 
       return isVisible === visible;
@@ -211,6 +212,9 @@ const expandPlugin = async (dialog, id) => {
 
   if ((await disclosure.getAttribute("aria-expanded")) !== "true") await disclosure.click();
   await dialog.locator(`[data-mesurer-plugin-settings-controls='${id}']`).waitFor({ state: "visible" });
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
 
   return disclosure;
 };
@@ -245,7 +249,7 @@ try {
   await waitForTool("context.copy", true);
   await waitForTool("screenshot", true);
 
-  if (await pluginLoaded("mesurer.arrange")) throw new Error("Arrange should begin unloaded in the fixture");
+  if (await pluginLoaded("mesurer.arrange")) throw new Error("Edit should begin unloaded in the fixture");
 
   let dialog = await openSettings();
   const releaseMetadata = await assertReleaseMetadata(dialog);
@@ -257,11 +261,11 @@ try {
   }
 
   const contextToggle = pluginToggle(dialog, "Context");
-  const arrangeToggle = pluginToggle(dialog, "Arrange");
+  const arrangeToggle = pluginToggle(dialog, "Edit");
   const layoutGuidesToggle = pluginToggle(dialog, "Layout Guides");
   const screenshotToggle = pluginToggle(dialog, "Screenshot");
   await expectChecked(contextToggle, true, "Context plugin");
-  await expectChecked(arrangeToggle, false, "Arrange plugin");
+  await expectChecked(arrangeToggle, false, "Edit plugin");
   await expectChecked(layoutGuidesToggle, false, "Layout Guides plugin");
   await expectChecked(screenshotToggle, true, "Screenshot plugin");
   await expectToggleAlignment(
@@ -270,7 +274,7 @@ try {
     "Initial",
   );
   await expectNoDisclosure(dialog, "mesurer.context", "Context");
-  await expectNoDisclosure(dialog, "mesurer.arrange", "Disabled Arrange");
+  await expectNoDisclosure(dialog, "mesurer.arrange", "Disabled Edit");
   await expectNoDisclosure(dialog, "mesurer.layout-guides", "Disabled Layout Guides");
 
   if ((await settingSwitch(dialog, "Context tools").count()) !== 0) throw new Error("Context tools redundant nested toggle is still visible");
@@ -281,38 +285,38 @@ try {
   await arrangeToggle.click();
   await waitForPlugin("mesurer.arrange", true);
   await waitForTool("arrange", true);
-  await expectChecked(arrangeToggle, true, "Arrange plugin after Settings enable");
+  await expectChecked(arrangeToggle, true, "Edit plugin after Settings enable");
   await expectToggleAlignment(
     dialog,
     ["mesurer.context", "mesurer.arrange", "mesurer.layout-guides", "mesurer.screenshot"],
-    "Arrange enabled",
+    "Edit enabled",
   );
-  await expandPlugin(dialog, "mesurer.arrange", "Arrange");
+  await expandPlugin(dialog, "mesurer.arrange");
   const arrangeSnapping = settingSwitch(dialog, "Snapping");
   await arrangeSnapping.waitFor({ state: "visible" });
   await expectNestedLabelHierarchy(
     dialog,
     "mesurer.arrange",
     ["Snapping", "Element edges", "Element centers", "Guides", "Prefer X-ray edges", "Alignment rulers"],
-    "Arrange",
+    "Edit",
   );
   const persistX = await persistTrackX(dialog);
-  const snappingX = await switchTrackX(arrangeSnapping, "Arrange snapping");
+  const snappingX = await switchTrackX(arrangeSnapping, "Edit snapping");
 
   if (Math.abs(persistX - snappingX) > 0.5) {
-    throw new Error(`Expanded Arrange setting is not aligned with Persist: ${JSON.stringify({ persistX, snappingX })}`);
+    throw new Error(`Expanded Edit setting is not aligned with Persist: ${JSON.stringify({ persistX, snappingX })}`);
   }
 
-  await expectChecked(arrangeSnapping, true, "Arrange snapping default");
+  await expectChecked(arrangeSnapping, true, "Edit snapping default");
   await arrangeSnapping.click();
-  await expectChecked(arrangeSnapping, false, "Arrange snapping before unload");
+  await expectChecked(arrangeSnapping, false, "Edit snapping before unload");
 
   // Disabling unloads the actual plugin and removes its settings chevron, while the row remains available.
   await arrangeToggle.click();
   await waitForPlugin("mesurer.arrange", false);
   await waitForTool("arrange", false);
-  await expectChecked(arrangeToggle, false, "Arrange plugin after disable");
-  await expectNoDisclosure(dialog, "mesurer.arrange", "Disabled Arrange");
+  await expectChecked(arrangeToggle, false, "Edit plugin after disable");
+  await expectNoDisclosure(dialog, "mesurer.arrange", "Disabled Edit");
 
   // Layout Guides is also a real first-party lifecycle entry rather than renderer core.
   await layoutGuidesToggle.click();
@@ -391,14 +395,14 @@ try {
   await waitForPlugin("mesurer.context", true);
   await waitForTool("context.copy", true);
 
-  // Keep Arrange enabled and Screenshot disabled, then prove availability itself survives reload.
+  // Keep Edit enabled and Screenshot disabled, then prove availability itself survives reload.
   await arrangeToggle.click();
   await waitForPlugin("mesurer.arrange", true);
   const restoredArrangeDisclosure = dialog.locator("[data-mesurer-plugin-settings-disclosure='mesurer.arrange']");
   await restoredArrangeDisclosure.waitFor({ state: "visible" });
 
   if ((await restoredArrangeDisclosure.getAttribute("aria-expanded")) !== "true") {
-    throw new Error("Arrange disclosure state did not survive plugin disable/re-enable");
+    throw new Error("Edit disclosure state did not survive plugin disable/re-enable");
   }
 
   await dialog.locator("[data-mesurer-plugin-settings-controls='mesurer.arrange']").waitFor({ state: "visible" });
@@ -409,19 +413,19 @@ try {
   await waitForHarness("availability reload");
   dialog = await openSettings();
   await expectChecked(pluginToggle(dialog, "Context"), true, "Persisted Context plugin");
-  await expectChecked(pluginToggle(dialog, "Arrange"), true, "Persisted Arrange plugin");
+  await expectChecked(pluginToggle(dialog, "Edit"), true, "Persisted Edit plugin");
   await expectChecked(pluginToggle(dialog, "Screenshot"), false, "Persisted Screenshot plugin");
   await waitForTool("context.copy", true);
   await waitForTool("arrange", true);
   await waitForTool("screenshot", false);
 
-  // Reset returns plugin availability to the fixture's mount defaults: Context + Screenshot on; Arrange, Layout Guides, and Codex off.
+  // Reset returns plugin availability to the fixture's mount defaults: Context + Screenshot on; Edit, Layout Guides, and Codex off.
   await dialog.getByRole("button", { name: "Reset settings to defaults" }).click();
   await waitForPlugin("mesurer.arrange", false);
   await waitForPlugin("mesurer.screenshot", true);
   await waitForPlugin("mesurer.context", true);
   await expectChecked(pluginToggle(dialog, "Context"), true, "Default Context plugin");
-  await expectChecked(pluginToggle(dialog, "Arrange"), false, "Default Arrange plugin");
+  await expectChecked(pluginToggle(dialog, "Edit"), false, "Default Edit plugin");
   await expectChecked(pluginToggle(dialog, "Layout Guides"), false, "Default Layout Guides plugin");
   await expectChecked(pluginToggle(dialog, "Screenshot"), true, "Default Screenshot plugin");
   await waitForTool("context.copy", true);
@@ -461,18 +465,18 @@ try {
   await waitForHarness("defaults reload");
   dialog = await openSettings();
   await expectChecked(pluginToggle(dialog, "Context"), true, "Reloaded default Context plugin");
-  await expectChecked(pluginToggle(dialog, "Arrange"), false, "Reloaded default Arrange plugin");
+  await expectChecked(pluginToggle(dialog, "Edit"), false, "Reloaded default Edit plugin");
   await expectChecked(pluginToggle(dialog, "Layout Guides"), false, "Reloaded default Layout Guides plugin");
   await expectChecked(pluginToggle(dialog, "Screenshot"), true, "Reloaded default Screenshot plugin");
   await expandPlugin(dialog, "mesurer.screenshot");
   await expectChecked(settingSwitch(dialog, "Auto-copy"), false, "Reloaded default Auto-copy");
 
   // A plugin that defaults off also gets its settings reset while preserving the off state.
-  const reloadedArrangeToggle = pluginToggle(dialog, "Arrange");
+  const reloadedArrangeToggle = pluginToggle(dialog, "Edit");
   await reloadedArrangeToggle.click();
   await waitForPlugin("mesurer.arrange", true);
   await expandPlugin(dialog, "mesurer.arrange");
-  await expectChecked(settingSwitch(dialog, "Snapping"), true, "Arrange snapping after defaults reset");
+  await expectChecked(settingSwitch(dialog, "Snapping"), true, "Edit snapping after defaults reset");
   await reloadedArrangeToggle.click();
   await waitForPlugin("mesurer.arrange", false);
 

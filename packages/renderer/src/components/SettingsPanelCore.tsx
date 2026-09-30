@@ -40,7 +40,7 @@ function PluginSettingsSwitch(props: { label: string; checked: boolean; disabled
       role="switch"
       aria-checked={props.checked ? "true" : "false"}
       disabled={props.disabled}
-      class="msr:flex msr:h-6 msr:w-full msr:items-center msr:justify-between msr:gap-2 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45"
+      class="msr:flex msr:h-6 msr:w-full msr:items-center msr:justify-between msr:gap-2 msr:pr-0 msr:text-left msr:text-[12px] msr:leading-none msr:text-ink-700 msr:disabled:opacity-45"
       onClick={() => props.onChange(!props.checked)}
     >
       <span class="mesurer-plugin-setting-label msr:ml-6 msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap">{props.label}</span>
@@ -350,8 +350,9 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
           </div>
           <Show when={pluginEntries().length > 0}>
             <div
-              class="msr:col-span-2 msr:mt-1 msr:overflow-hidden msr:rounded-[6px] msr:bg-ink-50/40"
+              class="msr:col-span-2 msr:mt-1 msr:rounded-[6px] msr:bg-ink-50/40"
               data-mesurer-plugin-settings="true"
+              style={{ overflow: "clip" }}
             >
               <button
                 type="button"

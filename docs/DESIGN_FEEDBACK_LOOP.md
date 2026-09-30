@@ -8,7 +8,7 @@ For the exact agent procedure and APIs, use [Agent Integration](../packages/mesu
 
 A complete visual change has four phases:
 
-1. **Read intent.** Preserve the existing selection, annotations, Arrange Desired state, text and typography Desired state, measurements, guides, and relevant screenshot context.
+1. **Read intent.** Preserve the existing selection, annotations, Edit movement Desired state, text and typography Desired state, measurements, guides, and relevant screenshot context.
 2. **Edit source.** Change the application through its normal workflow. Do not mutate Mesurer evidence to make the page appear correct.
 3. **Observe Live.** Wait for the rendered page to settle and inspect the affected targets again.
 4. **Compare.** Evaluate Live against the original problem and any saved Desired or baseline evidence.
@@ -21,7 +21,7 @@ Use the evidence that matches the request:
 
 - **Context/selection** for exact geometry, typography, overflow, and relationships.
 - **Annotations** for target-bound notes with before/current review.
-- **Arrange** for Before/Desired/Live geometry.
+- **Edit movement** for Before/Desired/Live geometry.
 - **Text editing** for Before/Desired/Live copy and typography.
 - **Measurements/guides** for alignment and spacing relationships.
 - **Screenshots** for visual context that structured measurements do not express well.
@@ -36,7 +36,7 @@ For multi-selection work, inspect pairwise/relational evidence and verify the sa
 
 ## Desired is not Live
 
-Arrange and direct text editing can preview Desired state without changing application source. That preview is intent, not completion evidence.
+Edit movement and direct text editing can preview Desired state without changing application source. That preview is intent, not completion evidence.
 
 After editing source, compare against the real Live rendering with the preview inactive or through the relevant review API.
 
@@ -52,4 +52,4 @@ A visual task is complete when the relevant Live evidence matches the requested 
 
 A passing build or a CSS declaration is implementation evidence. It does not prove the rendered result.
 
-See [Context](./CONTEXT_WORKFLOW.md), [Arrange](./ARRANGE.md), [Text Editing](./TEXT_EDITING.md), and [Screenshots](./SCREENSHOTS.md) for feature-specific behavior.
+See [Context](./CONTEXT_WORKFLOW.md), [Edit](./EDIT.md), [Text Editing](./TEXT_EDITING.md), and [Screenshots](./SCREENSHOTS.md) for feature-specific behavior.

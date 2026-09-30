@@ -31,11 +31,11 @@ Injection enables Context and Screenshot for the active tab. The page-mounted in
 
 When the tab remains authorized, the background worker remembers that Mesurer was explicitly opened and restores a missing injected instance after reload or eligible navigation. The injector also remounts Mesurer if the page replaces the DOM node that owns the injected UI. A live connected instance is reused rather than replaced. If the user closes Mesurer while navigation is racing the background worker's session-state read, the close request remains authoritative and recovery does not reopen the tab.
 
-Arrange remains optional unless it is included by the injected configuration.
+Edit movement remains optional unless `edit()` or the `arrange()` compatibility alias is included by the injected configuration.
 
 ## Direct text editing
 
-With Select or Typography active, double-click ordinary direct text to edit it in place. Arrange-compatible Select works the same way when Arrange is mounted.
+Enter Edit before changing direct text or typography. Typography in Select remains inspection-only. The extension keeps Context and Codex controls visible across Select and Edit.
 
 Mesurer keeps native editing boundaries intact. Form controls and descendants that inherit `contenteditable` remain under the page/browser editor. A nested `contenteditable="false"` boundary ends inherited editability and can use Mesurer direct editing when the normal direct-text rules pass. Mixed inline copy can edit the exact direct text run around an inline child without replacing that child or the host element's native DOM APIs.
 

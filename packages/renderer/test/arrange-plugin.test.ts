@@ -194,7 +194,7 @@ describe("arrangePlugin", () => {
     select(model, [target]);
 
     const section = host.settings().find((item) => item.id === "arrange");
-    expect(section?.label).toBe("Arrange");
+    expect(section?.label).toBe("Edit");
     expect(section?.controls?.map((control) => control.id)).toEqual([
       "snapping",
       "element-edges",
@@ -261,7 +261,7 @@ describe("arrangePlugin", () => {
     select(model, [target]);
 
     const tool = host.tools().find((item) => item.id === "arrange");
-    expect(tool).toMatchObject({ label: "Arrange" });
+    expect(tool).toMatchObject({ label: "Edit", toolbarMode: "edit", modeSwitch: true });
     expect(tool?.disabled).toBeUndefined();
     expect(tool?.shortcut).toBe("Shift+A");
 

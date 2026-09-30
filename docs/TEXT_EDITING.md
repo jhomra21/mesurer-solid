@@ -2,19 +2,19 @@
 
 Mesurer can preview copy and typography changes directly on the rendered page. These changes are reversible Desired intent; they do not edit application source.
 
-The visible inspection tool is **Typography**. Its internal built-in id remains `text-inspector` for compatibility.
+**Typography** is the read-only inspection tool in Select. Its internal built-in id remains `text-inspector` for compatibility. Edit owns text and typography changes.
 
 ## Start editing
 
-Direct editing works while Select or Typography is active. Arrange keeps Select active, so the same interaction also works while arranging.
+Direct editing works only in Edit mode. Enter Edit with the toolbar mode switch or `2`, then double-click a valid direct text run.
 
-If Arrange has already moved the target, editing or committing its text keeps that Arrange position. The text change does not invalidate the live arranged element.
+If Edit has already moved the target, editing or committing its text keeps that position. The text change does not invalidate the live moved element.
 
 Direct editing targets HTML text only. Selecting an SVG element does not make it editable; SVG remains available to Select, point inspection, Context, and annotations.
 
 Double-click ordinary direct text on desktop, or double-tap with touch or pen. Mesurer keeps the rendered host element as the visible editor, selects the existing text so typing replaces it immediately, and shows a blinking caret at the host text position once the selection collapses.
 
-When editing begins from Select or Arrange, Typography becomes contextually active for that field without replacing Select. If Typography was already explicitly selected, the normal hover/pinned Typography UI is temporarily suppressed so the field has one live card. Ending the edit restores the normal Typography UI and keeps the explicitly selected tool active.
+When editing begins, the field gets one interactive Typography editing card. This card is separate from the read-only Typography tool in Select. Leaving Edit closes editing presentation and returns to inspection behavior.
 
 Direct edit owns the visible selection UI for that source. The ordinary selected MeasurementBox stays logically mounted for selection state and geometry, but its duplicate border is paint-suppressed while the direct-edit ring is active. The selected dimensions pill remains available. When Typography is beneath the source, Mesurer keeps a 2px gap from the source to the pill and another 2px gap from the pill to Typography.
 
@@ -82,14 +82,14 @@ Saving an edit and showing it on the page are separate decisions. The saved inte
 
 By default, **Keep text changes is OFF**:
 
-- while **Typography** owns the presentation, saved Desired copy/style is shown;
-- when you return to **Select** or another tool, the original page presentation is restored;
-- switching back to Typography shows the saved Desired presentation again;
+- while **Edit** is active, saved Desired copy/style is shown;
+- when you return to **Select**, the original page presentation is restored;
+- opening Typography in Select keeps the original page presentation;
 - this presentation switch does not delete the saved edit or its history.
 
-To keep saved text/style changes visible outside Typography, open **Settings** with the gear button or `Cmd/Ctrl+,`, choose **General**, and turn on **Keep text changes**. The setting is persisted. Turning it off restores the normal tool-owned behavior without deleting the saved intent.
+To keep saved text/style changes visible outside Edit, open **Settings** with the gear button or `Cmd/Ctrl+,`, choose **General**, and turn on **Keep text changes**. The setting is persisted. Turning it off restores the normal tool-owned behavior without deleting the saved intent.
 
-Arrange has the matching **Keep Arrange changes** switch in the same General panel; see [Arrange](./ARRANGE.md).
+Movement has the matching **Keep Edit changes** switch in the same General panel; see [Edit](./EDIT.md).
 
 ## Desired preview and ownership
 
@@ -125,6 +125,6 @@ Before editing source, retain the relevant intent. After the application renders
 
 A correct implementation still matches after Mesurer's temporary preview is removed.
 
-If the same task also has Arrange intent, preserve both channels: Arrange owns geometry intent; direct text editing owns copy and typography intent.
+If the same task also has movement intent, preserve both channels. Edit movement uses the existing Arrange agent contract, while direct text editing owns copy and typography intent.
 
-See [Arrange](./ARRANGE.md), [Context](./CONTEXT_WORKFLOW.md), and [Architecture](../ARCHITECTURE.md) for the surrounding runtime and agent contracts.
+See [Edit](./EDIT.md), [Context](./CONTEXT_WORKFLOW.md), and [Architecture](../ARCHITECTURE.md) for the surrounding runtime and agent contracts.

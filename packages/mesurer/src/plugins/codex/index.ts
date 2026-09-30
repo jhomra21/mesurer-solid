@@ -796,6 +796,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
           label,
           command: "codex.queue",
           order: 73,
+          toolbarMode: "always",
           icon: deliveryToolIcon(),
           disabled: () => !canSend,
           menu: items.length ? { label: "Codex destination", items } : undefined,

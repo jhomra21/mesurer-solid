@@ -327,7 +327,16 @@ export function installTextEditing(
   const currentToolMode = () => runtime.currentToolMode?.() ?? "none";
 
   const directEditingMode = () => {
+    if (runtime.currentToolbarMode) return runtime.currentToolbarMode() === "edit";
     const mode = currentToolMode();
+
+    return mode === "text-inspector" || mode === "select";
+  };
+
+  const desiredPresentationMode = () => {
+    const mode = currentToolMode();
+
+    if (runtime.currentToolbarMode) return mode === "text-inspector";
 
     return mode === "text-inspector" || mode === "select";
   };
@@ -1734,8 +1743,9 @@ export function installTextEditing(
 
     if (disposed) return;
 
-    if (!directEditingMode()) {
-      if (editorSession) cancelEditor();
+    if (editorSession && !directEditingMode()) cancelEditor();
+
+    if (!desiredPresentationMode()) {
       restoreApplied();
 
       return;
