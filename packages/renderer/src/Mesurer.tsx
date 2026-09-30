@@ -210,8 +210,6 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   const onSelectionSpacingStyleChange = untrack(() => props.onSelectionSpacingStyleChange);
   const onResetSelectionSpacingStyle = untrack(() => props.onResetSelectionSpacingStyle);
   const { ownerDocument, ownerWindow } = env;
-  // SAFETY: ownerWindow is the realm that owns ownerDocument and all pointer events registered below.
-  const realm = ownerWindow as Window & typeof globalThis;
   const pageTarget = input.pageTarget ?? ownerDocument.body;
   const instanceId = ++instanceCount;
   const storageKey = input.persistKey ?? `mesurer-state:${getTabId(ownerWindow)}${instanceId === 1 ? "" : `:${instanceId}`}`;
@@ -955,7 +953,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         const latest = hoverPoint;
 
         if (latest && model.current.toolMode === "select" && !model.current.draggingGuideId) {
-          updateHoverWithPassthrough(latest);
+          updateHover(latest);
         }
       }, NATIVE_SCROLL_SETTLE_MS);
     };
