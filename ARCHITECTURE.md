@@ -118,15 +118,15 @@ Text and style previews are ownership-aware. Undo/redo can update a value Mesure
 
 See [Direct text editing and Typography](./docs/TEXT_EDITING.md).
 
-## Arrange
+## Edit
 
-Arrange is a renderer-aware first-party plugin exposed as `arrange()` from `mesurer-solid/plugins`.
+Edit is a renderer-aware first-party plugin exposed canonically as `edit()` from `mesurer-solid/plugins`. The `arrange()` factory remains a compatibility alias, and existing Arrange state ids, service ids, persistence, and agent method names stay stable.
 
-It owns active state, `Shift+A`, snapping, drag preview, Before/Desired intent, persistence, and review. Activating Arrange enables Select; turning Arrange off leaves Select active; turning Select off exits Arrange.
+Edit owns movement state, snapping, drag preview, Before/Desired intent, persistence, and review. Entering Edit enables Select as its targeting prerequisite; leaving Edit keeps Select active, while turning Select off exits Edit. The legacy `Shift+A` shortcut still enters Edit for compatibility.
 
-Arrange previews movement with an inline transform but records the previous value and priority as its baseline. Nested Arrange state keeps descendant movement relative to the nearest arranged ancestor while the public intent retains rendered Before and Desired geometry. A parent drag therefore carries nested targets without applying the same delta twice or pinning descendants to an older viewport position. Cleanup restores the transform baseline only while the current transform still matches Mesurer's preview. Host-authored transform changes take ownership and survive Live review, refresh, and disposal.
+Edit movement previews an inline transform but records the previous value and priority as its baseline. Persisted movement still uses the existing Arrange schema. Nested movement state keeps descendant movement relative to the nearest moved ancestor while the public intent retains rendered Before and Desired geometry. A parent drag therefore carries nested targets without applying the same delta twice or pinning descendants to an older viewport position. Cleanup restores the transform baseline only while the current transform still matches Mesurer's preview. Host-authored transform changes take ownership and survive Live review, refresh, and disposal.
 
-See [Arrange](./docs/ARRANGE.md).
+See [Edit](./docs/EDIT.md) and [Arrange compatibility](./docs/ARRANGE.md).
 
 ## Layout guides
 
@@ -152,7 +152,7 @@ context()
 
 Injection enables Context by default. Source-mounted applications opt in with `context()` from `mesurer-solid/plugins`.
 
-`window.__MESURER__` remains the shared browser-state boundary for ordinary coding-agent work. Context itself does not know about Codex, sessions, local processes, or transport. Arrange and text-edit intent remain separate structured channels so they retain their own Before/Desired/Live semantics.
+`window.__MESURER__` remains the shared browser-state boundary for ordinary coding-agent work. Context itself does not know about Codex, sessions, local processes, or transport. Edit movement and text-edit intent remain separate structured channels so they retain their own Before/Desired/Live semantics. The movement channel keeps its existing Arrange API names for compatibility.
 
 The selection Add Note button is only transient UI. Its temporary suppression during direct editing does not disable Context or remove saved annotations.
 
@@ -238,7 +238,7 @@ See [Host isolation](./docs/HOST_ISOLATION.md) and [Trusted Types](./docs/TRUSTE
 The page is shared state:
 
 ```text
-human selection / notes / Arrange / text Desired
+human selection / notes / Edit movement / text Desired
                        │
                        ▼
                  live Mesurer state
@@ -250,7 +250,7 @@ human selection / notes / Arrange / text Desired
                existing browser controller
 ```
 
-Agent attachment reuses an existing Mesurer instance when present. After source changes, verification uses the real Live page: Arrange preview removed, text Desired preview inactive, and fresh Context/measurement/review evidence.
+Agent attachment reuses an existing Mesurer instance when present. After source changes, verification uses the real Live page: Edit movement preview removed, text Desired preview inactive, and fresh Context/measurement/review evidence.
 
 The optional Codex transport does not invert that ownership model for agents. It is a separate explicit human action that serializes Context evidence and queues it into the active registered Codex destination (or another explicitly registered destination for a one-off send).
 
