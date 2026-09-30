@@ -167,6 +167,17 @@ try {
     /open Codex threads/i,
     "Codex Settings should explain the local thread connection",
   );
+  assert.match(
+    (await codexNotice.textContent()) ?? "",
+    /native Codex connection through preload/i,
+    "Codex Settings should explain the Electron native-host requirement",
+  );
+
+  await settingsPage.waitForFunction(() => {
+    const button = document.querySelector("[data-mesurer-tool-id='codex.send'] button");
+
+    return button?.getAttribute("aria-label") === "Codex host not connected";
+  });
 
   const contextToggle = dialog.getByRole("switch", { name: "Context", exact: true });
   await contextToggle.click();
