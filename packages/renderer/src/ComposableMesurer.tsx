@@ -1162,7 +1162,7 @@ export default function ComposableMesurer(props: MesurerProps) {
           onPluginToolMenuItem={runToolMenuItem}
           isBuiltinActionDisabled={builtinActionDisabled}
           onBuiltinController={(controller) => { builtinController = controller; }}
-          editSelectionHover={arrangeActive()}
+          editSelectionHover={arrangeActive}
         />
       </MesurerModelRegistrationContext>
     </MesurerPluginSettingsProvider>
