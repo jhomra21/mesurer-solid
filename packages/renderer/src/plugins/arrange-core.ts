@@ -1257,8 +1257,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       const selected = workspace.currentSelection().elements;
 
       await ctx.command.execute(BUILTIN_SELECT_COMMAND, undefined, { source: "arrange" });
+      const activeSelection = new Set(workspace.currentSelection().elements);
 
-      for (const element of selected) workspace.toggleSelection(element);
+      for (const element of selected) {
+        if (!activeSelection.has(element)) workspace.toggleSelection(element);
+      }
     };
 
     const beginDrag = (event: PointerEvent) => {
