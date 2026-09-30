@@ -148,7 +148,7 @@ try {
   const arrangeBox = page.locator("[data-mesurer-arrange-box='true']");
   await selectedRoot.waitFor({ state: "attached" });
   await arrangeBox.waitFor({ state: "visible" });
-  // Arrange's document-measurement guard is MutationObserver-owned. The box can
+  // Edit's document-measurement guard is MutationObserver-owned. The box can
   // become visible in the same task that portals the selected measurement, so
   // require the intended ownership state after that observer microtask rather
   // than racing it with an immediate style read.
@@ -174,16 +174,16 @@ try {
   assert.equal(
     await selectedRoot.count(),
     1,
-    "Arrange selection handoff must settle to one document-backed selected root",
+    "Edit selection handoff must settle to one document-backed selected root",
   );
   assert.equal(
     await selected.evaluate((element) => getComputedStyle(element).visibility),
     "hidden",
-    "Arrange must own the visible selection border while the document-backed measurement stays geometry-resident",
+    "Edit must own the visible selection border while the document-backed measurement stays geometry-resident",
   );
-  assertSameBox(await box(arrangeBox, "Arrange box before wheel"), targetBox, "Arrange box before wheel");
+  assertSameBox(await box(arrangeBox, "Edit box before wheel"), targetBox, "Edit box before wheel");
 
-  // Arrange intentionally paints its own interaction box instead of the normal
+  // Edit intentionally paints its own interaction box instead of the normal
   // selected MeasurementBox. The selected box must nevertheless stay mounted in
   // the document anchor tree so direct edit can take over without a geometry
   // teardown. Sample that hidden geometry directly during the physical wheel.
@@ -198,9 +198,9 @@ try {
   assertSameBox(selectedWheel.after.selected, selectedWheel.after.target, "selection geometry inside wheel scroll event");
   await settle();
   assertSameBox(
-    await box(arrangeBox, "Arrange box after wheel settle"),
-    await box(target, "target after Arrange wheel settle"),
-    "Arrange box after wheel settle",
+    await box(arrangeBox, "Edit box after wheel settle"),
+    await box(target, "target after Edit wheel settle"),
+    "Edit box after wheel settle",
     2,
   );
 
@@ -353,7 +353,7 @@ try {
   );
 
   assert.deepEqual(errors, [], `browser diagnostics: ${errors.join("\n")}`);
-  console.log("Selection scroll E2E passed: Arrange owns the visible pre-edit border while hidden selected geometry stays native-anchored; direct edit keeps its visible ring and Typography card frame-locked while the paint-suppressed selection root remains mounted and reconciles before ownership returns; standalone Typography remains source-attached under physical wheel input.");
+  console.log("Selection scroll E2E passed: Edit owns the visible pre-edit border while hidden selected geometry stays native-anchored; direct edit keeps its visible ring and Typography card frame-locked while the paint-suppressed selection root remains mounted and reconciles before ownership returns; standalone Typography remains source-attached under physical wheel input.");
 } finally {
   await browser.close();
 }
