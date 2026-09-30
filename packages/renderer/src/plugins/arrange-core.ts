@@ -1672,7 +1672,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       show(id, stateValue) {
         const intent = findIntent(id);
 
-        if (!intent) throw new Error(`Arrange intent not found: ${id}`);
+        if (!intent) throw new Error(`Edit intent not found: ${id}`);
         presentation = { intentId: id, state: stateValue };
         refresh();
       },
@@ -1683,7 +1683,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       capturePlan(id, stateValue) {
         const intent = findIntent(id);
 
-        if (!intent) throw new Error(`Arrange intent not found: ${id}`);
+        if (!intent) throw new Error(`Edit intent not found: ${id}`);
 
         return {
           schema: "mesurer.arrange-capture/v1",
