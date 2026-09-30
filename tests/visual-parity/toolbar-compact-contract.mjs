@@ -9,6 +9,84 @@ const context = await browser.newContext({ viewport: { width: 1280, height: 900 
 
 const page = await context.newPage();
 
+await page.addInitScript(() => {
+  let leaseId = null;
+
+  window.__MESURER_HOST__ = {
+    codexBridge: async (request) => {
+      if (request.action === "activate") {
+        leaseId = "toolbar-codex-lease";
+
+        return {
+          ok: true,
+          leaseId,
+          thread: "toolbar-thread",
+          threads: ["toolbar-thread"],
+          runtime: {
+            source: "shared",
+            transport: "shared-app-server",
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      if (request.action === "deactivate") {
+        if (request.leaseId !== leaseId) throw new Error("Toolbar fixture received the wrong Codex lease.");
+        leaseId = null;
+
+        return { ok: true, leaseId: request.leaseId, released: true };
+      }
+
+      if (request.action === "runtime") {
+        return {
+          ok: true,
+          runtime: {
+            source: "shared",
+            transport: "shared-app-server",
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      if (!leaseId || request.leaseId !== leaseId) {
+        throw new Error("Toolbar fixture Codex request requires its active lease.");
+      }
+
+      if (request.action === "health") {
+        return {
+          ok: true,
+          thread: "toolbar-thread",
+          threads: ["toolbar-thread"],
+          runtime: {
+            source: "shared",
+            transport: "shared-app-server",
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      if (request.action === "threads") {
+        return {
+          ok: true,
+          thread: "toolbar-thread",
+          threadDetails: [{
+            id: "toolbar-thread",
+            title: "Toolbar test",
+            updatedAt: 1,
+            connected: true,
+          }],
+          hasMore: false,
+        };
+      }
+
+      throw new Error(`Unexpected toolbar Codex action: ${request.action}`);
+    },
+  };
+});
+
 const pageErrors = [];
 
 const consoleErrors = [];
