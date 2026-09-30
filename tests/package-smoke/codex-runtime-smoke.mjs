@@ -131,8 +131,8 @@ printf '%s\\n' "$1" > "${desktopOpenMarker}"
   result.desktop.runtime = desktopRuntime.runtime;
 
   try {
-    await codexBridge({ action: "health" }, { codexHome: desktopHome });
-    throw new Error("Codex Bridge unexpectedly accepted a private Desktop runtime.");
+    await codexBridge({ action: "activate" }, { codexHome: desktopHome, clientId: "desktop-private" });
+    throw new Error("Codex Bridge unexpectedly activated a private Desktop runtime.");
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
 
@@ -165,19 +165,22 @@ printf '%s\\n' "$1" > "${desktopOpenMarker}"
   });
   result.desktop.inheritedSession.runtime = inheritedRuntime.runtime;
 
-  const inheritedHealth = await codexBridge(
-    { action: "health" },
-    { codexHome: desktopHome },
+  const inheritedActivation = await codexBridge(
+    { action: "activate" },
+    { codexHome: desktopHome, clientId: "desktop-inherited" },
   );
 
-  assert.equal(inheritedHealth.ok, true);
-  assert.equal(inheritedHealth.thread, "desktop-thread-1");
-  assert.deepEqual(inheritedHealth.threads, ["desktop-thread-1"]);
-  result.desktop.inheritedSession.health = inheritedHealth;
+  const inheritedLease = inheritedActivation.leaseId;
+
+  assert.equal(typeof inheritedLease, "string");
+  assert.equal(inheritedActivation.ok, true);
+  assert.equal(inheritedActivation.thread, "desktop-thread-1");
+  assert.deepEqual(inheritedActivation.threads, ["desktop-thread-1"]);
+  result.desktop.inheritedSession.health = inheritedActivation;
 
   const inheritedThreads = await codexBridge(
-    { action: "threads", limit: 5 },
-    { codexHome: desktopHome },
+    { action: "threads", leaseId: inheritedLease, limit: 5 },
+    { codexHome: desktopHome, clientId: "desktop-inherited" },
   );
 
   assert.equal(inheritedThreads.thread, "desktop-thread-1");
@@ -188,10 +191,11 @@ printf '%s\\n' "$1" > "${desktopOpenMarker}"
   const inheritedQueue = await codexBridge(
     {
       action: "queue",
+      leaseId: inheritedLease,
       thread: "desktop-thread-1",
       message: "Desktop feedback",
     },
-    { codexHome: desktopHome },
+    { codexHome: desktopHome, clientId: "desktop-inherited" },
   );
 
   assert.equal(inheritedQueue.ok, true);
@@ -202,8 +206,8 @@ printf '%s\\n' "$1" > "${desktopOpenMarker}"
   result.desktop.inheritedSession.queue = inheritedQueue;
 
   const delivery = await codexBridge(
-    { action: "delivery", deliveryId: inheritedQueue.deliveryId },
-    { codexHome: desktopHome },
+    { action: "delivery", leaseId: inheritedLease, deliveryId: inheritedQueue.deliveryId },
+    { codexHome: desktopHome, clientId: "desktop-inherited" },
   );
 
   assert.equal(delivery.status, "queued");
@@ -225,6 +229,13 @@ printf '%s\\n' "$1" > "${desktopOpenMarker}"
   const openedUrl = (await readFile(desktopOpenMarker, "utf8")).trim();
   assert.equal(openedUrl, "codex://threads/desktop-thread-1");
   result.desktop.inheritedSession.openedUrl = openedUrl;
+
+  const inheritedRelease = await codexBridge(
+    { action: "deactivate", leaseId: inheritedLease },
+    { codexHome: desktopHome, clientId: "desktop-inherited" },
+  );
+
+  assert.equal(inheritedRelease.released, true);
 
   delete process.env.CODEX_THREAD_ID;
   delete process.env.CODEX_APP_TOOLS_PIPE_PATH;
@@ -357,12 +368,14 @@ child.unref();
   result.standalone.runtimeBeforeStart = runtimeBeforeStart.runtime;
 
   const health = await codexBridge(
-    { action: "health" },
-    { codexHome: standaloneHome },
+    { action: "activate" },
+    { codexHome: standaloneHome, clientId: "standalone-client" },
   );
 
+  const standaloneLease = health.leaseId;
   const marker = JSON.parse(await readFile(standaloneMarker, "utf8"));
 
+  assert.equal(typeof standaloneLease, "string");
   assert.deepEqual(marker.args, ["app-server", "daemon", "start"]);
   assert.equal(marker.codexHome, standaloneHome);
   assert.equal(health.ok, true);
@@ -380,6 +393,13 @@ child.unref();
   );
 
   assert.deepEqual(runtimeAfterStart.runtime, health.runtime);
+
+  const standaloneRelease = await codexBridge(
+    { action: "deactivate", leaseId: standaloneLease },
+    { codexHome: standaloneHome, clientId: "standalone-client" },
+  );
+
+  assert.equal(standaloneRelease.released, true);
 
   result.standalone.packagedExecutableRan = true;
   result.standalone.runtimeAfterStart = runtimeAfterStart.runtime;
