@@ -1,4 +1,6 @@
 export type CodexBridgeAction =
+  | "activate"
+  | "deactivate"
   | "runtime"
   | "health"
   | "threads"
@@ -9,6 +11,7 @@ export type CodexBridgeAction =
 
 export type CodexBridgeRequest = {
   action: CodexBridgeAction;
+  leaseId?: string;
   thread?: string;
   limit?: number;
   message?: string;
@@ -21,6 +24,8 @@ export type CodexBridgeOptions = {
   codex?: string;
   /** Codex state directory. Defaults to CODEX_HOME, then ~/.codex. */
   codexHome?: string;
+  /** Native host client identity. Electron hosts should derive this from the invoking WebContents. */
+  clientId?: string;
 };
 
 export type CodexBridgeRuntime = {
@@ -39,6 +44,8 @@ export type CodexBridgeThread = {
 
 export type CodexBridgeResponse = {
   ok: true;
+  leaseId?: string;
+  released?: boolean;
   runtime?: CodexBridgeRuntime;
   thread?: string | null;
   threads?: string[];
@@ -61,3 +68,32 @@ export function codexBridge(
   request: CodexBridgeRequest,
   options?: CodexBridgeOptions,
 ): Promise<CodexBridgeResponse>;
+
+export type MesurerCodexHostEvent = {
+  sender: {
+    id: number;
+    on?(event: "did-navigate" | "render-process-gone" | "destroyed", listener: () => void): unknown;
+    removeListener?(event: "did-navigate" | "render-process-gone" | "destroyed", listener: () => void): unknown;
+  };
+  senderFrame?: { parent?: unknown } | null;
+};
+
+export type MesurerCodexHostOptions = Omit<CodexBridgeOptions, "clientId"> & {
+  ipcMain: {
+    handle(channel: string, listener: (event: MesurerCodexHostEvent, request: CodexBridgeRequest) => unknown): void;
+    removeHandler(channel: string): void;
+  };
+  channel?: string;
+  validateSender?(event: MesurerCodexHostEvent): boolean | Promise<boolean>;
+};
+
+export type MesurerCodexHost = {
+  channel: string;
+  dispose(): void;
+};
+
+export const MESURER_CODEX_BRIDGE_CHANNEL: "mesurer:codex-bridge";
+
+export function releaseCodexBridgeClient(clientId: string): number;
+
+export function installMesurerCodexHost(options: MesurerCodexHostOptions): MesurerCodexHost;
