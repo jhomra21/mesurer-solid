@@ -94,6 +94,4 @@ export type MesurerCodexHost = {
 
 export const MESURER_CODEX_BRIDGE_CHANNEL: "mesurer:codex-bridge";
 
-export function releaseCodexBridgeClient(clientId: string): number;
-
 export function installMesurerCodexHost(options: MesurerCodexHostOptions): MesurerCodexHost;
