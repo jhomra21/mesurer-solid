@@ -176,11 +176,11 @@ See [Agent integration](https://github.com/jhomra21/mesurer-solid/blob/main/pack
 
 ### Queue to Codex
 
-Codex is enabled by default and remains toggleable under **Settings -> Plugins**.
+Codex starts enabled when the native host capability exists and remains toggleable under **Settings -> Plugins**. Browser-only hosts list it but start with it off.
 
 Native applications install `installMesurerCodexHost()` in Electron main and expose `createMesurerCodexPreloadBridge()` from a bundled preload. The bridge runs in the native host process. Each enabled renderer owns a native lease. Settings waits for activation readiness before committing ON and waits for lease release before committing OFF. Shared sessions use Codex's local app-server directly. An inherited Codex Desktop thread uses one native queue operation and one `codex://threads/<id>` wake. Mesurer never opens the private Desktop app-tools pipe or starts a second Mesurer process.
 
-**Queue to Codex** remains one runtime-neutral API. Shared delivery tracks Queued, Working, Finished, or Interrupted through the shared app-server. Desktop current-thread delivery reports the durable queued submission and wake result without fabricating private Desktop lifecycle state. It does not create threads or invoke Steer.
+**Queue to Codex** remains one runtime-neutral API. Shared delivery tracks Queued, Working, Finished, or Interrupted through the shared app-server. Desktop current-thread delivery keeps the durable queued submission and wake result visible without fabricating private Desktop lifecycle state. It does not create threads or invoke Steer.
 
 Saved annotations included in a delivery are removed only after the exact matched turn completes. Interrupted, failed, ambiguous, or unreadable deliveries keep them. Set `codex({ clearCompletedAnnotations: false })` to retain completed notes.
 
