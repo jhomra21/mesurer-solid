@@ -1339,6 +1339,9 @@ describe("codex", () => {
   it("rolls back plugin activation when native Codex readiness fails", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
+    const bridge = vi.fn(window.__MESURER_HOST__!.codexBridge!);
+
+    window.__MESURER_HOST__ = { codexBridge: bridge };
 
     const fetchMock = bridgeFetchMock(async () => {
       throw new TypeError("fetch failed");
@@ -1362,6 +1365,9 @@ describe("codex", () => {
     expect(host.tools().find((candidate) => candidate.id === "codex.send")).toBeUndefined();
     expect(host.service.get(MESURER_CODEX_SERVICE_ID)).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(bridge.mock.calls.some(([request]) =>
+      request.action === "deactivate"
+      && request.leaseId === "lease-test")).toBe(true);
     host.dispose();
   });
 
