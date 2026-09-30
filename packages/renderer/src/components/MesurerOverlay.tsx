@@ -25,7 +25,7 @@ export type MesurerOverlayProps = {
   hoverGuide: Guide | null;
   selectionSpacingStyle: SelectionSpacingStyle;
   interactive: boolean;
-  suppressHoverWhenSelected: boolean;
+  editSelectionHover: boolean;
   onPointerDown: (event: OverlayPointerEvent) => void;
   onPointerMove: (event: PointerEvent) => void;
   onPointerUp: (event: OverlayPointerEvent) => void;
@@ -99,6 +99,18 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     const target = props.model.state.hoverElement;
 
     return Boolean(target && selectedMeasurements().some((measurement) => measurement.elementRef === target));
+  });
+
+  const hoverInsideSelectedSubtree = createMemo(() => {
+    const target = props.model.state.hoverElement;
+
+    if (!target) return false;
+
+    return selectedMeasurements().some((measurement) => {
+      const selected = measurement.elementRef;
+
+      return Boolean(selected && (selected === target || selected.contains(target)));
+    });
   });
 
   const heldDistances = createMemo(() => props.model.state.heldDistances);
@@ -445,9 +457,8 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
         <Show when={
           props.model.state.hoverRect
           && props.model.state.settings.hoverHighlightEnabled
-          && selectedMeasurements().length <= 1
-          && !(props.suppressHoverWhenSelected && selectedMeasurements().length > 0)
-          && !hoverTargetsSelected()
+          && (props.editSelectionHover || selectedMeasurements().length <= 1)
+          && !(props.editSelectionHover ? hoverInsideSelectedSubtree() : hoverTargetsSelected())
         }>
           <Show when={hoverPortalTarget()} fallback={hoverSurface()}>
             {(mount) => <Portal mount={mount()}>{hoverSurface()}</Portal>}
