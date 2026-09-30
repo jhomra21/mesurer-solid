@@ -398,6 +398,7 @@ export default function ComposableMesurer(props: MesurerProps) {
       if (model.current.colorPickerActive) controller.deactivate("color-picker");
 
       if (model.current.toolMode === "text-inspector") controller.deactivate("text-inspector");
+
       if (model.current.toolMode === "guides") controller.deactivate("guides");
     }
 
@@ -831,13 +832,29 @@ export default function ComposableMesurer(props: MesurerProps) {
       writePluginRegistryState();
     });
 
+    const builtinSlotActive = (id: Exclude<MesurerBuiltinPluginId, "distance">) => {
+      const model = rendererModel?.current;
+
+      if (!model) return false;
+
+      if (id === "select") return model.toolMode === "select";
+      if (id === "xray") return model.xrayVisible;
+      if (id === "color-picker") return model.colorPickerActive;
+      if (id === "rulers") return model.rulersVisible;
+      if (id === "text-inspector") return model.toolMode === "text-inspector";
+      if (id === "guides") return model.toolMode === "guides";
+      if (id === "settings") return model.settingsOpen;
+
+      return false;
+    };
+
     const runBuiltinSlot = async (id: Exclude<MesurerBuiltinPluginId, "distance">) => {
       if (builtinActionDisabled(id)) return;
 
       if (id !== "settings" && arrangeActive()) {
         await leaveEditMode("select-mode-builtin");
 
-        if (id === "select") return;
+        if (id === "select" || builtinSlotActive(id)) return;
       }
 
       const replacement = replacementBuiltinTool(id);
