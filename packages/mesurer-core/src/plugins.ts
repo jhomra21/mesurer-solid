@@ -12,6 +12,8 @@ export type PluginStateSnapshot = { [id: string]: PluginValue };
 
 export type PluginStateScope = "all" | "history" | "persist";
 
+export const MESURER_PLUGIN_BEFORE_DISABLE_HOOK = "mesurer.plugin.before-disable";
+
 export type ToolMenuItemContribution = {
   id: string;
   label: string;
