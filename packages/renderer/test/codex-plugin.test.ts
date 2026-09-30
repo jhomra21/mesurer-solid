@@ -1337,7 +1337,7 @@ describe("codex", () => {
     secondHost.dispose();
   });
 
-  it("checks the native Codex Bridge when the enabled plugin loads and marks an unavailable host", async () => {
+  it("rolls back plugin activation when native Codex readiness fails", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
 
@@ -1354,18 +1354,142 @@ describe("codex", () => {
         ctx.service.provide("context:v1", contextService);
       },
     }));
-    await host.load(codex());
 
-    await vi.waitFor(() => {
-      const unavailable = host.tools().find((candidate) => candidate.id === "codex.send");
+    await expect(host.load(codex())).rejects.toThrow(
+      "Codex Bridge is unavailable in this host.",
+    );
 
-      expect(unavailable?.label).toBe("Codex unavailable");
-      expect(unavailable?.disabled?.()).toBe(true);
-      expect(unavailable?.menu?.items.map((item) => item.label)).toEqual(["Retry Codex connection"]);
-    });
-
+    expect(host.has("mesurer.codex")).toBe(false);
+    expect(host.tools().find((candidate) => candidate.id === "codex.send")).toBeUndefined();
+    expect(host.service.get(MESURER_CODEX_SERVICE_ID)).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     host.dispose();
+  });
+
+  it("keeps a durable Desktop queue receipt visible without blocking the next send", async () => {
+    vi.useFakeTimers();
+    const host = createMesurerPluginHost();
+    const { service: contextService } = createContextService();
+    const bridge = vi.fn(async (request: HostCodexBridgeRequest) => {
+      if (request.action === "activate") {
+        return {
+          ok: true,
+          leaseId: "desktop-lease",
+          thread: "desktop-thread",
+          threads: ["desktop-thread"],
+          runtime: {
+            source: "desktop" as const,
+            transport: "desktop-queue" as const,
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      if (request.action === "deactivate") {
+        return { ok: true, leaseId: request.leaseId, released: true };
+      }
+
+      if (request.leaseId !== "desktop-lease") {
+        throw new Error("Desktop request did not carry its activation lease.");
+      }
+
+      if (request.action === "health") {
+        return {
+          ok: true,
+          thread: "desktop-thread",
+          threads: ["desktop-thread"],
+          runtime: {
+            source: "desktop" as const,
+            transport: "desktop-queue" as const,
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      if (request.action === "threads") {
+        return {
+          ok: true,
+          thread: "desktop-thread",
+          threadDetails: [{
+            id: "desktop-thread",
+            title: "Current Codex Desktop thread",
+            updatedAt: null,
+            connected: true,
+          }],
+          hasMore: false,
+        };
+      }
+
+      if (request.action === "queue") {
+        return {
+          ok: true,
+          thread: "desktop-thread",
+          output: "queued",
+          delivery: "queued" as const,
+          deliveryId: "desktop-delivery",
+          status: "queued" as const,
+          queuedSubmissionId: "desktop-submission-12345678",
+          dispatch: "desktop-opened" as const,
+          dispatchError: null,
+        };
+      }
+
+      if (request.action === "delivery") {
+        return {
+          ok: true,
+          deliveryId: "desktop-delivery",
+          thread: "desktop-thread",
+          status: "queued" as const,
+          turnId: null,
+          queuedSubmissionId: "desktop-submission-12345678",
+          dispatch: "desktop-opened" as const,
+          dispatchError: null,
+          createdAt: 1,
+          updatedAt: 1,
+        };
+      }
+
+      if (request.action === "runtime") {
+        return {
+          ok: true,
+          runtime: {
+            source: "desktop" as const,
+            transport: "desktop-queue" as const,
+            available: true,
+            reason: null,
+          },
+        };
+      }
+
+      throw new Error(`Unexpected Desktop bridge action: ${request.action}`);
+    });
+
+    window.__MESURER_HOST__ = { codexBridge: bridge };
+
+    await host.load(defineMesurerPlugin({
+      id: "test.context-desktop-receipt",
+      provides: ["context:v1"],
+      setup(ctx) {
+        ctx.service.provide("context:v1", contextService);
+      },
+    }));
+    await host.load(codex());
+    await host.command.execute("codex.queue");
+
+    await vi.advanceTimersByTimeAsync(DELIVERY_POLL_MS_FOR_TEST + 5_000);
+
+    const tool = host.tools().find((candidate) => candidate.id === "codex.send");
+
+    expect(tool?.label).toBe("Queued for Codex");
+    expect(tool?.disabled?.()).toBe(false);
+    expect(tool?.menu?.items.some((item) =>
+      item.id === "codex.delivery.receipt"
+      && item.label.includes("desktop-"))).toBe(true);
+
+    host.dispose();
+    vi.useRealTimers();
   });
 
   it("can send one message to another loaded thread without changing the default", async () => {
