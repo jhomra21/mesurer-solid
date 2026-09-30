@@ -9,6 +9,8 @@ const artifactDir = process.env.MESURER_ELECTRON_ARTIFACT_DIR
 
 let mainWindow = null;
 
+let codexHost = null;
+
 let finished = false;
 
 let timeoutId = null;
@@ -31,12 +33,6 @@ function fail(error) {
   console.error(message);
   app.exit(1);
 }
-
-ipcMain.handle("mesurer:codex-bridge", async (_event, request) => {
-  const { codexBridge } = await import("mesurer-solid/plugins/codex/bridge");
-
-  return codexBridge(request);
-});
 
 ipcMain.handle("mesurer:capture-window", async (event) => {
   captureCount += 1;
@@ -181,6 +177,22 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
 });
 
 app.whenReady().then(async () => {
+  const { installMesurerCodexHost } = await import("mesurer-solid/plugins/codex/bridge");
+
+  codexHost = installMesurerCodexHost({
+    ipcMain,
+    validateSender(event) {
+      const window = BrowserWindow.fromWebContents(event.sender);
+
+      return Boolean(window && !window.isDestroyed());
+    },
+  });
+
+  app.once("before-quit", () => {
+    codexHost?.dispose();
+    codexHost = null;
+  });
+
   const windowOptions = {
     show: false,
     width: 900,
