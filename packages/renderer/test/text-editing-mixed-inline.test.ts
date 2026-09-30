@@ -168,7 +168,7 @@ describe("mixed inline direct text editing", () => {
     editor!.dispatchEvent(new Event("input", { bubbles: true }));
     expect(before.nodeValue).toBe("Updated copy ");
     expect(target.querySelector("kbd")).toBe(key);
-    expect(key.textContent).toBe("Shift+A");
+    expect(key.textContent).toBe("2");
     expect(after.nodeValue).toBe(" to drag them into the layout you want.");
     expectNativeChildNodes(target, [before, key, after]);
 
@@ -188,7 +188,7 @@ describe("mixed inline direct text editing", () => {
     expect(trailingEditor).toBeTruthy();
     expect(trailingEditor?.value).toBe("to drag them into the layout you want.");
     expect(target.querySelector("kbd")).toBe(key);
-    expect(before.nodeValue).toBe("Select one or more elements, then use Arrange or ");
+    expect(before.nodeValue).toBe("Select one or more elements, then switch to Edit or press ");
     expectNativeChildNodes(target, [before, key, after]);
   });
 
@@ -197,8 +197,8 @@ describe("mixed inline direct text editing", () => {
     const target = document.createElement("p");
     const before = document.createTextNode("Press ");
     const key = document.createElement("kbd");
-    key.textContent = "Shift+A";
-    const after = document.createTextNode(" to arrange.");
+    key.textContent = "2";
+    const after = document.createTextNode(" to edit.");
     target.append(before, key, after);
     pageTarget.append(target);
 
