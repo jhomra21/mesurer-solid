@@ -231,6 +231,7 @@ describe("codex", () => {
   it("holds one native lease until the managed plugin pre-disable barrier releases it", async () => {
     const host = createMesurerPluginHost();
     const { service: contextService } = createContextService();
+
     const bridge = vi.fn(window.__MESURER_HOST__!.codexBridge!);
 
     window.__MESURER_HOST__ = { codexBridge: bridge };
