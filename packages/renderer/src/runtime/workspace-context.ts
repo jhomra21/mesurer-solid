@@ -57,6 +57,7 @@ export type MesurerWorkspaceRuntime = {
   toggleSelection(element: Element): void;
   selectGestureActive(): boolean;
   select(selectors: string[]): Element[];
+  setHover(element: Element | null): void;
   clearHover(): void;
   hoveredElement(): Element | null;
   annotations(): MesurerAnnotation[];
@@ -639,6 +640,22 @@ export function createMesurerWorkspaceRuntime(options: {
       return model.current.toolMode === "select" && model.current.start !== null;
     },
     select,
+    setHover(element) {
+      if (!element?.isConnected || !isInPageTarget(element)) {
+        model.setHoverTarget(null, null);
+
+        return;
+      }
+
+      const rect = element.getBoundingClientRect();
+
+      model.setHoverTarget(
+        element,
+        model.current.settings.hoverHighlightEnabled
+          ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+          : null,
+      );
+    },
     clearHover() {
       model.setHoverTarget(null, null);
     },
