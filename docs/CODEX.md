@@ -80,7 +80,7 @@ The Codex Bridge export does not use `import.meta.url`, `process.execPath`, or p
 
 When the native host capability exists, Codex starts enabled with the other first-party plugins. Browser-only hosts start with Codex off.
 
-Turning Codex on is transactional. Plugin setup requests a native activation lease and waits for Codex readiness before the plugin becomes enabled. A shared app-server connection must answer the normal health path. If a complete standalone Codex installation must start the shared daemon, activation waits for that daemon to become ready. If activation fails, Mesurer rolls the plugin load back and the Settings switch remains off.
+Turning Codex on is transactional. Plugin setup requests a native activation lease and waits for Codex readiness before the plugin becomes enabled. A shared app-server connection must answer the normal health path. If a complete standalone Codex installation must start the shared daemon, activation waits for that daemon to become ready. If activation fails, Mesurer rolls the plugin load back, keeps the Settings switch off, and shows the host or runtime error in the Codex row.
 
 Turning Codex off is also transactional. Mesurer asks the native host to release the plugin's lease and waits for confirmation before removing the renderer service, command, toolbar action, and persisted enabled state.
 
