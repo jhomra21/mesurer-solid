@@ -494,7 +494,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
     const box = ownerDocument.createElement("div");
     box.dataset.mesurerArrangeBox = "true";
     box.setAttribute("role", "application");
-    box.setAttribute("aria-label", "Arrange selected elements");
+    box.setAttribute("aria-label", "Edit selected elements");
     box.style.position = "fixed";
     box.style.display = "none";
     box.style.boxSizing = "border-box";
