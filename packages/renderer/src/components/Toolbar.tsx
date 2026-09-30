@@ -739,8 +739,8 @@ export function Toolbar(props: ToolbarProps) {
           class="msr:relative msr:flex msr:items-stretch"
         >
           <ToolbarButton
-            id={`plugin:${tool().id}`}
-            toolId={tool().id}
+            id="edit-tool"
+            toolId="edit-action"
             active={tool().active?.() ?? false}
             disabled={tool().disabled?.() ?? false}
             label={tool().label}
