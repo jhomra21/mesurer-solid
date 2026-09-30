@@ -108,6 +108,20 @@ tests/
 
 These suites may exercise examples and multiple packages, so placing them inside one package would give the wrong ownership signal.
 
+The Codex native integration stays inside the public Mesurer package:
+
+```text
+packages/mesurer/src/plugins/codex/
+├── index.ts       renderer plugin
+├── bridge.mjs     native transport and Electron main adapter
+├── bridge.d.ts    native host contract
+├── preload.mjs    bundle-friendly preload adapter
+├── preload.cjs    CommonJS preload adapter
+└── preload.d.ts   preload types
+```
+
+The package smoke bundles both Electron main and preload before launch.
+
 Workflow definitions remain in `.github/workflows/`; they should call these suites rather than embed large test programs in YAML.
 
 ## Examples
