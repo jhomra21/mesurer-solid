@@ -59,6 +59,8 @@ contextBridge.exposeInMainWorld("__MESURER_HOST__", {
 
 If the application already exposes `window.__MESURER_HOST__` for Screenshot, add `codexBridge` to the same object.
 
+When an Electron renderer enables Codex without this capability, Mesurer now reports **Codex host not connected** in the toolbar and explains the preload requirement in Settings. It does not silently treat a missing host bridge as a failed Codex installation, and it does not fall back to a localhost helper process.
+
 This is application integration, not a user setup step. Once the host exposes it, the user does not install anything in Codex, run a bridge command, trust hooks, choose a port, or manage another process.
 
 The Codex Bridge export is intentionally location-independent. It does not use `import.meta.url`, `process.execPath`, or package-relative runtime file lookup, so bundling Electron main to CommonJS does not require Mesurer to recover its own source path.
