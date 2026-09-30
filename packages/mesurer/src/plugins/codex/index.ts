@@ -549,6 +549,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
         const activeLease = leaseId;
 
         if (!activeLease) return;
+
         const response = await bridgeRequest({
           action: "deactivate",
           leaseId: activeLease,
@@ -590,7 +591,7 @@ export function codex(options: MesurerCodexPluginOptions = {}): MesurerPlugin {
       });
 
       ctx.hook.on(MESURER_PLUGIN_BEFORE_DISABLE_HOOK, async (event) => {
-        if (!event || typeof event !== "object" || Array.isArray(event)) return;
+        if (event?.constructor !== Object) return;
 
         if (event.pluginId !== MESURER_CODEX_PLUGIN_ID) return;
         await deactivateBridge();
