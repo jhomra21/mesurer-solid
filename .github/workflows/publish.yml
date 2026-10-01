@@ -222,6 +222,7 @@ jobs:
       - artifact
     if: needs.detect.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 55
     permissions:
       contents: write
       id-token: write
@@ -338,7 +339,11 @@ jobs:
           if [[ "$VERSION" == *-* ]]; then expected_tag=beta; fi
 
           verified=0
-          for attempt in $(seq 1 60); do
+          deadline=$((SECONDS + 45 * 60))
+          attempt=0
+
+          while (( SECONDS < deadline )); do
+            attempt=$((attempt + 1))
             remote_integrity=$(npm view "${PACKAGE}@${VERSION}" dist.integrity --prefer-online 2>/dev/null || true)
 
             if [[ -n "$remote_integrity" && "$remote_integrity" != "$INTEGRITY" ]]; then
@@ -353,12 +358,13 @@ jobs:
               break
             fi
 
-            echo "Waiting for npm registry propagation (${attempt}/60): integrity=${remote_integrity:-<missing>} tag=${tagged_version:-<missing>}"
-            sleep 5
+            remaining=$((deadline - SECONDS))
+            echo "Waiting for npm registry propagation (attempt ${attempt}, up to ${remaining}s remaining): integrity=${remote_integrity:-<missing>} tag=${tagged_version:-<missing>}"
+            sleep 10
           done
 
           if [[ "$verified" -ne 1 ]]; then
-            echo "Registry state never converged on the published artifact and expected dist-tag."
+            echo "Registry state never converged on the published artifact and expected dist-tag within 45 minutes."
             exit 1
           fi
 
