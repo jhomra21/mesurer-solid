@@ -927,6 +927,7 @@ export const recordingPlugin = (
         if (operation !== operationId || disposed) return;
 
         const aborted = cause instanceof DOMException && cause.name === "AbortError";
+
         const message = aborted
           ? null
           : cause instanceof Error
