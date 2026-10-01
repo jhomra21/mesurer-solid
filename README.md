@@ -90,7 +90,7 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 - **Appearance.** Use System, Light, or Dark without changing the inspected page. The same theme applies to the isolated toolbar and document-backed Context and Typography UI.
 - **Color Picker.** Native hosts with `window.__MESURER_HOST__.captureScreenshot` use a current-window picker that captures once when the user chooses a pixel. Other supported browser hosts use the native `EyeDropper`. A successful sample is copied to the clipboard in the configured format.
 
-Mesurer Solid has two toolbar modes. **Select** contains inspection tools such as X-ray, Color Picker, Rulers, Typography, Guides, Layout Guides, and Screenshot. **Edit** owns element movement and direct text/style editing. Use `1` for Select and `2` for Edit. Context and Codex remain visible in both modes. Mode changes use the upstream grouped-toolbar styling and icons with Mesurer Solid's 150 ms motion.
+Mesurer Solid has two toolbar modes. **Select** contains inspection tools such as X-ray, Color Picker, Rulers, Typography, Guides, Layout Guides, and Screenshot. **Edit** owns element movement and direct text/style editing. Use `1` for Select and `2` for Edit. Context and Codex remain visible in both modes. Mode changes use the audited upstream grouped-toolbar structure and styling with Mesurer Solid's 150 ms motion. Select keeps the upstream inspection icon; Edit intentionally uses Mesurer Solid's movement glyph and owns its options chevron.
 
 Toolbar dragging starts only after the pointer crosses the drag threshold. A drag from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders stays with those controls.
 
@@ -227,7 +227,7 @@ Contributor setup, validation expectations, and repository ownership are documen
 
 ## Upstream
 
-Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@547634086b1317b48e5cd23cafb477a9cdb807c3`; adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@ca432288b8d803a2c134dba51da971f54931db8f` (verified October 1, 2026); adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 

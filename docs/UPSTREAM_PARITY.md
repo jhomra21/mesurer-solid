@@ -61,7 +61,7 @@ Upstream `03c0581837c01325ce4a8fa18bc893955335eb21` still uses the grouped toolb
 
 | Upstream delta | Decision | Reason |
 | --- | --- | --- |
-| Two-button grouped toolbar switch with moving selection pill | **Adopted with product mapping** | Mesurer Solid maps upstream's Inspect/Annotate switch to Select/Edit. It keeps the upstream 28px buttons, 2px gap/padding, 3px active pill radius, neutral ink states, focus treatment, and source icons. |
+| Two-button grouped toolbar switch with moving selection pill | **Adopted with product mapping** | Mesurer Solid maps upstream's Inspect/Annotate switch to Select/Edit. It keeps the upstream 28px buttons, 2px gap/padding, 3px active pill radius, neutral ink states, focus treatment, and Select inspection icon. Edit intentionally uses Mesurer Solid's movement glyph instead of upstream Annotate, with the Edit options chevron owned by the same split control. |
 | Group content slides while the active lane changes width | **Adopted with 150 ms motion** | Mesurer Solid keeps the same grouped-toolbar structure and interruptible width/translate transition, but uses the project's existing 150 ms motion instead of upstream timing. Reduced motion disables the transition. |
 | Inspect-owned versus Annotate-owned tool lanes | **Adopted as Select/Edit ownership** | Select owns inspection tools. Edit owns movement and direct text/style editing. Typography stays in Select as inspection-only. |
 | Persistent controls outside the changing group | **Adopted with Mesurer Solid plugin ownership** | Context and Codex remain visible in both modes. Third-party tools without mode metadata retain the historical always-visible behavior so existing plugin surfaces do not disappear after upgrade. |
@@ -118,7 +118,7 @@ Upstream `33ffecfa7682b25dff5ada2a507feedfa18c745b` is the 0.2.0 release commit.
 | Dragging the toolbar from controls or chrome | **Adopted with the existing Solid drag engine** | Drag starts remain thresholded. Crossing the threshold closes an open Settings, Guide, or plugin surface, while real menus, dialogs, form controls, contenteditable regions, and slider surfaces retain pointer ownership. |
 | Settings and toolbar-menu trigger re-click | **Already equivalent; now browser-covered** | Settings, Guide orientation, and plugin split-menu triggers already toggle their own surface. The toolbar drag contract protects that behavior while also checking post-drag click suppression. |
 | Theme-aware ruler fade color | **Already adopted** | Ruler gradients already use `--msr-surface`, including Dark and System-dark themes. |
-| Inspect/Annotate group switching used by upstream toolbar tests | **Adopted with Select/Edit mapping** | Mesurer Solid now uses the upstream grouped-toolbar presentation and icons for Select/Edit. Its tool ownership differs intentionally: Typography stays in Select, editing belongs to Edit, and Context/Codex remain visible across both modes. |
+| Inspect/Annotate group switching used by upstream toolbar tests | **Adopted with Select/Edit mapping** | Mesurer Solid uses the upstream grouped-toolbar presentation for Select/Edit and keeps the upstream Select inspection icon. Edit intentionally uses Mesurer Solid's movement glyph and integrated options chevron. Tool ownership also differs intentionally: Typography stays in Select, editing belongs to Edit, and Context/Codex remain visible across both modes when enabled. |
 
 ### 2026-09-22 theme delta classification
 
