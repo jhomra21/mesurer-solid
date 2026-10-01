@@ -90,6 +90,12 @@ const injectMesurer = async (tabId) => {
   await chrome.scripting.executeScript({
     target: { tabId },
     world: "MAIN",
+    files: ["mediabunny-vendor.js"],
+  });
+
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
     files: ["mesurer-main.js"],
   });
 };
