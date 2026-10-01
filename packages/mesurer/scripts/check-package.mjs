@@ -72,6 +72,7 @@ for (const file of [
   "inject.d.ts",
   "inject-script.js",
   "screenshot.d.ts",
+  "recording.d.ts",
 ]) {
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
@@ -145,6 +146,7 @@ for (const factory of [
   "edit",
   "arrange",
   "layoutGuides",
+  "recording",
   "screenshot",
   "select",
   "xray",
@@ -175,6 +177,8 @@ if (!existsSync(codexDeclarationUrl)) {
 const codexDeclarations = readFileSync(codexDeclarationUrl, "utf8");
 
 const screenshotDeclarations = readFileSync(new URL("screenshot.d.ts", dist), "utf8");
+
+const recordingDeclarations = readFileSync(new URL("recording.d.ts", dist), "utf8");
 
 for (const leakedScreenshotExport of [
   "captureScreenshotPng",
@@ -291,6 +295,7 @@ for (const obsoleteFactory of [
   "contextPlugin",
   "codexPlugin",
   "arrangePlugin",
+  "recordingPlugin",
   "screenshotPlugin",
   "selectPlugin",
   "xrayPlugin",
@@ -336,10 +341,42 @@ for (const contractName of [
   "LayoutGuide",
   "LayoutGuideInput",
   "MesurerLayoutGuidesService",
+  "MesurerRecordingAsset",
+  "MesurerRecordingExportResult",
+  "MesurerRecordingService",
+  "MesurerRecordingSnapshot",
   "MesurerScreenshotService",
 ]) {
   if (!new RegExp(`\\b${contractName}\\b`).test(pluginDeclarations)) {
     throw new Error(`Published plugins entry is missing ${contractName}.`);
+  }
+}
+
+for (const member of [
+  "snapshot()",
+  "subscribe(",
+  "formats()",
+  "start(",
+  "stop()",
+  "cancel()",
+  "discard()",
+  "export(",
+]) {
+  if (!recordingDeclarations.includes(member)) {
+    throw new Error(`Published MesurerRecordingService is missing ${member}.`);
+  }
+}
+
+for (const leakedMediaBunnyType of [
+  "CanvasSource",
+  "Conversion",
+  "Input",
+  "Output",
+  "VideoCodec",
+  "mediabunny",
+]) {
+  if (recordingDeclarations.includes(leakedMediaBunnyType)) {
+    throw new Error(`Published Recording API leaked MediaBunny implementation detail: ${leakedMediaBunnyType}.`);
   }
 }
 
@@ -376,7 +413,7 @@ if (/\bmountMeasurer\b/.test(packageReadme)) {
   throw new Error("The npm README must document canonical mountMesurer(), not the deprecated mountMeasurer() spelling.");
 }
 
-if (/\b(?:contextPlugin|codexPlugin|arrangePlugin|layoutGuidesPlugin|screenshotPlugin)\b/.test(packageReadme)) {
+if (/\b(?:contextPlugin|codexPlugin|arrangePlugin|layoutGuidesPlugin|recordingPlugin|screenshotPlugin)\b/.test(packageReadme)) {
   throw new Error("The npm README must document canonical plugin factory names from mesurer-solid/plugins.");
 }
 
@@ -586,4 +623,4 @@ try {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, in-process Codex Bridge, agent context, Edit movement, text edit intents, screenshot tooling, and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, in-process Codex Bridge, agent context, Edit movement, text edit intents, screenshot and MediaBunny recording tooling, and Agent Skill installer are self-contained.`);
