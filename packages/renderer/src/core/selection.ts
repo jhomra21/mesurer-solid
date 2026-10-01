@@ -1,5 +1,5 @@
 // Adapted from ibelick/mesurer (MIT). See THIRD_PARTY_LICENSES.md.
-import { MIN_MULTI_TARGET_SIZE, MIN_SINGLE_TARGET_SIZE } from "./constants";
+import { CLICK_CYCLE_THRESHOLD, MIN_MULTI_TARGET_SIZE, MIN_SINGLE_TARGET_SIZE } from "./constants";
 import { getBodyElementsCached, getFrameToken, getRectFromDomCached } from "./dom";
 import { isInsideMesurer, isMesurerInputBoundary } from "./events";
 import { rectsOverlap } from "./geometry";
@@ -113,6 +113,88 @@ export const getTargetElement = (
   return rect.width > 2 && rect.height > 2 ? element : null;
 };
 
+export type ClickCycleState = {
+  point: Point;
+  index: number;
+  stack: Element[];
+};
+
+const isSameClickSpot = (left: Point, right: Point) =>
+  Math.abs(left.x - right.x) <= CLICK_CYCLE_THRESHOLD
+  && Math.abs(left.y - right.y) <= CLICK_CYCLE_THRESHOLD;
+
+const composedParentElement = (
+  element: Element,
+  ownerWindow: Window,
+): Element | null => {
+  if (element.parentElement) return element.parentElement;
+  const realm = ownerWindow as Window & typeof globalThis;
+  const root = element.getRootNode();
+
+  return root instanceof realm.ShadowRoot ? root.host : null;
+};
+
+const getPointSelectionStack = (
+  point: Point,
+  overlayNode: HTMLDivElement | null,
+  ownerDocument: Document,
+  pageTarget: HTMLElement | ShadowRoot,
+) => {
+  if (isSelectionPointBlockedByMesurerUi(point, overlayNode, ownerDocument, pageTarget)) return [];
+  const ownerWindow = ownerDocument.defaultView;
+
+  if (!ownerWindow) return [];
+  const realm = ownerWindow as Window & typeof globalThis;
+  const overlayHost = getOverlayHost(overlayNode);
+  const stack: Element[] = [];
+  const seen = new Set<Element>();
+
+  const add = (element: Element | null) => {
+    if (!element || seen.has(element)) return;
+    if (
+      !isElementWithinDomTarget(element, pageTarget)
+      || isOverlayElement(element, overlayNode, overlayHost)
+      || isInsideMesurer(element, ownerWindow)
+      || element === ownerDocument.body
+      || element === ownerDocument.documentElement
+    ) return;
+    const rect = element.getBoundingClientRect();
+
+    if (rect.width <= 2 || rect.height <= 2) return;
+    seen.add(element);
+    stack.push(element);
+  };
+
+  const addWithAncestors = (element: Element | null) => {
+    let current = element;
+
+    while (current) {
+      add(current);
+
+      if (current === pageTarget) break;
+      current = composedParentElement(current, ownerWindow);
+    }
+  };
+
+  // Preserve Mesurer Solid's visual resolver as the first candidate. This keeps
+  // pointer-transparent paint, open Shadow DOM, and scoped pageTarget behavior
+  // identical to normal Select while still making deeper/outer candidates
+  // reachable by repeated clicks.
+  addWithAncestors(getTargetElement(point, overlayNode, ownerDocument, pageTarget));
+
+  const nativeHits = withPointerEventsDisabled(
+    overlayNode,
+    () => ownerDocument.elementsFromPoint(point.x, point.y),
+  );
+
+  for (const raw of nativeHits) {
+    if (!(raw instanceof realm.Element)) continue;
+    addWithAncestors(deepestOpenShadowHit(raw, point));
+  }
+
+  return stack;
+};
+
 export const getShiftClickTarget = (
   point: Point,
   overlayNode: HTMLDivElement | null,
@@ -151,6 +233,58 @@ export const getSnappedClickTarget = (
     : [{ element: direct, rect: getRectFromDomCached(direct) }, ...treeEntries];
 
   return pickPointTarget(point, candidates) ?? pickSingleTarget(probeRect, point, candidates) ?? direct;
+};
+
+export const getCycledClickTarget = (
+  point: Point,
+  overlayNode: HTMLDivElement | null,
+  snapEnabled: boolean,
+  ownerDocument: Document = document,
+  pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
+  cycle: ClickCycleState | null = null,
+): { target: Element | null; cycle: ClickCycleState | null } => {
+  const ownerWindow = ownerDocument.defaultView;
+
+  if (
+    ownerWindow
+    && cycle
+    && isSameClickSpot(point, cycle.point)
+    && cycle.stack.length > 0
+  ) {
+    const liveStack = cycle.stack.filter((element) =>
+      element.isConnected
+      && isElementWithinDomTarget(element, pageTarget)
+      && !isInsideMesurer(element, ownerWindow)
+    );
+
+    if (liveStack.length > 0) {
+      const current = cycle.stack[cycle.index] ?? null;
+      const currentIndex = current ? liveStack.indexOf(current) : -1;
+      const nextIndex = (currentIndex + 1 + liveStack.length) % liveStack.length;
+
+      return {
+        target: liveStack[nextIndex] ?? null,
+        cycle: { point, index: nextIndex, stack: liveStack },
+      };
+    }
+  }
+
+  const initial = getSnappedClickTarget(
+    point,
+    overlayNode,
+    snapEnabled,
+    ownerDocument,
+    pageTarget,
+  );
+
+  if (!initial) return { target: null, cycle: null };
+  const candidates = getPointSelectionStack(point, overlayNode, ownerDocument, pageTarget);
+  const stack = [initial, ...candidates.filter((element) => element !== initial)];
+
+  return {
+    target: initial,
+    cycle: { point, index: 0, stack },
+  };
 };
 
 export const getElementsInRect = (
