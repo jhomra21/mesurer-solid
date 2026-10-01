@@ -153,6 +153,7 @@ const getPointSelectionStack = (
 
   const add = (element: Element | null) => {
     if (!element || seen.has(element)) return;
+
     if (
       !isElementWithinDomTarget(element, pageTarget)
       || isOverlayElement(element, overlayNode, overlayHost)
