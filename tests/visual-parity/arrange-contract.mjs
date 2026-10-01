@@ -45,6 +45,7 @@ try {
   // Edit is allowed to be the first tool the user chooses. Activating it must turn Select on
   // automatically; the user can then choose what to arrange without an extra toolbar step.
   await arrangeButton.click();
+  console.log("arrange-contract wait: initial-edit-activation");
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
     const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
@@ -285,6 +286,7 @@ try {
   );
 
   await page.keyboard.press("Escape");
+  console.log("arrange-contract wait: edit-second-escape");
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
     const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
@@ -297,6 +299,7 @@ try {
   evidence.arrangeEscape = { first: "clears selection", second: "deactivates Edit and Select" };
 
   await arrangeButton.click();
+  console.log("arrange-contract wait: edit-reactivation");
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
     const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
@@ -550,6 +553,7 @@ try {
   assert.equal(await regressionResetAll.isDisabled(), false, "Nested multi-drag should create resettable Edit intent");
   await regressionResetAll.click();
   await regressionArrangeMenu.waitFor({ state: "hidden" });
+  console.log("arrange-contract wait: nested-reset-all");
   await page.waitForFunction(({ parentX, parentY, childX, childY }) => {
     const parent = document.querySelector("[data-testid='arrange-move-parent']");
     const child = document.querySelector("[data-testid='arrange-move-child']");
@@ -882,6 +886,7 @@ try {
   assert.equal(await followResetAll.isDisabled(), false, "Nested follow-up drag should create resettable Edit intent");
   await followResetAll.click();
   await regressionArrangeMenu.waitFor({ state: "hidden" });
+  console.log("arrange-contract wait: follow-reset-all");
   await page.waitForFunction(({ parentX, parentY, childX, childY, leafX, leafY }) => {
     const parent = document.querySelector("[data-testid='arrange-follow-parent']");
     const child = document.querySelector("[data-testid='arrange-follow-child']");
@@ -1105,6 +1110,7 @@ try {
   assert.equal(await transitionResetAll.isDisabled(), false, "Transition multi-drag should create resettable Edit intent");
   await transitionResetAll.click();
   await regressionArrangeMenu.waitFor({ state: "hidden" });
+  console.log("arrange-contract wait: transition-reset-all");
   await page.waitForFunction(({ firstX, firstY, secondX, secondY }) => {
     const first = document.querySelector("[data-testid='arrange-transition-first']");
     const second = document.querySelector("[data-testid='arrange-transition-second']");
