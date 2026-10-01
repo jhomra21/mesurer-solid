@@ -1303,6 +1303,7 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
           pageTarget,
           ownerDocument,
         )));
+
       const shiftTarget = event.shiftKey ? pointerTarget : null;
 
       if (
