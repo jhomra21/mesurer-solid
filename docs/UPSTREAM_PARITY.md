@@ -7,10 +7,10 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `03c0581837c01325ce4a8fa18bc893955335eb21` (`main`, verified 2026-09-29) |
-| Current upstream audit | `e625d222f3787eeed82c682950eb423589e8fc1c` (`v0.2.2`, verified 2026-10-01) |
+| Previous upstream audit | `e625d222f3787eeed82c682950eb423589e8fc1c` (`v0.2.2`, verified 2026-10-01) |
+| Current upstream audit | `ca432288b8d803a2c134dba51da971f54931db8f` (`main`, verified 2026-10-01) |
 
-The current audit advances from `03c0581837c01325ce4a8fa18bc893955335eb21` to upstream `e625d222f3787eeed82c682950eb423589e8fc1c` (`0.2.2`). Upstream `0.2.1` adds selected-region screen recording and `0.2.2` tightens recording stability plus Inspect selection, info-card scrolling/tooltips, and Alt-distance container geometry. Mesurer Solid is taking the Inspect interaction improvements that fit its existing Select/Edit model now, while keeping screen recording as a dedicated first-party-plugin port rather than coupling capture/editor state into renderer core.
+The current audit advances from upstream `e625d222f3787eeed82c682950eb423589e8fc1c` (`0.2.2`) to `ca432288b8d803a2c134dba51da971f54931db8f` on `main`. The two post-release commits polish the extension recording preview iframe, export-menu placement, theme/anchor handoff, and related player typing. The same series also moves upstream Settings into a fixed portal to avoid recording-frame/menu stacking and clipping. Mesurer Solid does not ship Recording yet; its existing Settings remains viewport-owned inside the protected outer host and is independently viewport-clamped and browser-covered. The new recording details therefore extend the baseline for Mesurer Solid's future first-party Recording plugin rather than creating a current stable blocker.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
@@ -26,6 +26,14 @@ Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
+
+### 2026-10-01 post-0.2.2 follow-up
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Extension recording preview reports its live card size, follows toolbar top/bottom anchoring, carries the active theme into the iframe, and gives export menus room outside the base frame | **Baseline for the future Recording plugin** | Mesurer Solid still intentionally keeps Recording out of renderer core. When the first-party Recording plugin lands, its extension provider should start from this post-0.2.2 iframe protocol rather than the earlier fixed-size preview. |
+| Recording editor adds frame-fill presentation and a stricter `playerUrl` boundary | **Baseline for the future Recording plugin** | These changes are implementation and type-safety fixes for the recording surface Mesurer Solid has not shipped yet. They should be present from the first Recording beta. |
+| Upstream Settings moves to a fixed portal while the recording iframe/menu work lands | **Current outcome already covered; re-audit with Recording** | Mesurer Solid Settings is already viewport-owned in the protected outer host, clamps horizontally and vertically to the viewport, and has dedicated Settings/toolbar occlusion contracts. It has no recording iframe competing in that paint domain today. Do not import the React portal shape only for structural parity; when Recording adds an iframe, require explicit cross-frame stacking/occlusion coverage and adopt any portal boundary needed by the Solid host architecture. |
 
 ### 2026-10-01 upstream 0.2.2 audit
 
