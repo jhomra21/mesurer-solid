@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Make Edit selection drill-down work inside selected parents. Descendants keep normal hover feedback, a stationary click can replace the parent selection with the nested target, and a 4px movement threshold keeps real drags owned by the selected Edit box.
+- Let repeated Select clicks at the same rendered point cycle through nested and overlapping page targets while preserving Mesurer Solid's pointer-transparent, Shadow DOM, and scoped page-target hit testing.
 - Make the Select/Edit switch own Edit directly. The Edit half now uses the movement glyph, toggles Edit both on and off, and carries the Edit options chevron; the duplicate in-mode `edit-action` button is removed.
 <!-- Add user-facing changes here before preparing a release. -->
 
