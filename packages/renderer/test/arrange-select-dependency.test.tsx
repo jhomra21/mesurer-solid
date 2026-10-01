@@ -69,11 +69,8 @@ describe("Edit Select dependency", () => {
     liveButton("Edit mode (2)").click();
     await vi.waitFor(() => expect(pluginHost?.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(true));
     liveButton("Edit mode (2)").click();
-    await settle();
-    expect(pluginHost?.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(true);
-
-    liveButton("Select mode (1)").click();
     await vi.waitFor(() => expect(pluginHost?.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(false));
+    expect(liveButton("Edit mode (2)").getAttribute("aria-pressed")).toBe("false");
     expect(liveButton("Select (S)").getAttribute("aria-pressed")).toBe("true");
   });
 });
