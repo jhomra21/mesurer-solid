@@ -33,9 +33,11 @@ import {
   type SelectionSpacingStyle,
 } from "./core/persistence";
 import {
+  getCycledClickTarget,
   getElementsInRectCached,
   getSnappedClickTarget,
   getTargetElement,
+  type ClickCycleState,
   type SelectionEntriesCache,
 } from "./core/selection";
 import { getSelectedMeasurementHit } from "./core/selection-helpers";
@@ -214,6 +216,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   const instanceId = ++instanceCount;
   const storageKey = input.persistKey ?? `mesurer-state:${getTabId(ownerWindow)}${instanceId === 1 ? "" : `:${instanceId}`}`;
   const selectionCache: SelectionEntriesCache = { key: "", entries: [], overlayNode: null, frame: -1 };
+  let clickCycle: ClickCycleState | null = null;
   let rootElement: HTMLDivElement | null = null;
   let textInspector: TextInspectorAPI | null = null;
   let activePersistence: MesurerPersistence | null = null;
@@ -239,6 +242,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">, restartColorPicker = false) => {
     if (builtinActionDisabled(id)) return;
+    if (id === "select") clickCycle = null;
 
     if (id === "color-picker" && restartColorPicker && model.current.colorPickerActive) {
       builtinController.deactivate("color-picker");
@@ -509,6 +513,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
     const point = { x: event.clientX, y: event.clientY };
 
     if (model.current.isDragging) {
+      clickCycle = null;
       const rect = getRectFromPoints(start, point);
       const elements = getElementsInRectCached(rect, rootElement, selectionCache, ownerDocument, pageTarget);
       const next = elements.map((element) => ({ ...getInspectMeasurement(element, ownerWindow), originRect: rect }));
@@ -534,6 +539,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       : getSelectedMeasurementHit({ point, selectedMeasurements: model.current.selectedMeasurements, overlayNode: rootElement, document: ownerDocument, exact: event.shiftKey });
 
     if ((event.shiftKey || !model.current.settings.hoverHighlightEnabled) && selectedHit) {
+      clickCycle = null;
       model.checkpoint();
       const next = model.current.selectedMeasurements.filter((item) => item.elementRef !== selectedHit.elementRef);
       model.setSelectedMeasurements(next, next.at(-1) ?? null);
@@ -542,10 +548,30 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       return;
     }
 
-    const target = event.shiftKey
-      ? (getTargetElement(point, rootElement, ownerDocument, pageTarget) ??
-        getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument, pageTarget))
-      : getSnappedClickTarget(point, rootElement, model.current.settings.snapEnabled, ownerDocument, pageTarget);
+    let target: Element | null;
+
+    if (event.shiftKey) {
+      clickCycle = null;
+      target = getTargetElement(point, rootElement, ownerDocument, pageTarget)
+        ?? getSnappedClickTarget(
+          point,
+          rootElement,
+          model.current.settings.snapEnabled,
+          ownerDocument,
+          pageTarget,
+        );
+    } else {
+      const cycled = getCycledClickTarget(
+        point,
+        rootElement,
+        model.current.settings.snapEnabled,
+        ownerDocument,
+        pageTarget,
+        clickCycle,
+      );
+      target = cycled.target;
+      clickCycle = cycled.cycle;
+    }
 
     if (target) {
       const measurement = getInspectMeasurement(target, ownerWindow);
