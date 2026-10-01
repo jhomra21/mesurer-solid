@@ -1297,12 +1297,17 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       if (!elements.length) return;
 
-      const pointerTarget = withPointerEventsDisabled(runtime.rendererRoot ?? null, () =>
-        withPointerEventsDisabled(root, () => getVisualElementAtPoint(
-          { x: event.clientX, y: event.clientY },
-          pageTarget,
-          ownerDocument,
-        )));
+      const pageHitTestingAvailable = typeof ownerDocument.elementsFromPoint === "function"
+        && (!(pageTarget instanceof realm.ShadowRoot) || typeof pageTarget.elementsFromPoint === "function");
+
+      const pointerTarget = pageHitTestingAvailable
+        ? withPointerEventsDisabled(runtime.rendererRoot ?? null, () =>
+            withPointerEventsDisabled(root, () => getVisualElementAtPoint(
+              { x: event.clientX, y: event.clientY },
+              pageTarget,
+              ownerDocument,
+            )))
+        : null;
 
       const shiftTarget = event.shiftKey ? pointerTarget : null;
 
