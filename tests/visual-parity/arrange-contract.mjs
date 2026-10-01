@@ -1342,6 +1342,35 @@ try {
   await page.mouse.down();
   await page.mouse.move(startX + dx, startY, { steps: 4 });
 
+  const snapDragDiagnostic = await page.evaluate(() => {
+    const target = document.querySelector(".primary-action");
+    const line = document.querySelector("[data-mesurer-arrange-snap-line='vertical']");
+    const box = document.querySelector("[data-mesurer-arrange-box='true']");
+
+    const rect = (element) => {
+      if (!(element instanceof HTMLElement)) return null;
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return {
+      target: rect(target),
+      box: rect(box),
+      line: rect(line),
+      lineDisplay: line instanceof HTMLElement ? line.style.display : null,
+    };
+  });
+  console.log("arrange-contract snap diagnostic", JSON.stringify({
+    before,
+    referenceBox,
+    dragBox,
+    rawDesiredLeft,
+    dx,
+    startX,
+    startY,
+    afterMove: snapDragDiagnostic,
+  }));
   console.log("arrange-contract wait: snap-line-visible");
   await page.waitForFunction(() => {
     const line = document.querySelector("[data-mesurer-arrange-snap-line='vertical']");
