@@ -43,12 +43,14 @@ All public plugin factories come from `mesurer-solid/plugins`.
 | Edit | `edit()` | `MesurerEditService` | [Edit](./EDIT.md) |
 | Layout Guides | `layoutGuides()` | `MesurerLayoutGuidesService` | [Layout Guides](./LAYOUT_GUIDES.md) |
 | Screenshot | `screenshot()` | `MesurerScreenshotService` | [Screenshots](./SCREENSHOTS.md) |
+| Recording | `recording()` | `MesurerRecordingService` | [Recording](./RECORDING.md) |
 | Codex | `codex()` | `MesurerCodexService` | [Queue Context feedback to Codex](./CODEX.md) |
 
 - Context adds structured Context, exact selection, saved annotations, review, capture planning, Copy Context, Copy Selection, and Add Note.
 - Edit adds reversible movement plus direct text/style editing. The existing Arrange service ids and agent methods remain compatible.
 - Layout Guides adds page-scoped columns, rows, and pixel grids. Mutations run through JSON-safe plugin commands, participate in plugin history, and are available through the typed `layout-guides:v1` service.
 - Screenshot adds region capture with preview, clipboard copy, download, and programmatic capture. It selects an application-native host capability, the Chromium extension adapter, or browser display capture internally.
+- Recording adds selected-region video capture, a typed `recording:v1` lifecycle, trim/scale preview, and MediaBunny-owned WebM/MP4 export. Browser and extension APIs only acquire the live stream.
 - Codex starts enabled when the native host capability exists. Browser-only hosts list it in Settings but leave it off. Activation waits for a native renderer lease and Codex readiness. Disable waits for lease release. Shared delivery uses `thread/queue/add`; inherited Desktop delivery keeps a durable queue receipt without claiming private lifecycle state.
 
 Each feature guide documents the methods and behavior that belong to that plugin. The built-in factories are also exported for lower-level composition. Normal `mountMesurer()` callers get the catalog defaults automatically. Codex joins that enabled set only when `window.__MESURER_HOST__.codexBridge` exists. Settings can turn managed plugins off or back on.
@@ -185,7 +187,8 @@ See [Getting started](./GETTING_STARTED.md) for placement examples and the TypeS
 | `mesurer-solid/plugins` | First-party plugin factories and plugin service contracts. Deprecated Screenshot helpers remain for compatibility. |
 | `mesurer-solid/core` | Framework-neutral plugin host and runtime contracts. |
 | `mesurer-solid/inject` | Programmatic browser injection. |
-| `mesurer-solid/inject-script` | Built classic-script artifact for browser evaluation without application source changes. |
+| `mesurer-solid/inject-script` | Built classic Mesurer artifact for browser evaluation; raw evaluators load `mediabunny-vendor` first. |
+| `mesurer-solid/mediabunny-vendor` | Separate MPL-2.0 MediaBunny classic runtime used by raw injection and the extension. |
 | `mesurer-skill` | Install the portable Mesurer coding-agent skill and its packaged assets. |
 | `mesurer-solid/plugins/codex/bridge` | Native-host Codex Bridge used by the first-party Codex plugin. |
 
