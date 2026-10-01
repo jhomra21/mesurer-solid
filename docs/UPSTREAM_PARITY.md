@@ -10,7 +10,7 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Previous upstream audit | `547634086b1317b48e5cd23cafb477a9cdb807c3` (`main`, verified 2026-09-28) |
 | Current upstream audit | `03c0581837c01325ce4a8fa18bc893955335eb21` (`main`, verified 2026-09-29) |
 
-The current audit advances from `547634086b1317b48e5cd23cafb477a9cdb807c3` to upstream `03c0581837c01325ce4a8fa18bc893955335eb21`. The upstream grouped-toolbar switch, its motion helper, and the Select/Inspect and Annotate icons are unchanged across that range. Mesurer Solid now adopts that grouped-toolbar presentation for its own Select/Edit modes while keeping its 150 ms motion, plugin architecture, Context/Codex always-visible lane, and Arrange compatibility contracts. Later upstream changes in the range are marketing/site work plus small ColorField, brand-mark, and toolbar-restore adjustments; they do not change the mode switch.
+The current audit advances from `547634086b1317b48e5cd23cafb477a9cdb807c3` to upstream `03c0581837c01325ce4a8fa18bc893955335eb21`. The upstream grouped-toolbar switch, its motion helper, and the Select/Inspect and Annotate icons are unchanged across that range. Mesurer Solid adopts the grouped-toolbar structure for its own Select/Edit modes while keeping its 150 ms motion, plugin architecture, Context/Codex always-visible lane, and Arrange compatibility contracts. Its Edit half intentionally uses Mesurer Solid's movement glyph and owns the Edit options split control instead of preserving upstream's annotation/drawing glyph and a second Edit action button. Later upstream changes in the range are marketing/site work plus small ColorField, brand-mark, and toolbar-restore adjustments; they do not change the mode switch.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
@@ -26,6 +26,14 @@ Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
+
+### 2026-09-30 Edit control consolidation
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Annotate/drawing glyph in the second grouped-mode button | **Intentional divergence** | Mesurer Solid's second mode is Edit, not upstream Annotate. The button now uses the existing four-way movement glyph so the icon describes the page-editing action users actually enter. |
+| Separate Edit mode button plus an Edit action inside the Edit lane | **Removed** | The mode control and the movement action represented the same state and command. The Edit half now owns the `arrange` tool id, toggles the real command in both directions, and the redundant `edit-action` control no longer renders. |
+| Edit settings/options | **Moved onto the mode control** | The existing chevron remains a separate hit target beside Edit. Opening it does not change modes, and its plugin menu remains usable in Select, Edit, expanded, and compact toolbar states. |
 
 ### 2026-09-29 Select/Edit mode adoption
 

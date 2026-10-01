@@ -62,23 +62,20 @@ export const SelectModeIcon = (props: IconProps & { strokePx?: number }) => {
   );
 };
 
-export const EditModeIcon = (props: IconProps & { strokePx?: number }) => {
-  const size = props.size ?? 20;
-  const stroke = ((props.strokePx ?? 1.25) * 256) / size;
-
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 256 256" fill="none" aria-hidden="true" class={props.class}>
-      <path
-        d="M40 184C52.1 154.8 69.8 65 86 60C102.3 55 104.3 155 118 160C131.8 165 139.1 83.2 152 84C164.9 84.8 168.3 159 180 164C191.7 169 197.2 111.3 208 108C218.8 104.7 224.5 136.3 232 148"
-        fill="none"
-        stroke="currentColor"
-        stroke-width={stroke}
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
-  );
-};
+export const EditModeIcon = (props: IconProps) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={props.size ?? 20}
+    height={props.size ?? 20}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    aria-hidden="true"
+    class={props.class}
+    onDragStart={(event) => event.preventDefault()}
+  >
+    <path d="M12 2.75 8.75 6h2.5v5.25H6V8.75L2.75 12 6 15.25v-2.5h5.25V18h-2.5L12 21.25 15.25 18h-2.5v-5.25H18v2.5L21.25 12 18 8.75v2.5h-5.25V6h2.5L12 2.75Z" />
+  </svg>
+);
 
 export const RulerIcon = (props: IconProps) => (
   <IconBase size={props.size ?? 20} class={props.class}>

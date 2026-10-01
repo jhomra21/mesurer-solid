@@ -4,6 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Make the Select/Edit switch own Edit directly. The Edit half now uses the movement glyph, toggles Edit both on and off, and carries the Edit options chevron; the duplicate in-mode `edit-action` button is removed.
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.2 - 2026-09-30

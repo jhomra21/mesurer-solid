@@ -148,6 +148,9 @@ function ToolbarModeSwitch(props: {
   value: "select" | "edit";
   editDisabled: boolean;
   editToolId?: string;
+  editOptionsAvailable: boolean;
+  editOptionsOpen: boolean;
+  editOptions: any;
   shortcutsEnabled: boolean;
   tooltipVisibleId: string | null;
   tooltipInstant: boolean;
@@ -156,6 +159,7 @@ function ToolbarModeSwitch(props: {
   onTooltipLeave: () => void;
   onSelect: () => void;
   onEdit: () => void;
+  onEditOptions: (anchor: HTMLElement) => void;
 }) {
   const shortcut = (value: string) => props.shortcutsEnabled ? value : undefined;
 
@@ -193,30 +197,62 @@ function ToolbarModeSwitch(props: {
         />
       </div>
       <div
-        class="msr:relative"
-        onMouseEnter={() => props.onTooltipEnter("toolbar-mode-edit")}
-        onMouseLeave={() => props.onTooltipLeave()}
+        data-mesurer-plugin-menu-root="true"
+        data-mesurer-tool-menu-root={props.editToolId}
+        data-mesurer-toolbar-edit-control="true"
+        class="msr:relative msr:flex msr:items-stretch"
       >
-        <button
-          type="button"
-          data-mesurer-toolbar-mode="edit"
-          data-mesurer-tool-id={props.editToolId}
-          aria-label={`Edit mode${shortcut("2") ? " (2)" : ""}`}
-          aria-keyshortcuts={shortcut("2")}
-          aria-pressed={props.value === "edit" ? "true" : "false"}
-          disabled={props.editDisabled}
-          class="mesurer-toolbar-mode-button"
-          onClick={props.onEdit}
+        <div
+          class="msr:relative"
+          onMouseEnter={() => props.onTooltipEnter("toolbar-mode-edit")}
+          onMouseLeave={() => props.onTooltipLeave()}
         >
-          <EditModeIcon size={20} />
-        </button>
-        <Tooltip
-          label="Edit"
-          shortcut={shortcut("2")}
-          visible={!props.editDisabled && props.tooltipVisibleId === "toolbar-mode-edit"}
-          instant={props.tooltipInstant}
-          side={props.tooltipSide}
-        />
+          <button
+            type="button"
+            data-mesurer-toolbar-mode="edit"
+            data-mesurer-tool-id={props.editToolId}
+            aria-label={`Edit mode${shortcut("2") ? " (2)" : ""}`}
+            aria-keyshortcuts={shortcut("2")}
+            aria-pressed={props.value === "edit" ? "true" : "false"}
+            disabled={props.editDisabled}
+            class="mesurer-toolbar-mode-button"
+            onClick={props.onEdit}
+          >
+            <EditModeIcon size={20} />
+          </button>
+          <Tooltip
+            label="Edit"
+            shortcut={shortcut("2")}
+            visible={!props.editDisabled && props.tooltipVisibleId === "toolbar-mode-edit"}
+            instant={props.tooltipInstant}
+            side={props.tooltipSide}
+          />
+        </div>
+        <Show when={props.editOptionsAvailable}>
+          <button
+            type="button"
+            data-mesurer-tool-menu-trigger={props.editToolId}
+            aria-label="Edit options"
+            aria-haspopup="menu"
+            aria-expanded={props.editOptionsOpen ? "true" : "false"}
+            disabled={props.editDisabled}
+            class={`msr:relative msr:flex msr:h-7 msr:w-4 msr:items-center msr:justify-center msr:self-center msr:rounded-[3px] msr:outline-none ${props.editOptionsOpen ? "msr:bg-black/10 msr:text-black" : "msr:text-black msr:hover:bg-black/10"}`}
+            onMouseEnter={() => props.onTooltipEnter("toolbar-mode-edit-options")}
+            onMouseLeave={() => props.onTooltipLeave()}
+            onClick={(event) => props.onEditOptions(
+              event.currentTarget.parentElement ?? event.currentTarget,
+            )}
+          >
+            <CaretDownIcon size={8} />
+            <Tooltip
+              label="Edit options"
+              visible={!props.editDisabled && props.tooltipVisibleId === "toolbar-mode-edit-options"}
+              instant={props.tooltipInstant}
+              side={props.tooltipSide}
+            />
+          </button>
+        </Show>
+        {props.editOptions}
       </div>
     </div>
   );
@@ -605,7 +641,7 @@ export function Toolbar(props: ToolbarProps) {
   const editToolbarMode = () => {
     const edit = editModeTool();
 
-    if (!edit || edit.disabled?.() || edit.active?.()) return;
+    if (!edit || edit.disabled?.()) return;
     setGuideMenuOpen(false);
     setPluginMenuOpenId(null);
     markModeMotion();
@@ -728,56 +764,6 @@ export function Toolbar(props: ToolbarProps) {
         </div>
       </Show>
     </CompactItem>
-  );
-
-  const renderEditTool = () => (
-    <Show when={editModeTool()}>
-      {(tool) => (
-        <div
-          data-mesurer-plugin-menu-root="true"
-          data-mesurer-edit-tool="true"
-          class="msr:relative msr:flex msr:items-stretch"
-        >
-          <ToolbarButton
-            id="edit-tool"
-            toolId="edit-action"
-            active={tool().active?.() ?? false}
-            disabled={tool().disabled?.() ?? false}
-            label={tool().label}
-            shortcut={tool().shortcut}
-            onClick={() => props.onPluginTool?.(tool())}
-            {...buttonProps(`plugin:${tool().id}`)}
-          >
-            <PluginIcon tool={tool()} />
-          </ToolbarButton>
-          <Show when={(tool().menu?.items.length ?? 0) > 0}>
-            <button
-              type="button"
-              data-mesurer-tool-menu-trigger={tool().id}
-              aria-label={`${tool().label} options`}
-              aria-expanded={pluginMenuOpenId() === tool().id ? "true" : "false"}
-              disabled={tool().disabled?.() ?? false}
-              class={`msr:relative msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none msr:hover:bg-black/10 ${pluginMenuOpenId() === tool().id ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
-              onMouseEnter={() => tooltip.onTooltipEnter(`plugin-menu:${tool().id}`)}
-              onMouseLeave={tooltip.onTooltipLeave}
-              onClick={(event) => togglePluginMenu(
-                tool().id,
-                event.currentTarget.parentElement ?? event.currentTarget,
-              )}
-            >
-              <CaretDownIcon size={8} />
-              <Tooltip
-                label={`${tool().label} options`}
-                visible={tooltipsEnabled() && tooltip.visibleTooltipId() === `plugin-menu:${tool().id}`}
-                instant={tooltip.tooltipInstant()}
-                side={tooltipSide()}
-              />
-            </button>
-          </Show>
-          {renderPluginMenu(tool())}
-        </div>
-      )}
-    </Show>
   );
 
   onSettled(() => {
@@ -907,6 +893,9 @@ export function Toolbar(props: ToolbarProps) {
         value={toolbarMode()}
         editDisabled={!editModeTool() || (editModeTool()?.disabled?.() ?? false)}
         editToolId={editModeTool()?.id}
+        editOptionsAvailable={(editModeTool()?.menu?.items.length ?? 0) > 0}
+        editOptionsOpen={pluginMenuOpenId() === editModeTool()?.id}
+        editOptions={editModeTool() ? renderPluginMenu(editModeTool()!) : null}
         shortcutsEnabled={props.model.state.settings.shortcutsEnabled}
         tooltipVisibleId={tooltipsEnabled() ? tooltip.visibleTooltipId() : null}
         tooltipInstant={tooltip.tooltipInstant()}
@@ -915,6 +904,12 @@ export function Toolbar(props: ToolbarProps) {
         onTooltipLeave={tooltip.onTooltipLeave}
         onSelect={selectToolbarMode}
         onEdit={editToolbarMode}
+        onEditOptions={(anchor) => {
+          const edit = editModeTool();
+
+          if (!edit || edit.disabled?.()) return;
+          togglePluginMenu(edit.id, anchor);
+        }}
       />
 
       <ToolbarDivider marker="mode" />
@@ -1010,10 +1005,11 @@ export function Toolbar(props: ToolbarProps) {
             inert={toolbarMode() === "edit" ? undefined : true}
           >
             <div ref={(element) => { editModePanelElement = element; }} class="mesurer-toolbar-mode-panel">
-              <div role="group" aria-label="Edit tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
-                {renderEditTool()}
-                <For each={editPluginTools()}>{(tool) => renderPluginTool(tool)}</For>
-              </div>
+              <Show when={editPluginTools().length > 0}>
+                <div role="group" aria-label="Edit tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
+                  <For each={editPluginTools()}>{(tool) => renderPluginTool(tool)}</For>
+                </div>
+              </Show>
             </div>
           </div>
         </div>
