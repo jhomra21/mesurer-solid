@@ -14,14 +14,15 @@ if (command !== "install") {
 } else {
   const source = new URL("../skills/mesurer-ui/", import.meta.url);
   const injector = new URL("../dist/inject-script.js", import.meta.url);
+  const mediaBunnyVendor = new URL("../dist/mediabunny-vendor.js", import.meta.url);
   const destination = resolve(process.cwd(), ".agents/skills/mesurer-ui");
   const assets = resolve(destination, "assets");
 
   if (existsSync(destination) && !force) {
     console.error(`Mesurer skill already exists at ${destination}. Use --force to replace it.`);
     process.exitCode = 1;
-  } else if (!existsSync(injector)) {
-    console.error("Mesurer inject-script asset is missing. Reinstall mesurer-solid and retry.");
+  } else if (!existsSync(injector) || !existsSync(mediaBunnyVendor)) {
+    console.error("Mesurer injector assets are missing. Reinstall mesurer-solid and retry.");
     process.exitCode = 1;
   } else {
     if (force) rmSync(destination, { recursive: true, force: true });
@@ -29,6 +30,7 @@ if (command !== "install") {
     cpSync(source, destination, { recursive: true });
     mkdirSync(assets, { recursive: true });
     cpSync(injector, resolve(assets, "inject-script.js"));
-    console.log(`Installed Mesurer Agent Skill and injector at ${destination}`);
+    cpSync(mediaBunnyVendor, resolve(assets, "mediabunny-vendor.js"));
+    console.log(`Installed Mesurer Agent Skill and injector assets at ${destination}`);
   }
 }
