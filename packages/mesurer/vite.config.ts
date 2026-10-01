@@ -14,6 +14,9 @@ export default defineConfig({
       external: ["mediabunny"],
       output: {
         codeSplitting: false,
+        paths: {
+          mediabunny: "./mediabunny-runtime.js",
+        },
       },
     },
   },

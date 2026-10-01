@@ -79,6 +79,7 @@ for (const file of [
   "mediabunny-vendor.js",
   "screenshot.d.ts",
   "recording.d.ts",
+  "mediabunny-runtime.js",
   "mediabunny-vendor.js",
   "mediabunny-LICENSE.txt",
 ]) {
@@ -570,6 +571,10 @@ if (!existsSync(stagedMediaBunnyLicense)) {
 
 if (!/Mozilla Public License(?: Version)? 2\.0/i.test(readFileSync(stagedMediaBunnyLicense, "utf8"))) {
   throw new Error("Staged MediaBunny license artifact is not MPL-2.0.");
+}
+
+if (stagedPackageJson.dependencies && Object.keys(stagedPackageJson.dependencies).length > 0) {
+  throw new Error("Staged npm package must not install MediaBunny or any other runtime dependency.");
 }
 
 if (!stagedPackageJson.exports?.["./plugins"]) {

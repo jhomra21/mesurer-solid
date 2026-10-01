@@ -10,9 +10,11 @@ export default defineConfig({
     emptyOutDir: false,
     lib: {
       entry: "src/mediabunny-vendor.ts",
-      formats: ["iife"],
+      formats: ["es", "iife"],
       name: "__MESURER_MEDIABUNNY__",
-      fileName: () => "mediabunny-vendor.js",
+      fileName: (format) => format === "es"
+        ? "mediabunny-runtime.js"
+        : "mediabunny-vendor.js",
     },
     rollupOptions: {
       output: {
