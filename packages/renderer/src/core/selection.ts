@@ -128,6 +128,7 @@ const composedParentElement = (
   ownerWindow: Window,
 ): Element | null => {
   if (element.parentElement) return element.parentElement;
+  // SAFETY: ownerWindow is the browsing-context global for element's document and owns the ShadowRoot constructor used below.
   const realm = ownerWindow as Window & typeof globalThis;
   const root = element.getRootNode();
 
@@ -144,6 +145,7 @@ const getPointSelectionStack = (
   const ownerWindow = ownerDocument.defaultView;
 
   if (!ownerWindow) return [];
+  // SAFETY: ownerWindow is ownerDocument.defaultView and therefore owns every Element returned by ownerDocument hit testing.
   const realm = ownerWindow as Window & typeof globalThis;
   const overlayHost = getOverlayHost(overlayNode);
   const stack: Element[] = [];
@@ -158,6 +160,7 @@ const getPointSelectionStack = (
       || element === ownerDocument.body
       || element === ownerDocument.documentElement
     ) return;
+
     const rect = element.getBoundingClientRect();
 
     if (rect.width <= 2 || rect.height <= 2) return;
@@ -242,7 +245,7 @@ export const getCycledClickTarget = (
   ownerDocument: Document = document,
   pageTarget: HTMLElement | ShadowRoot = ownerDocument.body,
   cycle: ClickCycleState | null = null,
-): { target: Element | null; cycle: ClickCycleState | null } => {
+) => {
   const ownerWindow = ownerDocument.defaultView;
 
   if (
