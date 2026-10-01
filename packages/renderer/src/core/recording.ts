@@ -78,6 +78,7 @@ export const normalizeRecordingDimensions = (
   // boundary so callers do not need codec-specific dimension knowledge.
   if (format === "mp4") {
     if (nextWidth % 2 !== 0) nextWidth += 1;
+
     if (nextHeight % 2 !== 0) nextHeight += 1;
   }
 
@@ -89,10 +90,12 @@ export const normalizeRecordingExportOptions = (
   options: RecordingExportOptions = {},
 ): NormalizedRecordingExportOptions => {
   const duration = Math.max(0.001, finitePositive(media.duration, 0.001));
+
   const startTime = Math.min(
     duration,
     Math.max(0, Number.isFinite(options.startTime) ? options.startTime ?? 0 : 0),
   );
+
   const requestedEnd = Number.isFinite(options.endTime) ? options.endTime ?? duration : duration;
   const endTime = Math.min(duration, Math.max(startTime + 0.001, requestedEnd));
 
@@ -140,6 +143,7 @@ export const supportedRecordingFormats = async (
   const formats: RecordingExportFormat[] = [];
 
   if (await selectRecordingCodec("webm", width, height, frameRate)) formats.push("webm");
+
   if (await selectRecordingCodec("mp4", width, height, frameRate)) formats.push("mp4");
 
   return formats;
@@ -168,10 +172,12 @@ export const createMediaBunnyCanvasRecorder = async (
   }
 
   const target = new BufferTarget();
+
   const output = new Output({
     format: outputFormat(format),
     target,
   });
+
   const source = new CanvasSource(canvas, {
     codec,
     quality: quality(recordingQuality),
@@ -202,12 +208,15 @@ export const createMediaBunnyCanvasRecorder = async (
     codec,
     async addFrame(timestamp, duration = 1 / frameRate) {
       if (finished) throw new Error("Recording session is already closed.");
+
       if (!Number.isFinite(timestamp) || timestamp < 0) {
         throw new TypeError("Recording frame timestamp must be a non-negative finite number.");
       }
+
       if (!Number.isFinite(duration) || duration < 0) {
         throw new TypeError("Recording frame duration must be a non-negative finite number.");
       }
+
       if (timestamp <= lastTimestamp) {
         throw new Error("Recording frame timestamps must increase monotonically.");
       }
@@ -271,12 +280,14 @@ export const exportMediaBunnyRecording = async (
   height: number;
 }> => {
   const media = await inspectMediaBunnyRecording(blob);
+
   const normalized = normalizeRecordingExportOptions(media, options);
   const dimensions = normalizeRecordingDimensions(
     media.width * normalized.scale,
     media.height * normalized.scale,
     normalized.format,
   );
+
   const codec = await selectRecordingCodec(
     normalized.format,
     dimensions.width,
@@ -293,7 +304,9 @@ export const exportMediaBunnyRecording = async (
     source: new BlobSource(blob),
     formats: ALL_FORMATS,
   });
+
   const target = new BufferTarget();
+
   const output = new Output({
     format: outputFormat(normalized.format),
     target,
