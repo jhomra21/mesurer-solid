@@ -24,11 +24,16 @@ if (packageJson.bin?.["mesurer-skill"] !== skillBinPath) {
 
 if (packageJson.private === true) throw new Error("The public Mesurer package workspace cannot be private.");
 
-if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
-  throw new Error("The public Mesurer package must not publish runtime workspace dependencies.");
+const runtimeDependencies = packageJson.dependencies ?? {};
+
+if (
+  Object.keys(runtimeDependencies).length !== 1
+  || runtimeDependencies.mediabunny !== "1.59.0"
+) {
+  throw new Error("The public Mesurer package must publish only exact mediabunny@1.59.0 as a runtime dependency.");
 }
 
-for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script", "./plugins/codex/bridge", "./plugins/codex/preload"]) {
+for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script", "./mediabunny-vendor", "./plugins/codex/bridge", "./plugins/codex/preload"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
 }
 
@@ -71,6 +76,7 @@ for (const file of [
   "inject.js",
   "inject.d.ts",
   "inject-script.js",
+  "mediabunny-vendor.js",
   "screenshot.d.ts",
   "recording.d.ts",
 ]) {
@@ -558,6 +564,17 @@ if (!stagedPackageJson.exports?.["./plugins"]) {
   throw new Error("Staged npm package is missing the ./plugins export.");
 }
 
+if (
+  stagedPackageJson.dependencies?.mediabunny !== "1.59.0"
+  || Object.keys(stagedPackageJson.dependencies ?? {}).length !== 1
+) {
+  throw new Error("Staged npm package must preserve exact mediabunny@1.59.0 as its only runtime dependency.");
+}
+
+if (!stagedPackageJson.exports?.["./mediabunny-vendor"]) {
+  throw new Error("Staged npm package is missing the ./mediabunny-vendor export.");
+}
+
 if (!stagedPackageJson.exports?.["./plugins/codex/bridge"]) {
   throw new Error("Staged npm package is missing the ./plugins/codex/bridge export.");
 }
@@ -600,10 +617,13 @@ try {
   });
   const installedSkill = join(installRoot, ".agents/skills/mesurer-ui/SKILL.md");
   const installedInjector = join(installRoot, ".agents/skills/mesurer-ui/assets/inject-script.js");
+  const installedMediaBunny = join(installRoot, ".agents/skills/mesurer-ui/assets/mediabunny-vendor.js");
 
   if (!existsSync(installedSkill)) throw new Error("mesurer-skill install did not create SKILL.md.");
 
   if (!existsSync(installedInjector)) throw new Error("mesurer-skill install did not create assets/inject-script.js.");
+
+  if (!existsSync(installedMediaBunny)) throw new Error("mesurer-skill install did not create assets/mediabunny-vendor.js.");
 
   const sourceSkill = readFileSync(skillSource, "utf8");
   const copiedSkill = readFileSync(installedSkill, "utf8");
@@ -614,9 +634,15 @@ try {
 
   const sourceInjector = readFileSync(new URL("../dist/inject-script.js", import.meta.url), "utf8");
   const copiedInjector = readFileSync(installedInjector, "utf8");
+  const sourceMediaBunny = readFileSync(new URL("../dist/mediabunny-vendor.js", import.meta.url), "utf8");
+  const copiedMediaBunny = readFileSync(installedMediaBunny, "utf8");
 
   if (!sourceInjector || copiedInjector !== sourceInjector) {
     throw new Error("Installed Agent Skill injector does not match the packaged inject-script artifact.");
+  }
+
+  if (!sourceMediaBunny || copiedMediaBunny !== sourceMediaBunny) {
+    throw new Error("Installed Agent Skill MediaBunny vendor does not match the packaged vendor artifact.");
   }
 
 } finally {
