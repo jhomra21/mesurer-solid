@@ -29,7 +29,7 @@ const injectScriptSource = readFileSync(new URL("../dist/inject-script.js", impo
 const mediaBunnyVendorSource = readFileSync(new URL("../dist/mediabunny-vendor.js", import.meta.url), "utf8");
 
 const mediaBunnyLicenseSource = readFileSync(
-  new URL("../../../node_modules/mediabunny/LICENSE", import.meta.url),
+  new URL("../../renderer/node_modules/mediabunny/LICENSE", import.meta.url),
   "utf8",
 );
 
