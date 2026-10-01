@@ -76,7 +76,7 @@ The extension does **not** use `MediaRecorder`, does not create an offscreen rec
 
 If the extension stream path is unavailable or cannot be consumed, Recording falls back to the ordinary browser display picker. Format availability is still determined by the runtime encoder; use the Recording UI or `recording:v1.formats()` rather than assuming MP4 support.
 
-The extension build copies `mediabunny-vendor.js` and `mesurer-main.js` as separate files and loads the vendor first. This preserves MediaBunny's MPL-2.0 distribution boundary.
+The extension build copies `mediabunny-vendor.js` and `mesurer-main.js` as separate files and loads the vendor first. It also ships the full upstream MediaBunny license as `mediabunny-LICENSE.txt` beside the vendor file. This preserves MediaBunny's MPL-2.0 distribution boundary.
 
 See [Recording](../docs/RECORDING.md).
 
