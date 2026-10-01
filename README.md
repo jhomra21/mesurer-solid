@@ -6,7 +6,7 @@
 
 Inspect, measure, and express visual intent directly on a live browser UI.
 
-Mesurer Solid ports [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut](https://github.com/ibelick) to a private Solid 2 renderer. It adds framework-independent mounting, plugins, agent-readable Context, reversible layout and text intent, screenshot capture, and host isolation.
+Mesurer Solid ports [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thibeaut](https://github.com/ibelick) to a private Solid 2 renderer. It adds framework-independent mounting, plugins, agent-readable Context, reversible layout and text intent, screenshot and video capture, and host isolation.
 
 The renderer carries its own isolated Solid 2 runtime. Your application can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without installing Solid for Mesurer.
 
@@ -58,7 +58,7 @@ All first-party plugin factories live at `mesurer-solid/plugins` and use the plu
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { context, edit, layoutGuides, screenshot } from "mesurer-solid/plugins"
+import { context, edit, layoutGuides, recording, screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
@@ -67,6 +67,7 @@ const mesurer = mountMesurer({
     edit(),
     layoutGuides(),
     screenshot(),
+    recording(),
   ],
 })
 ```
@@ -84,13 +85,14 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 - **Typography.** Inspect rendered text and computed type styles in Select mode.
 - **Edit.** Move selected HTML elements and edit direct text, typography, and text color as reversible Desired intent.
 - **Screenshots.** Capture a dragged page region with the optional Screenshot plugin. It selects application-native capture, the Chromium extension adapter, or browser display capture internally.
+- **Recording.** Record a selected page region with the first-party `recording()` plugin. MediaBunny owns encoding, trim, resize, format detection, and WebM/MP4 export; browser and extension APIs only acquire the live video source.
 - **Context and annotations.** Expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotations persist across same-tab reloads, conservatively rebind to their original DOM targets, stay attached through scrolling, keep repeated-note markers local, leave Add Note available while a saved note is open, and keep cards/composers above Select hover and selection chrome.
 - **Plugins.** Add tools, commands, overlays, settings, state, hooks, and services at runtime.
 - **Compact toolbar.** Collapse inactive controls while every active tool remains visible. Expanding restores the same toolbar order and state.
 - **Appearance.** Use System, Light, or Dark without changing the inspected page. The same theme applies to the isolated toolbar and document-backed Context and Typography UI.
 - **Color Picker.** Native hosts with `window.__MESURER_HOST__.captureScreenshot` use a current-window picker that captures once when the user chooses a pixel. Other supported browser hosts use the native `EyeDropper`. A successful sample is copied to the clipboard in the configured format.
 
-Mesurer Solid has two toolbar modes. **Select** contains inspection tools such as X-ray, Color Picker, Rulers, Typography, Guides, Layout Guides, and Screenshot. **Edit** owns element movement and direct text/style editing. Use `1` for Select and `2` for Edit. Context and Codex remain visible in both modes. Mode changes use the audited upstream grouped-toolbar structure and styling with Mesurer Solid's 150 ms motion. Select keeps the upstream inspection icon; Edit intentionally uses Mesurer Solid's movement glyph and owns its options chevron.
+Mesurer Solid has two toolbar modes. **Select** contains inspection and capture tools such as X-ray, Color Picker, Rulers, Typography, Guides, Layout Guides, Screenshot, and Recording. **Edit** owns element movement and direct text/style editing. Use `1` for Select and `2` for Edit. Context and Codex remain visible in both modes. Mode changes use the audited upstream grouped-toolbar structure and styling with Mesurer Solid's 150 ms motion. Select keeps the upstream inspection icon; Edit intentionally uses Mesurer Solid's movement glyph and owns its options chevron.
 
 Toolbar dragging starts only after the pointer crosses the drag threshold. A drag from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders stays with those controls.
 
@@ -129,6 +131,7 @@ Global shortcuts are enabled by default. Turn them off from **Settings > General
 | `Cmd/Ctrl + ,` | Settings |
 | `Shift + A` | Edit mode compatibility shortcut |
 | `Shift + S` | Screenshot |
+| `Shift + R` | Recording |
 | `C` | Copy Context |
 | `Shift + C` | Copy Selection |
 | `N` | Add Note |
@@ -210,6 +213,7 @@ Start with the [documentation index](./docs/README.md).
 - [Layout Guides](./docs/LAYOUT_GUIDES.md)
 - [Measurements and distance geometry](./docs/MEASUREMENTS.md)
 - [Screenshots](./docs/SCREENSHOTS.md)
+- [Recording](./docs/RECORDING.md)
 - [Electron renderer example](./examples/electron-renderer/README.md)
 - [Context workflow](./docs/CONTEXT_WORKFLOW.md)
 - [Queue Context feedback to Codex](./docs/CODEX.md)
