@@ -1361,6 +1361,7 @@ try {
       lineDisplay: line instanceof HTMLElement ? line.style.display : null,
     };
   });
+
   console.log("arrange-contract snap diagnostic", JSON.stringify({
     before,
     referenceBox,
