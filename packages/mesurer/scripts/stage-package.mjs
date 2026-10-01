@@ -37,7 +37,6 @@ delete published.scripts;
 
 delete published.devDependencies;
 
-delete published.dependencies;
 
 writeFileSync(new URL("package.json", stageDir), `${JSON.stringify(published, null, 2)}\n`, "utf8");
 
