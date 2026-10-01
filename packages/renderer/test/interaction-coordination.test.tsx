@@ -421,10 +421,10 @@ describe("page interaction coordination", () => {
     await vi.waitFor(() => expect(pluginHost!.state.get<boolean>(MESURER_ARRANGE_ACTIVE_STATE_ID)).toBe(true));
     await vi.waitFor(() => expect(editModeButton().getAttribute("aria-pressed")).toBe("true"));
 
-    const editAction = document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-id="edit-action"]')!;
     const editOptions = document.querySelector<HTMLButtonElement>('button[data-mesurer-tool-menu-trigger="arrange"]')!;
 
-    expect(editAction.getAttribute("aria-pressed")).toBe("true");
+    expect(editModeButton().getAttribute("data-mesurer-tool-id")).toBe("arrange");
+    expect(document.querySelector('button[data-mesurer-tool-id="edit-action"]')).toBeNull();
     editOptions.click();
     await vi.waitFor(() => expect(document.querySelector('[data-mesurer-tool-menu="arrange"]')).toBeTruthy());
     document.querySelector<HTMLButtonElement>('[data-mesurer-tool-menu-item="snapping"]')!.click();
