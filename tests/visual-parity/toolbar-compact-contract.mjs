@@ -137,8 +137,8 @@ try {
   const typographyButton = page.locator("button[data-mesurer-builtin='text-inspector']");
   const contextButton = page.locator("button[data-mesurer-tool-id='context.copy']");
   const codexButton = page.locator("button[data-mesurer-tool-id='codex.send']");
-  const editTool = page.locator("button[data-mesurer-tool-id='edit-action']");
   const editOptions = page.locator("button[data-mesurer-tool-menu-trigger='arrange']");
+  const duplicateEditTool = page.locator("button[data-mesurer-tool-id='edit-action']");
 
   await toolbar.waitFor({ state: "visible" });
   await compactToggle.waitFor({ state: "visible" });
@@ -153,6 +153,15 @@ try {
   assert.equal(await editMode.getAttribute("aria-pressed"), "false");
   assert(await contextButton.isVisible(), "Context must remain visible in Select mode");
   assert(await codexButton.isVisible(), "Codex must remain visible in Select mode");
+  assert.equal(await duplicateEditTool.count(), 0, "Edit mode itself must be the Edit tool; no duplicate edit-action button may render");
+  assert(await editOptions.isVisible(), "Edit options chevron must live beside the Edit mode control");
+
+  await editOptions.click();
+  const editMenuFromSelect = page.getByRole("menu", { name: "Edit options", exact: true });
+  await editMenuFromSelect.waitFor({ state: "visible" });
+  assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-mode"), "select", "Opening Edit options must not enter Edit");
+  await page.keyboard.press("Escape");
+  await editMenuFromSelect.waitFor({ state: "hidden" });
 
   await page.keyboard.press("Control+,");
   const settingsDialog = page.getByRole("dialog", { name: "Settings" });
@@ -264,7 +273,7 @@ try {
   );
   assert.equal(await selectButton.getAttribute("aria-pressed"), "true", "Edit should enable Select only as an internal targeting dependency");
 
-  await editTool.click();
+  await editMode.click();
   await page.waitForFunction(() =>
     document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "select"
   );
@@ -283,21 +292,21 @@ try {
   await page.waitForFunction(() =>
     document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "edit"
   );
-  await editTool.waitFor({ state: "visible" });
   await editOptions.waitFor({ state: "visible" });
   assert.equal(await selectMode.getAttribute("aria-pressed"), "false");
   assert.equal(await editMode.getAttribute("aria-pressed"), "true");
-  assert.equal(await editTool.getAttribute("aria-pressed"), "true", "Edit action must be highlighted with Edit mode");
+  assert.equal(await editMode.getAttribute("data-mesurer-tool-id"), "arrange", "The Edit mode button must own the Edit plugin tool id");
+  assert.equal(await duplicateEditTool.count(), 0, "Edit must not grow a second action button after mode activation");
   assert.equal(await xrayButton.getAttribute("aria-pressed"), "false", "Select X-ray state must not leak into Edit");
   assert.equal(await rulersButton.getAttribute("aria-pressed"), "false", "Select Rulers state must not leak into Edit");
   assert(await contextButton.isVisible(), "Context must remain visible in Edit mode");
   assert(await codexButton.isVisible(), "Codex must remain visible in Edit mode");
 
-  await editTool.click();
+  await editMode.click();
   await page.waitForFunction(() =>
     document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "select"
   );
-  assert.equal(await editMode.getAttribute("aria-pressed"), "false", "Edit action must invoke the real Edit command");
+  assert.equal(await editMode.getAttribute("aria-pressed"), "false", "Clicking the active Edit control must invoke the real Edit command and return to Select");
   assert.equal(await xrayButton.getAttribute("aria-pressed"), "true", "Select X-ray state must restore when returning from Edit");
   assert.equal(await rulersButton.getAttribute("aria-pressed"), "true", "Select Rulers state must restore when returning from Edit");
 
@@ -305,8 +314,6 @@ try {
   await page.waitForFunction(() =>
     document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "edit"
   );
-  await editTool.waitFor({ state: "visible" });
-  assert.equal(await editTool.getAttribute("aria-pressed"), "true");
 
   const editExpandedBox = await toolbar.boundingBox();
   assert(editExpandedBox, "Edit toolbar must have a bounding box");
