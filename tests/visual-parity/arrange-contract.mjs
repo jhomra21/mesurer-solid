@@ -1331,6 +1331,16 @@ try {
 
   const dragBox = await arrangeBox.boundingBox();
   assert(dragBox, "Edit drag surface must follow the current selection");
+  assert(
+    Math.abs(dragBox.x - resumedTarget.x) <= 1
+      && Math.abs(dragBox.y - resumedTarget.y) <= 1
+      && Math.abs(dragBox.width - resumedTarget.width) <= 1
+      && Math.abs(dragBox.height - resumedTarget.height) <= 1,
+    `Re-entering Edit must keep the explicit page target instead of advancing a stale Select click cycle: ${JSON.stringify({
+      expected: resumedTarget,
+      actual: dragBox,
+    })}`,
+  );
 
   // Aim within the 10px snap radius of the reference element edge. Select X-ray is
   // suspended in Edit, so snapping falls back to normal element-edge candidates.
