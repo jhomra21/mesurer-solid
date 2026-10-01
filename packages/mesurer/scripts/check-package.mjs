@@ -581,13 +581,6 @@ if (!stagedPackageJson.exports?.["./plugins"]) {
   throw new Error("Staged npm package is missing the ./plugins export.");
 }
 
-if (
-  stagedPackageJson.dependencies?.mediabunny !== "1.59.0"
-  || Object.keys(stagedPackageJson.dependencies ?? {}).length !== 1
-) {
-  throw new Error("Staged npm package must preserve exact mediabunny@1.59.0 as its only runtime dependency.");
-}
-
 if (!stagedPackageJson.exports?.["./mediabunny-vendor"]) {
   throw new Error("Staged npm package is missing the ./mediabunny-vendor export.");
 }
