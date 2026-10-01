@@ -554,7 +554,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
     let target: Element | null;
 
-    if (event.shiftKey || input.editSelectionHover?.()) {
+    if (event.shiftKey) {
       clickCycle = null;
       target = getTargetElement(point, rootElement, ownerDocument, pageTarget)
         ?? getSnappedClickTarget(
@@ -564,6 +564,15 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
           ownerDocument,
           pageTarget,
         );
+    } else if (input.editSelectionHover?.()) {
+      clickCycle = null;
+      target = getSnappedClickTarget(
+        point,
+        rootElement,
+        model.current.settings.snapEnabled,
+        ownerDocument,
+        pageTarget,
+      );
     } else {
       const cycled = getCycledClickTarget(
         point,
