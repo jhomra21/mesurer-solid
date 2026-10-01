@@ -29,7 +29,7 @@ Use the mode switch at the left of the toolbar:
 - **Select** or `1` opens inspection tools.
 - **Edit** or `2` opens editing tools.
 
-The switch uses the same grouped-toolbar styling and icons as upstream Mesurer. Mesurer Solid keeps its toolbar motion at 150 ms.
+The switch follows upstream Mesurer's grouped-toolbar structure and styling. Select keeps the upstream inspection icon; Edit intentionally uses Mesurer Solid's movement glyph, and its chevron opens Edit options without changing modes. Mesurer Solid keeps toolbar motion at 150 ms.
 
 The legacy `Shift+A` shortcut still enters Edit as a compatibility shortcut.
 
