@@ -282,6 +282,7 @@ export const exportMediaBunnyRecording = async (
   const media = await inspectMediaBunnyRecording(blob);
 
   const normalized = normalizeRecordingExportOptions(media, options);
+
   const dimensions = normalizeRecordingDimensions(
     media.width * normalized.scale,
     media.height * normalized.scale,
