@@ -163,6 +163,7 @@ try {
   );
   await page.waitForFunction(({ x, y, width, height }) => {
     const box = document.querySelector("[data-mesurer-arrange-box='true']");
+
     if (!(box instanceof HTMLElement)) return false;
     const rect = box.getBoundingClientRect();
 
@@ -202,6 +203,7 @@ try {
   );
   await page.waitForFunction(({ x, y, width, height }) => {
     const box = document.querySelector("[data-mesurer-arrange-box='true']");
+
     if (!(box instanceof HTMLElement)) return false;
     const rect = box.getBoundingClientRect();
 
