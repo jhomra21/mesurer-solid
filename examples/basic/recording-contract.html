@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mesurer Recording Contract</title>
+    <style>
+      html, body { margin: 0; min-height: 100%; font-family: system-ui, sans-serif; }
+      body { background: #f8fafc; color: #18181b; }
+      main { padding: 80px 100px; }
+      .record-target {
+        width: 760px;
+        min-height: 420px;
+        border-radius: 24px;
+        background: white;
+        box-shadow: 0 12px 36px rgb(15 23 42 / 10%);
+        padding: 32px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="record-target" data-testid="record-target">
+        <h1>MediaBunny recording contract</h1>
+        <p>This fixture supplies a deterministic animated display stream.</p>
+      </section>
+    </main>
+    <script type="module" src="/src/recording-contract.ts"></script>
+  </body>
+</html>
