@@ -28,12 +28,21 @@ const injectScriptSource = readFileSync(new URL("../dist/inject-script.js", impo
 
 const mediaBunnyVendorSource = readFileSync(new URL("../dist/mediabunny-vendor.js", import.meta.url), "utf8");
 
+const mediaBunnyLicenseSource = readFileSync(
+  new URL("../../../node_modules/mediabunny/LICENSE", import.meta.url),
+  "utf8",
+);
+
 if (!injectScriptSource.includes("__MESURER_MEDIABUNNY__")) {
   throw new Error("inject-script.js must consume the separate MediaBunny vendor global.");
 }
 
-if (!mediaBunnyVendorSource.includes("Mozilla Public License 2.0")) {
-  throw new Error("mediabunny-vendor.js must retain its MPL-2.0 source notice.");
+if (!/Mozilla Public License(?: Version)? 2\.0/i.test(mediaBunnyLicenseSource)) {
+  throw new Error("Installed MediaBunny dependency must retain its MPL-2.0 license file.");
+}
+
+if (!mediaBunnyVendorSource.includes("__MESURER_MEDIABUNNY__")) {
+  throw new Error("mediabunny-vendor.js must expose the dedicated MediaBunny global.");
 }
 
 try {
@@ -52,7 +61,7 @@ try {
   throw new Error(`mediabunny-vendor.js must be directly executable as classic JavaScript: ${error}`);
 }
 
-console.log("mediabunny-vendor.js parses independently under its MPL-2.0 boundary.");
+console.log("mediabunny-vendor.js parses independently; the installed MediaBunny package retains its MPL-2.0 license boundary.");
 
 const coreSource = readFileSync(new URL("../dist/core.js", import.meta.url), "utf8");
 

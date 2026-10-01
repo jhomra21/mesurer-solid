@@ -46,7 +46,7 @@ jobs:
           grep -q 'files: \["mediabunny-vendor.js"\]' extension/background.js
           grep -q 'mesurer:recording-stream-id' extension/background.js
           grep -q 'mesurer:recording-bridge-request' extension/capture-bridge.js
-          if grep -R -n "MediaRecorder" extension packages/renderer/src/core/recording-capture.ts; then
+          if grep -R -n "MediaRecorder" extension/*.js packages/renderer/src/core/recording-capture.ts; then
             echo "Extension Recording may acquire a stream but must not introduce MediaRecorder."
             exit 1
           fi

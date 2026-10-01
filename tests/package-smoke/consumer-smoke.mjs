@@ -5,6 +5,7 @@ import { chromium } from "playwright";
 
 const readMesurerInjector = async (injectPath) => {
   const vendorPath = join(dirname(injectPath), "mediabunny-vendor.js");
+
   const [vendor, injector] = await Promise.all([
     readFile(vendorPath, "utf8"),
     readFile(injectPath, "utf8"),
