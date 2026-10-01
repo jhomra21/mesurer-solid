@@ -101,18 +101,6 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
     return Boolean(target && selectedMeasurements().some((measurement) => measurement.elementRef === target));
   });
 
-  const hoverInsideSelectedSubtree = createMemo(() => {
-    const target = props.model.state.hoverElement;
-
-    if (!target) return false;
-
-    return selectedMeasurements().some((measurement) => {
-      const selected = measurement.elementRef;
-
-      return Boolean(selected && (selected === target || selected.contains(target)));
-    });
-  });
-
   const heldDistances = createMemo(() => props.model.state.heldDistances);
   const measurementEdges = createMemo(() => getEdgeVisibilityForRects(displayedMeasurements().map((item) => item.rect)));
   const selectedEdges = createMemo(() => getEdgeVisibilityForRects(displayedSelectedMeasurements().map((item) => item.rect)));
@@ -479,7 +467,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
           props.model.state.hoverRect
           && props.model.state.settings.hoverHighlightEnabled
           && (props.editSelectionHover() || selectedMeasurements().length <= 1)
-          && !(props.editSelectionHover() ? hoverInsideSelectedSubtree() : hoverTargetsSelected())
+          && !hoverTargetsSelected()
         }>
           <Show when={hoverPortalTarget()} fallback={hoverSurface()}>
             {(mount) => <Portal mount={mount()}>{hoverSurface()}</Portal>}
