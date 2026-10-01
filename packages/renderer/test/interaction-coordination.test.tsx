@@ -356,7 +356,7 @@ describe("page interaction coordination", () => {
     mounted.push(dispose);
 
     const root = await vi.waitFor(() => {
-      const value = document.querySelector<HTMLElement>('[data-mesurer-plugin-menu-root="true"]');
+      const value = document.querySelector<HTMLElement>('[data-mesurer-tool-menu-root="tall-plugin-menu"]');
       expect(value).toBeTruthy();
 
       return value!;
