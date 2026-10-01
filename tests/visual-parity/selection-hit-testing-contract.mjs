@@ -147,6 +147,24 @@ try {
 
   await selectPoint(transparent.point, transparent.rect, "pointer-transparent leaf");
 
+  await page.mouse.click(transparent.point.x, transparent.point.y);
+  await settle();
+  let cycledSelection = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
+  assert.equal(
+    cycledSelection.targets[0]?.inspection.selector,
+    "#transparent-wrapper",
+    "Repeated Select click should cycle from the visual leaf into its nested wrapper",
+  );
+
+  await page.mouse.click(transparent.point.x, transparent.point.y);
+  await settle();
+  cycledSelection = await page.evaluate(() => window.__MESURER__.context({ scope: "selection" }));
+  assert.equal(
+    cycledSelection.targets[0]?.inspection.selector,
+    "#transparent-parent",
+    "Repeated Select click should continue cycling into the wrapping control",
+  );
+
   const visualOverlay = await pointFor(page.locator("#visual-overlay-title"), "transparent video title");
   await assertAgentSelector(
     visualOverlay.point,
