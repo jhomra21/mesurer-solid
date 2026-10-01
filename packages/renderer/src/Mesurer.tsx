@@ -243,7 +243,10 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
   const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">, restartColorPicker = false) => {
     if (builtinActionDisabled(id)) return;
 
-    if (id === "select") clickCycle = null;
+    // Repeated-click inspection is one uninterrupted Select gesture. Any
+    // toolbar action breaks that gesture so a later click cannot unexpectedly
+    // promote a previously selected leaf to one of its ancestors.
+    clickCycle = null;
 
     if (id === "color-picker" && restartColorPicker && model.current.colorPickerActive) {
       builtinController.deactivate("color-picker");
@@ -551,7 +554,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
     let target: Element | null;
 
-    if (event.shiftKey) {
+    if (event.shiftKey || input.editSelectionHover?.()) {
       clickCycle = null;
       target = getTargetElement(point, rootElement, ownerDocument, pageTarget)
         ?? getSnappedClickTarget(
@@ -840,6 +843,8 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
       const mod = event.metaKey || event.ctrlKey;
 
       if (key === "escape") {
+        clickCycle = null;
+
         if (model.current.settingsOpen) { model.setTransient({ settingsOpen: false });
 
  return; }
