@@ -7,10 +7,10 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `547634086b1317b48e5cd23cafb477a9cdb807c3` (`main`, verified 2026-09-28) |
-| Current upstream audit | `03c0581837c01325ce4a8fa18bc893955335eb21` (`main`, verified 2026-09-29) |
+| Previous upstream audit | `03c0581837c01325ce4a8fa18bc893955335eb21` (`main`, verified 2026-09-29) |
+| Current upstream audit | `e625d222f3787eeed82c682950eb423589e8fc1c` (`v0.2.2`, verified 2026-10-01) |
 
-The current audit advances from `547634086b1317b48e5cd23cafb477a9cdb807c3` to upstream `03c0581837c01325ce4a8fa18bc893955335eb21`. The upstream grouped-toolbar switch, its motion helper, and the Select/Inspect and Annotate icons are unchanged across that range. Mesurer Solid adopts the grouped-toolbar structure for its own Select/Edit modes while keeping its 150 ms motion, plugin architecture, Context/Codex always-visible lane, and Arrange compatibility contracts. Its Edit half intentionally uses Mesurer Solid's movement glyph and owns the Edit options split control instead of preserving upstream's annotation/drawing glyph and a second Edit action button. Later upstream changes in the range are marketing/site work plus small ColorField, brand-mark, and toolbar-restore adjustments; they do not change the mode switch.
+The current audit advances from `03c0581837c01325ce4a8fa18bc893955335eb21` to upstream `e625d222f3787eeed82c682950eb423589e8fc1c` (`0.2.2`). Upstream `0.2.1` adds selected-region screen recording and `0.2.2` tightens recording stability plus Inspect selection, info-card scrolling/tooltips, and Alt-distance container geometry. Mesurer Solid is taking the Inspect interaction improvements that fit its existing Select/Edit model now, while keeping screen recording as a dedicated first-party-plugin port rather than coupling capture/editor state into renderer core.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
@@ -26,6 +26,18 @@ Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
+
+### 2026-10-01 upstream 0.2.2 audit
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Repeated Inspect clicks cycle into labels, icons, and nested control parts | **Adopted with broader nested-target cycling** | Mesurer Solid keeps its existing first-click visual resolver, then repeated clicks at the same rendered point cycle through nested and overlapping page targets. The implementation preserves pointer-transparent paint recovery, open Shadow DOM traversal, Mesurer UI occlusion, and scoped `pageTarget` ownership. |
+| Inspect nested content inside an already-selected Edit parent | **Adopted as an Edit usability extension** | Descendants now retain hover feedback instead of being hidden merely because an ancestor is selected. A stationary click through the Edit movement box can drill into the highlighted nested target; moving beyond the 4px drag threshold keeps normal parent/group dragging. Exact selected targets still suppress redundant hover. |
+| Keep the wrapping/layout container for Alt-distance and CSS spacing evidence | **Partially already equivalent; continue source-first where applicable** | Mesurer Solid already measures ordinary container spacing from padding boxes and keeps richer pairwise/guide geometry. Upstream's new text-anchor-specific wrapper metadata belongs to its React Inspect info-card/text-range path, which Mesurer Solid does not expose as the same UI surface. |
+| Typography-first Inspect info card, expanded CSS rows, and copy-tooltip portaling | **Intentional presentation divergence** | Mesurer Solid uses its separate Typography inspection/direct-edit card and existing selection chrome. The underlying typography and DOM evidence remain available through Context/agent inspection; importing only the React card would create a competing inspector surface. |
+| Preserve Inspect/Annotate group while opening Comments | **Not applicable** | Mesurer Solid intentionally uses Context annotations and pins Context/Codex outside the Select/Edit lane, so opening Context does not switch the active mode group. |
+| Selected-region screen recording, trimming, scaling, and WebM/MP4 export from upstream 0.2.1 | **Adopt as a dedicated first-party plugin, not renderer core** | The capability is useful, but Mesurer Solid's Screenshot, Context, Codex, and Edit features are plugin-owned. Recording should follow the same architecture, including host/extension/browser capture providers and its own lifecycle/acceptance coverage. Upstream 0.2.2 recording fixes become the baseline for that port. |
+| Upstream recording resize, first-frame, color-picker, export-duration, and Chrome-tab fixes | **Baseline for the future recording plugin** | These fixes should be included from the first Mesurer Solid recording beta rather than reproducing upstream 0.2.1 regressions and repairing them later. |
 
 ### 2026-09-30 Edit control consolidation
 
