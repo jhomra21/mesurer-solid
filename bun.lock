@@ -38,6 +38,9 @@
     "packages/mesurer": {
       "name": "@jhomra21/mesurer-solid",
       "version": "0.2.1-beta.3",
+      "dependencies": {
+        "mediabunny": "1.59.0",
+      },
       "devDependencies": {
         "@jhomra21/mesurer-solid-core": "workspace:*",
         "@jhomra21/mesurer-solid-dom": "workspace:*",
