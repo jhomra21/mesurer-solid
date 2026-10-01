@@ -118,7 +118,7 @@ Upstream `33ffecfa7682b25dff5ada2a507feedfa18c745b` is the 0.2.0 release commit.
 | Dragging the toolbar from controls or chrome | **Adopted with the existing Solid drag engine** | Drag starts remain thresholded. Crossing the threshold closes an open Settings, Guide, or plugin surface, while real menus, dialogs, form controls, contenteditable regions, and slider surfaces retain pointer ownership. |
 | Settings and toolbar-menu trigger re-click | **Already equivalent; now browser-covered** | Settings, Guide orientation, and plugin split-menu triggers already toggle their own surface. The toolbar drag contract protects that behavior while also checking post-drag click suppression. |
 | Theme-aware ruler fade color | **Already adopted** | Ruler gradients already use `--msr-surface`, including Dark and System-dark themes. |
-| Inspect/Annotate group switching used by upstream toolbar tests | **Adopted with Select/Edit mapping** | Mesurer Solid now uses the upstream grouped-toolbar presentation and icons for Select/Edit. Its tool ownership differs intentionally: Typography stays in Select, editing belongs to Edit, and Context/Codex remain visible across both modes. |
+| Inspect/Annotate group switching used by upstream toolbar tests | **Adopted with Select/Edit mapping** | Mesurer Solid uses the upstream grouped-toolbar presentation for Select/Edit and keeps the upstream Select inspection icon. Edit intentionally uses Mesurer Solid's movement glyph and integrated options chevron. Tool ownership also differs intentionally: Typography stays in Select, editing belongs to Edit, and Context/Codex remain visible across both modes when enabled. |
 
 ### 2026-09-22 theme delta classification
 
