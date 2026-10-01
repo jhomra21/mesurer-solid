@@ -155,6 +155,21 @@ try {
     }
   }
 
+  const browserCounters = await page.evaluate(() =>
+    window.__MESURER_RECORDING_TEST__?.counters());
+
+  if (
+    !browserCounters
+    || browserCounters.displayMediaRequests !== 1
+    || browserCounters.extensionMediaRequests !== 0
+  ) {
+    throw new Error(`Initial Recording did not use the browser picker path exactly once: ${JSON.stringify(browserCounters)}`);
+  }
+
+  await page.evaluate(() => {
+    window.__MESURER_RECORDING_TEST__?.setExtensionBridge(true);
+  });
+
   const movingFrames = await page.evaluate(() =>
     window.__MESURER_RECORDING_TEST__?.record(
       { left: 120, top: 110, width: 240, height: 140 },
@@ -175,7 +190,19 @@ try {
     throw new Error(`Decoded recording dimensions changed: ${JSON.stringify(movingFrames.samples)}`);
   }
 
+  const extensionCounters = await page.evaluate(() =>
+    window.__MESURER_RECORDING_TEST__?.counters());
+
+  if (
+    !extensionCounters
+    || extensionCounters.displayMediaRequests !== browserCounters.displayMediaRequests
+    || extensionCounters.extensionMediaRequests !== 1
+  ) {
+    throw new Error(`Extension bridge did not replace the browser picker: ${JSON.stringify({ browserCounters, extensionCounters })}`);
+  }
+
   await page.evaluate(async () => {
+    window.__MESURER_RECORDING_TEST__?.setExtensionBridge(false);
     const service = window.__MESURER_RECORDING_TEST__?.service;
 
     if (!service) throw new Error("Recording service unavailable");
@@ -196,6 +223,8 @@ try {
     formats,
     webmExport,
     mp4Export,
+    browserCounters,
+    extensionCounters,
     movingFrames,
   }, null, 2));
 } finally {

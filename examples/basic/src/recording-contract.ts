@@ -50,6 +50,53 @@ drawSource();
 
 const mediaDevices = navigator.mediaDevices ?? {};
 
+let extensionBridgeEnabled = false;
+
+let displayMediaRequests = 0;
+
+let extensionMediaRequests = 0;
+
+const RECORDING_PING = "mesurer:recording-bridge-ping";
+
+const RECORDING_PONG = "mesurer:recording-bridge-pong";
+
+const RECORDING_REQUEST = "mesurer:recording-bridge-request";
+
+const RECORDING_RESPONSE = "mesurer:recording-bridge-response";
+
+const bridgeRequestId = (
+  value: string,
+  type: string,
+) => {
+  const prefix = `${type}:`;
+
+  if (!value.startsWith(prefix)) return null;
+  const body = value.slice(prefix.length);
+  const separator = body.indexOf(":");
+
+  return separator < 0 ? null : body.slice(0, separator);
+};
+
+window.addEventListener("message", (event) => {
+  if (!extensionBridgeEnabled || event.source !== window || event.origin !== window.location.origin) return;
+  const message = String(event.data ?? "");
+  const pingId = bridgeRequestId(message, RECORDING_PING);
+
+  if (pingId) {
+    window.postMessage(`${RECORDING_PONG}:${pingId}:`, window.location.origin);
+
+    return;
+  }
+
+  const requestId = bridgeRequestId(message, RECORDING_REQUEST);
+
+  if (!requestId) return;
+  window.postMessage(
+    `${RECORDING_RESPONSE}:${requestId}:ok:fixture-stream-id`,
+    window.location.origin,
+  );
+});
+
 if (!navigator.mediaDevices) {
   Object.defineProperty(navigator, "mediaDevices", {
     configurable: true,
@@ -59,7 +106,20 @@ if (!navigator.mediaDevices) {
 
 Object.defineProperty(mediaDevices, "getDisplayMedia", {
   configurable: true,
-  value: async () => sourceCanvas.captureStream(30),
+  value: async () => {
+    displayMediaRequests += 1;
+
+    return sourceCanvas.captureStream(30);
+  },
+});
+
+Object.defineProperty(mediaDevices, "getUserMedia", {
+  configurable: true,
+  value: async () => {
+    extensionMediaRequests += 1;
+
+    return sourceCanvas.captureStream(30);
+  },
 });
 
 const subject = mountMesurer({
@@ -155,6 +215,11 @@ const sampleAsset = async (
 type RecordingHarness = {
   subject: MountedMesurer;
   service: MesurerRecordingService;
+  setExtensionBridge(enabled: boolean): void;
+  counters(): {
+    displayMediaRequests: number;
+    extensionMediaRequests: number;
+  };
   record(rect: RecordingRect, durationMs?: number): Promise<{
     asset: {
       duration: number;
@@ -180,6 +245,15 @@ declare global {
 window.__MESURER_RECORDING_TEST__ = {
   subject,
   service,
+  setExtensionBridge(enabled) {
+    extensionBridgeEnabled = enabled;
+  },
+  counters() {
+    return {
+      displayMediaRequests,
+      extensionMediaRequests,
+    };
+  },
   async record(rect, durationMs = 900) {
     await service.start(rect);
     await wait(durationMs);
