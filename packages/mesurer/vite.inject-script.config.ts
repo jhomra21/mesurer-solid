@@ -14,7 +14,12 @@ export default defineConfig({
       fileName: () => "inject-script.js",
     },
     rollupOptions: {
-      external: [],
+      external: ["mediabunny"],
+      output: {
+        globals: {
+          mediabunny: "__MESURER_MEDIABUNNY__",
+        },
+      },
     },
   },
 });
