@@ -2,6 +2,8 @@ import { createActiveTabRegistry } from "./active-tabs.js";
 
 const CAPTURE_VISIBLE_MESSAGE = "mesurer:capture-visible";
 
+const RECORDING_STREAM_MESSAGE = "mesurer:recording-stream-id";
+
 const ACTIVE_TABS_KEY = "mesurer:active-tabs";
 
 const restoreTimers = new Map();
@@ -143,6 +145,33 @@ const restoreTab = (tabId, url) => {
 };
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === RECORDING_STREAM_MESSAGE) {
+    const tabId = sender.tab?.id;
+
+    if (!Number.isInteger(tabId)) {
+      sendResponse({ ok: false, error: "No tab to record" });
+
+      return false;
+    }
+
+    chrome.tabCapture.getMediaStreamId({
+      targetTabId: tabId,
+      consumerTabId: tabId,
+    }, (streamId) => {
+      const error = chrome.runtime.lastError?.message;
+
+      if (error || !streamId) {
+        sendResponse({ ok: false, error: error ?? "Tab capture unavailable" });
+
+        return;
+      }
+
+      sendResponse({ ok: true, streamId });
+    });
+
+    return true;
+  }
+
   if (message?.type !== CAPTURE_VISIBLE_MESSAGE) return false;
   const windowId = sender.tab?.windowId;
 

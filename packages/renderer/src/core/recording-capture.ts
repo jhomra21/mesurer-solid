@@ -45,6 +45,14 @@ type ChromiumDisplayMediaStreamOptions = DisplayMediaStreamOptions & {
   selfBrowserSurface?: "include" | "exclude";
 };
 
+export const MESURER_RECORDING_BRIDGE_PING = "mesurer:recording-bridge-ping";
+
+export const MESURER_RECORDING_BRIDGE_PONG = "mesurer:recording-bridge-pong";
+
+export const MESURER_RECORDING_BRIDGE_REQUEST = "mesurer:recording-bridge-request";
+
+export const MESURER_RECORDING_BRIDGE_RESPONSE = "mesurer:recording-bridge-response";
+
 const HIDDEN_MEDIA_STYLE =
   "position:fixed;left:0;top:0;width:1px;height:1px;margin:0;padding:0;border:0;overflow:hidden;opacity:0;visibility:hidden;pointer-events:none";
 
@@ -172,6 +180,134 @@ export const nextRecordingVideoFrame = (
 
   ownerWindow.requestAnimationFrame(finish);
 });
+
+const recordingBridgeTargetOrigin = (ownerWindow: Window) =>
+  ownerWindow.location.origin === "null"
+    ? "*"
+    : ownerWindow.location.origin;
+
+const recordingBridgeMessage = (
+  type: string,
+  id: string,
+  payload = "",
+) => `${type}:${id}:${payload}`;
+
+const recordingBridgeReply = (
+  message: string,
+  type: string,
+  id: string,
+) => {
+  const prefix = `${type}:${id}:`;
+
+  return message.startsWith(prefix) ? message.slice(prefix.length) : null;
+};
+
+const recordingRequestId = (ownerWindow: Window) =>
+  ownerWindow.crypto?.randomUUID?.()
+  ?? `mesurer-recording-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const pingRecordingBridge = (
+  ownerWindow: Window,
+) => new Promise<boolean>((resolve) => {
+  const id = recordingRequestId(ownerWindow);
+  const origin = ownerWindow.location.origin;
+
+  const onMessage = (event: MessageEvent) => {
+    if (event.source !== ownerWindow || event.origin !== origin) return;
+    const payload = recordingBridgeReply(
+      String(event.data ?? ""),
+      MESURER_RECORDING_BRIDGE_PONG,
+      id,
+    );
+
+    if (payload === null) return;
+    ownerWindow.removeEventListener("message", onMessage);
+    ownerWindow.clearTimeout(timeoutId);
+    resolve(true);
+  };
+
+  const timeoutId = ownerWindow.setTimeout(() => {
+    ownerWindow.removeEventListener("message", onMessage);
+    resolve(false);
+  }, 80);
+
+  ownerWindow.addEventListener("message", onMessage);
+  ownerWindow.postMessage(
+    recordingBridgeMessage(MESURER_RECORDING_BRIDGE_PING, id),
+    recordingBridgeTargetOrigin(ownerWindow),
+  );
+});
+
+const requestRecordingBridgeStreamId = (
+  ownerWindow: Window,
+) => new Promise<string | null>((resolve) => {
+  const id = recordingRequestId(ownerWindow);
+  const origin = ownerWindow.location.origin;
+
+  const onMessage = (event: MessageEvent) => {
+    if (event.source !== ownerWindow || event.origin !== origin) return;
+    const payload = recordingBridgeReply(
+      String(event.data ?? ""),
+      MESURER_RECORDING_BRIDGE_RESPONSE,
+      id,
+    );
+
+    if (payload === null) return;
+    ownerWindow.removeEventListener("message", onMessage);
+    ownerWindow.clearTimeout(timeoutId);
+
+    if (!payload.startsWith("ok:")) {
+      resolve(null);
+
+      return;
+    }
+
+    const streamId = payload.slice(3);
+
+    resolve(streamId || null);
+  };
+
+  const timeoutId = ownerWindow.setTimeout(() => {
+    ownerWindow.removeEventListener("message", onMessage);
+    resolve(null);
+  }, 1500);
+
+  ownerWindow.addEventListener("message", onMessage);
+  ownerWindow.postMessage(
+    recordingBridgeMessage(MESURER_RECORDING_BRIDGE_REQUEST, id),
+    recordingBridgeTargetOrigin(ownerWindow),
+  );
+});
+
+type ChromiumTabVideoConstraint = MediaTrackConstraints & {
+  mandatory: {
+    chromeMediaSource: "tab";
+    chromeMediaSourceId: string;
+  };
+};
+
+const extensionRecordingStream = async (
+  ownerWindow: Window,
+  media: MediaDevices,
+) => {
+  if (!ownerWindow.isSecureContext) return null;
+
+  if (!(await pingRecordingBridge(ownerWindow))) return null;
+  const streamId = await requestRecordingBridgeStreamId(ownerWindow);
+
+  if (!streamId) return null;
+  const video: ChromiumTabVideoConstraint = {
+    mandatory: {
+      chromeMediaSource: "tab",
+      chromeMediaSourceId: streamId,
+    },
+  };
+
+  return media.getUserMedia({
+    audio: false,
+    video,
+  });
+};
 
 const requestRecordingStream = async (
   ownerWindow: Window,
