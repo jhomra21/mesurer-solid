@@ -242,6 +242,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
 
   const runBuiltinAction = (id: Exclude<MesurerBuiltinPluginId, "distance">, restartColorPicker = false) => {
     if (builtinActionDisabled(id)) return;
+
     if (id === "select") clickCycle = null;
 
     if (id === "color-picker" && restartColorPicker && model.current.colorPickerActive) {
@@ -569,6 +570,7 @@ function MesurerClient(props: { model: MesurerModel; env: Environment; input: Me
         pageTarget,
         clickCycle,
       );
+
       target = cycled.target;
       clickCycle = cycled.cycle;
     }
