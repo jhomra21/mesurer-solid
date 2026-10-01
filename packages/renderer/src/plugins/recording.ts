@@ -170,6 +170,18 @@ const parseExportCommandOptions = (
   return next;
 };
 
+const snapshotDescriptor = (
+  snapshot: MesurerRecordingSnapshot,
+): PluginValue => ({
+  status: snapshot.status,
+  elapsed: snapshot.elapsed,
+  rect: snapshot.rect ? { ...snapshot.rect } : null,
+  duration: snapshot.duration,
+  width: snapshot.width,
+  height: snapshot.height,
+  error: snapshot.error,
+});
+
 const exportDescriptor = (
   result: MesurerRecordingExportResult,
 ): PluginValue => ({
@@ -1131,13 +1143,13 @@ export const recordingPlugin = (
     ctx.command.register(TOGGLE_COMMAND, async () => {
       await start();
 
-      return snapshotValue(currentSnapshot) as unknown as PluginValue;
+      return snapshotDescriptor(currentSnapshot);
     });
     ctx.command.register(STOP_COMMAND, async () => assetDescriptor(await finishRecording()));
     ctx.command.register(DISCARD_COMMAND, () => {
       discard();
 
-      return snapshotValue(currentSnapshot) as unknown as PluginValue;
+      return snapshotDescriptor(currentSnapshot);
     });
     ctx.command.register(EXPORT_COMMAND, async (args) => {
       const result = await exportClip(parseExportCommandOptions(args));
