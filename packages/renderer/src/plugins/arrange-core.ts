@@ -1297,8 +1297,8 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       if (!elements.length) return;
 
-      const pageHitTestingAvailable = typeof ownerDocument.elementsFromPoint === "function"
-        && (!(pageTarget instanceof realm.ShadowRoot) || typeof pageTarget.elementsFromPoint === "function");
+      const pageHitTestingAvailable = Boolean(ownerDocument.elementsFromPoint)
+        && (!(pageTarget instanceof realm.ShadowRoot) || Boolean(pageTarget.elementsFromPoint));
 
       const pointerTarget = pageHitTestingAvailable
         ? withPointerEventsDisabled(runtime.rendererRoot ?? null, () =>
