@@ -64,6 +64,8 @@ const RESET_BUTTON_STACK_OFFSET = 30;
 
 const RESET_POSITION_EPSILON = 0.5;
 
+const EDIT_DRAG_START_SLOP = 4;
+
 const TEXT_EDITOR_SELECTOR = "[data-mesurer-text-editor='true']";
 
 export type ArrangeRect = {
@@ -245,7 +247,9 @@ type DragState = {
   targets: DragTarget[];
   groupBefore: ArrangeRect;
   snapCandidates: SnapCandidate[];
+  pressTarget: HTMLElement | null;
   shiftToggleElement: HTMLElement | null;
+  moved: boolean;
   dx: number;
   dy: number;
 };
@@ -1293,14 +1297,13 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
 
       if (!elements.length) return;
 
-      const shiftTarget = event.shiftKey
-        ? withPointerEventsDisabled(runtime.rendererRoot ?? null, () =>
-            withPointerEventsDisabled(root, () => getVisualElementAtPoint(
-              { x: event.clientX, y: event.clientY },
-              pageTarget,
-              ownerDocument,
-            )))
-        : null;
+      const pointerTarget = withPointerEventsDisabled(runtime.rendererRoot ?? null, () =>
+        withPointerEventsDisabled(root, () => getVisualElementAtPoint(
+          { x: event.clientX, y: event.clientY },
+          pageTarget,
+          ownerDocument,
+        )));
+      const shiftTarget = event.shiftKey ? pointerTarget : null;
 
       if (
         event.shiftKey
@@ -1399,11 +1402,15 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
         targets,
         groupBefore,
         snapCandidates: collectSnapCandidates(elements),
+        pressTarget: pointerTarget instanceof realm.HTMLElement && isPageElement(pointerTarget)
+          ? pointerTarget
+          : null,
         shiftToggleElement: event.shiftKey
           && shiftTarget instanceof realm.HTMLElement
           && elements.includes(shiftTarget)
           ? shiftTarget
           : null,
+        moved: false,
         dx: 0,
         dy: 0,
       };
@@ -1438,6 +1445,11 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       let dx = event.clientX - drag.originX;
       let dy = event.clientY - drag.originY;
       let movementAxis: "x" | "y" | null = null;
+
+      if (!drag.moved) {
+        if (Math.hypot(dx, dy) < EDIT_DRAG_START_SLOP) return;
+        drag.moved = true;
+      }
 
       if (event.shiftKey) {
         if (Math.abs(dx) >= Math.abs(dy)) {
@@ -1487,8 +1499,21 @@ export const arrangePlugin = (): MesurerPlugin => defineMesurerPlugin({
       box.style.cursor = "grab";
       hideSnapLines();
 
-      if (completed.dx === 0 && completed.dy === 0) {
-        if (completed.shiftToggleElement) workspace.toggleSelection(completed.shiftToggleElement);
+      if (!completed.moved) {
+        if (completed.shiftToggleElement) {
+          workspace.toggleSelection(completed.shiftToggleElement);
+        } else if (
+          completed.pressTarget
+          && !completed.targets.some(({ element }) => element === completed.pressTarget)
+        ) {
+          try {
+            workspace.select([getElementSelector(completed.pressTarget)]);
+          } catch {
+            workspace.clearSelection();
+            workspace.toggleSelection(completed.pressTarget);
+          }
+        }
+
         showCurrentDesired();
         renderBox();
 
