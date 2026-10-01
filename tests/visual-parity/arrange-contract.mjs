@@ -45,7 +45,6 @@ try {
   // Edit is allowed to be the first tool the user chooses. Activating it must turn Select on
   // automatically; the user can then choose what to arrange without an extra toolbar step.
   await arrangeButton.click();
-  console.log("arrange-contract wait: initial-edit-activation");
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
     const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
@@ -286,7 +285,6 @@ try {
   );
 
   await page.keyboard.press("Escape");
-  console.log("arrange-contract wait: edit-second-escape");
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
     const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
@@ -299,7 +297,6 @@ try {
   evidence.arrangeEscape = { first: "clears selection", second: "deactivates Edit and Select" };
 
   await arrangeButton.click();
-  console.log("arrange-contract wait: edit-reactivation");
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
     const arrange = document.querySelector("button[data-mesurer-tool-id='arrange']");
@@ -553,7 +550,6 @@ try {
   assert.equal(await regressionResetAll.isDisabled(), false, "Nested multi-drag should create resettable Edit intent");
   await regressionResetAll.click();
   await regressionArrangeMenu.waitFor({ state: "hidden" });
-  console.log("arrange-contract wait: nested-reset-all");
   await page.waitForFunction(({ parentX, parentY, childX, childY }) => {
     const parent = document.querySelector("[data-testid='arrange-move-parent']");
     const child = document.querySelector("[data-testid='arrange-move-child']");
@@ -886,7 +882,6 @@ try {
   assert.equal(await followResetAll.isDisabled(), false, "Nested follow-up drag should create resettable Edit intent");
   await followResetAll.click();
   await regressionArrangeMenu.waitFor({ state: "hidden" });
-  console.log("arrange-contract wait: follow-reset-all");
   await page.waitForFunction(({ parentX, parentY, childX, childY, leafX, leafY }) => {
     const parent = document.querySelector("[data-testid='arrange-follow-parent']");
     const child = document.querySelector("[data-testid='arrange-follow-child']");
@@ -1217,7 +1212,6 @@ try {
   await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
   await page.locator('[data-mesurer-toolbar="true"][data-mesurer-toolbar-mode="select"]').waitFor({ state: "visible" });
   await xrayButton.click();
-  console.log("arrange-contract wait: xray-select-return");
   await page.waitForFunction(() => {
     const button = document.querySelector("[data-mesurer-builtin='xray'] button");
 
@@ -1269,7 +1263,6 @@ try {
   const snappingSwitch = arrangeControls.getByRole("switch", { name: "Snapping", exact: true });
   assert.equal(await snappingSwitch.getAttribute("aria-checked"), "true", "Edit snapping should default on");
   await snappingSwitch.click();
-  console.log("arrange-contract wait: settings-snapping-off");
   await page.waitForFunction(() => {
     const controls = document.querySelector("[data-mesurer-plugin-settings-controls='mesurer.arrange']");
     const control = controls?.querySelector("button[role='switch']");
@@ -1277,7 +1270,6 @@ try {
     return control instanceof HTMLButtonElement && control.getAttribute("aria-checked") === "false";
   });
   await snappingSwitch.click();
-  console.log("arrange-contract wait: settings-snapping-on");
   await page.waitForFunction(() => {
     const controls = document.querySelector("[data-mesurer-plugin-settings-controls='mesurer.arrange']");
     const control = controls?.querySelector("button[role='switch']");
@@ -1289,8 +1281,6 @@ try {
   // X-ray is Select-owned. Re-entering Edit must suspend it while preserving
   // ordinary element-edge snapping inside Edit.
   if ((await arrangeButton.getAttribute("aria-pressed")) !== "true") await arrangeButton.click();
-
-  console.log("arrange-contract wait: edit-reenter-after-xray");
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
     const xray = document.querySelector("[data-mesurer-builtin='xray'] button");
@@ -1352,37 +1342,6 @@ try {
   await page.mouse.down();
   await page.mouse.move(startX + dx, startY, { steps: 4 });
 
-  const snapDragDiagnostic = await page.evaluate(() => {
-    const target = document.querySelector(".primary-action");
-    const line = document.querySelector("[data-mesurer-arrange-snap-line='vertical']");
-    const box = document.querySelector("[data-mesurer-arrange-box='true']");
-
-    const rect = (element) => {
-      if (!(element instanceof HTMLElement)) return null;
-      const value = element.getBoundingClientRect();
-
-      return { x: value.x, y: value.y, width: value.width, height: value.height };
-    };
-
-    return {
-      target: rect(target),
-      box: rect(box),
-      line: rect(line),
-      lineDisplay: line instanceof HTMLElement ? line.style.display : null,
-    };
-  });
-
-  console.log("arrange-contract snap diagnostic", JSON.stringify({
-    before,
-    referenceBox,
-    dragBox,
-    rawDesiredLeft,
-    dx,
-    startX,
-    startY,
-    afterMove: snapDragDiagnostic,
-  }));
-  console.log("arrange-contract wait: snap-line-visible");
   await page.waitForFunction(() => {
     const line = document.querySelector("[data-mesurer-arrange-snap-line='vertical']");
 
@@ -1446,8 +1405,6 @@ try {
   assert.equal(visibleMeasurementGhosts, 0, "Mesurer measurement ghosts should be hidden while Edit is active");
 
   await page.mouse.up();
-
-  console.log("arrange-contract wait: snapped-release");
   await page.waitForFunction(({ left, top }) => {
     const element = document.querySelector(".primary-action");
 
@@ -1484,7 +1441,6 @@ try {
   evidence.resetButton = resetButtonBox;
 
   await resetPositionButton.click();
-  console.log("arrange-contract wait: reset-position");
   await page.waitForFunction(({ left, top }) => {
     const element = document.querySelector(".primary-action");
 
@@ -1527,7 +1483,6 @@ try {
   assert.equal(await resetAllPositions().isDisabled(), false, "Reset all positions should enable after Edit moves exist");
   await resetAllPositions().click();
   await arrangeMenu.waitFor({ state: "hidden" });
-  console.log("arrange-contract wait: final-reset-all");
   await page.waitForFunction(({ left, top }) => {
     const element = document.querySelector(".primary-action");
 
@@ -1547,7 +1502,6 @@ try {
   await arrangeMenu.waitFor({ state: "hidden" });
 
   await page.locator('button[data-mesurer-toolbar-mode="select"]').click();
-  console.log("arrange-contract wait: edit-deactivate-live");
   await page.waitForFunction(({ left, top }) => {
     const element = document.querySelector(".primary-action");
 
