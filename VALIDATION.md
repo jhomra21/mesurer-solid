@@ -84,6 +84,14 @@ The Chromium extension keeps a separate private adapter backed by `chrome.tabs.c
 
 Extension recovery also has a browser contract for session-state races. A close request issued while the initial active-tab storage read is pending must stay closed, and concurrent state changes must persist only the newest requested value. The contract writes its result to the retained stable-upstream regression artifact.
 
+## Recording contracts
+
+Recording changes must keep the dedicated real-Chromium contract green. The fixture supplies a deterministic animated video stream, exercises physical region selection, records long enough to encode changing frames, decodes two positions from the finalized clip, and verifies that the frames actually differ. It also covers programmatic service capture, WebM trim/resize, MP4 when AVC is available, Escape/cancel, and clean browser diagnostics.
+
+The same contract exercises both acquisition routes: ordinary browser `getDisplayMedia()` and the extension-style one-use tab stream consumed through `getUserMedia()`. The extension bridge is acquisition only. Recording source and extension code must not add `MediaRecorder` or a second/offscreen recorder; MediaBunny owns all encoded media.
+
+The package boundary is part of Recording acceptance. `mediabunny@1.59.0` must remain the public package's exact runtime dependency, ESM Mesurer bundles must keep that import external, and raw classic injection must load the separate MPL-labeled `mediabunny-vendor.js` before `inject-script.js`. Package staging, the Agent Skill installer, browser harness, and extension build all verify this boundary.
+
 ## Hot-path performance contracts
 
 Performance regressions should prefer structural contracts over timing thresholds when the required complexity can be stated directly. Timing is noisy across CI runners; synchronous DOM work is observable and deterministic.
@@ -103,8 +111,9 @@ Do not hand off a candidate SHA for manual acceptance merely because CI is green
 5. Keep console/page errors at zero for the exercised path.
 6. Keep the root dev-server smoke green when changed renderer source is loaded directly by the basic example.
 7. For Screenshot host changes, keep both the Chromium host-result contract and the packed Electron contract green.
-8. For Codex host changes, keep shared-daemon process coverage, independent renderer-lease coverage, packed runtime-selection evidence, package staging, and the packed Electron host-capability contract green.
-9. Keep performance invariants paired with the visible behavior they protect.
-10. Treat manual acceptance as a separate final check; automation reduces regressions but does not replace the user's real-browser validation.
+8. For Recording changes, keep the real Chromium Recording contract, extension acquisition contract, and MediaBunny package/license boundary green.
+9. For Codex host changes, keep shared-daemon process coverage, independent renderer-lease coverage, packed runtime-selection evidence, package staging, and the packed Electron host-capability contract green.
+10. Keep performance invariants paired with the visible behavior they protect.
+11. Treat manual acceptance as a separate final check; automation reduces regressions but does not replace the user's real-browser validation.
 
 A shallow green check is never permission to say a user-reported behavior is fixed.
