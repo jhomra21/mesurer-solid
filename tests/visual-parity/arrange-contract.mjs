@@ -161,17 +161,22 @@ try {
     nested.parent.x + nested.parent.width / 2,
     nested.parent.y + nested.parent.height - 24,
   );
-  await page.waitForFunction(({ x, y, width, height }) => {
-    const box = document.querySelector("[data-mesurer-arrange-box='true']");
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+  const selectedParentBox = await arrangeBox.boundingBox();
 
-    if (!(box instanceof HTMLElement)) return false;
-    const rect = box.getBoundingClientRect();
-
-    return Math.abs(rect.x - x) <= 1
-      && Math.abs(rect.y - y) <= 1
-      && Math.abs(rect.width - width) <= 1
-      && Math.abs(rect.height - height) <= 1;
-  }, nested.parent);
+  assert(selectedParentBox, "Edit should render the selected parent movement box");
+  assert(
+    Math.abs(selectedParentBox.x - nested.parent.x) <= 1
+      && Math.abs(selectedParentBox.y - nested.parent.y) <= 1
+      && Math.abs(selectedParentBox.width - nested.parent.width) <= 1
+      && Math.abs(selectedParentBox.height - nested.parent.height) <= 1,
+    `Clicking the unselected parent should replace the child selection before nested hover: ${JSON.stringify({
+      expected: nested.parent,
+      actual: selectedParentBox,
+    })}`,
+  );
 
   await page.mouse.move(
     nested.child.x + nested.child.width / 2,
@@ -201,17 +206,22 @@ try {
     nested.child.x + nested.child.width / 2,
     nested.child.y + nested.child.height / 2,
   );
-  await page.waitForFunction(({ x, y, width, height }) => {
-    const box = document.querySelector("[data-mesurer-arrange-box='true']");
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+  const drilledChildBox = await arrangeBox.boundingBox();
 
-    if (!(box instanceof HTMLElement)) return false;
-    const rect = box.getBoundingClientRect();
-
-    return Math.abs(rect.x - x) <= 1
-      && Math.abs(rect.y - y) <= 1
-      && Math.abs(rect.width - width) <= 1
-      && Math.abs(rect.height - height) <= 1;
-  }, nested.child);
+  assert(drilledChildBox, "Edit should keep a movement box after drilling into the child");
+  assert(
+    Math.abs(drilledChildBox.x - nested.child.x) <= 1
+      && Math.abs(drilledChildBox.y - nested.child.y) <= 1
+      && Math.abs(drilledChildBox.width - nested.child.width) <= 1
+      && Math.abs(drilledChildBox.height - nested.child.height) <= 1,
+    `Stationary click through the selected parent should drill into the hovered child: ${JSON.stringify({
+      expected: nested.child,
+      actual: drilledChildBox,
+    })}`,
+  );
   assert.equal(
     await page.locator("[data-mesurer-selected-measurement='true']").count(),
     1,
