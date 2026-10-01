@@ -1110,25 +1110,34 @@ try {
   assert.equal(await transitionResetAll.isDisabled(), false, "Transition multi-drag should create resettable Edit intent");
   await transitionResetAll.click();
   await regressionArrangeMenu.waitFor({ state: "hidden" });
-  console.log("arrange-contract wait: transition-reset-all");
-  await page.waitForFunction(({ firstX, firstY, secondX, secondY }) => {
+  await page.waitForTimeout(4500);
+  const transitionResetGeometry = await page.evaluate(() => {
     const first = document.querySelector("[data-testid='arrange-transition-first']");
     const second = document.querySelector("[data-testid='arrange-transition-second']");
 
-    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement)) return false;
-    const firstRect = first.getBoundingClientRect();
-    const secondRect = second.getBoundingClientRect();
+    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement)) {
+      throw new Error("Edit transition fixture disappeared during reset.");
+    }
 
-    return Math.abs(firstRect.x - firstX) <= 1
-      && Math.abs(firstRect.y - firstY) <= 1
-      && Math.abs(secondRect.x - secondX) <= 1
-      && Math.abs(secondRect.y - secondY) <= 1;
-  }, {
-    firstX: transitionMove.first.x,
-    firstY: transitionMove.first.y,
-    secondX: transitionMove.second.x,
-    secondY: transitionMove.second.y,
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { first: rect(first), second: rect(second) };
   });
+
+  assert(
+    Math.abs(transitionResetGeometry.first.x - transitionMove.first.x) <= 1
+      && Math.abs(transitionResetGeometry.first.y - transitionMove.first.y) <= 1
+      && Math.abs(transitionResetGeometry.second.x - transitionMove.second.x) <= 1
+      && Math.abs(transitionResetGeometry.second.y - transitionMove.second.y) <= 1,
+    `Reset all positions should restore transition-owned targets after host transitions settle: ${JSON.stringify({
+      expected: transitionMove,
+      actual: transitionResetGeometry,
+    })}`,
+  );
 
   const restoredTransitions = await page.evaluate(() => {
     const first = document.querySelector("[data-testid='arrange-transition-first']");
