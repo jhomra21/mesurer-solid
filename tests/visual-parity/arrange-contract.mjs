@@ -157,6 +157,77 @@ try {
     })}`,
   );
 
+  await page.mouse.click(
+    nested.parent.x + nested.parent.width / 2,
+    nested.parent.y + nested.parent.height - 24,
+  );
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+  const selectedParentBox = await arrangeBox.boundingBox();
+
+  assert(selectedParentBox, "Edit should render the selected parent movement box");
+  assert(
+    Math.abs(selectedParentBox.x - nested.parent.x) <= 1
+      && Math.abs(selectedParentBox.y - nested.parent.y) <= 1
+      && Math.abs(selectedParentBox.width - nested.parent.width) <= 1
+      && Math.abs(selectedParentBox.height - nested.parent.height) <= 1,
+    `Clicking the unselected parent should replace the child selection before nested hover: ${JSON.stringify({
+      expected: nested.parent,
+      actual: selectedParentBox,
+    })}`,
+  );
+
+  await page.mouse.move(
+    nested.child.x + nested.child.width / 2,
+    nested.child.y + nested.child.height / 2,
+  );
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+
+  const nestedChildHover = page.locator("[data-mesurer-hover-measurement='true']");
+  await nestedChildHover.waitFor({ state: "visible" });
+  const nestedChildHoverBox = await nestedChildHover.boundingBox();
+
+  assert(nestedChildHoverBox, "Edit should show hover feedback for a child inside the selected parent");
+  assert(
+    Math.abs(nestedChildHoverBox.x - nested.child.x) <= 1
+      && Math.abs(nestedChildHoverBox.y - nested.child.y) <= 1
+      && Math.abs(nestedChildHoverBox.width - nested.child.width) <= 1
+      && Math.abs(nestedChildHoverBox.height - nested.child.height) <= 1,
+    `Edit should preview the nested child without treating the whole selected parent as the hover target: ${JSON.stringify({
+      expected: nested.child,
+      actual: nestedChildHoverBox,
+    })}`,
+  );
+
+  await page.mouse.click(
+    nested.child.x + nested.child.width / 2,
+    nested.child.y + nested.child.height / 2,
+  );
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+  const drilledChildBox = await arrangeBox.boundingBox();
+
+  assert(drilledChildBox, "Edit should keep a movement box after drilling into the child");
+  assert(
+    Math.abs(drilledChildBox.x - nested.child.x) <= 1
+      && Math.abs(drilledChildBox.y - nested.child.y) <= 1
+      && Math.abs(drilledChildBox.width - nested.child.width) <= 1
+      && Math.abs(drilledChildBox.height - nested.child.height) <= 1,
+    `Stationary click through the selected parent should drill into the hovered child: ${JSON.stringify({
+      expected: nested.child,
+      actual: drilledChildBox,
+    })}`,
+  );
+  assert.equal(
+    await page.locator("[data-mesurer-selected-measurement='true']").count(),
+    1,
+    "A stationary Edit click on the highlighted child should replace the parent selection",
+  );
+
   await page.mouse.move(
     nested.child.x + nested.child.width / 2,
     nested.child.y + nested.child.height / 2,
@@ -167,8 +238,13 @@ try {
   assert.equal(
     await page.locator("[data-mesurer-hover-measurement='true']").count(),
     0,
-    "Edit should suppress redundant hover inside the already-selected subtree",
+    "Edit should suppress only the exact selected target's redundant hover",
   );
+  evidence.nestedEditDrilldown = {
+    hover: "child visible inside selected parent",
+    click: "stationary click replaces parent with child",
+    drag: "movement box keeps drag ownership after threshold",
+  };
 
   await page.keyboard.press("Escape");
   await arrangeBox.waitFor({ state: "hidden" });
@@ -1029,24 +1105,35 @@ try {
   assert.equal(await transitionResetAll.isDisabled(), false, "Transition multi-drag should create resettable Edit intent");
   await transitionResetAll.click();
   await regressionArrangeMenu.waitFor({ state: "hidden" });
-  await page.waitForFunction(({ firstX, firstY, secondX, secondY }) => {
+  await page.waitForTimeout(4500);
+
+  const transitionResetGeometry = await page.evaluate(() => {
     const first = document.querySelector("[data-testid='arrange-transition-first']");
     const second = document.querySelector("[data-testid='arrange-transition-second']");
 
-    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement)) return false;
-    const firstRect = first.getBoundingClientRect();
-    const secondRect = second.getBoundingClientRect();
+    if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement)) {
+      throw new Error("Edit transition fixture disappeared during reset.");
+    }
 
-    return Math.abs(firstRect.x - firstX) <= 1
-      && Math.abs(firstRect.y - firstY) <= 1
-      && Math.abs(secondRect.x - secondX) <= 1
-      && Math.abs(secondRect.y - secondY) <= 1;
-  }, {
-    firstX: transitionMove.first.x,
-    firstY: transitionMove.first.y,
-    secondX: transitionMove.second.x,
-    secondY: transitionMove.second.y,
+    const rect = (element) => {
+      const value = element.getBoundingClientRect();
+
+      return { x: value.x, y: value.y, width: value.width, height: value.height };
+    };
+
+    return { first: rect(first), second: rect(second) };
   });
+
+  assert(
+    Math.abs(transitionResetGeometry.first.x - transitionMove.first.x) <= 1
+      && Math.abs(transitionResetGeometry.first.y - transitionMove.first.y) <= 1
+      && Math.abs(transitionResetGeometry.second.x - transitionMove.second.x) <= 1
+      && Math.abs(transitionResetGeometry.second.y - transitionMove.second.y) <= 1,
+    `Reset all positions should restore transition-owned targets after host transitions settle: ${JSON.stringify({
+      expected: transitionMove,
+      actual: transitionResetGeometry,
+    })}`,
+  );
 
   const restoredTransitions = await page.evaluate(() => {
     const first = document.querySelector("[data-testid='arrange-transition-first']");
@@ -1194,7 +1281,6 @@ try {
   // X-ray is Select-owned. Re-entering Edit must suspend it while preserving
   // ordinary element-edge snapping inside Edit.
   if ((await arrangeButton.getAttribute("aria-pressed")) !== "true") await arrangeButton.click();
-
   await page.waitForFunction(() => {
     const select = document.querySelector("[data-mesurer-builtin='select'] button");
     const xray = document.querySelector("[data-mesurer-builtin='xray'] button");
@@ -1235,6 +1321,16 @@ try {
 
   const dragBox = await arrangeBox.boundingBox();
   assert(dragBox, "Edit drag surface must follow the current selection");
+  assert(
+    Math.abs(dragBox.x - resumedTarget.x) <= 1
+      && Math.abs(dragBox.y - resumedTarget.y) <= 1
+      && Math.abs(dragBox.width - resumedTarget.width) <= 1
+      && Math.abs(dragBox.height - resumedTarget.height) <= 1,
+    `Re-entering Edit must keep the explicit page target instead of advancing a stale Select click cycle: ${JSON.stringify({
+      expected: resumedTarget,
+      actual: dragBox,
+    })}`,
+  );
 
   // Aim within the 10px snap radius of the reference element edge. Select X-ray is
   // suspended in Edit, so snapping falls back to normal element-edge candidates.
@@ -1309,7 +1405,6 @@ try {
   assert.equal(visibleMeasurementGhosts, 0, "Mesurer measurement ghosts should be hidden while Edit is active");
 
   await page.mouse.up();
-
   await page.waitForFunction(({ left, top }) => {
     const element = document.querySelector(".primary-action");
 

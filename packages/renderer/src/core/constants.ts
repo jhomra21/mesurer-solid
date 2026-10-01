@@ -20,3 +20,5 @@ export const ANCESTOR_KEEP_COVERAGE = 0.92;
 export const MIN_SINGLE_TARGET_SIZE = 8;
 
 export const MIN_SINGLE_ELEMENT_COVERAGE = 0.15;
+
+export const CLICK_CYCLE_THRESHOLD = 4;
