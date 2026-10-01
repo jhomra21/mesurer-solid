@@ -1111,6 +1111,7 @@ try {
   await transitionResetAll.click();
   await regressionArrangeMenu.waitFor({ state: "hidden" });
   await page.waitForTimeout(4500);
+
   const transitionResetGeometry = await page.evaluate(() => {
     const first = document.querySelector("[data-testid='arrange-transition-first']");
     const second = document.querySelector("[data-testid='arrange-transition-second']");
