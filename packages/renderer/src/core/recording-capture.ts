@@ -214,6 +214,7 @@ const pingRecordingBridge = (
 
   const onMessage = (event: MessageEvent) => {
     if (event.source !== ownerWindow || event.origin !== origin) return;
+
     const payload = recordingBridgeReply(
       String(event.data ?? ""),
       MESURER_RECORDING_BRIDGE_PONG,
@@ -246,6 +247,7 @@ const requestRecordingBridgeStreamId = (
 
   const onMessage = (event: MessageEvent) => {
     if (event.source !== ownerWindow || event.origin !== origin) return;
+
     const payload = recordingBridgeReply(
       String(event.data ?? ""),
       MESURER_RECORDING_BRIDGE_RESPONSE,
@@ -296,6 +298,7 @@ const extensionRecordingStream = async (
   const streamId = await requestRecordingBridgeStreamId(ownerWindow);
 
   if (!streamId) return null;
+
   const video: ChromiumTabVideoConstraint = {
     mandatory: {
       chromeMediaSource: "tab",
@@ -314,7 +317,20 @@ const requestRecordingStream = async (
 ) => {
   const media = ownerWindow.navigator.mediaDevices;
 
-  if (!media?.getDisplayMedia) {
+  if (!media) {
+    throw new Error("Screen recording is unavailable in this browser.");
+  }
+
+  try {
+    const extensionStream = await extensionRecordingStream(ownerWindow, media);
+
+    if (extensionStream) return extensionStream;
+  } catch {
+    // The extension path is an optimization. Fall through to the browser
+    // picker when the tab grant expired or the one-use stream id cannot be consumed.
+  }
+
+  if (!media.getDisplayMedia) {
     throw new Error("Screen recording is unavailable in this browser.");
   }
 
