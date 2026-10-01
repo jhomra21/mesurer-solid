@@ -15,11 +15,17 @@ const SOURCE_WIDTH = 1280;
 const SOURCE_HEIGHT = 900;
 
 const sourceCanvas = document.createElement("canvas");
+
 sourceCanvas.width = SOURCE_WIDTH;
+
 sourceCanvas.height = SOURCE_HEIGHT;
+
 sourceCanvas.setAttribute("aria-hidden", "true");
+
 sourceCanvas.style.position = "fixed";
+
 sourceCanvas.style.left = "-10000px";
+
 document.body.append(sourceCanvas);
 
 const sourceContext = sourceCanvas.getContext("2d");
@@ -118,7 +124,9 @@ const sampleAsset = async (
       );
 
       if (video.seeking) await waitForEvent(video, "seeked");
+
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
       const pixel = context.getImageData(
         Math.floor(canvas.width / 2),
         Math.floor(canvas.height / 2),

@@ -95,7 +95,9 @@ try {
 
     if (!service) throw new Error("Recording service unavailable");
     const current = service.snapshot();
+
     const duration = current.duration ?? 0;
+
     const result = await service.export({
       format: "webm",
       startTime: 0,
@@ -126,7 +128,7 @@ try {
     throw new Error(`Trimmed MediaBunny export did not shorten the clip: ${JSON.stringify({ snapshot, webmExport })}`);
   }
 
-  if (!/\.webm$/.test(webmExport.filename)) {
+  if (!webmExport.filename.endsWith(".webm")) {
     throw new Error(`WebM export used an unexpected filename: ${webmExport.filename}`);
   }
 
@@ -148,7 +150,7 @@ try {
       };
     });
 
-    if (mp4Export.type !== "video/mp4" || mp4Export.bytes <= 0 || !/\.mp4$/.test(mp4Export.filename)) {
+    if (mp4Export.type !== "video/mp4" || mp4Export.bytes <= 0 || !mp4Export.filename.endsWith(".mp4")) {
       throw new Error(`Unexpected MediaBunny MP4 export: ${JSON.stringify(mp4Export)}`);
     }
   }
