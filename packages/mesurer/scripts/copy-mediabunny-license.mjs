@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const mediaBunnyEntry = fileURLToPath(import.meta.resolve("mediabunny"));
 
 let directory = dirname(mediaBunnyEntry);
+
 let packageRoot = null;
 
 for (let depth = 0; depth < 8; depth += 1) {

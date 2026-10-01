@@ -4,7 +4,7 @@ const externalSolidPattern = /(?:from\s*|import\s*\()["'](?:solid-js|@solidjs\/w
 
 const privatePackagePattern = /@jhomra21\/mesurer-solid-(?:core|dom|renderer)/;
 
-const mediaBunnyImportPattern = /(?:from\s*|import\s*\()[\"']mediabunny[\"']/;
+const mediaBunnyImportPattern = /(?:from\s*|import\s*\()["']mediabunny["']/;
 
 for (const name of ["index", "plugins", "inject", "inject-script"]) {
   const source = readFileSync(new URL(`../dist/${name}.js`, import.meta.url), "utf8");
