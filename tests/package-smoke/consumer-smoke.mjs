@@ -1,6 +1,18 @@
 import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { createServer } from "node:http";
 import { chromium } from "playwright";
+
+const readMesurerInjector = async (injectPath) => {
+  const vendorPath = join(dirname(injectPath), "mediabunny-vendor.js");
+
+  const [vendor, injector] = await Promise.all([
+    readFile(vendorPath, "utf8"),
+    readFile(injectPath, "utf8"),
+  ]);
+
+  return `${vendor}\n${injector}`;
+};
 
 const cases = [
   {
@@ -331,7 +343,7 @@ async function runCase(browser, testCase) {
     await page.waitForFunction(() => Boolean(window.__HOST_READY__));
 
     if (testCase.injectPath) {
-      const source = await readFile(testCase.injectPath, "utf8");
+      const source = await readMesurerInjector(testCase.injectPath);
       await page.evaluate(source);
     }
 
@@ -431,7 +443,7 @@ async function runTrustedTypesCase(browser, url) {
     const injectPath = process.env.REACT_INJECT_SCRIPT_PATH
       || "/tmp/mesurer-react/node_modules/mesurer-solid/dist/inject-script.js";
 
-    const source = await readFile(injectPath, "utf8");
+    const source = await readMesurerInjector(injectPath);
     await page.evaluate(source);
 
     await page.waitForFunction(() => Boolean(window.__MESURER__));

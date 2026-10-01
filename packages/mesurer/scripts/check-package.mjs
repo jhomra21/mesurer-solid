@@ -24,11 +24,16 @@ if (packageJson.bin?.["mesurer-skill"] !== skillBinPath) {
 
 if (packageJson.private === true) throw new Error("The public Mesurer package workspace cannot be private.");
 
-if (packageJson.dependencies && Object.keys(packageJson.dependencies).length > 0) {
-  throw new Error("The public Mesurer package must not publish runtime workspace dependencies.");
+const runtimeDependencies = packageJson.dependencies ?? {};
+
+if (
+  Object.keys(runtimeDependencies).length !== 1
+  || runtimeDependencies.mediabunny !== "1.59.0"
+) {
+  throw new Error("The public Mesurer package must publish only exact mediabunny@1.59.0 as a runtime dependency.");
 }
 
-for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script", "./plugins/codex/bridge", "./plugins/codex/preload"]) {
+for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script", "./mediabunny-vendor", "./plugins/codex/bridge", "./plugins/codex/preload"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
 }
 
@@ -71,7 +76,12 @@ for (const file of [
   "inject.js",
   "inject.d.ts",
   "inject-script.js",
+  "mediabunny-vendor.js",
   "screenshot.d.ts",
+  "recording.d.ts",
+  "mediabunny-runtime.js",
+  "mediabunny-vendor.js",
+  "mediabunny-LICENSE.txt",
 ]) {
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
@@ -145,6 +155,7 @@ for (const factory of [
   "edit",
   "arrange",
   "layoutGuides",
+  "recording",
   "screenshot",
   "select",
   "xray",
@@ -175,6 +186,8 @@ if (!existsSync(codexDeclarationUrl)) {
 const codexDeclarations = readFileSync(codexDeclarationUrl, "utf8");
 
 const screenshotDeclarations = readFileSync(new URL("screenshot.d.ts", dist), "utf8");
+
+const recordingDeclarations = readFileSync(new URL("recording.d.ts", dist), "utf8");
 
 for (const leakedScreenshotExport of [
   "captureScreenshotPng",
@@ -291,6 +304,7 @@ for (const obsoleteFactory of [
   "contextPlugin",
   "codexPlugin",
   "arrangePlugin",
+  "recordingPlugin",
   "screenshotPlugin",
   "selectPlugin",
   "xrayPlugin",
@@ -336,10 +350,42 @@ for (const contractName of [
   "LayoutGuide",
   "LayoutGuideInput",
   "MesurerLayoutGuidesService",
+  "MesurerRecordingAsset",
+  "MesurerRecordingExportResult",
+  "MesurerRecordingService",
+  "MesurerRecordingSnapshot",
   "MesurerScreenshotService",
 ]) {
   if (!new RegExp(`\\b${contractName}\\b`).test(pluginDeclarations)) {
     throw new Error(`Published plugins entry is missing ${contractName}.`);
+  }
+}
+
+for (const member of [
+  "snapshot()",
+  "subscribe(",
+  "formats()",
+  "start(",
+  "stop()",
+  "cancel()",
+  "discard()",
+  "export(",
+]) {
+  if (!recordingDeclarations.includes(member)) {
+    throw new Error(`Published MesurerRecordingService is missing ${member}.`);
+  }
+}
+
+for (const leakedMediaBunnyType of [
+  "CanvasSource",
+  "Conversion",
+  "Input",
+  "Output",
+  "VideoCodec",
+  "mediabunny",
+]) {
+  if (recordingDeclarations.includes(leakedMediaBunnyType)) {
+    throw new Error(`Published Recording API leaked MediaBunny implementation detail: ${leakedMediaBunnyType}.`);
   }
 }
 
@@ -376,7 +422,7 @@ if (/\bmountMeasurer\b/.test(packageReadme)) {
   throw new Error("The npm README must document canonical mountMesurer(), not the deprecated mountMeasurer() spelling.");
 }
 
-if (/\b(?:contextPlugin|codexPlugin|arrangePlugin|layoutGuidesPlugin|screenshotPlugin)\b/.test(packageReadme)) {
+if (/\b(?:contextPlugin|codexPlugin|arrangePlugin|layoutGuidesPlugin|recordingPlugin|screenshotPlugin)\b/.test(packageReadme)) {
   throw new Error("The npm README must document canonical plugin factory names from mesurer-solid/plugins.");
 }
 
@@ -517,8 +563,26 @@ if (stagedPackageJson.bin?.["mesurer-skill"] !== skillBinPath) {
   throw new Error(`Expected staged mesurer-skill bin path ${skillBinPath}, got ${stagedPackageJson.bin?.["mesurer-skill"] ?? "<missing>"}.`);
 }
 
+const stagedMediaBunnyLicense = new URL("../.publish/dist/mediabunny-LICENSE.txt", import.meta.url);
+
+if (!existsSync(stagedMediaBunnyLicense)) {
+  throw new Error("Staged npm package is missing dist/mediabunny-LICENSE.txt.");
+}
+
+if (!/Mozilla Public License(?: Version)? 2\.0/i.test(readFileSync(stagedMediaBunnyLicense, "utf8"))) {
+  throw new Error("Staged MediaBunny license artifact is not MPL-2.0.");
+}
+
+if (stagedPackageJson.dependencies && Object.keys(stagedPackageJson.dependencies).length > 0) {
+  throw new Error("Staged npm package must not install MediaBunny or any other runtime dependency.");
+}
+
 if (!stagedPackageJson.exports?.["./plugins"]) {
   throw new Error("Staged npm package is missing the ./plugins export.");
+}
+
+if (!stagedPackageJson.exports?.["./mediabunny-vendor"]) {
+  throw new Error("Staged npm package is missing the ./mediabunny-vendor export.");
 }
 
 if (!stagedPackageJson.exports?.["./plugins/codex/bridge"]) {
@@ -563,10 +627,13 @@ try {
   });
   const installedSkill = join(installRoot, ".agents/skills/mesurer-ui/SKILL.md");
   const installedInjector = join(installRoot, ".agents/skills/mesurer-ui/assets/inject-script.js");
+  const installedMediaBunny = join(installRoot, ".agents/skills/mesurer-ui/assets/mediabunny-vendor.js");
 
   if (!existsSync(installedSkill)) throw new Error("mesurer-skill install did not create SKILL.md.");
 
   if (!existsSync(installedInjector)) throw new Error("mesurer-skill install did not create assets/inject-script.js.");
+
+  if (!existsSync(installedMediaBunny)) throw new Error("mesurer-skill install did not create assets/mediabunny-vendor.js.");
 
   const sourceSkill = readFileSync(skillSource, "utf8");
   const copiedSkill = readFileSync(installedSkill, "utf8");
@@ -577,13 +644,19 @@ try {
 
   const sourceInjector = readFileSync(new URL("../dist/inject-script.js", import.meta.url), "utf8");
   const copiedInjector = readFileSync(installedInjector, "utf8");
+  const sourceMediaBunny = readFileSync(new URL("../dist/mediabunny-vendor.js", import.meta.url), "utf8");
+  const copiedMediaBunny = readFileSync(installedMediaBunny, "utf8");
 
   if (!sourceInjector || copiedInjector !== sourceInjector) {
     throw new Error("Installed Agent Skill injector does not match the packaged inject-script artifact.");
+  }
+
+  if (!sourceMediaBunny || copiedMediaBunny !== sourceMediaBunny) {
+    throw new Error("Installed Agent Skill MediaBunny vendor does not match the packaged vendor artifact.");
   }
 
 } finally {
   rmSync(installRoot, { recursive: true, force: true });
 }
 
-console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, in-process Codex Bridge, agent context, Edit movement, text edit intents, screenshot tooling, and Agent Skill installer are self-contained.`);
+console.log(`mesurer-solid@${packageJson.version} staged canonical Mesurer API, unified plugins entry, in-process Codex Bridge, agent context, Edit movement, text edit intents, screenshot and MediaBunny recording tooling, and Agent Skill installer are self-contained.`);

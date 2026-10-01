@@ -85,10 +85,26 @@ export class BrowserHarnessSession {
   async loadInjectSource() {
     if (this.injectSource) return this.injectSource;
 
-    try { await access(this.options.injectPath); }
-    catch { throw new Error(`Mesurer injection script not found at ${this.options.injectPath}. Run \`bun run build\` first or pass --inject <path>.`); }
+    const mediaBunnyVendorPath = path.join(
+      path.dirname(this.options.injectPath),
+      "mediabunny-vendor.js",
+    );
 
-    this.injectSource = await readFile(this.options.injectPath, "utf8");
+    try {
+      await Promise.all([
+        access(mediaBunnyVendorPath),
+        access(this.options.injectPath),
+      ]);
+    } catch {
+      throw new Error(`Mesurer injector assets not found beside ${this.options.injectPath}. Run \`bun run build\` first or pass an inject-script.js path whose directory also contains mediabunny-vendor.js.`);
+    }
+
+    const [mediaBunnyVendor, injectScript] = await Promise.all([
+      readFile(mediaBunnyVendorPath, "utf8"),
+      readFile(this.options.injectPath, "utf8"),
+    ]);
+
+    this.injectSource = `${mediaBunnyVendor}\n${injectScript}`;
 
     return this.injectSource;
   }

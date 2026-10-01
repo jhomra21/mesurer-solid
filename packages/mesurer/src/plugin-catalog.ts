@@ -3,6 +3,7 @@ import { edit, MESURER_ARRANGE_PLUGIN_ID } from "./arrange";
 import { codex, MESURER_CODEX_PLUGIN_ID } from "./plugins/codex";
 import { context, MESURER_CONTEXT_PLUGIN_ID } from "./context-plugin";
 import { layoutGuides, MESURER_LAYOUT_GUIDES_PLUGIN_ID } from "./layout-guides";
+import { recording, MESURER_RECORDING_PLUGIN_ID } from "./recording";
 import { screenshot, MESURER_SCREENSHOT_PLUGIN_ID } from "./screenshot";
 
 type MesurerPluginRegistryEntry = {
@@ -65,6 +66,15 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
     order: 40,
     create: screenshot,
     settingsIds: ["screenshot"],
+    hiddenSettingsControlIds: ["tool"],
+  },
+  {
+    id: MESURER_RECORDING_PLUGIN_ID,
+    label: "Recording",
+    description: "Record a selected page region and trim, resize, or export it through MediaBunny.",
+    order: 42,
+    create: recording,
+    settingsIds: ["recording"],
     hiddenSettingsControlIds: ["tool"],
   },
   {

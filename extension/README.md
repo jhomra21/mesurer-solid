@@ -19,15 +19,15 @@ In Chrome or Edge:
 3. Open an ordinary `http:` or `https:` page.
 4. Click the Mesurer extension action to inject Mesurer; click it again to dispose the instance from that tab.
 
-The extension requests `activeTab`, `scripting`, and `storage`, not persistent access to every site. `storage` is used only for tab-session bookkeeping so an explicitly opened Mesurer tab can be restored after a reload or eligible in-tab navigation. The extension does not request broad host permissions. If navigation revokes the temporary `activeTab` grant, automatic recovery stops and another explicit action click is required.
+The extension requests `activeTab`, `scripting`, `storage`, and `tabCapture`, not persistent host access to every site. `storage` is used only for tab-session bookkeeping. `tabCapture` is used only after the user starts Recording so the active tab can provide a live video stream without a screen-share picker. The extension does not request broad host permissions. Chrome controls the install-time warning text associated with extension permissions. If navigation revokes the temporary active-tab grant, automatic recovery stops and another explicit action click is required.
 
 Browser-protected pages such as `chrome://` pages cannot be injected. File URLs depend on the browser's extension file-access setting.
 
 ## What it runs
 
-The extension uses the same built `inject-script` artifact as the browser harness. It does not carry a fork of Mesurer.
+The extension uses the same built `inject-script` artifact as the browser harness. It loads the separate MPL-2.0 `mediabunny-vendor.js` asset immediately before Mesurer; it does not carry a fork of either Mesurer or the Recording pipeline.
 
-Injection enables Context and Screenshot for the active tab. The page-mounted instance otherwise has the same toolbar, direct text editing, plugin host, compact-toolbar behavior, route-scoped workspace state, and `window.__MESURER__` API as other injected Mesurer instances.
+Injection enables the same managed first-party catalog, including Context, Screenshot, and Recording, for the active tab. The page-mounted instance otherwise has the same toolbar, direct text editing, plugin host, compact-toolbar behavior, route-scoped workspace state, and `window.__MESURER__` API as other injected Mesurer instances.
 
 When the tab remains authorized, the background worker remembers that Mesurer was explicitly opened and restores a missing injected instance after reload or eligible navigation. The injector also remounts Mesurer if the page replaces the DOM node that owns the injected UI. A live connected instance is reused rather than replaced. If the user closes Mesurer while navigation is racing the background worker's session-state read, the close request remains authoritative and recovery does not reopen the tab.
 
@@ -66,8 +66,22 @@ Mesurer chrome is hidden while pixels are captured and restored afterward. Agent
 
 See [Screenshots](../docs/SCREENSHOTS.md).
 
+## Recording capture
+
+Recording remains the same `recording()` plugin and `recording:v1` service used by source-mounted applications. The extension does not expose an extension-specific Recording factory.
+
+After the user starts Recording, the background worker uses `chrome.tabCapture.getMediaStreamId()` for the authorized current tab. The isolated-world bridge passes only that one-use stream id to the page. On a secure page, the Recording capture layer consumes it with `getUserMedia()` and sends the resulting frames through the same MediaBunny canvas encoder used by the browser path.
+
+The extension does **not** use `MediaRecorder`, does not create an offscreen recorder, and does not encode video in the service worker. `tabCapture` is acquisition only. MediaBunny owns initial video encoding, media inspection, trim, resize, conversion, and WebM/MP4 export.
+
+If the extension stream path is unavailable or cannot be consumed, Recording falls back to the ordinary browser display picker. Format availability is still determined by the runtime encoder; use the Recording UI or `recording:v1.formats()` rather than assuming MP4 support.
+
+The extension build copies `mediabunny-vendor.js` and `mesurer-main.js` as separate files and loads the vendor first. It also ships the full upstream MediaBunny license as `mediabunny-LICENSE.txt` beside the vendor file. This preserves MediaBunny's MPL-2.0 distribution boundary.
+
+See [Recording](../docs/RECORDING.md).
+
 ## Architecture
 
-The extension shell owns active-tab execution, its private capture adapter, and injection/disposal. The shared Mesurer runtime owns inspection, Context, direct text editing, plugins, and agent APIs. Screenshot owns region selection, cropping, output preferences, preview/viewer behavior, and capture lifecycle.
+The extension shell owns active-tab execution, its private Screenshot and Recording acquisition bridges, and injection/disposal. The shared Mesurer runtime owns inspection, Context, direct text editing, plugins, agent APIs, and the Recording media pipeline. Screenshot owns PNG region selection/cropping/output state; Recording owns video selection, MediaBunny encoding, preview, trim, export, and capture lifecycle.
 
 For browser, host, and agent integration details, see [Browser and agent integration](../docs/BROWSER_HARNESS.md), [Host isolation](../docs/HOST_ISOLATION.md), and [Agent integration](../packages/mesurer/AGENT_INTEGRATION.md).

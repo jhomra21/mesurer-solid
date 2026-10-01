@@ -41,7 +41,7 @@ export default defineConfig({
       fileName: "index",
     },
     rollupOptions: {
-      external: ["solid-js", "@solidjs/web"],
+      external: ["solid-js", "@solidjs/web", "mediabunny"],
     },
   },
 });

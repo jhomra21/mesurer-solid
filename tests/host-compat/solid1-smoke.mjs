@@ -3,7 +3,9 @@ import { chromium } from "playwright";
 
 const url = process.env.SOLID1_URL ?? "http://127.0.0.1:4180";
 
-const injectPath = resolve("packages/mesurer/dist/inject.js");
+const mediaBunnyVendorPath = resolve("packages/mesurer/dist/mediabunny-vendor.js");
+
+const injectPath = resolve("packages/mesurer/dist/inject-script.js");
 
 const browser = await chromium.launch({ headless: true });
 
@@ -34,7 +36,8 @@ try {
   await page.evaluate(() => {
     window.__MESURER_CONFIG__ = { globalName: "__MESURER__" };
   });
-  await page.addScriptTag({ path: injectPath, type: "module" });
+  await page.addScriptTag({ path: mediaBunnyVendorPath });
+  await page.addScriptTag({ path: injectPath });
 
   await page.waitForFunction(() => Boolean(window.__MESURER__));
   await page.evaluate(() => window.__MESURER__.ready());

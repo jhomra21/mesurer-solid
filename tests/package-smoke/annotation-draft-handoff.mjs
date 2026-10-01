@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { chromium } from "playwright";
+
+const readMesurerInjector = async (injectPath) => {
+  const vendorPath = join(dirname(injectPath), "mediabunny-vendor.js");
+
+  const [vendor, injector] = await Promise.all([
+    readFile(vendorPath, "utf8"),
+    readFile(injectPath, "utf8"),
+  ]);
+
+  return `${vendor}\n${injector}`;
+};
 
 const cases = [
   {
@@ -203,7 +215,7 @@ async function runCase(testCase) {
           reuseExisting: false,
         };
       });
-      const source = await readFile(testCase.injectPath, "utf8");
+      const source = await readMesurerInjector(testCase.injectPath);
       await page.evaluate(source);
     }
 

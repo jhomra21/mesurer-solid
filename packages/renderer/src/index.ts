@@ -94,6 +94,30 @@ export type {
 } from "./plugins/arrange";
 
 export {
+  MESURER_RECORDING_PLUGIN_ID,
+  MESURER_RECORDING_SERVICE_ID,
+  MESURER_RECORDING_SETTINGS_STATE_ID,
+  recordingPlugin,
+} from "./plugins/recording";
+
+export type {
+  MesurerRecordingAsset,
+  MesurerRecordingExportResult,
+  MesurerRecordingPluginOptions,
+  MesurerRecordingService,
+  MesurerRecordingSettings,
+  MesurerRecordingSnapshot,
+  MesurerRecordingStatus,
+} from "./plugins/recording";
+
+export type {
+  RecordingExportFormat,
+  RecordingExportOptions,
+  RecordingQuality,
+  RecordingScale,
+} from "./core/recording";
+
+export {
   MESURER_SCREENSHOT_ACTIVE_STATE_ID,
   MESURER_SCREENSHOT_PLUGIN_ID,
   MESURER_SCREENSHOT_SERVICE_ID,

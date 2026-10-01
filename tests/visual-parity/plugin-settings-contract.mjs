@@ -445,6 +445,7 @@ try {
     "mesurer.arrange": false,
     "mesurer.layout-guides": false,
     "mesurer.screenshot": true,
+    "mesurer.recording": false,
     "mesurer.codex": false,
   };
 
@@ -468,6 +469,7 @@ try {
   await expectChecked(pluginToggle(dialog, "Edit"), false, "Reloaded default Edit plugin");
   await expectChecked(pluginToggle(dialog, "Layout Guides"), false, "Reloaded default Layout Guides plugin");
   await expectChecked(pluginToggle(dialog, "Screenshot"), true, "Reloaded default Screenshot plugin");
+  await expectChecked(pluginToggle(dialog, "Recording"), false, "Reloaded default Recording plugin");
   await expandPlugin(dialog, "mesurer.screenshot");
   await expectChecked(settingSwitch(dialog, "Auto-copy"), false, "Reloaded default Auto-copy");
 

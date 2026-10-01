@@ -55,3 +55,16 @@ Phosphor Icons is licensed under the MIT License:
 > LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 > SOFTWARE.
+
+
+## MediaBunny
+
+Mesurer Solid uses [MediaBunny 1.59.0](https://github.com/Vanilagy/mediabunny/tree/v1.59.0) for browser video encoding, inspection, trimming, resizing, conversion, and export.
+
+MediaBunny is licensed under the Mozilla Public License 2.0 (MPL-2.0). Mesurer keeps MediaBunny on a separate distribution boundary:
+
+- ESM consumers install exact `mediabunny@1.59.0` as a runtime dependency instead of receiving MediaBunny code folded into Mesurer's MIT-licensed bundles.
+- Classic browser injection and the Chromium extension load `mediabunny-vendor.js` as a separate MPL-labeled artifact before the Mesurer injector.
+- The MediaBunny npm package includes its `LICENSE` and `src` directories. The corresponding source is also available from the upstream repository and tag linked above.
+
+The full MPL-2.0 license is included with the MediaBunny dependency.

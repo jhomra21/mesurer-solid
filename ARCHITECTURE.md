@@ -42,11 +42,12 @@ Users install `mesurer-solid`.
 | `mesurer-solid/plugins` | All first-party plugin factories and plugin-specific contracts |
 | `mesurer-solid/core` | Lower-level framework-neutral public contracts |
 | `mesurer-solid/inject` | Programmatic injection helper |
-| `mesurer-solid/inject-script` | Self-contained classic browser payload |
+| `mesurer-solid/inject-script` | Classic Mesurer browser payload; raw evaluators load the separate MediaBunny vendor first |
+| `mesurer-solid/mediabunny-vendor` | Separate MPL-2.0 MediaBunny classic runtime for Recording injection/extension use |
 
 The package also ships `mesurer-skill`, the portable `mesurer-ui` Agent Skill, and `mesurer-solid/plugins/codex/bridge` for native-host Codex access. Private workspace names and Solid runtime dependencies must not leak into public JavaScript or declarations.
 
-Public first-party plugin factories use their feature name directly. Applications import `context`, `edit`, `layoutGuides`, `screenshot`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; `arrange()` remains a compatibility alias; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
+Public first-party plugin factories use their feature name directly. Applications import `context`, `edit`, `layoutGuides`, `screenshot`, `recording`, `codex`, and explicit built-ins such as `select` or `typography` from `mesurer-solid/plugins`; `arrange()` remains a compatibility alias; redundant `*Plugin` public factory names and one-plugin-per-subpath exports are not part of the package contract.
 
 `mountMesurer()` is the single application-facing construction seam. It owns host creation, renderer startup, built-in defaults, first-party plugin registration, persistence wiring, optional global agent exposure, and disposal. The returned handle is the lifecycle interface. `ready` resolves the live plugin host after startup and initial rendered stability, `service()` and `describe()` wait at that seam, and an optional `AbortSignal` can transfer cleanup ownership to an existing application lifecycle. Do not add a second create/configure factory that asks callers to assemble the same implementation in another form.
 
@@ -76,7 +77,7 @@ Within the renderer runtime, direct editing is grouped under `runtime/text-editi
 
 Human-facing built-ins are Select, X-ray, Color Picker when supported, Rulers, Typography, Guides, Distance, and Settings. Typography retains the internal compatibility id `text-inspector`. Distance geometry is specified in [Measurements and distance geometry](./docs/MEASUREMENTS.md).
 
-The toolbar has two top-level modes. Select owns inspection tools such as X-ray, Color Picker, Rulers, Typography, Guides, Layout Guides, and Screenshot. Edit owns element movement and direct text/style editing. Context and Codex stay visible in both modes. The mode switch follows the audited upstream grouped-toolbar design while Mesurer Solid keeps 150 ms motion. Compact presentation preserves the active mode and pinned tools. Dragging begins only after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership.
+The toolbar has two top-level modes. Select owns inspection and capture tools such as X-ray, Color Picker, Rulers, Typography, Guides, Layout Guides, Screenshot, and Recording. Edit owns element movement and direct text/style editing. Context and Codex stay visible in both modes. The mode switch follows the audited upstream grouped-toolbar design while Mesurer Solid keeps 150 ms motion. Compact presentation preserves the active mode and pinned tools. Dragging begins only after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership.
 
 Plugin tools render through the same toolbar path as built-ins instead of maintaining a second renderer.
 
@@ -219,6 +220,31 @@ Screenshot bytes are not part of `MesurerContextV1`. Human camera capture and co
 
 See [Screenshots](./docs/SCREENSHOTS.md).
 
+## Recording
+
+`mesurer.recording` is a first-party plugin exposed as `recording()` from `mesurer-solid/plugins`.
+
+Recording deliberately separates acquisition from encoded media:
+
+```text
+browser getDisplayMedia ─┐
+                         ├─ live video source ─> selected-region canvas ─> MediaBunny
+extension tabCapture id ─┘                                      │
+                                                                ├─ encode
+                                                                ├─ inspect
+                                                                ├─ trim
+                                                                ├─ resize
+                                                                └─ WebM / MP4 export
+```
+
+The extension bridge and browser APIs only acquire a video stream. There is no `MediaRecorder` path and no offscreen recording service. A one-use extension tab stream is consumed in the page when possible; otherwise Recording uses the browser display picker. Region Capture is used when available, with a geometry-correct canvas fallback for HiDPI and letterboxed streams.
+
+The plugin owns `recording:v1`, selection, lifecycle state, preview/editor UI, backpressure, and cleanup. MediaBunny owns every encoded-media operation. The public Recording types do not expose MediaBunny classes.
+
+MediaBunny is MPL-2.0 and stays on a separate distribution boundary. Public ESM artifacts leave exact `mediabunny@1.59.0` external. Raw classic injection and the extension load the separate `mediabunny-vendor.js` file before Mesurer. Mesurer's MIT-generated bundles must not absorb that vendor implementation.
+
+See [Recording](./docs/RECORDING.md).
+
 ## Browser boundary
 
 The default and injected renderer uses a hardened outer host, browser top-layer promotion when available, and an isolated ShadowRoot for its protected viewport UI. Source-mounted `isolate: false` hosts are also supported; they use the same ownership rules without relying on Shadow DOM isolation.
@@ -229,7 +255,7 @@ Document-backed does not mean arbitrary host-page DOM. Those nodes are still Mes
 
 The renderer uses Solid's universal runtime and constructs DOM nodes directly rather than depending on HTML-string template sinks, keeping the packed artifact compatible with strict Trusted Types pages without weakening host CSP.
 
-The Chromium extension owns only injection lifecycle and extension-only capabilities. It records explicitly opened tab ids in `chrome.storage.session` and can restore a missing injection after reload or eligible navigation. Its injected session also opts into disconnected-host recovery, so page DOM replacement remounts Mesurer without moving that behavior into renderer core. It keeps the `activeTab` permission model instead of requesting persistent host access; when a navigation revokes that temporary grant, recovery stops until the user explicitly clicks the action again.
+The Chromium extension owns injection lifecycle and private extension-only capture capabilities. Screenshot uses `captureVisibleTab`; Recording uses `tabCapture` only to acquire the current-tab stream. It records explicitly opened tab ids in `chrome.storage.session` and can restore a missing injection after reload or eligible navigation. Its injected session also opts into disconnected-host recovery, so page DOM replacement remounts Mesurer without moving that behavior into renderer core. It keeps the `activeTab` permission model instead of requesting persistent host access; when a navigation revokes that temporary grant, recovery stops until the user explicitly clicks the action again.
 
 See [Host isolation](./docs/HOST_ISOLATION.md) and [Trusted Types](./docs/TRUSTED_TYPES.md).
 
@@ -258,8 +284,8 @@ Temporary Mesurer presentation expresses intent or evidence; it is not proof tha
 
 ## Distribution and release
 
-The public package bundles the private workspaces into self-contained artifacts. Before publication, the exact packed npm artifact is validated across clean React, Solid 1, and Solid 2 consumers.
+The public package bundles the private Mesurer workspaces into self-contained artifacts while keeping MediaBunny external as an exact runtime dependency. Before publication, the exact packed npm artifact is validated across clean React, Solid 1, and Solid 2 consumers.
 
-Release validation also covers browser contracts, host isolation, screenshots, the unified public plugins entry and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery validates shared-daemon routing, activation leases, exact Desktop queue arguments, native deep-link wake, no private-pipe connection, and bundled Electron main and preload adapters.
+Release validation also covers browser contracts, host isolation, screenshots, Recording with real changing-frame MediaBunny output, the MediaBunny MPL/package boundary, the unified public plugins entry and declarations, Agent Skill packaging, visual parity, and source-first upstream decisions. Optional Codex delivery validates shared-daemon routing, activation leases, exact Desktop queue arguments, native deep-link wake, no private-pipe connection, and bundled Electron main and preload adapters.
 
 See [Releasing](./RELEASING.md) and [Upstream parity](./docs/UPSTREAM_PARITY.md).

@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Add first-party selected-region Recording with `recording()`, `Shift+R`, the typed `recording:v1` service, a trim/playback/export editor, configurable frame rate/quality/duration, and MediaBunny-owned WebM/MP4 export with 1×/2×/3× scaling.
+- Keep video acquisition separate from encoding. Browser pages use the display-capture path; the Chromium extension can supply a one-use current-tab stream through `tabCapture`, while MediaBunny remains the sole encoder, inspector, trimmer, resizer, converter, and exporter. Recording does not use `MediaRecorder` or an offscreen recorder.
+- Keep MediaBunny 1.59.0 on its MPL-2.0 distribution boundary. Published ESM files import a separate `mediabunny-runtime.js` by relative path so consumer installs do not inherit MediaBunny's ambient WebCodecs types; raw classic injection and the extension load `mediabunny-vendor.js`. Both artifacts ship beside the full MediaBunny license.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.3 - 2026-10-01

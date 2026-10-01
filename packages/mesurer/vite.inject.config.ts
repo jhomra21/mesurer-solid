@@ -13,9 +13,12 @@ export default defineConfig({
       fileName: "inject",
     },
     rollupOptions: {
-      external: [],
+      external: ["mediabunny"],
       output: {
         codeSplitting: false,
+        paths: {
+          mediabunny: "./mediabunny-runtime.js",
+        },
       },
     },
   },

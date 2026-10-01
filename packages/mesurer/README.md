@@ -56,7 +56,7 @@ All public first-party plugin factories are exported from `mesurer-solid/plugins
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { context, edit, layoutGuides, screenshot } from "mesurer-solid/plugins"
+import { context, edit, layoutGuides, recording, screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
@@ -65,11 +65,12 @@ const mesurer = mountMesurer({
     edit(),
     layoutGuides(),
     screenshot(),
+    recording(),
   ],
 })
 ```
 
-The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. The toolbar groups those controls into Select and Edit. Typography stays read-only in Select; Edit owns movement and direct text/style changes. Color Picker uses application-local capture when `window.__MESURER_HOST__.captureScreenshot` is available; other supported browser hosts use an operational `EyeDropper`. A successful sample is copied to the clipboard using `colorPickerClickFormat`.
+The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. First-party Recording uses MediaBunny for encoded video, trim, resize, and WebM/MP4 export; its capture adapters only acquire pixels. The toolbar groups those controls into Select and Edit. Typography stays read-only in Select; Edit owns movement and direct text/style changes. Color Picker uses application-local capture when `window.__MESURER_HOST__.captureScreenshot` is available; other supported browser hosts use an operational `EyeDropper`. A successful sample is copied to the clipboard using `colorPickerClickFormat`.
 
 `mesurer-solid/plugins` also exports the built-in factories for lower-level composition. Normal mounts already include the built-ins. Use `excludeBuiltins` with names such as `"xray"`, `"typography"`, and `"colorPicker"` when a mount should omit one.
 
@@ -83,7 +84,8 @@ Advanced integrations may supply their own `pluginHost`. That host remains calle
 | `mesurer-solid/plugins` | All first-party plugin factories and plugin-specific contracts |
 | `mesurer-solid/core` | Lower-level framework-neutral public contracts |
 | `mesurer-solid/inject` | Programmatic browser injection |
-| `mesurer-solid/inject-script` | Built classic injection artifact |
+| `mesurer-solid/inject-script` | Built classic Mesurer injection artifact; load `mesurer-solid/mediabunny-vendor` first for raw classic evaluation |
+| `mesurer-solid/mediabunny-vendor` | Separate MPL-2.0 MediaBunny classic runtime for raw injection and the extension; the normal ESM entrypoints use an internal relative `dist/mediabunny-runtime.js` so MediaBunny is not installed into consumer dependency graphs |
 | `mesurer-skill` | Install the portable coding-agent skill |
 | `mesurer-solid/plugins/codex/bridge` | Native Codex transport and Electron main-process host adapter |
 | `mesurer-solid/plugins/codex/preload` | Bundle-friendly Electron preload adapter for the Codex host capability |

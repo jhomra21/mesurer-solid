@@ -11,9 +11,12 @@ export default defineConfig({
       fileName: "index",
     },
     rollupOptions: {
-      external: [],
+      external: ["mediabunny"],
       output: {
         codeSplitting: false,
+        paths: {
+          mediabunny: "./mediabunny-runtime.js",
+        },
       },
     },
   },

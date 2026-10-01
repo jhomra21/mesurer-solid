@@ -1,12 +1,17 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { chromium } from "playwright";
 
 const url = process.env.SOLID1_URL ?? "http://127.0.0.1:4180";
 
 const injectPath = resolve("packages/mesurer/dist/inject-script.js");
 
-const injectSource = await readFile(injectPath, "utf8");
+const [mediaBunnyVendor, injectScript] = await Promise.all([
+  readFile(join(dirname(injectPath), "mediabunny-vendor.js"), "utf8"),
+  readFile(injectPath, "utf8"),
+]);
+
+const injectSource = `${mediaBunnyVendor}\n${injectScript}`;
 
 const browser = await chromium.launch({ headless: true });
 

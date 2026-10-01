@@ -5,12 +5,17 @@
   "description": "Private Solid 2 UI renderer for Mesurer.",
   "license": "MIT",
   "type": "module",
-  "sideEffects": ["*.css"],
+  "sideEffects": [
+    "*.css"
+  ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
     "./styles.css": "./dist/styles.css"
   },
   "scripts": {
@@ -21,7 +26,8 @@
   },
   "dependencies": {
     "@jhomra21/mesurer-solid-core": "workspace:*",
-    "@jhomra21/mesurer-solid-dom": "workspace:*"
+    "@jhomra21/mesurer-solid-dom": "workspace:*",
+    "mediabunny": "1.59.0"
   },
   "peerDependencies": {
     "@solidjs/web": "^2.0.0-rc.0",
@@ -39,7 +45,14 @@
     "vite": "^8.1.5",
     "vitest": "^4.1.10"
   },
-  "keywords": ["measurement", "guides", "rulers", "devtools", "plugins", "renderer"],
+  "keywords": [
+    "measurement",
+    "guides",
+    "rulers",
+    "devtools",
+    "plugins",
+    "renderer"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/jhomra21/mesurer-solid.git",

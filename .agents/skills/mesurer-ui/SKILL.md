@@ -17,7 +17,7 @@ A meaningful Mesurer step must return evidence the agent actually uses.
 
 The base inspector has Select, X-ray, Rulers, Typography, Guides, Distance, and Settings. Color Picker uses application-local host capture when available and otherwise uses a working browser `EyeDropper`; a successful sample copies the configured format to the clipboard.
 
-Optional first-party plugins add Context, Edit, Layout Guides, Screenshot, and Codex delivery. Context carries annotations and structured evidence. Edit carries Before/Desired/Live movement intent through the existing Arrange compatibility APIs. Layout Guides carries page-scoped column/row/grid intent and exposes saved guides through Context with each guide's `visible` flag. Screenshot is a human capture tool. Codex is an optional human queue transport, not the normal agent protocol.
+Optional first-party plugins add Context, Edit, Layout Guides, Screenshot, Recording, and Codex delivery. Context carries annotations and structured evidence. Edit carries Before/Desired/Live movement intent through the existing Arrange compatibility APIs. Layout Guides carries page-scoped column/row/grid intent and exposes saved guides through Context with each guide's `visible` flag. Screenshot and Recording are human capture workflows; Recording exposes the typed `recording:v1` service when application code needs its lifecycle. Codex is an optional human queue transport, not the normal agent protocol.
 
 The JSON-safe `window.__MESURER__` object exposes the full agent API. Lifecycle and discovery methods are `ready()`, `capabilities()`, `describe()`, `state()`, and `stable()`. Inspection methods are `inspect()`, `inspectAll()`, `at()`, `distance()`, `viewport()`, and `feedback()`. `command()` runs registered Mesurer commands.
 
@@ -29,7 +29,7 @@ Human Select lifecycle is explicit. Invoking Select clears the current element a
 
 ## Reuse the live instance
 
-Never reinject, dispose, or replace Mesurer just because this skill loaded. A person may already have selected elements, guides, measurements, annotations, Edit movement intent, text/style Desired intent, plugin state, or a screenshot preview open.
+Never reinject, dispose, or replace Mesurer just because this skill loaded. A person may already have selected elements, guides, measurements, annotations, Edit movement intent, text/style Desired intent, plugin state, a screenshot preview, or a recording preview open.
 
 Discover first:
 
@@ -46,11 +46,11 @@ if (hasMesurer) {
 
 If Mesurer exists, use that exact instance.
 
-If it is absent, evaluate the packaged `assets/inject-script.js` through the browser controller already available. Do not add Mesurer to application source, create another browser/CDP connection, or start a Mesurer-specific server merely to inspect a page that is already controllable.
+If it is absent, evaluate the packaged `assets/mediabunny-vendor.js` first and then `assets/inject-script.js` through the browser controller already available. Keep them as separate assets; the first establishes MediaBunny's MPL-2.0 runtime boundary and the second starts Mesurer. Do not add Mesurer to application source, create another browser/CDP connection, or start a Mesurer-specific server merely to inspect a page that is already controllable.
 
 Injection reuses a connected instance by default. `window.__MESURER_CONFIG__ = { reuseExisting: false }` is destructive and belongs only in explicit testing/tooling scenarios.
 
-Normal injection leaves the optional human Screenshot plugin disabled. If that camera tool is required, configure `{ screenshot: true }` before first injection. Do not reinject a live instance just to enable it.
+Normal injection should preserve the live first-party plugin state. Do not reinject a live instance just to enable Screenshot or Recording; use the existing Settings/plugin lifecycle instead.
 
 ## Inventory broad Mesurer requests
 

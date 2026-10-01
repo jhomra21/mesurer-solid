@@ -1,0 +1,85 @@
+name: recording-contract
+
+on:
+  pull_request:
+    paths:
+      - "packages/renderer/src/core/recording.ts"
+      - "packages/renderer/src/core/recording-capture.ts"
+      - "packages/renderer/src/plugins/recording.ts"
+      - "packages/renderer/src/plugins/recording-preview.ts"
+      - "packages/renderer/test/recording-*.test.ts"
+      - "packages/mesurer/src/recording.ts"
+      - "packages/mesurer/src/plugins.ts"
+      - "packages/mesurer/src/plugin-catalog.ts"
+      - "packages/renderer/package.json"
+      - "bun.lock"
+      - "extension/**"
+      - "examples/basic/recording-contract.html"
+      - "examples/basic/src/recording-contract.ts"
+      - "tests/visual-parity/recording-contract.mjs"
+      - ".github/workflows/recording-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Assert MediaBunny owns video encoding
+        run: |
+          if grep -R -n "MediaRecorder"             packages/renderer/src/core/recording.ts             packages/renderer/src/core/recording-capture.ts             packages/renderer/src/plugins/recording.ts             packages/renderer/src/plugins/recording-preview.ts; then
+            echo "Recording source must not use MediaRecorder; MediaBunny owns video encoding and export."
+            exit 1
+          fi
+      - name: Assert extension Recording acquisition contract
+        run: |
+          grep -q '"tabCapture"' extension/manifest.json
+          grep -q 'getMediaStreamId' extension/background.js
+          grep -q 'consumerTabId: tabId' extension/background.js
+          grep -q 'files: \["mediabunny-vendor.js"\]' extension/background.js
+          grep -q 'mesurer:recording-stream-id' extension/background.js
+          grep -q 'mesurer:recording-bridge-request' extension/capture-bridge.js
+          if grep -R -n "MediaRecorder" extension/*.js packages/renderer/src/core/recording-capture.ts; then
+            echo "Extension Recording may acquire a stream but must not introduce MediaRecorder."
+            exit 1
+          fi
+      - name: Build packages and extension
+        run: bun run build
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+      - name: Start Recording fixture
+        run: |
+          cd examples/basic
+          bunx vite --host 127.0.0.1 --port 4175 --strictPort > ../../recording-vite.log 2>&1 &
+          echo $! > ../../recording-vite.pid
+          cd ../..
+          ready=0
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent --show-error http://127.0.0.1:4175/recording-contract.html >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat recording-vite.log || true
+            exit 1
+          fi
+      - name: Exercise MediaBunny Recording in Chromium
+        env:
+          RECORDING_URL: http://127.0.0.1:4175/recording-contract.html
+        run: bun tests/visual-parity/recording-contract.mjs
+      - name: Assert Solid runtime diagnostics are clean
+        run: |
+          if grep -nE 'STRICT_READ_UNTRACKED|\$\$pointermove' recording-vite.log; then
+            echo "Recording fixture emitted strict-read or pointer-handler diagnostics."
+            exit 1
+          fi
+          echo "Recording runtime diagnostics: clean"

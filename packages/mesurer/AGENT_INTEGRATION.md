@@ -17,6 +17,7 @@ The installer writes a self-contained skill and injection artifact:
 .agents/skills/mesurer-ui/
 ├── SKILL.md
 └── assets/
+    ├── mediabunny-vendor.js
     └── inject-script.js
 ```
 
@@ -24,7 +25,7 @@ The installer writes a self-contained skill and injection artifact:
 
 The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, and Settings. Color Picker uses application-local host capture when available and otherwise uses a working browser `EyeDropper`.
 
-First-party plugins add Context, Edit, Screenshot, and optional Codex delivery. Edit movement preserves the existing Arrange agent method names for compatibility. The complete public map, including the low-level inspection methods and plugin host, is in [Capabilities](../../docs/CAPABILITIES.md).
+First-party plugins add Context, Edit, Screenshot, Recording, and optional Codex delivery. Recording is a human video-capture workflow with a typed `recording:v1` service; it is not the normal coding-agent evidence channel. Edit movement preserves the existing Arrange agent method names for compatibility. The complete public map, including the low-level inspection methods and plugin host, is in [Capabilities](../../docs/CAPABILITIES.md).
 
 For normal coding-agent work, use `window.__MESURER__`. Use `window.__MESURER_INSTANCE__` only when the task requires mounted-instance or plugin-host operations.
 
@@ -43,7 +44,7 @@ if (hasMesurer) {
 }
 ```
 
-If it exists, use that instance. A person may already have selected targets, guides, measurements, annotations, Edit movement intent, text/style intent, or screenshot review state. That state is part of the request.
+If it exists, use that instance. A person may already have selected targets, guides, measurements, annotations, Edit movement intent, text/style intent, screenshot review state, or a Recording preview. That state is part of the request.
 
 The injector reuses a connected instance by default. Deliberate replacement requires:
 
@@ -55,11 +56,11 @@ Do not replace a live instance while consuming human review state.
 
 ## Inject only when absent
 
-Use the browser, Electron, WebView, Playwright, CDP, or other evaluation channel the browser controller already provides. With the installed skill, evaluate `.agents/skills/mesurer-ui/assets/inject-script.js`. With the npm package installed, read `mesurer-solid/inject-script`.
+Use the browser, Electron, WebView, Playwright, CDP, or other evaluation channel the browser controller already provides. With the installed skill, evaluate `.agents/skills/mesurer-ui/assets/mediabunny-vendor.js` first and then `.agents/skills/mesurer-ui/assets/inject-script.js`. With the npm package installed, use the sibling `mesurer-solid/mediabunny-vendor` classic asset before `mesurer-solid/inject-script`. Keep the two files separate so MediaBunny remains on its MPL-2.0 distribution boundary.
 
 Do not mutate application source or create another browser connection merely to get Mesurer into a page the browser controller can already evaluate.
 
-The optional human Screenshot plugin remains disabled during normal agent injection unless configured before first injection:
+Human Screenshot and Recording UI are separate from the normal agent evidence path. Do not reinject a live instance merely to change either plugin's state. For compatibility, Screenshot can still be enabled before first injection:
 
 ```js
 window.__MESURER_CONFIG__ = { screenshot: true }

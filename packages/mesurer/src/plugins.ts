@@ -15,6 +15,7 @@ import { codex } from "./plugins/codex";
 import { context } from "./context-plugin";
 import { layoutGuides } from "./layout-guides";
 import type { MesurerPlugin } from "./core";
+import { recording } from "./recording";
 import { screenshot } from "./screenshot";
 import { MESURER_VERSION } from "./version";
 
@@ -48,7 +49,7 @@ export const compose = (
   plugin.id.startsWith("mesurer.") ? withPackageVersion(plugin) : plugin,
 );
 
-export { arrange, edit, codex, context, layoutGuides, screenshot };
+export { arrange, edit, codex, context, layoutGuides, recording, screenshot };
 
 export {
   MESURER_ARRANGE_ACTIVE_STATE_ID,
@@ -133,6 +134,27 @@ export type {
   LayoutGuideKind,
   MesurerLayoutGuidesService,
 } from "./layout-guides";
+
+export {
+  MESURER_RECORDING_PLUGIN_ID,
+  MESURER_RECORDING_SERVICE_ID,
+  MESURER_RECORDING_SETTINGS_STATE_ID,
+} from "./recording";
+
+export type {
+  MesurerRecordingAsset,
+  MesurerRecordingExportResult,
+  MesurerRecordingPluginOptions,
+  MesurerRecordingService,
+  MesurerRecordingSettings,
+  MesurerRecordingSnapshot,
+  MesurerRecordingStatus,
+  RecordingExportFormat,
+  RecordingExportOptions,
+  RecordingQuality,
+  RecordingRect,
+  RecordingScale,
+} from "./recording";
 
 export {
   MESURER_SCREENSHOT_ACTIVE_STATE_ID,
