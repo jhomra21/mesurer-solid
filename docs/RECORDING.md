@@ -98,12 +98,12 @@ Programmatic export returns the output Blob, format, duration, dimensions, and g
 
 MediaBunny is licensed under MPL-2.0. Mesurer Solid keeps that code on a separate distribution boundary:
 
-- ESM consumers install exact `mediabunny@1.59.0` as a runtime dependency; Mesurer's ESM bundles keep the import external.
+- Published Mesurer ESM files import the separate `dist/mediabunny-runtime.js` artifact by relative path, so consumer installs do not pull MediaBunny's ambient WebCodecs types into their dependency graph.
 - Classic raw injection and the Chromium extension load the separate `mediabunny-vendor.js` artifact before `inject-script.js`.
-- The vendor artifact carries the MediaBunny/MPL source notice and is not folded into Mesurer's MIT-licensed generated files.
-- The installed Agent Skill includes both classic assets and evaluates the vendor first.
+- Both MediaBunny runtime artifacts stay separate from Mesurer's MIT-licensed generated files, carry the pinned 1.59.0 source notice, and ship beside the full upstream `mediabunny-LICENSE.txt`.
+- The installed Agent Skill includes the classic vendor asset and evaluates it before the injector.
 
-See [Third-Party Notices](../THIRD_PARTY_LICENSES.md) for the MediaBunny source and license information.
+See [Third-Party Notices](../packages/mesurer/THIRD_PARTY_LICENSES.md) for the MediaBunny source and license information.
 
 ## Validation
 

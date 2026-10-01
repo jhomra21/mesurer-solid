@@ -85,7 +85,7 @@ Advanced integrations may supply their own `pluginHost`. That host remains calle
 | `mesurer-solid/core` | Lower-level framework-neutral public contracts |
 | `mesurer-solid/inject` | Programmatic browser injection |
 | `mesurer-solid/inject-script` | Built classic Mesurer injection artifact; load `mesurer-solid/mediabunny-vendor` first for raw classic evaluation |
-| `mesurer-solid/mediabunny-vendor` | Separate MPL-2.0 MediaBunny classic runtime for raw injection and the extension |
+| `mesurer-solid/mediabunny-vendor` | Separate MPL-2.0 MediaBunny classic runtime for raw injection and the extension; the normal ESM entrypoints use an internal relative `dist/mediabunny-runtime.js` so MediaBunny is not installed into consumer dependency graphs |
 | `mesurer-skill` | Install the portable coding-agent skill |
 | `mesurer-solid/plugins/codex/bridge` | Native Codex transport and Electron main-process host adapter |
 | `mesurer-solid/plugins/codex/preload` | Bundle-friendly Electron preload adapter for the Codex host capability |
