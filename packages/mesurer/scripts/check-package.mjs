@@ -79,6 +79,8 @@ for (const file of [
   "mediabunny-vendor.js",
   "screenshot.d.ts",
   "recording.d.ts",
+  "mediabunny-vendor.js",
+  "mediabunny-LICENSE.txt",
 ]) {
   if (!distFiles.includes(file)) throw new Error(`Missing publish artifact: dist/${file}`);
 }
@@ -558,6 +560,16 @@ if (stagedPackageJson.name !== "mesurer-solid") {
 
 if (stagedPackageJson.bin?.["mesurer-skill"] !== skillBinPath) {
   throw new Error(`Expected staged mesurer-skill bin path ${skillBinPath}, got ${stagedPackageJson.bin?.["mesurer-skill"] ?? "<missing>"}.`);
+}
+
+const stagedMediaBunnyLicense = new URL("../.publish/dist/mediabunny-LICENSE.txt", import.meta.url);
+
+if (!existsSync(stagedMediaBunnyLicense)) {
+  throw new Error("Staged npm package is missing dist/mediabunny-LICENSE.txt.");
+}
+
+if (!/Mozilla Public License(?: Version)? 2\.0/i.test(readFileSync(stagedMediaBunnyLicense, "utf8"))) {
+  throw new Error("Staged MediaBunny license artifact is not MPL-2.0.");
 }
 
 if (!stagedPackageJson.exports?.["./plugins"]) {

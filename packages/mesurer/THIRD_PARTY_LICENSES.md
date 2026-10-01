@@ -27,3 +27,12 @@ Mesurer is licensed under the MIT License:
 > LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 > SOFTWARE.
+
+
+## MediaBunny
+
+Recording uses [MediaBunny](https://github.com/Vanilagy/mediabunny) version 1.59.0 for browser video encoding, media inspection, trimming, resizing, conversion, and WebM/MP4 export.
+
+MediaBunny is licensed under the Mozilla Public License 2.0 (MPL-2.0). Mesurer keeps normal npm imports on the MediaBunny package boundary. The classic browser/extension injector ships MediaBunny as a separate `mediabunny-vendor.js` file and includes the dependency's full license text as `mediabunny-LICENSE.txt`.
+
+Source for the pinned version is available from the upstream repository at tag/version 1.59.0.

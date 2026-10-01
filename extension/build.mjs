@@ -9,7 +9,9 @@ const injectionSource = new URL("../packages/mesurer/dist/inject-script.js", ext
 
 const mediaBunnyVendor = new URL("../packages/mesurer/dist/mediabunny-vendor.js", extensionDir);
 
-if (!existsSync(injectionSource) || !existsSync(mediaBunnyVendor)) {
+const mediaBunnyLicense = new URL("../packages/mesurer/dist/mediabunny-LICENSE.txt", extensionDir);
+
+if (!existsSync(injectionSource) || !existsSync(mediaBunnyVendor) || !existsSync(mediaBunnyLicense)) {
   throw new Error("Missing Mesurer injector assets. Run the Mesurer package build before building the extension.");
 }
 
@@ -22,6 +24,8 @@ for (const file of ["manifest.json", "background.js", "active-tabs.js", "capture
 }
 
 cpSync(mediaBunnyVendor, new URL("mediabunny-vendor.js", distDir));
+
+cpSync(mediaBunnyLicense, new URL("mediabunny-LICENSE.txt", distDir));
 
 cpSync(injectionSource, new URL("mesurer-main.js", distDir));
 
