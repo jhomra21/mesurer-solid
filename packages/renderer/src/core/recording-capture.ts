@@ -26,12 +26,19 @@ export type RecordingCapture = {
   regionLocked: boolean;
 };
 
+type RecordingCropTarget = object;
+
 type RegionCropTrack = MediaStreamTrack & {
-  cropTo?: (target: unknown) => Promise<void>;
+  cropTo?: (target: RecordingCropTarget) => Promise<void>;
 };
 
 type CropTargetFactory = {
-  fromElement(element: Element): Promise<unknown>;
+  fromElement(element: Element): Promise<RecordingCropTarget>;
+};
+
+type ChromiumDisplayMediaStreamOptions = DisplayMediaStreamOptions & {
+  preferCurrentTab?: boolean;
+  selfBrowserSurface?: "include" | "exclude";
 };
 
 const HIDDEN_MEDIA_STYLE =
@@ -58,6 +65,7 @@ export const placeRecordingRectInVideo = (
   const scaleY = videoHeight / viewportHeight;
   const scalesMatch =
     Math.abs(scaleX - scaleY) <= CAPTURE_ASPECT_TOLERANCE * Math.max(scaleX, scaleY);
+
   const scale = scalesMatch ? scaleX : Math.min(scaleX, scaleY);
   const padX = scalesMatch ? 0 : (videoWidth - viewportWidth * scale) / 2;
   const padY = scalesMatch ? 0 : (videoHeight - viewportHeight * scale) / 2;
@@ -117,7 +125,10 @@ export const cropRecordingTrackToElement = async (
   track: MediaStreamTrack,
   element: Element,
 ) => {
+  // SAFETY: cropTo is an optional Chromium extension on MediaStreamTrack; this read does not invoke it unless present.
   const cropTo = (track as RegionCropTrack).cropTo;
+
+  // SAFETY: CropTarget is an optional Chromium global whose only consumed surface is the checked fromElement factory.
   const CropTarget = (globalThis as { CropTarget?: CropTargetFactory }).CropTarget;
 
   if (!cropTo || !CropTarget) return false;
@@ -142,6 +153,8 @@ export const nextRecordingVideoFrame = (
   };
 
   const timer = ownerWindow.setTimeout(finish, 250);
+
+  // SAFETY: requestVideoFrameCallback is an optional browser method; the fallback path is used when it is absent.
   const frameSource = source as HTMLVideoElement & {
     requestVideoFrameCallback?: (callback: () => void) => number;
   };
@@ -164,12 +177,12 @@ const requestRecordingStream = async (
     throw new Error("Screen recording is unavailable in this browser.");
   }
 
-  const currentTab = {
+  const currentTab: ChromiumDisplayMediaStreamOptions = {
     audio: false,
     video: { displaySurface: "browser" },
     preferCurrentTab: true,
     selfBrowserSurface: "include",
-  } as DisplayMediaStreamOptions;
+  };
 
   try {
     return await media.getDisplayMedia(currentTab);
@@ -235,12 +248,14 @@ export const openRecordingCapture = async (
     await nextRecordingVideoFrame(source, ownerWindow);
 
     const pixelRatio = ownerWindow.devicePixelRatio || 1;
+
     const initialPlacement = placeRecordingRectInVideo(
       rect,
       source.videoWidth,
       source.videoHeight,
       recordingViewportMetrics(ownerWindow),
     );
+
     const canvas = ownerDocument.createElement("canvas");
     canvas.width = regionLocked
       ? Math.max(2, Math.round(rect.width * pixelRatio))
@@ -309,6 +324,7 @@ export const paintRecordingFrame = (
     && placed.dy <= 0.001
     && placed.dw >= 0.999
     && placed.dh >= 0.999;
+
   const destX = coversFrame ? 0 : placed.dx * canvas.width;
   const destY = coversFrame ? 0 : placed.dy * canvas.height;
   const destWidth = coversFrame ? canvas.width : placed.dw * canvas.width;
