@@ -377,6 +377,7 @@ export const createRecordingPreviewController = ({
 
   const place = () => {
     if (panel.style.display === "none") return;
+
     const width = Math.min(
       expanded ? PANEL_EXPANDED_WIDTH : PANEL_WIDTH,
       Math.max(1, ownerWindow.innerWidth - VIEWPORT_PADDING * 2),

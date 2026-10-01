@@ -260,10 +260,12 @@ export const recordingPlugin = (
       1,
       Math.min(60, Math.round(options.frameRate ?? DEFAULT_FRAME_RATE)),
     );
+
     const maxDurationSeconds = Math.max(
       1,
       Math.min(600, options.maxDurationSeconds ?? DEFAULT_MAX_DURATION_SECONDS),
     );
+
     const recordingQuality = options.quality ?? "medium";
 
     ctx.state.register<RecordingSettingsValue>({
@@ -415,6 +417,7 @@ export const recordingPlugin = (
       height: null,
       error: null,
     };
+
     const subscribers = new Set<(snapshot: MesurerRecordingSnapshot) => void>();
     let asset: MesurerRecordingAsset | null = null;
     let capture: RecordingCapture | null = null;
@@ -650,6 +653,7 @@ export const recordingPlugin = (
 
       try {
         const exported = await exportMediaBunnyRecording(current.blob, exportOptions);
+
         const result: MesurerRecordingExportResult = {
           ...exported,
           filename: createRecordingFilename(exported.format),
@@ -727,6 +731,7 @@ export const recordingPlugin = (
         }
 
         const info = await inspectMediaBunnyRecording(blob);
+
         const nextAsset: MesurerRecordingAsset = {
           blob,
           format: "webm",
@@ -920,6 +925,7 @@ export const recordingPlugin = (
         restoreToolbar();
 
         if (operation !== operationId || disposed) return;
+
         const aborted = cause instanceof DOMException && cause.name === "AbortError";
         const message = aborted
           ? null
