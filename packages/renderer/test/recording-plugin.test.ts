@@ -14,11 +14,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-const createRuntime = (): {
-  host: ReturnType<typeof createMesurerPluginHost>;
-  runtime: MesurerSolidRuntimeService;
-  toolbar: HTMLDivElement;
-} => {
+const createRuntime = () => {
   const host = createMesurerPluginHost();
   const toolbar = document.createElement("div");
   toolbar.dataset.mesurerToolbar = "true";
@@ -89,6 +85,7 @@ describe("recordingPlugin", () => {
     });
 
     const snapshots: string[] = [];
+
     const unsubscribe = service?.subscribe((snapshot) => {
       snapshots.push(snapshot.status);
     });
