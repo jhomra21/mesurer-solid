@@ -149,21 +149,31 @@ const setStyle = (
   }
 };
 
+const isPluginObject = (
+  value: PluginValue | undefined,
+): value is { [key: string]: PluginValue } =>
+  value !== null
+  && value !== undefined
+  && !Array.isArray(value)
+  && typeof value === "object";
+
+const isFinitePluginNumber = (
+  value: PluginValue | undefined,
+): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
 const parseExportCommandOptions = (
   value: PluginValue | undefined,
 ): ExportCommandOptions => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  if (!isPluginObject(value)) return {};
 
   const next: ExportCommandOptions = {};
 
   if (value.format === "webm" || value.format === "mp4") next.format = value.format;
-  if (typeof value.startTime === "number" && Number.isFinite(value.startTime)) {
-    next.startTime = value.startTime;
-  }
 
-  if (typeof value.endTime === "number" && Number.isFinite(value.endTime)) {
-    next.endTime = value.endTime;
-  }
+  if (isFinitePluginNumber(value.startTime)) next.startTime = value.startTime;
+
+  if (isFinitePluginNumber(value.endTime)) next.endTime = value.endTime;
 
   if (value.scale === 1 || value.scale === 2 || value.scale === 3) next.scale = value.scale;
 
@@ -209,7 +219,7 @@ const downloadRecording = (
   ownerDocument: Document,
   ownerWindow: Window,
 ) => {
-  const url = ownerWindow.URL.createObjectURL(result.blob);
+  const url = globalThis.URL.createObjectURL(result.blob);
   const link = ownerDocument.createElement("a");
   link.href = url;
   link.download = result.filename;
@@ -217,7 +227,7 @@ const downloadRecording = (
   ownerDocument.documentElement.append(link);
   link.click();
   link.remove();
-  ownerWindow.setTimeout(() => ownerWindow.URL.revokeObjectURL(url), 1000);
+  ownerWindow.setTimeout(() => globalThis.URL.revokeObjectURL(url), 1000);
 };
 
 export const recordingPlugin = (
@@ -235,7 +245,9 @@ export const recordingPlugin = (
     const { ownerDocument, ownerWindow } = runtime;
     const inspectorMount = runtime.createInspectorMount();
     const root = inspectorMount.element;
+
     root.dataset.mesurerRecording = "true";
+
     setStyle(root, {
       position: "fixed",
       inset: "0",
@@ -271,10 +283,13 @@ export const recordingPlugin = (
     };
 
     const setSettings = (patch: Partial<MesurerRecordingSettings>) => {
-      ctx.state.update<RecordingSettingsValue>(MESURER_RECORDING_SETTINGS_STATE_ID, (current) => ({
-        ...current,
-        ...(patch.toolEnabled === undefined ? {} : { toolEnabled: patch.toolEnabled }),
-      }));
+      ctx.state.update<RecordingSettingsValue>(MESURER_RECORDING_SETTINGS_STATE_ID, (current) => {
+        const next = { ...current };
+
+        if (patch.toolEnabled !== undefined) next.toolEnabled = patch.toolEnabled;
+
+        return next;
+      });
     };
 
     const overlay = ownerDocument.createElement("div");
@@ -388,6 +403,7 @@ export const recordingPlugin = (
       "font-size": "11px",
       "pointer-events": "none",
     });
+
     root.append(errorToast);
 
     let currentSnapshot: MesurerRecordingSnapshot = {
@@ -699,6 +715,7 @@ export const recordingPlugin = (
         pendingFrame = null;
 
         if (pending) await pending;
+
         const blob = await currentRecorder.finalize();
 
         recorder = null;
@@ -892,6 +909,7 @@ export const recordingPlugin = (
             void finishRecording().catch(() => undefined);
           }
         }, maxDurationSeconds * 1000);
+
         await ctx.hook.emit("recording:start", {
           rect: { ...rect },
           frameRate,

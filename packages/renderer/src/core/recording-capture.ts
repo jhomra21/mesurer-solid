@@ -26,7 +26,11 @@ export type RecordingCapture = {
   regionLocked: boolean;
 };
 
-type RecordingCropTarget = object;
+declare const RECORDING_CROP_TARGET: unique symbol;
+
+type RecordingCropTarget = {
+  readonly [RECORDING_CROP_TARGET]: "browser-crop-target";
+};
 
 type RegionCropTrack = MediaStreamTrack & {
   cropTo?: (target: RecordingCropTarget) => Promise<void>;
@@ -63,6 +67,7 @@ export const placeRecordingRectInVideo = (
   const viewportHeight = Math.max(1, viewport.height);
   const scaleX = videoWidth / viewportWidth;
   const scaleY = videoHeight / viewportHeight;
+
   const scalesMatch =
     Math.abs(scaleX - scaleY) <= CAPTURE_ASPECT_TOLERANCE * Math.max(scaleX, scaleY);
 
@@ -319,6 +324,7 @@ export const paintRecordingFrame = (
     source.videoHeight,
     viewport,
   );
+
   const coversFrame =
     placed.dx <= 0.001
     && placed.dy <= 0.001

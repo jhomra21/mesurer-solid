@@ -122,7 +122,7 @@ const downloadBlob = (
   ownerDocument: Document,
   ownerWindow: Window,
 ) => {
-  const url = ownerWindow.URL.createObjectURL(blob);
+  const url = globalThis.URL.createObjectURL(blob);
   const link = ownerDocument.createElement("a");
   link.href = url;
   link.download = filename;
@@ -130,7 +130,7 @@ const downloadBlob = (
   ownerDocument.documentElement.append(link);
   link.click();
   link.remove();
-  ownerWindow.setTimeout(() => ownerWindow.URL.revokeObjectURL(url), 1000);
+  ownerWindow.setTimeout(() => globalThis.URL.revokeObjectURL(url), 1000);
 };
 
 export const createRecordingPreviewController = ({
@@ -381,15 +381,20 @@ export const createRecordingPreviewController = ({
       expanded ? PANEL_EXPANDED_WIDTH : PANEL_WIDTH,
       Math.max(1, ownerWindow.innerWidth - VIEWPORT_PADDING * 2),
     );
+
     const panelHeight = Math.max(180, panel.offsetHeight);
+
     const anchor = root
       .closest<HTMLElement>("[data-mesurer-root='true']")
       ?.querySelector<HTMLElement>("[data-mesurer-tool-id='recording']")
       ?? ownerDocument.querySelector<HTMLElement>("[data-mesurer-tool-id='recording']");
+
     const anchorRect = anchor?.getBoundingClientRect();
+
     let left = anchorRect
       ? anchorRect.left + anchorRect.width / 2 - width / 2
       : ownerWindow.innerWidth - width - VIEWPORT_PADDING;
+
     let top = anchorRect
       ? anchorRect.bottom + TOOLBAR_GAP
       : VIEWPORT_PADDING;
@@ -415,7 +420,8 @@ export const createRecordingPreviewController = ({
     video.load();
 
     if (!objectUrl) return;
-    ownerWindow.URL.revokeObjectURL(objectUrl);
+
+    globalThis.URL.revokeObjectURL(objectUrl);
     objectUrl = null;
   };
 
@@ -472,6 +478,7 @@ export const createRecordingPreviewController = ({
 
   trimStart.addEventListener("input", () => {
     if (!asset) return;
+
     const start = Math.min(
       asset.duration - MIN_TRIM_SECONDS,
       Math.max(0, Number(trimStart.value) || 0),
@@ -489,7 +496,9 @@ export const createRecordingPreviewController = ({
 
   trimEnd.addEventListener("input", () => {
     if (!asset) return;
+
     const start = Number(trimStart.value) || 0;
+
     const end = Math.max(
       start + MIN_TRIM_SECONDS,
       Math.min(asset.duration, Number(trimEnd.value) || asset.duration),
@@ -544,8 +553,11 @@ export const createRecordingPreviewController = ({
       revision += 1;
       clearUrl();
       asset = nextAsset;
-      objectUrl = ownerWindow.URL.createObjectURL(nextAsset.blob);
-      video.src = objectUrl;
+
+      const nextUrl = globalThis.URL.createObjectURL(nextAsset.blob);
+
+      objectUrl = nextUrl;
+      video.src = nextUrl;
       video.currentTime = 0;
       currentTime.textContent = "0:00.00";
       durationLabel.textContent = timestamp(nextAsset.duration);
