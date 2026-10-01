@@ -157,6 +157,65 @@ try {
     })}`,
   );
 
+  await page.mouse.click(
+    nested.parent.x + nested.parent.width / 2,
+    nested.parent.y + nested.parent.height - 24,
+  );
+  await page.waitForFunction(({ x, y, width, height }) => {
+    const box = document.querySelector("[data-mesurer-arrange-box='true']");
+    if (!(box instanceof HTMLElement)) return false;
+    const rect = box.getBoundingClientRect();
+
+    return Math.abs(rect.x - x) <= 1
+      && Math.abs(rect.y - y) <= 1
+      && Math.abs(rect.width - width) <= 1
+      && Math.abs(rect.height - height) <= 1;
+  }, nested.parent);
+
+  await page.mouse.move(
+    nested.child.x + nested.child.width / 2,
+    nested.child.y + nested.child.height / 2,
+  );
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  ));
+
+  const nestedChildHover = page.locator("[data-mesurer-hover-measurement='true']");
+  await nestedChildHover.waitFor({ state: "visible" });
+  const nestedChildHoverBox = await nestedChildHover.boundingBox();
+
+  assert(nestedChildHoverBox, "Edit should show hover feedback for a child inside the selected parent");
+  assert(
+    Math.abs(nestedChildHoverBox.x - nested.child.x) <= 1
+      && Math.abs(nestedChildHoverBox.y - nested.child.y) <= 1
+      && Math.abs(nestedChildHoverBox.width - nested.child.width) <= 1
+      && Math.abs(nestedChildHoverBox.height - nested.child.height) <= 1,
+    `Edit should preview the nested child without treating the whole selected parent as the hover target: ${JSON.stringify({
+      expected: nested.child,
+      actual: nestedChildHoverBox,
+    })}`,
+  );
+
+  await page.mouse.click(
+    nested.child.x + nested.child.width / 2,
+    nested.child.y + nested.child.height / 2,
+  );
+  await page.waitForFunction(({ x, y, width, height }) => {
+    const box = document.querySelector("[data-mesurer-arrange-box='true']");
+    if (!(box instanceof HTMLElement)) return false;
+    const rect = box.getBoundingClientRect();
+
+    return Math.abs(rect.x - x) <= 1
+      && Math.abs(rect.y - y) <= 1
+      && Math.abs(rect.width - width) <= 1
+      && Math.abs(rect.height - height) <= 1;
+  }, nested.child);
+  assert.equal(
+    await page.locator("[data-mesurer-selected-measurement='true']").count(),
+    1,
+    "A stationary Edit click on the highlighted child should replace the parent selection",
+  );
+
   await page.mouse.move(
     nested.child.x + nested.child.width / 2,
     nested.child.y + nested.child.height / 2,
@@ -167,8 +226,13 @@ try {
   assert.equal(
     await page.locator("[data-mesurer-hover-measurement='true']").count(),
     0,
-    "Edit should suppress redundant hover inside the already-selected subtree",
+    "Edit should suppress only the exact selected target's redundant hover",
   );
+  evidence.nestedEditDrilldown = {
+    hover: "child visible inside selected parent",
+    click: "stationary click replaces parent with child",
+    drag: "movement box keeps drag ownership after threshold",
+  };
 
   await page.keyboard.press("Escape");
   await arrangeBox.waitFor({ state: "hidden" });
