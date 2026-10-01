@@ -110,7 +110,7 @@ Keep plugin setup with the Mesurer mount. First-party plugin factories all come 
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { context, edit, screenshot } from "mesurer-solid/plugins"
+import { context, edit, recording, screenshot } from "mesurer-solid/plugins"
 
 if (import.meta.env.DEV) {
   const mesurer = mountMesurer({
@@ -119,6 +119,7 @@ if (import.meta.env.DEV) {
       context(),
       edit(),
       screenshot(),
+      recording(),
     ],
   })
 
@@ -128,7 +129,7 @@ if (import.meta.env.DEV) {
 }
 ```
 
-Context, Edit, Layout Guides, Screenshot, and optional transports such as Codex do not require separate application files. Add `layoutGuides()` when the page needs columns, rows, or a pixel grid. For explicit custom composition, the same `mesurer-solid/plugins` entry also exposes the built-in factories.
+Context, Edit, Layout Guides, Screenshot, Recording, and optional transports such as Codex do not require separate application files. Add `layoutGuides()` when the page needs columns, rows, or a pixel grid. For explicit custom composition, the same `mesurer-solid/plugins` entry also exposes the built-in factories.
 
 ## Browser-only boundary
 
@@ -147,6 +148,7 @@ Once mounted:
 - hold Shift while selecting to build a multi-selection;
 - hold `Alt` / `Option` for the distance overlay;
 - Context and Codex remain visible when switching between Select and Edit;
+- use `Shift+R` to select a Recording region when the plugin is enabled; MediaBunny owns encoding and export while the browser or extension only provides the live stream;
 - use the compact control to hide inactive toolbar items without changing active mode.
 - drag the toolbar from its chrome or tool triggers; menus, dialogs, form controls, editable regions, and sliders keep pointer ownership.
 
