@@ -38,6 +38,16 @@ export type HostScreenshotResult =
   | null
   | undefined;
 
+export type HostRecordingStreamEnvelope = {
+  streamId?: string | null;
+};
+
+export type HostRecordingStreamResult =
+  | string
+  | HostRecordingStreamEnvelope
+  | null
+  | undefined;
+
 export type HostCodexBridgeRequest = {
   action: "activate" | "deactivate" | "runtime" | "health" | "threads" | "target" | "queue" | "delivery" | "restore";
   leaseId?: string;
@@ -87,6 +97,7 @@ export type HostCodexBridgeResult = {
 
 export type MesurerHostCapabilities = {
   captureScreenshot?: () => Promise<HostScreenshotResult>;
+  captureRecordingStream?: () => Promise<HostRecordingStreamResult>;
   codexBridge?: (request: HostCodexBridgeRequest) => Promise<HostCodexBridgeResult>;
 };
 
