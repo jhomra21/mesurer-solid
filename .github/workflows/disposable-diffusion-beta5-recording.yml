@@ -97,22 +97,15 @@ jobs:
           if marker not in text:
               raise SystemExit("main window marker missing")
           text = text.replace(marker, replacement)
-          marker = '''  app.on("before-quit", () => {
-            unwatchAll();
-            stopAgentChat();
-            dapi.stop();
-          });
-          '''
-          replacement = '''  app.on("before-quit", () => {
-            mesurerRecordingHost.dispose();
-            unwatchAll();
-            stopAgentChat();
-            dapi.stop();
-          });
-          '''
+          marker = '  app.on("before-quit", () => {\\n'
           if marker not in text:
               raise SystemExit("before-quit marker missing")
-          main.write_text(text.replace(marker, replacement))
+          text = text.replace(
+              marker,
+              marker + '    mesurerRecordingHost.dispose();\\n',
+              1,
+          )
+          main.write_text(text)
 
           index = Path("apps/web/src/index.tsx")
           text = index.read_text()
