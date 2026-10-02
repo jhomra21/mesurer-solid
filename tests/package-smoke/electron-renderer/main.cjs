@@ -58,6 +58,41 @@ ipcMain.handle("mesurer:capture-window", async (event) => {
   };
 });
 
+ipcMain.handle("mesurer:click-at", async (event, payload) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+
+  if (!window || window.isDestroyed()) {
+    throw new Error("Electron click requested without a live BrowserWindow.");
+  }
+
+  const x = Math.round(payload?.x);
+  const y = Math.round(payload?.y);
+
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error("Electron click received invalid coordinates.");
+  }
+
+  const webContents = window.webContents;
+
+  webContents.sendInputEvent({ type: "mouseMove", x, y });
+  webContents.sendInputEvent({
+    type: "mouseDown",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+  });
+  webContents.sendInputEvent({
+    type: "mouseUp",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+});
+
 ipcMain.handle("mesurer:drag-toolbar", async (event, payload) => {
   const window = BrowserWindow.fromWebContents(event.sender);
 
@@ -166,6 +201,7 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || !(summary.recordingHeight > 0)
     || summary.recordingMime !== "video/webm"
     || summary.recordingBytes !== recording.byteLength
+    || summary.recordingInteractionClicks !== 1
     || captureCount !== 2
     || recordingSourceCount !== 1
   ) {
