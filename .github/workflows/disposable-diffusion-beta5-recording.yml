@@ -85,7 +85,7 @@ jobs:
           )
           marker = 'let mainWindow: BrowserWindow | null = null;\n'
           replacement = marker + '''
-          const mesurerRecordingHost = installMesurerRecordingHost({
+          installMesurerRecordingHost({
             ipcMain,
             validateSender(event) {
               return Boolean(
