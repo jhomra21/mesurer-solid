@@ -68,6 +68,11 @@
   }
 }
 
+[data-mesurer-root="true"][data-mesurer-recording-active="true"] [data-mesurer-interaction-overlay="true"] {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
 .mesurer-toolbar-surface {
   box-shadow:
     0 0 0.5px rgba(0, 0, 0, 0.18),
