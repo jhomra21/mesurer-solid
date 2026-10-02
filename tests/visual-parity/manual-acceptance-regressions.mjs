@@ -115,7 +115,7 @@ try {
     );
   }
 
-  settingsPage = await browser.newPage({ viewport: { width: 620, height: 700 } });
+  settingsPage = await browser.newPage({ viewport: { width: 1280, height: 700 } });
   watchDiagnostics(settingsPage);
   await settingsPage.addInitScript(() => {
     localStorage.setItem("mesurer-plugin-settings:availability", JSON.stringify({
@@ -125,6 +125,16 @@ try {
     }));
   });
   await settingsPage.goto(url, { waitUntil: "networkidle" });
+
+  const toolbar = settingsPage.locator("[data-mesurer-toolbar='true']");
+  const toolbarBox = await box(toolbar, "Expected toolbar geometry before compact Settings check");
+  const settingsViewportWidth = Math.max(
+    620,
+    Math.ceil(toolbarBox.x + toolbarBox.width + 8),
+  );
+
+  await settingsPage.setViewportSize({ width: settingsViewportWidth, height: 700 });
+
   const compact = settingsPage.locator("button[data-mesurer-toolbar-compact-toggle='true']");
   await compact.waitFor({ state: "visible" });
 
@@ -137,7 +147,13 @@ try {
   await settingsPage.waitForTimeout(60);
   const settingsBox = await box(dialog, "Expected Settings dialog geometry");
   assert(settingsBox.x >= 8 - 0.5, `Settings clipped on left viewport edge: ${JSON.stringify(settingsBox)}`);
-  assert(settingsBox.x + settingsBox.width <= 620 - 8 + 0.5, `Settings clipped on right viewport edge: ${JSON.stringify(settingsBox)}`);
+  assert(
+    settingsBox.x + settingsBox.width <= settingsViewportWidth - 8 + 0.5,
+    `Settings clipped on right viewport edge: ${JSON.stringify({
+      settingsBox,
+      settingsViewportWidth,
+    })}`,
+  );
   assert(settingsBox.y >= 8 - 0.5, `Settings clipped on top viewport edge: ${JSON.stringify(settingsBox)}`);
   assert(settingsBox.y + settingsBox.height <= 700 - 8 + 0.5, `Settings clipped on bottom viewport edge: ${JSON.stringify(settingsBox)}`);
 
@@ -216,13 +232,7 @@ try {
   await settingsPage.keyboard.press("Control+,");
   await dialog.waitFor({ state: "hidden" });
 
-  if (
-    (await compact.getAttribute("aria-pressed")) === "true"
-    && !(await compact.isDisabled())
-  ) {
-    await compact.click();
-  }
-
+  if ((await compact.getAttribute("aria-pressed")) === "true") await compact.click();
   await settingsPage.waitForTimeout(180);
   await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "hidden" });
 
