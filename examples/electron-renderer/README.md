@@ -86,43 +86,26 @@ Users do not install a Codex marketplace plugin or manage a Mesurer bridge proce
 
 ## Native Recording capture
 
-Recording should capture the current renderer without opening a browser/system display picker. Install the package-owned main adapter:
+Recording is package-owned in Electron. Import the Electron entry once in the main-process entrypoint, before creating BrowserWindows:
 
 ```ts
-import { BrowserWindow, ipcMain } from "electron"
-import {
-  installMesurerRecordingHost,
-} from "mesurer-solid/plugins/recording/bridge"
-
-const recordingHost = installMesurerRecordingHost({
-  ipcMain,
-  validateSender(event) {
-    const window = BrowserWindow.fromWebContents(event.sender)
-
-    return Boolean(window && !window.isDestroyed())
-  },
-})
+import "mesurer-solid/electron"
 ```
 
-Bundle the preload helper and expose it on the same host object as Screenshot/Codex:
+No Recording-specific code belongs in the application's preload. Mesurer registers its own narrow preload with the Electron session, exposes only the current-renderer stream request, and binds the short-lived media source id to the renderer that asked for it. The normal renderer-side `recording()` plugin then uses the same selected-region canvas and MediaBunny encoder as every other host.
+
+This keeps the application's own preload free to expose unrelated capabilities such as Screenshot and Codex:
 
 ```ts
-import {
-  createMesurerRecordingPreloadBridge,
-} from "mesurer-solid/plugins/recording/preload"
-
 contextBridge.exposeInMainWorld("__MESURER_HOST__", {
-  captureRecordingStream: createMesurerRecordingPreloadBridge(ipcRenderer),
+  captureScreenshot: () => ipcRenderer.invoke("window:capture"),
+  codexBridge: createMesurerCodexPreloadBridge(ipcRenderer),
 })
 ```
 
-The adapter asks the invoking `WebContents` for a short-lived media source id registered to that same renderer. Mesurer consumes it immediately with Chromium's tab-stream constraint and sends the resulting frames through the normal selected-region canvas and MediaBunny encoder. There is no `MediaRecorder`, `desktopCapturer` picker, or session-wide `setDisplayMediaRequestHandler`.
+Secure defaults remain supported: `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`.
 
-Dispose the main adapter with the rest of the window/application lifecycle:
-
-```ts
-recordingHost.dispose()
-```
+The lower-level `installMesurerRecordingHost()` and `createMesurerRecordingPreloadBridge()` exports remain for advanced hosts that intentionally need custom sender validation or lifecycle ownership. They are not required for the normal Electron integration.
 
 ## Native Screenshot capture
 
@@ -164,6 +147,6 @@ When the native capability is absent, Screenshot checks the first-party Chromium
 
 ## Validation
 
-Package smoke installs the packed `mesurer-solid` artifact into a clean Electron 43 consumer. It runs with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The smoke samples a deterministic color through the current-window Screenshot path without calling native `EyeDropper`, selects a real DOM target, captures a PNG through preload and `webContents.capturePage()`, then starts a real Recording through the package-owned native stream bridge. It mutates the captured renderer, finalizes and exports through MediaBunny, and retains both `capture.png` and `recording.webm` with JSON evidence.
+Package smoke installs the packed `mesurer-solid` artifact into a clean Electron 43 consumer. It runs with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The smoke samples a deterministic color through the current-window Screenshot path without calling native `EyeDropper`, selects a real DOM target, captures a PNG through preload and `webContents.capturePage()`, then starts a real Recording through `mesurer-solid/electron` without any application-owned Recording preload or IPC. It mutates the captured renderer, finalizes and exports through MediaBunny, and retains both `capture.png` and `recording.webm` with JSON evidence.
 
 See [Getting started](../../docs/GETTING_STARTED.md), [Screenshots](../../docs/SCREENSHOTS.md), and [Host isolation](../../docs/HOST_ISOLATION.md).
