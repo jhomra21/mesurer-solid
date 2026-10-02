@@ -252,6 +252,28 @@ jobs:
 
           await send("Runtime.enable");
 
+          const evaluate = async (params) => {
+            let response = null;
+
+            for (let attempt = 0; attempt < 120; attempt += 1) {
+              response = await send("Runtime.evaluate", params);
+
+              if (response.error?.code !== -32000) return response;
+              await sleep(250);
+            }
+
+            return response;
+          };
+
+          const readyResponse = await evaluate({
+            expression: "document.readyState",
+            returnByValue: true,
+          });
+
+          if (readyResponse?.error) {
+            throw new Error(`Diffusion renderer never gained an execution context: ${JSON.stringify(readyResponse.error)}`);
+          }
+
           const expression = String.raw`
             (async () => {
               const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -303,7 +325,7 @@ jobs:
             })()
           `;
 
-          const response = await send("Runtime.evaluate", {
+          const response = await evaluate({
             expression,
             awaitPromise: true,
             returnByValue: true,
