@@ -297,8 +297,12 @@ const hostRecordingStream = async (
   if (!bridge) return null;
   const response = await bridge();
 
-  if (!response?.ok || !response.streamId) {
-    throw new Error(response?.error || "Electron recording host did not return a stream id.");
+  if (!response.ok) {
+    throw new Error(response.error || "Electron recording host could not capture this renderer.");
+  }
+
+  if (!response.streamId) {
+    throw new Error("Electron recording host did not return a stream id.");
   }
 
   const video: ChromiumTabVideoConstraint = {
