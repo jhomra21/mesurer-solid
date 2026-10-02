@@ -86,7 +86,9 @@ Extension recovery also has a browser contract for session-state races. A close 
 
 ## Recording contracts
 
-Recording changes must keep the dedicated real-Chromium contract green. The fixture supplies a deterministic animated video stream, exercises physical region selection, records long enough to encode changing frames, decodes two positions from the finalized clip, and verifies that the frames actually differ. It also covers programmatic service capture, WebM trim/resize, MP4 when AVC is available, Escape/cancel, and clean browser diagnostics.
+Recording changes must keep the dedicated real-Chromium contract green. The fixture supplies a deterministic animated video stream and exercises the same human lifecycle as upstream: physical region drag stays in selection for adjustment, explicit confirmation starts capture, and the Recording layer becomes pointer-transparent so real host-page input remains usable while video is running. It records long enough to encode changing frames, decodes two positions from the finalized clip, and verifies that the frames actually differ. It also covers programmatic direct-start capture, WebM trim/resize, MP4 when AVC is available, Escape/cancel, and clean browser diagnostics.
+
+The packed Electron contract must independently prove the same input ownership with native Electron mouse events while the package-owned Recording stream bridge is active. Programmatic DOM `.click()` is not sufficient evidence for this regression.
 
 The same contract exercises both acquisition routes: ordinary browser `getDisplayMedia()` and the extension-style one-use tab stream consumed through `getUserMedia()`. The extension bridge is acquisition only. Recording source and extension code must not add `MediaRecorder` or a second/offscreen recorder; MediaBunny owns all encoded media.
 
@@ -111,7 +113,7 @@ Do not hand off a candidate SHA for manual acceptance merely because CI is green
 5. Keep console/page errors at zero for the exercised path.
 6. Keep the root dev-server smoke green when changed renderer source is loaded directly by the basic example.
 7. For Screenshot host changes, keep both the Chromium host-result contract and the packed Electron contract green.
-8. For Recording changes, keep the real Chromium Recording contract, extension acquisition contract, and MediaBunny package/license boundary green.
+8. For Recording changes, keep the real Chromium Recording contract, native-input packed Electron Recording contract, extension acquisition contract, and MediaBunny package/license boundary green.
 9. For Codex host changes, keep shared-daemon process coverage, independent renderer-lease coverage, packed runtime-selection evidence, package staging, and the packed Electron host-capability contract green.
 10. Keep performance invariants paired with the visible behavior they protect.
 11. Treat manual acceptance as a separate final check; automation reduces regressions but does not replace the user's real-browser validation.
