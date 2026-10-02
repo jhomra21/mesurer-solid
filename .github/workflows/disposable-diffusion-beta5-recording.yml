@@ -88,8 +88,11 @@ jobs:
           const mesurerRecordingHost = installMesurerRecordingHost({
             ipcMain,
             validateSender(event) {
-              const window = BrowserWindow.fromWebContents(event.sender);
-              return Boolean(window && window === mainWindow && !window.isDestroyed());
+              return Boolean(
+                mainWindow
+                && !mainWindow.isDestroyed()
+                && mainWindow.webContents.id === event.sender.id
+              );
             },
           });
 
