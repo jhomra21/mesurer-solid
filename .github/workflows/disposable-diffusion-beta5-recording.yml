@@ -312,16 +312,98 @@ jobs:
               const bytes = new Uint8Array(await result.blob.arrayBuffer());
               const snapshot = service.snapshot();
 
-              return {
-                url: location.href,
-                hostCapability: typeof window.__MESURER_HOST__?.captureRecordingStream,
-                status: snapshot.status,
-                duration: result.duration,
-                width: result.width,
-                height: result.height,
-                mime: result.blob.type,
-                bytes: bytes.byteLength,
-              };
+              const playerUrl = URL.createObjectURL(result.blob);
+              const player = document.createElement("video");
+              player.muted = true;
+              player.playsInline = true;
+              player.src = playerUrl;
+
+              try {
+                await new Promise((resolve, reject) => {
+                  const timer = setTimeout(() => reject(new Error("Exported WebM metadata timed out.")), 10000);
+                  player.addEventListener("loadedmetadata", () => {
+                    clearTimeout(timer);
+                    resolve();
+                  }, { once: true });
+                  player.addEventListener("error", () => {
+                    clearTimeout(timer);
+                    reject(player.error ?? new Error("Exported WebM could not be decoded."));
+                  }, { once: true });
+                  player.load();
+                });
+
+                const frameCanvas = document.createElement("canvas");
+                frameCanvas.width = player.videoWidth;
+                frameCanvas.height = player.videoHeight;
+                const frameContext = frameCanvas.getContext("2d", { willReadFrequently: true });
+
+                if (!frameContext || !player.videoWidth || !player.videoHeight) {
+                  throw new Error("Exported WebM has no decodable video dimensions.");
+                }
+
+                const sampleFrame = async (time) => {
+                  const targetTime = Math.min(
+                    Math.max(0, time),
+                    Math.max(0, player.duration - 0.01),
+                  );
+
+                  if (Math.abs(player.currentTime - targetTime) > 0.001) {
+                    await new Promise((resolve, reject) => {
+                      const timer = setTimeout(() => reject(new Error("Exported WebM seek timed out.")), 10000);
+                      player.addEventListener("seeked", () => {
+                        clearTimeout(timer);
+                        resolve();
+                      }, { once: true });
+                      player.currentTime = targetTime;
+                    });
+                  }
+
+                  frameContext.drawImage(player, 0, 0);
+                  const x = Math.round(player.videoWidth * (130 / 300));
+                  const y = Math.round(player.videoHeight * (90 / 190));
+                  const pixels = frameContext.getImageData(
+                    Math.max(0, x - 4),
+                    Math.max(0, y - 4),
+                    8,
+                    8,
+                  ).data;
+
+                  const sums = [0, 0, 0];
+                  for (let index = 0; index < pixels.length; index += 4) {
+                    sums[0] += pixels[index];
+                    sums[1] += pixels[index + 1];
+                    sums[2] += pixels[index + 2];
+                  }
+
+                  const count = pixels.length / 4;
+                  return sums.map((sum) => Math.round(sum / count));
+                };
+
+                const firstSample = await sampleFrame(player.duration * 0.2);
+                const changedSample = await sampleFrame(player.duration * 0.55);
+                const sampleDelta = firstSample.reduce(
+                  (total, channel, index) => total + Math.abs(channel - changedSample[index]),
+                  0,
+                );
+
+                return {
+                  url: location.href,
+                  hostCapability: typeof window.__MESURER_HOST__?.captureRecordingStream,
+                  status: snapshot.status,
+                  duration: result.duration,
+                  width: result.width,
+                  height: result.height,
+                  mime: result.blob.type,
+                  bytes: bytes.byteLength,
+                  decodedWidth: player.videoWidth,
+                  decodedHeight: player.videoHeight,
+                  firstSample,
+                  changedSample,
+                  sampleDelta,
+                };
+              } finally {
+                URL.revokeObjectURL(playerUrl);
+              }
             })()
           `;
 
@@ -360,6 +442,9 @@ jobs:
             || !(value?.width > 0)
             || !(value?.height > 0)
             || !(value?.bytes > 0)
+            || value?.decodedWidth !== value?.width
+            || value?.decodedHeight !== value?.height
+            || !(value?.sampleDelta > 25)
           ) {
             throw new Error(`Diffusion published-beta Recording acceptance failed: ${JSON.stringify(value)}`);
           }
