@@ -4,13 +4,14 @@ Mesurer runs in the Electron renderer process because that is where the inspecte
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { context, screenshot } from "mesurer-solid/plugins"
+import { context, recording, screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
   plugins: [
     context(),
     screenshot(),
+    recording(),
   ],
 })
 ```
@@ -83,6 +84,42 @@ The package smoke bundles both Electron main and preload before launch. A separa
 
 Users do not install a Codex marketplace plugin or manage a Mesurer bridge process.
 
+## Native Recording capture
+
+Recording uses the same renderer plugin in Electron, but its live stream should come from the package-owned native bridge. This avoids depending on Electron's display-media picker and does not install a global session handler.
+
+Install the main adapter:
+
+```ts
+import { BrowserWindow, ipcMain } from "electron"
+import { installMesurerRecordingHost } from "mesurer-solid/plugins/recording/bridge"
+
+const recordingHost = installMesurerRecordingHost({
+  ipcMain,
+  validateSender(event) {
+    const window = BrowserWindow.fromWebContents(event.sender)
+
+    return Boolean(window && !window.isDestroyed())
+  },
+})
+```
+
+Expose its narrow preload function on the existing host object:
+
+```ts
+import {
+  createMesurerRecordingPreloadBridge,
+} from "mesurer-solid/plugins/recording/preload"
+
+contextBridge.exposeInMainWorld("__MESURER_HOST__", {
+  recordingBridge: createMesurerRecordingPreloadBridge(ipcRenderer),
+})
+```
+
+The helper mints a short-lived stream id for the requesting `webContents`. Recording consumes that id as a Chromium tab stream and then uses its normal canvas + MediaBunny pipeline. Main never sends a `MediaStream` through IPC, and preload never receives Electron objects.
+
+Dispose `recordingHost` when the app exits, alongside the Codex host when present.
+
 ## Native Screenshot capture
 
 Screenshot chooses its capture path internally. For native Electron capture, expose one host capability from preload:
@@ -123,6 +160,6 @@ When the native capability is absent, Screenshot checks the first-party Chromium
 
 ## Validation
 
-Package smoke installs the packed `mesurer-solid` artifact into a clean Electron 43 consumer. It runs with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The smoke asserts both native host capabilities are exposed, samples a deterministic color through the current-window host path without calling native `EyeDropper`, then selects a real DOM target, captures through preload and `webContents.capturePage()`, and verifies the PNG result and exact capture count.
+Package smoke installs the packed `mesurer-solid` artifact into a clean Electron 43 consumer. It runs with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The smoke asserts the native host capabilities are exposed, samples a deterministic color through the current-window host path without calling native `EyeDropper`, selects a real DOM target, captures a PNG through preload and `webContents.capturePage()`, records the same renderer through the one-use Recording stream id, and writes both PNG and WebM artifacts.
 
 See [Getting started](../../docs/GETTING_STARTED.md), [Screenshots](../../docs/SCREENSHOTS.md), and [Host isolation](../../docs/HOST_ISOLATION.md).
