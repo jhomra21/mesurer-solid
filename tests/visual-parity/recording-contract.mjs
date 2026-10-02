@@ -129,6 +129,93 @@ try {
 
   await preview.waitFor({ state: "visible" });
 
+  const previewBox = await preview.boundingBox();
+
+  if (!previewBox || Math.abs(previewBox.width - 352) > 1) {
+    throw new Error(`Recording editor must use upstream's 352px collapsed width: ${JSON.stringify(previewBox)}`);
+  }
+
+  const timeline = island.locator("[data-mesurer-recording-timeline='true']");
+  const trimStartHandle = island.locator("[data-mesurer-recording-trim-handle='start']");
+  const trimEndHandle = island.locator("[data-mesurer-recording-trim-handle='end']");
+  const exportOptions = island.locator("[data-mesurer-recording-export-options='true']");
+  const exportMenu = island.locator("[data-mesurer-recording-export-menu='true']");
+  const download = island.locator("[data-mesurer-recording-export='true']");
+  const expand = island.locator("[data-mesurer-recording-expand='true']");
+  const play = island.locator("[data-mesurer-recording-play='true']");
+
+  await timeline.waitFor({ state: "visible" });
+  await trimStartHandle.waitFor({ state: "visible" });
+  await trimEndHandle.waitFor({ state: "visible" });
+
+  if ((await trimStartHandle.getAttribute("role")) !== "slider" || (await trimEndHandle.getAttribute("role")) !== "slider") {
+    throw new Error("Recording timeline trim handles must expose slider semantics");
+  }
+
+  await exportOptions.click();
+  await exportMenu.waitFor({ state: "visible" });
+
+  const exportMenuText = await exportMenu.textContent();
+
+  if (!exportMenuText?.includes("Format") || !exportMenuText.includes("Size")) {
+    throw new Error(`Recording export menu is missing upstream sections: ${exportMenuText}`);
+  }
+
+  await island.locator("[data-mesurer-recording-scale='2']").click();
+
+  if ((await exportOptions.textContent())?.trim() !== "2×") {
+    throw new Error(`Recording export size control did not switch to 2×: ${await exportOptions.textContent()}`);
+  }
+
+  await exportOptions.click();
+
+  const trimBefore = Number(await trimStartHandle.getAttribute("aria-valuenow"));
+  const timelineBox = await timeline.boundingBox();
+
+  if (!timelineBox) throw new Error("Recording timeline has no rendered geometry");
+
+  await page.mouse.move(timelineBox.x + timelineBox.width * 0.18, timelineBox.y + timelineBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(timelineBox.x + timelineBox.width * 0.28, timelineBox.y + timelineBox.height / 2, { steps: 4 });
+  await page.mouse.up();
+
+  const trimAfter = Number(await trimStartHandle.getAttribute("aria-valuenow"));
+
+  if (!(trimAfter > trimBefore)) {
+    throw new Error(`Recording trim-start handle did not move forward: ${JSON.stringify({ trimBefore, trimAfter })}`);
+  }
+
+  await expand.click();
+
+  const expandedBox = await preview.boundingBox();
+
+  if (!expandedBox || expandedBox.width < 560) {
+    throw new Error(`Recording editor did not expand to upstream's 576px card: ${JSON.stringify(expandedBox)}`);
+  }
+
+  if ((await expand.getAttribute("aria-label")) !== "Shrink preview") {
+    throw new Error("Recording editor expand control did not switch to Shrink preview");
+  }
+
+  await expand.click();
+
+  if ((await play.getAttribute("aria-label")) !== "Play") {
+    throw new Error("Recording editor play control did not start in the Play state");
+  }
+
+  await play.click();
+  await page.waitForFunction(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const button = island?.shadowRoot?.querySelector("[data-mesurer-recording-play='true']");
+
+    return button?.getAttribute("aria-label") === "Pause";
+  });
+  await play.click();
+
+  if ((await download.getAttribute("aria-label")) !== "Download") {
+    throw new Error("Recording editor must expose upstream's compact Download control");
+  }
+
   const formats = await page.evaluate(() => window.__MESURER_RECORDING_TEST__?.service.formats());
 
   if (!formats?.includes("webm")) {
