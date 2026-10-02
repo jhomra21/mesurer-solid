@@ -9,7 +9,7 @@ const {
 } = require("mesurer-solid/plugins/recording/preload");
 
 contextBridge.exposeInMainWorld("__MESURER_HOST__", {
-  captureScreenshot: () => ipcRenderer.invoke("mesurer:capture-window"),
+  captureScreenshot: (request) => ipcRenderer.invoke("mesurer:capture-window", request),
   recordingBridge: createMesurerRecordingPreloadBridge(ipcRenderer),
   codexBridge: createMesurerCodexPreloadBridge(ipcRenderer),
 });
