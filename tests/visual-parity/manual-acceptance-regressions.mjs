@@ -216,7 +216,13 @@ try {
   await settingsPage.keyboard.press("Control+,");
   await dialog.waitFor({ state: "hidden" });
 
-  if ((await compact.getAttribute("aria-pressed")) === "true") await compact.click();
+  if (
+    (await compact.getAttribute("aria-pressed")) === "true"
+    && !(await compact.isDisabled())
+  ) {
+    await compact.click();
+  }
+
   await settingsPage.waitForTimeout(180);
   await settingsPage.locator("[data-mesurer-tool-id='context.copy'] button").waitFor({ state: "hidden" });
 
