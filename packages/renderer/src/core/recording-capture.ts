@@ -431,6 +431,7 @@ const openHostRecordingCapture = async (
       bitmap.height,
       recordingViewportMetrics(ownerWindow),
     );
+
     const canvas = ownerDocument.createElement("canvas");
     canvas.width = placement.sw;
     canvas.height = placement.sh;
