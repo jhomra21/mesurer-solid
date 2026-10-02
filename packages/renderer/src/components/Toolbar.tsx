@@ -280,6 +280,7 @@ export function Toolbar(props: ToolbarProps) {
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
   const [menuAlign, setMenuAlign] = createSignal<"left" | "right">("right");
   const [compact, setCompact] = createSignal(false);
+  const [toolbarReady, setToolbarReady] = createSignal(false);
   const [expandedToolbarWidth, setExpandedToolbarWidth] = createSignal(0);
   const [viewportRevision, setViewportRevision] = createSignal(0);
   const tooltip = createTooltip(props.ownerWindow);
@@ -878,11 +879,17 @@ export function Toolbar(props: ToolbarProps) {
       ? new Resize(scheduleToolbarFit)
       : null;
 
-    ensureToolbarFitsViewport();
-
     if (toolbarElement) toolbarResizeObserver?.observe(toolbarElement);
 
     scheduleToolbarFit();
+
+    let revealFrame = props.ownerWindow.requestAnimationFrame(() => {
+      revealFrame = 0;
+      revealFrame = props.ownerWindow.requestAnimationFrame(() => {
+        revealFrame = 0;
+        setToolbarReady(true);
+      });
+    });
 
     return () => {
       colorPickerCapabilityRevision += 1;
@@ -911,6 +918,8 @@ export function Toolbar(props: ToolbarProps) {
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
 
       if (fitFrame) props.ownerWindow.cancelAnimationFrame(fitFrame);
+
+      if (revealFrame) props.ownerWindow.cancelAnimationFrame(revealFrame);
       toolbarResizeObserver?.disconnect();
 
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
@@ -958,7 +967,11 @@ export function Toolbar(props: ToolbarProps) {
       data-mesurer-toolbar-mode={toolbarMode()}
       data-mesurer-inspector-ui="true"
       class="mesurer-toolbar-surface msr:pointer-events-auto msr:absolute msr:z-[90] msr:flex msr:items-stretch msr:rounded-[12px] msr:bg-[#fff] msr:outline msr:outline-transparent"
-      style={{ left: `${position().x}px`, top: `${position().y}px` }}
+      style={{
+        left: `${position().x}px`,
+        top: `${position().y}px`,
+        visibility: toolbarReady() ? "visible" : "hidden",
+      }}
       onPointerDown={(event) => { event.stopPropagation(); props.model.setTransient({ toolbarActive: true }); onToolbarPointerDown(event); }}
       onClick={(event) => event.stopPropagation()}
       onMouseEnter={refreshColorPickerCapability}
