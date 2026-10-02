@@ -227,17 +227,17 @@ See [Screenshots](./docs/SCREENSHOTS.md).
 Recording deliberately separates acquisition from encoded media:
 
 ```text
-browser getDisplayMedia ─┐
-                         ├─ live video source ─> selected-region canvas ─> MediaBunny
-extension tabCapture id ─┘                                      │
-                                                                ├─ encode
-                                                                ├─ inspect
-                                                                ├─ trim
-                                                                ├─ resize
-                                                                └─ WebM / MP4 export
+browser getDisplayMedia ─────┐
+extension tabCapture id ──────┼─ live video source ─> selected-region canvas ─> MediaBunny
+Electron WebContents stream id┘                                      │
+                                                                     ├─ encode
+                                                                     ├─ inspect
+                                                                     ├─ trim
+                                                                     ├─ resize
+                                                                     └─ WebM / MP4 export
 ```
 
-The extension bridge and browser APIs only acquire a video stream. There is no `MediaRecorder` path and no offscreen recording service. A one-use extension tab stream is consumed in the page when possible; otherwise Recording uses the browser display picker. Region Capture is used when available, with a geometry-correct canvas fallback for HiDPI and letterboxed streams.
+Browser, extension, and native-host APIs only acquire a video stream. There is no `MediaRecorder` path and no offscreen recording service. A one-use extension tab stream is consumed in the page when possible. Electron/native hosts may expose `window.__MESURER_HOST__.captureRecordingStream`; the package-owned main helper uses `WebContents.getMediaSourceId(requestWebContents)` to issue a short-lived source id bound to that renderer, and the preload helper exposes only the request function. When no native or extension source exists, Recording uses the browser display picker. Region Capture is used when available, with a geometry-correct canvas fallback for HiDPI and letterboxed streams.
 
 The plugin owns `recording:v1`, selection, lifecycle state, preview/editor UI, backpressure, and cleanup. MediaBunny owns every encoded-media operation. The public Recording types do not expose MediaBunny classes.
 

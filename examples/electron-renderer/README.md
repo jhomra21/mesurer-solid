@@ -4,18 +4,19 @@ Mesurer runs in the Electron renderer process because that is where the inspecte
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { context, screenshot } from "mesurer-solid/plugins"
+import { context, recording, screenshot } from "mesurer-solid/plugins"
 
 const mesurer = mountMesurer({
   agent: true,
   plugins: [
     context(),
     screenshot(),
+    recording(),
   ],
 })
 ```
 
-Keep Electron privileges in preload/main. The renderer does not import `electron`, and Screenshot does not need an Electron-specific factory or provider option. The same host capture capability also keeps Color Picker inside the Electron window.
+Keep Electron privileges in preload/main. The renderer does not import `electron`, and Screenshot/Recording do not need Electron-specific plugin factories. Screenshot and Color Picker can share the current-window PNG capability; Recording uses a separate narrow stream-id capability because live video must remain a stream before MediaBunny encodes it.
 
 On macOS Electron renderers, Mesurer keeps the toolbar below the native titlebar area across the full window width. This avoids both the close, minimize, and full-screen controls and the titlebar region that macOS uses for window dragging. The toolbar can still sit against the left edge below that strip. Tab-session persistence remains in place, and an older saved position inside the titlebar area is moved down on the next mount.
 
@@ -83,6 +84,46 @@ The package smoke bundles both Electron main and preload before launch. A separa
 
 Users do not install a Codex marketplace plugin or manage a Mesurer bridge process.
 
+## Native Recording capture
+
+Recording should capture the current renderer without opening a browser/system display picker. Install the package-owned main adapter:
+
+```ts
+import { BrowserWindow, ipcMain } from "electron"
+import {
+  installMesurerRecordingHost,
+} from "mesurer-solid/plugins/recording/bridge"
+
+const recordingHost = installMesurerRecordingHost({
+  ipcMain,
+  validateSender(event) {
+    const window = BrowserWindow.fromWebContents(event.sender)
+
+    return Boolean(window && !window.isDestroyed())
+  },
+})
+```
+
+Bundle the preload helper and expose it on the same host object as Screenshot/Codex:
+
+```ts
+import {
+  createMesurerRecordingPreloadBridge,
+} from "mesurer-solid/plugins/recording/preload"
+
+contextBridge.exposeInMainWorld("__MESURER_HOST__", {
+  captureRecordingStream: createMesurerRecordingPreloadBridge(ipcRenderer),
+})
+```
+
+The adapter asks the invoking `WebContents` for a short-lived media source id registered to that same renderer. Mesurer consumes it immediately with Chromium's tab-stream constraint and sends the resulting frames through the normal selected-region canvas and MediaBunny encoder. There is no `MediaRecorder`, `desktopCapturer` picker, or session-wide `setDisplayMediaRequestHandler`.
+
+Dispose the main adapter with the rest of the window/application lifecycle:
+
+```ts
+recordingHost.dispose()
+```
+
 ## Native Screenshot capture
 
 Screenshot chooses its capture path internally. For native Electron capture, expose one host capability from preload:
@@ -123,6 +164,6 @@ When the native capability is absent, Screenshot checks the first-party Chromium
 
 ## Validation
 
-Package smoke installs the packed `mesurer-solid` artifact into a clean Electron 43 consumer. It runs with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The smoke asserts both native host capabilities are exposed, samples a deterministic color through the current-window host path without calling native `EyeDropper`, then selects a real DOM target, captures through preload and `webContents.capturePage()`, and verifies the PNG result and exact capture count.
+Package smoke installs the packed `mesurer-solid` artifact into a clean Electron 43 consumer. It runs with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The smoke samples a deterministic color through the current-window Screenshot path without calling native `EyeDropper`, selects a real DOM target, captures a PNG through preload and `webContents.capturePage()`, then starts a real Recording through the package-owned native stream bridge. It mutates the captured renderer, finalizes and exports through MediaBunny, and retains both `capture.png` and `recording.webm` with JSON evidence.
 
 See [Getting started](../../docs/GETTING_STARTED.md), [Screenshots](../../docs/SCREENSHOTS.md), and [Host isolation](../../docs/HOST_ISOLATION.md).

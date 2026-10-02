@@ -288,6 +288,36 @@ type ChromiumTabVideoConstraint = MediaTrackConstraints & {
   };
 };
 
+const hostRecordingStream = async (
+  ownerWindow: Window,
+  media: MediaDevices,
+): Promise<MediaStream> => {
+  const capture = ownerWindow.__MESURER_HOST__?.captureRecordingStream;
+
+  if (!capture) {
+    throw new Error("Native recording capture is unavailable.");
+  }
+
+  const result = await capture();
+  const streamId = result?.streamId?.trim();
+
+  if (!streamId) {
+    throw new Error("Native recording capture returned no stream id.");
+  }
+
+  const video: ChromiumTabVideoConstraint = {
+    mandatory: {
+      chromeMediaSource: "tab",
+      chromeMediaSourceId: streamId,
+    },
+  };
+
+  return media.getUserMedia({
+    audio: false,
+    video,
+  });
+};
+
 const extensionRecordingStream = async (
   ownerWindow: Window,
   media: MediaDevices,
@@ -319,6 +349,10 @@ const requestRecordingStream = async (
 
   if (!media) {
     throw new Error("Screen recording is unavailable in this browser.");
+  }
+
+  if (ownerWindow.__MESURER_HOST__?.captureRecordingStream) {
+    return hostRecordingStream(ownerWindow, media);
   }
 
   try {

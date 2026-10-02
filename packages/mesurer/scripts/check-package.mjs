@@ -33,7 +33,7 @@ if (
   throw new Error("The public Mesurer package must publish only exact mediabunny@1.59.0 as a runtime dependency.");
 }
 
-for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script", "./mediabunny-vendor", "./plugins/codex/bridge", "./plugins/codex/preload"]) {
+for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script", "./mediabunny-vendor", "./plugins/codex/bridge", "./plugins/codex/preload", "./plugins/recording/bridge", "./plugins/recording/preload"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
 }
 
@@ -450,6 +450,16 @@ const codexPreloadCjs = new URL("../src/plugins/codex/preload.cjs", import.meta.
 
 const codexPreloadTypes = new URL("../src/plugins/codex/preload.d.ts", import.meta.url);
 
+const recordingBridgeScript = new URL("../src/plugins/recording/bridge.mjs", import.meta.url);
+
+const _recordingBridgeTypes = new URL("../src/plugins/recording/bridge.d.ts", import.meta.url);
+
+const recordingPreloadScript = new URL("../src/plugins/recording/preload.mjs", import.meta.url);
+
+const recordingPreloadCjs = new URL("../src/plugins/recording/preload.cjs", import.meta.url);
+
+const _recordingPreloadTypes = new URL("../src/plugins/recording/preload.d.ts", import.meta.url);
+
 if (
   !existsSync(codexBridgeScript)
   || !existsSync(codexBridgeTypes)
@@ -468,6 +478,12 @@ const codexDesktopSource = readFileSync(codexDesktopScript, "utf8");
 const codexPreloadSource = readFileSync(codexPreloadScript, "utf8");
 
 const codexPreloadCjsSource = readFileSync(codexPreloadCjs, "utf8");
+
+const recordingBridgeSource = readFileSync(recordingBridgeScript, "utf8");
+
+const recordingPreloadSource = readFileSync(recordingPreloadScript, "utf8");
+
+const recordingPreloadCjsSource = readFileSync(recordingPreloadCjs, "utf8");
 
 for (const contract of [
   "export async function codexBridge",
@@ -521,6 +537,35 @@ for (const preloadSource of [codexPreloadSource, codexPreloadCjsSource]) {
   for (const forbidden of ["node:child_process", "node:fs", "node:net", "codexBridge("]) {
     if (preloadSource.includes(forbidden)) {
       throw new Error(`Codex preload helper crosses the native bridge boundary: ${forbidden}.`);
+    }
+  }
+}
+
+for (const contract of [
+  "installMesurerRecordingHost",
+  "mesurer:recording-source",
+  "getMediaSourceId",
+  "validateSender",
+]) {
+  if (!recordingBridgeSource.includes(contract)) {
+    throw new Error(`Packaged Recording host is missing contract: ${contract}.`);
+  }
+}
+
+for (const preloadSource of [recordingPreloadSource, recordingPreloadCjsSource]) {
+  for (const contract of [
+    "mesurer:recording-source",
+    "createMesurerRecordingPreloadBridge",
+    "ipcRenderer",
+  ]) {
+    if (!preloadSource.includes(contract)) {
+      throw new Error(`Packaged Recording preload helper is missing contract: ${contract}.`);
+    }
+  }
+
+  for (const forbidden of ["desktopCapturer", "session.", "MediaRecorder"]) {
+    if (preloadSource.includes(forbidden)) {
+      throw new Error(`Recording preload helper crosses the capture boundary: ${forbidden}.`);
     }
   }
 }
@@ -593,6 +638,14 @@ if (!stagedPackageJson.exports?.["./plugins/codex/preload"]) {
   throw new Error("Staged npm package is missing the ./plugins/codex/preload export.");
 }
 
+if (!stagedPackageJson.exports?.["./plugins/recording/bridge"]) {
+  throw new Error("Staged npm package is missing the ./plugins/recording/bridge export.");
+}
+
+if (!stagedPackageJson.exports?.["./plugins/recording/preload"]) {
+  throw new Error("Staged npm package is missing the ./plugins/recording/preload export.");
+}
+
 for (const removedExport of ["./arrange", "./codex", "./screenshot"]) {
   if (stagedPackageJson.exports?.[removedExport]) {
     throw new Error(`Staged npm package retained obsolete plugin subpath ${removedExport}.`);
@@ -606,6 +659,11 @@ for (const path of [
   "../.publish/plugins/codex/preload.mjs",
   "../.publish/plugins/codex/preload.cjs",
   "../.publish/plugins/codex/preload.d.ts",
+  "../.publish/plugins/recording/bridge.mjs",
+  "../.publish/plugins/recording/bridge.d.ts",
+  "../.publish/plugins/recording/preload.mjs",
+  "../.publish/plugins/recording/preload.cjs",
+  "../.publish/plugins/recording/preload.d.ts",
 ]) {
   if (!existsSync(new URL(path, import.meta.url))) {
     throw new Error(`Staged npm package is missing Codex Bridge plugin helper: ${path.replace("../.publish/", "")}.`);

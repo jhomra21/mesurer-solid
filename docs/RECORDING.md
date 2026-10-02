@@ -68,6 +68,43 @@ Ordinary browser pages use `navigator.mediaDevices.getDisplayMedia()`. Mesurer r
 
 If the browser returns a non-browser display surface, Recording rejects it rather than silently recording another application.
 
+## Electron/native host capture
+
+Electron applications should keep Recording acquisition in main/preload and leave the renderer on the normal `recording()` API. Install the package-owned main adapter:
+
+```ts
+import { BrowserWindow, ipcMain } from "electron"
+import {
+  installMesurerRecordingHost,
+} from "mesurer-solid/plugins/recording/bridge"
+
+const recordingHost = installMesurerRecordingHost({
+  ipcMain,
+  validateSender(event) {
+    const window = BrowserWindow.fromWebContents(event.sender)
+
+    return Boolean(window && !window.isDestroyed())
+  },
+})
+```
+
+Expose the narrow request function from a bundled preload:
+
+```ts
+import { contextBridge, ipcRenderer } from "electron"
+import {
+  createMesurerRecordingPreloadBridge,
+} from "mesurer-solid/plugins/recording/preload"
+
+contextBridge.exposeInMainWorld("__MESURER_HOST__", {
+  captureRecordingStream: createMesurerRecordingPreloadBridge(ipcRenderer),
+})
+```
+
+The main adapter uses Electron's `WebContents.getMediaSourceId(requestWebContents)` and binds the short-lived id to the invoking renderer. The renderer consumes that id with the same `chromeMediaSource: "tab"` constraint shape used by extension tab capture, then hands frames to the same canvas and MediaBunny pipeline. Mesurer does not install a session-wide display-media handler, open a system picker, or create a second recorder.
+
+Once the native capability is present, failure stays on that path instead of silently opening a different screen-share permission flow.
+
 ## Chromium extension capture
 
 The first-party extension requests `tabCapture` in addition to its existing active-tab permissions. It does not add broad host permissions.
@@ -117,6 +154,7 @@ The dedicated Chromium contract uses an animated canvas as a deterministic displ
 - programmatic service capture;
 - browser display acquisition;
 - extension-stream acquisition without falling back to the display picker;
+- packed Electron/native-host acquisition through a renderer-bound WebContents stream id, with a retained WebM artifact;
 - Escape/cancel and clean browser diagnostics.
 
 Build/package checks also reject `MediaRecorder` in the Recording implementation and reject accidental MediaBunny bundling across the MPL/MIT boundary.
