@@ -1,7 +1,9 @@
 import { mountMesurer } from "mesurer-solid";
 import {
   context,
+  recording,
   screenshot,
+  type MesurerRecordingService,
   type MesurerScreenshotService,
 } from "mesurer-solid/plugins";
 
@@ -19,6 +21,12 @@ type ElectronTestSummary = {
   codexBridgeOk: boolean;
   codexRuntimeSource: string;
   codexRuntimeTransport: string;
+  recordingStatus: string;
+  recordingDuration: number;
+  recordingWidth: number;
+  recordingHeight: number;
+  recordingMime: string;
+  recordingBytes: number;
   toolbarInitialRect: {
     left: number;
     top: number;
@@ -44,6 +52,7 @@ declare global {
     electronMesurer: {
       complete(payload: {
         png: Uint8Array;
+        recording: Uint8Array;
         summary: ElectronTestSummary;
       }): Promise<void>;
       dragToolbar(payload: {
@@ -127,6 +136,11 @@ const mesurer = mountMesurer({
       copy: false,
       download: false,
     }),
+    recording({
+      frameRate: 12,
+      maxDurationSeconds: 5,
+      quality: "low",
+    }),
   ],
 });
 
@@ -203,6 +217,41 @@ const capture = await service.capture({
 
 const png = new Uint8Array(await capture.blob.arrayBuffer());
 
+const recordingService = await mesurer.service<MesurerRecordingService>("recording");
+
+await recordingService.start({
+  left: target.inspection.rect.left,
+  top: target.inspection.rect.top,
+  width: target.inspection.rect.width,
+  height: target.inspection.rect.height,
+});
+
+await waitFor(() =>
+  recordingService.snapshot().status === "recording"
+    ? recordingService.snapshot()
+    : null,
+);
+
+const targetElement = document.querySelector<HTMLElement>("[data-testid='electron-target']");
+
+if (!targetElement) throw new Error("Missing Electron recording target.");
+
+targetElement.style.transform = "translateX(12px)";
+targetElement.style.background = "#273449";
+
+await new Promise((resolve) => setTimeout(resolve, 450));
+
+targetElement.style.transform = "translateX(0)";
+targetElement.style.background = "#20242c";
+
+await new Promise((resolve) => setTimeout(resolve, 250));
+
+await recordingService.stop();
+
+const recordingResult = await recordingService.export({ format: "webm" });
+const recordingBytes = new Uint8Array(await recordingResult.blob.arrayBuffer());
+const recordingSnapshot = recordingService.snapshot();
+
 await window.electronMesurer.dragToolbar({
   start: {
     x: toolbarInitialBounds.left + 20,
@@ -220,6 +269,7 @@ const toolbarDraggedBounds = toolbar.getBoundingClientRect();
 
 await window.electronMesurer.complete({
   png,
+  recording: recordingBytes,
   summary: {
     targetCount: selection.targets.length,
     selector: target.inspection.selector,
@@ -234,6 +284,12 @@ await window.electronMesurer.complete({
     codexBridgeOk: true,
     codexRuntimeSource: codexRuntime.runtime.source,
     codexRuntimeTransport: codexRuntime.runtime.transport,
+    recordingStatus: recordingSnapshot.status,
+    recordingDuration: recordingResult.duration,
+    recordingWidth: recordingResult.width,
+    recordingHeight: recordingResult.height,
+    recordingMime: recordingResult.blob.type,
+    recordingBytes: recordingBytes.byteLength,
     toolbarInitialRect: {
       left: toolbarInitialBounds.left,
       top: toolbarInitialBounds.top,
