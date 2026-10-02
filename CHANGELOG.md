@@ -4,13 +4,15 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.1-beta.6 - 2026-10-02
+
 - Keep the inspected application fully interactive while Recording is active instead of letting an invisible full-screen Recording layer consume page input.
 - Keep the default top-layer Mesurer island itself pointer-transparent. The manual-popover host remains above hostile page stacking contexts, while only actual Mesurer controls opt into pointer input instead of the island swallowing native Electron clicks across the application.
 - Match upstream Recording selection flow: dragging chooses a region first, then an adjustment step supports move, eight-handle resize, numeric size/position edits, Enter confirmation, and an explicit **Start recording** action.
 - Restore the Mesurer toolbar once capture begins and use a compact recording status surface with a red indicator, elapsed timer, and Stop action.
 - Expand Recording acceptance so both real Chromium and packed Electron must deliver actual host-page pointer input while capture is running.
-
-<!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.5 - 2026-10-02
 
