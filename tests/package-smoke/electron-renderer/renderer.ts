@@ -18,7 +18,6 @@ type ElectronTestSummary = {
   colorPickerValue: string;
   nativeEyeDropperOpens: number;
   colorPickerOverlayRemoved: boolean;
-  recordingSkipped: boolean;
   recordingMime: string;
   recordingDuration: number;
   recordingWidth: number;
@@ -195,8 +194,6 @@ if (nativeEyeDropperOpens !== 0) {
   throw new Error(`Electron host Color Picker invoked native EyeDropper ${nativeEyeDropperOpens} time(s).`);
 }
 
-const recordingSkipped = new URLSearchParams(window.location.search).get("skipRecording") === "1";
-
 const selection = await mesurer.select('[data-testid="electron-target"]');
 
 const target = selection.targets[0];
@@ -214,36 +211,24 @@ const capture = await service.capture({
 
 const png = new Uint8Array(await capture.blob.arrayBuffer());
 
-let recordingMime = "";
-let recordingDuration = 0;
-let recordingWidth = 0;
-let recordingHeight = 0;
-let video = new Uint8Array();
+const recordingService = await mesurer.service<MesurerRecordingService>("recording");
 
-if (!recordingSkipped) {
-  const recordingService = await mesurer.service<MesurerRecordingService>("recording");
+const recordingRect = {
+  left: target.inspection.rect.left,
+  top: target.inspection.rect.top,
+  width: target.inspection.rect.width,
+  height: target.inspection.rect.height,
+};
 
-  const recordingRect = {
-    left: target.inspection.rect.left,
-    top: target.inspection.rect.top,
-    width: target.inspection.rect.width,
-    height: target.inspection.rect.height,
-  };
+await recordingService.start(recordingRect);
 
-  await recordingService.start(recordingRect);
+await new Promise((resolve) => setTimeout(resolve, 350));
 
-  await new Promise((resolve) => setTimeout(resolve, 350));
+const recordingAsset = await recordingService.stop();
 
-  const recordingAsset = await recordingService.stop();
+const video = new Uint8Array(await recordingAsset.blob.arrayBuffer());
 
-  video = new Uint8Array(await recordingAsset.blob.arrayBuffer());
-  recordingMime = recordingAsset.blob.type;
-  recordingDuration = recordingAsset.duration;
-  recordingWidth = recordingAsset.width;
-  recordingHeight = recordingAsset.height;
-
-  recordingService.discard();
-}
+recordingService.discard();
 
 await window.electronMesurer.dragToolbar({
   start: {
@@ -274,11 +259,10 @@ await window.electronMesurer.complete({
     colorPickerValue,
     nativeEyeDropperOpens,
     colorPickerOverlayRemoved: shadow.querySelector("[data-mesurer-color-picker-target='true']") === null,
-    recordingSkipped,
-    recordingMime,
-    recordingDuration,
-    recordingWidth,
-    recordingHeight,
+    recordingMime: recordingAsset.blob.type,
+    recordingDuration: recordingAsset.duration,
+    recordingWidth: recordingAsset.width,
+    recordingHeight: recordingAsset.height,
     codexBridgeOk: true,
     codexRuntimeSource: codexRuntime.runtime.source,
     codexRuntimeTransport: codexRuntime.runtime.transport,
