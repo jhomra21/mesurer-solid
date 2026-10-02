@@ -237,7 +237,7 @@ extension tabCapture id ─┘                                      │
                                                                 └─ WebM / MP4 export
 ```
 
-The extension bridge and browser APIs only acquire a video stream. There is no `MediaRecorder` path and no offscreen recording service. A one-use extension tab stream is consumed in the page when possible; otherwise Recording uses the browser display picker. Region Capture is used when available, with a geometry-correct canvas fallback for HiDPI and letterboxed streams.
+Application-host, extension, and browser APIs only acquire a video stream. There is no `MediaRecorder` path and no offscreen recording service. Electron hosts may expose the package-owned `window.__MESURER_HOST__.recordingBridge`, which mints a short-lived stream id for the requesting renderer through `webContents.getMediaSourceId()`; the renderer consumes it as a Chromium tab stream. The extension may supply its own one-use tab stream. Ordinary browser pages use the browser display picker. Region Capture is used when available, with a geometry-correct canvas fallback for HiDPI and letterboxed streams. Native-host acquisition is fail-closed: an Electron bridge error does not silently switch to a browser picker.
 
 The plugin owns `recording:v1`, selection, lifecycle state, preview/editor UI, backpressure, and cleanup. MediaBunny owns every encoded-media operation. The public Recording types do not expose MediaBunny classes.
 
