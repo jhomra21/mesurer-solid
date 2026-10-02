@@ -149,6 +149,10 @@ ipcMain.handle("mesurer:drag-toolbar", async (event, payload) => {
   await new Promise((resolve) => setTimeout(resolve, 50));
 });
 
+ipcMain.handle("mesurer:test-fail", async (_event, message) => {
+  fail(new Error(String(message ?? "Electron renderer contract failed.")));
+});
+
 ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
   if (finished) return;
 
