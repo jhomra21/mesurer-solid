@@ -1,0 +1,355 @@
+name: disposable-diffusion-beta5-recording
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  diffusion-electron:
+    if: github.head_ref == 'acceptance/beta5-diffusion-recording'
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - name: Checkout acceptance branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Checkout pinned Diffusion Studio
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: diffusionstudio/editor
+          ref: 666cdced1f6b97a792b63e551f45797649efb27a
+          path: diffusion
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install Diffusion and published Mesurer beta
+        working-directory: diffusion
+        run: |
+          bun install
+          (cd apps/web && bun add --dev mesurer-solid@0.2.1-beta.5)
+          (cd apps/desktop && bun add --dev mesurer-solid@0.2.1-beta.5)
+          test "$(node -p "require('./node_modules/mesurer-solid/package.json').version")" = "0.2.1-beta.5"
+          test -f node_modules/mesurer-solid/plugins/recording/bridge.mjs
+          test -f node_modules/mesurer-solid/plugins/recording/preload.cjs
+
+      - name: Wire disposable Mesurer Recording host
+        working-directory: diffusion
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          preload = Path("apps/desktop/src/preload.ts")
+          text = preload.read_text()
+          text = text.replace(
+              'import { DAPI_WIRE } from "@diffusionstudio/dapi";\n',
+              'import { DAPI_WIRE } from "@diffusionstudio/dapi";\n'
+              'import { createMesurerRecordingPreloadBridge } from "mesurer-solid/plugins/recording/preload";\n',
+          )
+          marker = '''contextBridge.exposeInMainWorld("desktop", {
+            getPathForFile,
+            platform: process.platform,
+            send,
+            on,
+          });
+          '''
+          replacement = marker + '''
+          contextBridge.exposeInMainWorld("__MESURER_HOST__", {
+            captureRecordingStream: createMesurerRecordingPreloadBridge(ipcRenderer),
+          });
+          '''
+          if marker not in text:
+              raise SystemExit("preload marker missing")
+          preload.write_text(text.replace(marker, replacement))
+
+          main = Path("apps/desktop/src/main.ts")
+          text = main.read_text()
+          text = text.replace(
+              'import { app, BrowserWindow, nativeImage, session, shell } from "electron";',
+              'import { app, BrowserWindow, ipcMain, nativeImage, session, shell } from "electron";',
+          )
+          text = text.replace(
+              'import type { LogEntry } from "@diffusionstudio/dapi";\n',
+              'import type { LogEntry } from "@diffusionstudio/dapi";\n'
+              'import { installMesurerRecordingHost } from "mesurer-solid/plugins/recording/bridge";\n',
+          )
+          text = text.replace(
+              'app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");\n',
+              'app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");\n'
+              'app.commandLine.appendSwitch("remote-debugging-port", "9237");\n',
+          )
+          marker = 'let mainWindow: BrowserWindow | null = null;\n'
+          replacement = marker + '''
+          const mesurerRecordingHost = installMesurerRecordingHost({
+            ipcMain,
+            validateSender(event) {
+              const window = BrowserWindow.fromWebContents(event.sender);
+              return Boolean(window && window === mainWindow && !window.isDestroyed());
+            },
+          });
+
+          '''
+          if marker not in text:
+              raise SystemExit("main window marker missing")
+          text = text.replace(marker, replacement)
+          marker = '''  app.on("before-quit", () => {
+            unwatchAll();
+            stopAgentChat();
+            dapi.stop();
+          });
+          '''
+          replacement = '''  app.on("before-quit", () => {
+            mesurerRecordingHost.dispose();
+            unwatchAll();
+            stopAgentChat();
+            dapi.stop();
+          });
+          '''
+          if marker not in text:
+              raise SystemExit("before-quit marker missing")
+          main.write_text(text.replace(marker, replacement))
+
+          index = Path("apps/web/src/index.tsx")
+          text = index.read_text()
+          marker = 'render(() => <App />, root!)\n'
+          replacement = marker + '''
+          if (import.meta.env.DEV && window.desktop) {
+            void import('./mesurer-e2e')
+          }
+          '''
+          if marker not in text:
+              raise SystemExit("web index marker missing")
+          index.write_text(text.replace(marker, replacement))
+
+          Path("apps/web/src/mesurer-e2e.ts").write_text('''
+          import { mountMesurer } from "mesurer-solid";
+          import {
+            MESURER_RECORDING_SERVICE_ID,
+            recording,
+          } from "mesurer-solid/plugins";
+
+          const probe = document.createElement("div");
+          probe.id = "mesurer-recording-probe";
+          Object.assign(probe.style, {
+            position: "fixed",
+            left: "80px",
+            top: "120px",
+            width: "220px",
+            height: "120px",
+            background: "rgb(30, 80, 160)",
+            zIndex: "10",
+            transition: "transform 120ms linear, background 120ms linear",
+          });
+          document.body.append(probe);
+
+          const mounted = mountMesurer({
+            agent: true,
+            plugins: [
+              recording({
+                frameRate: 12,
+                maxDurationSeconds: 5,
+                quality: "low",
+              }),
+            ],
+          });
+
+          Object.assign(window, {
+            __MESURER_TEST_MOUNT__: mounted,
+            __MESURER_RECORDING_SERVICE_ID__: MESURER_RECORDING_SERVICE_ID,
+          });
+          ''')
+          PY
+
+      - name: Typecheck disposable integration
+        working-directory: diffusion
+        run: |
+          bun run --cwd apps/web check
+          bun run --cwd apps/desktop check
+
+      - name: Build Diffusion desktop entrypoints
+        working-directory: diffusion
+        env:
+          SKIP_SIGN: "1"
+        run: |
+          bun run --cwd apps/desktop build:main
+          bun run --cwd apps/desktop build:preload
+          bun run --cwd apps/desktop build:native
+
+      - name: Launch Diffusion and record through published beta
+        working-directory: diffusion
+        env:
+          SKIP_SIGN: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() {
+            if [[ -f /tmp/diffusion-electron.pid ]]; then kill "$(cat /tmp/diffusion-electron.pid)" 2>/dev/null || true; fi
+            if [[ -f /tmp/diffusion-vite.pid ]]; then kill "$(cat /tmp/diffusion-vite.pid)" 2>/dev/null || true; fi
+          }
+          trap cleanup EXIT
+
+          (
+            cd apps/web
+            bunx vite --host 127.0.0.1 --port 5173 --strictPort > /tmp/diffusion-vite.log 2>&1 &
+            echo $! > /tmp/diffusion-vite.pid
+          )
+
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5173/ >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != "1" ]]; then
+            cat /tmp/diffusion-vite.log
+            exit 1
+          fi
+
+          (
+            cd apps/desktop
+            bunx electron-forge start > /tmp/diffusion-electron.log 2>&1 &
+            echo $! > /tmp/diffusion-electron.pid
+          )
+
+          cat > /tmp/diffusion-recording-acceptance.mjs <<'JS'
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const deadline = Date.now() + 90_000;
+          let target = null;
+
+          while (Date.now() < deadline) {
+            try {
+              const targets = await (await fetch("http://127.0.0.1:9237/json/list")).json();
+              target = targets.find((item) =>
+                item.type === "page"
+                && (item.url.startsWith("http://localhost:5173") || item.url.startsWith("http://127.0.0.1:5173"))
+              ) ?? null;
+              if (target) break;
+            } catch {}
+            await sleep(500);
+          }
+
+          if (!target) throw new Error("Diffusion Electron renderer CDP target did not appear.");
+
+          const ws = new WebSocket(target.webSocketDebuggerUrl);
+          await new Promise((resolve, reject) => {
+            ws.addEventListener("open", resolve, { once: true });
+            ws.addEventListener("error", reject, { once: true });
+          });
+
+          let id = 0;
+          const pending = new Map();
+
+          ws.addEventListener("message", (event) => {
+            const message = JSON.parse(event.data);
+            if (!message.id) return;
+            const resolve = pending.get(message.id);
+            if (!resolve) return;
+            pending.delete(message.id);
+            resolve(message);
+          });
+
+          const send = (method, params = {}) => new Promise((resolve) => {
+            const requestId = ++id;
+            pending.set(requestId, resolve);
+            ws.send(JSON.stringify({ id: requestId, method, params }));
+          });
+
+          await send("Runtime.enable");
+
+          const expression = String.raw`
+            (async () => {
+              const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              const deadline = Date.now() + 30000;
+
+              while (!window.__MESURER_TEST_MOUNT__ && Date.now() < deadline) {
+                await sleep(50);
+              }
+
+              const mounted = window.__MESURER_TEST_MOUNT__;
+              if (!mounted) throw new Error("Mesurer disposable mount did not appear.");
+
+              await mounted.ready;
+
+              if (typeof window.__MESURER_HOST__?.captureRecordingStream !== "function") {
+                throw new Error("Diffusion preload did not expose captureRecordingStream.");
+              }
+
+              const service = await mounted.service(window.__MESURER_RECORDING_SERVICE_ID__);
+              const probe = document.getElementById("mesurer-recording-probe");
+              if (!probe) throw new Error("Recording probe is missing.");
+
+              await service.start({ left: 60, top: 90, width: 300, height: 190 });
+              await sleep(250);
+
+              probe.style.transform = "translateX(36px)";
+              probe.style.background = "rgb(180, 70, 55)";
+              await sleep(450);
+
+              probe.style.transform = "translateX(0)";
+              probe.style.background = "rgb(30, 80, 160)";
+              await sleep(250);
+
+              await service.stop();
+              const result = await service.export({ format: "webm" });
+              const bytes = new Uint8Array(await result.blob.arrayBuffer());
+              const snapshot = service.snapshot();
+
+              return {
+                url: location.href,
+                hostCapability: typeof window.__MESURER_HOST__?.captureRecordingStream,
+                status: snapshot.status,
+                duration: result.duration,
+                width: result.width,
+                height: result.height,
+                mime: result.blob.type,
+                bytes: bytes.byteLength,
+              };
+            })()
+          `;
+
+          const response = await send("Runtime.evaluate", {
+            expression,
+            awaitPromise: true,
+            returnByValue: true,
+          });
+
+          ws.close();
+
+          const remote = response.result?.result;
+          if (response.result?.exceptionDetails) {
+            throw new Error(response.result.exceptionDetails.exception?.description ?? "Renderer evaluation failed.");
+          }
+          if (remote?.subtype === "error") {
+            throw new Error(remote.description ?? "Renderer returned an error.");
+          }
+
+          const value = remote?.value;
+          console.log(JSON.stringify(value, null, 2));
+
+          if (
+            value?.hostCapability !== "function"
+            || value?.status !== "ready"
+            || value?.mime !== "video/webm"
+            || !(value?.duration > 0)
+            || !(value?.width > 0)
+            || !(value?.height > 0)
+            || !(value?.bytes > 0)
+          ) {
+            throw new Error(`Diffusion published-beta Recording acceptance failed: ${JSON.stringify(value)}`);
+          }
+          JS
+
+          if ! bun /tmp/diffusion-recording-acceptance.mjs; then
+            echo "===== Electron log ====="
+            cat /tmp/diffusion-electron.log || true
+            echo "===== Vite log ====="
+            cat /tmp/diffusion-vite.log || true
+            exit 1
+          fi
