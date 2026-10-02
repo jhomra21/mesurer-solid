@@ -196,6 +196,12 @@ try {
   }
 
   await expand.click();
+  await page.waitForFunction(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const preview = island?.shadowRoot?.querySelector("[data-mesurer-recording-preview='true']");
+
+    return preview instanceof HTMLElement && preview.getBoundingClientRect().width >= 560;
+  });
 
   const expandedBox = await preview.boundingBox();
 
