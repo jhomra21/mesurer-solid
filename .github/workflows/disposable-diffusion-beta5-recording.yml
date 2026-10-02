@@ -100,7 +100,7 @@ jobs:
           lines = text.splitlines(keepends=True)
           for index, line in enumerate(lines):
               if 'app.on("before-quit"' in line:
-                  newline = "\\r\\n" if line.endswith("\\r\\n") else "\\n"
+                  newline = "\r\n" if line.endswith("\r\n") else "\n"
                   lines.insert(index + 1, f"    mesurerRecordingHost.dispose();{newline}")
                   break
           else:
