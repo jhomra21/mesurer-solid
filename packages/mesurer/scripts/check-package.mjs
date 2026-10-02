@@ -33,7 +33,7 @@ if (
   throw new Error("The public Mesurer package must publish only exact mediabunny@1.59.0 as a runtime dependency.");
 }
 
-for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script", "./mediabunny-vendor", "./plugins/codex/bridge", "./plugins/codex/preload", "./plugins/recording/bridge", "./plugins/recording/preload"]) {
+for (const requiredExport of [".", "./plugins", "./core", "./inject", "./inject-script", "./mediabunny-vendor", "./electron", "./plugins/codex/bridge", "./plugins/codex/preload", "./plugins/recording/bridge", "./plugins/recording/preload"]) {
   if (!packageJson.exports?.[requiredExport]) throw new Error(`Missing public export: ${requiredExport}`);
 }
 
@@ -460,6 +460,14 @@ const recordingPreloadCjs = new URL("../src/plugins/recording/preload.cjs", impo
 
 const _recordingPreloadTypes = new URL("../src/plugins/recording/preload.d.ts", import.meta.url);
 
+const recordingElectronEsm = new URL("../src/plugins/recording/electron.mjs", import.meta.url);
+
+const recordingElectronCjs = new URL("../src/plugins/recording/electron.cjs", import.meta.url);
+
+const recordingElectronTypes = new URL("../src/plugins/recording/electron.d.ts", import.meta.url);
+
+const recordingAutoPreload = new URL("../src/plugins/recording/auto-preload.cjs", import.meta.url);
+
 if (
   !existsSync(codexBridgeScript)
   || !existsSync(codexBridgeTypes)
@@ -484,6 +492,18 @@ const recordingBridgeSource = readFileSync(recordingBridgeScript, "utf8");
 const recordingPreloadSource = readFileSync(recordingPreloadScript, "utf8");
 
 const recordingPreloadCjsSource = readFileSync(recordingPreloadCjs, "utf8");
+
+if (
+  !existsSync(recordingElectronEsm)
+  || !existsSync(recordingElectronCjs)
+  || !existsSync(recordingElectronTypes)
+  || !existsSync(recordingAutoPreload)
+) {
+  throw new Error("Missing package-owned Electron Recording bootstrap.");
+}
+
+const recordingElectronSource = readFileSync(recordingElectronCjs, "utf8");
+const recordingAutoPreloadSource = readFileSync(recordingAutoPreload, "utf8");
 
 for (const contract of [
   "export async function codexBridge",
@@ -571,6 +591,37 @@ for (const preloadSource of [recordingPreloadSource, recordingPreloadCjsSource])
 }
 
 for (const contract of [
+  "mesurer:electron-recording-source",
+  "registerPreloadScript",
+  "getMediaSourceId",
+  "session-created",
+  "installMesurerElectron",
+  "Symbol.for",
+]) {
+  if (!recordingElectronSource.includes(contract)) {
+    throw new Error(`Package-owned Electron bootstrap is missing contract: ${contract}.`);
+  }
+}
+
+for (const contract of [
+  "__MESURER_RECORDING_HOST__",
+  "mesurer:electron-recording-source",
+  "contextBridge",
+  "ipcRenderer",
+  "process.isMainFrame",
+]) {
+  if (!recordingAutoPreloadSource.includes(contract)) {
+    throw new Error(`Automatic Electron Recording preload is missing contract: ${contract}.`);
+  }
+}
+
+for (const forbidden of ["desktopCapturer", "MediaRecorder", "node:child_process"]) {
+  if (recordingElectronSource.includes(forbidden) || recordingAutoPreloadSource.includes(forbidden)) {
+    throw new Error(`Automatic Electron Recording path crossed a forbidden boundary: ${forbidden}.`);
+  }
+}
+
+for (const contract of [
   "CODEX_THREAD_ID",
   "CODEX_APP_TOOLS_PIPE_PATH",
   "queue",
@@ -644,6 +695,21 @@ if (!stagedPackageJson.exports?.["./plugins/recording/bridge"]) {
 
 if (!stagedPackageJson.exports?.["./plugins/recording/preload"]) {
   throw new Error("Staged npm package is missing the ./plugins/recording/preload export.");
+}
+
+if (!stagedPackageJson.exports?.["./electron"]) {
+  throw new Error("Staged npm package is missing the ./electron export.");
+}
+
+for (const path of [
+  "../.publish/plugins/recording/electron.mjs",
+  "../.publish/plugins/recording/electron.cjs",
+  "../.publish/plugins/recording/electron.d.ts",
+  "../.publish/plugins/recording/auto-preload.cjs",
+]) {
+  if (!existsSync(new URL(path, import.meta.url))) {
+    throw new Error(`Staged npm package is missing Electron bootstrap artifact: ${path}.`);
+  }
 }
 
 for (const removedExport of ["./arrange", "./codex", "./screenshot"]) {
