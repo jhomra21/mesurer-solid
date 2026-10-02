@@ -52,6 +52,9 @@ type ElectronTestSummary = {
 
 declare global {
   interface Window {
+    __MESURER_RECORDING_HOST__?: {
+      captureRecordingStream?: () => Promise<{ streamId: string }>;
+    };
     electronMesurer: {
       fail(message: string): Promise<void>;
       complete(payload: {
@@ -255,11 +258,7 @@ const recordingService = await mesurer.service<MesurerRecordingService>(
 );
 
 const recordingAutoHost = Boolean(
-  (window as Window & {
-    __MESURER_RECORDING_HOST__?: {
-      captureRecordingStream?: () => Promise<{ streamId: string }>;
-    };
-  }).__MESURER_RECORDING_HOST__?.captureRecordingStream,
+  window.__MESURER_RECORDING_HOST__?.captureRecordingStream,
 );
 
 if (!recordingAutoHost) {
