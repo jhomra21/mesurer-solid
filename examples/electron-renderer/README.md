@@ -86,39 +86,21 @@ Users do not install a Codex marketplace plugin or manage a Mesurer bridge proce
 
 ## Native Recording capture
 
-Recording uses the same renderer plugin in Electron, but its live stream should come from the package-owned native bridge. This avoids depending on Electron's display-media picker and does not install a global session handler.
+Recording reuses the same application-local `captureScreenshot` capability as Screenshot and Color Picker. There is no second Electron Recording adapter to install.
 
-Install the main adapter:
-
-```ts
-import { BrowserWindow, ipcMain } from "electron"
-import { installMesurerRecordingHost } from "mesurer-solid/plugins/recording/bridge"
-
-const recordingHost = installMesurerRecordingHost({
-  ipcMain,
-  validateSender(event) {
-    const window = BrowserWindow.fromWebContents(event.sender)
-
-    return Boolean(window && !window.isDestroyed())
-  },
-})
-```
-
-Expose its narrow preload function on the existing host object:
+Once preload exposes:
 
 ```ts
-import {
-  createMesurerRecordingPreloadBridge,
-} from "mesurer-solid/plugins/recording/preload"
-
 contextBridge.exposeInMainWorld("__MESURER_HOST__", {
-  recordingBridge: createMesurerRecordingPreloadBridge(ipcRenderer),
+  captureScreenshot: () => ipcRenderer.invoke("window:capture"),
 })
 ```
 
-The helper mints a short-lived stream id for the requesting `webContents`. Recording consumes that id as a Chromium tab stream and then uses its normal canvas + MediaBunny pipeline. Main never sends a `MediaStream` through IPC, and preload never receives Electron objects.
+the normal `recording()` plugin pulls current-window frames through that capability, crops them to the selected region in the renderer, and feeds the canvas into MediaBunny. The existing `webContents.capturePage()` main-process handler shown below is sufficient.
 
-Dispose `recordingHost` when the app exits, alongside the Codex host when present.
+The host function may receive an optional `{ purpose: "recording" }` argument. Existing implementations that ignore arguments continue to work.
+
+Native frame acquisition participates in the Recording backpressure loop: Mesurer waits for the previous capture and MediaBunny frame submission before requesting another frame. No `MediaRecorder`, desktop-source enumeration, display-media request handler, or screen-share picker is added.
 
 ## Native Screenshot capture
 
