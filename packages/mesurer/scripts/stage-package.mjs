@@ -31,6 +31,15 @@ for (const file of ["bridge.mjs", "bridge.d.ts", "desktop.mjs", "preload.mjs", "
   );
 }
 
+mkdirSync(new URL("plugins/recording/", stageDir), { recursive: true });
+
+for (const file of ["bridge.mjs", "bridge.d.ts", "preload.mjs", "preload.cjs", "preload.d.ts"]) {
+  cpSync(
+    new URL(`src/plugins/recording/${file}`, packageDir),
+    new URL(`plugins/recording/${file}`, stageDir),
+  );
+}
+
 const published = { ...packageJson, name: "mesurer-solid" };
 
 delete published.scripts;
