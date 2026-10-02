@@ -87,10 +87,11 @@ Advanced integrations may supply their own `pluginHost`. That host remains calle
 | `mesurer-solid/inject-script` | Built classic Mesurer injection artifact; load `mesurer-solid/mediabunny-vendor` first for raw classic evaluation |
 | `mesurer-solid/mediabunny-vendor` | Separate MPL-2.0 MediaBunny classic runtime for raw injection and the extension; the normal ESM entrypoints use an internal relative `dist/mediabunny-runtime.js` so MediaBunny is not installed into consumer dependency graphs |
 | `mesurer-skill` | Install the portable coding-agent skill |
+| `mesurer-solid/electron` | Preferred Electron main-process bootstrap; automatically installs Mesurer's narrow Recording bridge/preload |
 | `mesurer-solid/plugins/codex/bridge` | Native Codex transport and Electron main-process host adapter |
 | `mesurer-solid/plugins/codex/preload` | Bundle-friendly Electron preload adapter for the Codex host capability |
-| `mesurer-solid/plugins/recording/bridge` | Electron main-process adapter for renderer-bound Recording stream ids |
-| `mesurer-solid/plugins/recording/preload` | Bundle-friendly Electron preload adapter for the Recording host capability |
+| `mesurer-solid/plugins/recording/bridge` | Advanced/manual Electron Recording host adapter for custom sender policy |
+| `mesurer-solid/plugins/recording/preload` | Advanced/manual Electron Recording preload adapter |
 
 Programmatic injection reuses an existing connected instance by default. Lifecycle-owning integrations can set `recoverDisconnected: true` in `MesurerInjectConfig` to remount Mesurer when page DOM replacement disconnects its host. The option defaults to `false`, so ordinary one-shot injection does not silently reappear after disposal.
 
