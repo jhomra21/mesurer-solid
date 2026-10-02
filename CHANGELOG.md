@@ -4,9 +4,12 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.1-beta.7 - 2026-10-02
+
 - Align the post-recording editor with current upstream Mesurer: a single trim/playhead timeline, compact Play/Pause, export-options menu with format and 1×/2×/3× output sizes, Download, hover Close, and 352px→576px grow/shrink behavior.
 - Keep Recording editor surfaces synchronized with Settings → General → Appearance and cover both Light and Dark through the real persisted theme path.
-<!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.6 - 2026-10-02
 
