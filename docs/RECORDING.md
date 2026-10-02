@@ -123,17 +123,19 @@ The extension does not contain a second recorder, an offscreen recorder, or a `M
 
 ## Preview and export
 
-Stopping a recording opens a Mesurer-owned editor with:
+Stopping a recording opens the compact upstream-style Mesurer editor. The collapsed card is 352px wide and can grow to 576px. It includes:
 
-- play/pause and current time;
-- trim-in and trim-out;
-- detected output formats;
-- 1× / 2× / 3× scale;
-- export progress;
-- expand/shrink;
-- discard.
+- click-to-play video preview plus a compact Play/Pause control and current/duration time;
+- one timeline with a playhead and keyboard/pointer-accessible trim-start and trim-end handles;
+- an export-options menu that groups detected formats with 1× / 2× / 3× output sizes and shows the resulting pixel dimensions;
+- a compact Download action that exports through MediaBunny;
+- grow/shrink preview control;
+- hover/focus Close action;
+- export progress overlay and inline export errors.
 
-The editor is viewport-owned inspector UI. Its object URLs and listeners are released when the clip is replaced, dismissed, or the plugin is disposed.
+The export menu opens above or below its anchor according to available viewport space. The editor follows the same persisted System/Light/Dark Appearance setting as the toolbar and other Mesurer inspector surfaces.
+
+The editor is viewport-owned inspector UI. Its object URLs, window/document listeners, and drag state are released when the clip is replaced, dismissed, or the plugin is disposed.
 
 Programmatic export returns the output Blob, format, duration, dimensions, and generated filename. The toolbar editor downloads the returned Blob after a successful export.
 

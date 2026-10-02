@@ -33,6 +33,8 @@ type RecordingPreviewControllerOptions = {
   ): Promise<RecordingPreviewExportResult>;
 };
 
+type DragKind = "start" | "end" | "playhead";
+
 const PANEL_WIDTH = 352;
 
 const PANEL_EXPANDED_WIDTH = 576;
@@ -60,60 +62,77 @@ const timestamp = (seconds: number) => {
   return `${minutes}:${remainder.toFixed(2).padStart(5, "0")}`;
 };
 
-const makeButton = (
+const makeIconButton = (
   ownerDocument: Document,
   label: string,
+  glyph: string,
 ) => {
   const button = ownerDocument.createElement("button");
+
   button.type = "button";
-  button.textContent = label;
+  button.setAttribute("aria-label", label);
+  button.title = label;
+  button.textContent = glyph;
+
   setStyle(button, {
-    height: "28px",
-    padding: "0 9px",
-    border: "1px solid var(--msr-color-ink-200, #e2e8f0)",
-    "border-radius": "7px",
-    background: "var(--msr-surface-raised, #fff)",
+    display: "inline-flex",
+    width: "20px",
+    height: "20px",
+    padding: "0",
+    border: "0",
+    "border-radius": "5px",
+    background: "transparent",
     color: "var(--msr-content, #18181b)",
+    "align-items": "center",
+    "justify-content": "center",
     "font-family": "inherit",
     "font-size": "11px",
-    "font-weight": "500",
+    "line-height": "1",
     cursor: "pointer",
   });
 
   return button;
 };
 
-const makeSelect = (
+const makeMenuRow = (
   ownerDocument: Document,
   label: string,
 ) => {
-  const select = ownerDocument.createElement("select");
-  select.setAttribute("aria-label", label);
-  setStyle(select, {
+  const button = ownerDocument.createElement("button");
+
+  button.type = "button";
+  button.setAttribute("role", "menuitemradio");
+
+  setStyle(button, {
+    display: "grid",
+    width: "100%",
     height: "28px",
-    padding: "0 24px 0 8px",
-    border: "1px solid var(--msr-color-ink-200, #e2e8f0)",
-    "border-radius": "7px",
-    background: "var(--msr-surface-raised, #fff)",
+    padding: "0 8px",
+    border: "0",
+    "border-radius": "6px",
+    background: "transparent",
     color: "var(--msr-content, #18181b)",
+    "grid-template-columns": "14px minmax(0, 1fr)",
+    gap: "6px",
+    "align-items": "center",
+    "text-align": "left",
     "font-family": "inherit",
     "font-size": "11px",
     cursor: "pointer",
   });
 
-  return select;
-};
+  const check = ownerDocument.createElement("span");
 
-const addOption = (
-  ownerDocument: Document,
-  select: HTMLSelectElement,
-  value: string,
-  label: string,
-) => {
-  const option = ownerDocument.createElement("option");
-  option.value = value;
-  option.textContent = label;
-  select.append(option);
+  check.setAttribute("aria-hidden", "true");
+  check.textContent = "✓";
+  check.style.opacity = "0";
+
+  const text = ownerDocument.createElement("span");
+
+  text.textContent = label;
+  button.append(check, text);
+
+  return { button, check, text };
 };
 
 const downloadBlob = (
@@ -124,6 +143,7 @@ const downloadBlob = (
 ) => {
   const url = globalThis.URL.createObjectURL(blob);
   const link = ownerDocument.createElement("a");
+
   link.href = url;
   link.download = filename;
   link.rel = "noopener";
@@ -142,10 +162,13 @@ export const createRecordingPreviewController = ({
   onExport,
 }: RecordingPreviewControllerOptions): RecordingPreviewController => {
   const panel = ownerDocument.createElement("section");
+
   panel.dataset.mesurerRecordingPreview = "true";
   panel.dataset.mesurerInspectorUi = "true";
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-label", "Screen recording editor");
+  panel.tabIndex = 0;
+
   setStyle(panel, {
     position: "fixed",
     display: "none",
@@ -162,181 +185,398 @@ export const createRecordingPreviewController = ({
     "font-family": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
     "font-size": "11px",
     "pointer-events": "auto",
+    outline: "none",
+    transition: "width 200ms ease",
   });
+
   root.append(panel);
 
   const previewShell = ownerDocument.createElement("div");
+
   setStyle(previewShell, {
     position: "relative",
+    display: "flex",
     width: "100%",
     "min-height": "72px",
-    "max-height": "160px",
+    "max-height": "144px",
     overflow: "hidden",
     "border-radius": "8px",
     background: "var(--msr-surface-muted, #f8fafc)",
-    transition: "max-height 150ms ease",
+    "align-items": "center",
+    "justify-content": "center",
+    transition: "max-height 200ms ease",
+    cursor: "default",
   });
+
   panel.append(previewShell);
 
   const video = ownerDocument.createElement("video");
+
   video.muted = true;
   video.playsInline = true;
   video.preload = "auto";
+
   setStyle(video, {
     display: "block",
     width: "100%",
     height: "100%",
-    "max-height": "160px",
+    "max-width": "100%",
+    "max-height": "144px",
     "object-fit": "contain",
-    transition: "max-height 150ms ease",
+    transition: "max-height 200ms ease",
   });
+
   previewShell.append(video);
 
-  const close = makeButton(ownerDocument, "×");
+  const exportingOverlay = ownerDocument.createElement("div");
+
+  exportingOverlay.dataset.mesurerRecordingExporting = "true";
+  exportingOverlay.textContent = "Exporting…";
+
+  setStyle(exportingOverlay, {
+    position: "absolute",
+    inset: "0",
+    display: "none",
+    "align-items": "center",
+    "justify-content": "center",
+    "z-index": "30",
+    background: "rgb(15 23 42 / 45%)",
+    color: "#fff",
+    "font-size": "11px",
+    "pointer-events": "none",
+  });
+
+  previewShell.append(exportingOverlay);
+
+  const close = makeIconButton(ownerDocument, "Close", "×");
+
   close.dataset.mesurerRecordingDiscard = "true";
-  close.setAttribute("aria-label", "Discard recording");
+
   setStyle(close, {
     position: "absolute",
     top: "6px",
     right: "6px",
     width: "24px",
-    padding: "0",
-    "border-radius": "999px",
+    height: "24px",
+    "z-index": "40",
     background: "rgb(15 23 42 / 78%)",
     color: "#fff",
-    border: "0",
+    opacity: "0",
+    "pointer-events": "none",
+    transition: "opacity 150ms ease",
   });
+
   previewShell.append(close);
 
-  const playbackRow = ownerDocument.createElement("div");
-  setStyle(playbackRow, {
+  previewShell.addEventListener("mouseenter", () => {
+    close.style.opacity = "1";
+    close.style.pointerEvents = "auto";
+  });
+
+  previewShell.addEventListener("mouseleave", () => {
+    if (ownerDocument.activeElement === close) return;
+    close.style.opacity = "0";
+    close.style.pointerEvents = "none";
+  });
+
+  close.addEventListener("focus", () => {
+    close.style.opacity = "1";
+    close.style.pointerEvents = "auto";
+  });
+
+  close.addEventListener("blur", () => {
+    close.style.opacity = "0";
+    close.style.pointerEvents = "none";
+  });
+
+  const controls = ownerDocument.createElement("div");
+
+  setStyle(controls, {
     display: "flex",
+    height: "20px",
     "align-items": "center",
     gap: "6px",
     "margin-top": "8px",
   });
-  panel.append(playbackRow);
 
-  const play = makeButton(ownerDocument, "Play");
+  panel.append(controls);
+
+  const play = makeIconButton(ownerDocument, "Play", "▶");
+
   play.dataset.mesurerRecordingPlay = "true";
-  playbackRow.append(play);
+  controls.append(play);
 
   const currentTime = ownerDocument.createElement("span");
+
   currentTime.textContent = "0:00.00";
+
   setStyle(currentTime, {
-    width: "48px",
-    color: "var(--msr-color-ink-500, #64748b)",
-    "font-family": "ui-monospace, SFMono-Regular, Menlo, monospace",
-    "font-variant-numeric": "tabular-nums",
-  });
-  playbackRow.append(currentTime);
-
-  const durationLabel = ownerDocument.createElement("span");
-  setStyle(durationLabel, {
-    "margin-left": "auto",
-    color: "var(--msr-color-ink-500, #64748b)",
-    "font-family": "ui-monospace, SFMono-Regular, Menlo, monospace",
-    "font-variant-numeric": "tabular-nums",
-  });
-  playbackRow.append(durationLabel);
-
-  const trimLabel = ownerDocument.createElement("div");
-  trimLabel.dataset.mesurerRecordingTrimLabel = "true";
-  setStyle(trimLabel, {
-    "margin-top": "8px",
-    color: "var(--msr-color-ink-500, #64748b)",
-    "font-family": "ui-monospace, SFMono-Regular, Menlo, monospace",
-    "font-variant-numeric": "tabular-nums",
-  });
-  panel.append(trimLabel);
-
-  const trimGrid = ownerDocument.createElement("div");
-  setStyle(trimGrid, {
-    display: "grid",
-    "grid-template-columns": "32px minmax(0, 1fr)",
-    gap: "5px 8px",
+    display: "flex",
+    width: "32px",
+    height: "20px",
     "align-items": "center",
-    "margin-top": "5px",
+    "flex-shrink": "0",
+    color: "var(--msr-color-ink-500, #64748b)",
+    "font-family": "ui-monospace, SFMono-Regular, Menlo, monospace",
+    "font-size": "10px",
+    "font-variant-numeric": "tabular-nums",
   });
-  panel.append(trimGrid);
 
-  const startLabel = ownerDocument.createElement("span");
-  startLabel.textContent = "In";
-  startLabel.style.color = "var(--msr-color-ink-500, #64748b)";
-  trimGrid.append(startLabel);
+  controls.append(currentTime);
 
-  const trimStart = ownerDocument.createElement("input");
-  trimStart.type = "range";
-  trimStart.min = "0";
-  trimStart.step = "0.01";
-  trimStart.dataset.mesurerRecordingTrimStart = "true";
-  trimGrid.append(trimStart);
+  const timeline = ownerDocument.createElement("div");
 
-  const endLabel = ownerDocument.createElement("span");
-  endLabel.textContent = "Out";
-  endLabel.style.color = "var(--msr-color-ink-500, #64748b)";
-  trimGrid.append(endLabel);
+  timeline.dataset.mesurerRecordingTimeline = "true";
 
-  const trimEnd = ownerDocument.createElement("input");
-  trimEnd.type = "range";
-  trimEnd.min = "0";
-  trimEnd.step = "0.01";
-  trimEnd.dataset.mesurerRecordingTrimEnd = "true";
-  trimGrid.append(trimEnd);
+  setStyle(timeline, {
+    position: "relative",
+    height: "20px",
+    "min-width": "0",
+    flex: "1 1 0",
+    cursor: "pointer",
+    "user-select": "none",
+  });
 
-  for (const slider of [trimStart, trimEnd]) {
-    setStyle(slider, {
-      width: "100%",
-      height: "20px",
-      margin: "0",
-      accentColor: "var(--msr-accent, #0d99ff)",
+  controls.append(timeline);
+
+  const rail = ownerDocument.createElement("div");
+
+  rail.dataset.mesurerRecordingTimelineRail = "true";
+
+  setStyle(rail, {
+    position: "absolute",
+    left: "0",
+    right: "0",
+    top: "50%",
+    height: "3px",
+    transform: "translateY(-50%)",
+    "border-radius": "999px",
+    background: "var(--msr-color-ink-200, #e2e8f0)",
+    "pointer-events": "none",
+  });
+
+  timeline.append(rail);
+
+  const clip = ownerDocument.createElement("div");
+
+  clip.dataset.mesurerRecordingTimelineClip = "true";
+
+  setStyle(clip, {
+    position: "absolute",
+    top: "50%",
+    height: "3px",
+    transform: "translateY(-50%)",
+    "border-radius": "999px",
+    background: "var(--msr-color-ink-300, #cbd5e1)",
+    "pointer-events": "none",
+  });
+
+  timeline.append(clip);
+
+  const hoverMarker = ownerDocument.createElement("div");
+
+  setStyle(hoverMarker, {
+    position: "absolute",
+    display: "none",
+    top: "50%",
+    width: "2px",
+    height: "10px",
+    transform: "translate(-50%, -50%)",
+    "border-radius": "999px",
+    background: "var(--msr-color-ink-500, #64748b)",
+    opacity: "0.5",
+    "pointer-events": "none",
+  });
+
+  timeline.append(hoverMarker);
+
+  const playhead = ownerDocument.createElement("div");
+
+  playhead.dataset.mesurerRecordingPlayhead = "true";
+
+  setStyle(playhead, {
+    position: "absolute",
+    top: "50%",
+    left: "0",
+    width: "2px",
+    height: "8px",
+    transform: "translate(-50%, -50%)",
+    "border-radius": "999px",
+    background: "var(--msr-content, #18181b)",
+    "z-index": "25",
+    "pointer-events": "none",
+    transition: "height 150ms ease",
+  });
+
+  timeline.append(playhead);
+
+  const makeTrimHandle = (
+    kind: "start" | "end",
+    label: string,
+  ) => {
+    const handle = ownerDocument.createElement("button");
+
+    handle.type = "button";
+    handle.dataset.mesurerRecordingTrimHandle = kind;
+    handle.setAttribute("role", "slider");
+    handle.setAttribute("aria-label", label);
+    handle.setAttribute("aria-valuemin", "0");
+
+    setStyle(handle, {
+      position: "absolute",
+      top: "50%",
+      width: "8px",
+      height: "14px",
+      padding: "0",
+      border: "1px solid var(--msr-surface-raised, #fff)",
+      "border-radius": "3px",
+      background: "var(--msr-content, #18181b)",
+      transform: "translate(-50%, -50%)",
+      "z-index": "20",
       cursor: "ew-resize",
     });
-  }
 
-  const actions = ownerDocument.createElement("div");
-  setStyle(actions, {
+    timeline.append(handle);
+
+    return handle;
+  };
+
+  const trimStart = makeTrimHandle("start", "Trim start");
+  const trimEnd = makeTrimHandle("end", "Trim end");
+
+  const durationLabel = ownerDocument.createElement("span");
+
+  setStyle(durationLabel, {
     display: "flex",
+    width: "32px",
+    height: "20px",
     "align-items": "center",
-    gap: "6px",
-    "margin-top": "8px",
+    "justify-content": "flex-end",
+    "flex-shrink": "0",
+    color: "var(--msr-color-ink-500, #64748b)",
+    "font-family": "ui-monospace, SFMono-Regular, Menlo, monospace",
+    "font-size": "10px",
+    "font-variant-numeric": "tabular-nums",
   });
-  panel.append(actions);
 
-  const formatSelect = makeSelect(ownerDocument, "Export format");
-  formatSelect.dataset.mesurerRecordingFormat = "true";
-  actions.append(formatSelect);
+  controls.append(durationLabel);
 
-  const scaleSelect = makeSelect(ownerDocument, "Export scale");
-  scaleSelect.dataset.mesurerRecordingScale = "true";
-  addOption(ownerDocument, scaleSelect, "1", "1×");
-  addOption(ownerDocument, scaleSelect, "2", "2×");
-  addOption(ownerDocument, scaleSelect, "3", "3×");
-  actions.append(scaleSelect);
+  const exportAnchor = ownerDocument.createElement("div");
 
-  const exportButton = makeButton(ownerDocument, "Export");
-  exportButton.dataset.mesurerRecordingExport = "true";
-  setStyle(exportButton, {
-    "margin-left": "auto",
-    background: "var(--msr-content, #18181b)",
-    color: "var(--msr-surface, #fff)",
-    border: "0",
+  setStyle(exportAnchor, {
+    position: "relative",
+    display: "flex",
+    height: "20px",
+    "align-items": "center",
   });
-  actions.append(exportButton);
 
-  const expand = makeButton(ownerDocument, "Expand");
+  controls.append(exportAnchor);
+
+  const exportOptions = makeIconButton(ownerDocument, "Export options", "1×");
+
+  exportOptions.dataset.mesurerRecordingExportOptions = "true";
+  exportOptions.setAttribute("aria-haspopup", "menu");
+  exportOptions.setAttribute("aria-expanded", "false");
+
+  setStyle(exportOptions, {
+    width: "28px",
+    "font-family": "ui-monospace, SFMono-Regular, Menlo, monospace",
+    "font-size": "10px",
+  });
+
+  exportAnchor.append(exportOptions);
+
+  const exportMenu = ownerDocument.createElement("div");
+
+  exportMenu.dataset.mesurerRecordingExportMenu = "true";
+  exportMenu.setAttribute("role", "menu");
+
+  setStyle(exportMenu, {
+    position: "absolute",
+    display: "none",
+    right: "0",
+    bottom: "24px",
+    width: "176px",
+    padding: "4px",
+    "z-index": "120",
+    border: "1px solid var(--msr-color-ink-200, #e2e8f0)",
+    "border-radius": "9px",
+    background: "var(--msr-surface-raised, #fff)",
+    color: "var(--msr-content, #18181b)",
+    "box-shadow": "var(--msr-shadow-floating, 0 10px 30px rgba(0, 0, 0, 0.12))",
+    "pointer-events": "auto",
+  });
+
+  exportAnchor.append(exportMenu);
+
+  const formatHeading = ownerDocument.createElement("p");
+
+  formatHeading.textContent = "Format";
+
+  setStyle(formatHeading, {
+    margin: "0",
+    padding: "4px 8px",
+    color: "var(--msr-color-ink-500, #64748b)",
+    "font-size": "10px",
+    "font-weight": "500",
+  });
+
+  exportMenu.append(formatHeading);
+
+  const formatRows = ownerDocument.createElement("div");
+
+  exportMenu.append(formatRows);
+
+  const sizeHeading = ownerDocument.createElement("p");
+
+  sizeHeading.textContent = "Size";
+
+  setStyle(sizeHeading, {
+    margin: "0",
+    padding: "6px 8px 4px",
+    color: "var(--msr-color-ink-500, #64748b)",
+    "font-size": "10px",
+    "font-weight": "500",
+  });
+
+  exportMenu.append(sizeHeading);
+
+  const sizeRows = ownerDocument.createElement("div");
+
+  exportMenu.append(sizeRows);
+
+  const scaleRows = ([1, 2, 3] as const).map((scale) => {
+    const row = makeMenuRow(ownerDocument, `${scale}×`);
+
+    row.button.dataset.mesurerRecordingScale = String(scale);
+    sizeRows.append(row.button);
+
+    return { scale, ...row };
+  });
+
+  const download = makeIconButton(ownerDocument, "Download", "↓");
+
+  download.dataset.mesurerRecordingExport = "true";
+  controls.append(download);
+
+  const expand = makeIconButton(ownerDocument, "Grow preview", "↗");
+
   expand.dataset.mesurerRecordingExpand = "true";
-  actions.append(expand);
+  controls.append(expand);
 
   const status = ownerDocument.createElement("p");
+
   status.dataset.mesurerRecordingPreviewStatus = "true";
   status.setAttribute("role", "status");
+
   setStyle(status, {
     display: "none",
-    margin: "7px 0 0",
+    margin: "8px 0 0",
     color: "var(--msr-color-ink-500, #64748b)",
     "font-size": "11px",
+    "line-height": "16px",
   });
+
   panel.append(status);
 
   let asset: RecordingPreviewAsset | null = null;
@@ -344,35 +584,186 @@ export const createRecordingPreviewController = ({
   let expanded = false;
   let exporting = false;
   let revision = 0;
+  let supportedFormats: RecordingExportFormat[] = ["webm"];
+  let selectedFormat: RecordingExportFormat = "webm";
+  let selectedScale: RecordingScale = 1;
+  let trimStartValue = 0;
+  let trimEndValue = 0;
+  let dragKind: DragKind | null = null;
+  let dragPointerId: number | null = null;
 
-  const selectedScale = (): RecordingScale => {
-    const value = Number(scaleSelect.value);
-
-    return value === 2 || value === 3 ? value : 1;
-  };
-
-  const trimRange = () => {
+  const ratio = (value: number) => {
     const duration = asset?.duration ?? 0;
-    const start = Math.min(duration, Math.max(0, Number(trimStart.value) || 0));
-    const end = Math.min(duration, Math.max(start + MIN_TRIM_SECONDS, Number(trimEnd.value) || duration));
 
-    return { start, end };
+    return duration <= 0
+      ? 0
+      : Math.min(1, Math.max(0, value / duration));
   };
 
-  const syncTrimLabel = () => {
-    const { start, end } = trimRange();
+  const trimRange = () => ({
+    start: trimStartValue,
+    end: trimEndValue,
+  });
 
-    trimLabel.textContent = `Trim ${timestamp(start)}–${timestamp(end)}`;
+  const timeAtClientX = (clientX: number) => {
+    const duration = asset?.duration ?? 0;
+    const bounds = timeline.getBoundingClientRect();
+
+    if (duration <= 0 || bounds.width <= 0) return 0;
+
+    return Math.min(
+      duration,
+      Math.max(0, ((clientX - bounds.left) / bounds.width) * duration),
+    );
+  };
+
+  const syncTimeline = () => {
+    const duration = asset?.duration ?? 0;
+    const current = Math.min(duration, Math.max(0, video.currentTime || 0));
+    const startPercent = ratio(trimStartValue) * 100;
+    const endPercent = ratio(trimEndValue) * 100;
+
+    trimStart.style.left = `${startPercent}%`;
+    trimEnd.style.left = `${endPercent}%`;
+    clip.style.left = `${startPercent}%`;
+    clip.style.width = `${Math.max(0, endPercent - startPercent)}%`;
+    playhead.style.left = `${ratio(current) * 100}%`;
+
+    trimStart.setAttribute("aria-valuemax", String(Math.max(0, trimEndValue - MIN_TRIM_SECONDS)));
+    trimStart.setAttribute("aria-valuenow", String(trimStartValue));
+    trimStart.setAttribute("aria-valuetext", timestamp(trimStartValue));
+    trimEnd.setAttribute("aria-valuemin", String(Math.min(duration, trimStartValue + MIN_TRIM_SECONDS)));
+    trimEnd.setAttribute("aria-valuemax", String(duration));
+    trimEnd.setAttribute("aria-valuenow", String(trimEndValue));
+    trimEnd.setAttribute("aria-valuetext", timestamp(trimEndValue));
+
+    currentTime.textContent = timestamp(current);
+    durationLabel.textContent = timestamp(duration);
+  };
+
+  const seekTo = (time: number, pause = true) => {
+    if (!asset) return;
+    const next = Math.min(trimEndValue, Math.max(trimStartValue, time));
+
+    if (pause && !video.paused) video.pause();
+
+    video.currentTime = next;
+    syncTimeline();
+  };
+
+  const updateTrimStart = (
+    value: number,
+    previewEdge = false,
+  ) => {
+    if (!asset) return;
+
+    trimStartValue = Math.min(
+      Math.max(0, value),
+      Math.max(0, trimEndValue - MIN_TRIM_SECONDS),
+    );
+
+    if (previewEdge) seekTo(trimStartValue);
+    else if (video.currentTime < trimStartValue) seekTo(trimStartValue);
+
+    syncTimeline();
+  };
+
+  const updateTrimEnd = (
+    value: number,
+    previewEdge = false,
+  ) => {
+    if (!asset) return;
+
+    trimEndValue = Math.max(
+      Math.min(asset.duration, value),
+      Math.min(asset.duration, trimStartValue + MIN_TRIM_SECONDS),
+    );
+
+    if (previewEdge) seekTo(trimEndValue);
+    else if (video.currentTime > trimEndValue) seekTo(trimStartValue);
+
+    syncTimeline();
+  };
+
+  const updateScaleRows = () => {
+    exportOptions.textContent = `${selectedScale}×`;
+
+    for (const row of scaleRows) {
+      const selected = row.scale === selectedScale;
+
+      row.button.setAttribute("aria-checked", selected ? "true" : "false");
+      row.check.style.opacity = selected ? "1" : "0";
+      row.text.textContent = asset
+        ? `${row.scale}×  ${Math.round(asset.width * row.scale)} × ${Math.round(asset.height * row.scale)}`
+        : `${row.scale}×`;
+    }
+  };
+
+  const updateFormatRows = () => {
+    formatRows.replaceChildren();
+
+    for (const format of supportedFormats) {
+      const row = makeMenuRow(
+        ownerDocument,
+        format === "mp4" ? "MP4" : "WebM",
+      );
+
+      const selected = format === selectedFormat;
+
+      row.button.dataset.mesurerRecordingFormat = format;
+      row.button.setAttribute("aria-checked", selected ? "true" : "false");
+      row.check.style.opacity = selected ? "1" : "0";
+
+      row.button.addEventListener("click", () => {
+        selectedFormat = format;
+        updateFormatRows();
+      });
+
+      formatRows.append(row.button);
+    }
+  };
+
+  const placeExportMenu = () => {
+    if (exportMenu.style.display === "none") return;
+
+    const anchorRect = exportAnchor.getBoundingClientRect();
+    const menuHeight = Math.max(1, exportMenu.offsetHeight);
+    const spaceAbove = anchorRect.top - VIEWPORT_PADDING;
+    const spaceBelow = ownerWindow.innerHeight - anchorRect.bottom - VIEWPORT_PADDING;
+    const openAbove = spaceAbove >= menuHeight || spaceAbove >= spaceBelow;
+
+    if (openAbove) {
+      exportMenu.style.top = "auto";
+      exportMenu.style.bottom = "24px";
+    } else {
+      exportMenu.style.top = "24px";
+      exportMenu.style.bottom = "auto";
+    }
+  };
+
+  const setExportMenuOpen = (open: boolean) => {
+    exportMenu.style.display = open ? "block" : "none";
+    exportOptions.setAttribute("aria-expanded", open ? "true" : "false");
+
+    if (open) placeExportMenu();
   };
 
   const setBusy = (value: boolean) => {
     exporting = value;
+    exportingOverlay.style.display = value ? "flex" : "none";
 
-    for (const control of [play, close, trimStart, trimEnd, formatSelect, scaleSelect, exportButton, expand]) {
+    for (const control of [
+      play,
+      close,
+      trimStart,
+      trimEnd,
+      exportOptions,
+      download,
+      expand,
+      ...scaleRows.map((row) => row.button),
+    ]) {
       control.toggleAttribute("disabled", value);
     }
-
-    exportButton.textContent = value ? "Exporting…" : "Export";
   };
 
   const place = () => {
@@ -413,6 +804,8 @@ export const createRecordingPreviewController = ({
 
     panel.style.left = `${left}px`;
     panel.style.top = `${Math.max(VIEWPORT_PADDING, top)}px`;
+
+    if (exportMenu.style.display !== "none") placeExportMenu();
   };
 
   const clearUrl = () => {
@@ -430,123 +823,263 @@ export const createRecordingPreviewController = ({
     revision += 1;
     clearUrl();
     asset = null;
+    dragKind = null;
+    dragPointerId = null;
+    setExportMenuOpen(false);
     panel.style.display = "none";
     status.style.display = "none";
     setBusy(false);
   };
 
-  close.addEventListener("click", () => {
-    dismiss();
-    onDiscard();
-  });
-
-  play.addEventListener("click", () => {
+  const togglePlayback = () => {
     if (!asset || exporting) return;
 
-    if (video.paused) {
-      const { start, end } = trimRange();
-
-      if (video.currentTime < start || video.currentTime >= end) video.currentTime = start;
-      void video.play();
+    if (!video.paused) {
+      video.pause();
 
       return;
     }
 
-    video.pause();
+    if (video.currentTime < trimStartValue || video.currentTime >= trimEndValue) {
+      video.currentTime = trimStartValue;
+    }
+
+    void video.play();
+  };
+
+  const finishDrag = () => {
+    dragKind = null;
+    dragPointerId = null;
+    playhead.style.height = "8px";
+  };
+
+  const applyDrag = (clientX: number) => {
+    if (!dragKind) return;
+    const time = timeAtClientX(clientX);
+
+    if (dragKind === "start") {
+      updateTrimStart(time, true);
+    } else if (dragKind === "end") {
+      updateTrimEnd(time, true);
+    } else {
+      seekTo(time);
+    }
+  };
+
+  const beginDrag = (
+    kind: DragKind,
+    event: PointerEvent,
+  ) => {
+    if (!asset || exporting || event.button !== 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    dragKind = kind;
+    dragPointerId = event.pointerId;
+    playhead.style.height = "10px";
+    applyDrag(event.clientX);
+  };
+
+  const onWindowPointerMove = (event: PointerEvent) => {
+    if (dragPointerId === null || event.pointerId !== dragPointerId) return;
+
+    applyDrag(event.clientX);
+  };
+
+  const onWindowPointerEnd = (event: PointerEvent) => {
+    if (dragPointerId === null || event.pointerId !== dragPointerId) return;
+
+    finishDrag();
+  };
+
+  trimStart.addEventListener("pointerdown", (event) => beginDrag("start", event));
+  trimEnd.addEventListener("pointerdown", (event) => beginDrag("end", event));
+
+  timeline.addEventListener("pointerdown", (event) => {
+    const target = event.target;
+
+    if (
+      target instanceof Element
+      && target.closest("[data-mesurer-recording-trim-handle]")
+    ) {
+      return;
+    }
+
+    beginDrag("playhead", event);
   });
 
+  timeline.addEventListener("pointermove", (event) => {
+    if (dragPointerId !== null) return;
+
+    hoverMarker.style.display = "block";
+    hoverMarker.style.left = `${ratio(timeAtClientX(event.clientX)) * 100}%`;
+  });
+
+  timeline.addEventListener("pointerleave", () => {
+    hoverMarker.style.display = "none";
+  });
+
+  for (const [kind, handle] of [
+    ["start", trimStart],
+    ["end", trimEnd],
+  ] as const) {
+    handle.addEventListener("keydown", (event) => {
+      if (!asset || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+
+      event.preventDefault();
+      const direction = event.key === "ArrowLeft" ? -1 : 1;
+      const next = (kind === "start" ? trimStartValue : trimEndValue) + direction * 0.05;
+
+      if (kind === "start") updateTrimStart(next, true);
+      else updateTrimEnd(next, true);
+    });
+  }
+
+  ownerWindow.addEventListener("pointermove", onWindowPointerMove, true);
+  ownerWindow.addEventListener("pointerup", onWindowPointerEnd, true);
+  ownerWindow.addEventListener("pointercancel", onWindowPointerEnd, true);
+
+  close.addEventListener("click", (event) => {
+    event.stopPropagation();
+    dismiss();
+    onDiscard();
+  });
+
+  previewShell.addEventListener("click", (event) => {
+    const target = event.target;
+
+    if (target instanceof Element && target.closest("button")) return;
+
+    togglePlayback();
+  });
+
+  play.addEventListener("click", togglePlayback);
+
   video.addEventListener("play", () => {
-    play.textContent = "Pause";
+    play.textContent = "Ⅱ";
+    play.setAttribute("aria-label", "Pause");
+    play.title = "Pause";
   });
 
   video.addEventListener("pause", () => {
-    play.textContent = "Play";
+    play.textContent = "▶";
+    play.setAttribute("aria-label", "Play");
+    play.title = "Play";
   });
 
   video.addEventListener("timeupdate", () => {
     if (!asset) return;
-    const { start, end } = trimRange();
 
-    if (video.currentTime >= end - 0.01) {
+    if (video.currentTime >= trimEndValue - 0.01) {
       video.pause();
-      video.currentTime = start;
-    } else if (video.currentTime < start) {
-      video.currentTime = start;
+      video.currentTime = trimStartValue;
+    } else if (video.currentTime < trimStartValue) {
+      video.currentTime = trimStartValue;
     }
 
-    currentTime.textContent = timestamp(video.currentTime);
+    syncTimeline();
   });
 
-  trimStart.addEventListener("input", () => {
-    if (!asset) return;
-
-    const start = Math.min(
-      asset.duration - MIN_TRIM_SECONDS,
-      Math.max(0, Number(trimStart.value) || 0),
-    );
-
-    trimStart.value = String(start);
-
-    if ((Number(trimEnd.value) || asset.duration) < start + MIN_TRIM_SECONDS) {
-      trimEnd.value = String(Math.min(asset.duration, start + MIN_TRIM_SECONDS));
-    }
-
-    video.currentTime = start;
-    syncTrimLabel();
+  video.addEventListener("loadedmetadata", () => {
+    syncTimeline();
   });
 
-  trimEnd.addEventListener("input", () => {
-    if (!asset) return;
+  exportOptions.addEventListener("click", () => {
+    if (exporting) return;
 
-    const start = Number(trimStart.value) || 0;
-
-    const end = Math.max(
-      start + MIN_TRIM_SECONDS,
-      Math.min(asset.duration, Number(trimEnd.value) || asset.duration),
-    );
-
-    trimEnd.value = String(end);
-    video.currentTime = end;
-    syncTrimLabel();
+    setExportMenuOpen(exportMenu.style.display === "none");
   });
+
+  for (const row of scaleRows) {
+    row.button.addEventListener("click", () => {
+      selectedScale = row.scale;
+      updateScaleRows();
+    });
+  }
+
+  const onDocumentPointerDown = (event: PointerEvent) => {
+    if (exportMenu.style.display === "none") return;
+    const path = event.composedPath();
+
+    if (path.includes(exportAnchor)) return;
+
+    setExportMenuOpen(false);
+  };
+
+  ownerDocument.addEventListener("pointerdown", onDocumentPointerDown, true);
 
   expand.addEventListener("click", () => {
     expanded = !expanded;
     panel.style.width = `${expanded ? PANEL_EXPANDED_WIDTH : PANEL_WIDTH}px`;
-    previewShell.style.maxHeight = expanded ? "440px" : "160px";
-    video.style.maxHeight = expanded ? "440px" : "160px";
-    expand.textContent = expanded ? "Shrink" : "Expand";
+    previewShell.style.maxHeight = expanded ? "448px" : "144px";
+    video.style.maxHeight = expanded ? "448px" : "144px";
+    expand.textContent = expanded ? "↙" : "↗";
+    expand.setAttribute("aria-label", expanded ? "Shrink preview" : "Grow preview");
+    expand.title = expanded ? "Shrink preview" : "Grow preview";
     ownerWindow.requestAnimationFrame(place);
   });
 
-  exportButton.addEventListener("click", () => {
-    if (!asset || exporting) return;
+  const exportRecording = () => {
+    if (!asset || exporting || supportedFormats.length === 0) return;
+
     const operation = ++revision;
     const { start, end } = trimRange();
-    const requestedFormat = formatSelect.value === "mp4" ? "mp4" : "webm";
 
     setBusy(true);
-    status.style.display = "block";
-    status.textContent = "Exporting with MediaBunny…";
+    setExportMenuOpen(false);
+    status.style.display = "none";
 
     void onExport({
-      format: requestedFormat,
+      format: selectedFormat,
       startTime: start,
       endTime: end,
-      scale: selectedScale(),
+      scale: selectedScale,
     }).then((result) => {
       if (operation !== revision) return;
+
       downloadBlob(result.blob, result.filename, ownerDocument, ownerWindow);
-      status.textContent = `Exported ${result.width}×${result.height} ${result.format.toUpperCase()}`;
     }).catch((cause: unknown) => {
       if (operation !== revision) return;
-      status.textContent = cause instanceof Error ? cause.message : "Could not export the recording.";
+
+      status.style.display = "block";
+      status.style.color = "var(--msr-danger-text, #dc2626)";
+      status.textContent = cause instanceof Error
+        ? cause.message
+        : "Could not export the recording.";
     }).finally(() => {
       if (operation === revision) setBusy(false);
     });
+  };
+
+  download.addEventListener("click", exportRecording);
+
+  panel.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      if (exportMenu.style.display !== "none") {
+        event.preventDefault();
+        setExportMenuOpen(false);
+
+        return;
+      }
+
+      event.preventDefault();
+      dismiss();
+      onDiscard();
+
+      return;
+    }
+
+    if (
+      (event.key === " " || event.code === "Space")
+      && event.target === panel
+    ) {
+      event.preventDefault();
+      togglePlayback();
+    }
   });
 
   const onResize = () => place();
+
   ownerWindow.addEventListener("resize", onResize);
 
   return {
@@ -554,50 +1087,70 @@ export const createRecordingPreviewController = ({
       revision += 1;
       clearUrl();
       asset = nextAsset;
+      expanded = false;
+      selectedScale = 1;
+      selectedFormat = "webm";
+      supportedFormats = ["webm"];
+      trimStartValue = 0;
+      trimEndValue = nextAsset.duration;
+      dragKind = null;
+      dragPointerId = null;
 
       const nextUrl = globalThis.URL.createObjectURL(nextAsset.blob);
 
       objectUrl = nextUrl;
       video.src = nextUrl;
       video.currentTime = 0;
+      previewShell.style.aspectRatio = nextAsset.width > 0 && nextAsset.height > 0
+        ? `${nextAsset.width} / ${nextAsset.height}`
+        : "16 / 9";
+      panel.style.width = `${PANEL_WIDTH}px`;
+      previewShell.style.maxHeight = "144px";
+      video.style.maxHeight = "144px";
+      expand.textContent = "↗";
+      expand.setAttribute("aria-label", "Grow preview");
+      expand.title = "Grow preview";
       currentTime.textContent = "0:00.00";
       durationLabel.textContent = timestamp(nextAsset.duration);
-      trimStart.max = String(nextAsset.duration);
-      trimStart.value = "0";
-      trimEnd.max = String(nextAsset.duration);
-      trimEnd.value = String(nextAsset.duration);
-      syncTrimLabel();
-      formatSelect.replaceChildren();
-      addOption(ownerDocument, formatSelect, "webm", "WebM");
-      panel.style.display = "block";
       status.style.display = "none";
+      status.style.color = "var(--msr-color-ink-500, #64748b)";
+      setExportMenuOpen(false);
+      updateFormatRows();
+      updateScaleRows();
+      syncTimeline();
       setBusy(false);
+      panel.style.display = "block";
       place();
+      panel.focus({ preventScroll: true });
 
       const operation = revision;
 
       void formats(nextAsset).then((supported) => {
         if (operation !== revision || !asset) return;
-        formatSelect.replaceChildren();
 
-        for (const format of supported) {
-          addOption(ownerDocument, formatSelect, format, format === "mp4" ? "MP4" : "WebM");
-        }
+        supportedFormats = supported;
+        selectedFormat = supported.includes(selectedFormat)
+          ? selectedFormat
+          : supported[0] ?? "webm";
+        updateFormatRows();
+        download.disabled = supported.length === 0;
 
         if (supported.length === 0) {
-          addOption(ownerDocument, formatSelect, "webm", "No export codec");
-          formatSelect.disabled = true;
-          exportButton.disabled = true;
           status.style.display = "block";
+          status.style.color = "var(--msr-danger-text, #dc2626)";
           status.textContent = "No MediaBunny video encoder is available in this runtime.";
-        } else {
-          formatSelect.disabled = false;
-          exportButton.disabled = false;
         }
       }).catch((cause: unknown) => {
         if (operation !== revision) return;
+
+        supportedFormats = [];
+        updateFormatRows();
+        download.disabled = true;
         status.style.display = "block";
-        status.textContent = cause instanceof Error ? cause.message : "Could not inspect export support.";
+        status.style.color = "var(--msr-danger-text, #dc2626)";
+        status.textContent = cause instanceof Error
+          ? cause.message
+          : "Could not inspect export support.";
       });
 
       ownerWindow.requestAnimationFrame(place);
@@ -606,6 +1159,10 @@ export const createRecordingPreviewController = ({
     dispose() {
       dismiss();
       ownerWindow.removeEventListener("resize", onResize);
+      ownerWindow.removeEventListener("pointermove", onWindowPointerMove, true);
+      ownerWindow.removeEventListener("pointerup", onWindowPointerEnd, true);
+      ownerWindow.removeEventListener("pointercancel", onWindowPointerEnd, true);
+      ownerDocument.removeEventListener("pointerdown", onDocumentPointerDown, true);
       panel.remove();
     },
   };
