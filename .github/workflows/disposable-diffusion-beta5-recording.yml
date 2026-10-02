@@ -166,6 +166,7 @@ jobs:
         run: |
           bun run --cwd apps/desktop build:main
           bun run --cwd apps/desktop build:preload
+          bun run --cwd apps/desktop build:agent-host
           bun run --cwd apps/desktop build:native
 
       - name: Launch Diffusion and record through published beta
@@ -310,7 +311,15 @@ jobs:
 
           ws.close();
 
+          if (response.error) {
+            throw new Error(`CDP Runtime.evaluate failed: ${JSON.stringify(response.error)}`);
+          }
+
           const remote = response.result?.result;
+          if (!remote) {
+            throw new Error(`CDP Runtime.evaluate returned no remote result: ${JSON.stringify(response)}`);
+          }
+
           if (response.result?.exceptionDetails) {
             throw new Error(response.result.exceptionDetails.exception?.description ?? "Renderer evaluation failed.");
           }
