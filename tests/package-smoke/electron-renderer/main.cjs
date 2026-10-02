@@ -21,6 +21,8 @@ let timeoutId = null;
 
 let captureCount = 0;
 
+let recordingCaptureCount = 0;
+
 function writeResult(result) {
   mkdirSync(artifactDir, { recursive: true });
   writeFileSync(
@@ -38,8 +40,10 @@ function fail(error) {
   app.exit(1);
 }
 
-ipcMain.handle("mesurer:capture-window", async (event) => {
-  captureCount += 1;
+ipcMain.handle("mesurer:capture-window", async (event, request) => {
+  if (request?.purpose === "recording") recordingCaptureCount += 1;
+  else captureCount += 1;
+
   const window = BrowserWindow.fromWebContents(event.sender);
 
   if (!window || window.isDestroyed()) {
@@ -180,6 +184,7 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || !["shared", "standalone", "desktop", "none"].includes(summary.codexRuntimeSource)
     || !["shared-app-server", "desktop-queue", "private-stdio", "none"].includes(summary.codexRuntimeTransport)
     || captureCount !== 2
+    || (!skipRecording && recordingCaptureCount < 2)
   ) {
     throw new Error(`Unexpected Mesurer Electron result: ${JSON.stringify(summary)}`);
   }
@@ -201,6 +206,7 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     imageWidth: size.width,
     imageHeight: size.height,
     captureCount,
+    recordingCaptureCount,
   });
 
   console.log(
