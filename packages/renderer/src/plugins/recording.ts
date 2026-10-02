@@ -245,6 +245,8 @@ export const recordingPlugin = (
     const { ownerDocument, ownerWindow } = runtime;
     const inspectorMount = runtime.createInspectorMount();
     const root = inspectorMount.element;
+    const statusMount = runtime.createInspectorMount();
+    const statusRoot = statusMount.element;
 
     const rendererRoot = runtime.rendererRoot
       ?? runtime.portalTarget.querySelector<HTMLDivElement>("[data-mesurer-root='true']");
@@ -268,11 +270,20 @@ export const recordingPlugin = (
     };
 
     root.dataset.mesurerRecording = "true";
+    statusRoot.dataset.mesurerRecordingStatusRoot = "true";
 
     setStyle(root, {
       position: "fixed",
       inset: "0",
       "z-index": "86",
+      "pointer-events": "none",
+      "font-family": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+    });
+
+    setStyle(statusRoot, {
+      position: "fixed",
+      inset: "0",
+      "z-index": "96",
       "pointer-events": "none",
       "font-family": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
     });
@@ -334,6 +345,7 @@ export const recordingPlugin = (
 
     const shade = Array.from({ length: 4 }, () => {
       const element = ownerDocument.createElement("div");
+      element.dataset.mesurerRecordingShade = "true";
       setStyle(element, {
         position: "fixed",
         background: "rgb(0 0 0 / 40%)",
@@ -628,7 +640,7 @@ export const recordingPlugin = (
       cursor: "pointer",
     });
     recordingStatus.append(recordingStop);
-    root.append(recordingStatus);
+    statusRoot.append(recordingStatus);
 
     const errorToast = ownerDocument.createElement("div");
     errorToast.dataset.mesurerRecordingError = "true";
@@ -648,7 +660,7 @@ export const recordingPlugin = (
       "pointer-events": "none",
     });
 
-    root.append(errorToast);
+    statusRoot.append(errorToast);
 
     let currentSnapshot: MesurerRecordingSnapshot = {
       status: "idle",
@@ -924,33 +936,50 @@ export const recordingPlugin = (
     };
 
     const placeRecordingStatus = (rect: ScreenshotRect) => {
-      const height = 30;
+      const height = 34;
       const gap = 8;
       const viewportHeight = ownerWindow.innerHeight;
       const viewportWidth = ownerWindow.innerWidth;
+
+      recordingStatus.style.visibility = "hidden";
+      recordingStatus.style.display = "flex";
+
       const width = Math.max(112, recordingStatus.offsetWidth || 112);
-      let top: number | null = null;
-
-      if (rect.top >= height + gap + 8) {
-        top = rect.top - height - gap;
-      } else if (viewportHeight - (rect.top + rect.height) >= height + gap + 8) {
-        top = rect.top + rect.height + gap;
-      }
-
-      if (top === null) {
-        recordingStatus.style.display = "none";
-
-        return;
-      }
-
       const left = Math.min(
         viewportWidth - width - 8,
         Math.max(8, rect.left + rect.width / 2 - width / 2),
       );
+      const toolbarRect = rendererRoot
+        ?.querySelector<HTMLElement>("[data-mesurer-toolbar='true']")
+        ?.getBoundingClientRect();
+      const candidates = [
+        rect.top >= height + gap + 8 ? rect.top - height - gap : null,
+        viewportHeight - (rect.top + rect.height) >= height + gap + 8
+          ? rect.top + rect.height + gap
+          : null,
+      ].filter((top): top is number => top !== null);
+      const overlapsToolbar = (top: number) => {
+        if (!toolbarRect) return false;
+
+        return left < toolbarRect.right
+          && left + width > toolbarRect.left
+          && top < toolbarRect.bottom
+          && top + height > toolbarRect.top;
+      };
+      const top = candidates.find((candidate) => !overlapsToolbar(candidate))
+        ?? candidates[0]
+        ?? null;
+
+      if (top === null) {
+        recordingStatus.style.display = "none";
+        recordingStatus.style.removeProperty("visibility");
+
+        return;
+      }
 
       recordingStatus.style.left = `${left}px`;
       recordingStatus.style.top = `${top}px`;
-      recordingStatus.style.display = "flex";
+      recordingStatus.style.removeProperty("visibility");
     };
 
     const hideRecordingStatus = () => {
@@ -1775,6 +1804,7 @@ export const recordingPlugin = (
       finishSelection();
       restoreToolbar();
       void releaseCapture(true);
+      statusMount.dispose();
       inspectorMount.dispose();
     });
   },
