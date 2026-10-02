@@ -237,11 +237,13 @@ const targetElement = document.querySelector<HTMLElement>("[data-testid='electro
 if (!targetElement) throw new Error("Missing Electron recording target.");
 
 targetElement.style.transform = "translateX(12px)";
+
 targetElement.style.background = "#273449";
 
 await new Promise((resolve) => setTimeout(resolve, 450));
 
 targetElement.style.transform = "translateX(0)";
+
 targetElement.style.background = "#20242c";
 
 await new Promise((resolve) => setTimeout(resolve, 250));
@@ -249,7 +251,9 @@ await new Promise((resolve) => setTimeout(resolve, 250));
 await recordingService.stop();
 
 const recordingResult = await recordingService.export({ format: "webm" });
+
 const recordingBytes = new Uint8Array(await recordingResult.blob.arrayBuffer());
+
 const recordingSnapshot = recordingService.snapshot();
 
 await window.electronMesurer.dragToolbar({
