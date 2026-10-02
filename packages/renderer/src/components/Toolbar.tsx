@@ -280,6 +280,7 @@ export function Toolbar(props: ToolbarProps) {
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
   const [menuAlign, setMenuAlign] = createSignal<"left" | "right">("right");
   const [compact, setCompact] = createSignal(false);
+  const [expandedToolbarWidth, setExpandedToolbarWidth] = createSignal(0);
   const [viewportRevision, setViewportRevision] = createSignal(0);
   const tooltip = createTooltip(props.ownerWindow);
   let toolbarElement: HTMLDivElement | undefined;
@@ -597,7 +598,35 @@ export function Toolbar(props: ToolbarProps) {
     setGuideMenuOpen(false);
   };
 
+  const toolbarViewportWidth = () =>
+    Math.max(0, (props.ownerWindow.innerWidth || 0) - VIEWPORT_PADDING * 2);
+
+  const toolbarExpansionFits = () => {
+    viewportRevision();
+    const width = expandedToolbarWidth();
+
+    return width <= 0 || width <= toolbarViewportWidth() + 0.5;
+  };
+
+  const ensureToolbarFitsViewport = () => {
+    const toolbar = toolbarElement;
+
+    if (!toolbar || compact()) return;
+    const width = toolbar.getBoundingClientRect().width;
+
+    setExpandedToolbarWidth(width);
+
+    if (width <= toolbarViewportWidth() + 0.5) return;
+
+    setGuideMenuOpen(false);
+    setPluginMenuOpenId(null);
+    pluginMenuAnchorElement = undefined;
+    setCompact(true);
+    setViewportRevision((value) => value + 1);
+  };
+
   const toggleCompact = () => {
+    if (compact() && !toolbarExpansionFits()) return;
     const next = !compact();
 
     if (next) {
@@ -801,6 +830,7 @@ export function Toolbar(props: ToolbarProps) {
     const resize = () => {
       if (guideMenuOpen()) updateMenuAlign();
       setViewportRevision((value) => value + 1);
+      props.ownerWindow.requestAnimationFrame(ensureToolbarFitsViewport);
     };
 
     const keyboardTarget = props.ownerWindow.document;
@@ -811,6 +841,18 @@ export function Toolbar(props: ToolbarProps) {
     keyboardTarget.addEventListener("keydown", handleKeyDown, true);
     props.ownerWindow.addEventListener("resize", resize);
     toolbarElement?.addEventListener("click", handleClickCapture, true);
+
+    // SAFETY: ownerWindow owns this toolbar and its ResizeObserver implementation.
+    const Resize = (props.ownerWindow as Window & typeof globalThis).ResizeObserver;
+    const toolbarResizeObserver = Resize
+      ? new Resize(() => ensureToolbarFitsViewport())
+      : null;
+
+    if (toolbarElement) toolbarResizeObserver?.observe(toolbarElement);
+
+    const initialFitFrame = props.ownerWindow.requestAnimationFrame(
+      ensureToolbarFitsViewport,
+    );
 
     return () => {
       colorPickerCapabilityRevision += 1;
@@ -837,6 +879,8 @@ export function Toolbar(props: ToolbarProps) {
       keyboardTarget.removeEventListener("keydown", handleKeyDown, true);
       props.ownerWindow.removeEventListener("resize", resize);
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
+      props.ownerWindow.cancelAnimationFrame(initialFitFrame);
+      toolbarResizeObserver?.disconnect();
 
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
     };
@@ -1051,7 +1095,8 @@ export function Toolbar(props: ToolbarProps) {
           data-mesurer-toolbar-compact-toggle="true"
           aria-label={compact() ? "Expand toolbar" : "Compact toolbar"}
           aria-pressed={compact() ? "true" : "false"}
-          class="msr:flex msr:size-7 msr:select-none msr:items-center msr:justify-center msr:rounded-[7px] msr:text-black msr:outline-none msr:hover:bg-black/4"
+          disabled={compact() && !toolbarExpansionFits()}
+          class="msr:flex msr:size-7 msr:select-none msr:items-center msr:justify-center msr:rounded-[7px] msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:opacity-40"
           onClick={toggleCompact}
         >
           <CaretDownIcon size={10} class={compact() ? "msr:-rotate-90" : "msr:rotate-90"} />
