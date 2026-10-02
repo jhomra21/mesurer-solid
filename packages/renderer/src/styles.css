@@ -634,7 +634,7 @@ body.mesurer-solid-xray .mesurer-ti-close {
   z-index: 1;
   isolation: isolate;
   border-radius: 5px;
-  background: var(--msr-color-ink-50, #f8fafc);
+  background: transparent;
 }
 
 .mesurer-toolbar-mode-switch-pill {

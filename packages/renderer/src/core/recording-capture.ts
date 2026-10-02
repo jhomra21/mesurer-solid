@@ -1,4 +1,14 @@
-import type { ScreenshotRect } from "./screenshot";
+import type { HostRecordingStreamResult, ScreenshotRect } from "./screenshot";
+
+type MesurerElectronRecordingHost = {
+  captureRecordingStream?: () => Promise<HostRecordingStreamResult>;
+};
+
+declare global {
+  interface Window {
+    __MESURER_RECORDING_HOST__?: MesurerElectronRecordingHost;
+  }
+}
 
 export type RecordingViewportMetrics = {
   width: number;
@@ -288,11 +298,15 @@ type ChromiumTabVideoConstraint = MediaTrackConstraints & {
   };
 };
 
+const recordingHostCapture = (ownerWindow: Window) =>
+  ownerWindow.__MESURER_RECORDING_HOST__?.captureRecordingStream
+  ?? ownerWindow.__MESURER_HOST__?.captureRecordingStream;
+
 const hostRecordingStream = async (
   ownerWindow: Window,
   media: MediaDevices,
 ): Promise<MediaStream> => {
-  const capture = ownerWindow.__MESURER_HOST__?.captureRecordingStream;
+  const capture = recordingHostCapture(ownerWindow);
 
   if (!capture) {
     throw new Error("Native recording capture is unavailable.");
@@ -351,7 +365,7 @@ const requestRecordingStream = async (
     throw new Error("Screen recording is unavailable in this browser.");
   }
 
-  if (ownerWindow.__MESURER_HOST__?.captureRecordingStream) {
+  if (recordingHostCapture(ownerWindow)) {
     return hostRecordingStream(ownerWindow, media);
   }
 

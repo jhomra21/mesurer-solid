@@ -148,6 +148,14 @@ try {
   await codexButton.waitFor({ state: "visible" });
   await page.locator("button[data-mesurer-builtin='color-picker']").waitFor({ state: "visible" });
   assert.equal(await modeSwitch.count(), 1, "Toolbar must expose exactly one Select/Edit mode switch");
+
+  const modeSwitchBackground = await modeSwitch.evaluate((element) =>
+    getComputedStyle(element).backgroundColor);
+
+  assert(
+    modeSwitchBackground === "rgba(0, 0, 0, 0)" || modeSwitchBackground === "transparent",
+    `Select/Edit switch must not render a backing plate: ${modeSwitchBackground}`,
+  );
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-mode"), "select");
   assert.equal(await selectMode.getAttribute("aria-pressed"), "true");
   assert.equal(await editMode.getAttribute("aria-pressed"), "false");

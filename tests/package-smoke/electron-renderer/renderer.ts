@@ -29,6 +29,7 @@ type ElectronTestSummary = {
   recordingMime: string;
   recordingBytes: number;
   recordingInteractionClicks: number;
+  recordingAutoHost: boolean;
   toolbarInitialRect: {
     left: number;
     top: number;
@@ -51,6 +52,9 @@ type ElectronTestSummary = {
 
 declare global {
   interface Window {
+    __MESURER_RECORDING_HOST__?: {
+      captureRecordingStream?: () => Promise<{ streamId: string }>;
+    };
     electronMesurer: {
       fail(message: string): Promise<void>;
       complete(payload: {
@@ -253,6 +257,16 @@ const recordingService = await mesurer.service<MesurerRecordingService>(
   MESURER_RECORDING_SERVICE_ID,
 );
 
+const recordingAutoHost = Boolean(
+  window.__MESURER_RECORDING_HOST__?.captureRecordingStream,
+);
+
+if (!recordingAutoHost) {
+  throw new Error(
+    "mesurer-solid/electron did not install its package-owned Recording preload.",
+  );
+}
+
 const recordingAction = document.querySelector<HTMLButtonElement>(
   "[data-testid='electron-recording-action']",
 );
@@ -419,6 +433,7 @@ await window.electronMesurer.complete({
     recordingMime: recordingResult.blob.type,
     recordingBytes: recordingBytes.byteLength,
     recordingInteractionClicks,
+    recordingAutoHost,
     toolbarInitialRect: {
       left: toolbarInitialBounds.left,
       top: toolbarInitialBounds.top,

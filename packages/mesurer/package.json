@@ -47,6 +47,11 @@
       "types": "./plugins/recording/preload.d.ts",
       "import": "./plugins/recording/preload.mjs",
       "require": "./plugins/recording/preload.cjs"
+    },
+    "./electron": {
+      "types": "./plugins/recording/electron.d.ts",
+      "import": "./plugins/recording/electron.mjs",
+      "require": "./plugins/recording/electron.cjs"
     }
   },
   "files": [

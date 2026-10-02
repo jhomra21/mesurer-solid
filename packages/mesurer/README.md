@@ -70,7 +70,7 @@ const mesurer = mountMesurer({
 })
 ```
 
-The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. First-party Recording uses MediaBunny for encoded video, trim, resize, and WebM/MP4 export; its capture adapters only acquire pixels. Electron hosts can expose `window.__MESURER_HOST__.captureRecordingStream` with the package-owned Recording main/preload helpers so capture stays inside the current application renderer. The toolbar groups those controls into Select and Edit. Typography stays read-only in Select; Edit owns movement and direct text/style changes. Color Picker uses application-local capture when `window.__MESURER_HOST__.captureScreenshot` is available; other supported browser hosts use an operational `EyeDropper`. A successful sample is copied to the clipboard using `colorPickerClickFormat`.
+The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, plugin hosting, direct text editing, and the low-level inspection API. First-party Recording uses MediaBunny for encoded video, trim, resize, and WebM/MP4 export; its capture adapters only acquire pixels. Electron apps should import `mesurer-solid/electron` once from the main-process entrypoint before creating BrowserWindows; Mesurer then owns its narrow Recording preload/IPC automatically, so the app does not add Recording code to its own preload. The toolbar groups those controls into Select and Edit. Typography stays read-only in Select; Edit owns movement and direct text/style changes. Color Picker uses application-local capture when `window.__MESURER_HOST__.captureScreenshot` is available; other supported browser hosts use an operational `EyeDropper`. A successful sample is copied to the clipboard using `colorPickerClickFormat`.
 
 `mesurer-solid/plugins` also exports the built-in factories for lower-level composition. Normal mounts already include the built-ins. Use `excludeBuiltins` with names such as `"xray"`, `"typography"`, and `"colorPicker"` when a mount should omit one.
 
@@ -87,10 +87,11 @@ Advanced integrations may supply their own `pluginHost`. That host remains calle
 | `mesurer-solid/inject-script` | Built classic Mesurer injection artifact; load `mesurer-solid/mediabunny-vendor` first for raw classic evaluation |
 | `mesurer-solid/mediabunny-vendor` | Separate MPL-2.0 MediaBunny classic runtime for raw injection and the extension; the normal ESM entrypoints use an internal relative `dist/mediabunny-runtime.js` so MediaBunny is not installed into consumer dependency graphs |
 | `mesurer-skill` | Install the portable coding-agent skill |
+| `mesurer-solid/electron` | Preferred Electron main-process bootstrap; automatically installs Mesurer's narrow Recording bridge/preload |
 | `mesurer-solid/plugins/codex/bridge` | Native Codex transport and Electron main-process host adapter |
 | `mesurer-solid/plugins/codex/preload` | Bundle-friendly Electron preload adapter for the Codex host capability |
-| `mesurer-solid/plugins/recording/bridge` | Electron main-process adapter for renderer-bound Recording stream ids |
-| `mesurer-solid/plugins/recording/preload` | Bundle-friendly Electron preload adapter for the Recording host capability |
+| `mesurer-solid/plugins/recording/bridge` | Advanced/manual Electron Recording host adapter for custom sender policy |
+| `mesurer-solid/plugins/recording/preload` | Advanced/manual Electron Recording preload adapter |
 
 Programmatic injection reuses an existing connected instance by default. Lifecycle-owning integrations can set `recoverDisconnected: true` in `MesurerInjectConfig` to remount Mesurer when page DOM replacement disconnects its host. The option defaults to `false`, so ordinary one-shot injection does not silently reappear after disposal.
 

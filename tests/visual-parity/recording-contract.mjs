@@ -107,6 +107,41 @@ try {
 
   await recordingStatus.waitFor({ state: "visible" });
   await recordingStop.waitFor({ state: "visible" });
+
+  const recordingChrome = await recordingStatus.evaluate((element) => {
+    const statusRoot = element.closest("[data-mesurer-recording-status-root='true']");
+
+    const toolbar = element.getRootNode() instanceof ShadowRoot
+      ? element.getRootNode().querySelector("[data-mesurer-toolbar='true']")
+      : null;
+
+    if (!(statusRoot instanceof HTMLElement) || !(toolbar instanceof HTMLElement)) {
+      throw new Error("Recording status layering contract could not resolve its roots");
+    }
+
+    const statusRect = element.getBoundingClientRect();
+    const toolbarRect = toolbar.getBoundingClientRect();
+
+    return {
+      statusRootZ: Number(getComputedStyle(statusRoot).zIndex),
+      toolbarZ: Number(getComputedStyle(toolbar).zIndex),
+      opacity: getComputedStyle(element).opacity,
+      overlapsToolbar:
+        statusRect.left < toolbarRect.right
+        && statusRect.right > toolbarRect.left
+        && statusRect.top < toolbarRect.bottom
+        && statusRect.bottom > toolbarRect.top,
+    };
+  });
+
+  if (
+    !(recordingChrome.statusRootZ > recordingChrome.toolbarZ)
+    || recordingChrome.opacity !== "1"
+    || recordingChrome.overlapsToolbar
+  ) {
+    throw new Error(`Recording status must stay undimmed and above/clear of the toolbar: ${JSON.stringify(recordingChrome)}`);
+  }
+
   await page.waitForTimeout(850);
   await recordingStop.click();
   await page.waitForFunction(() => window.__MESURER_RECORDING_TEST__?.service.snapshot().status === "ready", null, {
@@ -134,6 +169,8 @@ try {
   if (!previewBox || Math.abs(previewBox.width - 352) > 1) {
     throw new Error(`Recording editor must use upstream's 352px collapsed width: ${JSON.stringify(previewBox)}`);
   }
+
+  const collapsedCenter = previewBox.x + previewBox.width / 2;
 
   const settingsButton = island.locator("[data-mesurer-builtin='settings'] button").first();
   const settingsDialog = island.getByRole("dialog", { name: "Settings" });
@@ -271,11 +308,40 @@ try {
     throw new Error(`Recording editor did not expand to upstream's 576px card: ${JSON.stringify(expandedBox)}`);
   }
 
+  const expandedCenter = expandedBox.x + expandedBox.width / 2;
+
+  if (Math.abs(expandedCenter - collapsedCenter) > 1.5) {
+    throw new Error(`Recording editor expansion shifted horizontally: ${JSON.stringify({
+      collapsedCenter,
+      expandedCenter,
+      previewBox,
+      expandedBox,
+    })}`);
+  }
+
   if ((await expand.getAttribute("aria-label")) !== "Shrink preview") {
     throw new Error("Recording editor expand control did not switch to Shrink preview");
   }
 
   await expand.click();
+  await page.waitForFunction(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const preview = island?.shadowRoot?.querySelector("[data-mesurer-recording-preview='true']");
+
+    return preview instanceof HTMLElement && preview.getBoundingClientRect().width <= 353;
+  });
+
+  const collapsedAgainBox = await preview.boundingBox();
+
+  if (
+    !collapsedAgainBox
+    || Math.abs(collapsedAgainBox.x + collapsedAgainBox.width / 2 - collapsedCenter) > 1.5
+  ) {
+    throw new Error(`Recording editor shrink shifted horizontally: ${JSON.stringify({
+      collapsedCenter,
+      collapsedAgainBox,
+    })}`);
+  }
 
   if ((await play.getAttribute("aria-label")) !== "Play") {
     throw new Error("Recording editor play control did not start in the Play state");

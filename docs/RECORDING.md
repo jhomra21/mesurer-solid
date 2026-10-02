@@ -74,40 +74,21 @@ Ordinary browser pages use `navigator.mediaDevices.getDisplayMedia()`. Mesurer r
 
 If the browser returns a non-browser display surface, Recording rejects it rather than silently recording another application.
 
-## Electron/native host capture
+## Electron capture
 
-Electron applications should keep Recording acquisition in main/preload and leave the renderer on the normal `recording()` API. Install the package-owned main adapter:
-
-```ts
-import { BrowserWindow, ipcMain } from "electron"
-import {
-  installMesurerRecordingHost,
-} from "mesurer-solid/plugins/recording/bridge"
-
-const recordingHost = installMesurerRecordingHost({
-  ipcMain,
-  validateSender(event) {
-    const window = BrowserWindow.fromWebContents(event.sender)
-
-    return Boolean(window && !window.isDestroyed())
-  },
-})
-```
-
-Expose the narrow request function from a bundled preload:
+Electron cannot grant a renderer privileged capture access from renderer code alone. Mesurer therefore owns the native side too: import the Electron entry once from the application's **main process, before creating BrowserWindows**.
 
 ```ts
-import { contextBridge, ipcRenderer } from "electron"
-import {
-  createMesurerRecordingPreloadBridge,
-} from "mesurer-solid/plugins/recording/preload"
-
-contextBridge.exposeInMainWorld("__MESURER_HOST__", {
-  captureRecordingStream: createMesurerRecordingPreloadBridge(ipcRenderer),
-})
+import "mesurer-solid/electron"
 ```
 
-The main adapter uses Electron's `WebContents.getMediaSourceId(requestWebContents)` and binds the short-lived id to the invoking renderer. The renderer consumes that id with the same `chromeMediaSource: "tab"` constraint shape used by extension tab capture, then hands frames to the same canvas and MediaBunny pipeline. Mesurer does not install a session-wide display-media handler, open a system picker, or create a second recorder.
+That is the normal Electron setup. There is no Recording code to add to the application's preload.
+
+The Electron entry installs one shared main-process Recording handler and registers Mesurer's private preload with Electron sessions before each window's normal preload runs. The private preload exposes only the one Recording stream request, only in the main frame. When Recording starts, the handler asks the invoking `WebContents` for a short-lived media source id bound to that same renderer. Mesurer consumes the id immediately with Chromium's tab-stream constraint and sends the frames through the normal selected-region canvas and MediaBunny pipeline.
+
+This keeps `contextIsolation` and sandboxing intact. Mesurer does not expose raw `ipcRenderer`, use `desktopCapturer`, install a session-wide display-media permission handler, open a system picker, or create a second recorder.
+
+For applications that deliberately need their own sender policy or native bridge lifecycle, the lower-level compatibility helpers remain available at `mesurer-solid/plugins/recording/bridge` and `mesurer-solid/plugins/recording/preload`. New Electron integrations should prefer `mesurer-solid/electron`.
 
 Once the native capability is present, failure stays on that path instead of silently opening a different screen-share permission flow.
 
@@ -165,7 +146,7 @@ The dedicated Chromium contract uses an animated canvas as a deterministic displ
 - programmatic service capture;
 - browser display acquisition;
 - extension-stream acquisition without falling back to the display picker;
-- packed Electron/native-host acquisition through a renderer-bound WebContents stream id, including native Electron mouse input reaching the recorded application while capture is active, with a retained WebM artifact;
+- packed Electron acquisition through `mesurer-solid/electron` with no application-owned Recording preload/IPC, using a renderer-bound WebContents stream id; native Electron mouse input must still reach the recorded application while capture is active, with a retained WebM artifact;
 - Escape/cancel and clean browser diagnostics.
 
 Build/package checks also reject `MediaRecorder` in the Recording implementation and reject accidental MediaBunny bundling across the MPL/MIT boundary.

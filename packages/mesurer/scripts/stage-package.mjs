@@ -29,7 +29,17 @@ for (const plugin of [
   },
   {
     name: "recording",
-    files: ["bridge.mjs", "bridge.d.ts", "preload.mjs", "preload.cjs", "preload.d.ts"],
+    files: [
+      "bridge.mjs",
+      "bridge.d.ts",
+      "preload.mjs",
+      "preload.cjs",
+      "preload.d.ts",
+      "electron.mjs",
+      "electron.cjs",
+      "electron.d.ts",
+      "auto-preload.cjs",
+    ],
   },
 ]) {
   mkdirSync(new URL(`plugins/${plugin.name}/`, stageDir), { recursive: true });

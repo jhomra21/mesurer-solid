@@ -186,7 +186,8 @@ export const createRecordingPreviewController = ({
     "font-size": "11px",
     "pointer-events": "auto",
     outline: "none",
-    transition: "width 200ms ease",
+    transform: "translateX(-50%)",
+    transition: "width 200ms ease, left 200ms ease",
   });
 
   root.append(panel);
@@ -783,18 +784,22 @@ export const createRecordingPreviewController = ({
 
     const anchorRect = anchor?.getBoundingClientRect();
 
-    let left = anchorRect
-      ? anchorRect.left + anchorRect.width / 2 - width / 2
-      : ownerWindow.innerWidth - width - VIEWPORT_PADDING;
+    const idealCenter = anchorRect
+      ? anchorRect.left + anchorRect.width / 2
+      : ownerWindow.innerWidth - VIEWPORT_PADDING - width / 2;
+
+    const minCenter = VIEWPORT_PADDING + width / 2;
+
+    const maxCenter = Math.max(
+      minCenter,
+      ownerWindow.innerWidth - VIEWPORT_PADDING - width / 2,
+    );
+
+    const center = Math.min(Math.max(minCenter, idealCenter), maxCenter);
 
     let top = anchorRect
       ? anchorRect.bottom + TOOLBAR_GAP
       : VIEWPORT_PADDING;
-
-    left = Math.min(
-      Math.max(VIEWPORT_PADDING, left),
-      Math.max(VIEWPORT_PADDING, ownerWindow.innerWidth - width - VIEWPORT_PADDING),
-    );
 
     if (top + panelHeight > ownerWindow.innerHeight - VIEWPORT_PADDING) {
       top = anchorRect
@@ -802,7 +807,7 @@ export const createRecordingPreviewController = ({
         : ownerWindow.innerHeight - panelHeight - VIEWPORT_PADDING;
     }
 
-    panel.style.left = `${left}px`;
+    panel.style.left = `${center}px`;
     panel.style.top = `${Math.max(VIEWPORT_PADDING, top)}px`;
 
     if (exportMenu.style.display !== "none") placeExportMenu();
