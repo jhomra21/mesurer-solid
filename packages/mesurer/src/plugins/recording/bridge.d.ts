@@ -1,9 +1,13 @@
+export type MesurerRecordingWebContents = {
+  id: number;
+  isDestroyed?(): boolean;
+  getMediaSourceId(
+    requestWebContents: MesurerRecordingWebContents,
+  ): string;
+};
+
 export type MesurerRecordingHostEvent = {
-  sender: {
-    id: number;
-    isDestroyed?(): boolean;
-    getMediaSourceId(requestWebContents: object): string;
-  };
+  sender: MesurerRecordingWebContents;
   senderFrame?: { parent?: object | null } | null;
 };
 
