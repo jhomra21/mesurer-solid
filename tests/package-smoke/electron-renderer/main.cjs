@@ -13,7 +13,6 @@ let mainWindow = null;
 
 let codexHost = null;
 
-let recordingHost = null;
 
 let finished = false;
 
@@ -169,7 +168,6 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || !String(summary.colorPickerValue ?? "").includes("#123456")
     || summary.nativeEyeDropperOpens !== 0
     || summary.colorPickerOverlayRemoved !== true
-    || summary.recordingBridgeOk !== true
     || summary.recordingSkipped !== skipRecording
     || (
       !skipRecording
@@ -219,17 +217,6 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
 
 app.whenReady().then(async () => {
   const { installMesurerCodexHost } = await import("mesurer-solid/plugins/codex/bridge");
-  const { installMesurerRecordingHost } = await import("mesurer-solid/plugins/recording/bridge");
-
-  recordingHost = installMesurerRecordingHost({
-    ipcMain,
-    validateSender(event) {
-      const window = BrowserWindow.fromWebContents(event.sender);
-
-      return Boolean(window && !window.isDestroyed());
-    },
-  });
-
   codexHost = installMesurerCodexHost({
     ipcMain,
     validateSender(event) {
@@ -240,8 +227,6 @@ app.whenReady().then(async () => {
   });
 
   app.once("before-quit", () => {
-    recordingHost?.dispose();
-    recordingHost = null;
     codexHost?.dispose();
     codexHost = null;
   });
