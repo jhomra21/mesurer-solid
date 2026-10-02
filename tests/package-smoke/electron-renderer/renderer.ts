@@ -57,6 +57,7 @@ declare global {
         start: { x: number; y: number };
         end: { x: number; y: number };
       }): Promise<void>;
+      progress(phase: string): void;
     };
   }
 }
@@ -211,6 +212,8 @@ const capture = await service.capture({
 
 const png = new Uint8Array(await capture.blob.arrayBuffer());
 
+window.electronMesurer.progress("recording:service");
+
 const recordingService = await mesurer.service<MesurerRecordingService>("recording");
 
 const recordingRect = {
@@ -220,13 +223,23 @@ const recordingRect = {
   height: target.inspection.rect.height,
 };
 
+window.electronMesurer.progress("recording:start:before");
+
 await recordingService.start(recordingRect);
+
+window.electronMesurer.progress("recording:start:after");
 
 await new Promise((resolve) => setTimeout(resolve, 350));
 
+window.electronMesurer.progress("recording:stop:before");
+
 const recordingAsset = await recordingService.stop();
 
+window.electronMesurer.progress("recording:stop:after");
+
 const video = new Uint8Array(await recordingAsset.blob.arrayBuffer());
+
+window.electronMesurer.progress(`recording:blob:${video.byteLength}`);
 
 recordingService.discard();
 
@@ -244,6 +257,8 @@ await window.electronMesurer.dragToolbar({
 await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 const toolbarDraggedBounds = toolbar.getBoundingClientRect();
+
+window.electronMesurer.progress("complete:before");
 
 await window.electronMesurer.complete({
   png,
