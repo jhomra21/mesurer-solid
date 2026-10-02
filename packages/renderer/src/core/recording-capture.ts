@@ -1,4 +1,8 @@
-import type { ScreenshotRect } from "./screenshot";
+import {
+  captureHostScreenshotPng,
+  hasHostScreenshotCapture,
+  type ScreenshotRect,
+} from "./screenshot";
 
 export type RecordingViewportMetrics = {
   width: number;
@@ -16,7 +20,8 @@ export type RecordingVideoPlacement = {
   dh: number;
 };
 
-export type RecordingCapture = {
+type RecordingStreamCapture = {
+  kind: "stream";
   stream: MediaStream;
   track: MediaStreamTrack;
   source: HTMLVideoElement;
@@ -25,6 +30,15 @@ export type RecordingCapture = {
   cropTarget: HTMLElement | null;
   regionLocked: boolean;
 };
+
+type RecordingHostCapture = {
+  kind: "host";
+  ownerWindow: Window;
+  canvas: HTMLCanvasElement;
+  context: CanvasRenderingContext2D;
+};
+
+export type RecordingCapture = RecordingStreamCapture | RecordingHostCapture;
 
 declare const RECORDING_CROP_TARGET: unique symbol;
 
@@ -288,36 +302,6 @@ type ChromiumTabVideoConstraint = MediaTrackConstraints & {
   };
 };
 
-const hostRecordingStream = async (
-  ownerWindow: Window,
-  media: MediaDevices,
-) => {
-  const bridge = ownerWindow.__MESURER_HOST__?.recordingBridge;
-
-  if (!bridge) return null;
-  const response = await bridge();
-
-  if (!response.ok) {
-    throw new Error(response.error || "Electron recording host could not capture this renderer.");
-  }
-
-  if (!response.streamId) {
-    throw new Error("Electron recording host did not return a stream id.");
-  }
-
-  const video: ChromiumTabVideoConstraint = {
-    mandatory: {
-      chromeMediaSource: "tab",
-      chromeMediaSourceId: response.streamId,
-    },
-  };
-
-  return media.getUserMedia({
-    audio: false,
-    video,
-  });
-};
-
 const extensionRecordingStream = async (
   ownerWindow: Window,
   media: MediaDevices,
@@ -351,14 +335,6 @@ const requestRecordingStream = async (
     throw new Error("Screen recording is unavailable in this browser.");
   }
 
-  if (ownerWindow.__MESURER_HOST__?.recordingBridge) {
-    const hostStream = await hostRecordingStream(ownerWindow, media);
-
-    if (!hostStream) throw new Error("Electron recording host is unavailable.");
-
-    return hostStream;
-  }
-
   try {
     const extensionStream = await extensionRecordingStream(ownerWindow, media);
 
@@ -388,11 +364,120 @@ const requestRecordingStream = async (
   }
 };
 
+const drawRecordingSource = (
+  source: CanvasImageSource,
+  sourceWidth: number,
+  sourceHeight: number,
+  canvas: HTMLCanvasElement,
+  context: CanvasRenderingContext2D,
+  rect: ScreenshotRect,
+  viewport: RecordingViewportMetrics,
+) => {
+  const placed = placeRecordingRectInVideo(
+    rect,
+    sourceWidth,
+    sourceHeight,
+    viewport,
+  );
+
+  const coversFrame =
+    placed.dx <= 0.001
+    && placed.dy <= 0.001
+    && placed.dw >= 0.999
+    && placed.dh >= 0.999;
+
+  const destX = coversFrame ? 0 : placed.dx * canvas.width;
+  const destY = coversFrame ? 0 : placed.dy * canvas.height;
+  const destWidth = coversFrame ? canvas.width : placed.dw * canvas.width;
+  const destHeight = coversFrame ? canvas.height : placed.dh * canvas.height;
+
+  if (!coversFrame) {
+    context.fillStyle = "#000";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  if (destWidth < 1 || destHeight < 1 || placed.dw <= 0 || placed.dh <= 0) return;
+
+  context.drawImage(
+    source,
+    placed.sx,
+    placed.sy,
+    placed.sw,
+    placed.sh,
+    destX,
+    destY,
+    destWidth,
+    destHeight,
+  );
+};
+
+const openHostRecordingCapture = async (
+  ownerDocument: Document,
+  ownerWindow: Window,
+  rect: ScreenshotRect,
+): Promise<RecordingHostCapture> => {
+  const png = await captureHostScreenshotPng(ownerWindow);
+
+  if (!png) {
+    throw new Error("Native host recording capture is unavailable.");
+  }
+
+  const bitmap = await createImageBitmap(png);
+
+  try {
+    const placement = placeRecordingRectInVideo(
+      rect,
+      bitmap.width,
+      bitmap.height,
+      recordingViewportMetrics(ownerWindow),
+    );
+    const canvas = ownerDocument.createElement("canvas");
+    canvas.width = placement.sw;
+    canvas.height = placement.sh;
+    canvas.setAttribute("aria-hidden", "true");
+    canvas.style.cssText = HIDDEN_MEDIA_STYLE;
+    ownerDocument.body.append(canvas);
+
+    const context = canvas.getContext("2d", { alpha: false });
+
+    if (!context) {
+      canvas.remove();
+
+      throw new Error("Screen recording requires a 2D canvas.");
+    }
+
+    const capture: RecordingHostCapture = {
+      kind: "host",
+      ownerWindow,
+      canvas,
+      context,
+    };
+
+    drawRecordingSource(
+      bitmap,
+      bitmap.width,
+      bitmap.height,
+      canvas,
+      context,
+      rect,
+      recordingViewportMetrics(ownerWindow),
+    );
+
+    return capture;
+  } finally {
+    bitmap.close();
+  }
+};
+
 export const openRecordingCapture = async (
   ownerDocument: Document,
   ownerWindow: Window,
   rect: ScreenshotRect,
 ): Promise<RecordingCapture> => {
+  if (hasHostScreenshotCapture(ownerWindow)) {
+    return openHostRecordingCapture(ownerDocument, ownerWindow, rect);
+  }
+
   const stream = await requestRecordingStream(ownerWindow);
   const track = stream.getVideoTracks()[0];
 
@@ -470,7 +555,8 @@ export const openRecordingCapture = async (
       throw new Error("Screen recording requires a 2D canvas.");
     }
 
-    const capture: RecordingCapture = {
+    const capture: RecordingStreamCapture = {
+      kind: "stream",
       stream,
       track,
       source,
@@ -493,11 +579,37 @@ export const openRecordingCapture = async (
   }
 };
 
-export const paintRecordingFrame = (
+export const paintRecordingFrame = async (
   capture: RecordingCapture,
   rect: ScreenshotRect,
   viewport: RecordingViewportMetrics,
 ) => {
+  if (capture.kind === "host") {
+    const png = await captureHostScreenshotPng(capture.ownerWindow);
+
+    if (!png) {
+      throw new Error("Native host recording capture stopped.");
+    }
+
+    const bitmap = await createImageBitmap(png);
+
+    try {
+      drawRecordingSource(
+        bitmap,
+        bitmap.width,
+        bitmap.height,
+        capture.canvas,
+        capture.context,
+        rect,
+        viewport,
+      );
+    } finally {
+      bitmap.close();
+    }
+
+    return;
+  }
+
   const { source, canvas, context, regionLocked } = capture;
 
   if (source.videoWidth <= 0 || source.videoHeight <= 0) return;
@@ -508,50 +620,27 @@ export const paintRecordingFrame = (
     return;
   }
 
-  const placed = placeRecordingRectInVideo(
-    rect,
+  drawRecordingSource(
+    source,
     source.videoWidth,
     source.videoHeight,
+    canvas,
+    context,
+    rect,
     viewport,
-  );
-
-  const coversFrame =
-    placed.dx <= 0.001
-    && placed.dy <= 0.001
-    && placed.dw >= 0.999
-    && placed.dh >= 0.999;
-
-  const destX = coversFrame ? 0 : placed.dx * canvas.width;
-  const destY = coversFrame ? 0 : placed.dy * canvas.height;
-  const destWidth = coversFrame ? canvas.width : placed.dw * canvas.width;
-  const destHeight = coversFrame ? canvas.height : placed.dh * canvas.height;
-
-  if (!coversFrame) {
-    context.fillStyle = "#000";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-  }
-
-  if (destWidth < 1 || destHeight < 1 || placed.dw <= 0 || placed.dh <= 0) return;
-  context.drawImage(
-    source,
-    placed.sx,
-    placed.sy,
-    placed.sw,
-    placed.sh,
-    destX,
-    destY,
-    destWidth,
-    destHeight,
   );
 };
 
 export const closeRecordingCapture = (
   capture: RecordingCapture,
 ) => {
+  capture.canvas.remove();
+
+  if (capture.kind === "host") return;
+
   capture.source.pause();
   capture.source.srcObject = null;
   capture.stream.getTracks().forEach((track) => track.stop());
   capture.cropTarget?.remove();
-  capture.canvas.remove();
   capture.source.remove();
 };
