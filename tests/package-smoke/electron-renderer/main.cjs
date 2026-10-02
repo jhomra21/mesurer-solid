@@ -38,8 +38,12 @@ function fail(error) {
 }
 
 ipcMain.handle("mesurer:capture-window", async (event, request) => {
-  if (request?.purpose === "recording") recordingCaptureCount += 1;
-  else captureCount += 1;
+  if (request?.purpose === "recording") {
+    recordingCaptureCount += 1;
+    console.log(`Mesurer Electron Recording frame request: ${recordingCaptureCount}`);
+  } else {
+    captureCount += 1;
+  }
 
   const window = BrowserWindow.fromWebContents(event.sender);
 
@@ -56,6 +60,10 @@ ipcMain.handle("mesurer:capture-window", async (event, request) => {
     width,
     height,
   };
+});
+
+ipcMain.on("mesurer:test-progress", (_event, phase) => {
+  console.log(`Mesurer Electron phase: ${String(phase)}`);
 });
 
 ipcMain.handle("mesurer:drag-toolbar", async (event, payload) => {
