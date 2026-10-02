@@ -723,9 +723,29 @@ export const createRecordingPreviewController = ({
     }
   };
 
+  const placeExportMenu = () => {
+    if (exportMenu.style.display === "none") return;
+
+    const anchorRect = exportAnchor.getBoundingClientRect();
+    const menuHeight = Math.max(1, exportMenu.offsetHeight);
+    const spaceAbove = anchorRect.top - VIEWPORT_PADDING;
+    const spaceBelow = ownerWindow.innerHeight - anchorRect.bottom - VIEWPORT_PADDING;
+    const openAbove = spaceAbove >= menuHeight || spaceAbove >= spaceBelow;
+
+    if (openAbove) {
+      exportMenu.style.top = "auto";
+      exportMenu.style.bottom = "24px";
+    } else {
+      exportMenu.style.top = "24px";
+      exportMenu.style.bottom = "auto";
+    }
+  };
+
   const setExportMenuOpen = (open: boolean) => {
     exportMenu.style.display = open ? "block" : "none";
     exportOptions.setAttribute("aria-expanded", open ? "true" : "false");
+
+    if (open) placeExportMenu();
   };
 
   const setBusy = (value: boolean) => {
@@ -784,6 +804,8 @@ export const createRecordingPreviewController = ({
 
     panel.style.left = `${left}px`;
     panel.style.top = `${Math.max(VIEWPORT_PADDING, top)}px`;
+
+    if (exportMenu.style.display !== "none") placeExportMenu();
   };
 
   const clearUrl = () => {
@@ -975,14 +997,16 @@ export const createRecordingPreviewController = ({
     });
   }
 
-  ownerDocument.addEventListener("pointerdown", (event) => {
+  const onDocumentPointerDown = (event: PointerEvent) => {
     if (exportMenu.style.display === "none") return;
     const path = event.composedPath();
 
     if (path.includes(exportAnchor)) return;
 
     setExportMenuOpen(false);
-  }, true);
+  };
+
+  ownerDocument.addEventListener("pointerdown", onDocumentPointerDown, true);
 
   expand.addEventListener("click", () => {
     expanded = !expanded;
@@ -1018,6 +1042,7 @@ export const createRecordingPreviewController = ({
       if (operation !== revision) return;
 
       status.style.display = "block";
+      status.style.color = "var(--msr-danger-text, #dc2626)";
       status.textContent = cause instanceof Error
         ? cause.message
         : "Could not export the recording.";
@@ -1088,6 +1113,7 @@ export const createRecordingPreviewController = ({
       currentTime.textContent = "0:00.00";
       durationLabel.textContent = timestamp(nextAsset.duration);
       status.style.display = "none";
+      status.style.color = "var(--msr-color-ink-500, #64748b)";
       setExportMenuOpen(false);
       updateFormatRows();
       updateScaleRows();
@@ -1111,6 +1137,7 @@ export const createRecordingPreviewController = ({
 
         if (supported.length === 0) {
           status.style.display = "block";
+          status.style.color = "var(--msr-danger-text, #dc2626)";
           status.textContent = "No MediaBunny video encoder is available in this runtime.";
         }
       }).catch((cause: unknown) => {
@@ -1120,6 +1147,7 @@ export const createRecordingPreviewController = ({
         updateFormatRows();
         download.disabled = true;
         status.style.display = "block";
+        status.style.color = "var(--msr-danger-text, #dc2626)";
         status.textContent = cause instanceof Error
           ? cause.message
           : "Could not inspect export support.";
@@ -1134,6 +1162,7 @@ export const createRecordingPreviewController = ({
       ownerWindow.removeEventListener("pointermove", onWindowPointerMove, true);
       ownerWindow.removeEventListener("pointerup", onWindowPointerEnd, true);
       ownerWindow.removeEventListener("pointercancel", onWindowPointerEnd, true);
+      ownerDocument.removeEventListener("pointerdown", onDocumentPointerDown, true);
       panel.remove();
     },
   };
