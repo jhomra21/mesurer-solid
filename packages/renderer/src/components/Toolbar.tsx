@@ -612,37 +612,18 @@ export function Toolbar(props: ToolbarProps) {
   const ensureToolbarFitsViewport = () => {
     const toolbar = toolbarElement;
 
-    if (!toolbar) return;
-    const rect = toolbar.getBoundingClientRect();
+    if (!toolbar || compact()) return;
+    const width = toolbar.getBoundingClientRect().width;
 
-    if (!compact()) {
-      setExpandedToolbarWidth(rect.width);
+    setExpandedToolbarWidth(width);
 
-      if (rect.width > toolbarViewportWidth() + 0.5) {
-        setGuideMenuOpen(false);
-        setPluginMenuOpenId(null);
-        pluginMenuAnchorElement = undefined;
-        setCompact(true);
-        setViewportRevision((value) => value + 1);
-        props.ownerWindow.requestAnimationFrame(ensureToolbarFitsViewport);
+    if (width <= toolbarViewportWidth() + 0.5) return;
 
-        return;
-      }
-    }
-
-    const constrained = constrainToolbarPosition(
-      props.ownerWindow,
-      position(),
-      { width: rect.width, height: rect.height },
-      { width: props.ownerWindow.innerWidth, height: props.ownerWindow.innerHeight },
-    );
-
-    if (
-      Math.abs(constrained.x - position().x) > 0.5
-      || Math.abs(constrained.y - position().y) > 0.5
-    ) {
-      setPosition(constrained);
-    }
+    setGuideMenuOpen(false);
+    setPluginMenuOpenId(null);
+    pluginMenuAnchorElement = undefined;
+    setCompact(true);
+    setViewportRevision((value) => value + 1);
   };
 
   const toggleCompact = () => {
@@ -847,20 +828,10 @@ export function Toolbar(props: ToolbarProps) {
       setPluginMenuOpenId(null);
     };
 
-    let fitFrame = 0;
-
-    const scheduleToolbarFit = () => {
-      if (fitFrame) return;
-      fitFrame = props.ownerWindow.requestAnimationFrame(() => {
-        fitFrame = 0;
-        ensureToolbarFitsViewport();
-      });
-    };
-
     const resize = () => {
       if (guideMenuOpen()) updateMenuAlign();
       setViewportRevision((value) => value + 1);
-      scheduleToolbarFit();
+      props.ownerWindow.requestAnimationFrame(ensureToolbarFitsViewport);
     };
 
     const keyboardTarget = props.ownerWindow.document;
@@ -876,15 +847,15 @@ export function Toolbar(props: ToolbarProps) {
     const Resize = (props.ownerWindow as Window & typeof globalThis).ResizeObserver;
 
     const toolbarResizeObserver = Resize
-      ? new Resize(scheduleToolbarFit)
+      ? new Resize(() => ensureToolbarFitsViewport())
       : null;
 
     if (toolbarElement) toolbarResizeObserver?.observe(toolbarElement);
 
-    scheduleToolbarFit();
+    let revealFrame = 0;
 
-    let revealFrame = props.ownerWindow.requestAnimationFrame(() => {
-      revealFrame = 0;
+    const initialFitFrame = props.ownerWindow.requestAnimationFrame(() => {
+      ensureToolbarFitsViewport();
       revealFrame = props.ownerWindow.requestAnimationFrame(() => {
         revealFrame = 0;
         setToolbarReady(true);
@@ -917,7 +888,7 @@ export function Toolbar(props: ToolbarProps) {
       props.ownerWindow.removeEventListener("resize", resize);
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
 
-      if (fitFrame) props.ownerWindow.cancelAnimationFrame(fitFrame);
+      props.ownerWindow.cancelAnimationFrame(initialFitFrame);
 
       if (revealFrame) props.ownerWindow.cancelAnimationFrame(revealFrame);
       toolbarResizeObserver?.disconnect();
