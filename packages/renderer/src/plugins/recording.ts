@@ -945,19 +945,23 @@ export const recordingPlugin = (
       recordingStatus.style.display = "flex";
 
       const width = Math.max(112, recordingStatus.offsetWidth || 112);
+
       const left = Math.min(
         viewportWidth - width - 8,
         Math.max(8, rect.left + rect.width / 2 - width / 2),
       );
+
       const toolbarRect = rendererRoot
         ?.querySelector<HTMLElement>("[data-mesurer-toolbar='true']")
         ?.getBoundingClientRect();
+
       const candidates = [
         rect.top >= height + gap + 8 ? rect.top - height - gap : null,
         viewportHeight - (rect.top + rect.height) >= height + gap + 8
           ? rect.top + rect.height + gap
           : null,
       ].filter((top): top is number => top !== null);
+
       const overlapsToolbar = (top: number) => {
         if (!toolbarRect) return false;
 
@@ -966,6 +970,7 @@ export const recordingPlugin = (
           && top < toolbarRect.bottom
           && top + height > toolbarRect.top;
       };
+
       const top = candidates.find((candidate) => !overlapsToolbar(candidate))
         ?? candidates[0]
         ?? null;
