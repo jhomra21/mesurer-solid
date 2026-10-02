@@ -280,8 +280,6 @@ export function Toolbar(props: ToolbarProps) {
   const [activeMenuIndex, setActiveMenuIndex] = createSignal(0);
   const [menuAlign, setMenuAlign] = createSignal<"left" | "right">("right");
   const [compact, setCompact] = createSignal(false);
-  const [toolbarReady, setToolbarReady] = createSignal(false);
-  const [expandedToolbarWidth, setExpandedToolbarWidth] = createSignal(0);
   const [viewportRevision, setViewportRevision] = createSignal(0);
   const tooltip = createTooltip(props.ownerWindow);
   let toolbarElement: HTMLDivElement | undefined;
@@ -599,35 +597,7 @@ export function Toolbar(props: ToolbarProps) {
     setGuideMenuOpen(false);
   };
 
-  const toolbarViewportWidth = () =>
-    Math.max(0, (props.ownerWindow.innerWidth || 0) - VIEWPORT_PADDING * 2);
-
-  const toolbarExpansionFits = () => {
-    viewportRevision();
-    const width = expandedToolbarWidth();
-
-    return width <= 0 || width <= toolbarViewportWidth() + 0.5;
-  };
-
-  const ensureToolbarFitsViewport = () => {
-    const toolbar = toolbarElement;
-
-    if (!toolbar || compact()) return;
-    const width = toolbar.getBoundingClientRect().width;
-
-    setExpandedToolbarWidth(width);
-
-    if (width <= toolbarViewportWidth() + 0.5) return;
-
-    setGuideMenuOpen(false);
-    setPluginMenuOpenId(null);
-    pluginMenuAnchorElement = undefined;
-    setCompact(true);
-    setViewportRevision((value) => value + 1);
-  };
-
   const toggleCompact = () => {
-    if (compact() && !toolbarExpansionFits()) return;
     const next = !compact();
 
     if (next) {
@@ -831,7 +801,6 @@ export function Toolbar(props: ToolbarProps) {
     const resize = () => {
       if (guideMenuOpen()) updateMenuAlign();
       setViewportRevision((value) => value + 1);
-      props.ownerWindow.requestAnimationFrame(ensureToolbarFitsViewport);
     };
 
     const keyboardTarget = props.ownerWindow.document;
@@ -842,25 +811,6 @@ export function Toolbar(props: ToolbarProps) {
     keyboardTarget.addEventListener("keydown", handleKeyDown, true);
     props.ownerWindow.addEventListener("resize", resize);
     toolbarElement?.addEventListener("click", handleClickCapture, true);
-
-    // SAFETY: ownerWindow owns this toolbar and its ResizeObserver implementation.
-    const Resize = (props.ownerWindow as Window & typeof globalThis).ResizeObserver;
-
-    const toolbarResizeObserver = Resize
-      ? new Resize(() => ensureToolbarFitsViewport())
-      : null;
-
-    if (toolbarElement) toolbarResizeObserver?.observe(toolbarElement);
-
-    let revealFrame = 0;
-
-    const initialFitFrame = props.ownerWindow.requestAnimationFrame(() => {
-      ensureToolbarFitsViewport();
-      revealFrame = props.ownerWindow.requestAnimationFrame(() => {
-        revealFrame = 0;
-        setToolbarReady(true);
-      });
-    });
 
     return () => {
       colorPickerCapabilityRevision += 1;
@@ -887,11 +837,6 @@ export function Toolbar(props: ToolbarProps) {
       keyboardTarget.removeEventListener("keydown", handleKeyDown, true);
       props.ownerWindow.removeEventListener("resize", resize);
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
-
-      props.ownerWindow.cancelAnimationFrame(initialFitFrame);
-
-      if (revealFrame) props.ownerWindow.cancelAnimationFrame(revealFrame);
-      toolbarResizeObserver?.disconnect();
 
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
     };
@@ -938,11 +883,7 @@ export function Toolbar(props: ToolbarProps) {
       data-mesurer-toolbar-mode={toolbarMode()}
       data-mesurer-inspector-ui="true"
       class="mesurer-toolbar-surface msr:pointer-events-auto msr:absolute msr:z-[90] msr:flex msr:items-stretch msr:rounded-[12px] msr:bg-[#fff] msr:outline msr:outline-transparent"
-      style={{
-        left: `${position().x}px`,
-        top: `${position().y}px`,
-        visibility: toolbarReady() ? "visible" : "hidden",
-      }}
+      style={{ left: `${position().x}px`, top: `${position().y}px` }}
       onPointerDown={(event) => { event.stopPropagation(); props.model.setTransient({ toolbarActive: true }); onToolbarPointerDown(event); }}
       onClick={(event) => event.stopPropagation()}
       onMouseEnter={refreshColorPickerCapability}
@@ -1110,8 +1051,7 @@ export function Toolbar(props: ToolbarProps) {
           data-mesurer-toolbar-compact-toggle="true"
           aria-label={compact() ? "Expand toolbar" : "Compact toolbar"}
           aria-pressed={compact() ? "true" : "false"}
-          disabled={compact() && !toolbarExpansionFits()}
-          class="msr:flex msr:size-7 msr:select-none msr:items-center msr:justify-center msr:rounded-[7px] msr:text-black msr:outline-none msr:hover:bg-black/4 msr:disabled:opacity-40"
+          class="msr:flex msr:size-7 msr:select-none msr:items-center msr:justify-center msr:rounded-[7px] msr:text-black msr:outline-none msr:hover:bg-black/4"
           onClick={toggleCompact}
         >
           <CaretDownIcon size={10} class={compact() ? "msr:-rotate-90" : "msr:rotate-90"} />
