@@ -851,6 +851,45 @@ export const recordingPlugin = (
       renderSelection(clamped);
     };
 
+    const showRecordingMask = (rect: ScreenshotRect) => {
+      const viewportWidth = ownerWindow.innerWidth;
+      const viewportHeight = ownerWindow.innerHeight;
+
+      setRectStyle(shade[0], { left: 0, top: 0, width: viewportWidth, height: rect.top });
+      setRectStyle(shade[1], { left: 0, top: rect.top, width: rect.left, height: rect.height });
+      setRectStyle(shade[2], {
+        left: rect.left + rect.width,
+        top: rect.top,
+        width: Math.max(0, viewportWidth - rect.left - rect.width),
+        height: rect.height,
+      });
+      setRectStyle(shade[3], {
+        left: 0,
+        top: rect.top + rect.height,
+        width: viewportWidth,
+        height: Math.max(0, viewportHeight - rect.top - rect.height),
+      });
+
+      outline.style.display = "none";
+      sizeTag.style.display = "none";
+      selectionPanel.style.display = "none";
+      selectionGrid.style.display = "none";
+      hint.style.display = "none";
+
+      for (const handle of resizeHandles) handle.style.display = "none";
+
+      overlay.style.display = "block";
+      overlay.style.pointerEvents = "none";
+      overlay.style.cursor = "default";
+    };
+
+    const hideRecordingMask = () => {
+      overlay.style.display = "none";
+      overlay.style.pointerEvents = "auto";
+      overlay.style.cursor = "crosshair";
+      hint.style.removeProperty("display");
+    };
+
     const finishSelection = () => {
       selectingOrigin = null;
       selectionRect = null;
@@ -936,6 +975,7 @@ export const recordingPlugin = (
       capture = null;
 
       if (currentCapture) closeRecordingCapture(currentCapture);
+      hideRecordingMask();
       hideRecordingStatus();
     };
 
@@ -1063,6 +1103,7 @@ export const recordingPlugin = (
         };
 
         asset = nextAsset;
+        hideRecordingMask();
         hideRecordingStatus();
         restoreToolbar();
         root.style.pointerEvents = "none";
@@ -1222,6 +1263,7 @@ export const recordingPlugin = (
 
         updateSnapshot({ status: "recording", elapsed: 0 });
         root.style.pointerEvents = "none";
+        showRecordingMask(rect);
         recordingTime.textContent = "00:00";
         placeRecordingStatus(rect);
         startFramePump(nextCapture, nextRecorder, operationId);
@@ -1278,6 +1320,8 @@ export const recordingPlugin = (
       hideToolbar();
       renderSelection(null);
       overlay.style.display = "block";
+      overlay.style.pointerEvents = "auto";
+      hint.style.removeProperty("display");
       root.style.pointerEvents = "auto";
       updateSnapshot({
         status: "selecting",
