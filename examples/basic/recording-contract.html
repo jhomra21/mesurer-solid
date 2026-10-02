@@ -16,6 +16,19 @@
         box-shadow: 0 12px 36px rgb(15 23 42 / 10%);
         padding: 32px;
       }
+      .record-action {
+        position: fixed;
+        left: 300px;
+        top: 280px;
+        z-index: 0;
+        padding: 10px 14px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #fff;
+        color: #18181b;
+        font: inherit;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
@@ -23,6 +36,7 @@
       <section class="record-target" data-testid="record-target">
         <h1>MediaBunny recording contract</h1>
         <p>This fixture supplies a deterministic animated display stream.</p>
+        <button class="record-action" type="button" data-testid="record-interaction">Interact during recording</button>
       </section>
     </main>
     <script type="module" src="/src/recording-contract.ts"></script>
