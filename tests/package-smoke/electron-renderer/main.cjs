@@ -21,7 +21,6 @@ let captureCount = 0;
 
 let recordingSourceCount = 0;
 
-const progress = [];
 
 function writeResult(result) {
   mkdirSync(artifactDir, { recursive: true });
@@ -35,7 +34,7 @@ function fail(error) {
   if (finished) return;
   finished = true;
   const message = error instanceof Error ? error.stack ?? error.message : String(error);
-  writeResult({ ok: false, error: message, progress });
+  writeResult({ ok: false, error: message });
   console.error(message);
   app.exit(1);
 }
@@ -113,14 +112,6 @@ ipcMain.handle("mesurer:drag-toolbar", async (event, payload) => {
   });
 
   await new Promise((resolve) => setTimeout(resolve, 50));
-});
-
-ipcMain.handle("mesurer:test-progress", async (_event, payload) => {
-  progress.push({
-    at: Date.now(),
-    step: String(payload?.step ?? "unknown"),
-    detail: payload?.detail ?? null,
-  });
 });
 
 ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
@@ -252,19 +243,6 @@ app.whenReady().then(async () => {
   if (process.platform === "darwin") windowOptions.titleBarStyle = "hiddenInset";
 
   mainWindow = new BrowserWindow(windowOptions);
-
-  mainWindow.webContents.on("did-finish-load", () => {
-    progress.push({ at: Date.now(), step: "main-did-finish-load", detail: null });
-  });
-
-  mainWindow.webContents.on("console-message", (_event, level, message, line, sourceId) => {
-    if (level < 2) return;
-    progress.push({
-      at: Date.now(),
-      step: "renderer-console",
-      detail: { level, message, line, sourceId },
-    });
-  });
 
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
     fail(new Error(`Electron renderer exited: ${details.reason} (${details.exitCode})`));
