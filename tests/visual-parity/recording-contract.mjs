@@ -110,6 +110,7 @@ try {
 
   const recordingChrome = await recordingStatus.evaluate((element) => {
     const statusRoot = element.closest("[data-mesurer-recording-status-root='true']");
+
     const toolbar = element.getRootNode() instanceof ShadowRoot
       ? element.getRootNode().querySelector("[data-mesurer-toolbar='true']")
       : null;
