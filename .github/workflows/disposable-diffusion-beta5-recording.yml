@@ -97,15 +97,15 @@ jobs:
           if marker not in text:
               raise SystemExit("main window marker missing")
           text = text.replace(marker, replacement)
-          marker = '  app.on("before-quit", () => {\\n'
-          if marker not in text:
-              raise SystemExit("before-quit marker missing")
-          text = text.replace(
-              marker,
-              marker + '    mesurerRecordingHost.dispose();\\n',
-              1,
-          )
-          main.write_text(text)
+          lines = text.splitlines(keepends=True)
+          for index, line in enumerate(lines):
+              if 'app.on("before-quit"' in line:
+                  newline = "\\r\\n" if line.endswith("\\r\\n") else "\\n"
+                  lines.insert(index + 1, f"    mesurerRecordingHost.dispose();{newline}")
+                  break
+          else:
+              raise SystemExit("before-quit line missing")
+          main.write_text("".join(lines))
 
           index = Path("apps/web/src/index.tsx")
           text = index.read_text()
