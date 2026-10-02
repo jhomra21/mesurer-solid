@@ -807,7 +807,8 @@ export const recordingPlugin = (
         const timestamp = elapsed;
 
         if (!pendingFrame && timestamp - lastFrameTimestamp >= frameInterval * 0.8) {
-          paintRecordingFrame(
+          lastFrameTimestamp = timestamp;
+          pendingFrame = paintRecordingFrame(
             nextCapture,
             currentSnapshot.rect ?? {
               left: 0,
@@ -816,14 +817,13 @@ export const recordingPlugin = (
               height: ownerWindow.innerHeight,
             },
             recordingViewportMetrics(ownerWindow),
-          );
-          lastFrameTimestamp = timestamp;
-          pendingFrame = nextRecorder.addFrame(timestamp, frameInterval)
+          )
+            .then(() => nextRecorder.addFrame(timestamp, frameInterval))
             .catch((cause) => {
               if (operation === operationId && !disposed) {
                 void releaseCapture(true).then(() => {
                   restoreToolbar();
-                  const message = cause instanceof Error ? cause.message : "MediaBunny could not encode the recording.";
+                  const message = cause instanceof Error ? cause.message : "Could not capture or encode the recording.";
                   updateSnapshot({ status: "error", error: message });
                   flashError(cause);
                 });
@@ -886,7 +886,7 @@ export const recordingPlugin = (
         recorder = nextRecorder;
         startedAt = ownerWindow.performance.now();
         lastFrameTimestamp = 0;
-        paintRecordingFrame(
+        await paintRecordingFrame(
           nextCapture,
           rect,
           recordingViewportMetrics(ownerWindow),
@@ -904,11 +904,13 @@ export const recordingPlugin = (
         recordingStatus.textContent = "● 0:00  Stop";
         placeRecordingStatus(rect);
         startFramePump(nextCapture, nextRecorder, operationId);
-        nextCapture.track.addEventListener("ended", () => {
-          if (operation === operationId && currentSnapshot.status === "recording") {
-            void finishRecording().catch(() => undefined);
-          }
-        }, { once: true });
+        if (nextCapture.kind === "stream") {
+          nextCapture.track.addEventListener("ended", () => {
+            if (operation === operationId && currentSnapshot.status === "recording") {
+              void finishRecording().catch(() => undefined);
+            }
+          }, { once: true });
+        }
         maxDurationTimer = ownerWindow.setTimeout(() => {
           if (operation === operationId && currentSnapshot.status === "recording") {
             void finishRecording().catch(() => undefined);
