@@ -70,38 +70,41 @@ If the browser returns a non-browser display surface, Recording rejects it rathe
 
 ## Electron capture
 
-Electron renderers should expose Mesurer's narrow Recording host capability instead of relying on Electron's display-media picker. Install the package-owned main-process adapter:
+Electron does not need a separate Recording provider. When the renderer exposes the same `window.__MESURER_HOST__.captureScreenshot` capability used by Screenshot and Color Picker, Recording automatically uses it as an application-local frame source.
+
+A typical preload remains:
 
 ```ts
-import { BrowserWindow, ipcMain } from "electron"
-import { installMesurerRecordingHost } from "mesurer-solid/plugins/recording/bridge"
-
-const recordingHost = installMesurerRecordingHost({
-  ipcMain,
-  validateSender(event) {
-    const window = BrowserWindow.fromWebContents(event.sender)
-
-    return Boolean(window && !window.isDestroyed())
-  },
-})
-```
-
-Then expose only the one-use bridge from preload:
-
-```ts
-import { contextBridge, ipcRenderer } from "electron"
-import {
-  createMesurerRecordingPreloadBridge,
-} from "mesurer-solid/plugins/recording/preload"
-
 contextBridge.exposeInMainWorld("__MESURER_HOST__", {
-  recordingBridge: createMesurerRecordingPreloadBridge(ipcRenderer),
+  captureScreenshot: () => ipcRenderer.invoke("window:capture"),
 })
 ```
 
-The main adapter calls Electron's `webContents.getMediaSourceId(requestWebContents)` for the requesting renderer. The returned id is bound to that renderer and consumed immediately with Chromium's `chromeMediaSource: "tab"` constraint. Mesurer does not install a global `setDisplayMediaRequestHandler`, enumerate desktop windows, or open a second picker. The stream still enters the same canvas and MediaBunny encoder used by browser and extension capture.
+The main process can keep using `webContents.capturePage()`:
 
-If a native Recording bridge is present and fails, Mesurer reports that host error and stays on the native path rather than opening an unrelated browser screen-share prompt.
+```ts
+ipcMain.handle("window:capture", async (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender)
+
+  if (!window) throw new Error("No BrowserWindow")
+
+  const image = await window.webContents.capturePage(undefined, {
+    stayHidden: true,
+  })
+  const png = image.toPNG()
+
+  return {
+    png: new Uint8Array(png.buffer, png.byteOffset, png.byteLength),
+    ...image.getSize(),
+  }
+})
+```
+
+Recording may pass an optional internal `{ purpose: "recording" }` hint to that capability. Existing zero-argument implementations remain valid and may ignore it.
+
+Each native frame is decoded locally, mapped from the renderer viewport into the selected region, painted into the Recording canvas, and then handed to MediaBunny. The frame pump keeps only one capture/encode operation in flight, so a slower native capture naturally lowers the effective frame rate instead of building an unbounded queue.
+
+This path does not call `getDisplayMedia()`, enumerate desktop windows, install a global display-media handler, or ask a renderer to capture its own WebContents stream. If native capture fails, Recording reports that error instead of opening an unrelated browser picker.
 
 ## Chromium extension capture
 
