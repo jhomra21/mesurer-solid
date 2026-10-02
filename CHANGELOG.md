@@ -4,10 +4,13 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.1-beta.8 - 2026-10-02
+
 - Remove the unintended backing plate behind the Select/Edit mode switch; only the active mode pill now carries a fill.
 - Keep the live Recording timer/Stop chrome above the selection mask and toolbar, avoid toolbar collisions when placing it, and keep the post-recording editor centered while its 352px↔576px size animates.
 - Add `mesurer-solid/electron` as the preferred Electron Recording bootstrap. A single main-process import now installs Mesurer's private session preload and renderer-bound capture bridge, so normal Electron apps no longer add Recording IPC or preload wiring themselves.
-<!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.7 - 2026-10-02
 
