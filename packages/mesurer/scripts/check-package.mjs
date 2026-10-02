@@ -452,13 +452,13 @@ const codexPreloadTypes = new URL("../src/plugins/codex/preload.d.ts", import.me
 
 const recordingBridgeScript = new URL("../src/plugins/recording/bridge.mjs", import.meta.url);
 
-const recordingBridgeTypes = new URL("../src/plugins/recording/bridge.d.ts", import.meta.url);
+const _recordingBridgeTypes = new URL("../src/plugins/recording/bridge.d.ts", import.meta.url);
 
 const recordingPreloadScript = new URL("../src/plugins/recording/preload.mjs", import.meta.url);
 
 const recordingPreloadCjs = new URL("../src/plugins/recording/preload.cjs", import.meta.url);
 
-const recordingPreloadTypes = new URL("../src/plugins/recording/preload.d.ts", import.meta.url);
+const _recordingPreloadTypes = new URL("../src/plugins/recording/preload.d.ts", import.meta.url);
 
 if (
   !existsSync(codexBridgeScript)
