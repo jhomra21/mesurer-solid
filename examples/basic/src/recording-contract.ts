@@ -122,10 +122,20 @@ Object.defineProperty(mediaDevices, "getUserMedia", {
   },
 });
 
+const interactionTarget = document.querySelector<HTMLButtonElement>("[data-testid='record-interaction']");
+
+if (!interactionTarget) throw new Error("Recording fixture interaction target is missing.");
+
+let interactionClicks = 0;
+
+interactionTarget.addEventListener("click", () => {
+  interactionClicks += 1;
+  interactionTarget.dataset.clicks = String(interactionClicks);
+});
+
 const subject = mountMesurer({
   target: document.body,
   isolate: true,
-  topLayer: false,
   plugins: [recording({
     frameRate: 12,
     maxDurationSeconds: 5,

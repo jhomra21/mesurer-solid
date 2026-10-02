@@ -28,6 +28,7 @@ type ElectronTestSummary = {
   recordingHeight: number;
   recordingMime: string;
   recordingBytes: number;
+  recordingInteractionClicks: number;
   toolbarInitialRect: {
     left: number;
     top: number;
@@ -51,6 +52,7 @@ type ElectronTestSummary = {
 declare global {
   interface Window {
     electronMesurer: {
+      fail(message: string): Promise<void>;
       complete(payload: {
         png: Uint8Array;
         recording: Uint8Array;
@@ -60,9 +62,27 @@ declare global {
         start: { x: number; y: number };
         end: { x: number; y: number };
       }): Promise<void>;
+      clickAt(payload: { x: number; y: number }): Promise<void>;
     };
   }
 }
+
+window.addEventListener("error", (event) => {
+  void window.electronMesurer.fail(
+    event.error instanceof Error
+      ? event.error.stack ?? event.error.message
+      : event.message,
+  );
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason;
+  void window.electronMesurer.fail(
+    reason instanceof Error
+      ? reason.stack ?? reason.message
+      : String(reason),
+  );
+});
 
 const style = document.createElement("style");
 
@@ -78,6 +98,17 @@ style.textContent = `
     border: 2px solid #4b5563;
     border-radius: 16px;
     background: #20242c;
+  }
+  [data-testid="electron-recording-action"] {
+    display: block;
+    margin-top: 18px;
+    padding: 8px 12px;
+    border: 1px solid #64748b;
+    border-radius: 8px;
+    background: #303744;
+    color: #f7f7f7;
+    font: inherit;
+    cursor: pointer;
   }
   [data-testid="electron-color-swatch"] {
     width: 48px;
@@ -222,6 +253,18 @@ const recordingService = await mesurer.service<MesurerRecordingService>(
   MESURER_RECORDING_SERVICE_ID,
 );
 
+const recordingAction = document.querySelector<HTMLButtonElement>(
+  "[data-testid='electron-recording-action']",
+);
+
+if (!recordingAction) throw new Error("Missing Electron recording interaction target.");
+
+let recordingInteractionClicks = 0;
+
+recordingAction.addEventListener("click", () => {
+  recordingInteractionClicks += 1;
+});
+
 await recordingService.start({
   left: target.inspection.rect.left,
   top: target.inspection.rect.top,
@@ -234,6 +277,84 @@ await waitFor(() =>
     ? recordingService.snapshot()
     : null,
 );
+
+const recordingActionRect = recordingAction.getBoundingClientRect();
+
+const recordingActionPoint = {
+  x: recordingActionRect.left + recordingActionRect.width / 2,
+  y: recordingActionRect.top + recordingActionRect.height / 2,
+};
+
+const recordingInputTrace: Array<{
+  type: string;
+  target: string | null;
+  path: string[];
+}> = [];
+
+const describeInputNode = (node: EventTarget | null) => {
+  if (!(node instanceof Element)) return null;
+
+  return [
+    node.tagName.toLowerCase(),
+    node.getAttribute("data-testid"),
+    node.getAttribute("data-mesurer-island"),
+    node.getAttribute("data-mesurer-root"),
+    node.getAttribute("data-mesurer-recording"),
+  ].filter(Boolean).join(":");
+};
+
+const traceRecordingInput = (event: Event) => {
+  recordingInputTrace.push({
+    type: event.type,
+    target: describeInputNode(event.target),
+    path: event.composedPath().slice(0, 8)
+      .map((node) => describeInputNode(node))
+      .filter((value): value is string => Boolean(value)),
+  });
+};
+
+document.addEventListener("pointerdown", traceRecordingInput, true);
+
+document.addEventListener("mousedown", traceRecordingInput, true);
+
+document.addEventListener("click", traceRecordingInput, true);
+
+const recordingHitStack = document.elementsFromPoint(
+  recordingActionPoint.x,
+  recordingActionPoint.y,
+).map((element) => ({
+  tag: element.tagName,
+  className: element.getAttribute("class"),
+  testId: element.getAttribute("data-testid"),
+  mesurerRoot: element.getAttribute("data-mesurer-root"),
+  inspectorUi: element.getAttribute("data-mesurer-inspector-ui"),
+  measurement: element.getAttribute("data-mesurer-measurement"),
+  measurementChrome: element.getAttribute("data-mesurer-measurement-chrome"),
+  selectedMeasurement: element.getAttribute("data-mesurer-selected-measurement"),
+  annotationTrigger: element.getAttribute("data-mesurer-annotation-trigger"),
+  recording: element.getAttribute("data-mesurer-recording"),
+  recordingSelect: element.getAttribute("data-mesurer-recording-select"),
+  pointerEvents: getComputedStyle(element).pointerEvents,
+  html: element.outerHTML.slice(0, 320),
+}));
+
+await window.electronMesurer.clickAt(recordingActionPoint);
+
+document.removeEventListener("pointerdown", traceRecordingInput, true);
+
+document.removeEventListener("mousedown", traceRecordingInput, true);
+
+document.removeEventListener("click", traceRecordingInput, true);
+
+if (recordingInteractionClicks !== 1) {
+  throw new Error(
+    `Electron host UI did not receive native input while Recording was active: ${JSON.stringify({
+      recordingInteractionClicks,
+      recordingHitStack,
+      recordingInputTrace,
+    })}`,
+  );
+}
 
 const targetElement = document.querySelector<HTMLElement>("[data-testid='electron-target']");
 
@@ -297,6 +418,7 @@ await window.electronMesurer.complete({
     recordingHeight: recordingResult.height,
     recordingMime: recordingResult.blob.type,
     recordingBytes: recordingBytes.byteLength,
+    recordingInteractionClicks,
     toolbarInitialRect: {
       left: toolbarInitialBounds.left,
       top: toolbarInitialBounds.top,

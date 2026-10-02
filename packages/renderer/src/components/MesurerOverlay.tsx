@@ -444,6 +444,7 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   return (
     <div
       ref={(element) => { overlayElement = element; }}
+      data-mesurer-interaction-overlay="true"
       class={`msr:absolute msr:inset-0 msr:select-none ${overlayVisible() ? `msr:pointer-events-auto ${guidesMode() ? props.hoverGuide || props.model.state.draggingGuideId ? "msr:cursor-default" : "msr:cursor-crosshair" : "msr:cursor-default"} msr:opacity-100` : "msr:pointer-events-none msr:opacity-0"}`}
       style={{ "pointer-events": overlayInteractive() ? "auto" : "none" }}
       onPointerDown={(event) => props.onPointerDown(event)}

@@ -38,6 +38,12 @@ The typed `recording:v1` service exposes:
 
 Status is one of `idle`, `selecting`, `recording`, `ready`, `exporting`, or `error`.
 
+Interactive toolbar capture deliberately has two steps. Dragging a region selects it but does not start video immediately. Mesurer keeps the selection in the `selecting` state so the user can move it, resize it from eight handles, or edit its width, height, left, and top values. **Start recording** or Enter confirms that region. Escape cancels.
+
+Once capture is recording, the selection layer stops owning pointer input. The application underneath remains fully interactive so the recording can demonstrate real clicks, typing, menus, drag operations, and other UAT flows. Mesurer keeps only its own Recording controls interactive; the full-screen Recording mount remains pointer-transparent.
+
+Passing an explicit rectangle to `service.start(rect)` remains the programmatic direct-start path and skips the interactive adjustment step.
+
 The defaults are 30 fps, medium quality, and a 60-second maximum capture. Plugin options may lower or raise the frame rate, quality, and duration cap. Recording currently captures video only; audio is discarded.
 
 ## MediaBunny pipeline
@@ -146,7 +152,10 @@ See [Third-Party Notices](../packages/mesurer/THIRD_PARTY_LICENSES.md) for the M
 
 The dedicated Chromium contract uses an animated canvas as a deterministic display stream. It verifies:
 
-- physical drag selection and stop;
+- physical drag selection enters adjustment instead of starting immediately;
+- explicit start after adjustment;
+- host-page pointer input remains live while capture is recording;
+- physical stop;
 - exact selected dimensions;
 - changing decoded frames rather than merely a non-empty container;
 - WebM trim and 2× resize;
@@ -154,7 +163,7 @@ The dedicated Chromium contract uses an animated canvas as a deterministic displ
 - programmatic service capture;
 - browser display acquisition;
 - extension-stream acquisition without falling back to the display picker;
-- packed Electron/native-host acquisition through a renderer-bound WebContents stream id, with a retained WebM artifact;
+- packed Electron/native-host acquisition through a renderer-bound WebContents stream id, including native Electron mouse input reaching the recorded application while capture is active, with a retained WebM artifact;
 - Escape/cancel and clean browser diagnostics.
 
 Build/package checks also reject `MediaRecorder` in the Recording implementation and reject accidental MediaBunny bundling across the MPL/MIT boundary.
