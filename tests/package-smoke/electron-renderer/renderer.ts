@@ -52,6 +52,7 @@ type ElectronTestSummary = {
 declare global {
   interface Window {
     electronMesurer: {
+      fail(message: string): Promise<void>;
       complete(payload: {
         png: Uint8Array;
         recording: Uint8Array;
@@ -65,6 +66,23 @@ declare global {
     };
   }
 }
+
+window.addEventListener("error", (event) => {
+  void window.electronMesurer.fail(
+    event.error instanceof Error
+      ? event.error.stack ?? event.error.message
+      : event.message,
+  );
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason;
+  void window.electronMesurer.fail(
+    reason instanceof Error
+      ? reason.stack ?? reason.message
+      : String(reason),
+  );
+});
 
 const style = document.createElement("style");
 
