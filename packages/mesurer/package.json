@@ -38,22 +38,12 @@
       "import": "./plugins/codex/preload.mjs",
       "require": "./plugins/codex/preload.cjs"
     },
-    "./mediabunny-vendor": "./dist/mediabunny-vendor.js",
-    "./plugins/recording/bridge": {
-      "types": "./plugins/recording/bridge.d.ts",
-      "default": "./plugins/recording/bridge.mjs"
-    },
-    "./plugins/recording/preload": {
-      "types": "./plugins/recording/preload.d.ts",
-      "import": "./plugins/recording/preload.mjs",
-      "require": "./plugins/recording/preload.cjs"
-    }
+    "./mediabunny-vendor": "./dist/mediabunny-vendor.js"
   },
   "files": [
     "dist",
     "skills",
     "plugins/codex",
-    "plugins/recording",
     "scripts/install-skill.mjs",
     "README.md",
     "AGENT_INTEGRATION.md",
