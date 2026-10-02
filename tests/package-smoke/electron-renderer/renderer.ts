@@ -55,6 +55,10 @@ declare global {
         recording: Uint8Array;
         summary: ElectronTestSummary;
       }): Promise<void>;
+      progress(payload: {
+        step: string;
+        detail?: unknown;
+      }): Promise<void>;
       dragToolbar(payload: {
         start: { x: number; y: number };
         end: { x: number; y: number };
@@ -219,6 +223,8 @@ const png = new Uint8Array(await capture.blob.arrayBuffer());
 
 const recordingService = await mesurer.service<MesurerRecordingService>("recording");
 
+await window.electronMesurer.progress({ step: "recording-service-ready" });
+
 await recordingService.start({
   left: target.inspection.rect.left,
   top: target.inspection.rect.top,
@@ -226,11 +232,21 @@ await recordingService.start({
   height: target.inspection.rect.height,
 });
 
+await window.electronMesurer.progress({
+  step: "recording-start-returned",
+  detail: recordingService.snapshot(),
+});
+
 await waitFor(() =>
   recordingService.snapshot().status === "recording"
     ? recordingService.snapshot()
     : null,
 );
+
+await window.electronMesurer.progress({
+  step: "recording-active",
+  detail: recordingService.snapshot(),
+});
 
 const targetElement = document.querySelector<HTMLElement>("[data-testid='electron-target']");
 
@@ -248,9 +264,27 @@ targetElement.style.background = "#20242c";
 
 await new Promise((resolve) => setTimeout(resolve, 250));
 
+await window.electronMesurer.progress({ step: "recording-before-stop" });
+
 await recordingService.stop();
 
+await window.electronMesurer.progress({
+  step: "recording-stopped",
+  detail: recordingService.snapshot(),
+});
+
 const recordingResult = await recordingService.export({ format: "webm" });
+
+await window.electronMesurer.progress({
+  step: "recording-exported",
+  detail: {
+    duration: recordingResult.duration,
+    width: recordingResult.width,
+    height: recordingResult.height,
+    type: recordingResult.blob.type,
+    bytes: recordingResult.blob.size,
+  },
+});
 
 const recordingBytes = new Uint8Array(await recordingResult.blob.arrayBuffer());
 
