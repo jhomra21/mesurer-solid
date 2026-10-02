@@ -136,7 +136,6 @@ interactionTarget.addEventListener("click", () => {
 const subject = mountMesurer({
   target: document.body,
   isolate: true,
-  topLayer: false,
   plugins: [recording({
     frameRate: 12,
     maxDurationSeconds: 5,
