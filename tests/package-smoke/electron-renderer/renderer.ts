@@ -290,11 +290,18 @@ const recordingHitStack = document.elementsFromPoint(
   recordingActionPoint.y,
 ).map((element) => ({
   tag: element.tagName,
+  className: element.getAttribute("class"),
   testId: element.getAttribute("data-testid"),
   mesurerRoot: element.getAttribute("data-mesurer-root"),
+  inspectorUi: element.getAttribute("data-mesurer-inspector-ui"),
+  measurement: element.getAttribute("data-mesurer-measurement"),
+  measurementChrome: element.getAttribute("data-mesurer-measurement-chrome"),
+  selectedMeasurement: element.getAttribute("data-mesurer-selected-measurement"),
+  annotationTrigger: element.getAttribute("data-mesurer-annotation-trigger"),
   recording: element.getAttribute("data-mesurer-recording"),
   recordingSelect: element.getAttribute("data-mesurer-recording-select"),
   pointerEvents: getComputedStyle(element).pointerEvents,
+  html: element.outerHTML.slice(0, 320),
 }));
 
 await window.electronMesurer.clickAt(recordingActionPoint);
