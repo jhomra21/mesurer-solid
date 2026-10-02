@@ -280,14 +280,31 @@ await waitFor(() =>
 
 const recordingActionRect = recordingAction.getBoundingClientRect();
 
-await window.electronMesurer.clickAt({
+const recordingActionPoint = {
   x: recordingActionRect.left + recordingActionRect.width / 2,
   y: recordingActionRect.top + recordingActionRect.height / 2,
-});
+};
+
+const recordingHitStack = document.elementsFromPoint(
+  recordingActionPoint.x,
+  recordingActionPoint.y,
+).map((element) => ({
+  tag: element.tagName,
+  testId: element.getAttribute("data-testid"),
+  mesurerRoot: element.getAttribute("data-mesurer-root"),
+  recording: element.getAttribute("data-mesurer-recording"),
+  recordingSelect: element.getAttribute("data-mesurer-recording-select"),
+  pointerEvents: getComputedStyle(element).pointerEvents,
+}));
+
+await window.electronMesurer.clickAt(recordingActionPoint);
 
 if (recordingInteractionClicks !== 1) {
   throw new Error(
-    `Electron host UI did not receive native input while Recording was active: ${recordingInteractionClicks}`,
+    `Electron host UI did not receive native input while Recording was active: ${JSON.stringify({
+      recordingInteractionClicks,
+      recordingHitStack,
+    })}`,
   );
 }
 
