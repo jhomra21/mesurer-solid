@@ -4,8 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Fix Recording in Electron hosts with package-owned main/preload adapters that mint a short-lived stream id for the requesting renderer and feed that tab stream into the existing MediaBunny pipeline. Native-host failures stay on the native path instead of opening a browser display picker.
-- Extend packed Electron acceptance to create and retain a real WebM artifact while keeping `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`.
+- Fix Recording in Electron hosts by reusing the application-local `captureScreenshot` capability for frame acquisition. Native frames are cropped into the selected region and enter the same MediaBunny canvas encoder as browser/extension capture; host failures stay on the native path instead of opening a display picker.
+- Extend packed Electron acceptance to acquire multiple native frames and create a real WebM artifact while keeping `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`.
 
 <!-- Add user-facing changes here before preparing a release. -->
 
