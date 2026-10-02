@@ -28,6 +28,7 @@ type ElectronTestSummary = {
   recordingHeight: number;
   recordingMime: string;
   recordingBytes: number;
+  recordingInteractionClicks: number;
   toolbarInitialRect: {
     left: number;
     top: number;
@@ -60,6 +61,7 @@ declare global {
         start: { x: number; y: number };
         end: { x: number; y: number };
       }): Promise<void>;
+      clickAt(payload: { x: number; y: number }): Promise<void>;
     };
   }
 }
@@ -78,6 +80,17 @@ style.textContent = `
     border: 2px solid #4b5563;
     border-radius: 16px;
     background: #20242c;
+  }
+  [data-testid="electron-recording-action"] {
+    display: block;
+    margin-top: 18px;
+    padding: 8px 12px;
+    border: 1px solid #64748b;
+    border-radius: 8px;
+    background: #303744;
+    color: #f7f7f7;
+    font: inherit;
+    cursor: pointer;
   }
   [data-testid="electron-color-swatch"] {
     width: 48px;
@@ -222,6 +235,18 @@ const recordingService = await mesurer.service<MesurerRecordingService>(
   MESURER_RECORDING_SERVICE_ID,
 );
 
+const recordingAction = document.querySelector<HTMLButtonElement>(
+  "[data-testid='electron-recording-action']",
+);
+
+if (!recordingAction) throw new Error("Missing Electron recording interaction target.");
+
+let recordingInteractionClicks = 0;
+
+recordingAction.addEventListener("click", () => {
+  recordingInteractionClicks += 1;
+});
+
 await recordingService.start({
   left: target.inspection.rect.left,
   top: target.inspection.rect.top,
@@ -234,6 +259,19 @@ await waitFor(() =>
     ? recordingService.snapshot()
     : null,
 );
+
+const recordingActionRect = recordingAction.getBoundingClientRect();
+
+await window.electronMesurer.clickAt({
+  x: recordingActionRect.left + recordingActionRect.width / 2,
+  y: recordingActionRect.top + recordingActionRect.height / 2,
+});
+
+if (recordingInteractionClicks !== 1) {
+  throw new Error(
+    `Electron host UI did not receive native input while Recording was active: ${recordingInteractionClicks}`,
+  );
+}
 
 const targetElement = document.querySelector<HTMLElement>("[data-testid='electron-target']");
 
@@ -297,6 +335,7 @@ await window.electronMesurer.complete({
     recordingHeight: recordingResult.height,
     recordingMime: recordingResult.blob.type,
     recordingBytes: recordingBytes.byteLength,
+    recordingInteractionClicks,
     toolbarInitialRect: {
       left: toolbarInitialBounds.left,
       top: toolbarInitialBounds.top,
