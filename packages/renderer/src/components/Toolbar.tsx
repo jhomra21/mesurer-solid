@@ -846,10 +846,20 @@ export function Toolbar(props: ToolbarProps) {
       setPluginMenuOpenId(null);
     };
 
+    let fitFrame = 0;
+
+    const scheduleToolbarFit = () => {
+      if (fitFrame) return;
+      fitFrame = props.ownerWindow.requestAnimationFrame(() => {
+        fitFrame = 0;
+        ensureToolbarFitsViewport();
+      });
+    };
+
     const resize = () => {
       if (guideMenuOpen()) updateMenuAlign();
       setViewportRevision((value) => value + 1);
-      props.ownerWindow.requestAnimationFrame(ensureToolbarFitsViewport);
+      scheduleToolbarFit();
     };
 
     const keyboardTarget = props.ownerWindow.document;
@@ -865,16 +875,14 @@ export function Toolbar(props: ToolbarProps) {
     const Resize = (props.ownerWindow as Window & typeof globalThis).ResizeObserver;
 
     const toolbarResizeObserver = Resize
-      ? new Resize(() => ensureToolbarFitsViewport())
+      ? new Resize(scheduleToolbarFit)
       : null;
 
     ensureToolbarFitsViewport();
 
     if (toolbarElement) toolbarResizeObserver?.observe(toolbarElement);
 
-    const initialFitFrame = props.ownerWindow.requestAnimationFrame(
-      ensureToolbarFitsViewport,
-    );
+    scheduleToolbarFit();
 
     return () => {
       colorPickerCapabilityRevision += 1;
@@ -901,7 +909,8 @@ export function Toolbar(props: ToolbarProps) {
       keyboardTarget.removeEventListener("keydown", handleKeyDown, true);
       props.ownerWindow.removeEventListener("resize", resize);
       toolbarElement?.removeEventListener("click", handleClickCapture, true);
-      props.ownerWindow.cancelAnimationFrame(initialFitFrame);
+
+      if (fitFrame) props.ownerWindow.cancelAnimationFrame(fitFrame);
       toolbarResizeObserver?.disconnect();
 
       if (previousUserSelect !== null) props.ownerWindow.document.documentElement.style.userSelect = previousUserSelect;
