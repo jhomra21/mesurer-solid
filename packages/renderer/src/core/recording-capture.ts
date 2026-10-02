@@ -416,7 +416,7 @@ const openHostRecordingCapture = async (
   ownerWindow: Window,
   rect: ScreenshotRect,
 ): Promise<RecordingHostCapture> => {
-  const png = await captureHostScreenshotPng(ownerWindow);
+  const png = await captureHostScreenshotPng(ownerWindow, { purpose: "recording" });
 
   if (!png) {
     throw new Error("Native host recording capture is unavailable.");
@@ -585,7 +585,7 @@ export const paintRecordingFrame = async (
   viewport: RecordingViewportMetrics,
 ) => {
   if (capture.kind === "host") {
-    const png = await captureHostScreenshotPng(capture.ownerWindow);
+    const png = await captureHostScreenshotPng(capture.ownerWindow, { purpose: "recording" });
 
     if (!png) {
       throw new Error("Native host recording capture stopped.");
