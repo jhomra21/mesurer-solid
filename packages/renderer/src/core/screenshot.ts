@@ -38,6 +38,10 @@ export type HostScreenshotResult =
   | null
   | undefined;
 
+export type HostScreenshotCaptureRequest = {
+  purpose: "recording";
+};
+
 export type HostCodexBridgeRequest = {
   action: "activate" | "deactivate" | "runtime" | "health" | "threads" | "target" | "queue" | "delivery" | "restore";
   leaseId?: string;
@@ -86,7 +90,9 @@ export type HostCodexBridgeResult = {
 };
 
 export type MesurerHostCapabilities = {
-  captureScreenshot?: () => Promise<HostScreenshotResult>;
+  captureScreenshot?: (
+    request?: HostScreenshotCaptureRequest,
+  ) => Promise<HostScreenshotResult>;
   codexBridge?: (request: HostCodexBridgeRequest) => Promise<HostCodexBridgeResult>;
 };
 
@@ -128,12 +134,15 @@ const hostPngBlob = (result: HostScreenshotResult): Blob => {
   return hostPngBlob(result.png);
 };
 
-export const captureHostScreenshotPng = async (ownerWindow: Window): Promise<Blob | null> => {
+export const captureHostScreenshotPng = async (
+  ownerWindow: Window,
+  request?: HostScreenshotCaptureRequest,
+): Promise<Blob | null> => {
   const capture = hostCapture(ownerWindow);
 
   if (!capture) return null;
 
-  return hostPngBlob(await capture());
+  return hostPngBlob(await capture(request));
 };
 
 export const normalizeScreenshotRect = (
