@@ -68,6 +68,41 @@ Ordinary browser pages use `navigator.mediaDevices.getDisplayMedia()`. Mesurer r
 
 If the browser returns a non-browser display surface, Recording rejects it rather than silently recording another application.
 
+## Electron capture
+
+Electron renderers should expose Mesurer's narrow Recording host capability instead of relying on Electron's display-media picker. Install the package-owned main-process adapter:
+
+```ts
+import { BrowserWindow, ipcMain } from "electron"
+import { installMesurerRecordingHost } from "mesurer-solid/plugins/recording/bridge"
+
+const recordingHost = installMesurerRecordingHost({
+  ipcMain,
+  validateSender(event) {
+    const window = BrowserWindow.fromWebContents(event.sender)
+
+    return Boolean(window && !window.isDestroyed())
+  },
+})
+```
+
+Then expose only the one-use bridge from preload:
+
+```ts
+import { contextBridge, ipcRenderer } from "electron"
+import {
+  createMesurerRecordingPreloadBridge,
+} from "mesurer-solid/plugins/recording/preload"
+
+contextBridge.exposeInMainWorld("__MESURER_HOST__", {
+  recordingBridge: createMesurerRecordingPreloadBridge(ipcRenderer),
+})
+```
+
+The main adapter calls Electron's `webContents.getMediaSourceId(requestWebContents)` for the requesting renderer. The returned id is bound to that renderer and consumed immediately with Chromium's `chromeMediaSource: "tab"` constraint. Mesurer does not install a global `setDisplayMediaRequestHandler`, enumerate desktop windows, or open a second picker. The stream still enters the same canvas and MediaBunny encoder used by browser and extension capture.
+
+If a native Recording bridge is present and fails, Mesurer reports that host error and stays on the native path rather than opening an unrelated browser screen-share prompt.
+
 ## Chromium extension capture
 
 The first-party extension requests `tabCapture` in addition to its existing active-tab permissions. It does not add broad host permissions.
