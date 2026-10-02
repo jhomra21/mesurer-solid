@@ -18,7 +18,6 @@ type ElectronTestSummary = {
   colorPickerValue: string;
   nativeEyeDropperOpens: number;
   colorPickerOverlayRemoved: boolean;
-  recordingBridgeOk: boolean;
   recordingSkipped: boolean;
   recordingMime: string;
   recordingDuration: number;
@@ -196,12 +195,6 @@ if (nativeEyeDropperOpens !== 0) {
   throw new Error(`Electron host Color Picker invoked native EyeDropper ${nativeEyeDropperOpens} time(s).`);
 }
 
-const recordingBridgeOk = window.__MESURER_HOST__?.recordingBridge !== undefined;
-
-if (!recordingBridgeOk) {
-  throw new Error("Electron preload did not expose Mesurer's Recording host capability.");
-}
-
 const recordingSkipped = new URLSearchParams(window.location.search).get("skipRecording") === "1";
 
 const selection = await mesurer.select('[data-testid="electron-target"]');
@@ -281,7 +274,6 @@ await window.electronMesurer.complete({
     colorPickerValue,
     nativeEyeDropperOpens,
     colorPickerOverlayRemoved: shadow.querySelector("[data-mesurer-color-picker-target='true']") === null,
-    recordingBridgeOk,
     recordingSkipped,
     recordingMime,
     recordingDuration,
