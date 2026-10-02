@@ -43,7 +43,6 @@ export type HostRecordingStreamEnvelope = {
 };
 
 export type HostRecordingStreamResult =
-  | string
   | HostRecordingStreamEnvelope
   | null
   | undefined;
