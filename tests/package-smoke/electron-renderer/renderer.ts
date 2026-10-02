@@ -285,6 +285,38 @@ const recordingActionPoint = {
   y: recordingActionRect.top + recordingActionRect.height / 2,
 };
 
+const recordingInputTrace: Array<{
+  type: string;
+  target: string | null;
+  path: string[];
+}> = [];
+
+const describeInputNode = (node: EventTarget | null) => {
+  if (!(node instanceof Element)) return null;
+
+  return [
+    node.tagName.toLowerCase(),
+    node.getAttribute("data-testid"),
+    node.getAttribute("data-mesurer-island"),
+    node.getAttribute("data-mesurer-root"),
+    node.getAttribute("data-mesurer-recording"),
+  ].filter(Boolean).join(":");
+};
+
+const traceRecordingInput = (event: Event) => {
+  recordingInputTrace.push({
+    type: event.type,
+    target: describeInputNode(event.target),
+    path: event.composedPath().slice(0, 8)
+      .map((node) => describeInputNode(node))
+      .filter((value): value is string => Boolean(value)),
+  });
+};
+
+document.addEventListener("pointerdown", traceRecordingInput, true);
+document.addEventListener("mousedown", traceRecordingInput, true);
+document.addEventListener("click", traceRecordingInput, true);
+
 const recordingHitStack = document.elementsFromPoint(
   recordingActionPoint.x,
   recordingActionPoint.y,
@@ -306,11 +338,16 @@ const recordingHitStack = document.elementsFromPoint(
 
 await window.electronMesurer.clickAt(recordingActionPoint);
 
+document.removeEventListener("pointerdown", traceRecordingInput, true);
+document.removeEventListener("mousedown", traceRecordingInput, true);
+document.removeEventListener("click", traceRecordingInput, true);
+
 if (recordingInteractionClicks !== 1) {
   throw new Error(
     `Electron host UI did not receive native input while Recording was active: ${JSON.stringify({
       recordingInteractionClicks,
       recordingHitStack,
+      recordingInputTrace,
     })}`,
   );
 }
