@@ -171,12 +171,22 @@ try {
 
   const trimBefore = Number(await trimStartHandle.getAttribute("aria-valuenow"));
   const timelineBox = await timeline.boundingBox();
+  const trimStartBox = await trimStartHandle.boundingBox();
 
-  if (!timelineBox) throw new Error("Recording timeline has no rendered geometry");
+  if (!timelineBox || !trimStartBox) {
+    throw new Error("Recording timeline/trim-start handle has no rendered geometry");
+  }
 
-  await page.mouse.move(timelineBox.x + timelineBox.width * 0.18, timelineBox.y + timelineBox.height / 2);
+  await page.mouse.move(
+    trimStartBox.x + trimStartBox.width / 2,
+    trimStartBox.y + trimStartBox.height / 2,
+  );
   await page.mouse.down();
-  await page.mouse.move(timelineBox.x + timelineBox.width * 0.28, timelineBox.y + timelineBox.height / 2, { steps: 4 });
+  await page.mouse.move(
+    timelineBox.x + timelineBox.width * 0.28,
+    timelineBox.y + timelineBox.height / 2,
+    { steps: 4 },
+  );
   await page.mouse.up();
 
   const trimAfter = Number(await trimStartHandle.getAttribute("aria-valuenow"));
