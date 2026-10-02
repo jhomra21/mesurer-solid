@@ -389,7 +389,21 @@ try {
     await waitForSettledMotion();
   }
 
-  await page.setViewportSize({ width: 620, height: 700 });
+  const narrowViewportWidth = Math.ceil(
+    (editCompactBox.width + editExpandedBox.width) / 2 + 16,
+  );
+
+  assert(
+    editCompactBox.width + 16 < narrowViewportWidth
+      && editExpandedBox.width + 16 > narrowViewportWidth,
+    `Narrow toolbar fixture must fit compact but reject expanded: ${JSON.stringify({
+      editCompactBox,
+      editExpandedBox,
+      narrowViewportWidth,
+    })}`,
+  );
+
+  await page.setViewportSize({ width: narrowViewportWidth, height: 700 });
   await page.waitForFunction(() =>
     document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-compact") === "true"
   );
@@ -398,8 +412,12 @@ try {
 
   assert(narrowToggleBox, "Auto-compacted toolbar must keep its toggle rendered");
   assert(
-    narrowToggleBox.x >= 0 && narrowToggleBox.x + narrowToggleBox.width <= 620,
-    `Auto-compacted toolbar toggle must remain inside the viewport: ${JSON.stringify(narrowToggleBox)}`,
+    narrowToggleBox.x >= 0
+      && narrowToggleBox.x + narrowToggleBox.width <= narrowViewportWidth,
+    `Auto-compacted toolbar toggle must remain inside the viewport: ${JSON.stringify({
+      narrowToggleBox,
+      narrowViewportWidth,
+    })}`,
   );
   assert.equal(
     await compactToggle.isDisabled(),
