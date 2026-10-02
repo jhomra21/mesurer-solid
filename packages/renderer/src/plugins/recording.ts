@@ -245,6 +245,12 @@ export const recordingPlugin = (
     const { ownerDocument, ownerWindow } = runtime;
     const inspectorMount = runtime.createInspectorMount();
     const root = inspectorMount.element;
+    const rendererRoot = runtime.rendererRoot
+      ?? runtime.portalTarget.querySelector<HTMLDivElement>("[data-mesurer-root='true']");
+
+    const setRecordingInteractionActive = (active: boolean) => {
+      rendererRoot?.toggleAttribute("data-mesurer-recording-active", active);
+    };
 
     root.dataset.mesurerRecording = "true";
 
@@ -884,6 +890,7 @@ export const recordingPlugin = (
     };
 
     const hideRecordingMask = () => {
+      setRecordingInteractionActive(false);
       overlay.style.display = "none";
       overlay.style.pointerEvents = "auto";
       overlay.style.cursor = "crosshair";
@@ -1263,6 +1270,7 @@ export const recordingPlugin = (
 
         updateSnapshot({ status: "recording", elapsed: 0 });
         root.style.pointerEvents = "none";
+        setRecordingInteractionActive(true);
         showRecordingMask(rect);
         recordingTime.textContent = "00:00";
         placeRecordingStatus(rect);
