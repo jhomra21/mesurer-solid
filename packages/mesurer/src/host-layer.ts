@@ -24,7 +24,7 @@ const HOST_STYLES = {
   overflow: "visible",
   background: "transparent",
   "box-sizing": "border-box",
-  "pointer-events": "auto",
+  "pointer-events": "none",
   "z-index": "2147483647",
   opacity: "1",
   visibility: "visible",
