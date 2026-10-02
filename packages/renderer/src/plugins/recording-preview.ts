@@ -783,14 +783,18 @@ export const createRecordingPreviewController = ({
       ?? ownerDocument.querySelector<HTMLElement>("[data-mesurer-tool-id='recording']");
 
     const anchorRect = anchor?.getBoundingClientRect();
+
     const idealCenter = anchorRect
       ? anchorRect.left + anchorRect.width / 2
       : ownerWindow.innerWidth - VIEWPORT_PADDING - width / 2;
+
     const minCenter = VIEWPORT_PADDING + width / 2;
+
     const maxCenter = Math.max(
       minCenter,
       ownerWindow.innerWidth - VIEWPORT_PADDING - width / 2,
     );
+
     const center = Math.min(Math.max(minCenter, idealCenter), maxCenter);
 
     let top = anchorRect
