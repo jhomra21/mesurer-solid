@@ -503,6 +503,7 @@ if (
 }
 
 const recordingElectronSource = readFileSync(recordingElectronCjs, "utf8");
+
 const recordingAutoPreloadSource = readFileSync(recordingAutoPreload, "utf8");
 
 for (const contract of [
