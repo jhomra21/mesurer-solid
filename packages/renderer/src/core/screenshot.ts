@@ -85,8 +85,19 @@ export type HostCodexBridgeResult = {
   error?: string;
 };
 
+export type HostRecordingBridgeResult =
+  | {
+      ok: true;
+      streamId: string;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
 export type MesurerHostCapabilities = {
   captureScreenshot?: () => Promise<HostScreenshotResult>;
+  recordingBridge?: () => Promise<HostRecordingBridgeResult>;
   codexBridge?: (request: HostCodexBridgeRequest) => Promise<HostCodexBridgeResult>;
 };
 
