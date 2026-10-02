@@ -288,6 +288,32 @@ type ChromiumTabVideoConstraint = MediaTrackConstraints & {
   };
 };
 
+const hostRecordingStream = async (
+  ownerWindow: Window,
+  media: MediaDevices,
+) => {
+  const bridge = ownerWindow.__MESURER_HOST__?.recordingBridge;
+
+  if (!bridge) return null;
+  const response = await bridge();
+
+  if (!response?.ok || !response.streamId) {
+    throw new Error(response?.error || "Electron recording host did not return a stream id.");
+  }
+
+  const video: ChromiumTabVideoConstraint = {
+    mandatory: {
+      chromeMediaSource: "tab",
+      chromeMediaSourceId: response.streamId,
+    },
+  };
+
+  return media.getUserMedia({
+    audio: false,
+    video,
+  });
+};
+
 const extensionRecordingStream = async (
   ownerWindow: Window,
   media: MediaDevices,
@@ -319,6 +345,14 @@ const requestRecordingStream = async (
 
   if (!media) {
     throw new Error("Screen recording is unavailable in this browser.");
+  }
+
+  if (ownerWindow.__MESURER_HOST__?.recordingBridge) {
+    const hostStream = await hostRecordingStream(ownerWindow, media);
+
+    if (!hostStream) throw new Error("Electron recording host is unavailable.");
+
+    return hostStream;
   }
 
   try {
