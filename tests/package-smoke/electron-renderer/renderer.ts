@@ -314,7 +314,9 @@ const traceRecordingInput = (event: Event) => {
 };
 
 document.addEventListener("pointerdown", traceRecordingInput, true);
+
 document.addEventListener("mousedown", traceRecordingInput, true);
+
 document.addEventListener("click", traceRecordingInput, true);
 
 const recordingHitStack = document.elementsFromPoint(
@@ -339,7 +341,9 @@ const recordingHitStack = document.elementsFromPoint(
 await window.electronMesurer.clickAt(recordingActionPoint);
 
 document.removeEventListener("pointerdown", traceRecordingInput, true);
+
 document.removeEventListener("mousedown", traceRecordingInput, true);
+
 document.removeEventListener("click", traceRecordingInput, true);
 
 if (recordingInteractionClicks !== 1) {
