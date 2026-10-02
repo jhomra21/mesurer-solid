@@ -904,6 +904,7 @@ export const recordingPlugin = (
         recordingStatus.textContent = "● 0:00  Stop";
         placeRecordingStatus(rect);
         startFramePump(nextCapture, nextRecorder, operationId);
+
         if (nextCapture.kind === "stream") {
           nextCapture.track.addEventListener("ended", () => {
             if (operation === operationId && currentSnapshot.status === "recording") {
@@ -911,6 +912,7 @@ export const recordingPlugin = (
             }
           }, { once: true });
         }
+
         maxDurationTimer = ownerWindow.setTimeout(() => {
           if (operation === operationId && currentSnapshot.status === "recording") {
             void finishRecording().catch(() => undefined);
