@@ -1,6 +1,7 @@
 import { mountMesurer } from "mesurer-solid";
 import {
   context,
+  MESURER_RECORDING_SERVICE_ID,
   recording,
   screenshot,
   type MesurerRecordingService,
@@ -279,7 +280,9 @@ await window.electronMesurer.progress({
 
 const png = new Uint8Array(await capture.blob.arrayBuffer());
 
-const recordingService = await mesurer.service<MesurerRecordingService>("recording");
+const recordingService = await mesurer.service<MesurerRecordingService>(
+  MESURER_RECORDING_SERVICE_ID,
+);
 
 await window.electronMesurer.progress({ step: "recording-service-ready" });
 
