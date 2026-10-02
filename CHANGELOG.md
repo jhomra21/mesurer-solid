@@ -4,7 +4,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-<!-- Add user-facing changes here before preparing a release. -->
+- Fix Recording in Electron/native hosts. Applications can expose the narrow `window.__MESURER_HOST__.captureRecordingStream` capability so Recording captures the current renderer instead of falling into unsupported browser display capture.
+- Publish package-owned Electron main/preload helpers at `mesurer-solid/plugins/recording/bridge` and `mesurer-solid/plugins/recording/preload`. The main helper issues a short-lived WebContents media source id bound to the requesting renderer; MediaBunny remains the only recording and export pipeline.
+- Expand the packed Electron acceptance to start a real region recording, mutate the captured renderer, finalize/export WebM, and retain `recording.webm` as repeatable evidence.
 
 ## 0.2.1-beta.4 - 2026-10-01
 
