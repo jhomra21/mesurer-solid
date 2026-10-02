@@ -253,6 +253,19 @@ app.whenReady().then(async () => {
 
   mainWindow = new BrowserWindow(windowOptions);
 
+  mainWindow.webContents.on("did-finish-load", () => {
+    progress.push({ at: Date.now(), step: "main-did-finish-load", detail: null });
+  });
+
+  mainWindow.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+    if (level < 2) return;
+    progress.push({
+      at: Date.now(),
+      step: "renderer-console",
+      detail: { level, message, line, sourceId },
+    });
+  });
+
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
     fail(new Error(`Electron renderer exited: ${details.reason} (${details.exitCode})`));
   });
