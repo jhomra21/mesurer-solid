@@ -611,18 +611,37 @@ export function Toolbar(props: ToolbarProps) {
   const ensureToolbarFitsViewport = () => {
     const toolbar = toolbarElement;
 
-    if (!toolbar || compact()) return;
-    const width = toolbar.getBoundingClientRect().width;
+    if (!toolbar) return;
+    const rect = toolbar.getBoundingClientRect();
 
-    setExpandedToolbarWidth(width);
+    if (!compact()) {
+      setExpandedToolbarWidth(rect.width);
 
-    if (width <= toolbarViewportWidth() + 0.5) return;
+      if (rect.width > toolbarViewportWidth() + 0.5) {
+        setGuideMenuOpen(false);
+        setPluginMenuOpenId(null);
+        pluginMenuAnchorElement = undefined;
+        setCompact(true);
+        setViewportRevision((value) => value + 1);
+        props.ownerWindow.requestAnimationFrame(ensureToolbarFitsViewport);
 
-    setGuideMenuOpen(false);
-    setPluginMenuOpenId(null);
-    pluginMenuAnchorElement = undefined;
-    setCompact(true);
-    setViewportRevision((value) => value + 1);
+        return;
+      }
+    }
+
+    const constrained = constrainToolbarPosition(
+      props.ownerWindow,
+      position(),
+      { width: rect.width, height: rect.height },
+      { width: props.ownerWindow.innerWidth, height: props.ownerWindow.innerHeight },
+    );
+
+    if (
+      Math.abs(constrained.x - position().x) > 0.5
+      || Math.abs(constrained.y - position().y) > 0.5
+    ) {
+      setPosition(constrained);
+    }
   };
 
   const toggleCompact = () => {
@@ -848,6 +867,8 @@ export function Toolbar(props: ToolbarProps) {
     const toolbarResizeObserver = Resize
       ? new Resize(() => ensureToolbarFitsViewport())
       : null;
+
+    ensureToolbarFitsViewport();
 
     if (toolbarElement) toolbarResizeObserver?.observe(toolbarElement);
 
