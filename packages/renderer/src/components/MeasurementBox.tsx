@@ -154,7 +154,7 @@ export function MeasurementBox(props: MeasurementBoxProps) {
 
   const surfaces = (measurement: () => Measurement | InspectMeasurement) => <>
     <Show when={!isSelectionGroup()}>
-      <div ref={(element) => { chromeElement = element; }} data-mesurer-measurement-chrome="true" class="msr:absolute" style={{
+      <div ref={(element) => { chromeElement = element; }} data-mesurer-measurement-chrome="true" class="msr:pointer-events-none msr:absolute" style={{
         left: `${measurement().rect.left + selectedPortalOffset().x}px`,
         top: `${measurement().rect.top + selectedPortalOffset().y}px`,
         width: `${measurement().rect.width}px`,
