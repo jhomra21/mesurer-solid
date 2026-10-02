@@ -245,11 +245,26 @@ export const recordingPlugin = (
     const { ownerDocument, ownerWindow } = runtime;
     const inspectorMount = runtime.createInspectorMount();
     const root = inspectorMount.element;
+
     const rendererRoot = runtime.rendererRoot
       ?? runtime.portalTarget.querySelector<HTMLDivElement>("[data-mesurer-root='true']");
 
     const setRecordingInteractionActive = (active: boolean) => {
       rendererRoot?.toggleAttribute("data-mesurer-recording-active", active);
+
+      const interactionOverlay = rendererRoot?.querySelector<HTMLElement>(
+        "[data-mesurer-interaction-overlay='true']",
+      );
+
+      if (!interactionOverlay) return;
+
+      if (active) {
+        interactionOverlay.style.setProperty("pointer-events", "none", "important");
+        interactionOverlay.style.setProperty("cursor", "default", "important");
+      } else {
+        interactionOverlay.style.removeProperty("pointer-events");
+        interactionOverlay.style.removeProperty("cursor");
+      }
     };
 
     root.dataset.mesurerRecording = "true";
