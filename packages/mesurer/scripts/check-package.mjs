@@ -451,9 +451,13 @@ const codexPreloadCjs = new URL("../src/plugins/codex/preload.cjs", import.meta.
 const codexPreloadTypes = new URL("../src/plugins/codex/preload.d.ts", import.meta.url);
 
 const recordingBridgeScript = new URL("../src/plugins/recording/bridge.mjs", import.meta.url);
+
 const recordingBridgeTypes = new URL("../src/plugins/recording/bridge.d.ts", import.meta.url);
+
 const recordingPreloadScript = new URL("../src/plugins/recording/preload.mjs", import.meta.url);
+
 const recordingPreloadCjs = new URL("../src/plugins/recording/preload.cjs", import.meta.url);
+
 const recordingPreloadTypes = new URL("../src/plugins/recording/preload.d.ts", import.meta.url);
 
 if (
@@ -478,7 +482,9 @@ if (
 }
 
 const recordingBridgeSource = readFileSync(recordingBridgeScript, "utf8");
+
 const recordingPreloadSource = readFileSync(recordingPreloadScript, "utf8");
+
 const recordingPreloadCjsSource = readFileSync(recordingPreloadCjs, "utf8");
 
 for (const contract of [
