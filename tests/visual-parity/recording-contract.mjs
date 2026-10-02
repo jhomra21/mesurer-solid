@@ -135,47 +135,66 @@ try {
     throw new Error(`Recording editor must use upstream's 352px collapsed width: ${JSON.stringify(previewBox)}`);
   }
 
-  const themeStates = await page.evaluate(async () => {
-    const island = document.querySelector("[data-mesurer-island='true']");
-    const root = island?.shadowRoot?.querySelector("[data-mesurer-root='true']");
-    const preview = island?.shadowRoot?.querySelector("[data-mesurer-recording-preview='true']");
-    const timeline = island?.shadowRoot?.querySelector("[data-mesurer-recording-timeline-rail='true']");
+  const settingsButton = island.locator("[data-mesurer-builtin='settings'] button").first();
+  const settingsDialog = island.getByRole("dialog", { name: "Settings" });
 
-    if (!(root instanceof HTMLElement) || !(preview instanceof HTMLElement) || !(timeline instanceof HTMLElement)) {
-      throw new Error("Recording theme contract could not resolve editor surfaces");
-    }
+  await settingsButton.click();
+  await settingsDialog.waitFor({ state: "visible" });
 
-    const previousTheme = root.getAttribute("data-theme");
+  const generalTab = settingsDialog.getByRole("tab", { name: "General" });
 
-    const read = async (theme) => {
-      root.setAttribute("data-theme", theme);
-      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
-      const previewStyle = getComputedStyle(preview);
+  if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
+
+  const appearance = settingsDialog.getByRole("combobox", { name: "Appearance" });
+  const previousTheme = await appearance.inputValue();
+
+  const readRecordingTheme = async (theme) => {
+    await appearance.selectOption(theme);
+    await page.waitForFunction((expected) => {
+      const island = document.querySelector("[data-mesurer-island='true']");
+      const preview = island?.shadowRoot?.querySelector("[data-mesurer-recording-preview='true']");
+      const themedRoot = preview?.closest("[data-theme]");
+
+      return themedRoot?.getAttribute("data-theme") === expected;
+    }, theme);
+
+    return preview.evaluate((element) => {
+      const timeline = element.querySelector("[data-mesurer-recording-timeline-rail='true']");
+      const themedRoot = element.closest("[data-theme]");
+
+      if (!(timeline instanceof HTMLElement) || !(themedRoot instanceof HTMLElement)) {
+        throw new Error("Recording theme contract could not resolve themed editor surfaces");
+      }
+
+      const previewStyle = getComputedStyle(element);
       const timelineStyle = getComputedStyle(timeline);
 
       return {
-        theme,
+        theme: themedRoot.getAttribute("data-theme"),
         background: previewStyle.backgroundColor,
         color: previewStyle.color,
         timeline: timelineStyle.backgroundColor,
       };
-    };
+    });
+  };
 
-    const light = await read("light");
-    const dark = await read("dark");
+  const themeStates = {
+    light: await readRecordingTheme("light"),
+    dark: await readRecordingTheme("dark"),
+  };
 
-    if (previousTheme) root.setAttribute("data-theme", previousTheme);
-    else root.removeAttribute("data-theme");
-
-    return { light, dark };
-  });
+  await appearance.selectOption(previousTheme);
+  await settingsButton.click();
+  await settingsDialog.waitFor({ state: "hidden" });
 
   if (
-    themeStates.light.background === themeStates.dark.background
+    themeStates.light.theme !== "light"
+    || themeStates.dark.theme !== "dark"
+    || themeStates.light.background === themeStates.dark.background
     || themeStates.light.color === themeStates.dark.color
     || themeStates.light.timeline === themeStates.dark.timeline
   ) {
-    throw new Error(`Recording editor did not resolve distinct Light/Dark theme tokens: ${JSON.stringify(themeStates)}`);
+    throw new Error(`Recording editor did not follow Settings Appearance across Light/Dark: ${JSON.stringify(themeStates)}`);
   }
 
   const timeline = island.locator("[data-mesurer-recording-timeline='true']");
