@@ -635,6 +635,7 @@ jobs:
       - name: Verify macOS traffic-light clearance in bundled Electron
         env:
           MESURER_ELECTRON_ARTIFACT_DIR: /tmp/mesurer-electron-macos/artifacts
+          MESURER_ELECTRON_SKIP_RECORDING: "1"
         run: |
           cd /tmp/mesurer-electron-macos
           ./node_modules/.bin/electron main-bundled.cjs
