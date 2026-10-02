@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld("__MESURER_HOST__", {
 
 contextBridge.exposeInMainWorld("electronMesurer", {
   complete: (payload) => ipcRenderer.invoke("mesurer:test-complete", payload),
+  progress: (payload) => ipcRenderer.invoke("mesurer:test-progress", payload),
   dragToolbar: (payload) => ipcRenderer.invoke("mesurer:drag-toolbar", payload),
 });
