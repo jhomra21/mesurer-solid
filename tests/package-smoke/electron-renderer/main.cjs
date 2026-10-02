@@ -7,6 +7,8 @@ const path = require("node:path");
 const artifactDir = process.env.MESURER_ELECTRON_ARTIFACT_DIR
   ?? path.join(__dirname, "artifacts");
 
+const skipRecording = process.env.MESURER_ELECTRON_SKIP_RECORDING === "1";
+
 let mainWindow = null;
 
 let codexHost = null;
@@ -125,11 +127,14 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
   }
 
   if (
-    video.byteLength < 4
-    || video[0] !== 0x1a
-    || video[1] !== 0x45
-    || video[2] !== 0xdf
-    || video[3] !== 0xa3
+    !skipRecording
+    && (
+      video.byteLength < 4
+      || video[0] !== 0x1a
+      || video[1] !== 0x45
+      || video[2] !== 0xdf
+      || video[3] !== 0xa3
+    )
   ) {
     throw new Error("Mesurer Electron recording did not produce a valid WebM/EBML artifact.");
   }
@@ -161,10 +166,16 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || summary.nativeEyeDropperOpens !== 0
     || summary.colorPickerOverlayRemoved !== true
     || summary.recordingBridgeOk !== true
-    || summary.recordingMime !== "video/webm"
-    || !(Number(summary.recordingDuration) > 0)
-    || !(Number(summary.recordingWidth) > 0)
-    || !(Number(summary.recordingHeight) > 0)
+    || summary.recordingSkipped !== skipRecording
+    || (
+      !skipRecording
+      && (
+        summary.recordingMime !== "video/webm"
+        || !(Number(summary.recordingDuration) > 0)
+        || !(Number(summary.recordingWidth) > 0)
+        || !(Number(summary.recordingHeight) > 0)
+      )
+    )
     || summary.codexBridgeOk !== true
     || !["shared", "standalone", "desktop", "none"].includes(summary.codexRuntimeSource)
     || !["shared-app-server", "desktop-queue", "private-stdio", "none"].includes(summary.codexRuntimeTransport)
@@ -177,7 +188,11 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
 
   mkdirSync(artifactDir, { recursive: true });
   writeFileSync(path.join(artifactDir, "capture.png"), png);
-  writeFileSync(path.join(artifactDir, "recording.webm"), video);
+
+  if (!skipRecording) {
+    writeFileSync(path.join(artifactDir, "recording.webm"), video);
+  }
+
   writeResult({
     ok: true,
     ...summary,
@@ -254,7 +269,11 @@ app.whenReady().then(async () => {
     fail(new Error("Mesurer Electron renderer contract timed out."));
   }, 30_000);
 
-  await mainWindow.loadFile(path.join(__dirname, "index.html"));
+  const loadOptions = skipRecording
+    ? { search: "?skipRecording=1" }
+    : undefined;
+
+  await mainWindow.loadFile(path.join(__dirname, "index.html"), loadOptions);
 });
 
 process.on("uncaughtException", fail);
