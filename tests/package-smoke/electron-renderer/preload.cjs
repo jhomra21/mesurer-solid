@@ -4,13 +4,8 @@ const {
   createMesurerCodexPreloadBridge,
 } = require("mesurer-solid/plugins/codex/preload");
 
-const {
-  createMesurerRecordingPreloadBridge,
-} = require("mesurer-solid/plugins/recording/preload");
-
 contextBridge.exposeInMainWorld("__MESURER_HOST__", {
   captureScreenshot: (request) => ipcRenderer.invoke("mesurer:capture-window", request),
-  recordingBridge: createMesurerRecordingPreloadBridge(ipcRenderer),
   codexBridge: createMesurerCodexPreloadBridge(ipcRenderer),
 });
 
