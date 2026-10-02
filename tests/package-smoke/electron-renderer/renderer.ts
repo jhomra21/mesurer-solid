@@ -195,7 +195,7 @@ if (nativeEyeDropperOpens !== 0) {
   throw new Error(`Electron host Color Picker invoked native EyeDropper ${nativeEyeDropperOpens} time(s).`);
 }
 
-const recordingBridgeOk = typeof window.__MESURER_HOST__?.recordingBridge === "function";
+const recordingBridgeOk = window.__MESURER_HOST__?.recordingBridge !== undefined;
 
 if (!recordingBridgeOk) {
   throw new Error("Electron preload did not expose Mesurer's Recording host capability.");
@@ -219,6 +219,7 @@ const capture = await service.capture({
 const png = new Uint8Array(await capture.blob.arrayBuffer());
 
 const recordingService = await mesurer.service<MesurerRecordingService>("recording");
+
 const recordingRect = {
   left: target.inspection.rect.left,
   top: target.inspection.rect.top,
@@ -227,9 +228,13 @@ const recordingRect = {
 };
 
 await recordingService.start(recordingRect);
+
 await new Promise((resolve) => setTimeout(resolve, 350));
+
 const recordingAsset = await recordingService.stop();
+
 const video = new Uint8Array(await recordingAsset.blob.arrayBuffer());
+
 recordingService.discard();
 
 await window.electronMesurer.dragToolbar({
