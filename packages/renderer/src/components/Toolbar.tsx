@@ -844,6 +844,7 @@ export function Toolbar(props: ToolbarProps) {
 
     // SAFETY: ownerWindow owns this toolbar and its ResizeObserver implementation.
     const Resize = (props.ownerWindow as Window & typeof globalThis).ResizeObserver;
+
     const toolbarResizeObserver = Resize
       ? new Resize(() => ensureToolbarFitsViewport())
       : null;
