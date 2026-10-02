@@ -645,6 +645,7 @@ export const recordingPlugin = (
     let recorder: MediaBunnyCanvasRecorder | null = null;
     let pendingFrame: Promise<void> | null = null;
     let selectingOrigin: { x: number; y: number } | null = null;
+
     let selectionRect: ScreenshotRect | null = null;
     let selectionAdjusting = false;
     let selectionDrag: {
@@ -655,6 +656,7 @@ export const recordingPlugin = (
       startY: number;
       rect: ScreenshotRect;
     } | null = null;
+
     let toolbarVisibility: ToolbarVisibility | null = null;
     let frameHandle = 0;
     let maxDurationTimer = 0;
@@ -806,11 +808,14 @@ export const recordingPlugin = (
         topInput.max = String(Math.max(0, viewportHeight - rect.height));
 
         const panelHalfWidth = 110;
+
         const panelLeft = Math.min(
           Math.max(panelHalfWidth + 8, rect.left + rect.width / 2),
           Math.max(panelHalfWidth + 8, viewportWidth - panelHalfWidth - 8),
         );
+
         const preferredTop = rect.top + rect.height + 12;
+
         const panelTop = preferredTop + 112 <= viewportHeight
           ? preferredTop
           : Math.max(8, rect.top - 112);
@@ -1540,9 +1545,15 @@ export const recordingPlugin = (
     ownerWindow.addEventListener("keydown", onKeyDown, true);
 
     outline.addEventListener("pointerdown", (event) => {
-      const target = event.target as HTMLElement;
+      const target = event.target;
 
-      if (target.closest("[data-mesurer-recording-resize]")) return;
+      if (
+        target instanceof ownerWindow.Element
+        && target.closest("[data-mesurer-recording-resize]")
+      ) {
+        return;
+      }
+
       beginSelectionDrag(event, "move");
     });
 
