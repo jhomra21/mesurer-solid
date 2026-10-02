@@ -22,13 +22,24 @@ for (const path of [
   cpSync(new URL(path, packageDir), new URL(path, stageDir), { recursive: true });
 }
 
-mkdirSync(new URL("plugins/codex/", stageDir), { recursive: true });
+for (const plugin of [
+  {
+    name: "codex",
+    files: ["bridge.mjs", "bridge.d.ts", "desktop.mjs", "preload.mjs", "preload.cjs", "preload.d.ts"],
+  },
+  {
+    name: "recording",
+    files: ["bridge.mjs", "bridge.d.ts", "preload.mjs", "preload.cjs", "preload.d.ts"],
+  },
+]) {
+  mkdirSync(new URL(`plugins/${plugin.name}/`, stageDir), { recursive: true });
 
-for (const file of ["bridge.mjs", "bridge.d.ts", "desktop.mjs", "preload.mjs", "preload.cjs", "preload.d.ts"]) {
-  cpSync(
-    new URL(`src/plugins/codex/${file}`, packageDir),
-    new URL(`plugins/codex/${file}`, stageDir),
-  );
+  for (const file of plugin.files) {
+    cpSync(
+      new URL(`src/plugins/${plugin.name}/${file}`, packageDir),
+      new URL(`plugins/${plugin.name}/${file}`, stageDir),
+    );
+  }
 }
 
 const published = { ...packageJson, name: "mesurer-solid" };
