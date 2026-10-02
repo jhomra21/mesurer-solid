@@ -127,7 +127,9 @@ try {
   await settingsPage.goto(url, { waitUntil: "networkidle" });
 
   const toolbar = settingsPage.locator("[data-mesurer-toolbar='true']");
+
   const toolbarBox = await box(toolbar, "Expected toolbar geometry before compact Settings check");
+
   const settingsViewportWidth = Math.max(
     620,
     Math.ceil(toolbarBox.x + toolbarBox.width + 8),
