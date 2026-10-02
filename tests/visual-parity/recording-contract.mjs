@@ -135,6 +135,49 @@ try {
     throw new Error(`Recording editor must use upstream's 352px collapsed width: ${JSON.stringify(previewBox)}`);
   }
 
+  const themeStates = await page.evaluate(async () => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const root = island?.shadowRoot?.querySelector("[data-mesurer-root='true']");
+    const preview = island?.shadowRoot?.querySelector("[data-mesurer-recording-preview='true']");
+    const timeline = island?.shadowRoot?.querySelector("[data-mesurer-recording-timeline-rail='true']");
+
+    if (!(root instanceof HTMLElement) || !(preview instanceof HTMLElement) || !(timeline instanceof HTMLElement)) {
+      throw new Error("Recording theme contract could not resolve editor surfaces");
+    }
+
+    const previousTheme = root.getAttribute("data-theme");
+
+    const read = async (theme) => {
+      root.setAttribute("data-theme", theme);
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+      const previewStyle = getComputedStyle(preview);
+      const timelineStyle = getComputedStyle(timeline);
+
+      return {
+        theme,
+        background: previewStyle.backgroundColor,
+        color: previewStyle.color,
+        timeline: timelineStyle.backgroundColor,
+      };
+    };
+
+    const light = await read("light");
+    const dark = await read("dark");
+
+    if (previousTheme) root.setAttribute("data-theme", previousTheme);
+    else root.removeAttribute("data-theme");
+
+    return { light, dark };
+  });
+
+  if (
+    themeStates.light.background === themeStates.dark.background
+    || themeStates.light.color === themeStates.dark.color
+    || themeStates.light.timeline === themeStates.dark.timeline
+  ) {
+    throw new Error(`Recording editor did not resolve distinct Light/Dark theme tokens: ${JSON.stringify(themeStates)}`);
+  }
+
   const timeline = island.locator("[data-mesurer-recording-timeline='true']");
   const trimStartHandle = island.locator("[data-mesurer-recording-trim-handle='start']");
   const trimEndHandle = island.locator("[data-mesurer-recording-trim-handle='end']");
