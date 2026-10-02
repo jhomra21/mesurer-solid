@@ -1,3 +1,5 @@
+require("mesurer-solid/electron");
+
 const { app, BrowserWindow, ipcMain, nativeImage } = require("electron");
 
 const { mkdirSync, writeFileSync } = require("node:fs");
@@ -11,15 +13,11 @@ let mainWindow = null;
 
 let codexHost = null;
 
-let recordingHost = null;
-
 let finished = false;
 
 let timeoutId = null;
 
 let captureCount = 0;
-
-let recordingSourceCount = 0;
 
 
 function writeResult(result) {
@@ -212,8 +210,8 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || summary.recordingMime !== "video/webm"
     || summary.recordingBytes !== recording.byteLength
     || summary.recordingInteractionClicks !== 1
+    || summary.recordingAutoHost !== true
     || captureCount !== 2
-    || recordingSourceCount !== 1
   ) {
     throw new Error(`Unexpected Mesurer Electron result: ${JSON.stringify(summary)}`);
   }
@@ -230,7 +228,6 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     imageWidth: size.width,
     imageHeight: size.height,
     captureCount,
-    recordingSourceCount,
   });
 
   console.log(
@@ -243,19 +240,6 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
 
 app.whenReady().then(async () => {
   const { installMesurerCodexHost } = await import("mesurer-solid/plugins/codex/bridge");
-  const { installMesurerRecordingHost } = await import("mesurer-solid/plugins/recording/bridge");
-
-  recordingHost = installMesurerRecordingHost({
-    ipcMain,
-    validateSender(event) {
-      const window = BrowserWindow.fromWebContents(event.sender);
-      const allowed = Boolean(window && !window.isDestroyed());
-
-      if (allowed) recordingSourceCount += 1;
-
-      return allowed;
-    },
-  });
 
   codexHost = installMesurerCodexHost({
     ipcMain,
@@ -267,8 +251,6 @@ app.whenReady().then(async () => {
   });
 
   app.once("before-quit", () => {
-    recordingHost?.dispose();
-    recordingHost = null;
     codexHost?.dispose();
     codexHost = null;
   });
