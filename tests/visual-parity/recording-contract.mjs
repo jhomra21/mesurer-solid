@@ -57,13 +57,58 @@ try {
   await page.mouse.move(540, 380, { steps: 8 });
   await page.mouse.up();
 
+  await page.waitForFunction(() => {
+    const snapshot = window.__MESURER_RECORDING_TEST__?.service.snapshot();
+
+    return snapshot?.status === "selecting"
+      && snapshot.rect?.width === 320
+      && snapshot.rect?.height === 180;
+  });
+
+  const regionPanel = island.locator("[data-mesurer-recording-region='true']");
+  const startRecording = island.locator("[data-mesurer-recording-start='true']");
+
+  await regionPanel.waitFor({ state: "visible" });
+  await startRecording.waitFor({ state: "visible" });
+
+  const selectionSnapshot = await page.evaluate(() =>
+    window.__MESURER_RECORDING_TEST__?.service.snapshot());
+
+  if (selectionSnapshot?.status !== "selecting") {
+    throw new Error(`Dragging a Recording region must not start capture immediately: ${JSON.stringify(selectionSnapshot)}`);
+  }
+
+  await startRecording.click();
   await page.waitForFunction(() => window.__MESURER_RECORDING_TEST__?.service.snapshot().status === "recording");
 
+  const toolbarDuringRecording = await island.locator("[data-mesurer-toolbar='true']")
+    .evaluate((element) => getComputedStyle(element).visibility);
+
+  if (toolbarDuringRecording !== "visible") {
+    throw new Error(`Recording must restore the toolbar after region confirmation, got ${toolbarDuringRecording}`);
+  }
+
+  const recordingRootPointerEvents = await island.locator("[data-mesurer-recording='true']")
+    .evaluate((element) => getComputedStyle(element).pointerEvents);
+
+  if (recordingRootPointerEvents !== "none") {
+    throw new Error(`Recording root must not block host-page interaction, got pointer-events=${recordingRootPointerEvents}`);
+  }
+
+  const interactionTarget = page.locator("[data-testid='record-interaction']");
+  await interactionTarget.click();
+
+  if ((await interactionTarget.getAttribute("data-clicks")) !== "1") {
+    throw new Error("Host-page button did not receive a click while Recording was active");
+  }
+
   const recordingStatus = island.locator("[data-mesurer-recording-status='true']");
+  const recordingStop = island.locator("[data-mesurer-recording-stop='true']");
 
   await recordingStatus.waitFor({ state: "visible" });
+  await recordingStop.waitFor({ state: "visible" });
   await page.waitForTimeout(850);
-  await recordingStatus.click();
+  await recordingStop.click();
   await page.waitForFunction(() => window.__MESURER_RECORDING_TEST__?.service.snapshot().status === "ready", null, {
     timeout: 15000,
   });
