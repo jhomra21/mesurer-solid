@@ -10,7 +10,7 @@ export function installMesurerRecordingHost(options) {
     throw new Error("installMesurerRecordingHost requires Electron ipcMain.");
   }
 
-  if (typeof options.validateSender !== "function") {
+  if (options?.validateSender?.constructor !== Function) {
     throw new Error("installMesurerRecordingHost requires validateSender(event).");
   }
 
