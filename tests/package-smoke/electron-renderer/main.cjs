@@ -74,6 +74,12 @@ ipcMain.handle("mesurer:click-at", async (event, payload) => {
 
   const webContents = window.webContents;
 
+  window.show();
+  window.focus();
+  webContents.focus();
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
   webContents.sendInputEvent({ type: "mouseMove", x, y });
   webContents.sendInputEvent({
     type: "mouseDown",
