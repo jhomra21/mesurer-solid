@@ -755,6 +755,7 @@ export const createRecordingPreviewController = ({
     );
 
     const panelHeight = Math.max(180, panel.offsetHeight);
+
     const anchor = root
       .closest<HTMLElement>("[data-mesurer-root='true']")
       ?.querySelector<HTMLElement>("[data-mesurer-tool-id='recording']")
@@ -876,7 +877,7 @@ export const createRecordingPreviewController = ({
     const target = event.target;
 
     if (
-      target instanceof ownerWindow.Element
+      target instanceof Element
       && target.closest("[data-mesurer-recording-trim-handle]")
     ) {
       return;
@@ -925,7 +926,7 @@ export const createRecordingPreviewController = ({
   previewShell.addEventListener("click", (event) => {
     const target = event.target;
 
-    if (target instanceof ownerWindow.Element && target.closest("button")) return;
+    if (target instanceof Element && target.closest("button")) return;
 
     togglePlayback();
   });
