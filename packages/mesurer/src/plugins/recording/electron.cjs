@@ -1,11 +1,15 @@
 "use strict";
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
+
 const path = require("node:path");
+
 const { app, ipcMain, session } = require("electron");
 
 const MESURER_ELECTRON_RECORDING_CHANNEL = "mesurer:electron-recording-source";
+
 const MESURER_ELECTRON_RECORDING_PRELOAD_ID = "mesurer-recording";
+
 const MESURER_ELECTRON_BOOTSTRAP_KEY = Symbol.for("mesurer.electron.bootstrap");
 
 const EMBEDDED_PRELOAD = `"use strict";
@@ -31,6 +35,7 @@ const packagedPreloadPath = () => {
   try {
     const packageJsonRequest = ["mesurer-solid", "package.json"].join("/");
     const packageJsonPath = require.resolve(packageJsonRequest);
+
     const candidate = path.join(
       path.dirname(packageJsonPath),
       "plugins",
@@ -82,7 +87,7 @@ const installMesurerElectron = () => {
 
     const filePath = preloadPath();
 
-    if (typeof electronSession.registerPreloadScript === "function") {
+    if (electronSession.registerPreloadScript instanceof Function) {
       const id = electronSession.registerPreloadScript({
         type: "frame",
         id: MESURER_ELECTRON_RECORDING_PRELOAD_ID,
@@ -95,8 +100,8 @@ const installMesurerElectron = () => {
     }
 
     if (
-      typeof electronSession.setPreloads === "function"
-      && typeof electronSession.getPreloads === "function"
+      electronSession.setPreloads instanceof Function
+      && electronSession.getPreloads instanceof Function
     ) {
       const previous = electronSession.getPreloads();
       electronSession.setPreloads([...new Set([...previous, filePath])]);
@@ -115,12 +120,12 @@ const installMesurerElectron = () => {
       try {
         if (
           registration.kind === "registered"
-          && typeof electronSession.unregisterPreloadScript === "function"
+          && electronSession.unregisterPreloadScript instanceof Function
         ) {
           electronSession.unregisterPreloadScript(registration.id);
         } else if (
           registration.kind === "legacy"
-          && typeof electronSession.setPreloads === "function"
+          && electronSession.setPreloads instanceof Function
         ) {
           electronSession.setPreloads(registration.previous);
         }
