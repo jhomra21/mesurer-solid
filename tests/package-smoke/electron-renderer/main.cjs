@@ -11,6 +11,8 @@ let mainWindow = null;
 
 let codexHost = null;
 
+let recordingHost = null;
+
 let finished = false;
 
 let timeoutId = null;
@@ -113,12 +115,23 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
   if (finished) return;
 
   const png = Buffer.from(payload.png);
+  const video = Buffer.from(payload.video ?? []);
   const image = nativeImage.createFromBuffer(png);
   const size = image.getSize();
   const summary = payload.summary ?? {};
 
   if (!png.byteLength || image.isEmpty()) {
     throw new Error("Mesurer Electron capture produced an empty PNG.");
+  }
+
+  if (
+    video.byteLength < 4
+    || video[0] !== 0x1a
+    || video[1] !== 0x45
+    || video[2] !== 0xdf
+    || video[3] !== 0xa3
+  ) {
+    throw new Error("Mesurer Electron recording did not produce a valid WebM/EBML artifact.");
   }
 
   const toolbarInitialRect = summary.toolbarInitialRect ?? {};
@@ -147,6 +160,11 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || !String(summary.colorPickerValue ?? "").includes("#123456")
     || summary.nativeEyeDropperOpens !== 0
     || summary.colorPickerOverlayRemoved !== true
+    || summary.recordingBridgeOk !== true
+    || summary.recordingMime !== "video/webm"
+    || !(Number(summary.recordingDuration) > 0)
+    || !(Number(summary.recordingWidth) > 0)
+    || !(Number(summary.recordingHeight) > 0)
     || summary.codexBridgeOk !== true
     || !["shared", "standalone", "desktop", "none"].includes(summary.codexRuntimeSource)
     || !["shared-app-server", "desktop-queue", "private-stdio", "none"].includes(summary.codexRuntimeTransport)
@@ -159,10 +177,12 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
 
   mkdirSync(artifactDir, { recursive: true });
   writeFileSync(path.join(artifactDir, "capture.png"), png);
+  writeFileSync(path.join(artifactDir, "recording.webm"), video);
   writeResult({
     ok: true,
     ...summary,
     pngBytes: png.byteLength,
+    videoBytes: video.byteLength,
     imageWidth: size.width,
     imageHeight: size.height,
     captureCount,
@@ -178,6 +198,16 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
 
 app.whenReady().then(async () => {
   const { installMesurerCodexHost } = await import("mesurer-solid/plugins/codex/bridge");
+  const { installMesurerRecordingHost } = await import("mesurer-solid/plugins/recording/bridge");
+
+  recordingHost = installMesurerRecordingHost({
+    ipcMain,
+    validateSender(event) {
+      const window = BrowserWindow.fromWebContents(event.sender);
+
+      return Boolean(window && !window.isDestroyed());
+    },
+  });
 
   codexHost = installMesurerCodexHost({
     ipcMain,
@@ -189,6 +219,8 @@ app.whenReady().then(async () => {
   });
 
   app.once("before-quit", () => {
+    recordingHost?.dispose();
+    recordingHost = null;
     codexHost?.dispose();
     codexHost = null;
   });
