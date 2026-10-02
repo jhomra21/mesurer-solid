@@ -288,30 +288,22 @@ type ChromiumTabVideoConstraint = MediaTrackConstraints & {
   };
 };
 
-const hostRecordingStreamId = async (
-  ownerWindow: Window,
-): Promise<string | null> => {
-  const capture = ownerWindow.__MESURER_HOST__?.captureRecordingStream;
-
-  if (!capture) return null;
-  const result = await capture();
-  const streamId = typeof result === "string" ? result : result?.streamId;
-
-  if (!streamId?.trim()) {
-    throw new Error("Native recording capture returned no stream id.");
-  }
-
-  return streamId;
-};
-
 const hostRecordingStream = async (
   ownerWindow: Window,
   media: MediaDevices,
-): Promise<MediaStream | null> => {
-  if (!ownerWindow.__MESURER_HOST__?.captureRecordingStream) return null;
-  const streamId = await hostRecordingStreamId(ownerWindow);
+): Promise<MediaStream> => {
+  const capture = ownerWindow.__MESURER_HOST__?.captureRecordingStream;
 
-  if (!streamId) return null;
+  if (!capture) {
+    throw new Error("Native recording capture is unavailable.");
+  }
+
+  const result = await capture();
+  const streamId = result?.streamId?.trim();
+
+  if (!streamId) {
+    throw new Error("Native recording capture returned no stream id.");
+  }
 
   const video: ChromiumTabVideoConstraint = {
     mandatory: {
