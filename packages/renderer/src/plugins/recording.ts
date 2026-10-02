@@ -648,6 +648,7 @@ export const recordingPlugin = (
 
     let selectionRect: ScreenshotRect | null = null;
     let selectionAdjusting = false;
+
     let selectionDrag: {
       kind: "move" | "resize";
       handle?: string;
@@ -1548,7 +1549,7 @@ export const recordingPlugin = (
       const target = event.target;
 
       if (
-        target instanceof ownerWindow.Element
+        target instanceof Element
         && target.closest("[data-mesurer-recording-resize]")
       ) {
         return;
