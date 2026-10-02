@@ -67,6 +67,24 @@ declare global {
   }
 }
 
+await window.electronMesurer.progress({ step: "renderer-start" });
+
+window.addEventListener("error", (event) => {
+  void window.electronMesurer.progress({
+    step: "renderer-error",
+    detail: event.error instanceof Error ? event.error.stack ?? event.error.message : event.message,
+  });
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason;
+
+  void window.electronMesurer.progress({
+    step: "renderer-unhandled-rejection",
+    detail: reason instanceof Error ? reason.stack ?? reason.message : String(reason),
+  });
+});
+
 const style = document.createElement("style");
 
 style.textContent = `
@@ -120,17 +138,28 @@ const waitFor = async <T>(read: () => T | null, timeoutMs = 5000): Promise<T> =>
   throw new Error("Timed out waiting for the Electron Mesurer contract.");
 };
 
+await window.electronMesurer.progress({ step: "fixture-ready" });
+
 const codexBridge = window.__MESURER_HOST__?.codexBridge;
 
 if (!codexBridge) {
   throw new Error("Electron preload did not expose Mesurer's Codex Bridge host capability.");
 }
 
+await window.electronMesurer.progress({ step: "codex-runtime-request" });
+
 const codexRuntime = await codexBridge({ action: "runtime" });
+
+await window.electronMesurer.progress({
+  step: "codex-runtime-ready",
+  detail: codexRuntime.runtime ?? null,
+});
 
 if (codexRuntime.ok !== true || !codexRuntime.runtime) {
   throw new Error(`Electron Codex Bridge runtime request failed: ${JSON.stringify(codexRuntime)}`);
 }
+
+await window.electronMesurer.progress({ step: "mesurer-before-mount" });
 
 const mesurer = mountMesurer({
   agent: true,
@@ -148,7 +177,11 @@ const mesurer = mountMesurer({
   ],
 });
 
+await window.electronMesurer.progress({ step: "mesurer-mounted" });
+
 await mesurer.ready;
+
+await window.electronMesurer.progress({ step: "mesurer-ready" });
 
 const island = await waitFor(() => document.querySelector<HTMLElement>("[data-mesurer-island='true']"));
 
@@ -162,11 +195,15 @@ const toolbar = await waitFor(() =>
 
 const toolbarInitialBounds = toolbar.getBoundingClientRect();
 
+await window.electronMesurer.progress({ step: "toolbar-ready" });
+
 const colorButton = await waitFor(() =>
   shadow.querySelector<HTMLButtonElement>('button[aria-label="Color picker (P)"]'),
 );
 
 colorButton.click();
+
+await window.electronMesurer.progress({ step: "color-picker-opened" });
 
 const pickerTarget = await waitFor(() =>
   shadow.querySelector<HTMLElement>("[data-mesurer-color-picker-target='true']"),
@@ -193,6 +230,11 @@ const colorPickerMode = colorPanel.dataset.mesurerColorPickerMode ?? null;
 
 const colorPickerValue = colorPanel.textContent ?? "";
 
+await window.electronMesurer.progress({
+  step: "color-picker-ready",
+  detail: { mode: colorPickerMode, value: colorPickerValue },
+});
+
 if (colorPickerMode !== "host" || !colorPickerValue.includes("#123456")) {
   throw new Error(`Unexpected Electron Color Picker result: ${JSON.stringify({
     colorPickerMode,
@@ -204,7 +246,14 @@ if (nativeEyeDropperOpens !== 0) {
   throw new Error(`Electron host Color Picker invoked native EyeDropper ${nativeEyeDropperOpens} time(s).`);
 }
 
+await window.electronMesurer.progress({ step: "before-select" });
+
 const selection = await mesurer.select('[data-testid="electron-target"]');
+
+await window.electronMesurer.progress({
+  step: "selection-ready",
+  detail: { targetCount: selection.targets.length },
+});
 
 const target = selection.targets[0];
 
@@ -212,11 +261,20 @@ if (!target) throw new Error("Mesurer did not select the Electron renderer targe
 
 const service = await mesurer.service<MesurerScreenshotService>("screenshot");
 
+await window.electronMesurer.progress({ step: "screenshot-service-ready" });
+
+await window.electronMesurer.progress({ step: "screenshot-before-capture" });
+
 const capture = await service.capture({
   left: target.inspection.rect.left,
   top: target.inspection.rect.top,
   width: target.inspection.rect.width,
   height: target.inspection.rect.height,
+});
+
+await window.electronMesurer.progress({
+  step: "screenshot-captured",
+  detail: { type: capture.blob.type, bytes: capture.blob.size },
 });
 
 const png = new Uint8Array(await capture.blob.arrayBuffer());
