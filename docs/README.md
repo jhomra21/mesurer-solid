@@ -16,7 +16,7 @@ Mesurer Solid is a browser inspection and visual-intent tool. Start with setup, 
 - [Layout guides](./LAYOUT_GUIDES.md) explains how to overlay page-scoped columns, rows, or a pixel grid and expose them through Context.
 - [Measurements and distance geometry](./MEASUREMENTS.md) defines box, guide, container, and multi-selection spacing evidence.
 - [Screenshots](./SCREENSHOTS.md) explains page-region capture, output settings, and host capture selection.
-- [Recording](./RECORDING.md) explains selected-region video capture, the `recording:v1` service, MediaBunny export, and browser/extension acquisition.
+- [Recording](./RECORDING.md) explains selected-region video capture, the `recording:v1` service, MediaBunny export, and browser, extension, and Electron acquisition.
 - [Context](./CONTEXT_WORKFLOW.md) explains how to read selection, measurements, annotations, review state, and shared human-agent evidence.
 - [Queue Context feedback to Codex](./CODEX.md) documents delivery to the originating or another recent same-project Codex thread.
 - [Design feedback loop](./DESIGN_FEEDBACK_LOOP.md) describes how to use Mesurer while implementing and reviewing UI.
