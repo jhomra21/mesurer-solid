@@ -17,9 +17,9 @@ Solid 1 / Solid 2 / React / Vue / Svelte / vanilla / Electron
              │                                 │
              ├───────────────┬─────────────────┤
              ▼               ▼                 ▼
-        Context plugin     Edit plugin     Screenshot plugin
-             │               │
-             │         Layout Guides plugin
+        Context plugin     Edit plugin      Capture plugins
+             │               │              ├─ Screenshot
+             │         Layout Guides        └─ Recording
              │
              └── optional Codex plugin ──► native host Bridge ──► Codex shared app-server
              │               │                 │
