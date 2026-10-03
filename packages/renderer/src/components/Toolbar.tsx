@@ -171,6 +171,10 @@ export function Toolbar(props: ToolbarProps) {
     !compact() || builtinActive() || pluginActive() || settingsActive();
 
   const tooltipsEnabled = () => !guideMenuOpen() && !pluginMenuOpenId() && !props.model.state.settingsOpen;
+  const toolbarMenuOpen = () =>
+    guideMenuOpen()
+    || pluginMenuOpenId() !== null
+    || props.model.state.settingsOpen;
   const builtinDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => props.isBuiltinActionDisabled?.(id) ?? false;
   const viewportHeight = () => props.ownerWindow.innerHeight || 0;
   const nearTop = () => position().y < 56;
@@ -681,7 +685,7 @@ export function Toolbar(props: ToolbarProps) {
       data-mesurer-toolbar-compact={compact() ? "true" : "false"}
       data-mesurer-toolbar-mode={toolbarMode()}
       data-mesurer-inspector-ui="true"
-      class="mesurer-toolbar-surface msr:pointer-events-auto msr:absolute msr:z-[110] msr:flex msr:items-stretch msr:rounded-[12px] msr:bg-[#fff] msr:outline msr:outline-transparent"
+      class={`mesurer-toolbar-surface msr:pointer-events-auto msr:absolute msr:flex msr:items-stretch msr:rounded-[12px] msr:bg-[#fff] msr:outline msr:outline-transparent ${toolbarMenuOpen() ? "msr:z-[110]" : "msr:z-[90]"}`}
       style={{ left: `${position().x}px`, top: `${position().y}px` }}
       onPointerDown={(event) => { event.stopPropagation(); props.model.setTransient({ toolbarActive: true }); onToolbarPointerDown(event); }}
       onClick={(event) => event.stopPropagation()}
