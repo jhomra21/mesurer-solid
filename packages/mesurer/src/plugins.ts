@@ -144,6 +144,7 @@ export {
 export type {
   MesurerRecordingAsset,
   MesurerRecordingExportResult,
+  MesurerRecordingFrameRate,
   MesurerRecordingPluginOptions,
   MesurerRecordingService,
   MesurerRecordingSettings,
