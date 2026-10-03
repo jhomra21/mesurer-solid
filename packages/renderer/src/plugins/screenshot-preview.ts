@@ -371,9 +371,12 @@ export const createScreenshotPreviewController = ({
 
   const dismissWithAnimation = () => {
     if (!currentBlob || preview.style.display === "none" || dismissAnimation) return;
+
     clearPreviewTimer();
     closeViewer();
+
     const rect = preview.getBoundingClientRect();
+
     const translateX = Math.max(
       PREVIEW_WIDTH + VIEWPORT_PADDING,
       ownerWindow.innerWidth - rect.left + VIEWPORT_PADDING,
