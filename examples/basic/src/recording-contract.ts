@@ -56,6 +56,13 @@ let displayMediaRequests = 0;
 
 let extensionMediaRequests = 0;
 
+let acquisitionDelayMs = 0;
+
+const waitForAcquisition = () =>
+  acquisitionDelayMs > 0
+    ? new Promise<void>((resolve) => window.setTimeout(resolve, acquisitionDelayMs))
+    : Promise.resolve();
+
 const RECORDING_PING = "mesurer:recording-bridge-ping";
 
 const RECORDING_PONG = "mesurer:recording-bridge-pong";
@@ -108,6 +115,7 @@ Object.defineProperty(mediaDevices, "getDisplayMedia", {
   configurable: true,
   value: async () => {
     displayMediaRequests += 1;
+    await waitForAcquisition();
 
     return sourceCanvas.captureStream(60);
   },
@@ -117,6 +125,7 @@ Object.defineProperty(mediaDevices, "getUserMedia", {
   configurable: true,
   value: async () => {
     extensionMediaRequests += 1;
+    await waitForAcquisition();
 
     return sourceCanvas.captureStream(60);
   },
@@ -225,6 +234,7 @@ type RecordingHarness = {
   subject: MountedMesurer;
   service: MesurerRecordingService;
   setExtensionBridge(enabled: boolean): void;
+  setAcquisitionDelay(milliseconds: number): void;
   counters(): {
     displayMediaRequests: number;
     extensionMediaRequests: number;
@@ -256,6 +266,9 @@ window.__MESURER_RECORDING_TEST__ = {
   service,
   setExtensionBridge(enabled) {
     extensionBridgeEnabled = enabled;
+  },
+  setAcquisitionDelay(milliseconds) {
+    acquisitionDelayMs = Math.max(0, milliseconds);
   },
   counters() {
     return {
