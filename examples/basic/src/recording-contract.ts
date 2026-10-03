@@ -109,7 +109,7 @@ Object.defineProperty(mediaDevices, "getDisplayMedia", {
   value: async () => {
     displayMediaRequests += 1;
 
-    return sourceCanvas.captureStream(30);
+    return sourceCanvas.captureStream(60);
   },
 });
 
@@ -118,7 +118,7 @@ Object.defineProperty(mediaDevices, "getUserMedia", {
   value: async () => {
     extensionMediaRequests += 1;
 
-    return sourceCanvas.captureStream(30);
+    return sourceCanvas.captureStream(60);
   },
 });
 
@@ -137,7 +137,6 @@ const subject = mountMesurer({
   target: document.body,
   isolate: true,
   plugins: [recording({
-    frameRate: 12,
     maxDurationSeconds: 5,
     quality: "medium",
   })],
