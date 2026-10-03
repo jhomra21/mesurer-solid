@@ -1,6 +1,6 @@
 # Electron renderer example
 
-Mesurer runs in the Electron renderer process because that is where the inspected DOM exists. Mount it the same way you would in a browser application:
+Mesurer runs in the Electron renderer process because that is where the inspected DOM exists. This guide matches `mesurer-solid@0.2.1` stable. Mount it the same way you would in a browser application:
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
