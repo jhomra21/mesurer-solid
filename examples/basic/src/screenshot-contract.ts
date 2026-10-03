@@ -10,12 +10,6 @@ import {
 
 type HostCaptureFormat = "blob" | "array-buffer" | "uint8-array" | "wrapped" | "transparent" | "invalid";
 
-type HostCaptureResult =
-  | Blob
-  | ArrayBuffer
-  | Uint8Array
-  | { png?: Blob | ArrayBuffer | Uint8Array | null };
-
 let hostCaptureFormat: HostCaptureFormat = "blob";
 
 const deterministicPng = async () => {
