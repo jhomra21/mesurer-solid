@@ -4,6 +4,8 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep toolbar Settings, Guide, Edit, and plugin menus above the Recording preview instead of allowing the recording card to cover those controls.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.16 - 2026-10-03
