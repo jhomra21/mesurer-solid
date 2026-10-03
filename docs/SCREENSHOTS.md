@@ -48,7 +48,7 @@ A committed Desired preview can still be visible because it changes page present
 
 Copy and download are persistent preferences. Output failures are best-effort: a successful PNG remains usable even when clipboard or download access fails.
 
-A new thumbnail starts in the bottom-right with an 8px viewport inset. It remains until dismissed or replaced, can be dragged within the same safe boundary, and keeps native image right-click behavior.
+A new thumbnail starts in the bottom-right with an 8px viewport inset. The selection overlay is released before the thumbnail appears, so the first preview is immediately hit-testable. It remains until dismissed or replaced, can be dragged within the same safe boundary, keeps native image right-click behavior, and dismisses through the right edge with transform/opacity motion.
 
 Click the thumbnail to open a larger viewer with Copy, Save, and Close. Escape or backdrop click closes the viewer without discarding the thumbnail.
 
@@ -136,6 +136,6 @@ Use Mesurer context for exact geometry and screenshots for composition and visua
 
 ## Validation
 
-The Chromium Screenshot contract exercises every supported native host PNG form and verifies malformed host data fails on the selected path. Package smoke installs the packed npm artifact into a clean Electron 43 renderer with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`, then captures through preload and `webContents.capturePage()`.
+The Chromium Screenshot contract exercises every supported native host PNG form, verifies transparent native captures are flattened to opaque output, checks repeated preview dismissal, and covers the real Recording → dismiss → Screenshot handoff so a stale interaction layer cannot block the thumbnail. Malformed host data still fails on the selected path. Package smoke installs the packed npm artifact into a clean Electron 43 renderer with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`, then captures through preload and `webContents.capturePage()`.
 
 See [Context](./CONTEXT_WORKFLOW.md) for the evidence workflow, [Electron renderer example](../examples/electron-renderer/README.md) for native host wiring, and [Upstream parity](./UPSTREAM_PARITY.md) for screenshot provenance.
