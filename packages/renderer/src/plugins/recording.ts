@@ -1751,6 +1751,7 @@ export const recordingPlugin = (
       order: 72,
       command: TOGGLE_COMMAND,
       toolbarMode: "select",
+      compactPinned: true,
       icon: recordingIcon,
       active,
       hidden: () => !readSettings().toolEnabled,
