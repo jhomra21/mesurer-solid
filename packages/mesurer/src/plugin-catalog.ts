@@ -71,7 +71,6 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
   {
     id: MESURER_RECORDING_PLUGIN_ID,
     label: "Recording",
-    description: "Record a selected page region and trim, resize, or export it through MediaBunny.",
     order: 42,
     create: recording,
     settingsIds: ["recording"],
@@ -80,7 +79,6 @@ export const MESURER_FIRST_PARTY_PLUGINS: readonly MesurerPluginCatalogEntry[] =
   {
     id: MESURER_CODEX_PLUGIN_ID,
     label: "Codex",
-    description: "Connects Mesurer to open Codex threads on this computer. Electron hosts provide the native Codex connection through preload.",
     order: 45,
     create: codex,
   },
