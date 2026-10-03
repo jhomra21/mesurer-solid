@@ -914,7 +914,16 @@ export default function ComposableMesurer(props: MesurerProps) {
       }
 
       if (!builtinEnabled(id)) return;
-      await requireBuiltinController().run(id);
+
+      const controller = requireBuiltinController();
+
+      if (id === "guides" && arrangeActive() && builtinSlotActive("guides")) {
+        await controller.run("select");
+
+        return;
+      }
+
+      await controller.run(id);
     };
 
     const setupPlugins = async () => {
