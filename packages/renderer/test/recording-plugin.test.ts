@@ -110,6 +110,7 @@ describe("recordingPlugin", () => {
     expect(host.state.serialize("persist")).toEqual({
       "mesurer.recording.settings": {
         toolEnabled: false,
+        frameRate: 60,
       },
     });
 
