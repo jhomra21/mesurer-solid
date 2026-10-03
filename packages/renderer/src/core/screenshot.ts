@@ -146,6 +146,109 @@ export const captureHostScreenshotPng = async (ownerWindow: Window): Promise<Blo
   return hostPngBlob(await capture());
 };
 
+type ScreenshotColor = {
+  red: number;
+  green: number;
+  blue: number;
+  alpha: number;
+};
+
+const parseScreenshotColor = (
+  ownerDocument: Document,
+  value: string | null | undefined,
+): ScreenshotColor | null => {
+  const input = value?.trim();
+
+  if (!input) return null;
+  const ownerWindow = ownerDocument.defaultView;
+
+  if (ownerWindow?.CSS?.supports && !ownerWindow.CSS.supports("color", input)) {
+    return null;
+  }
+
+  const canvas = ownerDocument.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  if (!context) return null;
+  context.clearRect(0, 0, 1, 1);
+  context.fillStyle = input;
+  context.fillRect(0, 0, 1, 1);
+  const pixel = context.getImageData(0, 0, 1, 1).data;
+
+  return {
+    red: pixel[0],
+    green: pixel[1],
+    blue: pixel[2],
+    alpha: pixel[3],
+  };
+};
+
+const opaqueScreenshotColor = (
+  ownerDocument: Document,
+  value: string | null | undefined,
+) => {
+  const color = parseScreenshotColor(ownerDocument, value);
+
+  if (!color || color.alpha < 255) return null;
+
+  return `rgb(${color.red} ${color.green} ${color.blue})`;
+};
+
+export const screenshotCaptureBackground = (
+  ownerDocument: Document,
+) => {
+  const ownerWindow = ownerDocument.defaultView;
+
+  if (!ownerWindow) return "#ffffff";
+
+  const bodyStyle = ownerDocument.body
+    ? ownerWindow.getComputedStyle(ownerDocument.body)
+    : null;
+
+  const rootStyle = ownerWindow.getComputedStyle(ownerDocument.documentElement);
+
+  for (const candidate of [
+    bodyStyle?.backgroundColor,
+    rootStyle.backgroundColor,
+    bodyStyle?.getPropertyValue("--background"),
+    rootStyle.getPropertyValue("--background"),
+    bodyStyle?.getPropertyValue("--color-background"),
+    rootStyle.getPropertyValue("--color-background"),
+  ]) {
+    const color = opaqueScreenshotColor(ownerDocument, candidate);
+
+    if (color) return color;
+  }
+
+  const colorScheme = [
+    bodyStyle?.colorScheme,
+    rootStyle.colorScheme,
+  ].filter(Boolean).join(" ");
+
+  if (colorScheme.includes("dark") && !colorScheme.includes("light")) {
+    return "#000000";
+  }
+
+  const foreground = parseScreenshotColor(
+    ownerDocument,
+    bodyStyle?.color ?? rootStyle.color,
+  );
+
+  if (foreground) {
+    const luminance = (
+      foreground.red * 0.2126
+      + foreground.green * 0.7152
+      + foreground.blue * 0.0722
+    ) / 255;
+
+    if (luminance >= 0.6) return "#000000";
+  }
+
+  return "#ffffff";
+};
+
 export const normalizeScreenshotRect = (
   start: { x: number; y: number },
   end: { x: number; y: number },
@@ -169,6 +272,7 @@ export const cropPngToViewportRect = async (
   rect: ScreenshotRect,
   viewport: { width: number; height: number },
   ownerDocument: Document,
+  backgroundColor?: string,
 ): Promise<Blob> => {
   const bitmap = await createImageBitmap(blob);
 
@@ -185,6 +289,12 @@ export const cropPngToViewportRect = async (
     const context = canvas.getContext("2d");
 
     if (!context) throw new Error("Could not crop screenshot");
+
+    if (backgroundColor) {
+      context.fillStyle = backgroundColor;
+      context.fillRect(0, 0, sw, sh);
+    }
+
     context.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh);
 
     return await new Promise<Blob>((resolve, reject) => {
