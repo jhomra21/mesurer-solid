@@ -831,7 +831,6 @@ export const recordingPlugin = (
       });
     };
 
-
     selectionController = createRecordingSelectionController({
       ownerDocument,
       ownerWindow,
@@ -846,7 +845,7 @@ export const recordingPlugin = (
       onStop: async () => {
         await finishRecording();
       },
-      setRecordingInteractionActive,
+      setRecordingInteractionActive: recordingInteraction.setActive,
     });
 
     const service: MesurerRecordingService = {
