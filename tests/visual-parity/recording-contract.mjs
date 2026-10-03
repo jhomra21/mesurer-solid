@@ -413,6 +413,9 @@ try {
   }
 
   const timeline = island.locator("[data-mesurer-recording-timeline='true']");
+  const timelineTrack = island.locator("[data-mesurer-recording-timeline-track='true']");
+  const currentTimeLabel = island.locator("[data-mesurer-recording-current-time='true']");
+  const durationLabel = island.locator("[data-mesurer-recording-duration='true']");
   const trimStartHandle = island.locator("[data-mesurer-recording-trim-handle='start']");
   const trimEndHandle = island.locator("[data-mesurer-recording-trim-handle='end']");
   const exportOptions = island.locator("[data-mesurer-recording-export-options='true']");
@@ -434,22 +437,62 @@ try {
   const trimStartChevron = trimStartHandle.locator("[data-mesurer-recording-trim-chevron='start']");
   const trimEndChevron = trimEndHandle.locator("[data-mesurer-recording-trim-chevron='end']");
 
-  const [railBox, trimStartInitialBox, trimEndInitialBox] = await Promise.all([
+  const [
+    railBox,
+    trackBox,
+    trimStartInitialBox,
+    trimEndInitialBox,
+    trimStartChevronBox,
+    trimEndChevronBox,
+    currentTimeMetrics,
+    durationMetrics,
+  ] = await Promise.all([
     timelineRail.boundingBox(),
+    timelineTrack.boundingBox(),
     trimStartHandle.boundingBox(),
     trimEndHandle.boundingBox(),
+    trimStartChevron.boundingBox(),
+    trimEndChevron.boundingBox(),
+    currentTimeLabel.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      right: element.getBoundingClientRect().right,
+    })),
+    durationLabel.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      left: element.getBoundingClientRect().left,
+    })),
   ]);
 
   if (
     !railBox
+    || !trackBox
     || !trimStartInitialBox
     || !trimEndInitialBox
+    || !trimStartChevronBox
+    || !trimEndChevronBox
     || trimStartInitialBox.y + trimStartInitialBox.height > railBox.y + 0.5
     || trimEndInitialBox.y + trimEndInitialBox.height > railBox.y + 0.5
-    || (await trimStartChevron.textContent()) !== "›"
-    || (await trimEndChevron.textContent()) !== "‹"
+    || trimStartInitialBox.x < trackBox.x - 0.5
+    || trimEndInitialBox.x + trimEndInitialBox.width > trackBox.x + trackBox.width + 0.5
+    || trimStartChevronBox.width < 11
+    || trimEndChevronBox.width < 11
+    || currentTimeMetrics.scrollWidth > currentTimeMetrics.clientWidth + 1
+    || durationMetrics.scrollWidth > durationMetrics.clientWidth + 1
+    || currentTimeMetrics.right > trackBox.x - 1
+    || durationMetrics.left < trackBox.x + trackBox.width + 1
   ) {
-    throw new Error(`Recording trim controls must sit above the scrub rail with inward chevrons: ${JSON.stringify({ railBox, trimStartInitialBox, trimEndInitialBox })}`);
+    throw new Error(`Recording timeline labels and larger trim controls must stay clear of the scrub track: ${JSON.stringify({
+      railBox,
+      trackBox,
+      trimStartInitialBox,
+      trimEndInitialBox,
+      trimStartChevronBox,
+      trimEndChevronBox,
+      currentTimeMetrics,
+      durationMetrics,
+    })}`);
   }
 
   await exportOptions.click();
@@ -659,18 +702,36 @@ try {
   await discardButton.click();
   await page.waitForTimeout(60);
 
-  const dismissMotion = await preview.evaluate((element) => ({
-    display: getComputedStyle(element).display,
-    opacity: Number(getComputedStyle(element).opacity),
-    transform: getComputedStyle(element).transform,
-  }));
+  const dismissMotion = await preview.evaluate((element) => {
+    const animation = element.getAnimations()[0];
+    const frames = animation?.effect instanceof KeyframeEffect
+      ? animation.effect.getKeyframes()
+      : [];
+
+    return {
+      display: getComputedStyle(element).display,
+      opacity: Number(getComputedStyle(element).opacity),
+      transform: getComputedStyle(element).transform,
+      willChange: getComputedStyle(element).willChange,
+      frames: frames.map((frame) => ({
+        left: frame.left,
+        top: frame.top,
+        transform: frame.transform,
+        opacity: frame.opacity,
+      })),
+    };
+  });
 
   if (
     dismissMotion.display === "none"
     || dismissMotion.opacity >= 1
     || dismissMotion.transform === "none"
+    || !dismissMotion.willChange.includes("transform")
+    || dismissMotion.frames.length < 2
+    || dismissMotion.frames.some((frame) => frame.left !== undefined || frame.top !== undefined)
+    || dismissMotion.frames.some((frame) => !frame.transform)
   ) {
-    throw new Error(`Closing a Recording preview must animate it toward the toolbar before removal: ${JSON.stringify(dismissMotion)}`);
+    throw new Error(`Closing a Recording preview must use a compositor-only transform/opacity animation toward the toolbar: ${JSON.stringify(dismissMotion)}`);
   }
 
   await page.waitForFunction(() =>
@@ -725,6 +786,30 @@ try {
 
   if (movingFrames.samples.width !== 240 || movingFrames.samples.height !== 140) {
     throw new Error(`Decoded recording dimensions changed: ${JSON.stringify(movingFrames.samples)}`);
+  }
+
+  const repeatedPreview = await preview.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+
+    return {
+      display: style.display,
+      opacity: Number(style.opacity),
+      width: rect.width,
+      height: rect.height,
+      transform: style.transform,
+      animations: element.getAnimations().length,
+    };
+  });
+
+  if (
+    repeatedPreview.display === "none"
+    || repeatedPreview.opacity < 0.99
+    || repeatedPreview.width < 300
+    || repeatedPreview.height < 100
+    || repeatedPreview.animations !== 0
+  ) {
+    throw new Error(`A second Recording after animated discard must show a fresh full-size preview: ${JSON.stringify(repeatedPreview)}`);
   }
 
   const extensionCounters = await page.evaluate(() =>
