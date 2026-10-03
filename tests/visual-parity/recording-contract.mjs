@@ -764,6 +764,86 @@ try {
     throw new Error(`Closing the Recording preview must discard the captured media: ${exportAfterDiscard}`);
   }
 
+  const screenshotButton = island.locator("[data-mesurer-tool-id='screenshot'] button").first();
+  const screenshotOverlay = island.locator("[data-mesurer-screenshot-select='true']");
+  const screenshotPreview = island.locator("[data-mesurer-screenshot-preview='true']");
+  const screenshotDismiss = island.locator("[data-mesurer-screenshot-preview-dismiss='true']");
+
+  await screenshotButton.waitFor({ state: "visible" });
+  await screenshotButton.click();
+  await page.waitForFunction(() =>
+    window.__MESURER_RECORDING_TEST__?.screenshotService.active() === true
+  );
+  await screenshotOverlay.waitFor({ state: "visible" });
+
+  await page.mouse.move(180, 180);
+  await page.mouse.down();
+  await page.mouse.move(460, 340, { steps: 8 });
+  await page.mouse.up();
+
+  await page.waitForFunction(() =>
+    window.__MESURER_RECORDING_TEST__?.screenshotService.active() === false
+  );
+  await screenshotPreview.waitFor({ state: "visible" });
+  await screenshotDismiss.waitFor({ state: "visible" });
+
+  const screenshotDismissBox = await screenshotDismiss.boundingBox();
+
+  if (!screenshotDismissBox) {
+    throw new Error("Screenshot preview after Recording has no dismiss geometry");
+  }
+
+  const postRecordingScreenshotHit = await page.evaluate(({ x, y }) => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const root = island?.shadowRoot;
+    const preview = root?.querySelector("[data-mesurer-screenshot-preview='true']");
+    const dismiss = root?.querySelector("[data-mesurer-screenshot-preview-dismiss='true']");
+    const interactionOverlay = root?.querySelector("[data-mesurer-interaction-overlay='true']");
+    const rendererRoot = root?.querySelector("[data-mesurer-root='true']");
+
+    if (
+      !(root instanceof ShadowRoot)
+      || !(preview instanceof HTMLElement)
+      || !(dismiss instanceof HTMLElement)
+      || !(interactionOverlay instanceof HTMLElement)
+      || !(rendererRoot instanceof HTMLElement)
+    ) {
+      throw new Error("Recording-to-Screenshot interaction surfaces are unavailable");
+    }
+
+    const hit = root.elementFromPoint(x, y);
+
+    return {
+      hitPreview: Boolean(hit && preview.contains(hit)),
+      hitDismiss: hit === dismiss || Boolean(hit && dismiss.contains(hit)),
+      hitTag: hit?.tagName ?? null,
+      hitDataset: hit instanceof HTMLElement ? { ...hit.dataset } : null,
+      interactionPointerEvents: getComputedStyle(interactionOverlay).pointerEvents,
+      interactionInlinePointerEvents: interactionOverlay.style.getPropertyValue("pointer-events"),
+      interactionPointerPriority: interactionOverlay.style.getPropertyPriority("pointer-events"),
+      recordingActive: rendererRoot.hasAttribute("data-mesurer-recording-active"),
+    };
+  }, {
+    x: screenshotDismissBox.x + screenshotDismissBox.width / 2,
+    y: screenshotDismissBox.y + screenshotDismissBox.height / 2,
+  });
+
+  if (
+    !postRecordingScreenshotHit.hitPreview
+    || !postRecordingScreenshotHit.hitDismiss
+    || postRecordingScreenshotHit.recordingActive
+  ) {
+    throw new Error(
+      `Screenshot preview must remain the top hit target after Recording is dismissed: ${JSON.stringify(postRecordingScreenshotHit)}`,
+    );
+  }
+
+  await page.mouse.click(
+    screenshotDismissBox.x + screenshotDismissBox.width / 2,
+    screenshotDismissBox.y + screenshotDismissBox.height / 2,
+  );
+  await screenshotPreview.waitFor({ state: "hidden" });
+
   const browserCounters = await page.evaluate(() =>
     window.__MESURER_RECORDING_TEST__?.counters());
 
@@ -859,6 +939,7 @@ try {
     formats,
     webmExport,
     mp4Export,
+    postRecordingScreenshotHit,
     browserCounters,
     extensionCounters,
     movingFrames,
