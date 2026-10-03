@@ -99,16 +99,20 @@ mesurer-solid/core
 mesurer-solid/inject
 mesurer-solid/inject-script
 mesurer-solid/mediabunny-vendor
+mesurer-solid/electron
 mesurer-solid/plugins/codex/bridge
+mesurer-solid/plugins/codex/preload
+mesurer-solid/plugins/recording/bridge
+mesurer-solid/plugins/recording/preload
 ```
 
-The root export owns mounting, public domain types, and the agent API. `/plugins` owns first-party plugin factories and contracts. `/core` stays framework-neutral. Injection entries are for development, testing, and agent-controlled browser evaluation.
+The root export owns mounting, public domain types, and the agent API. `/plugins` owns first-party plugin factories and contracts. `/core` stays framework-neutral. Injection entries are for development, testing, and agent-controlled browser evaluation. The current stable public baseline is `0.2.1`; install-facing docs use the `latest` dist-tag rather than prerelease tags.
 
 Do not expose private workspace package names or renderer-specific types through the staged public artifact.
 
 Public plugin factories use direct feature names such as `context()`, `edit()`, `screenshot()`, `recording()`, `codex()`, `select()`, and `typography()`. `arrange()` remains a compatibility alias for existing integrations. Do not reintroduce redundant `*Plugin` factory aliases or one-plugin-per-subpath exports.
 
-Select and Edit are the top-level toolbar modes. Select owns inspection tools. Edit owns movement and direct text/style editing. Context and Codex remain visible in both modes. Keep mode-switch motion at 150 ms and preserve the existing Arrange ids, state, services, persistence, and agent methods behind the public Edit terminology.
+Select and Edit are the top-level toolbar modes. Select owns selection-first inspection/capture tools such as X-ray, Color Picker, Typography, Screenshot, and Recording. Edit owns movement and direct text/style editing. Rulers, ordinary Guides, and Layout Guides remain available in both modes; Context and Codex remain visible in both modes. Keep mode-switch motion at 150 ms and preserve the existing Arrange ids, state, services, persistence, and agent methods behind the public Edit terminology.
 
 Screenshot capture-source selection is internal. Application-owned native hosts may expose `window.__MESURER_HOST__.captureScreenshot`; the Chromium extension uses its private adapter; ordinary browser pages fall back to `getDisplayMedia()`. The built-in Color Picker also uses the native host capability when present and must not invoke the screen-wide browser `EyeDropper` on that path. Do not add host-specific Screenshot or Color Picker factories or a new public provider option. The older provider hook and low-level Screenshot helpers remain compatibility-only. Once Screenshot selects a host path, capture errors stay on that path instead of silently opening a different permission flow.
 
@@ -126,6 +130,7 @@ Keep these distinctions:
 
 - Context is the structured human/agent review API.
 - Edit stores reversible Before/Desired movement intent through the existing Arrange state and agent contracts.
+- Layout Guides remain plugin-owned, page-scoped alignment evidence and stay usable in Select and Edit.
 - Direct text editing stores reversible copy/typography intent and extends Select/Typography rather than becoming a competing toolbar plugin.
 - Screenshot remains an optional first-party plugin, not permanent measurement-core state.
 - Recording remains a first-party capture plugin with the typed `recording:v1` lifecycle; its encoded-media implementation stays in MediaBunny.
