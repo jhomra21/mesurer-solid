@@ -211,6 +211,10 @@ ipcMain.handle("mesurer:test-complete", async (_event, payload) => {
     || summary.recordingBytes !== recording.byteLength
     || summary.recordingInteractionClicks !== 1
     || summary.recordingAutoHost !== true
+    || summary.recordingFrameRateDefault !== 60
+    || summary.recordingFrameRateSelected !== 120
+    || summary.recordingSelectModeActive !== true
+    || summary.recordingInteractionOverlayPointerEvents !== "none"
     || captureCount !== 2
   ) {
     throw new Error(`Unexpected Mesurer Electron result: ${JSON.stringify(summary)}`);
