@@ -940,51 +940,8 @@ export function Toolbar(props: ToolbarProps) {
                     <ToolbarButton id="color-picker" builtin="color-picker" active={colorPickerActive()} disabled={builtinDisabled("color-picker")} label="Color picker" shortcut="P" onClick={() => props.onBuiltinAction("color-picker")} {...buttonProps("color-picker")}><ColorPickerIcon size={20} /></ToolbarButton>
                   </CompactItem>
                 </Show>
-                <CompactItem visible={visibleInToolbar(rulersActive(), true)}>
-                  <ToolbarButton id="rulers" builtin="rulers" active={rulersActive()} label="Rulers" shortcut="R" onClick={() => props.onBuiltinAction("rulers")} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>
-                </CompactItem>
                 <CompactItem visible={visibleInToolbar(typographyActive())}>
                   <ToolbarButton id="text-inspector" builtin="text-inspector" active={typographyActive()} disabled={builtinDisabled("text-inspector")} label="Typography" shortcut="A" onClick={() => props.onBuiltinAction("text-inspector")} {...buttonProps("text-inspector")}><TextInspectorIcon size={20} /></ToolbarButton>
-                </CompactItem>
-                <CompactItem visible={visibleInToolbar(guidesActive(), true)}>
-                  <ToolbarButton id="guides" builtin="guides" active={guidesActive()} disabled={builtinDisabled("guides")} label="Guides" shortcut="G" onClick={() => props.onBuiltinAction("guides")} {...buttonProps("guides")}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
-                  <div data-mesurer-builtin="guides-menu" ref={(element) => { guideMenuElement = element; }} class="msr:group msr:relative msr:-ml-1 msr:flex msr:items-stretch" onMouseEnter={() => tooltip.onTooltipEnter("guide-menu")} onMouseLeave={tooltip.onTooltipLeave}>
-                    <button
-                      type="button"
-                      aria-label="Guide orientation menu"
-                      aria-haspopup="menu"
-                      aria-expanded={guideMenuOpen() ? "true" : "false"}
-                      disabled={builtinDisabled("guides")}
-                      class={`msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none ${builtinDisabled("guides") ? "msr:cursor-default msr:text-black/30" : "msr:hover:bg-black/10"} ${guideMenuOpen() ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
-                      onClick={() => { setGuideMenuOpen((open) => { if (!open) { setActiveMenuIndex(props.model.state.guideOrientation === "horizontal" ? 0 : 1); updateMenuAlign(); }
-
- return !open; }); }}
-                    ><CaretDownIcon size={8} /></button>
-                    <Tooltip
-                      label="Orientation Guide"
-                      visible={tooltipsEnabled() && tooltip.visibleTooltipId() === "guide-menu"}
-                      instant={tooltip.tooltipInstant()}
-                      side={tooltipSide()}
-                    />
-                    <Show when={guideMenuOpen()}>
-                      <div
-                        class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:w-44 msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:focus:outline-none msr:flex msr:flex-col msr:gap-px ${guideMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"} ${menuAlign() === "left" ? "msr:left-0" : "msr:right-0"}`}
-                        role="menu"
-                        tabindex={0}
-                        onKeyDown={(event) => {
-                          const key = event.key.toLowerCase();
-
-                          if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setActiveMenuIndex((index) => (index + 1) % 2); }
-                          else if (event.key === "Enter") { event.preventDefault(); selectGuideOrientation(activeMenuIndex() === 0 ? "horizontal" : "vertical"); }
-                          else if (key === "h" || key === "v") { event.preventDefault(); selectGuideOrientation(key === "h" ? "horizontal" : "vertical"); }
-                          else if (event.key === "Escape") { event.preventDefault(); setGuideMenuOpen(false); }
-                        }}
-                      >
-                        <button type="button" class={`msr:group msr:flex msr:w-full msr:items-center msr:gap-2 msr:rounded-md msr:px-2 msr:py-1.5 msr:text-left msr:text-[12px] ${activeMenuIndex() === 0 || props.model.state.guideOrientation === "horizontal" ? "msr:bg-[#0d99ff] msr:text-white" : "msr:text-ink-700 msr:hover:bg-[#0d99ff] msr:hover:text-white"}`} onClick={() => selectGuideOrientation("horizontal")}><CheckIcon size={12} class={props.model.state.guideOrientation === "horizontal" ? "msr:opacity-100" : "msr:opacity-0"} /><MinusIcon size={12} /><span class="msr:flex-1">Horizontal</span><span>H</span></button>
-                        <button type="button" class={`msr:group msr:flex msr:w-full msr:items-center msr:gap-2 msr:rounded-md msr:px-2 msr:py-1.5 msr:text-left msr:text-[12px] ${activeMenuIndex() === 1 || props.model.state.guideOrientation === "vertical" ? "msr:bg-[#0d99ff] msr:text-white" : "msr:text-ink-700 msr:hover:bg-[#0d99ff] msr:hover:text-white"}`} onClick={() => selectGuideOrientation("vertical")}><CheckIcon size={12} class={props.model.state.guideOrientation === "vertical" ? "msr:opacity-100" : "msr:opacity-0"} /><MinusIcon size={12} class="msr:rotate-90" /><span class="msr:flex-1">Vertical</span><span>V</span></button>
-                      </div>
-                    </Show>
-                  </div>
                 </CompactItem>
               </div>
 
@@ -1013,6 +970,52 @@ export function Toolbar(props: ToolbarProps) {
             </div>
           </div>
         </div>
+      </div>
+
+      <div role="group" aria-label="Shared guide tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
+        <CompactItem visible={visibleInToolbar(rulersActive(), true)}>
+          <ToolbarButton id="rulers" builtin="rulers" active={rulersActive()} label="Rulers" shortcut="R" onClick={() => props.onBuiltinAction("rulers")} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>
+        </CompactItem>
+        <CompactItem visible={visibleInToolbar(guidesActive(), true)}>
+          <ToolbarButton id="guides" builtin="guides" active={guidesActive()} disabled={builtinDisabled("guides")} label="Guides" shortcut="G" onClick={() => props.onBuiltinAction("guides")} {...buttonProps("guides")}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
+          <div data-mesurer-builtin="guides-menu" ref={(element) => { guideMenuElement = element; }} class="msr:group msr:relative msr:-ml-1 msr:flex msr:items-stretch" onMouseEnter={() => tooltip.onTooltipEnter("guide-menu")} onMouseLeave={tooltip.onTooltipLeave}>
+            <button
+              type="button"
+              aria-label="Guide orientation menu"
+              aria-haspopup="menu"
+              aria-expanded={guideMenuOpen() ? "true" : "false"}
+              disabled={builtinDisabled("guides")}
+              class={`msr:flex msr:h-8 msr:w-4 msr:items-center msr:justify-center msr:rounded-[6px] msr:outline-none ${builtinDisabled("guides") ? "msr:cursor-default msr:text-black/30" : "msr:hover:bg-black/10"} ${guideMenuOpen() ? "msr:bg-black/10 msr:text-black" : "msr:text-black"}`}
+              onClick={() => { setGuideMenuOpen((open) => { if (!open) { setActiveMenuIndex(props.model.state.guideOrientation === "horizontal" ? 0 : 1); updateMenuAlign(); }
+
+ return !open; }); }}
+            ><CaretDownIcon size={8} /></button>
+            <Tooltip
+              label="Orientation Guide"
+              visible={tooltipsEnabled() && tooltip.visibleTooltipId() === "guide-menu"}
+              instant={tooltip.tooltipInstant()}
+              side={tooltipSide()}
+            />
+            <Show when={guideMenuOpen()}>
+              <div
+                class={`mesurer-menu-surface msr:absolute msr:z-[70] msr:w-44 msr:rounded-lg msr:border msr:border-ink-200 msr:bg-white msr:p-1 msr:outline-none msr:focus:outline-none msr:flex msr:flex-col msr:gap-px ${guideMenuSide() === "bottom" ? "msr:top-full msr:mt-2" : "msr:bottom-full msr:mb-2"} ${menuAlign() === "left" ? "msr:left-0" : "msr:right-0"}`}
+                role="menu"
+                tabindex={0}
+                onKeyDown={(event) => {
+                  const key = event.key.toLowerCase();
+
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setActiveMenuIndex((index) => (index + 1) % 2); }
+                  else if (event.key === "Enter") { event.preventDefault(); selectGuideOrientation(activeMenuIndex() === 0 ? "horizontal" : "vertical"); }
+                  else if (key === "h" || key === "v") { event.preventDefault(); selectGuideOrientation(key === "h" ? "horizontal" : "vertical"); }
+                  else if (event.key === "Escape") { event.preventDefault(); setGuideMenuOpen(false); }
+                }}
+              >
+                <button type="button" class={`msr:group msr:flex msr:w-full msr:items-center msr:gap-2 msr:rounded-md msr:px-2 msr:py-1.5 msr:text-left msr:text-[12px] ${activeMenuIndex() === 0 || props.model.state.guideOrientation === "horizontal" ? "msr:bg-[#0d99ff] msr:text-white" : "msr:text-ink-700 msr:hover:bg-[#0d99ff] msr:hover:text-white"}`} onClick={() => selectGuideOrientation("horizontal")}><CheckIcon size={12} class={props.model.state.guideOrientation === "horizontal" ? "msr:opacity-100" : "msr:opacity-0"} /><MinusIcon size={12} /><span class="msr:flex-1">Horizontal</span><span>H</span></button>
+                <button type="button" class={`msr:group msr:flex msr:w-full msr:items-center msr:gap-2 msr:rounded-md msr:px-2 msr:py-1.5 msr:text-left msr:text-[12px] ${activeMenuIndex() === 1 || props.model.state.guideOrientation === "vertical" ? "msr:bg-[#0d99ff] msr:text-white" : "msr:text-ink-700 msr:hover:bg-[#0d99ff] msr:hover:text-white"}`} onClick={() => selectGuideOrientation("vertical")}><CheckIcon size={12} class={props.model.state.guideOrientation === "vertical" ? "msr:opacity-100" : "msr:opacity-0"} /><MinusIcon size={12} class="msr:rotate-90" /><span class="msr:flex-1">Vertical</span><span>V</span></button>
+              </div>
+            </Show>
+          </div>
+        </CompactItem>
       </div>
 
       <Show when={alwaysPluginTools().length > 0}>
