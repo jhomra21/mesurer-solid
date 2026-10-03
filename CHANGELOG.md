@@ -4,9 +4,60 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Keep toolbar Settings, Guide, Edit, and plugin menus above the Recording preview, and match upstream's floating-menu hairline, dark-theme shadow, and corner polish.
-
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.1 - 2026-10-03
+
+- Keep toolbar Settings, Guide, Edit, and plugin menus above the Recording preview, and match upstream's floating-menu hairline, dark-theme shadow, and corner polish.
+- Flatten transparent native Screenshot captures against the renderer backdrop so macOS vibrancy and transparent sidebars no longer produce white thumbnails or faded saved images.
+- Restore the Select interaction layer's exact inline hit-testing state after Recording, so Screenshot previews remain clickable after a finished video is dismissed.
+- Keep Rulers, Guides, and Layout Guides available in Edit instead of treating them as Select-only tools.
+- Release the Screenshot selection overlay before showing the captured thumbnail, so the first preview is immediately clickable and dismissible.
+- Pre-promote the Screenshot thumbnail for transform/opacity dismissal so its first close animation is as smooth as later ones.
+- Add a visible accent outline around the active Recording region so the capture boundary stays clear on dark pages.
+- Make the Screenshot preview close button easier to hit and animate the thumbnail out through the right edge before dismissing it.
+- Let plugin rows with nested settings expand from the full row area left of the enable toggle, not only from the chevron.
+- Give Recording timeline timestamps enough room, inset the scrub track, and enlarge the trim chevrons so the controls no longer overlap.
+- Make the Recording discard animation transform-only for smoother compositing.
+- Clear the finished discard animation before cleanup so recording another clip immediately shows a fresh preview.
+- Keep the selected Recording region visually clear while the rest of the page stays dimmed for the full capture lifecycle, with Stop/time remaining above the mask.
+- Animate the Recording editor out toward the Recording toolbar control when its close button discards the clip.
+- Move trim controls above the scrub rail with inward chevrons so trimming no longer blocks normal timeline scrubbing.
+- Keep Screenshot, Recording, Guides, Layout Guides, and Rulers visible in compact Select mode.
+- Remove the extra descriptive paragraphs beneath Recording and Codex in Settings; plugin rows stay compact unless copy is explicitly needed.
+- Keep the selected-region dimming stable when Recording starts. Pressing Start now swaps the selection controls for the Stop/timer chrome without briefly revealing the undimmed page while capture initializes.
+- Record video at 60 fps by default. Recording settings can opt into 120 fps, and browser, extension, and Electron capture paths request the selected rate when the source supports it.
+- Keep the Select interaction overlay pointer-transparent for the full active Recording lifecycle. The Electron acceptance now enables the real Select mode before sending a native click through the recorded region, matching the manual workflow that exposed the beta.8 regression.
+- Remove the unintended backing plate behind the Select/Edit mode switch; only the active mode pill now carries a fill.
+- Keep the live Recording timer/Stop chrome above the selection mask and toolbar, avoid toolbar collisions when placing it, and keep the post-recording editor centered while its 352px↔576px size animates.
+- Add `mesurer-solid/electron` as the preferred Electron Recording bootstrap. A single main-process import now installs Mesurer's private session preload and renderer-bound capture bridge, so normal Electron apps no longer add Recording IPC or preload wiring themselves.
+- Align the post-recording editor with current upstream Mesurer: a single trim/playhead timeline, compact Play/Pause, export-options menu with format and 1×/2×/3× output sizes, Download, hover Close, and 352px→576px grow/shrink behavior.
+- Keep Recording editor surfaces synchronized with Settings → General → Appearance and cover both Light and Dark through the real persisted theme path.
+- Keep the inspected application fully interactive while Recording is active instead of letting an invisible full-screen Recording layer consume page input.
+- Keep the default top-layer Mesurer island itself pointer-transparent. The manual-popover host remains above hostile page stacking contexts, while only actual Mesurer controls opt into pointer input instead of the island swallowing native Electron clicks across the application.
+- Match upstream Recording selection flow: dragging chooses a region first, then an adjustment step supports move, eight-handle resize, numeric size/position edits, Enter confirmation, and an explicit **Start recording** action.
+- Restore the Mesurer toolbar once capture begins and use a compact recording status surface with a red indicator, elapsed timer, and Stop action.
+- Expand Recording acceptance so both real Chromium and packed Electron must deliver actual host-page pointer input while capture is running.
+- Fix Recording in Electron/native hosts. Applications can expose the narrow `window.__MESURER_HOST__.captureRecordingStream` capability so Recording captures the current renderer instead of falling into unsupported browser display capture.
+- Publish package-owned Electron main/preload helpers at `mesurer-solid/plugins/recording/bridge` and `mesurer-solid/plugins/recording/preload`. The main helper issues a short-lived WebContents media source id bound to the requesting renderer; MediaBunny remains the only recording and export pipeline.
+- Expand the packed Electron acceptance to start a real region recording, mutate the captured renderer, finalize/export WebM, and retain `recording.webm` as repeatable evidence.
+- Add first-party selected-region Recording with `recording()`, `Shift+R`, the typed `recording:v1` service, a trim/playback/export editor, configurable frame rate/quality/duration, and MediaBunny-owned WebM/MP4 export with 1×/2×/3× scaling.
+- Keep video acquisition separate from encoding. Browser pages use the display-capture path; the Chromium extension can supply a one-use current-tab stream through `tabCapture`, while MediaBunny remains the sole encoder, inspector, trimmer, resizer, converter, and exporter. Recording does not use `MediaRecorder` or an offscreen recorder.
+- Keep MediaBunny 1.59.0 on its MPL-2.0 distribution boundary. Published ESM files import a separate `mediabunny-runtime.js` by relative path so consumer installs do not inherit MediaBunny's ambient WebCodecs types; raw classic injection and the extension load `mediabunny-vendor.js`. Both artifacts ship beside the full MediaBunny license.
+- Make Edit selection drill-down work inside selected parents. Descendants keep normal hover feedback, a stationary click can replace the parent selection with the nested target, and a 4px movement threshold keeps real drags owned by the selected Edit box.
+- Let repeated Select clicks at the same rendered point cycle through nested and overlapping page targets while preserving Mesurer Solid's pointer-transparent, Shadow DOM, and scoped page-target hit testing.
+- Make the Select/Edit switch own Edit directly. The Edit half now uses the movement glyph, toggles Edit both on and off, and carries the Edit options chevron; the duplicate in-mode `edit-action` button is removed.
+- Show hover bounds for other selectable elements while Edit already has a selection. Hover remains suppressed inside an already-selected subtree so nested content does not look independently selected.
+- Restore Select to its pre-Edit state. If Select was off before Edit enabled it for internal targeting, leaving Edit turns Select back off.
+- Make Codex Settings activation transactional. Codex starts enabled only when a native host capability exists. An ON request must acquire a native lease and prove transport readiness before the plugin becomes enabled; failures keep the switch off and show the activation error in Settings.
+- Make Codex disable wait for native lease release. The Electron host adapter binds leases to one renderer, validates callers, and releases renderer-owned leases on navigation, renderer exit, or destruction without stopping Codex's shared daemon.
+- Publish package-owned Electron host and preload adapters for Codex. Secure sandboxed preloads can bundle `mesurer-solid/plugins/codex/preload` instead of duplicating IPC channel code.
+- Keep inherited Codex Desktop queue receipts visible after durable acceptance. The receipt includes the queued-submission id and does not claim a private Working or Finished state.
+- Keep Select and Edit tool state separate. Entering Edit now suspends active Select tools such as X-ray, Rulers, Typography, and Guides, while Edit keeps its internal Select targeting dependency; returning to Select restores the previous stable Select-mode state.
+- Make the Edit movement control a real active split button. Its main icon reflects and toggles Edit, while the separate chevron opens snapping and alignment options.
+- Report a missing Electron Codex host connection directly as `Codex host not connected`, and explain the preload requirement in Settings instead of leaving a generic disabled Codex action.
+- Finish the Select/Edit terminology pass across the basic example, renderer and host documentation, runtime diagnostics, and browser-test messages. Root declarations now expose `MesurerEditHarness` and the canonical `Edit*` aliases while retaining the existing Arrange compatibility identifiers and APIs.
+- Add Select and Edit toolbar modes using the current upstream grouped-mode styling and icons with Mesurer Solid's 150 ms motion. Select keeps inspection tools such as Typography, while Edit owns element movement and direct text/style changes. Context and Codex stay visible in both modes. The public `edit()` plugin name is canonical, while existing Arrange ids, services, persistence, shortcuts, and agent methods remain compatible.
 
 ## 0.2.1-beta.16 - 2026-10-03
 
