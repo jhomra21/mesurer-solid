@@ -188,6 +188,7 @@ const subject = mountMesurer({
 await subject.ready;
 
 const service = await subject.service<MesurerRecordingService>(MESURER_RECORDING_SERVICE_ID);
+
 const screenshotService = await subject.service<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
 
 const wait = (milliseconds: number) =>
