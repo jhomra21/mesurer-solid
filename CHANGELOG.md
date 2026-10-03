@@ -4,8 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Restore the Select interaction layer's exact inline hit-testing state after Recording, so Screenshot previews remain clickable after a finished video is dismissed.
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.1-beta.15 - 2026-10-03
+
+- Restore the Select interaction layer's exact inline hit-testing state after Recording, so Screenshot previews remain clickable after a finished video is dismissed.
 
 ## 0.2.1-beta.14 - 2026-10-03
 

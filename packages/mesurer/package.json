@@ -1,6 +1,6 @@
 {
   "name": "@jhomra21/mesurer-solid",
-  "version": "0.2.1-beta.14",
+  "version": "0.2.1-beta.15",
   "description": "Framework-agnostic UI measurement and inspection tools for browser apps and coding agents.",
   "license": "MIT",
   "type": "module",
