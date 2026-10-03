@@ -10,7 +10,7 @@ import {
   type ToolContribution,
   type ToolMenuItemContribution,
 } from "@jhomra21/mesurer-solid-core";
-import Mesurer, { type MesurerProps as BaseMesurerProps } from "./Mesurer";
+import Mesurer from "./Mesurer";
 import { isEditableKeyboardEvent } from "./core/events";
 import {
   MesurerModelRegistrationContext,
@@ -26,142 +26,29 @@ import {
   installPresentationPreferences,
 } from "./runtime/presentation-preferences";
 import { installTextEditing } from "./runtime/text-editing";
+import { createMesurerWorkspaceRuntime } from "./runtime/workspace-context";
 import {
-  createMesurerWorkspaceRuntime,
-  type MesurerWorkspaceRuntime,
-} from "./runtime/workspace-context";
+  BUILTIN_TOOL_IDS,
+  DEFAULT_PLUGIN_STORAGE_KEY,
+  PLUGIN_REGISTRY_STORAGE_VERSION,
+  builtinCommand,
+  isBuiltinPluginId,
+  isPluginRegistration,
+  matchesShortcut,
+  pluginLabelFromId,
+  type MesurerPluginRegistration,
+  type MesurerProps,
+  type MesurerSolidRuntimeService,
+  type StoredPluginRegistryState,
+} from "./runtime/composable-contract";
+import { createToolbarModeCoordinator } from "./runtime/toolbar-mode-coordinator";
 
-export type MesurerSolidRuntimeService = {
-  ownerDocument: Document;
-  ownerWindow: Window;
-  portalTarget: HTMLElement | ShadowRoot;
-  pageTarget: HTMLElement | ShadowRoot;
-  /** Exact canonical renderer root owned by this runtime/model. */
-  rendererRoot?: HTMLDivElement;
-  /** Current canonical page-targeting tool when exposed by the renderer bridge. */
-  currentToolMode?(): MesurerModel["state"]["toolMode"];
-  /** Current top-level toolbar mode. Public Mesurer mounts expose Select or Edit. */
-  currentToolbarMode?(): "select" | "edit";
-  theme?(): MesurerTheme;
-  subscribeTheme?(listener: (theme: MesurerTheme) => void): () => void;
-  createWorkspaceRuntime(persistenceNamespace?: string): MesurerWorkspaceRuntime;
-  /** Create Mesurer-owned DOM that is automatically excluded from inspection/X-ray. */
-  createInspectorMount(): { element: HTMLDivElement; dispose(): void };
-};
-
-/**
- * One plugin registration owns both lifecycle and Settings discovery.
- * `enabled` controls only the initial state; Settings can toggle the same
- * registration later without a second availability list.
- */
-export type MesurerPluginRegistration = {
-  id: string;
-  label?: string;
-  description?: string;
-  order?: number;
-  enabled?: boolean;
-  create(): MesurerPlugin | Promise<MesurerPlugin>;
-  /** Settings section ids owned by this plugin when known before first load. */
-  settingsIds?: string[];
-  /** Plugin controls kept as API state but omitted from Settings because the plugin row owns on/off. */
-  hiddenSettingsControlIds?: string[];
-};
-
-export type MesurerPluginInput = MesurerPlugin | MesurerPluginRegistration;
-
-export type MesurerProps = Omit<
-  BaseMesurerProps,
-  "pluginTools" | "onPluginTool" | "onPluginToolMenuItem" | "isBuiltinActionDisabled" | "onBuiltinController"
-> & {
-  /** Public package/release version shown by Settings and official Mesurer plugin metadata. */
-  version?: string;
-  /** Plugins known to this Mesurer instance. Plugin instances start enabled; registrations may set `enabled: false`. */
-  plugins?: MesurerPluginInput[];
-  /** Remove built-in features without forking the renderer. */
-  excludePlugins?: MesurerBuiltinPluginId[];
-  /** Supply a long-lived host when plugins should be managed outside the component. */
-  pluginHost?: MesurerPluginHost;
-  /** Receive the live host immediately for add/remove/replace operations and introspection. */
-  onPluginHost?: (host: MesurerPluginHost) => void;
-  /** Called after built-ins, renderer bridge, configured plugins and persisted plugin state settle. */
-  onPluginsReady?: (host: MesurerPluginHost) => void;
-  onPluginError?: (cause: unknown, pluginId: string) => void;
-};
-
-const BUILTIN_TOOL_IDS = [
-  "select",
-  "xray",
-  "color-picker",
-  "rulers",
-  "text-inspector",
-  "guides",
-  "settings",
-] as const satisfies readonly Exclude<MesurerBuiltinPluginId, "distance">[];
-
-const DEFAULT_PLUGIN_STORAGE_KEY = "mesurer-plugin-settings";
-
-const PLUGIN_REGISTRY_STORAGE_VERSION = 3;
-
-type StoredPluginRegistryState = {
-  version: number;
-  enabled: Record<string, boolean>;
-  state: Record<string, PluginStateSnapshot>;
-};
-
-const pluginLabelFromId = (id: string) => {
-  const value = id.startsWith("mesurer.") ? id.slice("mesurer.".length) : id;
-
-  return value
-    .split(/[.-]/g)
-    .filter(Boolean)
-    .map((part) => part[0]?.toUpperCase() + part.slice(1))
-    .join(" ") || id;
-};
-
-const isPluginRegistration = (plugin: MesurerPluginInput): plugin is MesurerPluginRegistration =>
-  "create" in plugin && typeof plugin.create === "function";
-
-const isBuiltinPluginId = (value: string): value is MesurerBuiltinPluginId =>
-  value === "select"
-  || value === "xray"
-  || value === "color-picker"
-  || value === "rulers"
-  || value === "text-inspector"
-  || value === "guides"
-  || value === "distance"
-  || value === "settings";
-
-const builtinCommand = (id: MesurerBuiltinPluginId) => `builtin.${id}`;
-
-type ToolInvocationSource =
-  | string
-  | { source: string; builtin: MesurerBuiltinPluginId };
-
-const matchesShortcut = (event: KeyboardEvent, shortcut: string) => {
-  const parts = shortcut
-    .toLowerCase()
-    .replaceAll("cmd", "meta")
-    .split("+")
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (!parts.length) return false;
-  const key = parts.at(-1)!;
-  const modifiers = new Set(parts.slice(0, -1));
-  const wantsMod = modifiers.has("mod");
-  const wantsMeta = modifiers.has("meta");
-  const wantsCtrl = modifiers.has("ctrl") || modifiers.has("control");
-  const wantsShift = modifiers.has("shift");
-  const wantsAlt = modifiers.has("alt") || modifiers.has("option");
-
-  if (wantsMod ? !(event.metaKey || event.ctrlKey) : wantsMeta !== event.metaKey || wantsCtrl !== event.ctrlKey) return false;
-
-  if (wantsShift !== event.shiftKey || wantsAlt !== event.altKey) return false;
-
-  if (!wantsMod && !wantsMeta && !wantsCtrl && (event.metaKey || event.ctrlKey)) return false;
-
-  return event.key.toLowerCase() === key;
-};
+export type {
+  MesurerPluginInput,
+  MesurerPluginRegistration,
+  MesurerProps,
+  MesurerSolidRuntimeService,
+} from "./runtime/composable-contract";
 
 export default function ComposableMesurer(props: MesurerProps) {
   const providedHost = untrack(() => props.pluginHost);
@@ -319,138 +206,19 @@ export default function ComposableMesurer(props: MesurerProps) {
     return rules.join("\n");
   };
 
-  const editModeTool = () => host.tools().find(
-    (tool) => tool.modeSwitch === true && tool.toolbarMode === "edit",
-  );
-
-  type SuspendedSelectModeState = {
-    toolMode: "none" | "select" | "text-inspector" | "guides" | null;
-    xrayVisible: boolean;
-    rulersVisible: boolean;
-    pluginToolIds: string[];
-  };
-
-  let suspendedSelectModeState: SuspendedSelectModeState | null = null;
-
-  const restoreSelectModeTools = async () => {
-    const snapshot = suspendedSelectModeState;
-
-    suspendedSelectModeState = null;
-
-    if (!snapshot) return;
-
-    const controller = builtinController;
-    const model = rendererModel;
-
-    if (controller && model) {
-      if (snapshot.toolMode === "none" && model.current.toolMode === "select") {
-        controller.deactivate("select");
-      } else if (snapshot.toolMode && snapshot.toolMode !== "none" && model.current.toolMode !== snapshot.toolMode) {
-        await controller.run(snapshot.toolMode);
-      }
-
-      if (snapshot.xrayVisible && !model.current.xrayVisible) await controller.run("xray");
-
-      if (snapshot.rulersVisible && !model.current.rulersVisible) await controller.run("rulers");
-    }
-
-    for (const id of snapshot.pluginToolIds) {
-      const tool = host.tools().find((candidate) => candidate.id === id);
-
-      if (!tool || tool.toolbarMode !== "select" || (tool.active?.() ?? false)) continue;
-      await host.command.execute(tool.command, undefined, {
-        source: "select-mode-restore",
-        toolId: tool.id,
-      });
-    }
-  };
-
-  const leaveEditMode = async (source: string) => {
-    const edit = editModeTool();
-
-    if (!edit?.active?.()) return;
-    await host.command.execute(edit.command, undefined, { source, toolId: edit.id });
-    await restoreSelectModeTools();
-  };
-
-  const suspendSelectModeTools = async () => {
-    const controller = builtinController;
-    const model = rendererModel;
-
-    const pluginToolIds = host.tools()
-      .filter((tool) =>
-        tool.modeSwitch !== true
-        && tool.toolbarMode === "select"
-        && !(tool.builtin && isBuiltinPluginId(tool.builtin))
-        && !isBuiltinPluginId(tool.id)
-        && (tool.active?.() ?? false))
-      .map((tool) => tool.id);
-
-    const toolMode = model?.current.toolMode;
-
-    const savedToolMode = toolMode === "none"
-      || toolMode === "select"
-      || toolMode === "text-inspector"
-      || toolMode === "guides"
-      ? toolMode
-      : null;
-
-    suspendedSelectModeState = {
-      toolMode: savedToolMode,
-      xrayVisible: model?.current.xrayVisible ?? false,
-      rulersVisible: model?.current.rulersVisible ?? false,
-      pluginToolIds,
-    };
-
-    if (controller && model) {
-      if (model.current.xrayVisible) controller.deactivate("xray");
-
-      if (model.current.colorPickerActive) controller.deactivate("color-picker");
-
-      if (model.current.toolMode === "text-inspector") controller.deactivate("text-inspector");
-    }
-
-    for (const id of pluginToolIds) {
-      const selectTool = host.tools().find((tool) => tool.id === id);
-
-      if (!selectTool || !(selectTool.active?.() ?? false)) continue;
-      await host.command.execute(selectTool.command, undefined, {
-        source: "edit-mode-suspend",
-        toolId: selectTool.id,
-      });
-    }
-  };
-
-  const executeTool = async (tool: ToolContribution, source: ToolInvocationSource = "toolbar") => {
-    if (tool.disabled?.()) return;
-
-    try {
-      const enteringEdit = tool.modeSwitch === true
-        && tool.toolbarMode === "edit"
-        && !(tool.active?.() ?? false);
-
-      const leavingEdit = tool.modeSwitch === true
-        && tool.toolbarMode === "edit"
-        && (tool.active?.() ?? false);
-
-      if (enteringEdit) await suspendSelectModeTools();
-
-      if (tool.toolbarMode === "select" && arrangeActive()) {
-        await leaveEditMode("select-mode-tool");
-      }
-
-      await host.command.execute(tool.command, undefined, { source, toolId: tool.id });
-
-      if (leavingEdit && !arrangeActive()) await restoreSelectModeTools();
-    } catch (error) {
-      props.onPluginError?.(error, tool.id);
-      throw error;
-    }
-  };
-
-  const runTool = (tool: ToolContribution, source: ToolInvocationSource = "toolbar") => {
-    void executeTool(tool, source).catch(() => undefined);
-  };
+  const {
+    editModeTool,
+    executeTool,
+    leaveEditMode,
+    runTool,
+  } = createToolbarModeCoordinator({
+    host,
+    getBuiltinController: () => builtinController,
+    getModel: () => rendererModel,
+    arrangeActive,
+    isBuiltinPluginId,
+    onPluginError: props.onPluginError,
+  });
 
   const runToolMenuItem = (tool: ToolContribution, item: ToolMenuItemContribution) => {
     if (item.disabled?.()) return;

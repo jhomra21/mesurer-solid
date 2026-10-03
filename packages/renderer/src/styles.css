@@ -355,7 +355,7 @@ body.mesurer-solid-xray .mesurer-ti-close {
     0 3px 9px rgba(0, 0, 0, 0.06),
     0 1px 1px rgba(0, 0, 0, 0.06);
   --msr-shadow-floating:
-    0 0 0 0.4px rgba(0, 0, 0, 0.22),
+    0 0 0.4px rgba(0, 0, 0, 0.22),
     0 6px 18px rgba(0, 0, 0, 0.03),
     0 3px 9px rgba(0, 0, 0, 0.06),
     0 1px 1px rgba(0, 0, 0, 0.06);
@@ -397,9 +397,10 @@ body.mesurer-solid-xray .mesurer-ti-close {
     0 2px 5px lch(0% 0 0 / 0.125),
     0 1px 1px lch(0% 0 0 / 0.125);
   --msr-shadow-floating:
-    0 0 0 0.4px lch(100% 0 0 / 0.05),
-    0 4px 12px lch(0% 0 0 / 0.12),
-    0 1px 3px lch(0% 0 0 / 0.10);
+    0 0 0.4px lch(100% 0 0 / 0.10),
+    0 3px 8px lch(0% 0 0 / 0.125),
+    0 2px 5px lch(0% 0 0 / 0.125),
+    0 1px 1px lch(0% 0 0 / 0.125);
   --msr-shadow-select-menu:
     0 0 0 0.4px lch(100% 0 0 / 0.14),
     0 4px 12px lch(0% 0 0 / 0.22),
@@ -441,9 +442,10 @@ body.mesurer-solid-xray .mesurer-ti-close {
       0 2px 5px lch(0% 0 0 / 0.125),
       0 1px 1px lch(0% 0 0 / 0.125);
     --msr-shadow-floating:
-      0 0 0 0.4px lch(100% 0 0 / 0.05),
-      0 4px 12px lch(0% 0 0 / 0.12),
-      0 1px 3px lch(0% 0 0 / 0.10);
+      0 0 0.4px lch(100% 0 0 / 0.10),
+      0 3px 8px lch(0% 0 0 / 0.125),
+      0 2px 5px lch(0% 0 0 / 0.125),
+      0 1px 1px lch(0% 0 0 / 0.125);
     --msr-shadow-select-menu:
       0 0 0 0.4px lch(100% 0 0 / 0.14),
       0 4px 12px lch(0% 0 0 / 0.22),
@@ -479,6 +481,13 @@ body.mesurer-solid-xray .mesurer-ti-close {
   [data-mesurer-inspector-ui="true"][data-theme]
 ) [class~="msr:hover:bg-black/5"]:hover {
   background-color: color-mix(in srgb, var(--msr-content) 6%, transparent) !important;
+}
+
+:where(
+  [data-mesurer-root="true"][data-theme],
+  [data-mesurer-inspector-ui="true"][data-theme]
+) :is(.mesurer-menu-surface, .mesurer-color-picker) {
+  border-radius: 9px;
 }
 
 :where(

@@ -362,6 +362,32 @@ try {
   await settingsButton.click();
   await settingsDialog.waitFor({ state: "visible" });
 
+  const recordingToolbarStack = await page.evaluate(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const root = island?.shadowRoot;
+    const toolbar = root?.querySelector("[data-mesurer-toolbar='true']");
+    const preview = root?.querySelector("[data-mesurer-recording-preview='true']");
+
+    if (!(toolbar instanceof HTMLElement) || !(preview instanceof HTMLElement)) {
+      throw new Error("Recording toolbar stacking surfaces are unavailable");
+    }
+
+    return {
+      toolbarZ: Number.parseInt(getComputedStyle(toolbar).zIndex, 10),
+      previewZ: Number.parseInt(getComputedStyle(preview).zIndex, 10),
+    };
+  });
+
+  if (
+    !Number.isFinite(recordingToolbarStack.toolbarZ)
+    || !Number.isFinite(recordingToolbarStack.previewZ)
+    || recordingToolbarStack.toolbarZ <= recordingToolbarStack.previewZ
+  ) {
+    throw new Error(
+      `Toolbar menus must paint above the Recording editor: ${JSON.stringify(recordingToolbarStack)}`,
+    );
+  }
+
   const generalTab = settingsDialog.getByRole("tab", { name: "General" });
 
   if ((await generalTab.getAttribute("aria-selected")) !== "true") await generalTab.click();
@@ -939,6 +965,7 @@ try {
     formats,
     webmExport,
     mp4Export,
+    recordingToolbarStack,
     postRecordingScreenshotHit,
     browserCounters,
     extensionCounters,

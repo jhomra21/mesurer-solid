@@ -287,7 +287,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ibelick/mesurer
-          ref: d47fd6056a01da9c442ae04840ec4d0dd46a1257
+          ref: 26110edbbd8cd9c22c32a82b1b91073912fbdfc2
           path: upstream-current
 
       - name: Set up Bun
@@ -388,7 +388,7 @@ jobs:
           report = json.loads(path.read_text())
           print("## Current React Layout Guides parity")
           print("")
-          print("Baseline: `ibelick/mesurer@d47fd6056a01da9c442ae04840ec4d0dd46a1257`")
+          print("Baseline: `ibelick/mesurer@26110edbbd8cd9c22c32a82b1b91073912fbdfc2`")
           print("")
           print("| State | perceptible pixels | contract diffs |")
           print("|---|---:|---:|")
