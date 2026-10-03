@@ -5,7 +5,7 @@ description: Use Mesurer for frontend UI implementation, review, debugging, layo
 
 # Mesurer UI workflow
 
-Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. The rendered page is the integration boundary.
+Mesurer is shared visual state between the person reviewing a page and the coding agent editing it. This skill matches `mesurer-solid@0.2.1` stable. The rendered page is the integration boundary.
 
 The normal coding-agent workflow requires no Mesurer MCP server, chat-delivery daemon, or Send-to-agent callback. Use the browser/evaluation channel the browser controller already provides and read `window.__MESURER__` directly. The first-party `codex()` plugin is a separate human-initiated convenience for routing Context feedback through the application's native Codex host capability.
 
@@ -15,9 +15,9 @@ A meaningful Mesurer step must return evidence the agent actually uses.
 
 ## Know the available capabilities
 
-The base inspector has Select, X-ray, Rulers, Typography, Guides, Distance, and Settings. Color Picker uses application-local host capture when available and otherwise uses a working browser `EyeDropper`; a successful sample copies the configured format to the clipboard.
+The base inspector has Select, X-ray, Color Picker, Rulers, Typography, Guides, Distance, and Settings. Color Picker uses application-local host capture when available and otherwise uses a working browser `EyeDropper`; a successful sample copies the configured format to the clipboard.
 
-Optional first-party plugins add Context, Edit, Layout Guides, Screenshot, Recording, and Codex delivery. Context carries annotations and structured evidence. Edit carries Before/Desired/Live movement intent through the existing Arrange compatibility APIs. Layout Guides carries page-scoped column/row/grid intent and exposes saved guides through Context with each guide's `visible` flag. Screenshot and Recording are human capture workflows; Recording exposes the typed `recording:v1` service when application code needs its lifecycle. Codex is an optional human queue transport, not the normal agent protocol.
+Optional first-party plugins add Context, Edit, Layout Guides, Screenshot, Recording, and Codex delivery. Rulers, ordinary Guides, and Layout Guides remain usable while Edit is active; X-ray, Color Picker, Typography, Screenshot, and Recording stay in the Select lane. Context carries annotations and structured evidence. Edit carries Before/Desired/Live movement intent through the existing Arrange compatibility APIs. Layout Guides carries page-scoped column/row/grid intent and exposes saved guides through Context with each guide's `visible` flag. Screenshot and Recording are human capture workflows; Recording exposes the typed `recording:v1` service when application code needs its lifecycle. Codex is an optional human queue transport, not the normal agent protocol.
 
 The JSON-safe `window.__MESURER__` object exposes the full agent API. Lifecycle and discovery methods are `ready()`, `capabilities()`, `describe()`, `state()`, and `stable()`. Inspection methods are `inspect()`, `inspectAll()`, `at()`, `distance()`, `viewport()`, and `feedback()`. `command()` runs registered Mesurer commands.
 
