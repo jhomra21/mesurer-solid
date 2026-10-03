@@ -16,13 +16,13 @@ Mesurer Solid ships its own isolated Solid 2 renderer. Host applications can use
 ## Installation
 
 ```bash
-bun add -d mesurer-solid
+bun add -d mesurer-solid@latest
 ```
 
 or:
 
 ```bash
-npm install -D mesurer-solid
+npm install -D mesurer-solid@latest
 ```
 
 
