@@ -882,14 +882,19 @@ export const createRecordingPreviewController = ({
 
   const discardWithAnimation = () => {
     if (!asset || panel.style.display === "none" || dismissAnimation) return;
+
     const panelRect = panel.getBoundingClientRect();
+
     const anchorRect = recordingToolAnchor()?.getBoundingClientRect();
+
     const targetCenterX = anchorRect
       ? anchorRect.left + anchorRect.width / 2
       : panelRect.left + panelRect.width / 2;
+
     const targetCenterY = anchorRect
       ? anchorRect.top + anchorRect.height / 2
       : panelRect.top + panelRect.height / 2;
+
     const targetTop = targetCenterY - panelRect.height / 2;
 
     video.pause();
