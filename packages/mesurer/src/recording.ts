@@ -36,8 +36,11 @@ export type MesurerRecordingStatus =
   | "exporting"
   | "error";
 
+export type MesurerRecordingFrameRate = 60 | 120;
+
 export type MesurerRecordingSettings = {
   toolEnabled: boolean;
+  frameRate: MesurerRecordingFrameRate;
 };
 
 export type MesurerRecordingSnapshot = {
@@ -70,7 +73,7 @@ export type MesurerRecordingExportResult = {
 
 export type MesurerRecordingPluginOptions = {
   toolEnabled?: boolean;
-  frameRate?: number;
+  frameRate?: MesurerRecordingFrameRate;
   maxDurationSeconds?: number;
   quality?: RecordingQuality;
 };
@@ -78,6 +81,8 @@ export type MesurerRecordingPluginOptions = {
 export type MesurerRecordingService = {
   snapshot(): MesurerRecordingSnapshot;
   subscribe(listener: (snapshot: MesurerRecordingSnapshot) => void): () => void;
+  settings(): MesurerRecordingSettings;
+  setSettings(patch: Partial<MesurerRecordingSettings>): void;
   formats(): Promise<RecordingExportFormat[]>;
   start(rect?: RecordingRect): Promise<void>;
   stop(): Promise<MesurerRecordingAsset>;
