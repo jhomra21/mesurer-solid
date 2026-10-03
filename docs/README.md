@@ -1,6 +1,6 @@
 # Documentation
 
-Mesurer Solid is a browser inspection and visual-intent tool. Start with setup, then open the guide for the task you are doing.
+Mesurer Solid is a browser inspection and visual-intent tool. The current stable package is `mesurer-solid@0.2.1` on `latest`. Start with setup, then open the guide for the task you are doing.
 
 ## Start here
 
@@ -27,7 +27,7 @@ Mesurer Solid is a browser inspection and visual-intent tool. Start with setup, 
 - [Mesurer UI skill](../.agents/skills/mesurer-ui/SKILL.md) contains the portable instructions shipped for coding agents.
 - [Browser and agent integration](./BROWSER_HARNESS.md) explains how to reuse an existing browser and inject Mesurer only when needed.
 - [Browser extension](../extension/README.md) explains how to inject Mesurer into Chromium tabs without application source changes.
-- [Electron renderer example](../examples/electron-renderer/README.md) shows how to mount Mesurer in a renderer and provide native Screenshot capture through preload and main.
+- [Electron renderer example](../examples/electron-renderer/README.md) shows renderer mounting, native Screenshot/Color Picker capture, the package-owned `mesurer-solid/electron` Recording bootstrap, and optional Codex host wiring.
 
 ## Browser compatibility
 
