@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Keep Rulers, Guides, and Layout Guides available in Edit instead of treating them as Select-only tools.
+- Release the Screenshot selection overlay before showing the captured thumbnail, so the first preview is immediately clickable and dismissible.
+- Pre-promote the Screenshot thumbnail for transform/opacity dismissal so its first close animation is as smooth as later ones.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.13 - 2026-10-03

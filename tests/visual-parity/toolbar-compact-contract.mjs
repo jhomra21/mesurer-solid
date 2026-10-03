@@ -315,9 +315,19 @@ try {
   assert.equal(await editMode.getAttribute("data-mesurer-tool-id"), "arrange", "The Edit mode button must own the Edit plugin tool id");
   assert.equal(await duplicateEditTool.count(), 0, "Edit must not grow a second action button after mode activation");
   assert.equal(await xrayButton.getAttribute("aria-pressed"), "false", "Select X-ray state must not leak into Edit");
-  assert.equal(await rulersButton.getAttribute("aria-pressed"), "false", "Select Rulers state must not leak into Edit");
+  assert.equal(await rulersButton.getAttribute("aria-pressed"), "true", "Rulers must remain active and visible in Edit");
+  assert(await rulersButton.isVisible(), "Rulers must remain visible in Edit mode");
+  assert(await guidesButton.isVisible(), "Guides must remain visible in Edit mode");
+  assert(await layoutGuidesButton.isVisible(), "Layout Guides must remain visible in Edit mode");
   assert(await contextButton.isVisible(), "Context must remain visible in Edit mode");
   assert(await codexButton.isVisible(), "Codex must remain visible in Edit mode");
+
+  await guidesButton.click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-mesurer-toolbar="true"]')?.getAttribute("data-mesurer-toolbar-mode") === "edit"
+    && document.querySelector('button[aria-label="Guides (G)"]')?.getAttribute("aria-pressed") === "true"
+  );
+  assert.equal(await editMode.getAttribute("aria-pressed"), "true", "Using Guides in Edit must not exit Edit");
 
   await editMode.click();
   await page.waitForFunction(() =>
@@ -340,6 +350,9 @@ try {
   assert.equal(await toolbar.getAttribute("data-mesurer-toolbar-compact"), "true");
   assert(await editMode.isVisible(), "Edit mode switch must remain visible while compact");
   assert(await editOptions.isVisible(), "Edit options must remain visible while Edit is active and compact");
+  assert.equal(await compactItemVisible(rulersButton), true, "Rulers must stay pinned in compact Edit");
+  assert.equal(await compactItemVisible(guidesButton), true, "Guides must stay pinned in compact Edit");
+  assert.equal(await compactItemVisible(layoutGuidesButton), true, "Layout Guides must stay pinned in compact Edit");
   assert.equal(await compactItemVisible(contextButton), true, "Context must stay pinned in compact Edit");
   assert.equal(await compactItemVisible(codexButton), true, "Codex must stay pinned in compact Edit");
 

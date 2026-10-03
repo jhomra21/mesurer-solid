@@ -568,6 +568,8 @@ export const screenshotPlugin = (
 
         if (operation !== operationId) throw new Error("Screenshot capture was cancelled.");
 
+        if (active()) finishSelection();
+
         previewController.show(cropped, {
           copied,
           downloaded,

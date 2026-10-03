@@ -43,7 +43,7 @@ export function installArrangeSelectGuard(
         return;
       }
 
-      if (toolMode === "select") {
+      if (toolMode === "select" || toolMode === "guides") {
         arrangeActivatedPending = false;
         selectDeactivatedPending = false;
 
@@ -79,7 +79,10 @@ export function installArrangeSelectGuard(
   const onWorkspaceChange = () => {
     const toolMode = runtime.currentToolMode?.();
 
-    if (previousToolMode === "select" && toolMode !== undefined && toolMode !== "select") {
+    const previousEditCompatible = previousToolMode === "select" || previousToolMode === "guides";
+    const nextEditCompatible = toolMode === "select" || toolMode === "guides";
+
+    if (previousEditCompatible && toolMode !== undefined && !nextEditCompatible) {
       selectDeactivatedPending = true;
     }
 

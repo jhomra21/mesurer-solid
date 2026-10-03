@@ -58,6 +58,32 @@ try {
   const previewImage = island.locator("[data-mesurer-screenshot-preview-image='true']");
   await preview.waitFor({ state: "visible" });
 
+  const previewReady = await page.evaluate(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const root = island?.shadowRoot;
+    const overlay = root?.querySelector("[data-mesurer-screenshot-select='true']");
+    const preview = root?.querySelector("[data-mesurer-screenshot-preview='true']");
+
+    if (!(overlay instanceof HTMLElement) || !(preview instanceof HTMLElement)) {
+      throw new Error("Screenshot interaction surfaces are unavailable");
+    }
+
+    return {
+      overlayDisplay: getComputedStyle(overlay).display,
+      overlayPointerEvents: getComputedStyle(overlay).pointerEvents,
+      previewPointerEvents: getComputedStyle(preview).pointerEvents,
+      previewWillChange: getComputedStyle(preview).willChange,
+    };
+  });
+
+  if (
+    previewReady.overlayDisplay !== "none"
+    || previewReady.previewPointerEvents !== "auto"
+    || !previewReady.previewWillChange.includes("transform")
+  ) {
+    throw new Error(`Screenshot preview must become interactive only after selection releases and be pre-promoted for its first dismiss animation: ${JSON.stringify(previewReady)}`);
+  }
+
   const previewSize = await previewImage.evaluate((image) => ({
     width: image.naturalWidth,
     height: image.naturalHeight,
@@ -232,6 +258,40 @@ try {
     })}`);
   }
 
+  await preview.waitFor({ state: "hidden" });
+
+  await screenshotButton.click();
+  await page.waitForFunction(() => window.__MESURER_SCREENSHOT_TEST__?.service.active() === true);
+  await page.mouse.move(220, 220);
+  await page.mouse.down();
+  await page.mouse.move(430, 350, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForFunction(() => window.__MESURER_SCREENSHOT_TEST__?.service.active() === false);
+  await preview.waitFor({ state: "visible" });
+
+  const repeatedPreviewReady = await preview.evaluate((element) => ({
+    pointerEvents: getComputedStyle(element).pointerEvents,
+    willChange: getComputedStyle(element).willChange,
+    display: getComputedStyle(element).display,
+  }));
+
+  if (
+    repeatedPreviewReady.pointerEvents !== "auto"
+    || repeatedPreviewReady.display === "none"
+    || !repeatedPreviewReady.willChange.includes("transform")
+  ) {
+    throw new Error(`A repeated Screenshot preview must be immediately interactive and animation-ready: ${JSON.stringify(repeatedPreviewReady)}`);
+  }
+
+  const repeatedDismiss = island.locator("[data-mesurer-screenshot-preview-dismiss='true']");
+  const repeatedDismissBox = await repeatedDismiss.boundingBox();
+
+  if (!repeatedDismissBox) throw new Error("Repeated Screenshot preview dismiss button has no rendered geometry");
+
+  await page.mouse.click(
+    repeatedDismissBox.x + repeatedDismissBox.width / 2,
+    repeatedDismissBox.y + repeatedDismissBox.height / 2,
+  );
   await preview.waitFor({ state: "hidden" });
 
   const restoredToolbar = await island.locator("[data-mesurer-toolbar='true']").evaluate((element) => getComputedStyle(element).visibility);
