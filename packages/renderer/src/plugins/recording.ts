@@ -257,8 +257,49 @@ export const recordingPlugin = (
     const rendererRoot = runtime.rendererRoot
       ?? runtime.portalTarget.querySelector<HTMLDivElement>("[data-mesurer-root='true']");
 
+    let recordingInteractionStyle: {
+      element: HTMLElement;
+      pointerEvents: string;
+      pointerEventsPriority: string;
+      cursor: string;
+      cursorPriority: string;
+    } | null = null;
+
+    const restoreRecordingInteractionStyle = () => {
+      const previous = recordingInteractionStyle;
+
+      if (!previous) return;
+      recordingInteractionStyle = null;
+
+      if (previous.pointerEvents || previous.pointerEventsPriority) {
+        previous.element.style.setProperty(
+          "pointer-events",
+          previous.pointerEvents,
+          previous.pointerEventsPriority,
+        );
+      } else {
+        previous.element.style.removeProperty("pointer-events");
+      }
+
+      if (previous.cursor || previous.cursorPriority) {
+        previous.element.style.setProperty(
+          "cursor",
+          previous.cursor,
+          previous.cursorPriority,
+        );
+      } else {
+        previous.element.style.removeProperty("cursor");
+      }
+    };
+
     const setRecordingInteractionActive = (active: boolean) => {
       rendererRoot?.toggleAttribute("data-mesurer-recording-active", active);
+
+      if (!active) {
+        restoreRecordingInteractionStyle();
+
+        return;
+      }
 
       const interactionOverlay = rendererRoot?.querySelector<HTMLElement>(
         "[data-mesurer-interaction-overlay='true']",
@@ -266,13 +307,22 @@ export const recordingPlugin = (
 
       if (!interactionOverlay) return;
 
-      if (active) {
-        interactionOverlay.style.setProperty("pointer-events", "none", "important");
-        interactionOverlay.style.setProperty("cursor", "default", "important");
-      } else {
-        interactionOverlay.style.removeProperty("pointer-events");
-        interactionOverlay.style.removeProperty("cursor");
+      if (
+        !recordingInteractionStyle
+        || recordingInteractionStyle.element !== interactionOverlay
+      ) {
+        restoreRecordingInteractionStyle();
+        recordingInteractionStyle = {
+          element: interactionOverlay,
+          pointerEvents: interactionOverlay.style.getPropertyValue("pointer-events"),
+          pointerEventsPriority: interactionOverlay.style.getPropertyPriority("pointer-events"),
+          cursor: interactionOverlay.style.getPropertyValue("cursor"),
+          cursorPriority: interactionOverlay.style.getPropertyPriority("cursor"),
+        };
       }
+
+      interactionOverlay.style.setProperty("pointer-events", "none", "important");
+      interactionOverlay.style.setProperty("cursor", "default", "important");
     };
 
     root.dataset.mesurerRecording = "true";
