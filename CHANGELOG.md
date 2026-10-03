@@ -4,9 +4,11 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Flatten transparent native Screenshot captures against the renderer backdrop so macOS vibrancy and transparent sidebars no longer produce white thumbnails or faded saved images.
-
 <!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.1-beta.16 - 2026-10-03
+
+- Flatten transparent native Screenshot captures against the renderer backdrop so macOS vibrancy and transparent sidebars no longer produce white thumbnails or faded saved images.
 
 ## 0.2.1-beta.15 - 2026-10-03
 
