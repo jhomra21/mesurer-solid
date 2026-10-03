@@ -32,6 +32,13 @@ try {
   const island = page.locator("[data-mesurer-island='true']");
   const recordButton = island.locator("[data-mesurer-tool-id='recording'] button").first();
 
+  const defaultFrameRate = await page.evaluate(() =>
+    window.__MESURER_RECORDING_TEST__?.service.settings().frameRate);
+
+  if (defaultFrameRate !== 60) {
+    throw new Error(`Recording must default to 60 fps, got ${defaultFrameRate}`);
+  }
+
   await recordButton.waitFor({ state: "visible" });
 
   if ((await recordButton.getAttribute("aria-label")) !== "Record (Shift+R)") {
@@ -496,6 +503,7 @@ try {
   console.log("MediaBunny recording browser contract: PASS");
   console.log(JSON.stringify({
     snapshot,
+    defaultFrameRate,
     formats,
     webmExport,
     mp4Export,
