@@ -210,6 +210,7 @@ const expectDisclosureHitArea = async (dialog, id, label) => {
   const section = dialog.locator(`[data-mesurer-plugin-settings-section='${id}']`);
   const disclosure = dialog.locator(`[data-mesurer-plugin-settings-disclosure='${id}']`);
   const toggle = dialog.locator(`[data-mesurer-plugin-toggle='${id}']`);
+
   const [sectionBox, disclosureBox, toggleBox] = await Promise.all([
     section.boundingBox(),
     disclosure.boundingBox(),
