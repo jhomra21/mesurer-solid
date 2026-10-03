@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Give Recording timeline timestamps enough room, inset the scrub track, and enlarge the trim chevrons so the controls no longer overlap.
+- Make the Recording discard animation transform-only for smoother compositing.
+- Clear the finished discard animation before cleanup so recording another clip immediately shows a fresh preview.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.11 - 2026-10-03

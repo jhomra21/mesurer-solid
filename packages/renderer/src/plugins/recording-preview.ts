@@ -47,6 +47,8 @@ const MIN_TRIM_SECONDS = 0.05;
 
 const PREVIEW_MOTION_MS = 200;
 
+const TIMELINE_EDGE_GUTTER = 10;
+
 const setStyle = (
   element: HTMLElement,
   styles: Record<string, string>,
@@ -189,7 +191,7 @@ export const createRecordingPreviewController = ({
     "pointer-events": "auto",
     outline: "none",
     transform: "translateX(-50%)",
-    transition: "width 200ms ease, left 200ms ease",
+    transition: "width 200ms ease",
   });
 
   root.append(panel);
@@ -296,9 +298,9 @@ export const createRecordingPreviewController = ({
 
   setStyle(controls, {
     display: "flex",
-    height: "24px",
+    height: "28px",
     "align-items": "center",
-    gap: "6px",
+    gap: "8px",
     "margin-top": "8px",
   });
 
@@ -311,11 +313,13 @@ export const createRecordingPreviewController = ({
 
   const currentTime = ownerDocument.createElement("span");
 
+  currentTime.dataset.mesurerRecordingCurrentTime = "true";
   currentTime.textContent = "0:00.00";
 
   setStyle(currentTime, {
     display: "flex",
-    width: "32px",
+    width: "8ch",
+    "min-width": "8ch",
     height: "20px",
     "align-items": "center",
     "flex-shrink": "0",
@@ -323,6 +327,7 @@ export const createRecordingPreviewController = ({
     "font-family": "ui-monospace, SFMono-Regular, Menlo, monospace",
     "font-size": "10px",
     "font-variant-numeric": "tabular-nums",
+    "white-space": "nowrap",
   });
 
   controls.append(currentTime);
@@ -333,7 +338,7 @@ export const createRecordingPreviewController = ({
 
   setStyle(timeline, {
     position: "relative",
-    height: "24px",
+    height: "28px",
     "min-width": "0",
     flex: "1 1 0",
     cursor: "pointer",
@@ -341,6 +346,18 @@ export const createRecordingPreviewController = ({
   });
 
   controls.append(timeline);
+
+  const track = ownerDocument.createElement("div");
+
+  track.dataset.mesurerRecordingTimelineTrack = "true";
+  setStyle(track, {
+    position: "absolute",
+    left: `${TIMELINE_EDGE_GUTTER}px`,
+    right: `${TIMELINE_EDGE_GUTTER}px`,
+    top: "0",
+    bottom: "0",
+  });
+  timeline.append(track);
 
   const rail = ownerDocument.createElement("div");
 
@@ -350,7 +367,7 @@ export const createRecordingPreviewController = ({
     position: "absolute",
     left: "0",
     right: "0",
-    top: "16px",
+    top: "21px",
     height: "3px",
     transform: "translateY(-50%)",
     "border-radius": "999px",
@@ -358,7 +375,7 @@ export const createRecordingPreviewController = ({
     "pointer-events": "none",
   });
 
-  timeline.append(rail);
+  track.append(rail);
 
   const clip = ownerDocument.createElement("div");
 
@@ -366,7 +383,7 @@ export const createRecordingPreviewController = ({
 
   setStyle(clip, {
     position: "absolute",
-    top: "16px",
+    top: "21px",
     height: "3px",
     transform: "translateY(-50%)",
     "border-radius": "999px",
@@ -374,14 +391,14 @@ export const createRecordingPreviewController = ({
     "pointer-events": "none",
   });
 
-  timeline.append(clip);
+  track.append(clip);
 
   const hoverMarker = ownerDocument.createElement("div");
 
   setStyle(hoverMarker, {
     position: "absolute",
     display: "none",
-    top: "16px",
+    top: "21px",
     width: "2px",
     height: "10px",
     transform: "translate(-50%, -50%)",
@@ -391,7 +408,7 @@ export const createRecordingPreviewController = ({
     "pointer-events": "none",
   });
 
-  timeline.append(hoverMarker);
+  track.append(hoverMarker);
 
   const playhead = ownerDocument.createElement("div");
 
@@ -399,7 +416,7 @@ export const createRecordingPreviewController = ({
 
   setStyle(playhead, {
     position: "absolute",
-    top: "16px",
+    top: "21px",
     left: "0",
     width: "2px",
     height: "9px",
@@ -411,7 +428,7 @@ export const createRecordingPreviewController = ({
     transition: "height 150ms ease",
   });
 
-  timeline.append(playhead);
+  track.append(playhead);
 
   const makeTrimHandle = (
     kind: "start" | "end",
@@ -429,8 +446,8 @@ export const createRecordingPreviewController = ({
       position: "absolute",
       top: "0",
       display: "flex",
-      width: "14px",
-      height: "11px",
+      width: "20px",
+      height: "16px",
       padding: "0",
       border: "0",
       "border-radius": "4px",
@@ -438,21 +455,29 @@ export const createRecordingPreviewController = ({
       color: "var(--msr-content, #18181b)",
       transform: "translateX(-50%)",
       "z-index": "30",
-      "align-items": "flex-start",
+      "align-items": "center",
       "justify-content": "center",
-      "font-family": "ui-sans-serif, system-ui, sans-serif",
-      "font-size": "10px",
-      "font-weight": "700",
-      "line-height": "8px",
       cursor: "ew-resize",
       "touch-action": "none",
     });
 
-    const chevron = ownerDocument.createElement("span");
+    const chevron = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
 
     chevron.dataset.mesurerRecordingTrimChevron = kind;
     chevron.setAttribute("aria-hidden", "true");
-    chevron.textContent = kind === "start" ? "›" : "‹";
+    chevron.setAttribute("viewBox", "0 0 12 14");
+    chevron.setAttribute("width", "12");
+    chevron.setAttribute("height", "14");
+
+    const chevronPath = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
+
+    chevronPath.setAttribute("d", kind === "start" ? "M3.5 2.5L8.5 7L3.5 11.5" : "M8.5 2.5L3.5 7L8.5 11.5");
+    chevronPath.setAttribute("fill", "none");
+    chevronPath.setAttribute("stroke", "currentColor");
+    chevronPath.setAttribute("stroke-width", "2");
+    chevronPath.setAttribute("stroke-linecap", "round");
+    chevronPath.setAttribute("stroke-linejoin", "round");
+    chevron.append(chevronPath);
     handle.append(chevron);
 
     const stem = ownerDocument.createElement("span");
@@ -461,15 +486,15 @@ export const createRecordingPreviewController = ({
     setStyle(stem, {
       position: "absolute",
       left: "50%",
-      top: "8px",
+      top: "15px",
       width: "1px",
-      height: "6px",
+      height: "4px",
       background: "var(--msr-content, #18181b)",
       transform: "translateX(-50%)",
       "pointer-events": "none",
     });
     handle.append(stem);
-    timeline.append(handle);
+    track.append(handle);
 
     return handle;
   };
@@ -479,9 +504,12 @@ export const createRecordingPreviewController = ({
 
   const durationLabel = ownerDocument.createElement("span");
 
+  durationLabel.dataset.mesurerRecordingDuration = "true";
+
   setStyle(durationLabel, {
     display: "flex",
-    width: "32px",
+    width: "8ch",
+    "min-width": "8ch",
     height: "20px",
     "align-items": "center",
     "justify-content": "flex-end",
@@ -490,6 +518,7 @@ export const createRecordingPreviewController = ({
     "font-family": "ui-monospace, SFMono-Regular, Menlo, monospace",
     "font-size": "10px",
     "font-variant-numeric": "tabular-nums",
+    "white-space": "nowrap",
   });
 
   controls.append(durationLabel);
@@ -641,7 +670,7 @@ export const createRecordingPreviewController = ({
 
   const timeAtClientX = (clientX: number) => {
     const duration = asset?.duration ?? 0;
-    const bounds = timeline.getBoundingClientRect();
+    const bounds = track.getBoundingClientRect();
 
     if (duration <= 0 || bounds.width <= 0) return 0;
 
@@ -876,6 +905,8 @@ export const createRecordingPreviewController = ({
     panel.style.pointerEvents = "auto";
     panel.style.opacity = "1";
     panel.style.transform = "translateX(-50%)";
+    panel.style.removeProperty("transform-origin");
+    panel.style.removeProperty("will-change");
     status.style.display = "none";
     setBusy(false);
   };
@@ -895,23 +926,22 @@ export const createRecordingPreviewController = ({
       ? anchorRect.top + anchorRect.height / 2
       : panelRect.top + panelRect.height / 2;
 
-    const targetTop = targetCenterY - panelRect.height / 2;
-
     video.pause();
     setExportMenuOpen(false);
     panel.style.pointerEvents = "none";
+    panel.style.left = `${panelRect.left}px`;
+    panel.style.top = `${panelRect.top}px`;
+    panel.style.transform = "none";
+    panel.style.transformOrigin = `${targetCenterX - panelRect.left}px ${targetCenterY - panelRect.top}px`;
+    panel.style.willChange = "transform, opacity";
 
     const animation = panel.animate([
       {
-        left: `${panelRect.left + panelRect.width / 2}px`,
-        top: `${panelRect.top}px`,
-        transform: "translateX(-50%) scale(1)",
+        transform: "scale(1)",
         opacity: 1,
       },
       {
-        left: `${targetCenterX}px`,
-        top: `${targetTop}px`,
-        transform: "translateX(-50%) scale(0.08)",
+        transform: "scale(0.08)",
         opacity: 0,
       },
     ], {
@@ -924,7 +954,10 @@ export const createRecordingPreviewController = ({
 
     void animation.finished.catch(() => undefined).then(() => {
       if (dismissAnimation !== animation) return;
+
+      animation.cancel();
       dismissAnimation = null;
+      panel.style.removeProperty("will-change");
       onDiscard();
     });
   };
@@ -1190,6 +1223,8 @@ export const createRecordingPreviewController = ({
       panel.style.pointerEvents = "auto";
       panel.style.opacity = "1";
       panel.style.transform = "translateX(-50%)";
+      panel.style.removeProperty("transform-origin");
+      panel.style.removeProperty("will-change");
       clearUrl();
       asset = nextAsset;
       expanded = false;
