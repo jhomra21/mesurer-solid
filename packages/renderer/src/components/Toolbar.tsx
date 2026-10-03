@@ -972,7 +972,7 @@ export function Toolbar(props: ToolbarProps) {
         </div>
       </div>
 
-      <div role="group" aria-label="Shared guide tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
+      <div role="group" aria-label="Shared guide tools" class="msr:flex msr:items-stretch msr:py-1">
         <CompactItem visible={visibleInToolbar(rulersActive(), true)}>
           <ToolbarButton id="rulers" builtin="rulers" active={rulersActive()} label="Rulers" shortcut="R" onClick={() => props.onBuiltinAction("rulers")} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>
         </CompactItem>
