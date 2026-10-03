@@ -34,7 +34,7 @@ Older browsers without a usable Popover API keep the hardened fixed host with a 
 
 Mesurer uses two managed paint domains rather than forcing every control into one overlay.
 
-Viewport-owned controls such as the toolbar, Settings, Screenshot selection/status/viewer UI, and other global inspector chrome stay in the protected outer host and top-layer path.
+Viewport-owned controls such as the toolbar, Settings, Screenshot selection/status/viewer UI, Recording selection/status/editor UI, and other global inspector chrome stay in the protected outer host and top-layer path.
 
 Toolbar drag ownership is also isolated. Pointer movement from toolbar chrome or a tool trigger can start a drag after the movement threshold, but menus, dialogs, form controls, editable regions, and sliders keep the pointer and do not move the toolbar.
 
@@ -59,7 +59,7 @@ Package smoke exercises the exact packed npm artifact under adversarial host con
 - React, Solid 1, and Solid 2 host applications;
 - a packed Electron renderer with context isolation and sandboxing enabled and Node integration disabled.
 
-Rendered browser contracts separately exercise direct editing, Typography, Edit movement, Screenshot, Context document ownership, toolbar pointer ownership, and Inspect hit testing. Inspect coverage includes SVG targets, pointer-transparent descendants, overlapping page targets, transformed elements, canvas, closed Shadow DOM boundaries, and a large DOM fixture. Context coverage includes source-attached window and nested scrolling, repeated-note marker placement, one clean annotation ownership edge, and create/saved annotation cards occluding real Select hover in a non-isolated browser top-layer host.
+Rendered browser contracts separately exercise direct editing, Typography, Edit movement, Screenshot, Recording, Context document ownership, toolbar pointer ownership, and Inspect hit testing. Inspect coverage includes SVG targets, pointer-transparent descendants, overlapping page targets, transformed elements, canvas, closed Shadow DOM boundaries, and a large DOM fixture. Context coverage includes source-attached window and nested scrolling, repeated-note marker placement, one clean annotation ownership edge, and create/saved annotation cards occluding real Select hover in a non-isolated browser top-layer host.
 
 The goal is to defend browser behavior that many sites compose, not to special-case individual websites.
 
