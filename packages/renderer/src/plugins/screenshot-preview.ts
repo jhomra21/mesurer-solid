@@ -14,6 +14,8 @@ const DRAG_THRESHOLD = 4;
 
 const TOAST_DURATION_MS = 1800;
 
+const PREVIEW_DISMISS_MOTION_MS = 200;
+
 type ScreenshotPreviewStatus = {
   copied: boolean;
   downloaded: boolean;
@@ -211,8 +213,9 @@ export const createScreenshotPreviewController = ({
     "font-family": "inherit",
     "font-size": "14px",
     "line-height": "1",
-    "z-index": "1",
+    "z-index": "2",
     cursor: "pointer",
+    "touch-action": "none",
   });
   const dismissIcon = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
   dismissIcon.setAttribute("viewBox", "0 0 16 16");
@@ -313,6 +316,7 @@ export const createScreenshotPreviewController = ({
   let previewDrag: PreviewDrag | null = null;
   let previewTimer = 0;
   let toastTimer = 0;
+  let dismissAnimation: Animation | null = null;
   let disposed = false;
 
   const clearPreviewTimer = () => {
@@ -351,8 +355,60 @@ export const createScreenshotPreviewController = ({
   const dismiss = () => {
     clearPreviewTimer();
     closeViewer();
+
+    if (dismissAnimation) {
+      dismissAnimation.cancel();
+      dismissAnimation = null;
+    }
+
     preview.style.display = "none";
+    preview.style.opacity = "1";
+    preview.style.transform = "none";
+    preview.style.removeProperty("will-change");
+    preview.style.pointerEvents = "auto";
     revokeCurrent();
+  };
+
+  const dismissWithAnimation = () => {
+    if (!currentBlob || preview.style.display === "none" || dismissAnimation) return;
+
+    clearPreviewTimer();
+    closeViewer();
+
+    const rect = preview.getBoundingClientRect();
+
+    const translateX = Math.max(
+      PREVIEW_WIDTH + VIEWPORT_PADDING,
+      ownerWindow.innerWidth - rect.left + VIEWPORT_PADDING,
+    );
+
+    preview.style.pointerEvents = "none";
+    preview.style.willChange = "transform, opacity";
+
+    const animation = preview.animate([
+      {
+        transform: "translateX(0) scale(1)",
+        opacity: 1,
+      },
+      {
+        transform: `translateX(${translateX}px) scale(0.92)`,
+        opacity: 0,
+      },
+    ], {
+      duration: PREVIEW_DISMISS_MOTION_MS,
+      easing: "ease",
+      fill: "forwards",
+    });
+
+    dismissAnimation = animation;
+
+    void animation.finished.catch(() => undefined).then(() => {
+      if (dismissAnimation !== animation) return;
+
+      animation.cancel();
+      dismissAnimation = null;
+      dismiss();
+    });
   };
 
   const defaultPosition = (): PreviewPosition => {
@@ -526,7 +582,7 @@ export const createScreenshotPreviewController = ({
   dismissButton.addEventListener("mousedown", (event) => event.stopPropagation());
   dismissButton.addEventListener("click", (event) => {
     event.stopPropagation();
-    dismiss();
+    dismissWithAnimation();
   });
   preview.addEventListener("mousedown", onPreviewMouseDown);
   preview.addEventListener("pointerdown", onPreviewPointerDown);
@@ -548,6 +604,16 @@ export const createScreenshotPreviewController = ({
       if (disposed) return;
       clearPreviewTimer();
       closeViewer();
+
+      if (dismissAnimation) {
+        dismissAnimation.cancel();
+        dismissAnimation = null;
+      }
+
+      preview.style.opacity = "1";
+      preview.style.transform = "none";
+      preview.style.removeProperty("will-change");
+      preview.style.pointerEvents = "auto";
       revokeCurrent();
       currentBlob = blob;
       const url = globalThis.URL.createObjectURL(blob);

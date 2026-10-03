@@ -386,17 +386,34 @@ export function SettingsPanel(props: { model: MesurerModel; ownerWindow: Window;
                     return (
                       <div data-mesurer-plugin-settings-section={plugin.id} class="msr:relative">
                         <div class="msr:grid msr:h-7 msr:w-full msr:grid-cols-[minmax(0,1fr)_28px_34px] msr:items-center msr:hover:bg-ink-50">
-                          <span data-mesurer-plugin-label={plugin.id} class="msr:col-start-1 msr:ml-2 msr:min-w-0 msr:truncate msr:whitespace-nowrap msr:pr-2 msr:text-[11px] msr:text-ink-600">{plugin.label}</span>
-                          <Show when={canExpand()}>
+                          <Show
+                            when={canExpand()}
+                            fallback={(
+                              <span
+                                data-mesurer-plugin-label={plugin.id}
+                                class="msr:col-start-1 msr:col-end-3 msr:ml-2 msr:min-w-0 msr:truncate msr:whitespace-nowrap msr:pr-2 msr:text-[11px] msr:text-ink-600"
+                              >
+                                {plugin.label}
+                              </span>
+                            )}
+                          >
                             <button
                               type="button"
                               aria-label={`${plugin.label} settings`}
                               data-mesurer-plugin-settings-disclosure={plugin.id}
                               aria-expanded={expanded() ? "true" : "false"}
-                              class="msr:col-start-2 msr:flex msr:size-7 msr:items-center msr:justify-center msr:text-ink-500 msr:hover:text-ink-700 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#0d99ff]"
+                              class="msr:col-start-1 msr:col-end-3 msr:flex msr:h-full msr:min-w-0 msr:items-center msr:text-left msr:text-ink-600 msr:hover:text-ink-700 msr:focus-visible:outline-none msr:focus-visible:shadow-[inset_0_0_0_1px_#0d99ff]"
                               onClick={toggleExpanded}
                             >
-                              <CaretDownIcon size={9} class={expanded() ? "msr:rotate-180" : ""} />
+                              <span
+                                data-mesurer-plugin-label={plugin.id}
+                                class="msr:ml-2 msr:min-w-0 msr:flex-1 msr:truncate msr:whitespace-nowrap msr:pr-2 msr:text-[11px]"
+                              >
+                                {plugin.label}
+                              </span>
+                              <span class="msr:flex msr:size-7 msr:shrink-0 msr:items-center msr:justify-center msr:text-ink-500">
+                                <CaretDownIcon size={9} class={expanded() ? "msr:rotate-180" : ""} />
+                              </span>
                             </button>
                           </Show>
                           <button

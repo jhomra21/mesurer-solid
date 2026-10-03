@@ -208,6 +208,9 @@ try {
       maskPointerEvents: style.pointerEvents,
       maskBackground: style.backgroundColor,
       maskShadow: style.boxShadow,
+      maskOutlineStyle: style.outlineStyle,
+      maskOutlineWidth: style.outlineWidth,
+      maskOutlineColor: style.outlineColor,
       maskRect: {
         left: maskRect.left,
         top: maskRect.top,
@@ -229,6 +232,9 @@ try {
     || startingTransition.maskPointerEvents !== "none"
     || !startingTransition.maskShadow.includes("0.4")
     || startingTransition.maskBackground !== "rgba(0, 0, 0, 0)"
+    || startingTransition.maskOutlineStyle !== "solid"
+    || Number.parseFloat(startingTransition.maskOutlineWidth) < 2
+    || startingTransition.maskOutlineColor === "rgba(0, 0, 0, 0)"
     || Math.abs(startingTransition.maskRect.left - selectionSnapshot.rect.left) > 0.5
     || Math.abs(startingTransition.maskRect.top - selectionSnapshot.rect.top) > 0.5
     || Math.abs(startingTransition.maskRect.width - selectionSnapshot.rect.width) > 0.5

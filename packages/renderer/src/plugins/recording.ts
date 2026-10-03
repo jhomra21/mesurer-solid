@@ -369,6 +369,8 @@ export const recordingPlugin = (
       position: "fixed",
       display: "none",
       background: "transparent",
+      outline: "2px solid var(--msr-accent, #0d99ff)",
+      "outline-offset": "-1px",
       "box-shadow": "0 0 0 100vmax rgb(0 0 0 / 40%)",
       "pointer-events": "none",
     });

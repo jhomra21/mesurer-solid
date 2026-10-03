@@ -183,7 +183,55 @@ try {
   if (!(await preview.isVisible())) throw new Error("Escape from the viewer should keep the thumbnail available");
 
   const dismissPreviewButton = island.locator("[data-mesurer-screenshot-preview-dismiss='true']");
-  await dismissPreviewButton.click();
+  const dismissPreviewBox = await dismissPreviewButton.boundingBox();
+
+  if (!dismissPreviewBox) throw new Error("Screenshot preview dismiss button has no rendered geometry");
+
+  await page.mouse.click(
+    dismissPreviewBox.x + dismissPreviewBox.width / 2,
+    dismissPreviewBox.y + dismissPreviewBox.height / 2,
+  );
+  await page.waitForTimeout(60);
+
+  const dismissMotion = await preview.evaluate((element) => {
+    const animation = element.getAnimations()[0];
+
+    const frames = animation?.effect instanceof KeyframeEffect
+      ? animation.effect.getKeyframes()
+      : [];
+
+    const rect = element.getBoundingClientRect();
+
+    return {
+      display: getComputedStyle(element).display,
+      opacity: Number(getComputedStyle(element).opacity),
+      left: rect.left,
+      willChange: getComputedStyle(element).willChange,
+      frames: frames.map((frame) => ({
+        left: frame.left,
+        top: frame.top,
+        transform: frame.transform,
+        opacity: frame.opacity,
+      })),
+    };
+  });
+
+  if (
+    dismissMotion.display === "none"
+    || dismissMotion.opacity >= 1
+    || dismissMotion.left <= previewAfterDrag.x
+    || !dismissMotion.willChange.includes("transform")
+    || dismissMotion.frames.length < 2
+    || dismissMotion.frames.some((frame) => frame.left !== undefined || frame.top !== undefined)
+    || dismissMotion.frames.some((frame) => !frame.transform)
+  ) {
+    throw new Error(`Screenshot preview X must hit-test and animate to the right edge with compositor-only motion: ${JSON.stringify({
+      previewAfterDrag,
+      dismissPreviewBox,
+      dismissMotion,
+    })}`);
+  }
+
   await preview.waitFor({ state: "hidden" });
 
   const restoredToolbar = await island.locator("[data-mesurer-toolbar='true']").evaluate((element) => getComputedStyle(element).visibility);
