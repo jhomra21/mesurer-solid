@@ -37,6 +37,7 @@ import {
   createRecordingSelectionController,
   type RecordingSelectionController,
 } from "./recording-selection";
+import { createRecordingInteractionController } from "./recording-interaction";
 
 export const MESURER_RECORDING_PLUGIN_ID = "mesurer.recording";
 
@@ -258,73 +259,7 @@ export const recordingPlugin = (
     const rendererRoot = runtime.rendererRoot
       ?? runtime.portalTarget.querySelector<HTMLDivElement>("[data-mesurer-root='true']");
 
-    let recordingInteractionStyle: {
-      element: HTMLElement;
-      pointerEvents: string;
-      pointerEventsPriority: string;
-      cursor: string;
-      cursorPriority: string;
-    } | null = null;
-
-    const restoreRecordingInteractionStyle = () => {
-      const previous = recordingInteractionStyle;
-
-      if (!previous) return;
-      recordingInteractionStyle = null;
-
-      if (previous.pointerEvents || previous.pointerEventsPriority) {
-        previous.element.style.setProperty(
-          "pointer-events",
-          previous.pointerEvents,
-          previous.pointerEventsPriority,
-        );
-      } else {
-        previous.element.style.removeProperty("pointer-events");
-      }
-
-      if (previous.cursor || previous.cursorPriority) {
-        previous.element.style.setProperty(
-          "cursor",
-          previous.cursor,
-          previous.cursorPriority,
-        );
-      } else {
-        previous.element.style.removeProperty("cursor");
-      }
-    };
-
-    const setRecordingInteractionActive = (active: boolean) => {
-      rendererRoot?.toggleAttribute("data-mesurer-recording-active", active);
-
-      if (!active) {
-        restoreRecordingInteractionStyle();
-
-        return;
-      }
-
-      const interactionOverlay = rendererRoot?.querySelector<HTMLElement>(
-        "[data-mesurer-interaction-overlay='true']",
-      );
-
-      if (!interactionOverlay) return;
-
-      if (
-        !recordingInteractionStyle
-        || recordingInteractionStyle.element !== interactionOverlay
-      ) {
-        restoreRecordingInteractionStyle();
-        recordingInteractionStyle = {
-          element: interactionOverlay,
-          pointerEvents: interactionOverlay.style.getPropertyValue("pointer-events"),
-          pointerEventsPriority: interactionOverlay.style.getPropertyPriority("pointer-events"),
-          cursor: interactionOverlay.style.getPropertyValue("cursor"),
-          cursorPriority: interactionOverlay.style.getPropertyPriority("cursor"),
-        };
-      }
-
-      interactionOverlay.style.setProperty("pointer-events", "none", "important");
-      interactionOverlay.style.setProperty("cursor", "default", "important");
-    };
+    const recordingInteraction = createRecordingInteractionController(rendererRoot);
 
     root.dataset.mesurerRecording = "true";
     statusRoot.dataset.mesurerRecordingStatusRoot = "true";
@@ -728,7 +663,7 @@ export const recordingPlugin = (
       asset = null;
       selectionController.showRecordingMask(rect);
       root.style.pointerEvents = "none";
-      setRecordingInteractionActive(true);
+      recordingInteraction.setActive(true);
       restoreToolbar();
       updateSnapshot({
         status: "selecting",
@@ -783,7 +718,7 @@ export const recordingPlugin = (
 
         updateSnapshot({ status: "recording", elapsed: 0 });
         root.style.pointerEvents = "none";
-        setRecordingInteractionActive(true);
+        recordingInteraction.setActive(true);
         selectionController.showRecordingMask(rect);
         selectionController.setRecordingTime("00:00");
         selectionController.placeRecordingStatus(rect);
