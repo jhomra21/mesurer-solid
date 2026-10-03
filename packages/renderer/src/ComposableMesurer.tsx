@@ -36,7 +36,6 @@ import {
   isPluginRegistration,
   matchesShortcut,
   pluginLabelFromId,
-  type MesurerPluginInput,
   type MesurerPluginRegistration,
   type MesurerProps,
   type MesurerSolidRuntimeService,
