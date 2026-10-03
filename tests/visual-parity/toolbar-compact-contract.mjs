@@ -134,6 +134,10 @@ try {
   const selectButton = page.locator("[data-mesurer-builtin='select'] button");
   const xrayButton = page.locator("[data-mesurer-builtin='xray'] button");
   const rulersButton = page.locator("[data-mesurer-builtin='rulers'] button");
+  const guidesButton = page.locator("[data-mesurer-builtin='guides'] button");
+  const screenshotButton = page.locator("button[data-mesurer-tool-id='screenshot']");
+  const recordingButton = page.locator("button[data-mesurer-tool-id='recording']");
+  const layoutGuidesButton = page.locator("button[data-mesurer-tool-id='layout-guides']");
   const typographyButton = page.locator("button[data-mesurer-builtin='text-inspector']");
   const contextButton = page.locator("button[data-mesurer-tool-id='context.copy']");
   const codexButton = page.locator("button[data-mesurer-tool-id='codex.send']");
@@ -264,6 +268,11 @@ try {
   assert(initialCompactBox.width < expandedBox.width, `Compact toolbar should shrink: ${expandedBox.width}px -> ${initialCompactBox.width}px`);
   assert.equal(await compactItemVisible(contextButton), true, "Context must remain visible while compact");
   assert.equal(await compactItemVisible(codexButton), true, "Codex must remain visible while compact");
+  assert.equal(await compactItemVisible(rulersButton), true, "Rulers must remain visible in compact Select");
+  assert.equal(await compactItemVisible(guidesButton), true, "Guides must remain visible in compact Select");
+  assert.equal(await compactItemVisible(screenshotButton), true, "Screenshot must remain visible in compact Select");
+  assert.equal(await compactItemVisible(recordingButton), true, "Recording must remain visible in compact Select");
+  assert.equal(await compactItemVisible(layoutGuidesButton), true, "Layout Guides must remain visible in compact Select");
 
   await page.getByRole("button", { name: "Expand toolbar", exact: true }).click();
   await waitForSettledMotion();

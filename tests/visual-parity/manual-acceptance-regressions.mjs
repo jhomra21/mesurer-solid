@@ -185,17 +185,15 @@ try {
     );
   }
 
-  const codexNotice = dialog.locator("[data-mesurer-plugin-description='mesurer.codex']");
-  await codexNotice.waitFor({ state: "visible" });
-  assert.match(
-    (await codexNotice.textContent()) ?? "",
-    /open Codex threads/i,
-    "Codex Settings should explain the local thread connection",
+  assert.equal(
+    await dialog.locator("[data-mesurer-plugin-description='mesurer.codex']").count(),
+    0,
+    "Codex Settings must not add unsolicited description copy",
   );
-  assert.match(
-    (await codexNotice.textContent()) ?? "",
-    /native Codex connection through preload/i,
-    "Codex Settings should explain the Electron native-host requirement",
+  assert.equal(
+    await dialog.locator("[data-mesurer-plugin-description='mesurer.recording']").count(),
+    0,
+    "Recording Settings must not add unsolicited description copy",
   );
 
   const codexToggle = dialog.getByRole("switch", { name: "Codex", exact: true });

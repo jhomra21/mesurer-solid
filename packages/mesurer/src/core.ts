@@ -40,6 +40,7 @@ export type ToolContribution = {
   builtin?: string;
   toolbarMode?: ToolbarMode;
   modeSwitch?: boolean;
+  compactPinned?: boolean;
   icon?: { viewBox?: string; paths: string[] };
   active?: () => boolean;
   disabled?: () => boolean;
@@ -146,6 +147,7 @@ export type MesurerPluginDescription = {
     builtin?: string;
     toolbarMode?: ToolbarMode;
     modeSwitch?: boolean;
+    compactPinned?: boolean;
   }>;
   settings: SettingsDescription[];
   overlays: OverlayContribution[];

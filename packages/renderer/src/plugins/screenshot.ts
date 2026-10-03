@@ -714,6 +714,7 @@ export const screenshotPlugin = (
       order: 70,
       command: SCREENSHOT_COMMAND,
       toolbarMode: "select",
+      compactPinned: true,
       icon: cameraIcon,
       active,
       hidden: () => !settings().toolEnabled,
