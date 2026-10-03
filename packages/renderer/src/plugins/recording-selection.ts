@@ -937,10 +937,9 @@ export const createRecordingSelectionController = ({
     }
 
     if (isSelecting() && recordingStatus.style.display !== "none") {
-      void cancel().catch(() => undefined);
+      void onCancel().catch(() => undefined);
     }
   });
-
 
   const startSelection = () => {
     resetSelectionState();
