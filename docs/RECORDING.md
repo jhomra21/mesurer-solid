@@ -29,8 +29,8 @@ The typed `recording:v1` service exposes:
 
 - `snapshot()` — current status, elapsed time, selection, dimensions, duration, and error;
 - `subscribe(listener)` — observe lifecycle changes;
-- `settings()` — current Recording settings, including the selected frame rate;
-- `setSettings(patch)` — update persisted Recording settings;
+- `settings()`: current Recording settings, including the selected frame rate;
+- `setSettings(patch)`: update persisted Recording settings;
 - `formats()` — formats the current runtime can encode;
 - `start(rect?)` — start from an exact viewport rect or enter drag selection when omitted;
 - `stop()` — finalize the active capture and return the recorded asset;
