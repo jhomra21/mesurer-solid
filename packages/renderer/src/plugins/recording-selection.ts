@@ -72,7 +72,7 @@ export const createRecordingSelectionController = ({
     "touch-action": "none",
   });
   root.append(overlay);
-  
+
   const shade = Array.from({ length: 4 }, () => {
     const element = ownerDocument.createElement("div");
     element.dataset.mesurerRecordingShade = "true";
@@ -82,10 +82,10 @@ export const createRecordingSelectionController = ({
       "pointer-events": "none",
     });
     overlay.append(element);
-  
+
     return element;
   });
-  
+
   const recordingMask = ownerDocument.createElement("div");
   recordingMask.dataset.mesurerRecordingMask = "true";
   setStyle(recordingMask, {
@@ -98,7 +98,7 @@ export const createRecordingSelectionController = ({
     "pointer-events": "none",
   });
   overlay.append(recordingMask);
-  
+
   const outline = ownerDocument.createElement("div");
   outline.dataset.mesurerRecordingSelection = "true";
   setStyle(outline, {
@@ -109,7 +109,7 @@ export const createRecordingSelectionController = ({
     "pointer-events": "none",
   });
   overlay.append(outline);
-  
+
   const sizeTag = ownerDocument.createElement("div");
   setStyle(sizeTag, {
     position: "fixed",
@@ -124,7 +124,7 @@ export const createRecordingSelectionController = ({
     "pointer-events": "none",
   });
   overlay.append(sizeTag);
-  
+
   const hint = ownerDocument.createElement("div");
   hint.textContent = "Drag a region to record · Esc to cancel";
   setStyle(hint, {
@@ -140,7 +140,7 @@ export const createRecordingSelectionController = ({
     "pointer-events": "none",
   });
   overlay.append(hint);
-  
+
   const selectionPanel = ownerDocument.createElement("div");
   selectionPanel.dataset.mesurerRecordingRegion = "true";
   selectionPanel.dataset.mesurerInspectorUi = "true";
@@ -163,7 +163,7 @@ export const createRecordingSelectionController = ({
     transform: "translateX(-50%)",
   });
   overlay.append(selectionPanel);
-  
+
   const makeFieldRow = (label: string) => {
     const row = ownerDocument.createElement("label");
     setStyle(row, {
@@ -185,10 +185,10 @@ export const createRecordingSelectionController = ({
     });
     row.append(fields);
     selectionPanel.append(row);
-  
+
     return fields;
   };
-  
+
   const makeNumberInput = (label: string) => {
     const input = ownerDocument.createElement("input");
     input.type = "number";
@@ -208,10 +208,10 @@ export const createRecordingSelectionController = ({
       "font-size": "10px",
       "font-variant-numeric": "tabular-nums",
     });
-  
+
     return input;
   };
-  
+
   const sizeFields = makeFieldRow("Size");
   const widthInput = makeNumberInput("Width");
   const heightInput = makeNumberInput("Height");
@@ -224,7 +224,7 @@ export const createRecordingSelectionController = ({
   sizeUnit.textContent = "px";
   sizeUnit.style.color = "var(--msr-color-ink-500, #64748b)";
   sizeFields.append(sizeUnit);
-  
+
   const positionFields = makeFieldRow("Position");
   positionFields.style.marginTop = "8px";
   const leftInput = makeNumberInput("Left");
@@ -234,7 +234,7 @@ export const createRecordingSelectionController = ({
   positionUnit.textContent = "px";
   positionUnit.style.color = "var(--msr-color-ink-500, #64748b)";
   positionFields.append(positionUnit);
-  
+
   const startRecordingButton = ownerDocument.createElement("button");
   startRecordingButton.type = "button";
   startRecordingButton.dataset.mesurerRecordingStart = "true";
@@ -253,7 +253,7 @@ export const createRecordingSelectionController = ({
     cursor: "pointer",
   });
   selectionPanel.append(startRecordingButton);
-  
+
   const selectionGrid = ownerDocument.createElement("div");
   selectionGrid.dataset.mesurerRecordingGrid = "true";
   setStyle(selectionGrid, {
@@ -263,7 +263,7 @@ export const createRecordingSelectionController = ({
     "pointer-events": "none",
   });
   outline.append(selectionGrid);
-  
+
   const addGridLine = (styles: Record<string, string>) => {
     const line = ownerDocument.createElement("div");
     setStyle(line, {
@@ -273,12 +273,12 @@ export const createRecordingSelectionController = ({
     });
     selectionGrid.append(line);
   };
-  
+
   addGridLine({ left: "33.333%", top: "0", bottom: "0", borderLeft: "1px dashed var(--msr-color-ink-500, #64748b)" });
   addGridLine({ left: "66.666%", top: "0", bottom: "0", borderLeft: "1px dashed var(--msr-color-ink-500, #64748b)" });
   addGridLine({ top: "33.333%", left: "0", right: "0", borderTop: "1px dashed var(--msr-color-ink-500, #64748b)" });
   addGridLine({ top: "66.666%", left: "0", right: "0", borderTop: "1px dashed var(--msr-color-ink-500, #64748b)" });
-  
+
   const resizeHandlePositions = {
     nw: { left: "0", top: "0" },
     n: { left: "50%", top: "0" },
@@ -289,7 +289,7 @@ export const createRecordingSelectionController = ({
     sw: { left: "0", top: "100%" },
     w: { left: "0", top: "50%" },
   } as const;
-  
+
   const resizeHandles = Object.entries(resizeHandlePositions).map(([handle, position]) => {
     const button = ownerDocument.createElement("button");
     button.type = "button";
@@ -318,10 +318,10 @@ export const createRecordingSelectionController = ({
       "pointer-events": "auto",
     });
     outline.append(button);
-  
+
     return button;
   });
-  
+
   const recordingStatus = ownerDocument.createElement("section");
   recordingStatus.dataset.mesurerRecordingStatus = "true";
   recordingStatus.dataset.mesurerInspectorUi = "true";
@@ -342,7 +342,7 @@ export const createRecordingSelectionController = ({
     "font-size": "11px",
     "pointer-events": "auto",
   });
-  
+
   const recordingDot = ownerDocument.createElement("span");
   recordingDot.setAttribute("aria-hidden", "true");
   setStyle(recordingDot, {
@@ -353,7 +353,7 @@ export const createRecordingSelectionController = ({
     "flex-shrink": "0",
   });
   recordingStatus.append(recordingDot);
-  
+
   const recordingTime = ownerDocument.createElement("span");
   recordingTime.dataset.mesurerRecordingTime = "true";
   recordingTime.textContent = "00:00";
@@ -364,7 +364,7 @@ export const createRecordingSelectionController = ({
     "font-variant-numeric": "tabular-nums",
   });
   recordingStatus.append(recordingTime);
-  
+
   const recordingStop = ownerDocument.createElement("button");
   recordingStop.type = "button";
   recordingStop.dataset.mesurerRecordingStop = "true";
@@ -384,7 +384,7 @@ export const createRecordingSelectionController = ({
   });
   recordingStatus.append(recordingStop);
   statusRoot.append(recordingStatus);
-  
+
   const errorToast = ownerDocument.createElement("div");
   errorToast.dataset.mesurerRecordingError = "true";
   errorToast.dataset.mesurerInspectorUi = "true";
@@ -402,12 +402,13 @@ export const createRecordingSelectionController = ({
     "font-size": "11px",
     "pointer-events": "none",
   });
-  
+
   statusRoot.append(errorToast);
 
   let selectingOrigin: { x: number; y: number } | null = null;
   let selectionRect: ScreenshotRect | null = null;
   let selectionAdjusting = false;
+
   let selectionDrag: {
     kind: "move" | "resize";
     handle?: string;
@@ -416,6 +417,7 @@ export const createRecordingSelectionController = ({
     startY: number;
     rect: ScreenshotRect;
   } | null = null;
+
   let errorTimer = 0;
 
   const resetSelectionState = () => {
@@ -431,18 +433,18 @@ export const createRecordingSelectionController = ({
   ) => {
     for (const property of ["left", "top", "width", "height"] as const) {
       const value = rect[property];
-  
+
       if (value === undefined) element.style.removeProperty(property);
       else element.style.setProperty(property, `${value}px`);
     }
   };
-  
+
   const clampSelectionRect = (rect: ScreenshotRect): ScreenshotRect => {
     const viewportWidth = ownerWindow.innerWidth;
     const viewportHeight = ownerWindow.innerHeight;
     const width = Math.min(viewportWidth, Math.max(MIN_SCREENSHOT_SELECTION, Math.round(rect.width)));
     const height = Math.min(viewportHeight, Math.max(MIN_SCREENSHOT_SELECTION, Math.round(rect.height)));
-  
+
     return {
       left: Math.min(Math.max(0, Math.round(rect.left)), Math.max(0, viewportWidth - width)),
       top: Math.min(Math.max(0, Math.round(rect.top)), Math.max(0, viewportHeight - height)),
@@ -450,7 +452,7 @@ export const createRecordingSelectionController = ({
       height,
     };
   };
-  
+
   const pointInsideRect = (
     rect: ScreenshotRect,
     point: { x: number; y: number },
@@ -459,31 +461,31 @@ export const createRecordingSelectionController = ({
     && point.x <= rect.left + rect.width
     && point.y >= rect.top
     && point.y <= rect.top + rect.height;
-  
+
   const renderSelection = (rect: ScreenshotRect | null) => {
     const viewportWidth = ownerWindow.innerWidth;
     const viewportHeight = ownerWindow.innerHeight;
-  
+
     if (!rect || rect.width <= 0 || rect.height <= 0) {
       setRectStyle(shade[0], { left: 0, top: 0, width: viewportWidth, height: viewportHeight });
-  
+
       for (const element of shade.slice(1)) {
         setRectStyle(element, { left: 0, top: 0, width: 0, height: 0 });
       }
-  
+
       outline.style.display = "none";
       outline.style.pointerEvents = "none";
       selectionGrid.style.display = "none";
-  
+
       for (const handle of resizeHandles) handle.style.display = "none";
-  
+
       sizeTag.style.display = "none";
       selectionPanel.style.display = "none";
       hint.textContent = "Drag to select a region · Esc to cancel";
-  
+
       return;
     }
-  
+
     setRectStyle(shade[0], { left: 0, top: 0, width: viewportWidth, height: rect.top });
     setRectStyle(shade[1], { left: 0, top: rect.top, width: rect.left, height: rect.height });
     setRectStyle(shade[2], {
@@ -500,14 +502,14 @@ export const createRecordingSelectionController = ({
     });
     outline.style.display = "block";
     setRectStyle(outline, rect);
-  
+
     if (selectionAdjusting) {
       outline.style.pointerEvents = "auto";
       outline.style.cursor = "move";
       selectionGrid.style.display = "block";
-  
+
       for (const handle of resizeHandles) handle.style.display = "block";
-  
+
       sizeTag.style.display = "none";
       widthInput.value = String(Math.round(rect.width));
       heightInput.value = String(Math.round(rect.height));
@@ -517,20 +519,20 @@ export const createRecordingSelectionController = ({
       heightInput.max = String(viewportHeight);
       leftInput.max = String(Math.max(0, viewportWidth - rect.width));
       topInput.max = String(Math.max(0, viewportHeight - rect.height));
-  
+
       const panelHalfWidth = 110;
-  
+
       const panelLeft = Math.min(
         Math.max(panelHalfWidth + 8, rect.left + rect.width / 2),
         Math.max(panelHalfWidth + 8, viewportWidth - panelHalfWidth - 8),
       );
-  
+
       const preferredTop = rect.top + rect.height + 12;
-  
+
       const panelTop = preferredTop + 112 <= viewportHeight
         ? preferredTop
         : Math.max(8, rect.top - 112);
-  
+
       selectionPanel.style.left = `${panelLeft}px`;
       selectionPanel.style.top = `${panelTop}px`;
       selectionPanel.style.display = "block";
@@ -539,9 +541,9 @@ export const createRecordingSelectionController = ({
       outline.style.pointerEvents = "none";
       outline.style.cursor = "";
       selectionGrid.style.display = "none";
-  
+
       for (const handle of resizeHandles) handle.style.display = "none";
-  
+
       selectionPanel.style.display = "none";
       sizeTag.style.display = "block";
       sizeTag.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
@@ -552,21 +554,22 @@ export const createRecordingSelectionController = ({
       hint.textContent = "Drag to select a region · Esc to cancel";
     }
   };
-  
+
   const updateSelectionRect = (next: ScreenshotRect) => {
     const clamped = clampSelectionRect(next);
-  
+
     selectionRect = clamped;
     onRectChange(clamped);
     renderSelection(clamped);
   };
-  
+
   const showRecordingMask = (rect: ScreenshotRect) => {
     resetSelectionState();
+
     for (const element of shade) {
       setRectStyle(element, { left: 0, top: 0, width: 0, height: 0 });
     }
-  
+
     setRectStyle(recordingMask, rect);
     recordingMask.style.display = "block";
     outline.style.display = "none";
@@ -574,14 +577,14 @@ export const createRecordingSelectionController = ({
     selectionPanel.style.display = "none";
     selectionGrid.style.display = "none";
     hint.style.display = "none";
-  
+
     for (const handle of resizeHandles) handle.style.display = "none";
-  
+
     overlay.style.display = "block";
     overlay.style.pointerEvents = "none";
     overlay.style.cursor = "default";
   };
-  
+
   const hideRecordingMask = () => {
     setRecordingInteractionActive(false);
     recordingMask.style.display = "none";
@@ -590,7 +593,7 @@ export const createRecordingSelectionController = ({
     overlay.style.cursor = "crosshair";
     hint.style.removeProperty("display");
   };
-  
+
   const finishSelection = () => {
     resetSelectionState();
     renderSelection(null);
@@ -598,63 +601,63 @@ export const createRecordingSelectionController = ({
     overlay.style.cursor = "crosshair";
     root.style.pointerEvents = "none";
   };
-  
+
   const placeRecordingStatus = (rect: ScreenshotRect) => {
     const height = 34;
     const gap = 8;
     const viewportHeight = ownerWindow.innerHeight;
     const viewportWidth = ownerWindow.innerWidth;
-  
+
     recordingStatus.style.visibility = "hidden";
     recordingStatus.style.display = "flex";
-  
+
     const width = Math.max(112, recordingStatus.offsetWidth || 112);
-  
+
     const left = Math.min(
       viewportWidth - width - 8,
       Math.max(8, rect.left + rect.width / 2 - width / 2),
     );
-  
+
     const toolbarRect = rendererRoot
       ?.querySelector<HTMLElement>("[data-mesurer-toolbar='true']")
       ?.getBoundingClientRect();
-  
+
     const candidates = [
       rect.top >= height + gap + 8 ? rect.top - height - gap : null,
       viewportHeight - (rect.top + rect.height) >= height + gap + 8
         ? rect.top + rect.height + gap
         : null,
     ].filter((top): top is number => top !== null);
-  
+
     const overlapsToolbar = (top: number) => {
       if (!toolbarRect) return false;
-  
+
       return left < toolbarRect.right
         && left + width > toolbarRect.left
         && top < toolbarRect.bottom
         && top + height > toolbarRect.top;
     };
-  
+
     const top = candidates.find((candidate) => !overlapsToolbar(candidate))
       ?? candidates[0]
       ?? null;
-  
+
     if (top === null) {
       recordingStatus.style.display = "none";
       recordingStatus.style.removeProperty("visibility");
-  
+
       return;
     }
-  
+
     recordingStatus.style.left = `${left}px`;
     recordingStatus.style.top = `${top}px`;
     recordingStatus.style.removeProperty("visibility");
   };
-  
+
   const hideRecordingStatus = () => {
     recordingStatus.style.display = "none";
   };
-  
+
   const flashError = (cause: unknown) => {
     if (errorTimer) ownerWindow.clearTimeout(errorTimer);
     const message = cause instanceof Error ? cause.message : "Could not record this region.";
@@ -665,7 +668,7 @@ export const createRecordingSelectionController = ({
       errorToast.style.display = "none";
     }, ERROR_DURATION_MS);
   };
-  
+
 
   const beginSelectionDrag = (
     event: PointerEvent,
@@ -673,9 +676,9 @@ export const createRecordingSelectionController = ({
     handle?: string,
   ) => {
     const rect = selectionRect;
-  
+
     if (!selectionAdjusting || !rect || event.button !== 0) return;
-  
+
     event.preventDefault();
     event.stopPropagation();
     selectionDrag = {
@@ -688,10 +691,10 @@ export const createRecordingSelectionController = ({
     };
     overlay.setPointerCapture?.(event.pointerId);
   };
-  
+
   const onPointerDown = (event: PointerEvent) => {
     if (!isSelecting() || event.button !== 0) return;
-  
+
     if (
       selectionAdjusting
       && selectionRect
@@ -699,7 +702,7 @@ export const createRecordingSelectionController = ({
     ) {
       return;
     }
-  
+
     event.preventDefault();
     event.stopPropagation();
     selectionAdjusting = false;
@@ -714,71 +717,71 @@ export const createRecordingSelectionController = ({
     ));
     overlay.setPointerCapture?.(event.pointerId);
   };
-  
+
   const onPointerMove = (event: PointerEvent) => {
     if (!isSelecting()) return;
-  
+
     if (selectionDrag) {
       const drag = selectionDrag;
       const dx = event.clientX - drag.startX;
       const dy = event.clientY - drag.startY;
       const viewportWidth = ownerWindow.innerWidth;
       const viewportHeight = ownerWindow.innerHeight;
-  
+
       if (drag.kind === "move") {
         updateSelectionRect({
           ...drag.rect,
           left: drag.rect.left + dx,
           top: drag.rect.top + dy,
         });
-  
+
         return;
       }
-  
+
       const handle = drag.handle ?? "";
       let left = drag.rect.left;
       let top = drag.rect.top;
       let right = drag.rect.left + drag.rect.width;
       let bottom = drag.rect.top + drag.rect.height;
-  
+
       if (handle.includes("w")) {
         left = Math.min(
           right - MIN_SCREENSHOT_SELECTION,
           Math.max(0, drag.rect.left + dx),
         );
       }
-  
+
       if (handle.includes("e")) {
         right = Math.max(
           left + MIN_SCREENSHOT_SELECTION,
           Math.min(viewportWidth, drag.rect.left + drag.rect.width + dx),
         );
       }
-  
+
       if (handle.includes("n")) {
         top = Math.min(
           bottom - MIN_SCREENSHOT_SELECTION,
           Math.max(0, drag.rect.top + dy),
         );
       }
-  
+
       if (handle.includes("s")) {
         bottom = Math.max(
           top + MIN_SCREENSHOT_SELECTION,
           Math.min(viewportHeight, drag.rect.top + drag.rect.height + dy),
         );
       }
-  
+
       updateSelectionRect({
         left,
         top,
         width: right - left,
         height: bottom - top,
       });
-  
+
       return;
     }
-  
+
     if (!selectingOrigin) return;
     renderSelection(normalizeScreenshotRect(
       selectingOrigin,
@@ -786,57 +789,57 @@ export const createRecordingSelectionController = ({
       { width: ownerWindow.innerWidth, height: ownerWindow.innerHeight },
     ));
   };
-  
+
   const onPointerUp = (event: PointerEvent) => {
     if (selectionDrag) {
       selectionDrag = null;
-  
+
       if (overlay.hasPointerCapture?.(event.pointerId)) overlay.releasePointerCapture(event.pointerId);
-  
+
       if (selectionRect) renderSelection(selectionRect);
-  
+
       return;
     }
-  
+
     const origin = selectingOrigin;
     selectingOrigin = null;
-  
+
     if (!isSelecting() || !origin) return;
-  
+
     if (overlay.hasPointerCapture?.(event.pointerId)) overlay.releasePointerCapture(event.pointerId);
-  
+
     const rect = normalizeScreenshotRect(
       origin,
       { x: event.clientX, y: event.clientY },
       { width: ownerWindow.innerWidth, height: ownerWindow.innerHeight },
     );
-  
+
     if (rect.width < MIN_SCREENSHOT_SELECTION || rect.height < MIN_SCREENSHOT_SELECTION) {
       selectionRect = null;
       selectionAdjusting = false;
       onRectChange(null);
       renderSelection(null);
-  
+
       return;
     }
-  
+
     selectionRect = clampSelectionRect(rect);
     selectionAdjusting = true;
     overlay.style.cursor = "default";
     onRectChange(selectionRect);
     renderSelection(selectionRect);
   };
-  
+
   const onPointerCancel = (event: PointerEvent) => {
     selectingOrigin = null;
     selectionDrag = null;
-  
+
     if (overlay.hasPointerCapture?.(event.pointerId)) overlay.releasePointerCapture(event.pointerId);
-  
+
     if (selectionRect && selectionAdjusting) renderSelection(selectionRect);
     else renderSelection(null);
   };
-  
+
   const onKeyDown = (event: KeyboardEvent) => {
     if (
       event.key === "Enter"
@@ -847,75 +850,75 @@ export const createRecordingSelectionController = ({
       event.preventDefault();
       event.stopImmediatePropagation();
       void onConfirm(selectionRect).catch(() => undefined);
-  
+
       return;
     }
-  
+
     if (event.key !== "Escape") return;
-  
+
     if (isSelecting()) {
       event.preventDefault();
       event.stopImmediatePropagation();
       void onCancel().catch(() => undefined);
-  
+
       return;
     }
-  
+
     if (isRecording()) {
       event.preventDefault();
       event.stopImmediatePropagation();
       void onStop().catch(() => undefined);
     }
   };
-  
+
   overlay.addEventListener("pointerdown", onPointerDown);
   overlay.addEventListener("pointermove", onPointerMove);
   overlay.addEventListener("pointerup", onPointerUp);
   overlay.addEventListener("pointercancel", onPointerCancel);
   ownerWindow.addEventListener("keydown", onKeyDown, true);
-  
+
   outline.addEventListener("pointerdown", (event) => {
     const target = event.target;
-  
+
     if (
       target instanceof Element
       && target.closest("[data-mesurer-recording-resize]")
     ) {
       return;
     }
-  
+
     beginSelectionDrag(event, "move");
   });
-  
+
   for (const handle of resizeHandles) {
     handle.addEventListener("pointerdown", (event) => {
       beginSelectionDrag(event, "resize", handle.dataset.mesurerRecordingResize);
     });
   }
-  
+
   selectionPanel.addEventListener("pointerdown", (event) => {
     event.stopPropagation();
   });
   selectionPanel.addEventListener("click", (event) => {
     event.stopPropagation();
   });
-  
+
   const updateSelectionNumber = (
     input: HTMLInputElement,
     property: "left" | "top" | "width" | "height",
   ) => {
     const rect = selectionRect;
     const value = Number(input.value);
-  
+
     if (!rect || !Number.isFinite(value)) return;
     updateSelectionRect({ ...rect, [property]: value });
   };
-  
+
   widthInput.addEventListener("change", () => updateSelectionNumber(widthInput, "width"));
   heightInput.addEventListener("change", () => updateSelectionNumber(heightInput, "height"));
   leftInput.addEventListener("change", () => updateSelectionNumber(leftInput, "left"));
   topInput.addEventListener("change", () => updateSelectionNumber(topInput, "top"));
-  
+
   startRecordingButton.addEventListener("click", () => {
     if (
       isSelecting()
@@ -925,19 +928,19 @@ export const createRecordingSelectionController = ({
       void onConfirm(selectionRect).catch(() => undefined);
     }
   });
-  
+
   recordingStop.addEventListener("click", () => {
     if (isRecording()) {
       void onStop().catch(() => undefined);
-  
+
       return;
     }
-  
+
     if (isSelecting() && recordingStatus.style.display !== "none") {
       void cancel().catch(() => undefined);
     }
   });
-  
+
 
   const startSelection = () => {
     resetSelectionState();
