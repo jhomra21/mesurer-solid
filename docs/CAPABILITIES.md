@@ -1,6 +1,6 @@
 # Capabilities
 
-This page lists the public Mesurer features and the APIs that expose them. Feature guides contain the detailed interaction rules.
+This page lists the public Mesurer features and the APIs that expose them for `mesurer-solid@0.2.1` stable. Feature guides contain the detailed interaction rules.
 
 ## Built-in tools
 
@@ -22,7 +22,7 @@ The default keyboard shortcuts are listed in the root [README](../README.md).
 | Capability | What it does |
 | --- | --- |
 | Direct text editing | In Edit mode, double-click or double-tap a valid direct text run in an HTML element. Mixed inline copy can target the exact run under the pointer while preserving inline children. Typography in Select remains inspection-only. SVG selection does not enable direct text editing. |
-| Select/Edit modes | Select contains inspection tools. Edit contains movement and direct text/style editing. Context and Codex remain visible in both. The grouped toolbar changes mode in 150 ms and respects reduced-motion preferences. |
+| Select/Edit modes | Select owns selection-first inspection/capture tools such as X-ray, Color Picker, Typography, Screenshot, and Recording. Edit owns movement and direct text/style editing. Rulers, Guides, and Layout Guides remain available in both modes; Context and Codex remain visible in both. The grouped toolbar changes mode in 150 ms and respects reduced-motion preferences. |
 | Compact toolbar | Hide inactive controls without changing mode or active state. Expanding restores the same controls. Toolbar dragging starts after the pointer crosses the drag threshold, and menus, dialogs, form controls, editable regions, and sliders retain pointer ownership. |
 | Multi-selection | Extend Select across multiple targets and inspect group geometry plus pairwise relationships. |
 | Visual hit testing | Select and agent point inspection share the rendered-point resolver. It follows the native front-to-back hit stack, traverses open shadow roots, and can recover visible `pointer-events:none` descendants that native hit testing would otherwise skip. |
@@ -49,8 +49,8 @@ All public plugin factories come from `mesurer-solid/plugins`.
 - Context adds structured Context, exact selection, saved annotations, review, capture planning, Copy Context, Copy Selection, and Add Note.
 - Edit adds reversible movement plus direct text/style editing. The existing Arrange service ids and agent methods remain compatible.
 - Layout Guides adds page-scoped columns, rows, and pixel grids. Mutations run through JSON-safe plugin commands, participate in plugin history, and are available through the typed `layout-guides:v1` service.
-- Screenshot adds region capture with preview, clipboard copy, download, and programmatic capture. It selects an application-native host capability, the Chromium extension adapter, or browser display capture internally.
-- Recording adds selected-region video capture, a typed `recording:v1` lifecycle, trim/scale preview, and MediaBunny-owned WebM/MP4 export. Browser and extension APIs only acquire the live stream.
+- Screenshot adds region capture with preview, clipboard copy, download, and programmatic capture. It selects an application-native host capability, the Chromium extension adapter, or browser display capture internally, and flattens transparent native PNGs against the renderer backdrop before output.
+- Recording adds adjustable selected-region video capture, a typed `recording:v1` lifecycle, 60/120 fps settings, trim/scale preview, and MediaBunny-owned WebM/MP4 export. Browser, extension, and Electron APIs only acquire the live stream.
 - Codex starts enabled when the native host capability exists. Browser-only hosts list it in Settings but leave it off. Activation waits for a native renderer lease and Codex readiness. Disable waits for lease release. Shared delivery uses `thread/queue/add`; inherited Desktop delivery keeps a durable queue receipt without claiming private lifecycle state.
 
 Each feature guide documents the methods and behavior that belong to that plugin. The built-in factories are also exported for lower-level composition. Normal `mountMesurer()` callers get the catalog defaults automatically. Codex joins that enabled set only when `window.__MESURER_HOST__.codexBridge` exists. Settings can turn managed plugins off or back on.
@@ -190,13 +190,17 @@ See [Getting started](./GETTING_STARTED.md) for placement examples and the TypeS
 | `mesurer-solid/inject-script` | Built classic Mesurer artifact for browser evaluation; raw evaluators load `mediabunny-vendor` first. |
 | `mesurer-solid/mediabunny-vendor` | Separate MPL-2.0 MediaBunny classic runtime used by raw injection and the extension. |
 | `mesurer-skill` | Install the portable Mesurer coding-agent skill and its packaged assets. |
-| `mesurer-solid/plugins/codex/bridge` | Native-host Codex Bridge used by the first-party Codex plugin. |
+| `mesurer-solid/electron` | Preferred Electron main-process bootstrap for package-owned Recording capture. |
+| `mesurer-solid/plugins/codex/bridge` | Native-host Codex Bridge and Electron main-process adapter. |
+| `mesurer-solid/plugins/codex/preload` | Bundle-friendly Electron preload adapter for Codex. |
+| `mesurer-solid/plugins/recording/bridge` | Advanced/manual Electron Recording host adapter. |
+| `mesurer-solid/plugins/recording/preload` | Advanced/manual Electron Recording preload adapter. |
 
 The repository also ships a Chromium extension that injects Mesurer into the active tab and provides extension-backed screenshot capture. See the [browser extension](../extension/README.md). Electron applications can provide native window capture from preload/main without changing renderer plugin configuration; see the [Electron renderer example](../examples/electron-renderer/README.md).
 
 ## Browser and application support
 
-Mesurer can run in browser applications built with Solid 1 or 2, React, Vue, Svelte, vanilla DOM, and Electron renderer pages. The public package ships its own Solid 2 renderer. Electron/native hosts can provide `window.__MESURER_HOST__.captureScreenshot` from preload. Screenshot uses it for native region capture, and Color Picker uses it for a one-shot current-window pixel sample. Renderer code still mounts `screenshot()` normally.
+Mesurer can run in browser applications built with Solid 1 or 2, React, Vue, Svelte, vanilla DOM, and Electron renderer pages. The public package ships its own Solid 2 renderer. Electron/native hosts can provide `window.__MESURER_HOST__.captureScreenshot` from preload; Screenshot uses it for native region capture and Color Picker uses it for a one-shot current-window pixel sample. Electron Recording should use `mesurer-solid/electron` from main before BrowserWindows are created; renderer code still mounts `recording()` normally.
 
 Mount or inject Mesurer only where a DOM exists. Do not mount it in server code, an Electron main process, or another Node-only environment.
 
