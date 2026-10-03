@@ -59,11 +59,15 @@ const deterministicTransparentPng = async () => {
 
 const hostCapture = async () => {
   if (hostCaptureFormat === "transparent") {
+    document.documentElement.style.background = "transparent";
+    document.body.style.background = "transparent";
     document.documentElement.style.setProperty("--background", "#121212");
 
     return deterministicTransparentPng();
   }
 
+  document.documentElement.style.removeProperty("background");
+  document.body.style.removeProperty("background");
   document.documentElement.style.removeProperty("--background");
   const blob = await deterministicPng();
 
