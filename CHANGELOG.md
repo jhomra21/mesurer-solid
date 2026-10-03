@@ -4,7 +4,7 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
-- Keep toolbar Settings, Guide, Edit, and plugin menus above the Recording preview instead of allowing the recording card to cover those controls.
+- Keep toolbar Settings, Guide, Edit, and plugin menus above the Recording preview, and match upstream's floating-menu hairline, dark-theme shadow, and corner polish.
 
 <!-- Add user-facing changes here before preparing a release. -->
 
