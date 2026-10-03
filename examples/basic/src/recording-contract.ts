@@ -4,9 +4,12 @@ import {
 } from "../../../packages/mesurer/src/index";
 import {
   MESURER_RECORDING_SERVICE_ID,
+  MESURER_SCREENSHOT_SERVICE_ID,
   recording,
+  screenshot,
   type MesurerRecordingAsset,
   type MesurerRecordingService,
+  type MesurerScreenshotService,
   type RecordingRect,
 } from "../../../packages/mesurer/src/plugins";
 
@@ -142,19 +145,50 @@ interactionTarget.addEventListener("click", () => {
   interactionTarget.dataset.clicks = String(interactionClicks);
 });
 
+const deterministicScreenshotPng = async () => {
+  const canvas = document.createElement("canvas");
+  canvas.width = window.innerWidth * 2;
+  canvas.height = window.innerHeight * 2;
+  const context = canvas.getContext("2d");
+
+  if (!context) throw new Error("Screenshot fixture requires a 2D canvas.");
+  context.fillStyle = "#f5f5f5";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#0d99ff";
+  context.fillRect(160, 160, 720, 420);
+
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Screenshot fixture capture failed."));
+    }, "image/png");
+  });
+};
+
+window.__MESURER_HOST__ = {
+  captureScreenshot: deterministicScreenshotPng,
+};
+
 const subject = mountMesurer({
   target: document.body,
   isolate: true,
-  plugins: [recording({
-    maxDurationSeconds: 5,
-    quality: "medium",
-  })],
+  plugins: [
+    recording({
+      maxDurationSeconds: 5,
+      quality: "medium",
+    }),
+    screenshot({
+      copy: false,
+      download: false,
+    }),
+  ],
   persistKey: "mesurer-recording-contract",
 });
 
 await subject.ready;
 
 const service = await subject.service<MesurerRecordingService>(MESURER_RECORDING_SERVICE_ID);
+const screenshotService = await subject.service<MesurerScreenshotService>(MESURER_SCREENSHOT_SERVICE_ID);
 
 const wait = (milliseconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
@@ -233,6 +267,7 @@ const sampleAsset = async (
 type RecordingHarness = {
   subject: MountedMesurer;
   service: MesurerRecordingService;
+  screenshotService: MesurerScreenshotService;
   setExtensionBridge(enabled: boolean): void;
   setAcquisitionDelay(milliseconds: number): void;
   counters(): {
@@ -264,6 +299,7 @@ declare global {
 window.__MESURER_RECORDING_TEST__ = {
   subject,
   service,
+  screenshotService,
   setExtensionBridge(enabled) {
     extensionBridgeEnabled = enabled;
   },
