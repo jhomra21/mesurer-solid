@@ -88,7 +88,9 @@ Extension recovery also has a browser contract for session-state races. A close 
 
 Recording changes must keep the dedicated real-Chromium contract green. The fixture supplies a deterministic animated video stream and exercises the same human lifecycle as upstream: physical region drag stays in selection for adjustment, explicit confirmation starts capture, and the Recording layer becomes pointer-transparent so real host-page input remains usable while video is running. It records long enough to encode changing frames, decodes two positions from the finalized clip, and verifies that the frames actually differ. It also covers programmatic direct-start capture, WebM trim/resize, MP4 when AVC is available, Escape/cancel, and clean browser diagnostics.
 
-The packed Electron contract must independently prove the same input ownership with native Electron mouse events while the package-owned Recording stream bridge is active. Programmatic DOM `.click()` is not sufficient evidence for this regression.
+The packed Electron contract must independently prove the same input ownership with native Electron mouse events while the package-owned Recording stream bridge is active. It must enable the real Select mode before capture, verify that Select's interaction overlay remains pointer-transparent during recording, and send the native click through the selected region. Programmatic DOM `.click()` is not sufficient evidence for this regression.
+
+Recording frame-rate acceptance must cover the public defaults and settings path. The packed Electron contract starts at 60 fps, switches to 120 fps through `recording:v1`, then records through the same native host path. Capture code requests the selected rate from the source without treating a platform-negotiated lower physical rate as a recording failure.
 
 The same contract exercises both acquisition routes: ordinary browser `getDisplayMedia()` and the extension-style one-use tab stream consumed through `getUserMedia()`. The extension bridge is acquisition only. Recording source and extension code must not add `MediaRecorder` or a second/offscreen recorder; MediaBunny owns all encoded media.
 
