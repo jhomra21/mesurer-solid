@@ -171,10 +171,12 @@ export function Toolbar(props: ToolbarProps) {
     !compact() || builtinActive() || pluginActive() || settingsActive();
 
   const tooltipsEnabled = () => !guideMenuOpen() && !pluginMenuOpenId() && !props.model.state.settingsOpen;
+
   const toolbarMenuOpen = () =>
     guideMenuOpen()
     || pluginMenuOpenId() !== null
     || props.model.state.settingsOpen;
+
   const builtinDisabled = (id: Exclude<MesurerBuiltinPluginId, "distance">) => props.isBuiltinActionDisabled?.(id) ?? false;
   const viewportHeight = () => props.ownerWindow.innerHeight || 0;
   const nearTop = () => position().y < 56;
