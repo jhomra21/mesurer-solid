@@ -164,12 +164,6 @@ try {
     throw new Error(`Dragging a Recording region must not start capture immediately: ${JSON.stringify(selectionSnapshot)}`);
   }
 
-  const shadeBeforeStart = await island.locator("[data-mesurer-recording-shade='true']").first()
-    .evaluate((element) => ({
-      background: getComputedStyle(element).backgroundColor,
-      height: element.getBoundingClientRect().height,
-    }));
-
   await page.evaluate(() => {
     window.__MESURER_RECORDING_TEST__?.setAcquisitionDelay(350);
   });
@@ -186,7 +180,7 @@ try {
 
     const overlay = root?.querySelector("[data-mesurer-recording-select='true']");
     const panel = root?.querySelector("[data-mesurer-recording-region='true']");
-    const shade = root?.querySelector("[data-mesurer-recording-shade='true']");
+    const mask = root?.querySelector("[data-mesurer-recording-mask='true']");
     const status = root?.querySelector("[data-mesurer-recording-status='true']");
     const time = root?.querySelector("[data-mesurer-recording-time='true']");
     const stop = root?.querySelector("[data-mesurer-recording-stop='true']");
@@ -194,7 +188,7 @@ try {
     if (
       !(overlay instanceof HTMLElement)
       || !(panel instanceof HTMLElement)
-      || !(shade instanceof HTMLElement)
+      || !(mask instanceof HTMLElement)
       || !(status instanceof HTMLElement)
       || !(time instanceof HTMLElement)
       || !(stop instanceof HTMLElement)
@@ -202,13 +196,24 @@ try {
       throw new Error("Recording start-transition surfaces are unavailable");
     }
 
+    const maskRect = mask.getBoundingClientRect();
+    const style = getComputedStyle(mask);
+
     return {
       snapshotStatus: window.__MESURER_RECORDING_TEST__?.service.snapshot().status,
       overlayDisplay: getComputedStyle(overlay).display,
       overlayPointerEvents: getComputedStyle(overlay).pointerEvents,
       panelDisplay: getComputedStyle(panel).display,
-      shadeBackground: getComputedStyle(shade).backgroundColor,
-      shadeHeight: shade.getBoundingClientRect().height,
+      maskDisplay: style.display,
+      maskPointerEvents: style.pointerEvents,
+      maskBackground: style.backgroundColor,
+      maskShadow: style.boxShadow,
+      maskRect: {
+        left: maskRect.left,
+        top: maskRect.top,
+        width: maskRect.width,
+        height: maskRect.height,
+      },
       statusDisplay: getComputedStyle(status).display,
       time: time.textContent,
       stopVisible: stop.getBoundingClientRect().width > 0 && stop.getBoundingClientRect().height > 0,
@@ -220,14 +225,20 @@ try {
     || startingTransition.overlayDisplay === "none"
     || startingTransition.overlayPointerEvents !== "none"
     || startingTransition.panelDisplay !== "none"
-    || startingTransition.shadeBackground !== shadeBeforeStart.background
-    || Math.abs(startingTransition.shadeHeight - shadeBeforeStart.height) > 0.5
+    || startingTransition.maskDisplay === "none"
+    || startingTransition.maskPointerEvents !== "none"
+    || !startingTransition.maskShadow.includes("0.4")
+    || startingTransition.maskBackground !== "rgba(0, 0, 0, 0)"
+    || Math.abs(startingTransition.maskRect.left - selectionSnapshot.rect.left) > 0.5
+    || Math.abs(startingTransition.maskRect.top - selectionSnapshot.rect.top) > 0.5
+    || Math.abs(startingTransition.maskRect.width - selectionSnapshot.rect.width) > 0.5
+    || Math.abs(startingTransition.maskRect.height - selectionSnapshot.rect.height) > 0.5
     || startingTransition.statusDisplay !== "flex"
     || startingTransition.time !== "00:00"
     || !startingTransition.stopVisible
   ) {
     throw new Error(
-      `Recording start must preserve the dimmed region while swapping Start for Stop/time: ${JSON.stringify({ shadeBeforeStart, startingTransition })}`,
+      `Recording start must preserve a clear selected region with an outside dimmer while swapping Start for Stop/time: ${JSON.stringify({ selectionSnapshot, startingTransition })}`,
     );
   }
 
@@ -249,6 +260,20 @@ try {
 
   if (recordingRootPointerEvents !== "none") {
     throw new Error(`Recording root must not block host-page interaction, got pointer-events=${recordingRootPointerEvents}`);
+  }
+
+  const activeMask = await island.locator("[data-mesurer-recording-mask='true']").evaluate((element) => ({
+    display: getComputedStyle(element).display,
+    pointerEvents: getComputedStyle(element).pointerEvents,
+    boxShadow: getComputedStyle(element).boxShadow,
+  }));
+
+  if (
+    activeMask.display === "none"
+    || activeMask.pointerEvents !== "none"
+    || !activeMask.boxShadow.includes("0.4")
+  ) {
+    throw new Error(`Recording outside-region dimmer disappeared after capture started: ${JSON.stringify(activeMask)}`);
   }
 
   const interactionTarget = page.locator("[data-testid='record-interaction']");
@@ -404,6 +429,27 @@ try {
     throw new Error("Recording timeline trim handles must expose slider semantics");
   }
 
+  const timelineRail = island.locator("[data-mesurer-recording-timeline-rail='true']");
+  const trimStartChevron = trimStartHandle.locator("[data-mesurer-recording-trim-chevron='start']");
+  const trimEndChevron = trimEndHandle.locator("[data-mesurer-recording-trim-chevron='end']");
+  const [railBox, trimStartInitialBox, trimEndInitialBox] = await Promise.all([
+    timelineRail.boundingBox(),
+    trimStartHandle.boundingBox(),
+    trimEndHandle.boundingBox(),
+  ]);
+
+  if (
+    !railBox
+    || !trimStartInitialBox
+    || !trimEndInitialBox
+    || trimStartInitialBox.y + trimStartInitialBox.height > railBox.y + 0.5
+    || trimEndInitialBox.y + trimEndInitialBox.height > railBox.y + 0.5
+    || (await trimStartChevron.textContent()) !== "›"
+    || (await trimEndChevron.textContent()) !== "‹"
+  ) {
+    throw new Error(`Recording trim controls must sit above the scrub rail with inward chevrons: ${JSON.stringify({ railBox, trimStartInitialBox, trimEndInitialBox })}`);
+  }
+
   await exportOptions.click();
   await exportMenu.waitFor({ state: "visible" });
 
@@ -445,6 +491,26 @@ try {
 
   if (!(trimAfter > trimBefore)) {
     throw new Error(`Recording trim-start handle did not move forward: ${JSON.stringify({ trimBefore, trimAfter })}`);
+  }
+
+  const railBoxAfterTrim = await timelineRail.boundingBox();
+
+  if (!railBoxAfterTrim) throw new Error("Recording timeline rail has no rendered geometry");
+
+  await page.mouse.click(
+    railBoxAfterTrim.x + railBoxAfterTrim.width * 0.55,
+    railBoxAfterTrim.y + railBoxAfterTrim.height / 2,
+  );
+
+  const scrubbedTime = await page.evaluate(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const video = island?.shadowRoot?.querySelector("[data-mesurer-recording-preview='true'] video");
+
+    return video instanceof HTMLVideoElement ? video.currentTime : null;
+  });
+
+  if (scrubbedTime === null || scrubbedTime <= trimAfter) {
+    throw new Error(`Recording scrub rail did not seek independently of the trim handles: ${JSON.stringify({ trimAfter, scrubbedTime })}`);
   }
 
   await expand.click();
@@ -582,6 +648,46 @@ try {
     if (mp4Export.type !== "video/mp4" || mp4Export.bytes <= 0 || !mp4Export.filename.endsWith(".mp4")) {
       throw new Error(`Unexpected MediaBunny MP4 export: ${JSON.stringify(mp4Export)}`);
     }
+  }
+
+  const discardButton = island.locator("[data-mesurer-recording-discard='true']");
+
+  await preview.hover();
+  await discardButton.waitFor({ state: "visible" });
+  await discardButton.click();
+  await page.waitForTimeout(60);
+
+  const dismissMotion = await preview.evaluate((element) => ({
+    display: getComputedStyle(element).display,
+    opacity: Number(getComputedStyle(element).opacity),
+    transform: getComputedStyle(element).transform,
+  }));
+
+  if (
+    dismissMotion.display === "none"
+    || dismissMotion.opacity >= 1
+    || dismissMotion.transform === "none"
+  ) {
+    throw new Error(`Closing a Recording preview must animate it toward the toolbar before removal: ${JSON.stringify(dismissMotion)}`);
+  }
+
+  await page.waitForFunction(() =>
+    window.__MESURER_RECORDING_TEST__?.service.snapshot().status === "idle"
+  );
+  await preview.waitFor({ state: "hidden" });
+
+  const exportAfterDiscard = await page.evaluate(async () => {
+    try {
+      await window.__MESURER_RECORDING_TEST__?.service.export({ format: "webm" });
+
+      return "unexpected-success";
+    } catch (cause) {
+      return cause instanceof Error ? cause.message : String(cause);
+    }
+  });
+
+  if (!exportAfterDiscard.includes("No recording is ready")) {
+    throw new Error(`Closing the Recording preview must discard the captured media: ${exportAfterDiscard}`);
   }
 
   const browserCounters = await page.evaluate(() =>
