@@ -10,6 +10,8 @@ Mesurer Solid ports [Mesurer](https://github.com/ibelick/mesurer) by [Julien Thi
 
 The renderer carries its own isolated Solid 2 runtime. Your application can use Solid 1 or 2, React, Vue, Svelte, vanilla DOM, or an Electron renderer without installing Solid for Mesurer.
 
+**Current stable:** `mesurer-solid@0.2.1` on the `latest` dist-tag.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/jhomra21/mesurer-solid/main/docs/assets/readme/hero-multi-spacing.png" alt="Mesurer Solid measuring spacing between selected elements" width="100%">
 </p>
@@ -48,7 +50,7 @@ if (import.meta.env.DEV) {
 }
 ```
 
-For Vite, that usually means `src/main.tsx`, `src/main.ts`, or the equivalent browser entry. In Electron, use the renderer entry. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native window capture and Color Picker samples the current application window through the same capability. Renderer configuration stays `screenshot()`; Color Picker needs no Electron-specific setup. In SSR applications, mount from a client-only boundary. Do not mount Mesurer from server code, build configuration, or an Electron main process.
+For Vite, that usually means `src/main.tsx`, `src/main.ts`, or the equivalent browser entry. In Electron, mount Mesurer from the renderer entry. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native window capture and Color Picker samples the current application window through the same capability. For Recording, import `mesurer-solid/electron` once from Electron main before creating BrowserWindows; Mesurer owns the narrow Recording preload/IPC path. In SSR applications, mount from a client-only boundary. Do not mount Mesurer from server code, build configuration, or an Electron main process.
 
 The returned handle owns the mount. `dispose()` is idempotent, `ready` resolves to the live plugin host after startup and the initial rendered state settle, and an optional `AbortSignal` can own cleanup. See [Getting started](./docs/GETTING_STARTED.md) for lifecycle, framework placement, and HMR guidance. The [Electron renderer example](./examples/electron-renderer/README.md) documents native current-window capture for Screenshot and Color Picker through preload and `webContents.capturePage()`.
 
@@ -85,14 +87,14 @@ Optional plugin capabilities resolve through `await mesurer.service<T>(serviceId
 - **Typography.** Inspect rendered text and computed type styles in Select mode.
 - **Edit.** Move selected HTML elements and edit direct text, typography, and text color as reversible Desired intent.
 - **Screenshots.** Capture a dragged page region with the optional Screenshot plugin. It selects application-native capture, the Chromium extension adapter, or browser display capture internally.
-- **Recording.** Record a selected page region with the first-party `recording()` plugin. MediaBunny owns encoding, trim, resize, format detection, and WebM/MP4 export; browser and extension APIs only acquire the live video source.
+- **Recording.** Select and adjust a page region, then record the live application while it remains interactive. Recording defaults to 60 fps with an optional 120 fps setting; MediaBunny owns encoding, trim, 1×/2×/3× resize, format detection, and WebM/MP4 export while browser, extension, and Electron APIs only acquire the live source.
 - **Context and annotations.** Expose selection, geometry, styles, measurements, guides, notes, and human intent to code or coding agents. Saved annotations persist across same-tab reloads, conservatively rebind to their original DOM targets, stay attached through scrolling, keep repeated-note markers local, leave Add Note available while a saved note is open, and keep cards/composers above Select hover and selection chrome.
 - **Plugins.** Add tools, commands, overlays, settings, state, hooks, and services at runtime.
 - **Compact toolbar.** Collapse inactive controls while every active tool remains visible. Expanding restores the same toolbar order and state.
 - **Appearance.** Use System, Light, or Dark without changing the inspected page. The same theme applies to the isolated toolbar and document-backed Context and Typography UI.
 - **Color Picker.** Native hosts with `window.__MESURER_HOST__.captureScreenshot` use a current-window picker that captures once when the user chooses a pixel. Other supported browser hosts use the native `EyeDropper`. A successful sample is copied to the clipboard in the configured format.
 
-Mesurer Solid has two toolbar modes. **Select** contains inspection and capture tools such as X-ray, Color Picker, Rulers, Typography, Guides, Layout Guides, Screenshot, and Recording. **Edit** owns element movement and direct text/style editing. Use `1` for Select and `2` for Edit. Context and Codex remain visible in both modes. Mode changes use the audited upstream grouped-toolbar structure and styling with Mesurer Solid's 150 ms motion. Select keeps the upstream inspection icon; Edit intentionally uses Mesurer Solid's movement glyph and owns its options chevron.
+Mesurer Solid has two toolbar modes. **Select** owns selection-first inspection and capture tools such as X-ray, Color Picker, Typography, Screenshot, and Recording. **Edit** owns element movement and direct text/style editing. Rulers, ordinary Guides, and Layout Guides remain available in both modes so alignment evidence does not disappear while editing. Use `1` for Select and `2` for Edit. Context and Codex also remain visible in both modes. Mode changes use the audited upstream grouped-toolbar structure and styling with Mesurer Solid's 150 ms motion. Select keeps the upstream inspection icon; Edit intentionally uses Mesurer Solid's movement glyph and owns its options chevron.
 
 Toolbar dragging starts only after the pointer crosses the drag threshold. A drag from Settings, Guide, or plugin triggers closes the open menu or panel. Pointer activity inside menus, dialogs, form controls, editable regions, and sliders stays with those controls.
 
@@ -184,7 +186,7 @@ const selected = await mesurer.select(["#pricing-card", "#pricing-cta"])
 The portable Mesurer skill teaches compatible agents to preserve existing human state, consume Edit movement, text, and annotation intent before editing source, and verify the real Live result afterward:
 
 ```bash
-npx --yes --package=mesurer-solid mesurer-skill install
+npx --yes --package=mesurer-solid@latest mesurer-skill install
 ```
 
 See [Agent integration](./packages/mesurer/AGENT_INTEGRATION.md) and the packaged [`mesurer-ui` skill](./.agents/skills/mesurer-ui/SKILL.md).
@@ -231,7 +233,7 @@ Contributor setup, validation expectations, and repository ownership are documen
 
 ## Upstream
 
-Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@ca432288b8d803a2c134dba51da971f54931db8f` (verified October 1, 2026); adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
+Mesurer Solid tracks upstream Mesurer source rather than recreating its UI from memory. The current upstream audit is pinned to `ibelick/mesurer@26110edbbd8cd9c22c32a82b1b91073912fbdfc2` (`v0.2.3`, verified October 3, 2026); adopted behavior and deliberate product differences are recorded in [Upstream parity](./docs/UPSTREAM_PARITY.md).
 
 ## License
 
