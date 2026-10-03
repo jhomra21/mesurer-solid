@@ -60,6 +60,8 @@ A host-provided `window.__MESURER_HOST__.captureScreenshot` capability takes pri
 
 `captureScreenshot()` takes no arguments and returns the current renderer window as PNG data. Mesurer accepts a PNG `Blob`, `ArrayBuffer`, `Uint8Array`, or an object with a `png` field containing one of those values. The object may also include metadata such as `width` and `height`. Mesurer hides its control UI, waits for paint, invokes the host capability, and performs region cropping itself.
 
+Native captures can contain transparent pixels even when the application looks opaque on screen. This is common on macOS when the page deliberately leaves its background transparent so BrowserWindow vibrancy shows through. Screenshot resolves an opaque page backdrop from the renderer styles and composites the captured pixels onto it before preview, copy, or save. Opaque captures are unchanged.
+
 Expose this capability only from application-owned host code that can capture the same renderer window Mesurer is inspecting. In Electron, keep the privileged call in preload/main with `contextIsolation` enabled and `nodeIntegration` disabled. Packaged `file://` renderers are supported.
 
 If the selected native host capability rejects or returns unusable PNG data, Screenshot reports that failure. It does not silently open a browser screen-share flow. The Chromium extension follows the same rule through its private adapter backed by `chrome.tabs.captureVisibleTab()`. When no native or extension adapter is available, Screenshot uses `getDisplayMedia()` and reuses a live capture stream when possible. Browser permission and chooser behavior remain under browser and platform control.
