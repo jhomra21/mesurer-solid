@@ -206,6 +206,55 @@ const expectNoDisclosure = async (dialog, id, label) => {
   if ((await disclosure.count()) !== 0) throw new Error(`${label} unexpectedly exposed a settings chevron`);
 };
 
+const expectDisclosureHitArea = async (dialog, id, label) => {
+  const section = dialog.locator(`[data-mesurer-plugin-settings-section='${id}']`);
+  const disclosure = dialog.locator(`[data-mesurer-plugin-settings-disclosure='${id}']`);
+  const toggle = dialog.locator(`[data-mesurer-plugin-toggle='${id}']`);
+  const [sectionBox, disclosureBox, toggleBox] = await Promise.all([
+    section.boundingBox(),
+    disclosure.boundingBox(),
+    toggle.boundingBox(),
+  ]);
+
+  if (!sectionBox || !disclosureBox || !toggleBox) {
+    throw new Error(`${label} disclosure hit area has no rendered geometry`);
+  }
+
+  if (
+    disclosureBox.x > sectionBox.x + 0.5
+    || disclosureBox.width < sectionBox.width - toggleBox.width - 1
+    || disclosureBox.x + disclosureBox.width > toggleBox.x + 0.5
+  ) {
+    throw new Error(`${label} disclosure must cover the whole row left of its toggle: ${JSON.stringify({
+      sectionBox,
+      disclosureBox,
+      toggleBox,
+    })}`);
+  }
+
+  const before = await disclosure.getAttribute("aria-expanded");
+
+  await page.mouse.click(
+    disclosureBox.x + 12,
+    disclosureBox.y + disclosureBox.height / 2,
+  );
+
+  const after = await disclosure.getAttribute("aria-expanded");
+
+  if (before === after) {
+    throw new Error(`${label} did not expand from the label side of the row`);
+  }
+
+  await page.mouse.click(
+    disclosureBox.x + 12,
+    disclosureBox.y + disclosureBox.height / 2,
+  );
+
+  if ((await disclosure.getAttribute("aria-expanded")) !== before) {
+    throw new Error(`${label} did not collapse from the label side of the row`);
+  }
+};
+
 const expandPlugin = async (dialog, id) => {
   const disclosure = dialog.locator(`[data-mesurer-plugin-settings-disclosure='${id}']`);
   await disclosure.waitFor({ state: "visible" });
@@ -276,6 +325,7 @@ try {
   await expectNoDisclosure(dialog, "mesurer.context", "Context");
   await expectNoDisclosure(dialog, "mesurer.arrange", "Disabled Edit");
   await expectNoDisclosure(dialog, "mesurer.layout-guides", "Disabled Layout Guides");
+  await expectDisclosureHitArea(dialog, "mesurer.screenshot", "Screenshot");
 
   if ((await settingSwitch(dialog, "Context tools").count()) !== 0) throw new Error("Context tools redundant nested toggle is still visible");
 
