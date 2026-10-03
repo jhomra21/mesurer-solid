@@ -4,6 +4,10 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Add a visible accent outline around the active Recording region so the capture boundary stays clear on dark pages.
+- Make the Screenshot preview close button easier to hit and animate the thumbnail out through the right edge before dismissing it.
+- Let plugin rows with nested settings expand from the full row area left of the enable toggle, not only from the chevron.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.12 - 2026-10-03
