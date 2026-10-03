@@ -43,16 +43,44 @@ def normalize_historical_toolbar_state(state):
     # states and their resulting page/Settings behavior.
     buttons = state.get("toolbarButtons")
     if isinstance(buttons, list):
-        state["toolbarButtons"] = [
+        buttons = [
             item for item in buttons
             if item.get("label") not in {"Compact toolbar", "Expand toolbar"}
         ]
+
+        # Rulers now live in the shared Select/Edit lane instead of the
+        # Select-only lane, so their DOM order follows Typography in Solid.
+        # Normalize only that intentional ordering delta; the toolbar contract
+        # separately verifies the current shared-mode placement and state.
+        rulers_index = next(
+            (index for index, item in enumerate(buttons) if item.get("label") == "Rulers (R)"),
+            None,
+        )
+        text_index = next(
+            (index for index, item in enumerate(buttons) if item.get("label") == "Text inspector (A)"),
+            None,
+        )
+        if rulers_index is not None and text_index is not None and rulers_index > text_index:
+            rulers = buttons.pop(rulers_index)
+            buttons.insert(text_index, rulers)
+
+        state["toolbarButtons"] = buttons
+
     tooltips = state.get("visibleTooltips")
     if isinstance(tooltips, list):
-        state["visibleTooltips"] = [
+        tooltips = [
             text for text in tooltips
             if text != "Orientation Guide"
         ]
+        if "Rulers R" in tooltips and "Text inspector A" in tooltips:
+            rulers_index = tooltips.index("Rulers R")
+            text_index = tooltips.index("Text inspector A")
+            if rulers_index > text_index:
+                rulers = tooltips.pop(rulers_index)
+                tooltips.insert(text_index, rulers)
+
+        state["visibleTooltips"] = tooltips
+
     return state
 
 
