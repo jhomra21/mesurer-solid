@@ -612,7 +612,7 @@ export const createScreenshotPreviewController = ({
 
       preview.style.opacity = "1";
       preview.style.transform = "none";
-      preview.style.removeProperty("will-change");
+      preview.style.willChange = "transform, opacity";
       preview.style.pointerEvents = "auto";
       revokeCurrent();
       currentBlob = blob;
