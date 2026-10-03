@@ -940,13 +940,13 @@ export function Toolbar(props: ToolbarProps) {
                     <ToolbarButton id="color-picker" builtin="color-picker" active={colorPickerActive()} disabled={builtinDisabled("color-picker")} label="Color picker" shortcut="P" onClick={() => props.onBuiltinAction("color-picker")} {...buttonProps("color-picker")}><ColorPickerIcon size={20} /></ToolbarButton>
                   </CompactItem>
                 </Show>
-                <CompactItem visible={visibleInToolbar(rulersActive())}>
+                <CompactItem visible={visibleInToolbar(rulersActive(), true)}>
                   <ToolbarButton id="rulers" builtin="rulers" active={rulersActive()} label="Rulers" shortcut="R" onClick={() => props.onBuiltinAction("rulers")} {...buttonProps("rulers")}><RulersIcon size={20} /></ToolbarButton>
                 </CompactItem>
                 <CompactItem visible={visibleInToolbar(typographyActive())}>
                   <ToolbarButton id="text-inspector" builtin="text-inspector" active={typographyActive()} disabled={builtinDisabled("text-inspector")} label="Typography" shortcut="A" onClick={() => props.onBuiltinAction("text-inspector")} {...buttonProps("text-inspector")}><TextInspectorIcon size={20} /></ToolbarButton>
                 </CompactItem>
-                <CompactItem visible={visibleInToolbar(guidesActive())}>
+                <CompactItem visible={visibleInToolbar(guidesActive(), true)}>
                   <ToolbarButton id="guides" builtin="guides" active={guidesActive()} disabled={builtinDisabled("guides")} label="Guides" shortcut="G" onClick={() => props.onBuiltinAction("guides")} {...buttonProps("guides")}><RulerIcon size={20} class={props.model.state.guideOrientation === "vertical" ? "msr:rotate-[135deg]" : "msr:rotate-[45deg]"} /></ToolbarButton>
                   <div data-mesurer-builtin="guides-menu" ref={(element) => { guideMenuElement = element; }} class="msr:group msr:relative msr:-ml-1 msr:flex msr:items-stretch" onMouseEnter={() => tooltip.onTooltipEnter("guide-menu")} onMouseLeave={tooltip.onTooltipLeave}>
                     <button
@@ -991,7 +991,7 @@ export function Toolbar(props: ToolbarProps) {
               <Show when={selectPluginTools().length > 0}>
                 <ToolbarDivider marker="select-plugins" />
                 <div role="group" aria-label="Select plugin tools" class="msr:flex msr:items-stretch msr:px-0.5 msr:py-1">
-                  <For each={selectPluginTools()}>{(tool) => renderPluginTool(tool)}</For>
+                  <For each={selectPluginTools()}>{(tool) => renderPluginTool(tool, tool.compactPinned ?? false)}</For>
                 </div>
               </Show>
             </div>
