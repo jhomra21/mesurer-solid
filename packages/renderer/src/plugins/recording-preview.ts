@@ -915,10 +915,13 @@ export const createRecordingPreviewController = ({
     if (!asset || panel.style.display === "none" || dismissAnimation) return;
 
     const panelRect = panel.getBoundingClientRect();
+
     const anchorRect = recordingToolAnchor()?.getBoundingClientRect();
+
     const targetCenterX = anchorRect
       ? anchorRect.left + anchorRect.width / 2
       : panelRect.left + panelRect.width / 2;
+
     const targetCenterY = anchorRect
       ? anchorRect.top + anchorRect.height / 2
       : panelRect.top + panelRect.height / 2;
