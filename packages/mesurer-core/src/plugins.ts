@@ -46,6 +46,8 @@ export type ToolContribution = {
   toolbarMode?: ToolbarMode;
   /** Marks the tool whose active state owns the Edit toolbar mode. */
   modeSwitch?: boolean;
+  /** Keep this tool visible when the toolbar is compact. */
+  compactPinned?: boolean;
   icon?: { viewBox?: string; paths: string[] };
   active?: () => boolean;
   disabled?: () => boolean;
@@ -169,6 +171,7 @@ export type MesurerPluginDescription = {
     builtin?: string;
     toolbarMode?: ToolbarMode;
     modeSwitch?: boolean;
+    compactPinned?: boolean;
   }>;
   settings: SettingsDescription[];
   overlays: OverlayContribution[];
