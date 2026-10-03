@@ -39,6 +39,74 @@ try {
     throw new Error(`Recording must default to 60 fps, got ${defaultFrameRate}`);
   }
 
+  const settingsButtonForFrameRate = island.locator("[data-mesurer-builtin='settings'] button").first();
+  const settingsDialogForFrameRate = island.getByRole("dialog", { name: "Settings" });
+
+  await settingsButtonForFrameRate.click();
+  await settingsDialogForFrameRate.waitFor({ state: "visible" });
+
+  const generalTabForFrameRate = settingsDialogForFrameRate.getByRole("tab", { name: "General" });
+
+  if ((await generalTabForFrameRate.getAttribute("aria-selected")) !== "true") {
+    await generalTabForFrameRate.click();
+  }
+
+  const pluginsDisclosure = settingsDialogForFrameRate.locator(
+    "[data-mesurer-plugin-settings-disclosure='plugins']",
+  );
+
+  if ((await pluginsDisclosure.getAttribute("aria-expanded")) !== "true") {
+    await pluginsDisclosure.click();
+  }
+
+  const recordingDisclosure = settingsDialogForFrameRate.locator(
+    "[data-mesurer-plugin-settings-disclosure='mesurer.recording']",
+  );
+
+  await recordingDisclosure.waitFor({ state: "visible" });
+
+  if ((await recordingDisclosure.getAttribute("aria-expanded")) !== "true") {
+    await recordingDisclosure.click();
+  }
+
+  const highFrameRateToggle = settingsDialogForFrameRate.getByRole(
+    "switch",
+    { name: "120 fps", exact: true },
+  );
+
+  await highFrameRateToggle.waitFor({ state: "visible" });
+
+  if ((await highFrameRateToggle.getAttribute("aria-checked")) !== "false") {
+    throw new Error("Recording 120 fps setting must begin off when the 60 fps default is active");
+  }
+
+  await highFrameRateToggle.click();
+
+  const selectedFrameRate = await page.evaluate(() =>
+    window.__MESURER_RECORDING_TEST__?.service.settings().frameRate);
+
+  if (
+    selectedFrameRate !== 120
+    || (await highFrameRateToggle.getAttribute("aria-checked")) !== "true"
+  ) {
+    throw new Error(`Recording Settings did not switch to 120 fps: ${selectedFrameRate}`);
+  }
+
+  await highFrameRateToggle.click();
+
+  const restoredFrameRate = await page.evaluate(() =>
+    window.__MESURER_RECORDING_TEST__?.service.settings().frameRate);
+
+  if (
+    restoredFrameRate !== 60
+    || (await highFrameRateToggle.getAttribute("aria-checked")) !== "false"
+  ) {
+    throw new Error(`Recording Settings did not return to 60 fps: ${restoredFrameRate}`);
+  }
+
+  await settingsButtonForFrameRate.click();
+  await settingsDialogForFrameRate.waitFor({ state: "hidden" });
+
   await recordButton.waitFor({ state: "visible" });
 
   if ((await recordButton.getAttribute("aria-label")) !== "Record (Shift+R)") {
@@ -504,6 +572,8 @@ try {
   console.log(JSON.stringify({
     snapshot,
     defaultFrameRate,
+    selectedFrameRate,
+    restoredFrameRate,
     formats,
     webmExport,
     mp4Export,
