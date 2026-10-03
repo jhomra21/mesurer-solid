@@ -19,12 +19,10 @@ import {
   CheckIcon,
   ColorPickerIcon,
   CursorIcon,
-  EditModeIcon,
   GearIcon,
   MinusIcon,
   RulerIcon,
   RulersIcon,
-  SelectModeIcon,
   TextInspectorIcon,
   XrayIcon,
 } from "./Icons";
