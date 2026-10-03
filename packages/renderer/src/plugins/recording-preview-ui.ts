@@ -106,7 +106,7 @@ export const createRecordingPreviewUi = ({
   setStyle(panel, {
     position: "fixed",
     display: "none",
-    width: `${PANEL_WIDTH}px`,
+    width: `${RECORDING_PREVIEW_PANEL_WIDTH}px`,
     "max-width": "calc(100vw - 16px)",
     padding: "8px",
     "z-index": "98",
