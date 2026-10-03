@@ -4,10 +4,12 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+<!-- Add user-facing changes here before preparing a release. -->
+
+## 0.2.1-beta.9 - 2026-10-03
+
 - Record video at 60 fps by default. Recording settings can opt into 120 fps, and browser, extension, and Electron capture paths request the selected rate when the source supports it.
 - Keep the Select interaction overlay pointer-transparent for the full active Recording lifecycle. The Electron acceptance now enables the real Select mode before sending a native click through the recorded region, matching the manual workflow that exposed the beta.8 regression.
-
-<!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.8 - 2026-10-02
 
