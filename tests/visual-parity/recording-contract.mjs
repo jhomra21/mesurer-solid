@@ -440,6 +440,7 @@ try {
   const [
     railBox,
     trackBox,
+    timelineOuterBox,
     trimStartInitialBox,
     trimEndInitialBox,
     trimStartChevronBox,
@@ -449,6 +450,7 @@ try {
   ] = await Promise.all([
     timelineRail.boundingBox(),
     timelineTrack.boundingBox(),
+    timeline.boundingBox(),
     trimStartHandle.boundingBox(),
     trimEndHandle.boundingBox(),
     trimStartChevron.boundingBox(),
@@ -468,14 +470,15 @@ try {
   if (
     !railBox
     || !trackBox
+    || !timelineOuterBox
     || !trimStartInitialBox
     || !trimEndInitialBox
     || !trimStartChevronBox
     || !trimEndChevronBox
     || trimStartInitialBox.y + trimStartInitialBox.height > railBox.y + 0.5
     || trimEndInitialBox.y + trimEndInitialBox.height > railBox.y + 0.5
-    || trimStartInitialBox.x < trackBox.x - 0.5
-    || trimEndInitialBox.x + trimEndInitialBox.width > trackBox.x + trackBox.width + 0.5
+    || trimStartInitialBox.x < timelineOuterBox.x - 0.5
+    || trimEndInitialBox.x + trimEndInitialBox.width > timelineOuterBox.x + timelineOuterBox.width + 0.5
     || trimStartChevronBox.width < 11
     || trimEndChevronBox.width < 11
     || currentTimeMetrics.scrollWidth > currentTimeMetrics.clientWidth + 1
@@ -486,6 +489,7 @@ try {
     throw new Error(`Recording timeline labels and larger trim controls must stay clear of the scrub track: ${JSON.stringify({
       railBox,
       trackBox,
+      timelineOuterBox,
       trimStartInitialBox,
       trimEndInitialBox,
       trimStartChevronBox,
