@@ -367,7 +367,7 @@ export const createRecordingPreviewController = ({
     position: "absolute",
     left: "0",
     right: "0",
-    top: "20px",
+    top: "21px",
     height: "3px",
     transform: "translateY(-50%)",
     "border-radius": "999px",
@@ -383,7 +383,7 @@ export const createRecordingPreviewController = ({
 
   setStyle(clip, {
     position: "absolute",
-    top: "20px",
+    top: "21px",
     height: "3px",
     transform: "translateY(-50%)",
     "border-radius": "999px",
@@ -398,7 +398,7 @@ export const createRecordingPreviewController = ({
   setStyle(hoverMarker, {
     position: "absolute",
     display: "none",
-    top: "20px",
+    top: "21px",
     width: "2px",
     height: "10px",
     transform: "translate(-50%, -50%)",
@@ -416,7 +416,7 @@ export const createRecordingPreviewController = ({
 
   setStyle(playhead, {
     position: "absolute",
-    top: "20px",
+    top: "21px",
     left: "0",
     width: "2px",
     height: "9px",
@@ -446,8 +446,8 @@ export const createRecordingPreviewController = ({
       position: "absolute",
       top: "0",
       display: "flex",
-      width: "18px",
-      height: "14px",
+      width: "20px",
+      height: "16px",
       padding: "0",
       border: "0",
       "border-radius": "4px",
@@ -465,16 +465,16 @@ export const createRecordingPreviewController = ({
 
     chevron.dataset.mesurerRecordingTrimChevron = kind;
     chevron.setAttribute("aria-hidden", "true");
-    chevron.setAttribute("viewBox", "0 0 10 12");
-    chevron.setAttribute("width", "10");
-    chevron.setAttribute("height", "12");
+    chevron.setAttribute("viewBox", "0 0 12 14");
+    chevron.setAttribute("width", "12");
+    chevron.setAttribute("height", "14");
 
     const chevronPath = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
 
-    chevronPath.setAttribute("d", kind === "start" ? "M3 2L7 6L3 10" : "M7 2L3 6L7 10");
+    chevronPath.setAttribute("d", kind === "start" ? "M3.5 2.5L8.5 7L3.5 11.5" : "M8.5 2.5L3.5 7L8.5 11.5");
     chevronPath.setAttribute("fill", "none");
     chevronPath.setAttribute("stroke", "currentColor");
-    chevronPath.setAttribute("stroke-width", "1.75");
+    chevronPath.setAttribute("stroke-width", "2");
     chevronPath.setAttribute("stroke-linecap", "round");
     chevronPath.setAttribute("stroke-linejoin", "round");
     chevron.append(chevronPath);
@@ -486,9 +486,9 @@ export const createRecordingPreviewController = ({
     setStyle(stem, {
       position: "absolute",
       left: "50%",
-      top: "13px",
+      top: "15px",
       width: "1px",
-      height: "5px",
+      height: "4px",
       background: "var(--msr-content, #18181b)",
       transform: "translateX(-50%)",
       "pointer-events": "none",
