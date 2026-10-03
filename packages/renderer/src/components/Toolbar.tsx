@@ -683,7 +683,7 @@ export function Toolbar(props: ToolbarProps) {
       data-mesurer-toolbar-compact={compact() ? "true" : "false"}
       data-mesurer-toolbar-mode={toolbarMode()}
       data-mesurer-inspector-ui="true"
-      class="mesurer-toolbar-surface msr:pointer-events-auto msr:absolute msr:z-[90] msr:flex msr:items-stretch msr:rounded-[12px] msr:bg-[#fff] msr:outline msr:outline-transparent"
+      class="mesurer-toolbar-surface msr:pointer-events-auto msr:absolute msr:z-[110] msr:flex msr:items-stretch msr:rounded-[12px] msr:bg-[#fff] msr:outline msr:outline-transparent"
       style={{ left: `${position().x}px`, top: `${position().y}px` }}
       onPointerDown={(event) => { event.stopPropagation(); props.model.setTransient({ toolbarActive: true }); onToolbarPointerDown(event); }}
       onClick={(event) => event.stopPropagation()}
