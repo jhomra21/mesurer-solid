@@ -33,7 +33,7 @@ The switch follows upstream Mesurer's grouped-toolbar structure and styling. Sel
 
 The legacy `Shift+A` shortcut still enters Edit as a compatibility shortcut.
 
-Selecting a Select-owned tool such as X-ray, Typography, Color Picker, Guides, Layout Guides, or Screenshot leaves Edit first. Context and Codex do not move between groups.
+Selecting a Select-only tool such as X-ray, Typography, Color Picker, Screenshot, or Recording leaves Edit first. Rulers, ordinary Guides, and Layout Guides stay visible and usable in Edit, so alignment evidence can be adjusted without leaving the editing lane. Context and Codex also remain visible in both modes.
 
 ## Move elements
 
