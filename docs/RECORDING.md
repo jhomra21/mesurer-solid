@@ -29,6 +29,8 @@ The typed `recording:v1` service exposes:
 
 - `snapshot()` — current status, elapsed time, selection, dimensions, duration, and error;
 - `subscribe(listener)` — observe lifecycle changes;
+- `settings()` — current Recording settings, including the selected frame rate;
+- `setSettings(patch)` — update persisted Recording settings;
 - `formats()` — formats the current runtime can encode;
 - `start(rect?)` — start from an exact viewport rect or enter drag selection when omitted;
 - `stop()` — finalize the active capture and return the recorded asset;
@@ -44,7 +46,9 @@ Once capture is recording, the selection layer stops owning pointer input. The a
 
 Passing an explicit rectangle to `service.start(rect)` remains the programmatic direct-start path and skips the interactive adjustment step.
 
-The defaults are 30 fps, medium quality, and a 60-second maximum capture. Plugin options may lower or raise the frame rate, quality, and duration cap. Recording currently captures video only; audio is discarded.
+Recording defaults to 60 fps, medium quality, and a 60-second maximum capture. Settings can switch the frame rate to 120 fps before recording. The public service exposes the same choice through `service.setSettings({ frameRate: 120 })`. The plugin option `recording({ frameRate: 120 })` can set the initial value.
+
+Mesurer asks browser, extension, and Electron capture sources for the selected frame rate. A source can still negotiate a lower physical rate when the platform cannot supply 60 or 120 fps. MediaBunny uses the selected 60 or 120 fps timeline for encoding and export. Recording currently captures video only; audio is discarded.
 
 ## MediaBunny pipeline
 
@@ -137,7 +141,7 @@ The dedicated Chromium contract uses an animated canvas as a deterministic displ
 
 - physical drag selection enters adjustment instead of starting immediately;
 - explicit start after adjustment;
-- host-page pointer input remains live while capture is recording;
+- host-page pointer input remains live while capture is recording, including when Select is active;
 - physical stop;
 - exact selected dimensions;
 - changing decoded frames rather than merely a non-empty container;
@@ -146,7 +150,7 @@ The dedicated Chromium contract uses an animated canvas as a deterministic displ
 - programmatic service capture;
 - browser display acquisition;
 - extension-stream acquisition without falling back to the display picker;
-- packed Electron acquisition through `mesurer-solid/electron` with no application-owned Recording preload/IPC, using a renderer-bound WebContents stream id; native Electron mouse input must still reach the recorded application while capture is active, with a retained WebM artifact;
+- packed Electron acquisition through `mesurer-solid/electron` with no application-owned Recording preload or IPC, using a renderer-bound WebContents stream id. The contract enables Select before capture, verifies the Select interaction overlay stays pointer-transparent, sends a native Electron click through the recorded region, checks the 60 fps default and 120 fps setting, and retains the WebM artifact;
 - Escape/cancel and clean browser diagnostics.
 
 Build/package checks also reject `MediaRecorder` in the Recording implementation and reject accidental MediaBunny bundling across the MPL/MIT boundary.
