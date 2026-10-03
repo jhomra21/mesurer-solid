@@ -52,13 +52,13 @@ Mesurer owns:
 - Edit movement and direct text Desired intent;
 - Mesurer commands/plugin state;
 - Mesurer-owned UI;
-- optional human screenshot UI.
+- optional human Screenshot and Recording UI.
 
 The Screenshot plugin is not a replacement for the browser controller's task screenshot capability. Do not add an Electron preload/main capture bridge only to collect coding-agent evidence. Native host capture belongs to applications that intentionally expose the human Screenshot feature in an Electron renderer.
 
 ## Existing human state
 
-Injection must not replace a connected Mesurer instance by default. Existing selection, annotations, measurements, guides, Edit movement/text intent, and screenshot UI may be part of the user's message.
+Injection must not replace a connected Mesurer instance by default. Existing selection, annotations, measurements, guides, Edit movement/text intent, Screenshot UI, and an open Recording preview may be part of the user's message.
 
 A controller that owns a long-lived injected session may set `recoverDisconnected: true` in `MesurerInjectConfig`. Mesurer then remounts if page DOM replacement disconnects the injected host. The default remains `false`, and an owning controller must disable recovery before an intentional disposal.
 
