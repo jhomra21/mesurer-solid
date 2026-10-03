@@ -708,6 +708,7 @@ try {
 
   const dismissMotion = await preview.evaluate((element) => {
     const animation = element.getAnimations()[0];
+
     const frames = animation?.effect instanceof KeyframeEffect
       ? animation.effect.getKeyframes()
       : [];
