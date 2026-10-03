@@ -1210,6 +1210,7 @@ export const recordingPlugin = (
       nextCapture: RecordingCapture,
       nextRecorder: MediaBunnyCanvasRecorder,
       operationId: number,
+      frameRate: MesurerRecordingFrameRate,
     ) => {
       const frameInterval = 1 / frameRate;
 
@@ -1331,7 +1332,7 @@ export const recordingPlugin = (
         showRecordingMask(rect);
         recordingTime.textContent = "00:00";
         placeRecordingStatus(rect);
-        startFramePump(nextCapture, nextRecorder, operationId);
+        startFramePump(nextCapture, nextRecorder, operationId, frameRate);
         nextCapture.track.addEventListener("ended", () => {
           if (operation === operationId && currentSnapshot.status === "recording") {
             void finishRecording().catch(() => undefined);
