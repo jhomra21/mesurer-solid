@@ -363,6 +363,17 @@ export const recordingPlugin = (
       return element;
     });
 
+    const recordingMask = ownerDocument.createElement("div");
+    recordingMask.dataset.mesurerRecordingMask = "true";
+    setStyle(recordingMask, {
+      position: "fixed",
+      display: "none",
+      background: "transparent",
+      "box-shadow": "0 0 0 100vmax rgb(0 0 0 / 40%)",
+      "pointer-events": "none",
+    });
+    overlay.append(recordingMask);
+
     const outline = ownerDocument.createElement("div");
     outline.dataset.mesurerRecordingSelection = "true";
     setStyle(outline, {
@@ -892,24 +903,12 @@ export const recordingPlugin = (
     };
 
     const showRecordingMask = (rect: ScreenshotRect) => {
-      const viewportWidth = ownerWindow.innerWidth;
-      const viewportHeight = ownerWindow.innerHeight;
+      for (const element of shade) {
+        setRectStyle(element, { left: 0, top: 0, width: 0, height: 0 });
+      }
 
-      setRectStyle(shade[0], { left: 0, top: 0, width: viewportWidth, height: rect.top });
-      setRectStyle(shade[1], { left: 0, top: rect.top, width: rect.left, height: rect.height });
-      setRectStyle(shade[2], {
-        left: rect.left + rect.width,
-        top: rect.top,
-        width: Math.max(0, viewportWidth - rect.left - rect.width),
-        height: rect.height,
-      });
-      setRectStyle(shade[3], {
-        left: 0,
-        top: rect.top + rect.height,
-        width: viewportWidth,
-        height: Math.max(0, viewportHeight - rect.top - rect.height),
-      });
-
+      setRectStyle(recordingMask, rect);
+      recordingMask.style.display = "block";
       outline.style.display = "none";
       sizeTag.style.display = "none";
       selectionPanel.style.display = "none";
@@ -925,6 +924,7 @@ export const recordingPlugin = (
 
     const hideRecordingMask = () => {
       setRecordingInteractionActive(false);
+      recordingMask.style.display = "none";
       overlay.style.display = "none";
       overlay.style.pointerEvents = "auto";
       overlay.style.cursor = "crosshair";
