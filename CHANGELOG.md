@@ -4,6 +4,9 @@ Notable user-facing changes to Mesurer Solid are recorded here. Add upcoming cha
 
 ## Unreleased
 
+- Remove the extra descriptive paragraphs beneath Recording and Codex in Settings; plugin rows stay compact unless copy is explicitly needed.
+- Keep the selected-region dimming stable when Recording starts. Pressing Start now swaps the selection controls for the Stop/timer chrome without briefly revealing the undimmed page while capture initializes.
+
 <!-- Add user-facing changes here before preparing a release. -->
 
 ## 0.2.1-beta.9 - 2026-10-03

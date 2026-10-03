@@ -59,6 +59,17 @@ try {
     await pluginsDisclosure.click();
   }
 
+  const pluginSettingsText = await settingsDialogForFrameRate.textContent();
+
+  for (const unwantedCopy of [
+    "Record a selected page region and trim, resize, or export it through MediaBunny.",
+    "Connects Mesurer to open Codex threads on this computer. Electron hosts provide the native Codex connection through preload.",
+  ]) {
+    if (pluginSettingsText?.includes(unwantedCopy)) {
+      throw new Error(`Plugin Settings must not render unsolicited description copy: ${unwantedCopy}`);
+    }
+  }
+
   const recordingDisclosure = settingsDialogForFrameRate.locator(
     "[data-mesurer-plugin-settings-disclosure='mesurer.recording']",
   );
@@ -153,8 +164,78 @@ try {
     throw new Error(`Dragging a Recording region must not start capture immediately: ${JSON.stringify(selectionSnapshot)}`);
   }
 
+  const shadeBeforeStart = await island.locator("[data-mesurer-recording-shade='true']").first()
+    .evaluate((element) => ({
+      background: getComputedStyle(element).backgroundColor,
+      height: element.getBoundingClientRect().height,
+    }));
+
+  await page.evaluate(() => {
+    window.__MESURER_RECORDING_TEST__?.setAcquisitionDelay(350);
+  });
+
+  const recordingStatus = island.locator("[data-mesurer-recording-status='true']");
+  const recordingStop = island.locator("[data-mesurer-recording-stop='true']");
+
   await startRecording.click();
+  await page.waitForTimeout(40);
+
+  const startingTransition = await page.evaluate(() => {
+    const island = document.querySelector("[data-mesurer-island='true']");
+    const root = island?.shadowRoot;
+
+    const overlay = root?.querySelector("[data-mesurer-recording-select='true']");
+    const panel = root?.querySelector("[data-mesurer-recording-region='true']");
+    const shade = root?.querySelector("[data-mesurer-recording-shade='true']");
+    const status = root?.querySelector("[data-mesurer-recording-status='true']");
+    const time = root?.querySelector("[data-mesurer-recording-time='true']");
+    const stop = root?.querySelector("[data-mesurer-recording-stop='true']");
+
+    if (
+      !(overlay instanceof HTMLElement)
+      || !(panel instanceof HTMLElement)
+      || !(shade instanceof HTMLElement)
+      || !(status instanceof HTMLElement)
+      || !(time instanceof HTMLElement)
+      || !(stop instanceof HTMLElement)
+    ) {
+      throw new Error("Recording start-transition surfaces are unavailable");
+    }
+
+    return {
+      snapshotStatus: window.__MESURER_RECORDING_TEST__?.service.snapshot().status,
+      overlayDisplay: getComputedStyle(overlay).display,
+      overlayPointerEvents: getComputedStyle(overlay).pointerEvents,
+      panelDisplay: getComputedStyle(panel).display,
+      shadeBackground: getComputedStyle(shade).backgroundColor,
+      shadeHeight: shade.getBoundingClientRect().height,
+      statusDisplay: getComputedStyle(status).display,
+      time: time.textContent,
+      stopVisible: stop.getBoundingClientRect().width > 0 && stop.getBoundingClientRect().height > 0,
+    };
+  });
+
+  if (
+    startingTransition.snapshotStatus !== "selecting"
+    || startingTransition.overlayDisplay === "none"
+    || startingTransition.overlayPointerEvents !== "none"
+    || startingTransition.panelDisplay !== "none"
+    || startingTransition.shadeBackground !== shadeBeforeStart.background
+    || Math.abs(startingTransition.shadeHeight - shadeBeforeStart.height) > 0.5
+    || startingTransition.statusDisplay !== "flex"
+    || startingTransition.time !== "00:00"
+    || !startingTransition.stopVisible
+  ) {
+    throw new Error(
+      `Recording start must preserve the dimmed region while swapping Start for Stop/time: ${JSON.stringify({ shadeBeforeStart, startingTransition })}`,
+    );
+  }
+
   await page.waitForFunction(() => window.__MESURER_RECORDING_TEST__?.service.snapshot().status === "recording");
+
+  await page.evaluate(() => {
+    window.__MESURER_RECORDING_TEST__?.setAcquisitionDelay(0);
+  });
 
   const toolbarDuringRecording = await island.locator("[data-mesurer-toolbar='true']")
     .evaluate((element) => getComputedStyle(element).visibility);
@@ -176,9 +257,6 @@ try {
   if ((await interactionTarget.getAttribute("data-clicks")) !== "1") {
     throw new Error("Host-page button did not receive a click while Recording was active");
   }
-
-  const recordingStatus = island.locator("[data-mesurer-recording-status='true']");
-  const recordingStop = island.locator("[data-mesurer-recording-stop='true']");
 
   await recordingStatus.waitFor({ state: "visible" });
   await recordingStop.waitFor({ state: "visible" });
