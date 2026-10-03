@@ -1,17 +1,17 @@
 # Getting started
 
-Mesurer runs in the browser. Mount it once from the browser entry for the page or renderer you want to inspect.
+Mesurer runs in the browser. Mount it once from the browser entry for the page or renderer you want to inspect. The current stable package is `mesurer-solid@0.2.1` on `latest`.
 
 ## Install
 
 ```bash
-bun add -d mesurer-solid
+bun add -d mesurer-solid@latest
 ```
 
 or:
 
 ```bash
-npm install -D mesurer-solid
+npm install -D mesurer-solid@latest
 ```
 
 ## Mount Mesurer
@@ -110,7 +110,7 @@ Keep plugin setup with the Mesurer mount. First-party plugin factories all come 
 
 ```ts
 import { mountMesurer } from "mesurer-solid"
-import { context, edit, recording, screenshot } from "mesurer-solid/plugins"
+import { context, edit, layoutGuides, recording, screenshot } from "mesurer-solid/plugins"
 
 if (import.meta.env.DEV) {
   const mesurer = mountMesurer({
@@ -118,6 +118,7 @@ if (import.meta.env.DEV) {
     plugins: [
       context(),
       edit(),
+      layoutGuides(),
       screenshot(),
       recording(),
     ],
@@ -135,7 +136,7 @@ Context, Edit, Layout Guides, Screenshot, Recording, and optional transports suc
 
 Do not call `mountMesurer()` from build configuration, API/server code, Node-only scripts, an Electron main process, or a module that also executes during SSR.
 
-For SSR frameworks, use the framework's normal client-only boundary. For Electron, use the renderer process where the DOM exists and keep privileged APIs in preload/main. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native capture and Color Picker uses the same capability for current-window pixel sampling. Renderer setup remains `screenshot()`; do not add Electron-specific Screenshot or Color Picker factories. See the [Electron renderer example](../examples/electron-renderer/README.md).
+For SSR frameworks, use the framework's normal client-only boundary. For Electron, use the renderer process where the DOM exists and keep privileged APIs in preload/main. If preload exposes `window.__MESURER_HOST__.captureScreenshot`, Screenshot uses native capture and Color Picker uses the same capability for current-window pixel sampling. For Recording, import `mesurer-solid/electron` once in Electron main before creating BrowserWindows; normal integrations do not add Recording IPC or preload code. Renderer setup remains `screenshot()` / `recording()` as usual. See the [Electron renderer example](../examples/electron-renderer/README.md).
 
 If Mesurer should ship in the browser build instead of being development-only, remove the development guard and keep the returned instance so it can be disposed later.
 
@@ -144,15 +145,16 @@ If Mesurer should ship in the browser build instead of being development-only, r
 Once mounted:
 
 - press `S` and click a rendered HTML or SVG element to select it; invoking Select again turns it off and clears the current element and Guide selection;
-- use `1` for Select mode and `2` for Edit mode; Select owns inspection, while Edit owns movement and direct text/style changes;
+- use `1` for Select mode and `2` for Edit mode; Select owns selection-first inspection/capture tools, while Edit owns movement and direct text/style changes;
 - hold Shift while selecting to build a multi-selection;
 - hold `Alt` / `Option` for the distance overlay;
 - Context and Codex remain visible when switching between Select and Edit;
 - use `Shift+R` to select a Recording region when the plugin is enabled; MediaBunny owns encoding and export while the browser or extension only provides the live stream;
-- use the compact control to hide inactive toolbar items without changing active mode.
+- keep Rulers, Guides, and Layout Guides available while Edit is active; X-ray, Color Picker, Typography, Screenshot, and Recording stay in Select;
+- use the compact control to hide inactive toolbar items without changing active mode;
 - drag the toolbar from its chrome or tool triggers; menus, dialogs, form controls, editable regions, and sliders keep pointer ownership.
 
-The base inspector includes Select, X-ray, Rulers, Typography, Guides, Distance, Settings, direct text editing, and plugin hosting. Typography is read-only inspection in Select. Enter Edit before changing text or typography. Color Picker appears when the host has `window.__MESURER_HOST__.captureScreenshot` or a working browser `EyeDropper`.
+The base inspector includes Select, X-ray, Color Picker, Rulers, Typography, Guides, Distance, Settings, direct text editing, and plugin hosting. Typography is read-only inspection in Select. Enter Edit before changing text or typography. Rulers and ordinary Guides remain usable in Edit, and the optional Layout Guides plugin does too.
 
 Global shortcuts are enabled by default. Disable them from **Settings > General > Shortcuts** or mount with `shortcutsEnabled: false`; toolbar controls and Escape/cancel behavior remain available.
 
@@ -171,6 +173,8 @@ Mode shortcuts are `1` for Select and `2` for Edit. `Shift+A` remains an Edit co
 - [Layout Guides](./LAYOUT_GUIDES.md)
 - [Measurements and distance geometry](./MEASUREMENTS.md)
 - [Screenshots](./SCREENSHOTS.md)
+- [Recording](./RECORDING.md)
+- [Electron renderer example](../examples/electron-renderer/README.md)
 - [Context](./CONTEXT_WORKFLOW.md)
 - [Agent integration](../packages/mesurer/AGENT_INTEGRATION.md)
 - [Documentation index](./README.md)
