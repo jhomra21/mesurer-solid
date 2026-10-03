@@ -7,10 +7,10 @@ Mesurer Solid started as a Solid port of [`ibelick/mesurer`](https://github.com/
 | Reference | Commit |
 | --- | --- |
 | Historical visual baseline | `605d202a4cd0404bb7a4808a11b574174bb14d1a` (`v0.0.11`) |
-| Previous upstream audit | `e625d222f3787eeed82c682950eb423589e8fc1c` (`v0.2.2`, verified 2026-10-01) |
-| Current upstream audit | `ca432288b8d803a2c134dba51da971f54931db8f` (`main`, verified 2026-10-01) |
+| Previous upstream audit | `ca432288b8d803a2c134dba51da971f54931db8f` (`main`, verified 2026-10-01) |
+| Current upstream audit | `26110edbbd8cd9c22c32a82b1b91073912fbdfc2` (`v0.2.3`, verified 2026-10-03) |
 
-The current audit advances from upstream `e625d222f3787eeed82c682950eb423589e8fc1c` (`0.2.2`) to `ca432288b8d803a2c134dba51da971f54931db8f` on `main`. The two post-release commits polish the extension recording preview iframe, export-menu placement, theme/anchor handoff, and related player typing. The same series also moves upstream Settings into a fixed portal to avoid recording-frame/menu stacking and clipping. Mesurer Solid's first-party `recording()` plugin now adopts the relevant selected-region/editor outcomes through its own viewport-owned preview and plugin lifecycle. It deliberately does not copy the upstream iframe/MediaRecorder architecture: capture acquisition stays private while MediaBunny owns encoding, trim, resize, inspection, and export.
+The stable-readiness audit advances from upstream `ca432288b8d803a2c134dba51da971f54931db8f` to `26110edbbd8cd9c22c32a82b1b91073912fbdfc2` (`v0.2.3`). The eight-commit delta adds GIF and capability-gated MP4 export, further recording-preview/iframe hardening, default-on shortcut persistence, toolbar-menu stacking above the recording card, and floating-menu shadow polish. Mesurer Solid adopts the product outcomes that belong to its architecture, keeps MediaBunny as the only encoded-video pipeline, and does not copy upstream's iframe or MediaRecorder-specific implementation.
 
 For each meaningful upstream change, decide whether Mesurer Solid should **adopt**, **intentionally diverge**, or treat it as **not applicable**.
 
@@ -26,6 +26,18 @@ Layout Guides follows this rule. Its initial, list, editor, aligned-editor, and 
 Current React Settings is a separate migration. Upstream now uses a sectioned Settings panel with additional React-owned sections, while Mesurer Solid still has the accepted tabbed Settings contract plus Solid plugin settings and presentation controls. This change shares the control implementation but keeps Settings on its historical presentation through the explicit `legacy` control variant. Do not partially restyle Settings. A future migration must move the whole panel and its Solid-owned additions together, with its own current-source parity coverage.
 
 These dated sections record when each decision was audited. Their decision text describes the current product boundary; version history belongs in `CHANGELOG.md`.
+
+### 2026-10-03 upstream 0.2.3 stable-readiness audit
+
+| Upstream delta | Decision | Reason |
+| --- | --- | --- |
+| Dependency-free GIF recording export | **Intentional divergence** | Mesurer Solid's Recording contract is encoded video through MediaBunny, with WebM and capability-gated MP4. The public package does not claim GIF export, so adding a separate GIF encoder would widen the media surface without serving the current product contract. |
+| Capability-gated MP4 export | **Already adopted by equivalent MediaBunny capability checks** | `supportedRecordingFormats()` exposes MP4 only when the runtime has a compatible MediaBunny encoder, and the Recording browser contract exercises real WebM/MP4 export. |
+| Recording preview transparency, theme handoff, iframe identity, and pointer-blocking fixes | **Adopted outcomes; iframe mechanics not applicable** | Mesurer Solid's preview is Mesurer-owned DOM rather than an iframe. It follows Mesurer theme tokens, owns its hit-testing directly, and has browser coverage for repeated preview interaction, export menus, dismissal, and Screenshot handoff. |
+| Shortcuts enabled by default in persistence and extension storage | **Already adopted** | Mesurer Solid's persisted global Shortcuts setting defaults on; disabling it gates global built-in/plugin shortcuts while preserving toolbar and local Escape/editor behavior. |
+| Toolbar submenus portal above the Recording card | **Adopted through the one-toolbar stacking boundary** | Mesurer Solid does not need a separate React portal. The toolbar now owns a stacking level above the Recording preview, so Settings, Guide, Edit, and plugin menus cannot be painted underneath the card. The Recording browser contract guards that ordering. |
+| Floating-menu shadow hairline polish | **Intentional visual divergence until a dedicated parity migration** | Mesurer Solid keeps its accepted toolbar/menu design tokens and historical/current visual contracts. Cosmetic upstream shadow changes are not silently imported into otherwise stable surfaces. |
+| Upstream release metadata for v0.2.3 | **Not applicable** | Versioning and package publication are repository-specific and do not change the Mesurer Solid runtime contract. |
 
 ### 2026-10-01 post-0.2.2 follow-up
 
