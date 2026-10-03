@@ -78,7 +78,7 @@ This check matters because the basic example aliases renderer source directly. S
 
 Screenshot host selection must be tested at the public plugin boundary. The Chromium Screenshot contract mounts `screenshot()`, exercises native host results as `Blob`, `ArrayBuffer`, `Uint8Array`, and wrapped `{ png, ...metadata }`, and verifies the cropped PNG result. Malformed host data must fail on the selected host path rather than falling through to a different capture permission flow.
 
-Package smoke builds and packs the exact npm artifact, installs it into a clean Electron consumer, and runs a real Electron renderer with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The Electron preload exposes the host capture capability, the main process backs it with `webContents.capturePage()`, and renderer code still mounts plain `screenshot()`.
+Package smoke builds and packs the exact npm artifact, installs it into a clean Electron consumer, and runs a real Electron renderer with `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. The Electron preload exposes the Screenshot host capture capability, the main process backs it with `webContents.capturePage()`, and renderer code still mounts plain `screenshot()`. Native PNG alpha is flattened against the renderer backdrop before output. The same packed consumer starts Recording through `mesurer-solid/electron` without application-owned Recording IPC/preload.
 
 The Chromium extension keeps a separate private adapter backed by `chrome.tabs.captureVisibleTab()`. Its permission and injection behavior belongs to the extension contract, not to the public Screenshot configuration.
 
