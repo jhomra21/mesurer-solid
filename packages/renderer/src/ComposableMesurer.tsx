@@ -405,13 +405,9 @@ export default function ComposableMesurer(props: MesurerProps) {
     if (controller && model) {
       if (model.current.xrayVisible) controller.deactivate("xray");
 
-      if (model.current.rulersVisible) controller.deactivate("rulers");
-
       if (model.current.colorPickerActive) controller.deactivate("color-picker");
 
       if (model.current.toolMode === "text-inspector") controller.deactivate("text-inspector");
-
-      if (model.current.toolMode === "guides") controller.deactivate("guides");
     }
 
     for (const id of pluginToolIds) {
@@ -901,7 +897,9 @@ export default function ComposableMesurer(props: MesurerProps) {
     const runBuiltinSlot = async (id: Exclude<MesurerBuiltinPluginId, "distance">) => {
       if (builtinActionDisabled(id)) return;
 
-      if (id !== "settings" && arrangeActive()) {
+      const sharedEditBuiltin = id === "rulers" || id === "guides";
+
+      if (id !== "settings" && !sharedEditBuiltin && arrangeActive()) {
         await leaveEditMode("select-mode-builtin");
 
         if (id === "select" || builtinSlotActive(id)) return;
