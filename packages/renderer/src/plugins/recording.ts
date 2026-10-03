@@ -51,7 +51,7 @@ const DISCARD_COMMAND = "recording.discard";
 
 const EXPORT_COMMAND = "recording.export";
 
-const DEFAULT_FRAME_RATE = 30;
+const DEFAULT_FRAME_RATE = 60;
 
 const DEFAULT_MAX_DURATION_SECONDS = 60;
 
@@ -73,8 +73,11 @@ export type MesurerRecordingStatus =
   | "exporting"
   | "error";
 
+export type MesurerRecordingFrameRate = 60 | 120;
+
 export type MesurerRecordingSettings = {
   toolEnabled: boolean;
+  frameRate: MesurerRecordingFrameRate;
 };
 
 export type MesurerRecordingSnapshot = {
@@ -96,7 +99,7 @@ export type MesurerRecordingExportResult = RecordingPreviewExportResult;
 
 export type MesurerRecordingPluginOptions = {
   toolEnabled?: boolean;
-  frameRate?: number;
+  frameRate?: MesurerRecordingFrameRate;
   maxDurationSeconds?: number;
   quality?: RecordingQuality;
 };
@@ -104,6 +107,8 @@ export type MesurerRecordingPluginOptions = {
 export type MesurerRecordingService = {
   snapshot(): MesurerRecordingSnapshot;
   subscribe(listener: (snapshot: MesurerRecordingSnapshot) => void): () => void;
+  settings(): MesurerRecordingSettings;
+  setSettings(patch: Partial<MesurerRecordingSettings>): void;
   formats(): Promise<RecordingExportFormat[]>;
   start(rect?: ScreenshotRect): Promise<void>;
   stop(): Promise<MesurerRecordingAsset>;
@@ -115,6 +120,7 @@ export type MesurerRecordingService = {
 type RecordingSettingsValue = {
   [key: string]: PluginValue;
   toolEnabled: boolean;
+  frameRate: MesurerRecordingFrameRate;
 };
 
 type ToolbarVisibility = {
@@ -288,11 +294,6 @@ export const recordingPlugin = (
       "font-family": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
     });
 
-    const frameRate = Math.max(
-      1,
-      Math.min(60, Math.round(options.frameRate ?? DEFAULT_FRAME_RATE)),
-    );
-
     const maxDurationSeconds = Math.max(
       1,
       Math.min(600, options.maxDurationSeconds ?? DEFAULT_MAX_DURATION_SECONDS),
@@ -304,6 +305,7 @@ export const recordingPlugin = (
       id: MESURER_RECORDING_SETTINGS_STATE_ID,
       initial: {
         toolEnabled: options.toolEnabled ?? true,
+        frameRate: options.frameRate ?? DEFAULT_FRAME_RATE,
       },
       persist: true,
     });
@@ -313,6 +315,7 @@ export const recordingPlugin = (
 
       return {
         toolEnabled: stored?.toolEnabled ?? true,
+        frameRate: stored?.frameRate === 120 ? 120 : 60,
       };
     };
 
@@ -321,6 +324,10 @@ export const recordingPlugin = (
         const next = { ...current };
 
         if (patch.toolEnabled !== undefined) next.toolEnabled = patch.toolEnabled;
+
+        if (patch.frameRate === 60 || patch.frameRate === 120) {
+          next.frameRate = patch.frameRate;
+        }
 
         return next;
       });
@@ -1055,7 +1062,7 @@ export const recordingPlugin = (
       const width = current?.width ?? Math.max(2, Math.round(ownerWindow.innerWidth));
       const height = current?.height ?? Math.max(2, Math.round(ownerWindow.innerHeight));
 
-      return supportedRecordingFormats(width, height, frameRate);
+      return supportedRecordingFormats(width, height, readSettings().frameRate);
     };
 
     const exportClip = async (
@@ -1264,6 +1271,7 @@ export const recordingPlugin = (
       rect: ScreenshotRect,
     ) => {
       const operationId = ++operation;
+      const frameRate = readSettings().frameRate;
       preview.dismiss();
       asset = null;
       finishSelection();
@@ -1279,7 +1287,7 @@ export const recordingPlugin = (
       });
 
       try {
-        const nextCapture = await openRecordingCapture(ownerDocument, ownerWindow, rect);
+        const nextCapture = await openRecordingCapture(ownerDocument, ownerWindow, rect, frameRate);
 
         if (disposed || operation !== operationId) {
           closeRecordingCapture(nextCapture);
@@ -1711,6 +1719,8 @@ export const recordingPlugin = (
 
         return () => subscribers.delete(listener);
       },
+      settings: readSettings,
+      setSettings,
       formats,
       start,
       stop: finishRecording,
@@ -1769,6 +1779,17 @@ export const recordingPlugin = (
             setSettings({ toolEnabled });
 
             if (!toolEnabled && active()) await cancel();
+          },
+        },
+        {
+          type: "toggle",
+          id: "120-fps",
+          label: "120 fps",
+          description: "Record at 120 fps when the capture source supports it. Off records at 60 fps.",
+          value: () => readSettings().frameRate === 120,
+          disabled: active,
+          set: (enabled) => {
+            setSettings({ frameRate: enabled ? 120 : 60 });
           },
         },
       ],
