@@ -430,8 +430,10 @@ try {
   }
 
   const timelineRail = island.locator("[data-mesurer-recording-timeline-rail='true']");
+
   const trimStartChevron = trimStartHandle.locator("[data-mesurer-recording-trim-chevron='start']");
   const trimEndChevron = trimEndHandle.locator("[data-mesurer-recording-trim-chevron='end']");
+
   const [railBox, trimStartInitialBox, trimEndInitialBox] = await Promise.all([
     timelineRail.boundingBox(),
     trimStartHandle.boundingBox(),
