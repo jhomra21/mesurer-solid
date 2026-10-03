@@ -356,8 +356,32 @@ const extensionRecordingStream = async (
   });
 };
 
+const applyRecordingFrameRate = async (
+  stream: MediaStream,
+  frameRate: number,
+) => {
+  const track = stream.getVideoTracks()[0];
+
+  if (!track?.applyConstraints) return stream;
+
+  try {
+    await track.applyConstraints({
+      frameRate: {
+        ideal: frameRate,
+        max: frameRate,
+      },
+    });
+  } catch {
+    // Capture sources are allowed to negotiate below the requested rate.
+    // Mesurer still encodes on the selected 60/120 fps timeline.
+  }
+
+  return stream;
+};
+
 const requestRecordingStream = async (
   ownerWindow: Window,
+  frameRate: number,
 ) => {
   const media = ownerWindow.navigator.mediaDevices;
 
@@ -366,13 +390,18 @@ const requestRecordingStream = async (
   }
 
   if (recordingHostCapture(ownerWindow)) {
-    return hostRecordingStream(ownerWindow, media);
+    return applyRecordingFrameRate(
+      await hostRecordingStream(ownerWindow, media),
+      frameRate,
+    );
   }
 
   try {
     const extensionStream = await extensionRecordingStream(ownerWindow, media);
 
-    if (extensionStream) return extensionStream;
+    if (extensionStream) {
+      return applyRecordingFrameRate(extensionStream, frameRate);
+    }
   } catch {
     // The extension path is an optimization. Fall through to the browser
     // picker when the tab grant expired or the one-use stream id cannot be consumed.
@@ -382,19 +411,36 @@ const requestRecordingStream = async (
     throw new Error("Screen recording is unavailable in this browser.");
   }
 
+  const frameRateConstraint = {
+    ideal: frameRate,
+    max: frameRate,
+  };
+
   const currentTab: ChromiumDisplayMediaStreamOptions = {
     audio: false,
-    video: { displaySurface: "browser" },
+    video: {
+      displaySurface: "browser",
+      frameRate: frameRateConstraint,
+    },
     preferCurrentTab: true,
     selfBrowserSurface: "include",
   };
 
   try {
-    return await media.getDisplayMedia(currentTab);
+    return applyRecordingFrameRate(
+      await media.getDisplayMedia(currentTab),
+      frameRate,
+    );
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === "AbortError") throw cause;
 
-    return media.getDisplayMedia({ audio: false, video: true });
+    return applyRecordingFrameRate(
+      await media.getDisplayMedia({
+        audio: false,
+        video: { frameRate: frameRateConstraint },
+      }),
+      frameRate,
+    );
   }
 };
 
@@ -402,8 +448,9 @@ export const openRecordingCapture = async (
   ownerDocument: Document,
   ownerWindow: Window,
   rect: ScreenshotRect,
+  frameRate = 60,
 ): Promise<RecordingCapture> => {
-  const stream = await requestRecordingStream(ownerWindow);
+  const stream = await requestRecordingStream(ownerWindow, frameRate);
   const track = stream.getVideoTracks()[0];
 
   if (!track) {

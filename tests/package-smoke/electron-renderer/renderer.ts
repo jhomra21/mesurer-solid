@@ -30,6 +30,10 @@ type ElectronTestSummary = {
   recordingBytes: number;
   recordingInteractionClicks: number;
   recordingAutoHost: boolean;
+  recordingFrameRateDefault: number;
+  recordingFrameRateSelected: number;
+  recordingSelectModeActive: boolean;
+  recordingInteractionOverlayPointerEvents: string;
   toolbarInitialRect: {
     left: number;
     top: number;
@@ -173,7 +177,6 @@ const mesurer = mountMesurer({
       download: false,
     }),
     recording({
-      frameRate: 12,
       maxDurationSeconds: 5,
       quality: "low",
     }),
@@ -261,6 +264,20 @@ const recordingAutoHost = Boolean(
   window.__MESURER_RECORDING_HOST__?.captureRecordingStream,
 );
 
+const recordingFrameRateDefault = recordingService.settings().frameRate;
+
+if (recordingFrameRateDefault !== 60) {
+  throw new Error(`Recording default frame rate must be 60 fps, got ${recordingFrameRateDefault}`);
+}
+
+recordingService.setSettings({ frameRate: 120 });
+
+const recordingFrameRateSelected = recordingService.settings().frameRate;
+
+if (recordingFrameRateSelected !== 120) {
+  throw new Error(`Recording 120 fps setting did not apply, got ${recordingFrameRateSelected}`);
+}
+
 if (!recordingAutoHost) {
   throw new Error(
     "mesurer-solid/electron did not install its package-owned Recording preload.",
@@ -279,6 +296,22 @@ recordingAction.addEventListener("click", () => {
   recordingInteractionClicks += 1;
 });
 
+const selectButton = await waitFor(() =>
+  shadow.querySelector<HTMLButtonElement>('button[aria-label="Select (S)"]'),
+);
+
+if (selectButton.getAttribute("aria-pressed") !== "true") {
+  selectButton.click();
+}
+
+await waitFor(() =>
+  selectButton.getAttribute("aria-pressed") === "true"
+    ? selectButton
+    : null,
+);
+
+const recordingSelectModeActive = selectButton.getAttribute("aria-pressed") === "true";
+
 await recordingService.start({
   left: target.inspection.rect.left,
   top: target.inspection.rect.top,
@@ -291,6 +324,18 @@ await waitFor(() =>
     ? recordingService.snapshot()
     : null,
 );
+
+const interactionOverlay = await waitFor(() =>
+  shadow.querySelector<HTMLElement>("[data-mesurer-interaction-overlay='true']"),
+);
+
+const recordingInteractionOverlayPointerEvents = getComputedStyle(interactionOverlay).pointerEvents;
+
+if (recordingInteractionOverlayPointerEvents !== "none") {
+  throw new Error(
+    `Select interaction overlay blocks the host while Recording is active: pointer-events=${recordingInteractionOverlayPointerEvents}`,
+  );
+}
 
 const recordingActionRect = recordingAction.getBoundingClientRect();
 
@@ -434,6 +479,10 @@ await window.electronMesurer.complete({
     recordingBytes: recordingBytes.byteLength,
     recordingInteractionClicks,
     recordingAutoHost,
+    recordingFrameRateDefault,
+    recordingFrameRateSelected,
+    recordingSelectModeActive,
+    recordingInteractionOverlayPointerEvents,
     toolbarInitialRect: {
       left: toolbarInitialBounds.left,
       top: toolbarInitialBounds.top,
