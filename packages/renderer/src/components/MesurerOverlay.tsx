@@ -66,20 +66,24 @@ export function MesurerOverlay(props: MesurerOverlayProps) {
   const selectionVisible = () => props.model.state.toolMode === "select";
   const guidesMode = () => props.model.state.toolMode === "guides";
   const overlayVisible = () => props.model.state.enabled;
+
   const recordingInteractionActive = () =>
     overlayElement
       ?.closest<HTMLElement>("[data-mesurer-root='true']")
       ?.hasAttribute("data-mesurer-recording-active") ?? false;
+
   const overlayInteractive = () =>
     !recordingInteractionActive()
     && props.interactive
     && overlayVisible()
     && props.model.state.toolMode !== "none"
     && props.model.state.toolMode !== "text-inspector";
+
   const guidePointerEvents = () =>
     !recordingInteractionActive()
     && props.interactive
     && (props.model.state.toolMode !== "none" || props.model.state.rulersVisible);
+
   const outline = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 80%, transparent)`;
   const fill = () => `color-mix(in oklch, ${props.model.state.settings.highlightColor} 8%, transparent)`;
   // Upstream paints the active measurement and persistent selection on the same
