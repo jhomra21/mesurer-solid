@@ -8,7 +8,7 @@ Use these rules when reviewing new Mesurer-owned UI. They cover shared visual de
 
 Use the existing accepted surfaces as the first reference before adding feature-specific chrome.
 
-The accepted shared visual baseline remains upstream `33ffecfa7682b25dff5ada2a507feedfa18c745b` (`0.2.0`). That release commit does not change renderer source from `d47fd6056a01da9c442ae04840ec4d0dd46a1257`, so the shared theme colors, 8px floating surfaces, 5px control radius, control density, and floating shadows remain the visual reference. This is deliberately a visual baseline, not the current upstream audit; use [Upstream parity](./UPSTREAM_PARITY.md) for the latest audited source and product decisions. Existing Mesurer Solid surfaces keep their accepted geometry until a focused parity change updates them.
+The accepted shared visual baseline remains upstream `33ffecfa7682b25dff5ada2a507feedfa18c745b` (`0.2.0`) for unchanged surfaces. The 0.2.1 stable-readiness audit deliberately refreshes shared floating menus and the Color Picker to upstream `0.2.3`'s 9px corner and floating-shadow hairline; other Context, Typography, Settings, and toolbar geometry stays on its accepted baseline until a focused parity change updates it. Use [Upstream parity](./UPSTREAM_PARITY.md) for the latest audited source and product decisions rather than treating the historical baseline as current upstream.
 
 - Reuse an existing Mesurer Solid surface when it already matches the feature.
 - New floating controls, menus, inspectors, and review cards should use the shared surface and shadow tokens instead of hard-coded light colors.
