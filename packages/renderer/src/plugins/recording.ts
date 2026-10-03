@@ -1275,7 +1275,13 @@ export const recordingPlugin = (
       const frameRate = readSettings().frameRate;
       preview.dismiss();
       asset = null;
-      finishSelection();
+      selectingOrigin = null;
+      selectionRect = null;
+      selectionAdjusting = false;
+      selectionDrag = null;
+      showRecordingMask(rect);
+      root.style.pointerEvents = "none";
+      setRecordingInteractionActive(true);
       restoreToolbar();
       updateSnapshot({
         status: "selecting",
@@ -1286,6 +1292,8 @@ export const recordingPlugin = (
         height: null,
         error: null,
       });
+      recordingTime.textContent = "00:00";
+      placeRecordingStatus(rect);
 
       try {
         const nextCapture = await openRecordingCapture(ownerDocument, ownerWindow, rect, frameRate);
@@ -1710,6 +1718,12 @@ export const recordingPlugin = (
     recordingStop.addEventListener("click", () => {
       if (currentSnapshot.status === "recording") {
         void finishRecording().catch(() => undefined);
+
+        return;
+      }
+
+      if (currentSnapshot.status === "selecting" && recordingStatus.style.display !== "none") {
+        void cancel().catch(() => undefined);
       }
     });
 
